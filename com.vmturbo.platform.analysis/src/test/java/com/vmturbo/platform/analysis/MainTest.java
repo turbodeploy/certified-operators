@@ -25,6 +25,16 @@ import junitparams.naming.TestCaseName;
 public final class MainTest {
 
     @Test
+    public void testConstructor() {
+        new Main();
+    }
+
+    @Test
+    public void testMain() {
+        Main.main(null);
+    }
+
+    @Test
     @Parameters({"0,1","1,1","2,2","3,6","4,24","5,120"})
     @TestCaseName("factorial({0}) = {1}")
     public void testFactorialNormalInput(int input, int output) {
