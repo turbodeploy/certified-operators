@@ -1,7 +1,5 @@
 package com.vmturbo.platform.analysis.economy;
 
-import static com.google.common.primitives.Longs.lexicographicalComparator;
-
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -9,6 +7,8 @@ import java.util.List;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
+
+import com.google.common.collect.Ordering;
 
 /**
  * A set of commodity specifications a trader may try to buy or sell.
@@ -24,7 +24,7 @@ public class Basket implements Comparable<@NonNull @ReadOnly Basket> {
     // The numerical representations of the commodity specifications comprising this basket.
     // These are used only internally for performance. It must be sorted in ascending order.
     // It must not contain duplicate elements.
-    private  @NonNull long[] commodityTypes_;
+    private  @NonNull CommoditySpecification @NonNull [] commodityTypes_;
 
     // Constructors
 
@@ -35,9 +35,9 @@ public class Basket implements Comparable<@NonNull @ReadOnly Basket> {
      *                       They are copied.
      */
     public Basket(CommoditySpecification... commodityTypes) {
-        commodityTypes_ = new long[commodityTypes.length];
+        commodityTypes_ = new CommoditySpecification[commodityTypes.length];
         for(int i = 0 ; i < commodityTypes.length ; ++i) {
-            commodityTypes_[i] = commodityTypes[i].numericalRepresentation();
+            commodityTypes_[i] = commodityTypes[i];
         }
         Arrays.sort(commodityTypes_);
         // TODO: assert that elements of commodityTypes_ are unique.
@@ -77,7 +77,7 @@ public class Basket implements Comparable<@NonNull @ReadOnly Basket> {
     @Override
     @Pure
     public final int compareTo(@NonNull @ReadOnly Basket this, @NonNull @ReadOnly Basket other) {
-        return lexicographicalComparator().compare(commodityTypes_, other.commodityTypes_);
+        return Ordering.natural().lexicographical().compare(Arrays.asList(commodityTypes_), Arrays.asList(other.commodityTypes_));
     }
 
     @Pure
@@ -93,7 +93,7 @@ public class Basket implements Comparable<@NonNull @ReadOnly Basket> {
     @Pure
     public final int indexOf(@ReadOnly Basket this, CommoditySpecification elementToSearchFor) {
         // The elements of commodityTypes_ are unique so the first match will be the only match.
-        return Math.max(-1,Arrays.binarySearch(commodityTypes_, elementToSearchFor.numericalRepresentation()));
+        return Math.max(-1,Arrays.binarySearch(commodityTypes_, elementToSearchFor));
     }
 
     @Pure
