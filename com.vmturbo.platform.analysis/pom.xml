@@ -67,5 +67,10 @@
             <artifactId>guava</artifactId>
             <version>18.0</version>
         </dependency>
+        <dependency>
+            <groupId>org.checkerframework</groupId>
+            <artifactId>checker-qual</artifactId>
+            <version>1.9.5</version>
+        </dependency>
     </dependencies>
 </project>
