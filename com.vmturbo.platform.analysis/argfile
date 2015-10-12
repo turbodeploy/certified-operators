@@ -1,0 +1,7 @@
+-processor org.checkerframework.checker.nullness.NullnessChecker,org.checkerframework.checker.javari.JavariChecker
+-Alint=all
+-AsuggestPureMethods
+-AcheckPurityAnnotations
+-AprintErrorStack
+-Awarns
+-Xmaxwarns 10000
