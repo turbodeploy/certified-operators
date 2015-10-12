@@ -4,7 +4,9 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
+import org.checkerframework.dataflow.qual.Pure;
 
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommodityType;
@@ -22,11 +24,11 @@ import com.vmturbo.platform.analysis.economy.Trader;
  */
 final class MarketWithBasket implements Basket, Market {
 
-    // Fields
-
+    // Fields for Basket
     private CommodityType[] commodityTypes; // must have the same size as commodityKeys and the pair
     private long[] commodityKeys; // must be sorted by commodity type and then by key.
 
+    // Fields for Market
     private Trader[] buyers; // all active Merchants buying {@code this} basket.
     private Trader[] sellers; // all active Merchants selling a basket that matches {@code this}.
     private int[] mapping; // The mapping between sellers and buyers of this Market. Can support up
@@ -40,35 +42,47 @@ final class MarketWithBasket implements Basket, Market {
     // Methods
 
     @Override
-    public int compareTo(@NonNull Basket other) {
+    @Pure
+    public int compareTo(@NonNull @ReadOnly MarketWithBasket this, @NonNull @ReadOnly Basket other) {
         // TODO Auto-generated method stub
         return 0;
     }
 
     @Override
-    public boolean isSatisfiedBy(@NonNull Basket other) {
+    @Pure
+    public boolean isSatisfiedBy(@NonNull @ReadOnly Basket other) {
         // TODO Auto-generated method stub
         return false;
     }
 
     @Override
+    @Pure
     public @NonNull Market getMarket() {
         return this;
     }
 
     @Override
+    @Pure
     public @NonNull Basket getBasket() {
         return this;
     }
 
     @Override
+    @Pure
     public @NonNull List<@NonNull Trader> getSellers() {
         return Collections.unmodifiableList(Arrays.asList(sellers));
     }
 
     @Override
+    @Pure
     public @NonNull List<@NonNull Trader> getBuyers() {
         return Collections.unmodifiableList(Arrays.asList(buyers));
+    }
+
+    @Override
+    public @NonNull @ReadOnly List<@NonNull @ReadOnly CommodityType> getCommodityTypes() {
+        // TODO Auto-generated method stub
+        return null;
     }
 
 } // end MarketWithBasket class

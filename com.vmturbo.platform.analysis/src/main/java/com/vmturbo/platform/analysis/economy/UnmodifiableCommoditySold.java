@@ -2,25 +2,36 @@ package com.vmturbo.platform.analysis.economy;
 
 import java.util.List;
 
+import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
+import org.checkerframework.dataflow.qual.Pure;
 
 /**
  * An unmodifiable interface to a commodity sold by a single {@link Trader}.
  */
 public interface UnmodifiableCommoditySold {
     /**
-     * Returns an unmodifiable list of {@link Trader traders} buying {@code this} commodity.
+     * Returns an unmodifiable list of traders buying {@code this} commodity.
      */
-    @NonNull List<Trader> getConsumers();
+    @Pure
+    @NonNull @ReadOnly List<@NonNull @ReadOnly Trader> getBuyers(@ReadOnly UnmodifiableCommoditySold this);
+
+    /**
+     * Returns the (unique) trader selling {@code this} commodity.
+     */
+    @Pure
+    @NonNull @ReadOnly Trader getSeller(@ReadOnly UnmodifiableCommoditySold this);
 
     /**
      * The {@link CommoditySoldSettings settings} controlling {@code this} commodity's behavior.
      */
+    @Pure
     @NonNull CommoditySoldSettings getSettings();
 
     /**
      * Returns the <b>type</b> of {@code this} commodity.
      */
+    @Pure
     @NonNull CommodityType getType();
 
     /**
@@ -41,11 +52,13 @@ public interface UnmodifiableCommoditySold {
      *  other key. e.g. This is used for access commodities.
      * </p>
      */
+    @Pure
     long getKey();
 
     /**
      * Returns the <b>capacity</b> for {@code this} commodity.
      */
+    @Pure
     double getCapacity();
 
     /**
@@ -55,6 +68,7 @@ public interface UnmodifiableCommoditySold {
      *  This is related to <a href="https://en.wikipedia.org/wiki/Thin_provisioning">thin provisioning</a>.
      * </p>
      */
+    @Pure
     boolean isThin();
 
 } // end UnmodifiableCommoditySold interface

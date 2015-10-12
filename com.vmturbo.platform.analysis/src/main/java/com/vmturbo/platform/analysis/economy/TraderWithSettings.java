@@ -6,23 +6,26 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 final class TraderWithSettings implements Trader, TraderSettings {
-    // Fields
+    // Fields for TraderSettings
     private boolean suspendable_ = false;
     private boolean cloneable_ = false;
     private double maxDesiredUtilization_ = 1.0;
     private double minDesiredUtilization_ = 0.0;
 
+    // Fields for Trader
     private TraderState state_;
-    private final TraderType type_; // this should never change once object is created.
+    private final TraderType type_; // this should never change once the object is created.
     private CommoditySold[] commoditiesSold_;
 
     // Constructors
-    public TraderWithSettings(TraderType type, TraderState state) {
+    public TraderWithSettings(TraderType type, @NonNull TraderState state) {
         type_ = type;
-        setState(state);
+        state_ = state;
     }
 
     // Methods
@@ -76,13 +79,7 @@ final class TraderWithSettings implements Trader, TraderSettings {
     }
 
     @Override
-    public @NonNull List<@NonNull Basket> getBasketsBought() {
-        // TODO Auto-generated method stub
-        return null;
-    }
-
-    @Override
-    public @NonNull List<@NonNull UnmodifiableCommoditySold> getCommoditiesSold() {
+    public @NonNull List<@NonNull @ReadOnly CommoditySold> getCommoditiesSold() {
         return Collections.unmodifiableList(Arrays.asList(commoditiesSold_));
     }
 
@@ -102,9 +99,74 @@ final class TraderWithSettings implements Trader, TraderSettings {
     }
 
     @Override
-    public @NonNull Trader setState(TraderState state) {
+    public @NonNull Trader setState(@NonNull TraderState state) {
         state_ = state;
         return this;
+    }
+
+    @Override
+    public @NonNull @ReadOnly List<@NonNull @ReadOnly Trader> getCustomers() {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
+    @Override
+    public @NonNull @ReadOnly List<@NonNull @ReadOnly Trader> getSuppliers() {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
+    @Override
+    public @Nullable @ReadOnly Trader getSupplier(@NonNull @ReadOnly Market market) {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
+    @Override
+    public @NonNull @ReadOnly List<@NonNull @ReadOnly Market> getMarketsAsBuyer() {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
+    @Override
+    public @NonNull @ReadOnly List<@NonNull @ReadOnly Market> getMarketsAsSeller() {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
+    @Override
+    public @NonNull @ReadOnly Basket getBasketSold() {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
+    @Override
+    public @NonNull Trader addCommoditySold(@NonNull @ReadOnly CommodityType newCommodityType,
+                                            @NonNull CommoditySold newCommoditySold) {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
+    @Override
+    public @NonNull CommoditySold
+           removeCommoditySold(@NonNull @ReadOnly CommodityType typeToRemove) {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
+    @Override
+    public @NonNull Trader addCommodityBought(@NonNull Basket basketToAddTo,
+                                              @NonNull @ReadOnly CommodityType commodityTypeToAdd) {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
+    @Override
+    public @NonNull Trader
+           removeCommodityBought(@NonNull Basket basketToRemoveFrom,
+                                 @NonNull @ReadOnly CommodityType commodityTypeToRemove) {
+        // TODO Auto-generated method stub
+        return null;
     }
 
 }

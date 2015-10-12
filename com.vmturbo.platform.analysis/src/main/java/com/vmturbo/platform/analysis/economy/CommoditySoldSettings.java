@@ -1,6 +1,7 @@
 package com.vmturbo.platform.analysis.economy;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
+import org.checkerframework.dataflow.qual.Pure;
 
 /**
  * The settings associated with and controlling the behavior of a single {@link CommoditySold}.
@@ -9,16 +10,19 @@ public interface CommoditySoldSettings {
     /**
      * Returns whether {@code this} commodity is resizable.
      */
+    @Pure
     boolean isResizable();
 
     /**
      * Returns the upper bound for {@code this} commodity's capacity, in case of a resize.
      */
+    @Pure
     double getCapacityUpperBound();
 
     /**
      * Returns the lower bound for {@code this} commodity's capacity, in case of a resize.
      */
+    @Pure
     double getCapacityLowerBound();
 
     /**
@@ -29,6 +33,7 @@ public interface CommoditySoldSettings {
      *  the capacity increment.
      * </p>
      */
+    @Pure
     double getCapacityIncrement();
 
     /**
@@ -39,6 +44,7 @@ public interface CommoditySoldSettings {
      *  It may be used in price calculations.
      * </p>
      */
+    @Pure
     double getUtilizationUpperBound();
 
     // need to add the price function here once we know its type...

@@ -2,7 +2,9 @@ package com.vmturbo.platform.analysis.economy;
 
 import java.util.List;
 
+import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
+import org.checkerframework.dataflow.qual.Pure;
 
 
 /**
@@ -17,16 +19,19 @@ public interface Market {
     /**
      * Returns the associated {@link Basket}
      */
-    @NonNull Basket getBasket();
+    @Pure
+    @NonNull Basket getBasket(@ReadOnly Market this);
 
     /**
      * Returns an unmodifiable list of sellers participating in {@code this} {@code Market}.
      */
-    @NonNull List<Trader> getSellers();
+    @Pure
+    @NonNull @ReadOnly List<@NonNull Trader> getSellers(@ReadOnly Market this);
 
     /**
      * Returns an unmodifiable list of buyers participating in {@code this} {@code Market}.
      */
-    @NonNull List<Trader> getBuyers();
+    @Pure
+    @NonNull @ReadOnly List<@NonNull Trader> getBuyers(@ReadOnly Market this);
 
 } // end Market interface

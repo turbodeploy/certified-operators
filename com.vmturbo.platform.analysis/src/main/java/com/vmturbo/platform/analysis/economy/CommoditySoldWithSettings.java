@@ -4,7 +4,9 @@ import static com.google.common.base.Preconditions.checkArgument;
 
 import java.util.List;
 
+import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
+import org.checkerframework.dataflow.qual.Pure;
 
 final class CommoditySoldWithSettings implements CommoditySold, CommoditySoldSettings {
 
@@ -26,59 +28,64 @@ final class CommoditySoldWithSettings implements CommoditySold, CommoditySoldSet
     }
 
     // Methods
-    @Override
-    public @NonNull List<Trader> getConsumers() {
-        // TODO Auto-generated method stub
-        return null;
-    }
 
     @Override
+    @Pure
     public @NonNull CommoditySoldSettings getSettings() {
         return this;
     }
 
     @Override
+    @Pure
     public @NonNull CommodityType getType() {
         return type_;
     }
 
     @Override
+    @Pure
     public long getKey() {
         // TODO Auto-generated method stub
         return 0;
     }
 
     @Override
+    @Pure
     public double getCapacity() {
         return capacity_;
     }
 
     @Override
+    @Pure
     public boolean isThin() {
         return thin_;
     }
 
     @Override
+    @Pure
     public boolean isResizable() {
         return resizable_;
     }
 
     @Override
+    @Pure
     public double getCapacityUpperBound() {
         return capacityUpperBound_;
     }
 
     @Override
+    @Pure
     public double getCapacityLowerBound() {
         return capacityLowerBound_;
     }
 
     @Override
+    @Pure
     public double getCapacityIncrement() {
         return capacityIncrement_;
     }
 
     @Override
+    @Pure
     public double getUtilizationUpperBound() {
         return utilizationUpperBound_;
     }
@@ -129,6 +136,18 @@ final class CommoditySoldWithSettings implements CommoditySold, CommoditySoldSet
     public @NonNull CommoditySold setThin(boolean thin) {
         thin_ = thin;
         return this;
+    }
+
+    @Override
+    public @NonNull @ReadOnly List<@NonNull @ReadOnly Trader> getBuyers() {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
+    @Override
+    public @NonNull @ReadOnly Trader getSeller() {
+        // TODO Auto-generated method stub
+        return null;
     }
 
 } // end class CommoditySoldWithSettings
