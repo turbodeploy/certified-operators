@@ -4,6 +4,7 @@ import static org.junit.Assert.*;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -49,6 +50,7 @@ public final class CommoditySoldWithSettingsTest {
     }
 
     @Test
+    @Ignore
     public final void testGetConsumers() {
         fail("Not yet implemented");// TODO
     }
@@ -59,11 +61,13 @@ public final class CommoditySoldWithSettingsTest {
     }
 
     @Test
+    @Ignore
     public final void testGetType() {
         fail("Not yet implemented");// TODO
     }
 
     @Test
+    @Ignore
     public final void testGetKey() {
         fail("Not yet implemented");// TODO
     }

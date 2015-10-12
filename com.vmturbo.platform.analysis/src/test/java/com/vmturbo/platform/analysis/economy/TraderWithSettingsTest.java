@@ -4,6 +4,7 @@ import static org.junit.Assert.*;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -36,6 +37,7 @@ public final class TraderWithSettingsTest {
     public void tearDown() {}
 
     @Test
+    @Ignore
     public final void testTraderWithSettings() {
         fail("Not yet implemented");// TODO
     }
@@ -99,11 +101,13 @@ public final class TraderWithSettingsTest {
     }
 
     @Test
+    @Ignore
     public final void testGetBasketsBought() {
         fail("Not yet implemented");// TODO
     }
 
     @Test
+    @Ignore
     public final void testGetCommoditiesSold() {
         fail("Not yet implemented");// TODO
     }
@@ -114,6 +118,7 @@ public final class TraderWithSettingsTest {
     }
 
     @Test
+    @Ignore
     public final void testGetType() {
         fail("Not yet implemented");// TODO
     }
