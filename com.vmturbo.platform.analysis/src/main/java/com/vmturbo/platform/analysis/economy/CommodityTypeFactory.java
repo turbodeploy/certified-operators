@@ -17,7 +17,7 @@ public final class CommodityTypeFactory {
 
     // Constructors
     /**
-     * Constructs a new CommodityTypeFactory. CommodityTypes should usually be constructed from the
+     * Constructs a new CommodityTypeFactory. CommoditySpecifications should usually be constructed from the
      * same CommodityTypeFactory instance.
      */
     public CommodityTypeFactory()
@@ -27,11 +27,11 @@ public final class CommodityTypeFactory {
 
     // Methods
 
-    public CommodityType create(String kind, String unitOfMeasurement, int lowerQualityBound, int upperQualityBound) {
+    public CommoditySpecification create(String kind, String unitOfMeasurement, int lowerQualityBound, int upperQualityBound) {
         if(!numericalKinds.containsKey(kind)) {
             numericalKinds.put(kind, (short)stringKinds.size());
             stringKinds.add(kind);
         }
-        return new CommodityType(kind,unitOfMeasurement,composeNumericalRepresentation(numericalKinds.get(kind),lowerQualityBound,upperQualityBound));
+        return new CommoditySpecification(kind,unitOfMeasurement,composeNumericalRepresentation(numericalKinds.get(kind),lowerQualityBound,upperQualityBound));
     }
 } // end class CommodityTypeFactory

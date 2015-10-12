@@ -78,14 +78,14 @@ public interface Trader {
     /**
      * Adds a new commodity to the list of commodities sold by {@code this} seller.
      *
-     * @param newCommodityType The type of the new commodity. It will be added to {@code this}
+     * @param newCommoditySpecification The type of the new commodity. It will be added to {@code this}
      *          seller's basket.
      * @param newCommoditySold The new commodity to be added. It will be added to {@code this}
      *          seller's commodities sold list.
      * @return {@code this}
      */
     @Deterministic
-    @NonNull Trader addCommoditySold(@NonNull @ReadOnly CommodityType newCommodityType, @NonNull CommoditySold newCommoditySold);
+    @NonNull Trader addCommoditySold(@NonNull @ReadOnly CommoditySpecification newCommoditySpecification, @NonNull CommoditySold newCommoditySold);
 
     /**
      * Removes an existing commodity from the list of commodities sold by {@code this} seller.
@@ -101,31 +101,31 @@ public interface Trader {
     @Deterministic // in the sense that for the same referents of this and typeToRemove the result will
     // be the same. Calling this two times on the same topology will produce different results
     // because the topology is modified.
-    @NonNull CommoditySold removeCommoditySold(@NonNull @ReadOnly CommodityType typeToRemove);
+    @NonNull CommoditySold removeCommoditySold(@NonNull @ReadOnly CommoditySpecification typeToRemove);
 
     /**
-     * Adds a new commodity type to a given basket bought by this buyer.
+     * Adds a new commodity specification to a given basket bought by this buyer.
      *
-     * @param basketToAddTo the basket where the new commodity type should be added.
-     * @param commodityTypeToAdd the commodity type to add to the basket bought.
+     * @param basketToAddTo the basket where the new commodity specification should be added.
+     * @param commodityTypeToAdd the commodity specification to add to the basket bought.
      * @return {@code this}
      */
     @Deterministic
-    @NonNull Trader addCommodityBought(@NonNull Basket basketToAddTo, @NonNull @ReadOnly CommodityType commodityTypeToAdd);
+    @NonNull Trader addCommodityBought(@NonNull Basket basketToAddTo, @NonNull @ReadOnly CommoditySpecification commodityTypeToAdd);
 
     /**
-     * Removes an existing commodity type from a given basket bought by this buyer.
+     * Removes an existing commodity specification from a given basket bought by this buyer.
      *
      * <p>
-     *  Baskets contain at most one of each commodity type.
+     *  Baskets contain at most one of each commodity specification.
      * </p>
      *
-     * @param basketToRemoveFrom the basket bought from which the commodity type should be removed.
-     * @param commodityTypeToRemove the commodity type that should be removed from the basket.
+     * @param basketToRemoveFrom the basket bought from which the commodity specification should be removed.
+     * @param commodityTypeToRemove the commodity specification that should be removed from the basket.
      * @return {@code this}
      */
     @Deterministic
-    @NonNull Trader removeCommodityBought(@NonNull Basket basketToRemoveFrom, @NonNull @ReadOnly CommodityType commodityTypeToRemove);
+    @NonNull Trader removeCommodityBought(@NonNull Basket basketToRemoveFrom, @NonNull @ReadOnly CommoditySpecification commodityTypeToRemove);
 
     // May need to add methods to add/remove baskets bought later...
 

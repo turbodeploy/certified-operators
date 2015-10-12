@@ -17,13 +17,13 @@ abstract class NumericCommodityType {
 
     // Methods
     /**
-     * Composes a numerical representation of a commodity type from a numerical representation of
+     * Composes a numerical representation of a commodity specification from a numerical representation of
      * its kind and quality bounds.
      *
      * @param numericalKind A numerical representation of the kind of commodity.
      * @param qualityLowerBound The lower bound imposed on the quality of the commodity.
      * @param qualityUpperBound The upper bound imposed on the quality of the commodity.
-     * @return The numerical representation of the commodity type.
+     * @return The numerical representation of the commodity specification.
      */
     static long composeNumericalRepresentation(short numericalKind, int qualityLowerBound, int qualityUpperBound) {
         checkArgument(0 <= numericalKind && numericalKind < (1 << KIND_BITS));
@@ -34,9 +34,9 @@ abstract class NumericCommodityType {
     }
 
     /**
-     * Extracts the quality lower bound field from a long representing a commodity type.
+     * Extracts the quality lower bound field from a long representing a commodity specification.
      *
-     * @param numericalRepresentation the numerical representation of a commodity type.
+     * @param numericalRepresentation the numerical representation of a commodity specification.
      * @return the quality lower bound extracted.
      */
     static long extractQualityLowerBound(long numericalRepresentation) {
@@ -44,9 +44,9 @@ abstract class NumericCommodityType {
     }
 
     /**
-     * Extracts the quality upper bound field from a long representing a commodity type.
+     * Extracts the quality upper bound field from a long representing a commodity specification.
      *
-     * @param numericalRepresentation the numerical representation of a commodity type.
+     * @param numericalRepresentation the numerical representation of a commodity specification.
      * @return the quality upper bound extracted.
      */
     static long extractQualityUpperBound(long numericalRepresentation) {
@@ -55,9 +55,9 @@ abstract class NumericCommodityType {
 
     /**
      * Extracts the numerical representation of the commodity kind from a numerical representation
-     * of a commodity type.
+     * of a commodity specification.
      *
-     * @param numericalRepresentation The numerical representation of a commodity type.
+     * @param numericalRepresentation The numerical representation of a commodity specification.
      * @return The extracted numerical representation of the commodity kind.
      */
     static long extractKind(long numericalRepresentation) {

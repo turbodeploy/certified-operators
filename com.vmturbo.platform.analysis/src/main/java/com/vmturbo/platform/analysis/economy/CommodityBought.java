@@ -9,10 +9,10 @@ public final class CommodityBought {
     // Fields
     private @NonNull Market market_;
     private @NonNull Trader buyer_;
-    private @NonNull CommodityType type_;
+    private @NonNull CommoditySpecification type_;
 
     // Constructors
-    CommodityBought(@NonNull Market market, @NonNull Trader buyer, @NonNull CommodityType type) {
+    CommodityBought(@NonNull Market market, @NonNull Trader buyer, @NonNull CommoditySpecification type) {
         market_ = market;
         buyer_ = buyer;
         type_ = type;
@@ -20,7 +20,7 @@ public final class CommodityBought {
 
     // Methods
     @Pure
-    public @NonNull @ReadOnly CommodityType getType(@ReadOnly CommodityBought this) {
+    public @NonNull @ReadOnly CommoditySpecification getType(@ReadOnly CommodityBought this) {
         return type_;
     }
 

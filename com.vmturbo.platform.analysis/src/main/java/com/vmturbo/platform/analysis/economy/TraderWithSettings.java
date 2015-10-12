@@ -148,28 +148,28 @@ final class TraderWithSettings implements Trader, TraderSettings {
     }
 
     @Override
-    public @NonNull Trader addCommoditySold(@NonNull @ReadOnly CommodityType newCommodityType,
+    public @NonNull Trader addCommoditySold(@NonNull @ReadOnly CommoditySpecification newCommoditySpecification,
                                             @NonNull CommoditySold newCommoditySold) {
         // TODO Auto-generated method stub
         return null;
     }
 
     @Override
-    public @NonNull CommoditySold removeCommoditySold(@NonNull @ReadOnly CommodityType typeToRemove) {
+    public @NonNull CommoditySold removeCommoditySold(@NonNull @ReadOnly CommoditySpecification typeToRemove) {
         // TODO Auto-generated method stub
         return null;
     }
 
     @Override
     public @NonNull Trader addCommodityBought(@NonNull Basket basketToAddTo,
-                                              @NonNull @ReadOnly CommodityType commodityTypeToAdd) {
+                                              @NonNull @ReadOnly CommoditySpecification commodityTypeToAdd) {
         // TODO Auto-generated method stub
         return null;
     }
 
     @Override
     public @NonNull Trader removeCommodityBought(@NonNull Basket basketToRemoveFrom,
-                                        @NonNull @ReadOnly CommodityType commodityTypeToRemove) {
+                                        @NonNull @ReadOnly CommoditySpecification commodityTypeToRemove) {
         // TODO Auto-generated method stub
         return null;
     }

@@ -29,7 +29,7 @@ public final class Market {
     // Must be the same size as buyers.
     private int @NonNull [] currentSuppliers = new int[0];
     // Must be the same size as buyers. For each buyer, holds an array of as many (amount,peak)
-    // pairs as there are commodity types in this Basket. The layout is {a1,p1,a2,p2,...,an,pn}
+    // pairs as there are commodity specifications in this Basket. The layout is {a1,p1,a2,p2,...,an,pn}
     // where commodityTypes.length == n.
     private double @NonNull [] @NonNull [] amountAndPeakVectors = new double[0][0];
 

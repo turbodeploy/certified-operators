@@ -12,7 +12,7 @@ import org.checkerframework.checker.nullness.qual.NonNull;
  *  Together with the quality, this uniquely identifies a commodity sold from a single trader.
  * </p>
  */
-public final class CommodityType implements Comparable<CommodityType> {
+public final class CommoditySpecification implements Comparable<CommoditySpecification> {
 
     // Fields
     private final String kind_; // the human readable kind of this commodity. e.g. CPU or Memory
@@ -22,14 +22,14 @@ public final class CommodityType implements Comparable<CommodityType> {
     // Constructors
 
     /**
-     * Constructs a new CommodityType object with the specified properties.
+     * Constructs a new CommoditySpecification object with the specified properties.
      *
-     * @param kind The kind of the new CommodityType. e.g. CPU or Memory.
+     * @param kind The kind of the new CommoditySpecification. e.g. CPU or Memory.
      * @param unitOfMeasurement The unit of measurement used to measure quantities of commodities of
      *                          this kind.
-     * @param numericalRepresentation The numerical representation of the new commodity type.
+     * @param numericalRepresentation The numerical representation of the new commodity specification.
      */
-    CommodityType(@NonNull @ReadOnly String kind, @NonNull @ReadOnly String unitOfMeasurement, long numericalRepresentation) {
+    CommoditySpecification(@NonNull @ReadOnly String kind, @NonNull @ReadOnly String unitOfMeasurement, long numericalRepresentation) {
         kind_ = kind;
         unitOfMeasurement_ = unitOfMeasurement;
         numericalRepresentation_ = numericalRepresentation;
@@ -39,9 +39,9 @@ public final class CommodityType implements Comparable<CommodityType> {
 
 
     /**
-     * Returns the kind of {@code this} commodity type. e.g. Memory or CPU.
+     * Returns the kind of {@code this} commodity specification. e.g. Memory or CPU.
      */
-    public @NonNull @ReadOnly String getKind(@ReadOnly CommodityType this) {
+    public @NonNull @ReadOnly String getKind(@ReadOnly CommoditySpecification this) {
         return kind_;
     }
 
@@ -49,32 +49,32 @@ public final class CommodityType implements Comparable<CommodityType> {
      * Returns the unit of measurement used to express quantities and capacities for commodities of this
      * type. e.g. MHz or MB
      */
-    public @NonNull @ReadOnly String getUnit(@ReadOnly CommodityType this) {
+    public @NonNull @ReadOnly String getUnit(@ReadOnly CommoditySpecification this) {
         return unitOfMeasurement_;
     }
 
     /**
      * Returns the lower bound on the quality provided or requested.
      */
-    public int getQualityLowerBound(@ReadOnly CommodityType this) {
+    public int getQualityLowerBound(@ReadOnly CommoditySpecification this) {
         return (int)extractQualityLowerBound(numericalRepresentation_);
     }
 
     /**
      * Returns the upper bound on the quality provided or requested.
      */
-    public int getQualityUpperBound(@ReadOnly CommodityType this) {
+    public int getQualityUpperBound(@ReadOnly CommoditySpecification this) {
         return (int)extractQualityUpperBound(numericalRepresentation_);
     }
 
     /**
-     * Returns the numerical representation of {@code this} commodity type, used for efficient operations.
+     * Returns the numerical representation of {@code this} commodity specification, used for efficient operations.
      */
-    long numericalRepresentation(@ReadOnly CommodityType this) {
+    long numericalRepresentation(@ReadOnly CommoditySpecification this) {
         return numericalRepresentation_;
     }
 
-    public boolean isSatisfiedBy(@ReadOnly CommodityType this, @NonNull @ReadOnly CommodityType other) {
+    public boolean isSatisfiedBy(@ReadOnly CommoditySpecification this, @NonNull @ReadOnly CommoditySpecification other) {
         return isSatisfiedBy(this.numericalRepresentation_, other.numericalRepresentation_);
     }
 
@@ -85,8 +85,8 @@ public final class CommodityType implements Comparable<CommodityType> {
     }
 
     @Override
-    public int compareTo(CommodityType other) {
+    public int compareTo(CommoditySpecification other) {
         return (int)(this.numericalRepresentation_ - other.numericalRepresentation_);
     }
 
-} // end CommodityType enumeration
+} // end CommoditySpecification enumeration

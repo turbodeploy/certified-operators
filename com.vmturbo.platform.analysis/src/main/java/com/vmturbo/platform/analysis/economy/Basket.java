@@ -11,7 +11,7 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
 
 /**
- * A set of commodity types a trader may try to buy or sell.
+ * A set of commodity specifications a trader may try to buy or sell.
  *
  * <p>
  *  It is intended to be associated with a {@link Market} (baskets bought) or a seller (baskets
@@ -21,7 +21,7 @@ import org.checkerframework.dataflow.qual.Pure;
 public class Basket implements Comparable<@NonNull @ReadOnly Basket> {
     // Fields
 
-    // The numerical representations of the commodity types comprising this basket.
+    // The numerical representations of the commodity specifications comprising this basket.
     // These are used only internally for performance. It must be sorted in ascending order.
     // It must not contain duplicate elements.
     private  @NonNull long[] commodityTypes_;
@@ -29,12 +29,12 @@ public class Basket implements Comparable<@NonNull @ReadOnly Basket> {
     // Constructors
 
     /**
-     * Constructs a new Basket containing the given commodity types.
+     * Constructs a new Basket containing the given commodity specifications.
      *
-     * @param commodityTypes The commodity types that will become the contents of the new basket.
+     * @param commodityTypes The commodity specifications that will become the contents of the new basket.
      *                       They are copied.
      */
-    public Basket(CommodityType... commodityTypes) {
+    public Basket(CommoditySpecification... commodityTypes) {
         commodityTypes_ = new long[commodityTypes.length];
         for(int i = 0 ; i < commodityTypes.length ; ++i) {
             commodityTypes_[i] = commodityTypes[i].numericalRepresentation();
@@ -63,13 +63,13 @@ public class Basket implements Comparable<@NonNull @ReadOnly Basket> {
     }
 
     /**
-     * Returns an unmodifiable list of the commodity types comprising {@code this} basket.
+     * Returns an unmodifiable list of the commodity specifications comprising {@code this} basket.
      */
     @Pure
-    public final @NonNull @ReadOnly List<@NonNull @ReadOnly CommodityType> getCommodityTypes(@ReadOnly Basket this) {
-        CommodityType[] result = new CommodityType[commodityTypes_.length];
+    public final @NonNull @ReadOnly List<@NonNull @ReadOnly CommoditySpecification> getCommoditySpecifications(@ReadOnly Basket this) {
+        CommoditySpecification[] result = new CommoditySpecification[commodityTypes_.length];
         for(int i = 0 ; i < commodityTypes_.length ; ++i) {
-            //result[i] = new CommodityType(commodityTypes_[i]);
+            //result[i] = new CommoditySpecification(commodityTypes_[i]);
         }
         return Collections.unmodifiableList(Arrays.asList(result));
     }
@@ -91,19 +91,19 @@ public class Basket implements Comparable<@NonNull @ReadOnly Basket> {
     }
 
     @Pure
-    public final int indexOf(@ReadOnly Basket this, CommodityType elementToSearchFor) {
+    public final int indexOf(@ReadOnly Basket this, CommoditySpecification elementToSearchFor) {
         // The elements of commodityTypes_ are unique so the first match will be the only match.
         return Math.max(-1,Arrays.binarySearch(commodityTypes_, elementToSearchFor.numericalRepresentation()));
     }
 
     @Pure
-    public final int lastIndexOf(@ReadOnly Basket this, CommodityType elementToSearchFor) {
+    public final int lastIndexOf(@ReadOnly Basket this, CommoditySpecification elementToSearchFor) {
         // The elements of commodityTypes_ are unique so the first match will be the only match.
         return indexOf(elementToSearchFor);
     }
 
     @Pure
-    public final boolean contains(@ReadOnly Basket this, CommodityType elementToSearchFor) {
+    public final boolean contains(@ReadOnly Basket this, CommoditySpecification elementToSearchFor) {
         return indexOf(elementToSearchFor) != -1;
     }
 
