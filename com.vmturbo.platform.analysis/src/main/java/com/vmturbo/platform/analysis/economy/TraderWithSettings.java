@@ -174,4 +174,10 @@ final class TraderWithSettings implements Trader, TraderSettings {
         return null;
     }
 
+    @Override
+    public @NonNull @ReadOnly List<@NonNull CommodityBought> getCommoditiesBought(@NonNull @ReadOnly Market market) {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
 }

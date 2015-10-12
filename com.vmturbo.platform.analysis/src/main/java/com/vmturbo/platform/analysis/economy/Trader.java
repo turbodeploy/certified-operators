@@ -70,6 +70,12 @@ public interface Trader {
     @NonNull @ReadOnly List<@NonNull @ReadOnly CommoditySold> getCommoditiesSold(@ReadOnly Trader this);
 
     /**
+     * Returns an unmodifiable list of the commodities {@code this} trader is buying in the given market.
+     */
+    @Pure
+    @NonNull @ReadOnly List<@NonNull CommodityBought> getCommoditiesBought(@ReadOnly Trader this, @NonNull @ReadOnly Market market);
+
+    /**
      * Adds a new commodity to the list of commodities sold by {@code this} seller.
      *
      * @param newCommodityType The type of the new commodity. It will be added to {@code this}
