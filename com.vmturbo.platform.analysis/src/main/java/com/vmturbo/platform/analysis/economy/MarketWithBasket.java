@@ -4,7 +4,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
 
@@ -17,13 +16,8 @@ import org.checkerframework.dataflow.qual.Pure;
  *  time and improve cache locality.
  * </p>
  */
-final class MarketWithBasket implements Basket, Market {
-
-    // Fields for Basket
-    private CommodityType[] commodityTypes; // must have the same size as commodityKeys and the pair
-    private long[] commodityKeys; // must be sorted by commodity type and then by key.
-
-    // Fields for Market
+final class MarketWithBasket extends Basket implements Market {
+    // Fields
     private Trader[] buyers; // all active Traders buying {@code this} basket.
     private Trader[] sellers; // all active Traders selling a basket that matches {@code this}.
     private int[] mapping; // The mapping between sellers and buyers of this Market. Can support up
@@ -34,27 +28,16 @@ final class MarketWithBasket implements Basket, Market {
 
     // Constructors
 
+    /**
+     * Constructs and empty Market with an attached basket constructed from the given commodity types.
+     *
+     * @param commodityTypes The commodity types from which the attached basket will be constructed.
+     */
+    public MarketWithBasket(CommodityType... commodityTypes) {
+        super(commodityTypes);
+    }
+
     // Methods
-
-    @Override
-    @Pure
-    public int compareTo(@NonNull @ReadOnly MarketWithBasket this, @NonNull @ReadOnly Basket other) {
-        // TODO Auto-generated method stub
-        return 0;
-    }
-
-    @Override
-    @Pure
-    public boolean isSatisfiedBy(@NonNull @ReadOnly Basket other) {
-        // TODO Auto-generated method stub
-        return false;
-    }
-
-    @Override
-    @Pure
-    public @NonNull Market getMarket() {
-        return this;
-    }
 
     @Override
     @Pure
@@ -72,12 +55,6 @@ final class MarketWithBasket implements Basket, Market {
     @Pure
     public @NonNull List<@NonNull Trader> getBuyers() {
         return Collections.unmodifiableList(Arrays.asList(buyers));
-    }
-
-    @Override
-    public @NonNull @ReadOnly List<@NonNull @ReadOnly CommodityType> getCommodityTypes() {
-        // TODO Auto-generated method stub
-        return null;
     }
 
 } // end MarketWithBasket class
