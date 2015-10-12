@@ -1,4 +1,4 @@
-package com.vmturbo.platform.analysis.topology;
+package com.vmturbo.platform.analysis.economy;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -7,11 +7,6 @@ import java.util.List;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
-
-import com.vmturbo.platform.analysis.economy.Basket;
-import com.vmturbo.platform.analysis.economy.CommodityType;
-import com.vmturbo.platform.analysis.economy.Market;
-import com.vmturbo.platform.analysis.economy.Trader;
 
 /**
  * A {@link Market} with an attached {@link Basket}.
