@@ -78,4 +78,9 @@ public class Basket implements Comparable<@NonNull @ReadOnly Basket> {
         return lexicographicalComparator().compare(commodityTypes_, other.commodityTypes_);
     }
 
+    @Pure
+    public final int size(@ReadOnly Basket this) {
+        return commodityTypes_.length;
+    }
+
 } // end Basket interface

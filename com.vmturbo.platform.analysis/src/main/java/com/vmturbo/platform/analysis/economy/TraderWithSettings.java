@@ -18,14 +18,23 @@ final class TraderWithSettings implements Trader, TraderSettings {
     private double minDesiredUtilization_ = 0.0;
 
     // Fields for Trader
-    private TraderState state_;
-    private final TraderType type_; // this should never change once the object is created.
-    private CommoditySold[] commoditiesSold_;
+    private @NonNull TraderState state_;
+    private final @NonNull TraderType type_; // this should never change once the object is created.
+    private @NonNull Basket basketSold_;
+    private @NonNull CommoditySold @NonNull [] commoditiesSold_;
+    private @NonNull Market @NonNull [] marketsAsBuyer_ = new Market[0];
 
     // Constructors
-    public TraderWithSettings(TraderType type, @NonNull TraderState state) {
+    public TraderWithSettings(@NonNull TraderType type, @NonNull TraderState state,
+                              @NonNull Basket basketSold) {
         type_ = type;
         state_ = state;
+        basketSold_ = basketSold;
+
+        commoditiesSold_ = new CommoditySoldWithSettings[basketSold.size()];
+        for(int i = 0 ; i < basketSold.size() ; ++i) {
+            commoditiesSold_[i] = new CommoditySoldWithSettings();
+        }
     }
 
     // Methods
@@ -124,8 +133,7 @@ final class TraderWithSettings implements Trader, TraderSettings {
 
     @Override
     public @NonNull @ReadOnly List<@NonNull @ReadOnly Market> getMarketsAsBuyer() {
-        // TODO Auto-generated method stub
-        return null;
+        return Collections.unmodifiableList(Arrays.asList(marketsAsBuyer_));
     }
 
     @Override
@@ -135,9 +143,8 @@ final class TraderWithSettings implements Trader, TraderSettings {
     }
 
     @Override
-    public @NonNull @ReadOnly Basket getBasketSold() {
-        // TODO Auto-generated method stub
-        return null;
+    public @NonNull @ReadOnly Basket getBasketSold(@ReadOnly TraderWithSettings this) {
+        return basketSold_;
     }
 
     @Override
@@ -148,8 +155,7 @@ final class TraderWithSettings implements Trader, TraderSettings {
     }
 
     @Override
-    public @NonNull CommoditySold
-           removeCommoditySold(@NonNull @ReadOnly CommodityType typeToRemove) {
+    public @NonNull CommoditySold removeCommoditySold(@NonNull @ReadOnly CommodityType typeToRemove) {
         // TODO Auto-generated method stub
         return null;
     }
@@ -162,9 +168,8 @@ final class TraderWithSettings implements Trader, TraderSettings {
     }
 
     @Override
-    public @NonNull Trader
-           removeCommodityBought(@NonNull Basket basketToRemoveFrom,
-                                 @NonNull @ReadOnly CommodityType commodityTypeToRemove) {
+    public @NonNull Trader removeCommodityBought(@NonNull Basket basketToRemoveFrom,
+                                        @NonNull @ReadOnly CommodityType commodityTypeToRemove) {
         // TODO Auto-generated method stub
         return null;
     }

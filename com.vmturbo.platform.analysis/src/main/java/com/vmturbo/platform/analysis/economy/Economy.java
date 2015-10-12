@@ -31,6 +31,11 @@ public final class Economy implements Cloneable {
 
     // Constructors
 
+    /**
+     * Constructs an empty Economy.
+     */
+    public Economy() {}
+
     // Methods
 
     /**
@@ -71,7 +76,7 @@ public final class Economy implements Cloneable {
      * @return {@code this}
      */
     @Deterministic
-    public @NonNull Economy addTrader(@NonNull Trader newTrader) {
+    public @NonNull Economy addTrader(@NonNull Trader newTrader, @NonNull Basket... basketsBought) {
         // TODO: implement this.
         return this;
     }

@@ -29,7 +29,7 @@ public final class TraderWithSettingsTest {
 
     @Before
     public void setUp() {
-        fixture = new TraderWithSettings(null, null);
+        fixture = new TraderWithSettings(null, null, new Basket());
     }
 
     @After

@@ -27,9 +27,14 @@ public final class Topology {
     // Fields
     private @NonNull Map<@NonNull @ReadOnly OID,@NonNull Trader> traders =
                                               new HashMap<@NonNull @ReadOnly OID,@NonNull Trader>();
-    private @NonNull Economy economy; // topology will just delegate to economy for now.
+    private @NonNull Economy economy = new Economy(); // topology will just delegate to economy for now.
 
     // Constructors
+
+    /**
+     * Constructs an empty Topology
+     */
+    public Topology() {}
 
     // Methods
 

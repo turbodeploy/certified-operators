@@ -22,9 +22,11 @@ final class CommoditySoldWithSettings implements CommoditySold, CommoditySoldSet
     private double utilizationUpperBound_ = 1.0;
 
     // Constructors
-    public CommoditySoldWithSettings() {
-        // TODO Auto-generated constructor stub
-    }
+
+    /**
+     * Constructs a default-initialized commodity sold.
+     */
+    public CommoditySoldWithSettings() {}
 
     // Methods
 
