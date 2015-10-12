@@ -13,7 +13,6 @@ final class CommoditySoldWithSettings implements CommoditySold, CommoditySoldSet
     // Fields for CommoditySold
     private double capacity_ = 0.0;
     private boolean thin_ = false;
-    private CommodityType type_;
 
     // Fields for CommoditySoldSettings
     private boolean resizable_ = true;
@@ -33,19 +32,6 @@ final class CommoditySoldWithSettings implements CommoditySold, CommoditySoldSet
     @Pure
     public @NonNull CommoditySoldSettings getSettings() {
         return this;
-    }
-
-    @Override
-    @Pure
-    public @NonNull CommodityType getType() {
-        return type_;
-    }
-
-    @Override
-    @Pure
-    public long getKey() {
-        // TODO Auto-generated method stub
-        return 0;
     }
 
     @Override

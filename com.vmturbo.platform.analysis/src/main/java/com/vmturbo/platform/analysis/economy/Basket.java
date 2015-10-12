@@ -20,9 +20,10 @@ import org.checkerframework.dataflow.qual.Pure;
  */
 public class Basket implements Comparable<@NonNull @ReadOnly Basket> {
     // Fields
-    private  @NonNull long[] commodityTypes_; // the numerical representations of the commodity types
-        // comprising this basket. These are used only internally for performance. It must be sorted
-        // in ascending order.
+
+    // The numerical representations of the commodity types comprising this basket.
+    // These are used only internally for performance. It must be sorted in ascending order.
+    private  @NonNull long[] commodityTypes_;
 
     // Constructors
 
