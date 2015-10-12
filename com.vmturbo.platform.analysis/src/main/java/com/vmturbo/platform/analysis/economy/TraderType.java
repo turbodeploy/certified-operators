@@ -9,4 +9,4 @@ package com.vmturbo.platform.analysis.economy;
  */
 public enum TraderType {
 
-} // end MerchantType enumeration
+} // end TraderType enumeration

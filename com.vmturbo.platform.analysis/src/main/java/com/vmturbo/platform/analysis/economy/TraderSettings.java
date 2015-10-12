@@ -91,4 +91,4 @@ public interface TraderSettings {
 
     // May need to add shopTogether here, but may also store it implicitly as well...
 
-} // end MerchantSettings interface
+} // end TraderSettings interface

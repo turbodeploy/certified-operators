@@ -29,10 +29,10 @@ final class MarketWithBasket implements Basket, Market {
     private long[] commodityKeys; // must be sorted by commodity type and then by key.
 
     // Fields for Market
-    private Trader[] buyers; // all active Merchants buying {@code this} basket.
-    private Trader[] sellers; // all active Merchants selling a basket that matches {@code this}.
+    private Trader[] buyers; // all active Traders buying {@code this} basket.
+    private Trader[] sellers; // all active Traders selling a basket that matches {@code this}.
     private int[] mapping; // The mapping between sellers and buyers of this Market. Can support up
-                  // to 2 billion Merchants. Must be the same size as buyers.
+                  // to 2 billion Traders. Must be the same size as buyers.
     private double[][] amountAndPeakVectors; // Must be the same size as buyers. For each buyer,
         // holds an array of as many (amount,peak) pairs as there are commodity types in this Basket.
         // The layout is {a1,p1,a2,p2,...,an,pn} where commodityTypes.length == n.

@@ -15,7 +15,7 @@ import org.checkerframework.dataflow.qual.Pure;
  * <p>
  *  It can participate in multiple markets either as a seller or a buyer and even participate in a
  *  single market multiple times (though never as a buyer and seller simultaneously). The later can
- *  happen e.g. if a buyer buys multiple storage commodities. It is also possible that a Merchant
+ *  happen e.g. if a buyer buys multiple storage commodities. It is also possible that a Trader
  *  buys from another trader that is not in the current market, if a policy is created that is not
  *  enforced initially.
  * </p>
@@ -155,4 +155,4 @@ public interface Trader {
      */
     @NonNull Trader setState(TraderState state);
 
-} // end interface Merchant
+} // end interface Trader
