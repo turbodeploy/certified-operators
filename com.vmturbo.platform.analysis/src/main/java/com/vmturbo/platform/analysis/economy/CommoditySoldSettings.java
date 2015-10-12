@@ -9,18 +9,31 @@ import org.checkerframework.dataflow.qual.Pure;
 public interface CommoditySoldSettings {
     /**
      * Returns whether {@code this} commodity is resizable.
+     *
+     * <p>
+     *  When 'resize' recommendations are generated, only 'resizable' commodities are considered.
+     *  A 'resize' recommendation essentially recommends changing the commodity's capacity.
+     * </p>
      */
     @Pure
     boolean isResizable();
 
     /**
      * Returns the upper bound for {@code this} commodity's capacity, in case of a resize.
+     *
+     * <p>
+     *  No recommendation will recommend a value for capacity higher than this bound.
+     * </p>
      */
     @Pure
     double getCapacityUpperBound();
 
     /**
      * Returns the lower bound for {@code this} commodity's capacity, in case of a resize.
+     *
+     * <p>
+     *  No recommendation will recommend a value for capacity lower than this bound.
+     * </p>
      */
     @Pure
     double getCapacityLowerBound();

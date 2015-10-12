@@ -11,10 +11,10 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
 
 /**
- * A set of commodity (type, quality) pairs a trader may try to buy or sell.
+ * A set of commodity types a trader may try to buy or sell.
  *
  * <p>
- *  They are intended to be associated with a {@link Market} (baskets bought) or a seller (baskets
+ *  It is intended to be associated with a {@link Market} (baskets bought) or a seller (baskets
  *  sold).
  * </p>
  */

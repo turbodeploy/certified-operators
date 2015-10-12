@@ -7,7 +7,11 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
 
 /**
- * A commodity sold by a single {@link Trader}.
+ * A commodity sold by a {@link Trader}.
+ *
+ * <p>
+ *  A CommoditySold instance should be sold by exactly one Trader instance.
+ * </p>
  */
 public interface CommoditySold {
     /**

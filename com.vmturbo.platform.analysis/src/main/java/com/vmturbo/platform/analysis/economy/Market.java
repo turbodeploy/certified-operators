@@ -27,7 +27,7 @@ public final class Market {
     private @NonNull Trader @NonNull [] sellers = new Trader[0];
     // The mapping between sellers and buyers of this Market. Can support up to 2 billion Traders.
     // Must be the same size as buyers.
-    private int @NonNull [] mapping = new int[0];
+    private int @NonNull [] currentSuppliers = new int[0];
     // Must be the same size as buyers. For each buyer, holds an array of as many (amount,peak)
     // pairs as there are commodity types in this Basket. The layout is {a1,p1,a2,p2,...,an,pn}
     // where commodityTypes.length == n.
