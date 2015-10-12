@@ -23,6 +23,7 @@ public class Basket implements Comparable<@NonNull @ReadOnly Basket> {
 
     // The numerical representations of the commodity types comprising this basket.
     // These are used only internally for performance. It must be sorted in ascending order.
+    // It must not contain duplicate elements.
     private  @NonNull long[] commodityTypes_;
 
     // Constructors
@@ -39,6 +40,7 @@ public class Basket implements Comparable<@NonNull @ReadOnly Basket> {
             commodityTypes_[i] = commodityTypes[i].numericalRepresentation();
         }
         Arrays.sort(commodityTypes_);
+        // TODO: assert that elements of commodityTypes_ are unique.
     }
 
     // Methods
@@ -81,6 +83,28 @@ public class Basket implements Comparable<@NonNull @ReadOnly Basket> {
     @Pure
     public final int size(@ReadOnly Basket this) {
         return commodityTypes_.length;
+    }
+
+    @Pure
+    public final boolean isEmpty(@ReadOnly Basket this) {
+        return size() == 0;
+    }
+
+    @Pure
+    public final int indexOf(@ReadOnly Basket this, CommodityType elementToSearchFor) {
+        // The elements of commodityTypes_ are unique so the first match will be the only match.
+        return Math.max(-1,Arrays.binarySearch(commodityTypes_, elementToSearchFor.numericalRepresentation()));
+    }
+
+    @Pure
+    public final int lastIndexOf(@ReadOnly Basket this, CommodityType elementToSearchFor) {
+        // The elements of commodityTypes_ are unique so the first match will be the only match.
+        return indexOf(elementToSearchFor);
+    }
+
+    @Pure
+    public final boolean contains(@ReadOnly Basket this, CommodityType elementToSearchFor) {
+        return indexOf(elementToSearchFor) != -1;
     }
 
 } // end Basket interface
