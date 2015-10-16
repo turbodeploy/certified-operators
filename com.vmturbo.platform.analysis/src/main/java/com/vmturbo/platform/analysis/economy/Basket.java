@@ -1,8 +1,10 @@
 package com.vmturbo.platform.analysis.economy;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.TreeSet;
 
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -11,36 +13,38 @@ import org.checkerframework.dataflow.qual.Pure;
 import com.google.common.collect.Ordering;
 
 /**
- * A set of commodity specifications a trader may try to buy or sell.
+ * A set of commodity specifications specifying the commodities a trader may try to buy or sell.
  *
  * <p>
  *  It is intended to be associated with a {@link Market} (baskets bought) or a seller (baskets
  *  sold).
  * </p>
+ *
+ * <p>
+ *  Baskets are immutable objects.
+ * </p>
  */
-public class Basket implements Comparable<@NonNull @ReadOnly Basket> {
+public final class Basket implements Comparable<@NonNull @ReadOnly Basket> {
     // Fields
 
-    // The numerical representations of the commodity specifications comprising this basket.
-    // These are used only internally for performance. It must be sorted in ascending order.
-    // It must not contain duplicate elements.
-    private  @NonNull CommoditySpecification @NonNull [] commodityTypes_;
+    // An array holding the commodity specifications comprising this basket.
+    // It must be sorted in ascending order and not contain duplicate elements.
+    private final @NonNull @ReadOnly CommoditySpecification @NonNull @ReadOnly [] contents_;
 
     // Constructors
 
     /**
      * Constructs a new Basket containing the given commodity specifications.
      *
-     * @param commodityTypes The commodity specifications that will become the contents of the new basket.
-     *                       They are copied.
+     * @param contents The commodity specifications that will become the contents of the new basket.
+     *                 They are included themselves and not copied. Duplicate arguments are included
+     *                 only once in the basket (those that come after the first in contents are
+     *                 ignored).
      */
-    public Basket(CommoditySpecification... commodityTypes) {
-        commodityTypes_ = new CommoditySpecification[commodityTypes.length];
-        for(int i = 0 ; i < commodityTypes.length ; ++i) {
-            commodityTypes_[i] = commodityTypes[i];
-        }
-        Arrays.sort(commodityTypes_);
-        // TODO: assert that elements of commodityTypes_ are unique.
+    public Basket(@NonNull CommoditySpecification... contents) {
+        // may need to change the following to a more efficient implementation.
+        TreeSet<CommoditySpecification> set = new TreeSet<CommoditySpecification>(Arrays.asList(contents));
+        contents_ = set.toArray(new CommoditySpecification[set.size()]);
     }
 
     // Methods
@@ -53,58 +57,109 @@ public class Basket implements Comparable<@NonNull @ReadOnly Basket> {
      *  with 8 cores, memory and some access commodities.
      * </p>
      *
+     * <p>
+     *  The current implementation returns {@code true} iff for every commodity specification in
+     *  {@code this} there is a corresponding commodity specification in other that satisfies it.
+     *  It assumes commodity types are sorted with type as the primary key.
+     * </p>
+     *
      * @param other the Basket to be tested against {@code this}.
      * @return {@code true} if {@code this} basket is satisfied by {@code other}.
      */
     @Pure
     public final boolean isSatisfiedBy(@ReadOnly Basket this, @NonNull @ReadOnly Basket other) {
-        // TODO Auto-generated method stub
-        return false;
+        int otherIndex = 0;
+        for(CommoditySpecification specification : contents_) {
+            while(otherIndex < other.contents_.length && !specification.isSatisfiedBy(other.contents_[otherIndex])) {
+                ++otherIndex;
+            }
+            if(otherIndex >= other.contents_.length)
+                return false;
+            ++otherIndex;
+        }
+        return true;
     }
 
     /**
-     * Returns an unmodifiable list of the commodity specifications comprising {@code this} basket.
+     * Returns an unmodifiable list of the commodity specifications comprising {@code this} basket
+     * in ascending order.
      */
     @Pure
     public final @NonNull @ReadOnly List<@NonNull @ReadOnly CommoditySpecification> getCommoditySpecifications(@ReadOnly Basket this) {
-        CommoditySpecification[] result = new CommoditySpecification[commodityTypes_.length];
-        for(int i = 0 ; i < commodityTypes_.length ; ++i) {
-            //result[i] = new CommoditySpecification(commodityTypes_[i]);
-        }
-        return Collections.unmodifiableList(Arrays.asList(result));
+        return Collections.unmodifiableList(Arrays.asList(contents_));
     }
 
-    @Override
-    @Pure
-    public final int compareTo(@NonNull @ReadOnly Basket this, @NonNull @ReadOnly Basket other) {
-        return Ordering.natural().lexicographical().compare(Arrays.asList(commodityTypes_), Arrays.asList(other.commodityTypes_));
-    }
+    // Some methods of Collection and List are included here, but not the complete implementation
+    // of the interfaces.
 
+    /**
+     * @see Collection#size()
+     */
     @Pure
     public final int size(@ReadOnly Basket this) {
-        return commodityTypes_.length;
+        return contents_.length;
     }
 
+    /**
+     * @see Collection#isEmpty()
+     */
     @Pure
     public final boolean isEmpty(@ReadOnly Basket this) {
         return size() == 0;
     }
 
+    /**
+     * @see List#indexOf(Object)
+     */
     @Pure
-    public final int indexOf(@ReadOnly Basket this, CommoditySpecification elementToSearchFor) {
-        // The elements of commodityTypes_ are unique so the first match will be the only match.
-        return Math.max(-1,Arrays.binarySearch(commodityTypes_, elementToSearchFor));
+    public final int indexOf(@ReadOnly Basket this, @NonNull @ReadOnly CommoditySpecification specificationToSearchFor) {
+        // The elements of contents_ are unique so the first match will be the only match.
+        return Math.max(-1,Arrays.binarySearch(contents_, specificationToSearchFor));
     }
 
+    /**
+     * @see List#lastIndexOf(Object)
+     */
     @Pure
-    public final int lastIndexOf(@ReadOnly Basket this, CommoditySpecification elementToSearchFor) {
-        // The elements of commodityTypes_ are unique so the first match will be the only match.
-        return indexOf(elementToSearchFor);
+    public final int lastIndexOf(@ReadOnly Basket this, @NonNull @ReadOnly CommoditySpecification specificationToSearchFor) {
+        // The elements of contents_ are unique so the first match will be the only match.
+        return indexOf(specificationToSearchFor);
     }
 
+    /**
+     * @see Collection#contains(Object)
+     */
     @Pure
-    public final boolean contains(@ReadOnly Basket this, CommoditySpecification elementToSearchFor) {
-        return indexOf(elementToSearchFor) != -1;
+    public final boolean contains(@ReadOnly Basket this, @NonNull @ReadOnly CommoditySpecification specificationToSearchFor) {
+        return indexOf(specificationToSearchFor) != -1;
+    }
+
+    /**
+     * A total ordering on the Baskets to allow sorting and insertion into maps.
+     *
+     * <p>
+     *  They are lexicographically compared using CommoditySpecification's natural ordering.
+     * </p>
+     */
+    @Override
+    @Pure
+    public final int compareTo(@ReadOnly Basket this, @NonNull @ReadOnly Basket other) {
+        // may need a more efficient implementation here.
+        return Ordering.natural().lexicographical().compare(Arrays.asList(contents_), Arrays.asList(other.contents_));
+    }
+
+    /**
+     * Returns a string representation of {@code this} basket as a list of commodity specifications
+     * of the form [cs1, cs2, ... , csN].
+     *
+     * <p>
+     *  This is included mostly for use by the assert* methods of JUnit so that they produce
+     *  comprehensible error messages.
+     * </p>
+     */
+    @Override
+    public String toString() {
+        return Arrays.deepToString(contents_);
     }
 
 } // end Basket interface
