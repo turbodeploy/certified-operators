@@ -164,8 +164,8 @@ public class CommoditySpecificationTest {
             output[c++] = new Object[]{invalidTypes[i],1,10};
         }
         for(int i = 0 ; i < invalidBounds.length ; ++i) {
-            output[c++] = new Object[]{0,invalidBounds[i],10};
-            output[c++] = new Object[]{0,1,invalidBounds[i]};
+            output[c++] = new Object[]{(short)0,invalidBounds[i],10};
+            output[c++] = new Object[]{(short)0,1,invalidBounds[i]};
         }
 
         return output;
