@@ -22,12 +22,11 @@ public class CommoditySpecificationTest {
     private static final Integer[] validKeys = validBounds;
     private static final Integer[] invalidKeys = invalidBounds;
 
-
     // Methods
 
     @Test
     @Parameters
-    @TestCaseName("CommoditySpecification({0}) and getters")
+    @TestCaseName("Test #{index}: CommoditySpecification({0}) and getters")
     public final void testCommoditySpecification_Short_NormalInput(short type) {
         CommoditySpecification cs = new CommoditySpecification(type);
         assertEquals(type, cs.getType());
@@ -42,7 +41,7 @@ public class CommoditySpecificationTest {
 
     @Test(expected = IllegalArgumentException.class)
     @Parameters
-    @TestCaseName("CommoditySpecification({0})")
+    @TestCaseName("Test #{index}: CommoditySpecification({0})")
     public final void testCommoditySpecification_Short_InvalidInput(short type) {
         new CommoditySpecification(type);
     }
@@ -54,7 +53,7 @@ public class CommoditySpecificationTest {
 
     @Test
     @Parameters
-    @TestCaseName("CommoditySpecification({0},{1}) and getters")
+    @TestCaseName("Test #{index}: CommoditySpecification({0},{1}) and getters")
     public final void testCommoditySpecification_Short_Int_NormalInput(short type, int key) {
         @SuppressWarnings("deprecation") // need to test the deprecated method.
         CommoditySpecification cs = new CommoditySpecification(type,key);
@@ -79,7 +78,7 @@ public class CommoditySpecificationTest {
     @SuppressWarnings("deprecation") // need to test the deprecated method.
     @Test(expected = IllegalArgumentException.class)
     @Parameters
-    @TestCaseName("CommoditySpecification({0},{1})")
+    @TestCaseName("Test #{index}: CommoditySpecification({0},{1})")
     public final void testCommoditySpecification_Short_Int_InvalidInput(short type, int key) {
         new CommoditySpecification(type,key);
     }
@@ -114,7 +113,7 @@ public class CommoditySpecificationTest {
 
     @Test
     @Parameters
-    @TestCaseName("CommoditySpecification({0},{1},{2}) and getters")
+    @TestCaseName("Test #{index}: CommoditySpecification({0},{1},{2}) and getters")
     public final void testCommoditySpecification_Short_Int_Int_NormalInput(short type, int lowerBound, int upperBound) {
         CommoditySpecification cs = new CommoditySpecification(type,lowerBound,upperBound);
         assertEquals(type, cs.getType());
@@ -139,7 +138,7 @@ public class CommoditySpecificationTest {
 
     @Test(expected = IllegalArgumentException.class)
     @Parameters
-    @TestCaseName("CommoditySpecification({0},{1},{2})")
+    @TestCaseName("Test #{index}: CommoditySpecification({0},{1},{2})")
     public final void testCommoditySpecification_Short_Int_Int_InvalidInput(short type, int lowerBound, int upperBound) {
         new CommoditySpecification(type,lowerBound,upperBound);
     }
@@ -174,7 +173,7 @@ public class CommoditySpecificationTest {
 
     @Test
     @Parameters
-    @TestCaseName("compareTo, equals and hashCode for ({0},{1})")
+    @TestCaseName("Test #{index}: compareTo, equals and hashCode for ({0},{1})")
     public final void testCompareTo_Equals_and_HashCode(CommoditySpecification left, CommoditySpecification right, int result) {
         assertEquals((int)Math.signum(result), (int)Math.signum(left.compareTo(right)));
         assertEquals(left.compareTo(right) == 0, left.equals(right));
@@ -228,7 +227,7 @@ public class CommoditySpecificationTest {
                  "1,4,8, 0,4,6, false",
                  "1,6,8, 0,4,6, false",
                  "1,7,8, 0,4,6, false",})
-    @TestCaseName("isSatisfiedBy(CommoditySpecification({0},{1},{2}),CommoditySpecification({3},{4},{5})")
+    @TestCaseName("Test #{index}: ({0},{1},{2}).isSatisfiedBy(({3},{4},{5})) == {6}")
     public final void testIsSatisfiedBy(short type1, int lowerBound1, int upperBound1,
                                         short type2, int lowerBound2, int upperBound2, boolean result) {
         assertEquals(result, new CommoditySpecification(type1, lowerBound1, upperBound1)
@@ -237,9 +236,28 @@ public class CommoditySpecificationTest {
 
     @Test
     @Parameters({"null","some string"})
-    @TestCaseName("equals({0})")
+    @TestCaseName("Test #{index}: equals({0})")
     public final void testEquals_Object(Object o) {
         assertFalse(new CommoditySpecification((short)0).equals(o));
+    }
+
+    @Test
+    @Parameters
+    @TestCaseName("Test #{index}: CommoditySpecification({0},{1},{2}).toString() == \"{3}\"")
+    public final void testToString(short type, int lowerBound, int upperBound, String result) {
+        assertEquals(result, new CommoditySpecification(type, lowerBound, upperBound).toString());
+    }
+
+    @SuppressWarnings("unused") // it is used reflectively
+    private static Object[] parametersForTestToString() {
+        return new Object[][]{
+            {(short)0,0,0,"(0,0,0)"},
+            {(short)0,0,1,"(0,0,1)"},
+            {(short)0,1,1,"(0,1,1)"},
+            {(short)1,0,0,"(1,0,0)"},
+            {(short)1,0,1,"(1,0,1)"},
+            {(short)1,1,1,"(1,1,1)"}
+        };
     }
 
 } // end class CommoditySpecificationTest

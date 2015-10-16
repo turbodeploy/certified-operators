@@ -171,8 +171,10 @@ public final class CommoditySpecification implements Comparable<CommoditySpecifi
     /**
      * A total ordering on the CommoditySpecifications to allow sorting and insertion into maps.
      *
-     * They are lexicographically compared first on the type, then on the lower quality bound and
-     * last on the upper quality bound.
+     * <p>
+     *  They are lexicographically compared first on the type, then on the lower quality bound and
+     *  last on the upper quality bound.
+     * </p>
      */
     @Override
     @Pure
@@ -204,8 +206,22 @@ public final class CommoditySpecification implements Comparable<CommoditySpecifi
     @Override
     @Pure
     public int hashCode() {
-        return Hashing.md5().newHasher().putShort(type_).putInt(qualityUpperBound_)
-            .putInt(qualityLowerBound_).hash().asInt(); // no particular reason to use md5.
+        return Hashing.md5().newHasher().putShort(type_).putInt(qualityLowerBound_)
+            .putInt(qualityUpperBound_).hash().asInt(); // no particular reason to use md5.
+    }
+
+    /**
+     * Returns a string representation of {@code this} commodity specification as a triple of the
+     * form (type,qualityLowerBound,qualityUpperBound).
+     *
+     * <p>
+     *  This is included mostly for use by the assert* methods of JUnit so that they produce
+     *  comprehensible error messages.
+     * </p>
+     */
+    @Override
+    public String toString() {
+        return "(" + type_ + ',' + qualityLowerBound_ + ',' + qualityUpperBound_ + ')';
     }
 
 } // end CommoditySpecification class
