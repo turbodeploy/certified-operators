@@ -2,9 +2,13 @@ package com.vmturbo.platform.analysis.economy;
 
 import static org.junit.Assert.*;
 
-import org.junit.After;
+import java.util.Arrays;
+import java.util.List;
+import java.util.function.UnaryOperator;
+
+import org.checkerframework.checker.javari.qual.ReadOnly;
+import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -22,9 +26,8 @@ import junitparams.naming.TestCaseName;
  */
 @RunWith(JUnitParamsRunner.class)
 public final class CommoditySoldWithSettingsTest {
-
     // Fields
-    CommoditySoldWithSettings fixture;
+    private CommoditySoldWithSettings fixture;
 
     // Methods
 
@@ -32,9 +35,6 @@ public final class CommoditySoldWithSettingsTest {
     public void setUp() {
         fixture = new CommoditySoldWithSettings();
     }
-
-    @After
-    public void tearDown() {}
 
     @Test
     public final void testCommoditySoldWithSettings() {
@@ -47,29 +47,121 @@ public final class CommoditySoldWithSettingsTest {
         csws.setResizable(csws.isResizable());
         csws.setThin(csws.isThin());
         csws.setUtilizationUpperBound(csws.getUtilizationUpperBound());
+        csws.setPriceFunction(csws.getPriceFunction());
     }
 
-    @Test
-    @Ignore
-    public final void testGetConsumers() {
-        fail("Not yet implemented");// TODO
+    @Test // That the returned list is indeed unmodifiable (part 1)
+    public final void testGetBuyers_ValidOperations() {
+        @NonNull @ReadOnly List<@NonNull @ReadOnly Trader> buyers = new CommoditySoldWithSettings().getBuyers();
+        assertFalse(buyers.contains(null));
+        assertFalse(buyers.containsAll(Arrays.asList(null,null)));
+        assertTrue(buyers.equals(buyers));
+        assertEquals(-1, buyers.indexOf(null));
+        assertTrue(buyers.isEmpty());
+        assertNotNull(buyers.iterator());
+        assertEquals(-1, buyers.lastIndexOf(null));
+        assertNotNull(buyers.listIterator());
+        assertEquals(0, buyers.size());
+        assertNotNull(buyers.toArray());
     }
+
+    @Test // That the returned list is indeed unmodifiable (part 2)
+    public final void testGetBuyers_InvalidOperations() {
+        @NonNull @ReadOnly List<@NonNull @ReadOnly Trader> buyers = new CommoditySoldWithSettings().getBuyers();
+        // TODO: should change nulls to constructor calls once we finalize Trader.
+        // TODO: may also need to test these on a non-empty buyers list because the API does not
+        // guarantee that this exception will be thrown in some cases.
+        try{
+            buyers.add(null);
+            fail();
+        } catch(UnsupportedOperationException e) {
+            // ignore
+        }
+        try{
+            buyers.add(0,null);
+            fail();
+        } catch(UnsupportedOperationException e) {
+            // ignore
+        }
+        try{
+            buyers.addAll(Arrays.asList(null,null));
+            fail();
+        } catch(UnsupportedOperationException e) {
+            // ignore
+        }
+        try{
+            buyers.addAll(0,Arrays.asList(null,null));
+            fail();
+        } catch(UnsupportedOperationException e) {
+            // ignore
+        }
+        try{
+            buyers.clear();
+            fail();
+        } catch(UnsupportedOperationException e) {
+            // ignore
+        }
+        try{
+            buyers.remove(0);
+            fail();
+        } catch(UnsupportedOperationException e) {
+            // ignore
+        }
+        try{
+            buyers.remove(null);
+            fail();
+        } catch(UnsupportedOperationException e) {
+            // ignore
+        }
+        try{
+            buyers.removeAll(buyers);
+            fail();
+        } catch(UnsupportedOperationException e) {
+            // ignore
+        }
+        try{
+            buyers.retainAll(buyers);
+            fail();
+        } catch(UnsupportedOperationException e) {
+            // ignore
+        }
+        try{
+            buyers.set(0, null);
+            fail();
+        } catch(UnsupportedOperationException e) {
+            // ignore
+        }
+    }
+
+    @Test // That the returned list is indeed modifiable.
+    public final void testGetModifiableBuyersList() {
+        @NonNull List<@NonNull @ReadOnly Trader> buyers = new CommoditySoldWithSettings().getModifiableBuyersList();
+        assertFalse(buyers.contains(null));
+        assertFalse(buyers.containsAll(Arrays.asList(null,null)));
+        assertTrue(buyers.equals(buyers));
+        assertEquals(-1, buyers.indexOf(null));
+        assertTrue(buyers.isEmpty());
+        assertNotNull(buyers.iterator());
+        assertEquals(-1, buyers.lastIndexOf(null));
+        assertNotNull(buyers.listIterator());
+        assertEquals(0, buyers.size());
+        assertNotNull(buyers.toArray());
+        assertTrue(buyers.add(null));
+        buyers.add(0,null);
+        assertTrue(buyers.addAll(Arrays.asList(null,null)));
+        assertTrue(buyers.addAll(0,Arrays.asList(null,null)));
+        //buyers.remove(0);
+        assertTrue(buyers.remove(null));
+        assertTrue(buyers.removeAll(buyers));
+        assertFalse(buyers.retainAll(buyers));
+        //buyers.set(0, null);
+        buyers.clear();
+    }
+
 
     @Test
     public final void testGetSettings() {
         assertSame(fixture, fixture.getSettings());
-    }
-
-    @Test
-    @Ignore
-    public final void testGetType() {
-        fail("Not yet implemented");// TODO
-    }
-
-    @Test
-    @Ignore
-    public final void testGetKey() {
-        fail("Not yet implemented");// TODO
     }
 
     @Test
@@ -174,6 +266,30 @@ public final class CommoditySoldWithSettingsTest {
     @TestCaseName("Test #{index}: (set|get)UtilizationUpperBound({0})")
     public final void testGetSetUtilizationUpperBound_InvalidInput(double utilizationUpperBound) {
         fixture.setUtilizationUpperBound(utilizationUpperBound);
+    }
+
+    @Test
+    @Parameters
+    @TestCaseName("Test #{index}: (set|get)PriceFunction({0})")
+    public final void testGetSetPriceFunction(UnaryOperator<Double> priceFunction) {
+        fixture.setPriceFunction(priceFunction);
+        assertSame(priceFunction, fixture.getPriceFunction());
+    }
+
+    @SuppressWarnings("unused") // it is used reflectively
+    private static Object[] parametersForTestGetSetPriceFunction() {
+        return new Object[]{
+            (UnaryOperator<Double>)x -> x*x,
+            (UnaryOperator<Double>)x -> 1 / ((1-x)*(1-x)),
+            (UnaryOperator<Double>)x -> 1/x
+        };
+    }
+
+    @Test
+    @Parameters({"0,1","0.1,1.234567","0.5,4","0.9,100"})
+    @TestCaseName("Test #{index}: getPriceFunction.apply({0}) == {1}")
+    public final void testDefaultPriceFunction(double input, double output) {
+        assertEquals(output, fixture.getPriceFunction().apply(input), 0.000001f); // TODO: improve delta
     }
 
 } // end class CommoditySoldWithSettingsTest

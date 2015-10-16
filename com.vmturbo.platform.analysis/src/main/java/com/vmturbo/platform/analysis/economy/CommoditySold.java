@@ -2,6 +2,7 @@ package com.vmturbo.platform.analysis.economy;
 
 import java.util.List;
 
+import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
@@ -21,22 +22,16 @@ public interface CommoditySold {
     @NonNull @ReadOnly List<@NonNull @ReadOnly Trader> getBuyers(@ReadOnly CommoditySold this);
 
     /**
-     * Returns the (unique) trader selling {@code this} commodity.
-     */
-    @Pure
-    @NonNull @ReadOnly Trader getSeller(@ReadOnly CommoditySold this);
-
-    /**
      * The {@link CommoditySoldSettings settings} controlling {@code this} commodity's behavior.
      */
     @Pure
-    @NonNull CommoditySoldSettings getSettings();
+    @NonNull @PolyRead CommoditySoldSettings getSettings(@PolyRead CommoditySold this);
 
     /**
      * Returns the <b>capacity</b> for {@code this} commodity.
      */
     @Pure
-    double getCapacity();
+    double getCapacity(@ReadOnly CommoditySold this);
 
     /**
      * Returns whether {@code this} commodity is <b>thin</b> provisioned.
@@ -46,7 +41,7 @@ public interface CommoditySold {
      * </p>
      */
     @Pure
-    boolean isThin();
+    boolean isThin(@ReadOnly CommoditySold this);
 
     /**
      * Sets the value of the <b>capacity</b> field.

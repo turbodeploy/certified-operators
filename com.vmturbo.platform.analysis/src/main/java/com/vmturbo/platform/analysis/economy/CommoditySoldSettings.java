@@ -1,5 +1,9 @@
 package com.vmturbo.platform.analysis.economy;
 
+import java.util.function.UnaryOperator;
+
+import org.checkerframework.checker.javari.qual.PolyRead;
+import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
 
@@ -16,7 +20,7 @@ public interface CommoditySoldSettings {
      * </p>
      */
     @Pure
-    boolean isResizable();
+    boolean isResizable(@ReadOnly CommoditySoldSettings this);
 
     /**
      * Returns the upper bound for {@code this} commodity's capacity, in case of a resize.
@@ -26,7 +30,7 @@ public interface CommoditySoldSettings {
      * </p>
      */
     @Pure
-    double getCapacityUpperBound();
+    double getCapacityUpperBound(@ReadOnly CommoditySoldSettings this);
 
     /**
      * Returns the lower bound for {@code this} commodity's capacity, in case of a resize.
@@ -36,7 +40,7 @@ public interface CommoditySoldSettings {
      * </p>
      */
     @Pure
-    double getCapacityLowerBound();
+    double getCapacityLowerBound(@ReadOnly CommoditySoldSettings this);
 
     /**
      * Returns the minimum allowed change of {@code this} commodity's capacity, is case of a resize.
@@ -47,7 +51,7 @@ public interface CommoditySoldSettings {
      * </p>
      */
     @Pure
-    double getCapacityIncrement();
+    double getCapacityIncrement(@ReadOnly CommoditySoldSettings this);
 
     /**
      * Returns the utilization upper bound for {@code this} commodity.
@@ -58,9 +62,24 @@ public interface CommoditySoldSettings {
      * </p>
      */
     @Pure
-    double getUtilizationUpperBound();
+    double getUtilizationUpperBound(@ReadOnly CommoditySoldSettings this);
 
-    // need to add the price function here once we know its type...
+    /**
+     * Returns the price function for {@code this} commodity.
+     *
+     * <p>
+     *  A price function P(Q) accepts a quantity of this commodity and returns the price the seller
+     *  of this commodity will charge a potential buyer of this quantity.
+     * </p>
+     *
+     * <p>
+     *  Our system has a complex notion of 'quantity' that's composed of quantity, peak quantity and
+     *  other factors and a higher level notion of 'price' that's the combination of different prices
+     *  returned by this function. In that sense, this is the low level price function.
+     * </p>
+     */
+    @Pure
+    @NonNull @PolyRead UnaryOperator<@NonNull Double> getPriceFunction(@PolyRead CommoditySoldSettings this);
 
     /**
      * Sets the value of the <b>resizable</b> field.
@@ -121,5 +140,17 @@ public interface CommoditySoldSettings {
      * @return {@code this}
      */
     @NonNull CommoditySoldSettings setUtilizationUpperBound(double utilizationUpperBound);
+
+    /**
+     * Sets the value of the <b>price function</b> field.
+     *
+     * <p>
+     *  Has no observable side-effects except setting the above field.
+     * </p>
+     *
+     * @param priceFunction the new value for the field.
+     * @return {@code this}
+     */
+    @NonNull CommoditySoldSettings setPriceFunction(@NonNull UnaryOperator<@NonNull Double> priceFunction);
 
 } // end CommoditySoldSettings interface
