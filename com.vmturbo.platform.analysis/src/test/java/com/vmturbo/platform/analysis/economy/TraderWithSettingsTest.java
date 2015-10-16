@@ -44,7 +44,7 @@ public final class TraderWithSettingsTest {
 
     @Test
     @Parameters({"true","false"})
-    @TestCaseName("(set|is)Suspendable({0})")
+    @TestCaseName("Test #{index}: (set|is)Suspendable({0})")
     public final void testIsSetSuspendable(boolean suspendable) {
         fixture.setSuspendable(suspendable);
         assertEquals(suspendable, fixture.isSuspendable());
@@ -52,7 +52,7 @@ public final class TraderWithSettingsTest {
 
     @Test
     @Parameters({"true","false"})
-    @TestCaseName("(set|is)Cloneable({0})")
+    @TestCaseName("Test #{index}: (set|is)Cloneable({0})")
     public final void testIsCloneable(boolean cloneable) {
         fixture.setCloneable(cloneable);
         assertEquals(cloneable, fixture.isCloneable());
@@ -62,7 +62,7 @@ public final class TraderWithSettingsTest {
     @Parameters({"0.0,0.0","0.0,0.5","0.0,1.0",
                  "0.5,0.5","0.5,1.0",
                  "1.0,1.0"})
-    @TestCaseName("(set|get)MaxDesiredUtil({1}) while minDesiredUtilization == {0}")
+    @TestCaseName("Test #{index}: (set|get)MaxDesiredUtil({1}) while minDesiredUtilization == {0}")
     public final void testGetSetMaxDesiredUtil_NormalInput(double minDesiredUtilization, double maxDesiredUtilization) {
         fixture.setMinDesiredUtil(minDesiredUtilization);
         fixture.setMaxDesiredUtil(maxDesiredUtilization);
@@ -73,7 +73,7 @@ public final class TraderWithSettingsTest {
     @Parameters({"0.0,-1.0","0.0,1.5",
                  "0.5,0.0","0.5,1.5",
                  "1.0,0.5","1.0,1.5"})
-    @TestCaseName("(set|get)MaxDesiredUtil({1}) while minDesiredUtilization == {0}")
+    @TestCaseName("Test #{index}: (set|get)MaxDesiredUtil({1}) while minDesiredUtilization == {0}")
     public final void testGetSetMaxDesiredUtil_InvalidInput(double minDesiredUtilization, double maxDesiredUtilization) {
         fixture.setMinDesiredUtil(minDesiredUtilization);
         fixture.setMaxDesiredUtil(maxDesiredUtilization);
@@ -83,7 +83,7 @@ public final class TraderWithSettingsTest {
     @Parameters({"0.0,1.0","0.5,1.0","1.0,1.0",
                  "0.0,0.5","0.5,0.5",
                  "0.0,0.0"})
-    @TestCaseName("(set|get)MinDesiredUtil({0}) while maxDesiredUtilization == {1}")
+    @TestCaseName("Test #{index}: (set|get)MinDesiredUtil({0}) while maxDesiredUtilization == {1}")
     public final void testGetSetMinDesiredUtil_NormalInput(double minDesiredUtilization, double maxDesiredUtilization) {
         fixture.setMaxDesiredUtil(maxDesiredUtilization);
         fixture.setMinDesiredUtil(minDesiredUtilization);
@@ -94,7 +94,7 @@ public final class TraderWithSettingsTest {
     @Parameters({"-1.0,1.0","1.5,1.0",
                  "-1.0,0.5","1.0,0.5",
                  "-1.0,0.0","0.5,0.0"})
-    @TestCaseName("(set|get)MinDesiredUtil({0}) while maxDesiredUtilization == {1}")
+    @TestCaseName("Test #{index}: (set|get)MinDesiredUtil({0}) while maxDesiredUtilization == {1}")
     public final void testGetSetMinDesiredUtil_InvalidInput(double minDesiredUtilization, double maxDesiredUtilization) {
         fixture.setMaxDesiredUtil(maxDesiredUtilization);
         fixture.setMinDesiredUtil(minDesiredUtilization);
@@ -125,7 +125,7 @@ public final class TraderWithSettingsTest {
 
     @Test
     @Parameters(source = TraderState.class)
-    @TestCaseName("(set|get)State({0})")
+    @TestCaseName("Test #{index}: (set|get)State({0})")
     public final void testGetSetState(TraderState state) {
         fixture.setState(state);
         assertSame(state, fixture.getState());
