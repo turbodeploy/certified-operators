@@ -25,8 +25,7 @@ import com.vmturbo.platform.analysis.economy.Trader;
  */
 public final class Topology {
     // Fields
-    private @NonNull Map<@NonNull @ReadOnly OID,@NonNull Trader> traders =
-                                              new HashMap<@NonNull @ReadOnly OID,@NonNull Trader>();
+    private @NonNull Map<@NonNull @ReadOnly OID,@NonNull Trader> traders = new HashMap<>();
     private @NonNull Economy economy = new Economy(); // topology will just delegate to economy for now.
 
     // Constructors

@@ -24,10 +24,9 @@ public final class Economy implements Cloneable {
     // Fields
 
     // The map that associates Baskets with Markets.
-    private @NonNull Map<@NonNull @ReadOnly Basket,@NonNull Market> markets =
-                                           new TreeMap<@NonNull @ReadOnly Basket,@NonNull Market>();
+    private @NonNull Map<@NonNull @ReadOnly Basket,@NonNull Market> markets = new TreeMap<>();
     // The list of all Traders participating in the Economy.
-    private @NonNull List<@NonNull Trader> traders = new ArrayList<@NonNull Trader>();
+    private @NonNull List<@NonNull Trader> traders = new ArrayList<>();
 
     // Constructors
 

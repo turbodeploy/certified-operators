@@ -43,7 +43,7 @@ public final class Basket implements Comparable<@NonNull @ReadOnly Basket> {
      */
     public Basket(@NonNull CommoditySpecification... contents) {
         // may need to change the following to a more efficient implementation.
-        TreeSet<CommoditySpecification> set = new TreeSet<CommoditySpecification>(Arrays.asList(contents));
+        TreeSet<CommoditySpecification> set = new TreeSet<>(Arrays.asList(contents));
         contents_ = set.toArray(new CommoditySpecification[set.size()]);
     }
 
