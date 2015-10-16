@@ -19,14 +19,13 @@ final class TraderWithSettings implements Trader, TraderSettings {
 
     // Fields for Trader
     private @NonNull TraderState state_;
-    private final @NonNull TraderType type_; // this should never change once the object is created.
+    private final int type_; // this should never change once the object is created.
     private @NonNull Basket basketSold_;
     private @NonNull CommoditySold @NonNull [] commoditiesSold_;
     private @NonNull Market @NonNull [] marketsAsBuyer_ = new Market[0];
 
     // Constructors
-    public TraderWithSettings(@NonNull TraderType type, @NonNull TraderState state,
-                              @NonNull Basket basketSold) {
+    public TraderWithSettings(int type, @NonNull TraderState state, @NonNull Basket basketSold) {
         type_ = type;
         state_ = state;
         basketSold_ = basketSold;
@@ -98,7 +97,7 @@ final class TraderWithSettings implements Trader, TraderSettings {
     }
 
     @Override
-    public @NonNull TraderType getType() {
+    public int getType() {
         return type_;
     }
 

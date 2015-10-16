@@ -138,10 +138,16 @@ public interface Trader {
     @NonNull TraderSettings getSettings();
 
     /**
-     * The {@link TraderType type} of {@code this} trader.
+     * Returns the type of the trader.
+     *
+     * <p>
+     *  Its a numerical representation of the type. An ID of sorts that may e.g. correspond to
+     *  "physical machine" or "storage", but the correspondence is not important to the economy and
+     *  kept (potentially) outside the economy.
+     * </p>
      */
     @Pure
-    @NonNull TraderType getType();
+    @NonNull int getType();
 
     /**
      * Returns the current {@link TraderState state} of {@code this} trader.
