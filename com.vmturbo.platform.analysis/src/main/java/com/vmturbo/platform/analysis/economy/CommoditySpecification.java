@@ -101,7 +101,7 @@ public final class CommoditySpecification implements Comparable<CommoditySpecifi
     // Methods
 
     /**
-     * Returns the type of the commodity provider or requested.
+     * Returns the type of the commodity provided or requested.
      *
      * <p>
      *  Its a numerical representation of the type. An ID of sorts that may e.g. correspond to CPU

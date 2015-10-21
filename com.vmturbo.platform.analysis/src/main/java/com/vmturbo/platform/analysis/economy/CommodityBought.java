@@ -8,6 +8,15 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Deterministic;
 import org.checkerframework.dataflow.qual.Pure;
 
+/**
+ * Represents a commodity bought by a specific buyer participation in a specific market.
+ *
+ * <p>
+ *  E.g. a buyer buying the same basket two times from two different sellers will have two
+ *  participations in the corresponding market and two CommodityBought instances of a given type,
+ *  one for each seller.
+ * </p>
+ */
 public final class CommodityBought {
     // Fields
     private @NonNull Market market_;
