@@ -52,7 +52,7 @@ public final class CommoditySoldWithSettingsTest {
 
     @Test // That the returned list is indeed unmodifiable (part 1)
     public final void testGetBuyers_ValidOperations() {
-        @NonNull @ReadOnly List<@NonNull @ReadOnly Trader> buyers = new CommoditySoldWithSettings().getBuyers();
+        @NonNull @ReadOnly List<@NonNull @ReadOnly BuyerParticipation> buyers = new CommoditySoldWithSettings().getBuyers();
         assertFalse(buyers.contains(null));
         assertFalse(buyers.containsAll(Arrays.asList(null,null)));
         assertTrue(buyers.equals(buyers));
@@ -67,7 +67,7 @@ public final class CommoditySoldWithSettingsTest {
 
     @Test // That the returned list is indeed unmodifiable (part 2)
     public final void testGetBuyers_InvalidOperations() {
-        @NonNull @ReadOnly List<@NonNull @ReadOnly Trader> buyers = new CommoditySoldWithSettings().getBuyers();
+        @NonNull @ReadOnly List<@NonNull @ReadOnly BuyerParticipation> buyers = new CommoditySoldWithSettings().getBuyers();
         // TODO: should change nulls to constructor calls once we finalize Trader.
         // TODO: may also need to test these on a non-empty buyers list because the API does not
         // guarantee that this exception will be thrown in some cases.
@@ -135,7 +135,7 @@ public final class CommoditySoldWithSettingsTest {
 
     @Test // That the returned list is indeed modifiable.
     public final void testGetModifiableBuyersList() {
-        @NonNull List<@NonNull @ReadOnly Trader> buyers = new CommoditySoldWithSettings().getModifiableBuyersList();
+        @NonNull List<@NonNull @ReadOnly BuyerParticipation> buyers = new CommoditySoldWithSettings().getModifiableBuyersList();
         assertFalse(buyers.contains(null));
         assertFalse(buyers.containsAll(Arrays.asList(null,null)));
         assertTrue(buyers.equals(buyers));

@@ -1,11 +1,13 @@
 package com.vmturbo.platform.analysis.economy;
 
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
+import org.checkerframework.checker.nullness.qual.Nullable;
+import org.checkerframework.dataflow.qual.Deterministic;
 import org.checkerframework.dataflow.qual.Pure;
 
 /**
@@ -16,39 +18,41 @@ import org.checkerframework.dataflow.qual.Pure;
  *  trading that particular basket.
  * </p>
  */
+// TODO: consider making markets agnostic to the economy by hoisting a few methods to the economy
+// class. If that is not an option consider making market a non-static inner class of the economy.
 public final class Market {
     // Fields
 
-    // the associated basket all buyers in the market buy that basket.
-    private final @NonNull Basket basket_;
-    // all active Traders buying {@code this} basket.
-    private @NonNull Trader @NonNull [] buyers = new Trader[0];
-    // all active Traders selling a basket that matches {@code this}.
-    private @NonNull Trader @NonNull [] sellers = new Trader[0];
-    // The mapping between sellers and buyers of this Market. Can support up to 2 billion Traders.
-    // Must be the same size as buyers.
-    private int @NonNull [] currentSuppliers = new int[0];
-    // Must be the same size as buyers. For each buyer, holds an array of as many (amount,peak)
-    // pairs as there are commodity specifications in this Basket. The layout is {a1,p1,a2,p2,...,an,pn}
-    // where commodityTypes.length == n.
-    private double @NonNull [] @NonNull [] amountAndPeakVectors = new double[0][0];
+    private final @NonNull Basket basket_; // see #getBasket()
+    private final @NonNull Economy economy_; // see #getEconomy()
+    // All active Traders buying this market's basket. Some may appear more than once as different
+    // participations.
+    private final @NonNull List<@NonNull BuyerParticipation> buyers_ = new ArrayList<>();
+    // All active Traders selling a basket that matches this market's.
+    private final @NonNull List<@NonNull Trader> sellers_ = new ArrayList<>();
 
     // Constructors
 
     /**
-     * Constructs and empty Market and attaches the given basket.
+     * Constructs and empty Market inside a given Economy and attaches the given basket.
      *
+     * @param enclosingEconomy  The economy inside which the market will be created.
      * @param basketToAssociate The basket to associate with the new market. It it referenced and
      *                          not copied.
      */
-    public Market(@NonNull Basket basketToAssociate) {
+    public Market(@NonNull Economy enclosingEconomy, @NonNull Basket basketToAssociate) {
+        economy_ = enclosingEconomy;
         basket_ = basketToAssociate;
     }
 
     // Methods
 
     /**
-     * Returns the associated {@link Basket}
+     * Returns the associated {@link Basket}.
+     *
+     * <p>
+     *  All buyers in the market buy that basket.
+     * </p>
      */
     @Pure
     public @NonNull Basket getBasket(@ReadOnly Market this) {
@@ -56,19 +60,92 @@ public final class Market {
     }
 
     /**
+     * Returns the enclosing {@link Economy}.
+     *
+     * <p>
+     *  Each market is created and maintained inside a unique economy.
+     * </p>
+     */
+    @Pure
+    public @NonNull Economy getEconomy(@ReadOnly Market this) {
+        return economy_;
+    }
+
+    /**
      * Returns an unmodifiable list of sellers participating in {@code this} {@code Market}.
      */
     @Pure
     public @NonNull @ReadOnly List<@NonNull Trader> getSellers(@ReadOnly Market this) {
-        return Collections.unmodifiableList(Arrays.asList(sellers));
+        return Collections.unmodifiableList(sellers_);
+    }
+
+    @Deterministic
+    @NonNull Market addSeller(@NonNull Trader newSeller) {
+        sellers_.add(newSeller);
+        return this;
+    }
+
+    @Deterministic
+    @NonNull Market removeSeller(@NonNull Trader sellerToRemove) {
+        sellers_.remove(sellerToRemove);
+        return this;
     }
 
     /**
      * Returns an unmodifiable list of buyers participating in {@code this} {@code Market}.
      */
     @Pure
-    public @NonNull @ReadOnly List<@NonNull Trader> getBuyers(@ReadOnly Market this) {
-        return Collections.unmodifiableList(Arrays.asList(buyers));
+    public @NonNull @ReadOnly List<@NonNull BuyerParticipation> getBuyers(@ReadOnly Market this) {
+        return Collections.unmodifiableList(buyers_);
+    }
+
+    // TODO: consider adding an extra argument for supplier
+    @NonNull BuyerParticipation addBuyer(@NonNull TraderWithSettings newBuyer) {
+        BuyerParticipation newParticipation = new BuyerParticipation(newBuyer.getEconomyIndex(),
+            BuyerParticipation.NO_SUPPLIER, basket_.size());
+        buyers_.add(newParticipation);
+
+        return newParticipation;
+    }
+
+    @NonNull Market removeBuyerParticipation(@NonNull BuyerParticipation participationToRemove) {
+        buyers_.remove(participationToRemove);
+        // TODO: move participation to null
+        return this;
+    }
+
+    /**
+     * Returns the supplier of the given buyer participation in {@code this} market or {@code null}
+     * if there is no such supplier.
+     *
+     * @param participation The buyer participation for which we query the supplier.
+     * @return The supplier or {@code null} if the given buyer participation is currently not buying
+     *          the corresponding basket from anyone.
+     */
+    @Pure
+    public @Nullable @ReadOnly Trader getSupplier(@ReadOnly Market this, @NonNull @ReadOnly BuyerParticipation participation) {
+        return participation.getSupplierIndex() == BuyerParticipation.NO_SUPPLIER
+            ? null : getEconomy().getTraders().get(participation.getSupplierIndex());
+    }
+
+    /**
+     * Returns an unmodifiable list of the commodities the given buyer participation is buying in
+     * {@code this} market.
+     *
+     * <p>
+     *  If the given buyer participation is not currently buying these commodities from anyone, then
+     *  they just represent the quantities and peak quantities the buyer intends to buy.
+     * </p>
+     */
+    @Pure
+    public @NonNull @ReadOnly List<@NonNull CommodityBought> getCommoditiesBought(@ReadOnly Market this,
+                                               @NonNull @ReadOnly BuyerParticipation participation) {
+        @NonNull List<@NonNull CommodityBought> result = new ArrayList<>(getBasket().size());
+        for (CommoditySpecification specification : getBasket().getCommoditySpecifications()) {
+            result.add(new CommodityBought(this, participation, specification));
+        }
+
+        return result;
     }
 
 } // end Market class

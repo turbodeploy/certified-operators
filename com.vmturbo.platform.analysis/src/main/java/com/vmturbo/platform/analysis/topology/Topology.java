@@ -8,8 +8,10 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Deterministic;
 import org.checkerframework.dataflow.qual.Pure;
 
+import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
+import com.vmturbo.platform.analysis.economy.TraderState;
 
 /**
  * A representation of the outside world's state capable of communicating with Mediation and UI.
@@ -56,10 +58,12 @@ public final class Topology {
      * @return {@code this}
      */
     @Deterministic
-    public @NonNull Topology addTrader(@NonNull @ReadOnly OID traderOID, @NonNull Trader trader) {
+    public @NonNull Trader addTrader(@NonNull @ReadOnly OID traderOID, int type, @NonNull TraderState state,
+                                     @NonNull Basket basketSold, @NonNull Basket... basketsBought) {
+        @NonNull Trader trader = economy.addTrader(type,state,basketSold,basketsBought);
         traders.put(traderOID, trader);
-        economy.addTrader(trader);
-        return this;
+
+        return trader;
     }
 
     /**

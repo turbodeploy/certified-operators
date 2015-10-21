@@ -2,13 +2,15 @@ package com.vmturbo.platform.analysis.economy;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
-import org.checkerframework.checker.nullness.qual.Nullable;
+
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.Multimap;
 
 final class TraderWithSettings implements Trader, TraderSettings {
     // Fields for TraderSettings
@@ -18,21 +20,25 @@ final class TraderWithSettings implements Trader, TraderSettings {
     private double minDesiredUtilization_ = 0.0;
 
     // Fields for Trader
-    private @NonNull TraderState state_;
     private final int type_; // this should never change once the object is created.
+    private @NonNull TraderState state_;
     private @NonNull Basket basketSold_;
-    private @NonNull CommoditySold @NonNull [] commoditiesSold_;
-    private @NonNull Market @NonNull [] marketsAsBuyer_ = new Market[0];
+    private final @NonNull List<@NonNull CommoditySold> commoditiesSold_ = new ArrayList<>();
+    private final @NonNull Multimap<@NonNull Market, @NonNull BuyerParticipation> marketsAsBuyer_ = ArrayListMultimap.create();
+    private final @NonNull List<Market> marketsAsSeller_ = new ArrayList<>();
+
+    // Internal fields
+    private int economyIndex_;
 
     // Constructors
-    public TraderWithSettings(int type, @NonNull TraderState state, @NonNull Basket basketSold) {
+    public TraderWithSettings(int economyIndex, int type, @NonNull TraderState state, @NonNull Basket basketSold) {
         type_ = type;
         state_ = state;
         basketSold_ = basketSold;
+        economyIndex_ = economyIndex;
 
-        commoditiesSold_ = new CommoditySoldWithSettings[basketSold.size()];
         for(int i = 0 ; i < basketSold.size() ; ++i) {
-            commoditiesSold_[i] = new CommoditySoldWithSettings();
+            commoditiesSold_.add(new CommoditySoldWithSettings());
         }
     }
 
@@ -58,20 +64,32 @@ final class TraderWithSettings implements Trader, TraderSettings {
         return minDesiredUtilization_;
     }
 
+    /**
+     * Returns the economy index of {@code this} trader.
+     *
+     * <p>
+     *  It is the position of {@code this} trader in the list containing all traders in the
+     *  {@link Economy}.
+     * </p>
+     */
+    public int getEconomyIndex() {
+        return economyIndex_;
+    }
+
     @Override
-    public @NonNull TraderSettings setSuspendable(boolean suspendable) {
+    public @NonNull TraderWithSettings setSuspendable(boolean suspendable) {
         suspendable_ = suspendable;
         return this;
     }
 
     @Override
-    public @NonNull TraderSettings setCloneable(boolean cloneable) {
+    public @NonNull TraderWithSettings setCloneable(boolean cloneable) {
         cloneable_ = cloneable;
         return this;
     }
 
     @Override
-    public @NonNull TraderSettings setMaxDesiredUtil(double maxDesiredUtilization) {
+    public @NonNull TraderWithSettings setMaxDesiredUtil(double maxDesiredUtilization) {
         checkArgument(maxDesiredUtilization <= 1.0);
         checkArgument(minDesiredUtilization_ <= maxDesiredUtilization);
         maxDesiredUtilization_ = maxDesiredUtilization;
@@ -79,16 +97,31 @@ final class TraderWithSettings implements Trader, TraderSettings {
     }
 
     @Override
-    public @NonNull TraderSettings setMinDesiredUtil(double minDesiredUtilization) {
+    public @NonNull TraderWithSettings setMinDesiredUtil(double minDesiredUtilization) {
         checkArgument(0.0 <= minDesiredUtilization);
         checkArgument(minDesiredUtilization <= maxDesiredUtilization_);
         minDesiredUtilization_ = minDesiredUtilization;
         return this;
     }
 
+    /**
+     * Sets the value of the <b>economy index</b> field.
+     *
+     * <p>
+     *  Has no observable side-effects except setting the above field.
+     * </p>
+     *
+     * @param economyIndex the new value for the field.
+     * @return {@code this}
+     */
+    public @NonNull TraderWithSettings setEconomyIndex(int economyIndex) {
+        economyIndex_ = economyIndex;
+        return this;
+    }
+
     @Override
     public @NonNull List<@NonNull @ReadOnly CommoditySold> getCommoditiesSold() {
-        return Collections.unmodifiableList(Arrays.asList(commoditiesSold_));
+        return Collections.unmodifiableList(commoditiesSold_);
     }
 
     @Override
@@ -106,39 +139,20 @@ final class TraderWithSettings implements Trader, TraderSettings {
         return state_;
     }
 
-    @Override
-    public @NonNull Trader setState(@NonNull TraderState state) {
+    /**
+     * Sets the value of the <b>state</b> field.
+     *
+     * <p>
+     *  Has no observable side-effects except setting the above field.
+     * </p>
+     *
+     * @param state the new value for the field.
+     * @return {@code this}
+     */
+    // TODO: add a corresponding method to economy.
+    public @NonNull Trader setState(@NonNull @ReadOnly TraderState state) {
         state_ = state;
         return this;
-    }
-
-    @Override
-    public @NonNull @ReadOnly List<@NonNull @ReadOnly Trader> getCustomers() {
-        // TODO Auto-generated method stub
-        return null;
-    }
-
-    @Override
-    public @NonNull @ReadOnly List<@NonNull @ReadOnly Trader> getSuppliers() {
-        // TODO Auto-generated method stub
-        return null;
-    }
-
-    @Override
-    public @Nullable @ReadOnly Trader getSupplier(@NonNull @ReadOnly Market market) {
-        // TODO Auto-generated method stub
-        return null;
-    }
-
-    @Override
-    public @NonNull @ReadOnly List<@NonNull @ReadOnly Market> getMarketsAsBuyer() {
-        return Collections.unmodifiableList(Arrays.asList(marketsAsBuyer_));
-    }
-
-    @Override
-    public @NonNull @ReadOnly List<@NonNull @ReadOnly Market> getMarketsAsSeller() {
-        // TODO Auto-generated method stub
-        return null;
     }
 
     @Override
@@ -147,36 +161,36 @@ final class TraderWithSettings implements Trader, TraderSettings {
     }
 
     @Override
-    public @NonNull Trader addCommoditySold(@NonNull @ReadOnly CommoditySpecification newCommoditySpecification,
-                                            @NonNull CommoditySold newCommoditySold) {
-        // TODO Auto-generated method stub
-        return null;
+    public @NonNull CommoditySold addCommoditySold(@NonNull @ReadOnly CommoditySpecification newCommoditySpecification) {
+        // TODO: improve implementation. Maybe include add method to Basket?
+        @NonNull List<@NonNull CommoditySpecification> newSpecifications = new ArrayList<>(basketSold_.getCommoditySpecifications());
+        newSpecifications.add(newCommoditySpecification);
+        basketSold_ = new Basket(newSpecifications);
+
+        CommoditySoldWithSettings newCommoditySold = new CommoditySoldWithSettings();
+        commoditiesSold_.add(basketSold_.indexOf(newCommoditySpecification), newCommoditySold);
+
+        return newCommoditySold;
     }
 
     @Override
     public @NonNull CommoditySold removeCommoditySold(@NonNull @ReadOnly CommoditySpecification typeToRemove) {
-        // TODO Auto-generated method stub
-        return null;
+        // TODO: improve implementation. Maybe include remove method to Basket?
+        CommoditySold removed = commoditiesSold_.remove(basketSold_.indexOf(typeToRemove));
+
+        @NonNull List<@NonNull CommoditySpecification> newSpecifications = new ArrayList<>(basketSold_.getCommoditySpecifications());
+        newSpecifications.remove(typeToRemove);
+        basketSold_ = new Basket(newSpecifications);
+
+        return removed;
     }
 
-    @Override
-    public @NonNull Trader addCommodityBought(@NonNull Basket basketToAddTo,
-                                              @NonNull @ReadOnly CommoditySpecification commodityTypeToAdd) {
-        // TODO Auto-generated method stub
-        return null;
+    @NonNull Multimap<@NonNull Market, @NonNull BuyerParticipation> getMarketsAsBuyer() {
+        return marketsAsBuyer_;
     }
 
-    @Override
-    public @NonNull Trader removeCommodityBought(@NonNull Basket basketToRemoveFrom,
-                                        @NonNull @ReadOnly CommoditySpecification commodityTypeToRemove) {
-        // TODO Auto-generated method stub
-        return null;
+    @NonNull List<Market> getMarketsAsSeller() {
+        return marketsAsSeller_;
     }
 
-    @Override
-    public @NonNull @ReadOnly List<@NonNull CommodityBought> getCommoditiesBought(@NonNull @ReadOnly Market market) {
-        // TODO Auto-generated method stub
-        return null;
-    }
-
-}
+} // end TraderWithSettings class

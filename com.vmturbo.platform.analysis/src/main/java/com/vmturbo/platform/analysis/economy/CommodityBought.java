@@ -1,4 +1,7 @@
+
 package com.vmturbo.platform.analysis.economy;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -8,11 +11,11 @@ import org.checkerframework.dataflow.qual.Pure;
 public final class CommodityBought {
     // Fields
     private @NonNull Market market_;
-    private @NonNull Trader buyer_;
+    private @NonNull BuyerParticipation buyer_;
     private @NonNull CommoditySpecification type_;
 
     // Constructors
-    CommodityBought(@NonNull Market market, @NonNull Trader buyer, @NonNull CommoditySpecification type) {
+    CommodityBought(@NonNull Market market, @NonNull BuyerParticipation buyer, @NonNull CommoditySpecification type) {
         market_ = market;
         buyer_ = buyer;
         type_ = type;
@@ -26,27 +29,37 @@ public final class CommodityBought {
 
     @Pure
     public double getQuantity(@ReadOnly CommodityBought this) {
-        // TODO: get the Quantity from market.
-        return 0.0;
+        return buyer_.getQuantity(market_.getBasket().indexOf(type_));
     }
 
     @Pure
     public double getPeakQuantity(@ReadOnly CommodityBought this) {
-        // TODO: get the Quantity from market.
-        return 0.0;
+        return buyer_.getPeakQuantity(market_.getBasket().indexOf(type_));
     }
 
     @Deterministic
     public CommodityBought setQuantity(double newQuantity) {
-        // TODO: set the Quantity in market.
+        if(buyer_.getSupplierIndex() != BuyerParticipation.NO_SUPPLIER)
+        {
+            final Trader supplier = market_.getEconomy().getTraders().get(buyer_.getSupplierIndex());
+            // TODO: should this be capacity or utilizationUpperBound*capacity?
+            checkArgument(newQuantity <= supplier.getCommoditiesSold().get(market_.getBasket().indexOf(type_)).getCapacity());
+        }
+        buyer_.setQuantity(market_.getBasket().indexOf(type_),newQuantity);
         return this;
     }
 
     @Deterministic
     public CommodityBought setPeakQuantity(double newPeakQuantity) {
-        // TODO: set the Quantity in market.
+        if(buyer_.getSupplierIndex() != BuyerParticipation.NO_SUPPLIER)
+        {
+            final Trader supplier = market_.getEconomy().getTraders().get(buyer_.getSupplierIndex());
+            // TODO: should this be capacity or utilizationUpperBound*capacity?
+            checkArgument(newPeakQuantity <= supplier.getCommoditiesSold().get(market_.getBasket().indexOf(type_)).getCapacity());
+        }
+        buyer_.setPeakQuantity(market_.getBasket().indexOf(type_),newPeakQuantity);
         return this;
     }
 
 
-}
+} // end CommodityBought class

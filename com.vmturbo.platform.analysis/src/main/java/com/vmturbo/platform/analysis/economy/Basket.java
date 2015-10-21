@@ -34,6 +34,13 @@ public final class Basket implements Comparable<@NonNull @ReadOnly Basket> {
     // Constructors
 
     /**
+     * @see #Basket(Collection)
+     */
+    public Basket(@NonNull CommoditySpecification... contents) {
+        this(Arrays.asList(contents));
+    }
+
+    /**
      * Constructs a new Basket containing the given commodity specifications.
      *
      * @param contents The commodity specifications that will become the contents of the new basket.
@@ -41,9 +48,9 @@ public final class Basket implements Comparable<@NonNull @ReadOnly Basket> {
      *                 only once in the basket (those that come after the first in contents are
      *                 ignored).
      */
-    public Basket(@NonNull CommoditySpecification... contents) {
+    public Basket(@NonNull @ReadOnly Collection<@NonNull @ReadOnly CommoditySpecification> contents) {
         // may need to change the following to a more efficient implementation.
-        TreeSet<CommoditySpecification> set = new TreeSet<>(Arrays.asList(contents));
+        TreeSet<CommoditySpecification> set = new TreeSet<>(contents);
         contents_ = set.toArray(new CommoditySpecification[set.size()]);
     }
 

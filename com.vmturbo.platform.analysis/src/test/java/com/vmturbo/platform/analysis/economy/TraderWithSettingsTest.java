@@ -2,7 +2,6 @@ package com.vmturbo.platform.analysis.economy;
 
 import static org.junit.Assert.*;
 
-import org.junit.After;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -30,11 +29,8 @@ public final class TraderWithSettingsTest {
 
     @Before
     public void setUp() {
-        fixture = new TraderWithSettings(0, null, new Basket());
+        fixture = new TraderWithSettings(0, 0, null, new Basket());
     }
-
-    @After
-    public void tearDown() {}
 
     @Test
     @Ignore

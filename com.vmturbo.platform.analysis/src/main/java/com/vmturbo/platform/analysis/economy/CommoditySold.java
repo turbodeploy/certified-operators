@@ -19,7 +19,7 @@ public interface CommoditySold {
      * Returns an unmodifiable list of traders buying {@code this} commodity.
      */
     @Pure
-    @NonNull @ReadOnly List<@NonNull @ReadOnly Trader> getBuyers(@ReadOnly CommoditySold this);
+    @NonNull @ReadOnly List<@NonNull @ReadOnly BuyerParticipation> getBuyers(@ReadOnly CommoditySold this);
 
     /**
      * The {@link CommoditySoldSettings settings} controlling {@code this} commodity's behavior.

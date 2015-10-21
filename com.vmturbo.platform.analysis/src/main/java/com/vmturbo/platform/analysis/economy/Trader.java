@@ -4,7 +4,6 @@ import java.util.List;
 
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
-import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Deterministic;
 import org.checkerframework.dataflow.qual.Pure;
 
@@ -21,42 +20,6 @@ import org.checkerframework.dataflow.qual.Pure;
  * </p>
  */
 public interface Trader {
-
-    /**
-     * Returns an unmodifiable list of {@code this} seller's customers.
-     */
-    @Pure
-    @NonNull @ReadOnly List<@NonNull @ReadOnly Trader> getCustomers(@ReadOnly Trader this);
-
-    /**
-     * Returns an unmodifiable list of {@code this} buyer's suppliers.
-     */
-    @Pure
-    @NonNull @ReadOnly List<@NonNull @ReadOnly Trader> getSuppliers(@ReadOnly Trader this);
-
-    /**
-     * Returns the supplier of {@code this} buyer for the specified market or {@code null} if there
-     * is no such supplier.
-     *
-     * @param market the market for which we query the supplier.
-     * @return the supplier or {@code null} if {@code this} buyer is currently not buying the
-     *          corresponding basket from anyone.
-     */
-    @Pure
-    @Nullable @ReadOnly Trader getSupplier(@ReadOnly Trader this, @NonNull @ReadOnly Market market);
-
-    /**
-     * Returns an unmodifiable list of the markets {@code this} trader participates in as a buyer.
-     */
-    @Pure
-    @NonNull @ReadOnly List<@NonNull @ReadOnly Market> getMarketsAsBuyer(@ReadOnly Trader this);
-
-    /**
-     * Returns an unmodifiable list of the markets {@code this} trader participates in as a seller.
-     */
-    @Pure
-    @NonNull @ReadOnly List<@NonNull @ReadOnly Market> getMarketsAsSeller(@ReadOnly Trader this);
-
     /**
      * Returns the basket sold by {@code this} seller.
      */
@@ -70,22 +33,14 @@ public interface Trader {
     @NonNull @ReadOnly List<@NonNull @ReadOnly CommoditySold> getCommoditiesSold(@ReadOnly Trader this);
 
     /**
-     * Returns an unmodifiable list of the commodities {@code this} trader is buying in the given market.
-     */
-    @Pure
-    @NonNull @ReadOnly List<@NonNull CommodityBought> getCommoditiesBought(@ReadOnly Trader this, @NonNull @ReadOnly Market market);
-
-    /**
-     * Adds a new commodity to the list of commodities sold by {@code this} seller.
+     * Adds a new commodity to the list of commodities sold by {@code this} seller and returns it.
      *
      * @param newCommoditySpecification The type of the new commodity. It will be added to {@code this}
      *          seller's basket.
-     * @param newCommoditySold The new commodity to be added. It will be added to {@code this}
-     *          seller's commodities sold list.
-     * @return {@code this}
+     * @return The new commodity that was created and added.
      */
     @Deterministic
-    @NonNull Trader addCommoditySold(@NonNull @ReadOnly CommoditySpecification newCommoditySpecification, @NonNull CommoditySold newCommoditySold);
+    @NonNull CommoditySold addCommoditySold(@NonNull @ReadOnly CommoditySpecification newCommoditySpecification);
 
     /**
      * Removes an existing commodity from the list of commodities sold by {@code this} seller.
@@ -103,31 +58,7 @@ public interface Trader {
     // because the topology is modified.
     @NonNull CommoditySold removeCommoditySold(@NonNull @ReadOnly CommoditySpecification typeToRemove);
 
-    /**
-     * Adds a new commodity specification to a given basket bought by this buyer.
-     *
-     * @param basketToAddTo the basket where the new commodity specification should be added.
-     * @param commodityTypeToAdd the commodity specification to add to the basket bought.
-     * @return {@code this}
-     */
-    @Deterministic
-    @NonNull Trader addCommodityBought(@NonNull Basket basketToAddTo, @NonNull @ReadOnly CommoditySpecification commodityTypeToAdd);
-
-    /**
-     * Removes an existing commodity specification from a given basket bought by this buyer.
-     *
-     * <p>
-     *  Baskets contain at most one of each commodity specification.
-     * </p>
-     *
-     * @param basketToRemoveFrom the basket bought from which the commodity specification should be removed.
-     * @param commodityTypeToRemove the commodity specification that should be removed from the basket.
-     * @return {@code this}
-     */
-    @Deterministic
-    @NonNull Trader removeCommodityBought(@NonNull Basket basketToRemoveFrom, @NonNull @ReadOnly CommoditySpecification commodityTypeToRemove);
-
-    // May need to add methods to add/remove baskets bought later...
+   // May need to add methods to add/remove baskets bought later...
 
     // May need to add some reference to the associated reservation later...
 
@@ -147,24 +78,12 @@ public interface Trader {
      * </p>
      */
     @Pure
-    @NonNull int getType();
+    int getType();
 
     /**
      * Returns the current {@link TraderState state} of {@code this} trader.
      */
     @Pure
     @NonNull TraderState getState();
-
-    /**
-     * Sets the value of the <b>state</b> field.
-     *
-     * <p>
-     *  Has no observable side-effects except setting the above field.
-     * </p>
-     *
-     * @param state the new value for the field.
-     * @return {@code this}
-     */
-    @NonNull Trader setState(TraderState state);
 
 } // end interface Trader

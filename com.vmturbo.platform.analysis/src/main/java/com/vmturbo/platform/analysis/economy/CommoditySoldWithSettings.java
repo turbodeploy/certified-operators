@@ -15,7 +15,7 @@ import org.checkerframework.dataflow.qual.Pure;
 final class CommoditySoldWithSettings implements CommoditySold, CommoditySoldSettings {
 
     // Fields for CommoditySold
-    private final @NonNull ArrayList<@NonNull Trader> buyers_ = new ArrayList<>();
+    private final @NonNull ArrayList<@NonNull BuyerParticipation> buyers_ = new ArrayList<>();
     private double capacity_ = 0.0;
     private boolean thin_ = false;
 
@@ -40,7 +40,7 @@ final class CommoditySoldWithSettings implements CommoditySold, CommoditySoldSet
 
     @Override
     @Pure
-    public @NonNull @ReadOnly List<@NonNull @ReadOnly Trader> getBuyers(@ReadOnly CommoditySoldWithSettings this) {
+    public @NonNull @ReadOnly List<@NonNull @ReadOnly BuyerParticipation> getBuyers(@ReadOnly CommoditySoldWithSettings this) {
         return Collections.unmodifiableList(buyers_);
     }
 
@@ -48,7 +48,7 @@ final class CommoditySoldWithSettings implements CommoditySold, CommoditySoldSet
      * Returns a modifiable list of traders buying {@code this} commodity.
      */
     @Pure
-    @NonNull List<@NonNull @ReadOnly Trader> getModifiableBuyersList() {
+    @NonNull List<@NonNull @ReadOnly BuyerParticipation> getModifiableBuyersList() {
         return buyers_;
     }
 
