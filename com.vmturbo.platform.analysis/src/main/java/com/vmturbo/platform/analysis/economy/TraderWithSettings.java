@@ -10,7 +10,7 @@ import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.Multimap;
+import com.google.common.collect.ListMultimap;
 
 final class TraderWithSettings implements Trader, TraderSettings {
     // Fields for TraderSettings
@@ -24,7 +24,7 @@ final class TraderWithSettings implements Trader, TraderSettings {
     private @NonNull TraderState state_;
     private @NonNull Basket basketSold_;
     private final @NonNull List<@NonNull CommoditySold> commoditiesSold_ = new ArrayList<>();
-    private final @NonNull Multimap<@NonNull Market, @NonNull BuyerParticipation> marketsAsBuyer_ = ArrayListMultimap.create();
+    private final @NonNull ListMultimap<@NonNull Market, @NonNull BuyerParticipation> marketsAsBuyer_ = ArrayListMultimap.create();
     private final @NonNull List<Market> marketsAsSeller_ = new ArrayList<>();
 
     // Internal fields
@@ -185,7 +185,7 @@ final class TraderWithSettings implements Trader, TraderSettings {
         return removed;
     }
 
-    @NonNull Multimap<@NonNull Market, @NonNull BuyerParticipation> getMarketsAsBuyer() {
+    @NonNull ListMultimap<@NonNull Market, @NonNull BuyerParticipation> getMarketsAsBuyer() {
         return marketsAsBuyer_;
     }
 

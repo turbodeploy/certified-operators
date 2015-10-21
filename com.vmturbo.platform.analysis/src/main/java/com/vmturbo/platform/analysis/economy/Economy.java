@@ -16,7 +16,7 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Deterministic;
 import org.checkerframework.dataflow.qual.Pure;
 
-import com.google.common.collect.Multimap;
+import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Multimaps;
 
 /**
@@ -54,6 +54,11 @@ public final class Economy implements Cloneable {
     @Pure
     public @NonNull @ReadOnly Collection<@NonNull @ReadOnly Market> getMarkets(@ReadOnly Economy this) {
         return Collections.unmodifiableCollection(markets.values());
+    }
+
+    @Pure
+    public @NonNull @ReadOnly Market getMarket(@ReadOnly Economy this, @NonNull @ReadOnly Basket basket) {
+        return markets.get(basket);
     }
 
     /**
@@ -223,9 +228,9 @@ public final class Economy implements Cloneable {
      * Returns an unmodifiable multimap of the markets {@code this} trader participates in as a buyer.
      */
     @Pure
-    public @NonNull @ReadOnly Multimap<@NonNull Market, @NonNull BuyerParticipation>
+    public @NonNull @ReadOnly ListMultimap<@NonNull Market, @NonNull BuyerParticipation>
             getMarketsAsBuyer(@ReadOnly Economy this, @NonNull @ReadOnly Trader trader) {
-        return Multimaps.unmodifiableMultimap(((TraderWithSettings)trader).getMarketsAsBuyer());
+        return Multimaps.unmodifiableListMultimap(((TraderWithSettings)trader).getMarketsAsBuyer());
     }
 
     /**
