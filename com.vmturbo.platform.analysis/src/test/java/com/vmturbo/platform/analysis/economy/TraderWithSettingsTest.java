@@ -47,14 +47,14 @@ public final class TraderWithSettingsTest {
         new Basket(A,B,C)
     };
 
-    private TraderWithSettings fixture;
+    private TraderWithSettings fixture_;
 
 
     // Methods
 
     @Before
     public void setUp() {
-        fixture = new TraderWithSettings(0, 0, TraderState.ACTIVE, new Basket());
+        fixture_ = new TraderWithSettings(0, 0, TraderState.ACTIVE, new Basket());
     }
 
     // Tests for internal methods
@@ -120,8 +120,8 @@ public final class TraderWithSettingsTest {
     @Parameters
     @TestCaseName("Test #{index}: (set|get)EconomyIndex({0})")
     public final void testGetSetEconomyIndex_NormalInput(int index) {
-        fixture.setEconomyIndex(index);
-        assertEquals(index, fixture.getEconomyIndex());
+        fixture_.setEconomyIndex(index);
+        assertEquals(index, fixture_.getEconomyIndex());
     }
 
     @SuppressWarnings("unused") // it is used reflectively
@@ -133,7 +133,7 @@ public final class TraderWithSettingsTest {
     @Parameters
     @TestCaseName("Test #{index}: (set|get)EconomyIndex({0})")
     public final void testGetSetEconomyIndex_InvalidInput(int index) {
-        fixture.setEconomyIndex(index);
+        fixture_.setEconomyIndex(index);
     }
 
     @SuppressWarnings("unused") // it is used reflectively
@@ -143,7 +143,7 @@ public final class TraderWithSettingsTest {
 
     @Test // That the returned list indeed implements all operations.
     public final void testGetMarketsAsBuyer() {
-        @NonNull ListMultimap<@NonNull @ReadOnly Market, @NonNull BuyerParticipation> markets = fixture.getMarketsAsBuyer();
+        @NonNull ListMultimap<@NonNull @ReadOnly Market, @NonNull BuyerParticipation> markets = fixture_.getMarketsAsBuyer();
         @NonNull Market market = new Market(new Economy(), new Basket()); // dummy object
         @NonNull BuyerParticipation participation = new BuyerParticipation(0,0,0); // dummy object
 
@@ -171,7 +171,7 @@ public final class TraderWithSettingsTest {
 
     @Test // That the returned list indeed implements all operations.
     public final void testGetMarketsAsSeller() {
-        @NonNull List<@NonNull Market> markets = fixture.getMarketsAsSeller();
+        @NonNull List<@NonNull Market> markets = fixture_.getMarketsAsSeller();
         @NonNull Market market = new Market(new Economy(), new Basket());
 
         assertFalse(markets.contains(null));
@@ -200,7 +200,7 @@ public final class TraderWithSettingsTest {
 
     @Test // That the returned list is indeed unmodifiable (part 1)
     public final void testGetCommoditiesSold_ValidOperations() {
-        @NonNull @ReadOnly List<@NonNull @ReadOnly CommoditySold> commodities = fixture.getCommoditiesSold();
+        @NonNull @ReadOnly List<@NonNull @ReadOnly CommoditySold> commodities = fixture_.getCommoditiesSold();
         assertFalse(commodities.contains(null));
         assertFalse(commodities.containsAll(Arrays.asList(null,null)));
         assertTrue(commodities.equals(commodities));
@@ -215,7 +215,7 @@ public final class TraderWithSettingsTest {
 
     @Test // That the returned list is indeed unmodifiable (part 2)
     public final void testGetCommoditiesSold_InvalidOperations() {
-        @NonNull @ReadOnly List<@NonNull @ReadOnly CommoditySold> commodities = fixture.getCommoditiesSold();
+        @NonNull @ReadOnly List<@NonNull @ReadOnly CommoditySold> commodities = fixture_.getCommoditiesSold();
         @NonNull CommoditySold commodity = new CommoditySoldWithSettings(); // dummy object
 
         // TODO: may also need to test these on a non-empty buyers list because the API does not
@@ -379,15 +379,15 @@ public final class TraderWithSettingsTest {
 
     @Test
     public final void testGetSettings() {
-        assertSame(fixture, fixture.getSettings());
+        assertSame(fixture_, fixture_.getSettings());
     }
 
     @Test
     @Parameters(source = TraderState.class)
     @TestCaseName("Test #{index}: (set|get)State({0})")
     public final void testGetSetState(TraderState state) {
-        fixture.setState(state);
-        assertSame(state, fixture.getState());
+        fixture_.setState(state);
+        assertSame(state, fixture_.getState());
     }
 
     // Tests for TraderSettings methods
@@ -396,16 +396,16 @@ public final class TraderWithSettingsTest {
     @Parameters({"true","false"})
     @TestCaseName("Test #{index}: (set|is)Suspendable({0})")
     public final void testIsSetSuspendable(boolean suspendable) {
-        fixture.setSuspendable(suspendable);
-        assertEquals(suspendable, fixture.isSuspendable());
+        fixture_.setSuspendable(suspendable);
+        assertEquals(suspendable, fixture_.isSuspendable());
     }
 
     @Test
     @Parameters({"true","false"})
     @TestCaseName("Test #{index}: (set|is)Cloneable({0})")
     public final void testIsSetCloneable(boolean cloneable) {
-        fixture.setCloneable(cloneable);
-        assertEquals(cloneable, fixture.isCloneable());
+        fixture_.setCloneable(cloneable);
+        assertEquals(cloneable, fixture_.isCloneable());
     }
 
     @Test
@@ -414,9 +414,9 @@ public final class TraderWithSettingsTest {
                  "1.0,1.0"})
     @TestCaseName("Test #{index}: (set|get)MaxDesiredUtil({1}) while minDesiredUtilization == {0}")
     public final void testGetSetMaxDesiredUtil_NormalInput(double minDesiredUtilization, double maxDesiredUtilization) {
-        fixture.setMinDesiredUtil(minDesiredUtilization);
-        fixture.setMaxDesiredUtil(maxDesiredUtilization);
-        assertEquals(maxDesiredUtilization, fixture.getMaxDesiredUtil(), 0.0);
+        fixture_.setMinDesiredUtil(minDesiredUtilization);
+        fixture_.setMaxDesiredUtil(maxDesiredUtilization);
+        assertEquals(maxDesiredUtilization, fixture_.getMaxDesiredUtil(), 0.0);
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -425,8 +425,8 @@ public final class TraderWithSettingsTest {
                  "1.0,0.5","1.0,1.5"})
     @TestCaseName("Test #{index}: (set|get)MaxDesiredUtil({1}) while minDesiredUtilization == {0}")
     public final void testGetSetMaxDesiredUtil_InvalidInput(double minDesiredUtilization, double maxDesiredUtilization) {
-        fixture.setMinDesiredUtil(minDesiredUtilization);
-        fixture.setMaxDesiredUtil(maxDesiredUtilization);
+        fixture_.setMinDesiredUtil(minDesiredUtilization);
+        fixture_.setMaxDesiredUtil(maxDesiredUtilization);
     }
 
     @Test
@@ -435,9 +435,9 @@ public final class TraderWithSettingsTest {
                  "0.0,0.0"})
     @TestCaseName("Test #{index}: (set|get)MinDesiredUtil({0}) while maxDesiredUtilization == {1}")
     public final void testGetSetMinDesiredUtil_NormalInput(double minDesiredUtilization, double maxDesiredUtilization) {
-        fixture.setMaxDesiredUtil(maxDesiredUtilization);
-        fixture.setMinDesiredUtil(minDesiredUtilization);
-        assertEquals(minDesiredUtilization, fixture.getMinDesiredUtil(), 0.0);
+        fixture_.setMaxDesiredUtil(maxDesiredUtilization);
+        fixture_.setMinDesiredUtil(minDesiredUtilization);
+        assertEquals(minDesiredUtilization, fixture_.getMinDesiredUtil(), 0.0);
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -446,8 +446,8 @@ public final class TraderWithSettingsTest {
                  "-1.0,0.0","0.5,0.0"})
     @TestCaseName("Test #{index}: (set|get)MinDesiredUtil({0}) while maxDesiredUtilization == {1}")
     public final void testGetSetMinDesiredUtil_InvalidInput(double minDesiredUtilization, double maxDesiredUtilization) {
-        fixture.setMaxDesiredUtil(maxDesiredUtilization);
-        fixture.setMinDesiredUtil(minDesiredUtilization);
+        fixture_.setMaxDesiredUtil(maxDesiredUtilization);
+        fixture_.setMinDesiredUtil(minDesiredUtilization);
     }
 
 } // end class TraderWithSettingsTest

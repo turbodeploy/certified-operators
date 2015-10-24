@@ -30,9 +30,9 @@ public final class Economy implements Cloneable {
     // Fields
 
     // The map that associates Baskets with Markets.
-    private @NonNull Map<@NonNull @ReadOnly Basket,@NonNull Market> markets = new TreeMap<>();
+    private @NonNull Map<@NonNull @ReadOnly Basket,@NonNull Market> markets_ = new TreeMap<>();
     // The list of all Traders participating in the Economy.
-    private @NonNull List<@NonNull TraderWithSettings> traders = new ArrayList<>();
+    private @NonNull List<@NonNull TraderWithSettings> traders_ = new ArrayList<>();
 
     // Constructors
 
@@ -53,12 +53,12 @@ public final class Economy implements Cloneable {
      */
     @Pure
     public @NonNull @ReadOnly Collection<@NonNull @ReadOnly Market> getMarkets(@ReadOnly Economy this) {
-        return Collections.unmodifiableCollection(markets.values());
+        return Collections.unmodifiableCollection(markets_.values());
     }
 
     @Pure
     public @NonNull @ReadOnly Market getMarket(@ReadOnly Economy this, @NonNull @ReadOnly Basket basket) {
-        return markets.get(basket);
+        return markets_.get(basket);
     }
 
     /**
@@ -71,7 +71,7 @@ public final class Economy implements Cloneable {
      */
     @Pure
     public @NonNull @ReadOnly List<@NonNull @ReadOnly Trader> getTraders(@ReadOnly Economy this) {
-        return Collections.unmodifiableList(traders);
+        return Collections.unmodifiableList(traders_);
     }
 
     /**
@@ -87,35 +87,35 @@ public final class Economy implements Cloneable {
     @Deterministic
     public @NonNull Trader addTrader(int type, @NonNull TraderState state,
                                       @NonNull Basket basketSold, @NonNull Basket... basketsBought) {
-        TraderWithSettings newTrader = new TraderWithSettings(traders.size(), type, state, basketSold);
+        TraderWithSettings newTrader = new TraderWithSettings(traders_.size(), type, state, basketSold);
 
         // Add a buyer
         for (Basket basketBought : basketsBought) {
-            if (!markets.containsKey(basketBought)) {
+            if (!markets_.containsKey(basketBought)) {
                 Market newMarket = new Market(this, basketBought);
 
-                markets.put(basketBought, newMarket);
+                markets_.put(basketBought, newMarket);
 
                 // Populate new market
-                for (Trader seller : traders) {
+                for (Trader seller : traders_) {
                     if (newMarket.getBasket().isSatisfiedBy(seller.getBasketSold())) {
                         newMarket.addSeller(seller);
                     }
                 }
             }
 
-            newTrader.getMarketsAsBuyer().put(markets.get(basketBought), markets.get(basketBought).addBuyer(newTrader));
+            newTrader.getMarketsAsBuyer().put(markets_.get(basketBought), markets_.get(basketBought).addBuyer(newTrader));
         }
 
         // Add as seller
-        for(Market market : markets.values()) {
+        for(Market market : markets_.values()) {
             if (market.getBasket().isSatisfiedBy(basketSold)) {
                 market.addSeller(newTrader);
                 newTrader.getMarketsAsSeller().add(market);
             }
         }
 
-        traders.add(newTrader);
+        traders_.add(newTrader);
         return newTrader;
     }
 
@@ -138,19 +138,19 @@ public final class Economy implements Cloneable {
         for (Map.Entry<Market,BuyerParticipation> entry : ((TraderWithSettings)existingTrader).getMarketsAsBuyer().entries()) {
             entry.getKey().removeBuyerParticipation(entry.getValue());
         }
-        for (TraderWithSettings trader : traders) {
+        for (TraderWithSettings trader : traders_) {
             if (trader.getEconomyIndex() > ((TraderWithSettings)existingTrader).getEconomyIndex()) {
                 trader.setEconomyIndex(trader.getEconomyIndex() - 1);
             }
         }
-        traders.remove(existingTrader);
+        traders_.remove(existingTrader);
         return this;
     }
 
     @Deterministic
     public @NonNull Economy moveTrader(@NonNull BuyerParticipation participationToMove,
                                        @NonNull Trader newSupplier) {
-        @NonNull TraderWithSettings trader = traders.get(participationToMove.getBuyerIndex());
+        @NonNull TraderWithSettings trader = traders_.get(participationToMove.getBuyerIndex());
         @NonNull Market market = new Market(this, new Basket()); // dummy initialization to avoid errors.
 
         // Find the correct market.
@@ -184,7 +184,7 @@ public final class Economy implements Cloneable {
                 ((CommoditySoldWithSettings)newSupplier.getCommoditiesSold().get(i)).getModifiableBuyersList().add(participationToMove);
             }
 
-            participationToMove.setSupplierIndex(traders.indexOf(newSupplier));
+            participationToMove.setSupplierIndex(traders_.indexOf(newSupplier));
         }
         else
             participationToMove.setSupplierIndex(BuyerParticipation.NO_SUPPLIER);
@@ -202,7 +202,7 @@ public final class Economy implements Cloneable {
 
         for (CommoditySold commSold : trader.getCommoditiesSold()) {
             for (BuyerParticipation customer : commSold.getBuyers()) {
-                customers.add(traders.get(customer.getBuyerIndex()));
+                customers.add(traders_.get(customer.getBuyerIndex()));
             }
         }
 
@@ -265,13 +265,13 @@ public final class Economy implements Cloneable {
         ((TraderWithSettings)trader).getMarketsAsBuyer().remove(market, participation);
 
         Basket newBasketBought = market.getBasket().add(commodityTypeToAdd);
-        if (!markets.containsKey(newBasketBought)) {
+        if (!markets_.containsKey(newBasketBought)) {
             Market newMarket = new Market(this, newBasketBought);
 
-            markets.put(newBasketBought, newMarket);
+            markets_.put(newBasketBought, newMarket);
 
             // Populate new market
-            for (Trader seller : traders) {
+            for (Trader seller : traders_) {
                 if (newMarket.getBasket().isSatisfiedBy(seller.getBasketSold())) {
                     newMarket.addSeller(seller);
                 }
@@ -279,8 +279,8 @@ public final class Economy implements Cloneable {
         }
 
         // TODO: should existing commodities bought be somehow preserved?
-        ((TraderWithSettings)trader).getMarketsAsBuyer().put(markets.get(newBasketBought),
-                                                             markets.get(newBasketBought).addBuyer((TraderWithSettings)trader));
+        ((TraderWithSettings)trader).getMarketsAsBuyer().put(markets_.get(newBasketBought),
+                                                             markets_.get(newBasketBought).addBuyer((TraderWithSettings)trader));
         return this;
     }
 
@@ -313,13 +313,13 @@ public final class Economy implements Cloneable {
         ((TraderWithSettings)trader).getMarketsAsBuyer().remove(market, participation);
 
         Basket newBasketBought = market.getBasket().remove(commodityTypeToRemove);
-        if (!markets.containsKey(newBasketBought)) {
+        if (!markets_.containsKey(newBasketBought)) {
             Market newMarket = new Market(this, newBasketBought);
 
-            markets.put(newBasketBought, newMarket);
+            markets_.put(newBasketBought, newMarket);
 
             // Populate new market
-            for (Trader seller : traders) {
+            for (Trader seller : traders_) {
                 if (newMarket.getBasket().isSatisfiedBy(seller.getBasketSold())) {
                     newMarket.addSeller(seller);
                 }
@@ -327,8 +327,8 @@ public final class Economy implements Cloneable {
         }
 
         // TODO: should existing commodities bought be somehow preserved?
-        ((TraderWithSettings)trader).getMarketsAsBuyer().put(markets.get(newBasketBought),
-                                                             markets.get(newBasketBought).addBuyer((TraderWithSettings)trader));
+        ((TraderWithSettings)trader).getMarketsAsBuyer().put(markets_.get(newBasketBought),
+                                                             markets_.get(newBasketBought).addBuyer((TraderWithSettings)trader));
         return this;
     }
 

@@ -28,12 +28,12 @@ public class BuyerParticipationTest {
     private static final Integer[] invalidIndices = {-1,Integer.MIN_VALUE,10,Integer.MAX_VALUE}; // with respect to fixture
 
 
-    private BuyerParticipation fixture;
+    private BuyerParticipation fixture_;
 
     // Methods
     @Before
     public void setUp() {
-        fixture = new BuyerParticipation(0, BuyerParticipation.NO_SUPPLIER, 10);
+        fixture_ = new BuyerParticipation(0, BuyerParticipation.NO_SUPPLIER, 10);
     }
 
     @Test
@@ -109,8 +109,8 @@ public class BuyerParticipationTest {
     @Parameters
     @TestCaseName("Test #{index}: (set|get)BuyerIndex({0})")
     public final void testSetGetBuyerIndex_NormalInput(int buyerIndex) {
-        assertSame(fixture, fixture.setBuyerIndex(buyerIndex));
-        assertEquals(buyerIndex, fixture.getBuyerIndex());
+        assertSame(fixture_, fixture_.setBuyerIndex(buyerIndex));
+        assertEquals(buyerIndex, fixture_.getBuyerIndex());
     }
 
     @SuppressWarnings("unused") // it is used reflectively
@@ -122,8 +122,8 @@ public class BuyerParticipationTest {
     @Parameters
     @TestCaseName("Test #{index}: (set|get)SupplierIndex({0})")
     public final void testSetGetSupplierIndex_NormalInput(int supplierIndex) {
-        assertSame(fixture, fixture.setSupplierIndex(supplierIndex));
-        assertEquals(supplierIndex, fixture.getSupplierIndex());
+        assertSame(fixture_, fixture_.setSupplierIndex(supplierIndex));
+        assertEquals(supplierIndex, fixture_.getSupplierIndex());
     }
 
     @SuppressWarnings("unused") // it is used reflectively
@@ -133,23 +133,23 @@ public class BuyerParticipationTest {
 
     @Test
     public final void testGetQuantities() {
-        double increased = ++fixture.getQuantities()[2]; // ideally this should be a compile time error
-        assertEquals(increased-1, fixture.getQuantities()[2], 0.0);
+        double increased = ++fixture_.getQuantities()[2]; // ideally this should be a compile time error
+        assertEquals(increased-1, fixture_.getQuantities()[2], 0.0);
     }
 
     @Test
     public final void testGetPeakQuantities() {
-        double increased = ++fixture.getPeakQuantities()[2]; // ideally this should be a compile time error
-        assertEquals(increased-1, fixture.getPeakQuantities()[2], 0.0);
+        double increased = ++fixture_.getPeakQuantities()[2]; // ideally this should be a compile time error
+        assertEquals(increased-1, fixture_.getPeakQuantities()[2], 0.0);
     }
 
     @Test
     @Parameters
     @TestCaseName("Test #{index}: (set|get)Quantity({0},{1})")
     public final void testSetGetQuantity_NormalInput(int index, double quantity) {
-        assertSame(fixture, fixture.setQuantity(index, quantity));
-        assertEquals(quantity, fixture.getQuantity(index), 0.0);
-        assertEquals(quantity, fixture.getQuantities()[index], 0.0);
+        assertSame(fixture_, fixture_.setQuantity(index, quantity));
+        assertEquals(quantity, fixture_.getQuantity(index), 0.0);
+        assertEquals(quantity, fixture_.getQuantities()[index], 0.0);
     }
 
     @SuppressWarnings("unused") // it is used reflectively
@@ -170,16 +170,16 @@ public class BuyerParticipationTest {
     @Parameters(method = "parametersForTestSetGetQuantity_NormalInput") // reuse inputs
     @TestCaseName("Test #{index}: (set|get)PeakQuantity({0},{1})")
     public final void testSetGetPeakQuantity_NormalInput(int index, double peakQuantity) {
-        assertSame(fixture, fixture.setPeakQuantity(index, peakQuantity));
-        assertEquals(peakQuantity, fixture.getPeakQuantity(index), 0.0);
-        assertEquals(peakQuantity, fixture.getPeakQuantities()[index], 0.0);
+        assertSame(fixture_, fixture_.setPeakQuantity(index, peakQuantity));
+        assertEquals(peakQuantity, fixture_.getPeakQuantity(index), 0.0);
+        assertEquals(peakQuantity, fixture_.getPeakQuantities()[index], 0.0);
     }
 
     @Test(expected = IllegalArgumentException.class)
     @Parameters
     @TestCaseName("Test #{index}: setBuyerIndex({0})")
     public final void testSetBuyerIndex_InvalidInput(int buyerIndex) {
-        fixture.setBuyerIndex(buyerIndex);
+        fixture_.setBuyerIndex(buyerIndex);
     }
 
     @SuppressWarnings("unused") // it is used reflectively
@@ -191,7 +191,7 @@ public class BuyerParticipationTest {
     @Parameters
     @TestCaseName("Test #{index}: setSupplierIndex({0})")
     public final void testSetSupplierIndex_InvalidInput(int supplierIndex) {
-        fixture.setSupplierIndex(supplierIndex);
+        fixture_.setSupplierIndex(supplierIndex);
     }
 
     @SuppressWarnings("unused") // it is used reflectively
@@ -203,7 +203,7 @@ public class BuyerParticipationTest {
     @Parameters
     @TestCaseName("Test #{index}: setQuantity({0},{1})")
     public final void testSetQuantity_InvalidIndex(int index, double quantity) {
-        fixture.setQuantity(index, quantity);
+        fixture_.setQuantity(index, quantity);
     }
 
     @SuppressWarnings("unused") // it is used reflectively
@@ -224,7 +224,7 @@ public class BuyerParticipationTest {
     @Parameters
     @TestCaseName("Test #{index}: setQuantity({0},{1})")
     public final void testSetQuantity_InvalidQuantity(int index, double quantity) {
-        fixture.setQuantity(index, quantity);
+        fixture_.setQuantity(index, quantity);
     }
 
     @SuppressWarnings("unused") // it is used reflectively
@@ -245,14 +245,14 @@ public class BuyerParticipationTest {
     @Parameters(method = "parametersForTestSetQuantity_InvalidIndex") // reuse inputs
     @TestCaseName("Test #{index}: setPeakQuantity({0},{1})")
     public final void testSetPeakQuantity_InvalidIndex(int index, double peakQuantity) {
-        fixture.setPeakQuantity(index, peakQuantity);
+        fixture_.setPeakQuantity(index, peakQuantity);
     }
 
     @Test(expected = IllegalArgumentException.class)
     @Parameters(method = "parametersForTestSetQuantity_InvalidQuantity") // reuse inputs
     @TestCaseName("Test #{index}: setPeakQuantity({0},{1})")
     public final void testSetPeakQuantity_InvalidQuantity(int index, double peakQuantity) {
-        fixture.setPeakQuantity(index, peakQuantity);
+        fixture_.setPeakQuantity(index, peakQuantity);
     }
 
 

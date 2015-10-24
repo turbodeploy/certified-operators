@@ -27,8 +27,8 @@ import com.vmturbo.platform.analysis.economy.TraderState;
  */
 public final class Topology {
     // Fields
-    private @NonNull Map<@NonNull @ReadOnly OID,@NonNull Trader> traders = new HashMap<>();
-    private @NonNull Economy economy = new Economy(); // topology will just delegate to economy for now.
+    private @NonNull Map<@NonNull @ReadOnly OID,@NonNull Trader> traders_ = new HashMap<>();
+    private @NonNull Economy economy_ = new Economy(); // topology will just delegate to economy for now.
 
     // Constructors
 
@@ -47,7 +47,7 @@ public final class Topology {
      */
     @Pure
     public @NonNull Trader getTrader(@ReadOnly Topology this, @NonNull @ReadOnly OID oid) {
-        return traders.get(oid);
+        return traders_.get(oid);
     }
 
     /**
@@ -60,8 +60,8 @@ public final class Topology {
     @Deterministic
     public @NonNull Trader addTrader(@NonNull @ReadOnly OID traderOID, int type, @NonNull TraderState state,
                                      @NonNull Basket basketSold, @NonNull Basket... basketsBought) {
-        @NonNull Trader trader = economy.addTrader(type,state,basketSold,basketsBought);
-        traders.put(traderOID, trader);
+        @NonNull Trader trader = economy_.addTrader(type,state,basketSold,basketsBought);
+        traders_.put(traderOID, trader);
 
         return trader;
     }
@@ -75,8 +75,8 @@ public final class Topology {
     // be the same. Calling this two times on the same topology will produce different results
     // because the topology is modified.
     public @NonNull Trader removeTrader(@NonNull @ReadOnly OID traderOID) {
-        @NonNull Trader toBeRemoved = traders.get(traderOID);
-        economy.removeTrader(toBeRemoved);
+        @NonNull Trader toBeRemoved = traders_.get(traderOID);
+        economy_.removeTrader(toBeRemoved);
         return toBeRemoved;
     }
 
@@ -89,6 +89,6 @@ public final class Topology {
      */
     @Pure
     public @NonNull @ReadOnly Economy getEconomy(@ReadOnly Topology this) {
-        return economy;
+        return economy_;
     }
 } // end class Topology
