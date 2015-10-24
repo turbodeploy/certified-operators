@@ -52,7 +52,7 @@ public final class CommodityBought {
         {
             final Trader supplier = market_.getEconomy().getTraders().get(buyer_.getSupplierIndex());
             // TODO: should this be capacity or utilizationUpperBound*capacity?
-            checkArgument(newQuantity <= supplier.getCommoditiesSold().get(market_.getBasket().indexOf(type_)).getCapacity());
+            checkArgument(newQuantity <= supplier.getCommoditySold(type_).getCapacity());
         }
         buyer_.setQuantity(market_.getBasket().indexOf(type_),newQuantity);
         return this;
@@ -64,7 +64,7 @@ public final class CommodityBought {
         {
             final Trader supplier = market_.getEconomy().getTraders().get(buyer_.getSupplierIndex());
             // TODO: should this be capacity or utilizationUpperBound*capacity?
-            checkArgument(newPeakQuantity <= supplier.getCommoditiesSold().get(market_.getBasket().indexOf(type_)).getCapacity());
+            checkArgument(newPeakQuantity <= supplier.getCommoditySold(type_).getCapacity());
         }
         buyer_.setPeakQuantity(market_.getBasket().indexOf(type_),newPeakQuantity);
         return this;

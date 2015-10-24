@@ -2,6 +2,7 @@ package com.vmturbo.platform.analysis.economy;
 
 import java.util.List;
 
+import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Deterministic;
@@ -33,14 +34,30 @@ public interface Trader {
     @NonNull @ReadOnly List<@NonNull @ReadOnly CommoditySold> getCommoditiesSold(@ReadOnly Trader this);
 
     /**
+     * Returns the commodity sold by {@code this} trader that corresponds to the given
+     * {@link CommoditySpecification}.
+     *
+     * @param specification The commodity specification specifying the commodity sold that should be
+     *         returned.
+     * @return The commodity sold by {@code this} trader that corresponds to the given commodity
+     *         specification, or {@code null} iff !{@link #getBasketSold()}.
+     *         {@link Basket#contains(CommoditySpecification) contains(specification)}
+     */
+    @Pure
+    @PolyRead CommoditySold getCommoditySold(@PolyRead Trader this, @NonNull @ReadOnly CommoditySpecification specification);
+
+    // TODO: consider making addCommoditySold and removeCommoditySold throw in cases they now return
+    // null. Same for the corresponding Basket methods.
+
+    /**
      * Adds a new commodity to the list of commodities sold by {@code this} seller and returns it.
      *
-     * @param newCommoditySpecification The type of the new commodity. It will be added to {@code this}
-     *          seller's basket.
-     * @return The new commodity that was created and added.
+     * @param newSpecification The type of the new commodity. It will be added to {@code this}
+     *          seller's basket, or ignored if it already exists.
+     * @return The new commodity that was created and added, or {@code null} if it already existed.
      */
     @Deterministic
-    @NonNull CommoditySold addCommoditySold(@NonNull @ReadOnly CommoditySpecification newCommoditySpecification);
+    CommoditySold addCommoditySold(@NonNull @ReadOnly CommoditySpecification newSpecification);
 
     /**
      * Removes an existing commodity from the list of commodities sold by {@code this} seller.
@@ -50,13 +67,15 @@ public interface Trader {
      *  Both the list of commodities sold and the basket sold are updated.
      * </p>
      *
-     * @param typeToRemove the type of the commodity that needs to be removed.
-     * @return the removed {@link CommoditySold commodity sold}.
+     * @param specificationToRemove The specification of the commodity that needs to be removed.
+     *              It will be removed from {@code this} seller's basket, or ignored if it was never
+     *              in the basket.
+     * @return The removed commodity sold, or {@code null} if it wasn't in the basket.
      */
     @Deterministic // in the sense that for the same referents of this and typeToRemove the result will
     // be the same. Calling this two times on the same topology will produce different results
     // because the topology is modified.
-    @NonNull CommoditySold removeCommoditySold(@NonNull @ReadOnly CommoditySpecification typeToRemove);
+    CommoditySold removeCommoditySold(@NonNull @ReadOnly CommoditySpecification specificationToRemove);
 
    // May need to add methods to add/remove baskets bought later...
 
@@ -74,7 +93,7 @@ public interface Trader {
      * <p>
      *  Its a numerical representation of the type. An ID of sorts that may e.g. correspond to
      *  "physical machine" or "storage", but the correspondence is not important to the economy and
-     *  kept (potentially) outside the economy.
+     *  kept (potentially) outside the economy. It is non-negative.
      * </p>
      */
     @Pure
