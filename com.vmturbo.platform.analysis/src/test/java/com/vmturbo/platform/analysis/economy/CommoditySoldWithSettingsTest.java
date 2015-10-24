@@ -70,29 +70,30 @@ public final class CommoditySoldWithSettingsTest {
     @Test // That the returned list is indeed unmodifiable (part 2)
     public final void testGetBuyers_InvalidOperations() {
         @NonNull @ReadOnly List<@NonNull @ReadOnly BuyerParticipation> buyers = new CommoditySoldWithSettings().getBuyers();
-        // TODO: should change nulls to constructor calls once we finalize Trader.
+        @NonNull BuyerParticipation participation = new BuyerParticipation(0, 0, 0); // dummy object
+
         // TODO: may also need to test these on a non-empty buyers list because the API does not
         // guarantee that this exception will be thrown in some cases.
         try{
-            buyers.add(null);
+            buyers.add(participation);
             fail();
         } catch(UnsupportedOperationException e) {
             // ignore
         }
         try{
-            buyers.add(0,null);
+            buyers.add(0,participation);
             fail();
         } catch(UnsupportedOperationException e) {
             // ignore
         }
         try{
-            buyers.addAll(Arrays.asList(null,null));
+            buyers.addAll(Arrays.asList(participation,participation));
             fail();
         } catch(UnsupportedOperationException e) {
             // ignore
         }
         try{
-            buyers.addAll(0,Arrays.asList(null,null));
+            buyers.addAll(0,Arrays.asList(participation,participation));
             fail();
         } catch(UnsupportedOperationException e) {
             // ignore
@@ -110,7 +111,7 @@ public final class CommoditySoldWithSettingsTest {
             // ignore
         }
         try{
-            buyers.remove(null);
+            buyers.remove(participation);
             fail();
         } catch(UnsupportedOperationException e) {
             // ignore
@@ -128,7 +129,7 @@ public final class CommoditySoldWithSettingsTest {
             // ignore
         }
         try{
-            buyers.set(0, null);
+            buyers.set(0, participation);
             fail();
         } catch(UnsupportedOperationException e) {
             // ignore

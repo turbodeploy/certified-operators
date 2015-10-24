@@ -26,6 +26,8 @@ import com.google.common.collect.Ordering;
  *  Baskets are immutable objects.
  * </p>
  */
+// TODO: investigate the effect of having two different commodity specifications with the same type
+// in the same basket.
 public final class Basket implements Comparable<@NonNull @ReadOnly Basket> {
     // Fields
 
@@ -163,7 +165,7 @@ public final class Basket implements Comparable<@NonNull @ReadOnly Basket> {
      *
      * @param specificationToRemove The commodity specification that should be removed from the new
      *                              basket. If it was not in the basket, it will be ignored.
-     * @return A new basket that contains all of {@code this} basket's contents plus specificationToAdd.
+     * @return A new basket that contains all of {@code this} basket's contents except specificationToRemove.
      */
     @Pure
     public final @NonNull Basket remove(@ReadOnly Basket this, CommoditySpecification specificationToRemove) {
