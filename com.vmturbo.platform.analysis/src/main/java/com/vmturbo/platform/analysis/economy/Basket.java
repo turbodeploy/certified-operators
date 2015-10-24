@@ -1,5 +1,6 @@
 package com.vmturbo.platform.analysis.economy;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -10,6 +11,7 @@ import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
 
+import com.google.common.collect.ObjectArrays;
 import com.google.common.collect.Ordering;
 
 /**
@@ -140,6 +142,39 @@ public final class Basket implements Comparable<@NonNull @ReadOnly Basket> {
     public final boolean contains(@ReadOnly Basket this, @NonNull @ReadOnly CommoditySpecification specificationToSearchFor) {
         return indexOf(specificationToSearchFor) != -1;
     }
+
+    /**
+     * Returns a new basket that contains all the commodity specifications in {@code this} plus the
+     * given one.
+     *
+     * @param specificationToAdd The commodity specification that should be added to the new basket.
+     *                           If it is already in the basket, it will be ignored.
+     * @return A new basket that contains all of {@code this} basket's contents plus specificationToAdd.
+     */
+    @Pure
+    public final @NonNull Basket add(@ReadOnly Basket this, CommoditySpecification specificationToAdd) {
+        // TODO: improve efficiency. Perhaps even reuse instance if already contained.
+        return new Basket(ObjectArrays.concat(contents_, specificationToAdd));
+    }
+
+    /**
+     * Returns a new basket that contains all the commodity specifications in {@code this} except
+     * the given one.
+     *
+     * @param specificationToRemove The commodity specification that should be removed from the new
+     *                              basket. If it was not in the basket, it will be ignored.
+     * @return A new basket that contains all of {@code this} basket's contents plus specificationToAdd.
+     */
+    @Pure
+    public final @NonNull Basket remove(@ReadOnly Basket this, CommoditySpecification specificationToRemove) {
+        // TODO: improve efficiency. Perhaps even reuse instance if already contained.
+        @NonNull List<@NonNull CommoditySpecification> newContents = new ArrayList<>(getCommoditySpecifications());
+        newContents.remove(specificationToRemove);
+
+        return new Basket(newContents); // will remove the duplicate
+    }
+
+    // TODO: might be a good idea to define equals as well, although this shouldn't be necessary.
 
     /**
      * A total ordering on the Baskets to allow sorting and insertion into maps.

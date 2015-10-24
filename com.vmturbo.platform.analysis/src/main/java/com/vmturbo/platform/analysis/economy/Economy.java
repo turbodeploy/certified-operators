@@ -265,11 +265,7 @@ public final class Economy implements Cloneable {
         market.removeBuyerParticipation(participation);
         ((TraderWithSettings)trader).getMarketsAsBuyer().remove(market, participation);
 
-        @NonNull List<@NonNull CommoditySpecification> newSpecifications = new ArrayList<>(market.getBasket().getCommoditySpecifications());
-        newSpecifications.add(commodityTypeToAdd);
-
-
-        Basket newBasketBought = new Basket(newSpecifications);
+        Basket newBasketBought = market.getBasket().add(commodityTypeToAdd);
         if (!markets.containsKey(newBasketBought)) {
             Market newMarket = new Market(this, newBasketBought);
 
@@ -317,10 +313,7 @@ public final class Economy implements Cloneable {
         market.removeBuyerParticipation(participation);
         ((TraderWithSettings)trader).getMarketsAsBuyer().remove(market, participation);
 
-        @NonNull List<@NonNull CommoditySpecification> newSpecifications = new ArrayList<>(market.getBasket().getCommoditySpecifications());
-        newSpecifications.remove(commodityTypeToRemove);
-
-        Basket newBasketBought = new Basket(newSpecifications);
+        Basket newBasketBought = market.getBasket().remove(commodityTypeToRemove);
         if (!markets.containsKey(newBasketBought)) {
             Market newMarket = new Market(this, newBasketBought);
 

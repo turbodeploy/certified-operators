@@ -162,10 +162,7 @@ final class TraderWithSettings implements Trader, TraderSettings {
 
     @Override
     public @NonNull CommoditySold addCommoditySold(@NonNull @ReadOnly CommoditySpecification newCommoditySpecification) {
-        // TODO: improve implementation. Maybe include add method to Basket?
-        @NonNull List<@NonNull CommoditySpecification> newSpecifications = new ArrayList<>(basketSold_.getCommoditySpecifications());
-        newSpecifications.add(newCommoditySpecification);
-        basketSold_ = new Basket(newSpecifications);
+        basketSold_ = basketSold_.add(newCommoditySpecification);
 
         CommoditySoldWithSettings newCommoditySold = new CommoditySoldWithSettings();
         commoditiesSold_.add(basketSold_.indexOf(newCommoditySpecification), newCommoditySold);
@@ -175,12 +172,8 @@ final class TraderWithSettings implements Trader, TraderSettings {
 
     @Override
     public @NonNull CommoditySold removeCommoditySold(@NonNull @ReadOnly CommoditySpecification typeToRemove) {
-        // TODO: improve implementation. Maybe include remove method to Basket?
         CommoditySold removed = commoditiesSold_.remove(basketSold_.indexOf(typeToRemove));
-
-        @NonNull List<@NonNull CommoditySpecification> newSpecifications = new ArrayList<>(basketSold_.getCommoditySpecifications());
-        newSpecifications.remove(typeToRemove);
-        basketSold_ = new Basket(newSpecifications);
+        basketSold_ = basketSold_.remove(typeToRemove);
 
         return removed;
     }

@@ -2,6 +2,8 @@ package com.vmturbo.platform.analysis.economy;
 
 import static org.junit.Assert.*;
 
+import java.util.Arrays;
+
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -47,6 +49,14 @@ public class BasketTest {
             {{A,B,C1}, {A,B,C1}},
             {{A,B,C1,C2}, {A,B,C1}}
         };
+    }
+
+    @Test
+    @Parameters(method = "parametersForTestGetCommoditySpecifications") // reuse test inputs
+    @TestCaseName("Test #{index}: Basket(Arrays.asList({0})).compareTo(Basket({1})) == 0") // Java doesn't know how to print arrays. may need a workaround...
+    public final void testConstructors(CommoditySpecification[] input, CommoditySpecification[] output) {
+        assertEquals(0,new Basket(Arrays.asList(input)).compareTo(new Basket(input)));
+        assertEquals(0,new Basket(Arrays.asList(input)).compareTo(new Basket(output)));
     }
 
     @Test
@@ -97,7 +107,7 @@ public class BasketTest {
 
     @Test
     @Parameters
-    @TestCaseName("Test #{index}: {0}.indexOf({1}) == {2}") // Java doesn't know how to print arrays. may need a workaround...
+    @TestCaseName("Test #{index}: {0}.indexOf({1}) == {2}")
     public final void testIndexOf(Basket basket, CommoditySpecification specification, int output) {
         assertEquals(output, basket.indexOf(specification));
     }
@@ -123,14 +133,14 @@ public class BasketTest {
 
     @Test
     @Parameters(method = "parametersForTestIndexOf")
-    @TestCaseName("Test #{index}: {0}.lastIndexOf({1}) == {2}") // Java doesn't know how to print arrays. may need a workaround...
+    @TestCaseName("Test #{index}: {0}.lastIndexOf({1}) == {2}")
     public final void testLastIndexOf(Basket basket, CommoditySpecification specification, int output) {
         assertEquals(output, basket.lastIndexOf(specification));
     }
 
     @Test
     @Parameters
-    @TestCaseName("Test #{index}: {0}.contains({1}) == {2}") // Java doesn't know how to print arrays. may need a workaround...
+    @TestCaseName("Test #{index}: {0}.contains({1}) == {2}")
     public final void testContains(Basket basket, CommoditySpecification specification, boolean output) {
         assertEquals(output, basket.contains(specification));
     }
@@ -151,6 +161,46 @@ public class BasketTest {
             {new Basket(A,C1,B), A, true},
             {new Basket(A,C1,B), B, true},
             {new Basket(A,C1,B), C1, true},
+        };
+    }
+
+    @Test
+    @Parameters
+    @TestCaseName("Test #{index}: {0}.add({1}) == {2}")
+    public final void testAdd(Basket basket, CommoditySpecification specification, Basket output) {
+        assertEquals(0, basket.add(specification).compareTo(output));
+    }
+
+    @SuppressWarnings("unused") // it is used reflectively
+    private static Object[] parametersForTestAdd() {
+        return new Object[][]{
+            {new Basket(), A, new Basket(A)},
+            {new Basket(), B, new Basket(B)},
+            {new Basket(A), A, new Basket(A)},
+            {new Basket(A), B, new Basket(A,B)},
+            {new Basket(A,B), C1, new Basket(A,B,C1)},
+            {new Basket(A,B), A, new Basket(A,B)},
+            {new Basket(A,B), B, new Basket(A,B)},
+        };
+    }
+
+    @Test
+    @Parameters
+    @TestCaseName("Test #{index}: {0}.remove({1}) == {2}")
+    public final void testRemove(Basket basket, CommoditySpecification specification, Basket output) {
+        assertEquals(0, basket.remove(specification).compareTo(output));
+    }
+
+    @SuppressWarnings("unused") // it is used reflectively
+    private static Object[] parametersForTestRemove() {
+        return new Object[][]{
+            {new Basket(), A, new Basket()},
+            {new Basket(), B, new Basket()},
+            {new Basket(A), A, new Basket()},
+            {new Basket(A), B, new Basket(A)},
+            {new Basket(A,B), C1, new Basket(A,B)},
+            {new Basket(A,B), A, new Basket(B)},
+            {new Basket(A,B), B, new Basket(A)},
         };
     }
 
