@@ -144,7 +144,7 @@ public final class TraderWithSettingsTest {
     @Test // That the returned list indeed implements all operations.
     public final void testGetMarketsAsBuyer() {
         @NonNull ListMultimap<@NonNull @ReadOnly Market, @NonNull BuyerParticipation> markets = fixture_.getMarketsAsBuyer();
-        @NonNull Market market = new Market(new Economy(), new Basket()); // dummy object
+        @NonNull Market market = new Market(new Basket()); // dummy object
         @NonNull BuyerParticipation participation = new BuyerParticipation(0,0,0); // dummy object
 
         assertTrue(markets.asMap().isEmpty());
@@ -172,7 +172,7 @@ public final class TraderWithSettingsTest {
     @Test // That the returned list indeed implements all operations.
     public final void testGetMarketsAsSeller() {
         @NonNull List<@NonNull Market> markets = fixture_.getMarketsAsSeller();
-        @NonNull Market market = new Market(new Economy(), new Basket());
+        @NonNull Market market = new Market(new Basket());
 
         assertFalse(markets.contains(null));
         assertFalse(markets.containsAll(Arrays.asList(null,null)));

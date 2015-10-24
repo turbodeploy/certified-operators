@@ -14,6 +14,7 @@ import java.util.TreeSet;
 import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
+import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Deterministic;
 import org.checkerframework.dataflow.qual.Pure;
 
@@ -66,6 +67,20 @@ public final class Economy implements Cloneable {
     @Pure
     public @NonNull Trader getBuyer(@ReadOnly Economy this, @NonNull @ReadOnly BuyerParticipation participation) {
         return traders_.get(participation.getBuyerIndex());
+    }
+
+    /**
+     * Returns the supplier of the given buyer participation in {@code this} economy or {@code null}
+     * if there is no such supplier.
+     *
+     * @param participation The buyer participation for which we query the supplier.
+     * @return The supplier or {@code null} if the given buyer participation is currently not buying
+     *          the corresponding basket from anyone.
+     */
+    @Pure
+    public @Nullable @ReadOnly Trader getSupplier(@ReadOnly Economy this, @NonNull @ReadOnly BuyerParticipation participation) {
+        return participation.getSupplierIndex() == BuyerParticipation.NO_SUPPLIER
+            ? null : traders_.get(participation.getSupplierIndex());
     }
 
     /**
@@ -131,7 +146,7 @@ public final class Economy implements Cloneable {
         // Add a buyer
         for (Basket basketBought : basketsBought) {
             if (!markets_.containsKey(basketBought)) {
-                Market newMarket = new Market(this, basketBought);
+                Market newMarket = new Market(basketBought);
 
                 markets_.put(basketBought, newMarket);
 
@@ -189,18 +204,11 @@ public final class Economy implements Cloneable {
     @Deterministic
     public @NonNull Economy moveTrader(@NonNull BuyerParticipation participationToMove,
                                        @NonNull Trader newSupplier) {
-        @NonNull TraderWithSettings trader = traders_.get(participationToMove.getBuyerIndex());
-        @NonNull Market market = new Market(this, new Basket()); // dummy initialization to avoid errors.
+        @NonNull TraderWithSettings trader = (TraderWithSettings)getBuyer(participationToMove);
+        @NonNull Market market = Multimaps.invertFrom(trader.getMarketsAsBuyer(),ArrayListMultimap.create())
+                                                                    .get(participationToMove).get(0);
 
-        // Find the correct market.
-        for (Map.Entry<Market,BuyerParticipation> entry : trader.getMarketsAsBuyer().entries()) {
-            if (participationToMove == entry.getValue()) {
-                market = entry.getKey();
-                break;
-            }
-        }
-
-        Trader supplier = market.getSupplier(participationToMove);
+        Trader supplier = getSupplier(participationToMove);
         if (supplier != null) {
             int i = 0;
             for (CommoditySpecification specification : market.getBasket().getCommoditySpecifications()) {
@@ -228,7 +236,6 @@ public final class Economy implements Cloneable {
         else
             participationToMove.setSupplierIndex(BuyerParticipation.NO_SUPPLIER);
 
-
         return this;
     }
 
@@ -255,8 +262,8 @@ public final class Economy implements Cloneable {
     public @NonNull @ReadOnly List<@NonNull @ReadOnly Trader> getSuppliers(@ReadOnly Economy this, @NonNull @ReadOnly Trader trader) {
         @NonNull List<@NonNull @ReadOnly Trader> suppliers = new ArrayList<>();
 
-        for (Map.Entry<Market,BuyerParticipation> entry : ((TraderWithSettings)trader).getMarketsAsBuyer().entries()) {
-            suppliers.add(entry.getKey().getSupplier(entry.getValue()));
+        for (BuyerParticipation participation : ((TraderWithSettings)trader).getMarketsAsBuyer().values()) {
+            suppliers.add(getSupplier(participation));
         }
 
         return suppliers;
@@ -286,26 +293,17 @@ public final class Economy implements Cloneable {
      * @return {@code this}
      */
     @Deterministic
-    public @NonNull Economy addCommodityBought(@NonNull Trader trader, @NonNull BuyerParticipation participation,
+    public @NonNull Economy addCommodityBought(@NonNull BuyerParticipation participation,
                                               @NonNull @ReadOnly CommoditySpecification commodityTypeToAdd) {
-        checkArgument(((TraderWithSettings)trader).getMarketsAsBuyer().containsValue(participation));
-
-        @NonNull Market market = new Market(this, new Basket()); // dummy initialization to avoid errors.
-
-        // Find the correct market.
-        for (Map.Entry<Market,BuyerParticipation> entry : ((TraderWithSettings)trader).getMarketsAsBuyer().entries()) {
-            if (participation == entry.getValue()) {
-                market = entry.getKey();
-                break;
-            }
-        }
+        @NonNull TraderWithSettings trader = (TraderWithSettings)getBuyer(participation);
+        @NonNull Market market = Multimaps.invertFrom(trader.getMarketsAsBuyer(),ArrayListMultimap.create()).get(participation).get(0);
 
         market.removeBuyerParticipation(participation);
-        ((TraderWithSettings)trader).getMarketsAsBuyer().remove(market, participation);
+        trader.getMarketsAsBuyer().remove(market, participation);
 
         Basket newBasketBought = market.getBasket().add(commodityTypeToAdd);
         if (!markets_.containsKey(newBasketBought)) {
-            Market newMarket = new Market(this, newBasketBought);
+            Market newMarket = new Market(newBasketBought);
 
             markets_.put(newBasketBought, newMarket);
 
@@ -318,8 +316,8 @@ public final class Economy implements Cloneable {
         }
 
         // TODO: should existing commodities bought be somehow preserved?
-        ((TraderWithSettings)trader).getMarketsAsBuyer().put(markets_.get(newBasketBought),
-                                                             markets_.get(newBasketBought).addBuyer((TraderWithSettings)trader));
+        trader.getMarketsAsBuyer().put(markets_.get(newBasketBought),
+                                                             markets_.get(newBasketBought).addBuyer(trader));
         return this;
     }
 
@@ -334,26 +332,17 @@ public final class Economy implements Cloneable {
      * @return {@code this}
      */
     @Deterministic
-    public @NonNull Economy removeCommodityBought(@NonNull Trader trader, @NonNull BuyerParticipation participation,
+    public @NonNull Economy removeCommodityBought(@NonNull BuyerParticipation participation,
                                                   @NonNull @ReadOnly CommoditySpecification commodityTypeToRemove) {
-        checkArgument(((TraderWithSettings)trader).getMarketsAsBuyer().containsValue(participation));
-
-        @NonNull Market market = new Market(this, new Basket()); // dummy initialization to avoid errors.
-
-        // Find the correct market.
-        for (Map.Entry<Market,BuyerParticipation> entry : ((TraderWithSettings)trader).getMarketsAsBuyer().entries()) {
-            if (participation == entry.getValue()) {
-                market = entry.getKey();
-                break;
-            }
-        }
+        @NonNull TraderWithSettings trader = (TraderWithSettings)getBuyer(participation);
+        @NonNull Market market = Multimaps.invertFrom(trader.getMarketsAsBuyer(),ArrayListMultimap.create()).get(participation).get(0);
 
         market.removeBuyerParticipation(participation);
-        ((TraderWithSettings)trader).getMarketsAsBuyer().remove(market, participation);
+        trader.getMarketsAsBuyer().remove(market, participation);
 
         Basket newBasketBought = market.getBasket().remove(commodityTypeToRemove);
         if (!markets_.containsKey(newBasketBought)) {
-            Market newMarket = new Market(this, newBasketBought);
+            Market newMarket = new Market(newBasketBought);
 
             markets_.put(newBasketBought, newMarket);
 
@@ -366,8 +355,8 @@ public final class Economy implements Cloneable {
         }
 
         // TODO: should existing commodities bought be somehow preserved?
-        ((TraderWithSettings)trader).getMarketsAsBuyer().put(markets_.get(newBasketBought),
-                                                             markets_.get(newBasketBought).addBuyer((TraderWithSettings)trader));
+        trader.getMarketsAsBuyer().put(markets_.get(newBasketBought),
+                                                             markets_.get(newBasketBought).addBuyer(trader));
         return this;
     }
 

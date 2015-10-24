@@ -6,7 +6,6 @@ import java.util.List;
 
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
-import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Deterministic;
 import org.checkerframework.dataflow.qual.Pure;
 
@@ -18,13 +17,10 @@ import org.checkerframework.dataflow.qual.Pure;
  *  trading that particular basket.
  * </p>
  */
-// TODO: consider making markets agnostic to the economy by hoisting a few methods to the economy
-// class. If that is not an option consider making market a non-static inner class of the economy.
 public final class Market {
     // Fields
 
     private final @NonNull Basket basket_; // see #getBasket()
-    private final @NonNull Economy economy_; // see #getEconomy()
     // All active Traders buying this market's basket. Some may appear more than once as different
     // participations.
     private final @NonNull List<@NonNull BuyerParticipation> buyers_ = new ArrayList<>();
@@ -34,14 +30,12 @@ public final class Market {
     // Constructors
 
     /**
-     * Constructs and empty Market inside a given Economy and attaches the given basket.
+     * Constructs an empty Market and attaches the given basket.
      *
-     * @param enclosingEconomy  The economy inside which the market will be created.
      * @param basketToAssociate The basket to associate with the new market. It it referenced and
      *                          not copied.
      */
-    public Market(@NonNull Economy enclosingEconomy, @NonNull Basket basketToAssociate) {
-        economy_ = enclosingEconomy;
+    Market(@NonNull Basket basketToAssociate) {
         basket_ = basketToAssociate;
     }
 
@@ -57,18 +51,6 @@ public final class Market {
     @Pure
     public @NonNull Basket getBasket(@ReadOnly Market this) {
         return basket_;
-    }
-
-    /**
-     * Returns the enclosing {@link Economy}.
-     *
-     * <p>
-     *  Each market is created and maintained inside a unique economy.
-     * </p>
-     */
-    @Pure
-    public @NonNull Economy getEconomy(@ReadOnly Market this) {
-        return economy_;
     }
 
     /**
@@ -112,20 +94,6 @@ public final class Market {
         buyers_.remove(participationToRemove);
         // TODO: move participation to null
         return this;
-    }
-
-    /**
-     * Returns the supplier of the given buyer participation in {@code this} market or {@code null}
-     * if there is no such supplier.
-     *
-     * @param participation The buyer participation for which we query the supplier.
-     * @return The supplier or {@code null} if the given buyer participation is currently not buying
-     *          the corresponding basket from anyone.
-     */
-    @Pure
-    public @Nullable @ReadOnly Trader getSupplier(@ReadOnly Market this, @NonNull @ReadOnly BuyerParticipation participation) {
-        return participation.getSupplierIndex() == BuyerParticipation.NO_SUPPLIER
-            ? null : getEconomy().getTraders().get(participation.getSupplierIndex());
     }
 
 } // end Market class
