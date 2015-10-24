@@ -11,11 +11,13 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
+import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Deterministic;
 import org.checkerframework.dataflow.qual.Pure;
 
+import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Multimaps;
 
@@ -59,6 +61,43 @@ public final class Economy implements Cloneable {
     @Pure
     public @NonNull @ReadOnly Market getMarket(@ReadOnly Economy this, @NonNull @ReadOnly Basket basket) {
         return markets_.get(basket);
+    }
+
+    @Pure
+    public @NonNull Trader getBuyer(@ReadOnly Economy this, @NonNull @ReadOnly BuyerParticipation participation) {
+        return traders_.get(participation.getBuyerIndex());
+    }
+
+    /**
+     * Returns an unmodifiable list of the commodities the given buyer participation is buying in
+     * {@code this} market.
+     *
+     * <p>
+     *  If the given buyer participation is not currently buying these commodities from anyone, then
+     *  they just represent the quantities and peak quantities the buyer intends to buy.
+     * </p>
+     */
+    @Pure
+    public @NonNull @ReadOnly List<@NonNull CommodityBought> getCommoditiesBought(@ReadOnly Economy this,
+                                               @NonNull @ReadOnly BuyerParticipation participation) {
+        @NonNull Market market = Multimaps.invertFrom(((TraderWithSettings)getBuyer(participation)).getMarketsAsBuyer(),
+            ArrayListMultimap.create()).get(participation).get(0); // only one market in inverse view
+        @NonNull List<@NonNull CommodityBought> result = new ArrayList<>(market.getBasket().size());
+
+        for (int i = 0; i < market.getBasket().size(); ++i) { // should be same size as participation
+            result.add(new CommodityBought(participation, i));
+        }
+
+        return result;
+    }
+
+    @Pure
+    public @NonNull @PolyRead CommodityBought getCommodityBought(@PolyRead Economy this,
+                                         @NonNull @PolyRead BuyerParticipation participation,
+                                         @NonNull @ReadOnly CommoditySpecification specification) {
+        return new CommodityBought(participation, Multimaps.invertFrom(
+            ((TraderWithSettings)getBuyer(participation)).getMarketsAsBuyer(), ArrayListMultimap.create())
+           .get(participation).get(0).getBasket().indexOf(specification));
     }
 
     /**

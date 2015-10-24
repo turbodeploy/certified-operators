@@ -19,56 +19,60 @@ import org.checkerframework.dataflow.qual.Pure;
  */
 public final class CommodityBought {
     // Fields
-    private @NonNull Market market_;
-    private @NonNull BuyerParticipation buyer_;
-    private @NonNull CommoditySpecification type_;
+    private final @NonNull BuyerParticipation participation_;
+    private final int commodityIndex_;
 
     // Constructors
-    CommodityBought(@NonNull Market market, @NonNull BuyerParticipation buyer, @NonNull CommoditySpecification type) {
-        market_ = market;
-        buyer_ = buyer;
-        type_ = type;
-    }
 
-    // Methods
-    @Pure
-    public @NonNull @ReadOnly CommoditySpecification getType(@ReadOnly CommodityBought this) {
-        return type_;
+    /**
+     * Constructs a new modifiable CommodityBought view of the (quantity, peak quantity) pair
+     * corresponding to the given buyer participation, and index into the quantity and peak quantity
+     * vectors.
+     *
+     * <p>
+     *  CommodityBought objects themselves are immutable, but they present a modifiable view of the
+     *  (quantity, peak quantity) pairs they refer to. They are never invalidated, but using them
+     *  after the supplied buyer participation has been removed from the respective market, makes
+     *  little sense.
+     * </p>
+     *
+     * @param participation The buyer participation for which the view will be created.
+     * @param commodityIndex The index of the pair for which the view should be created.
+     *                       Must be non-negative and less than the common length of the quantity
+     *                       and peak vectors.
+     */
+    // TODO: are they invalidated in other cases? what about addCommodityBought?
+    CommodityBought(@NonNull BuyerParticipation participation, int commodityIndex) {
+        checkArgument(0 <= commodityIndex && commodityIndex <= participation.getQuantities().length);
+
+        participation_ = participation;
+        commodityIndex_ = commodityIndex;
     }
 
     @Pure
     public double getQuantity(@ReadOnly CommodityBought this) {
-        return buyer_.getQuantity(market_.getBasket().indexOf(type_));
+        return participation_.getQuantity(commodityIndex_);
     }
 
     @Pure
     public double getPeakQuantity(@ReadOnly CommodityBought this) {
-        return buyer_.getPeakQuantity(market_.getBasket().indexOf(type_));
+        return participation_.getPeakQuantity(commodityIndex_);
     }
 
     @Deterministic
     public CommodityBought setQuantity(double newQuantity) {
-        if(buyer_.getSupplierIndex() != BuyerParticipation.NO_SUPPLIER)
-        {
-            final Trader supplier = market_.getEconomy().getTraders().get(buyer_.getSupplierIndex());
-            // TODO: should this be capacity or utilizationUpperBound*capacity?
-            checkArgument(newQuantity <= supplier.getCommoditySold(type_).getCapacity());
-        }
-        buyer_.setQuantity(market_.getBasket().indexOf(type_),newQuantity);
+        checkArgument(0 <= newQuantity);
+        // TODO: should we check anything else about newQuantity like comparing it with capacity?
+        participation_.setQuantity(commodityIndex_,newQuantity);
         return this;
     }
 
     @Deterministic
     public CommodityBought setPeakQuantity(double newPeakQuantity) {
-        if(buyer_.getSupplierIndex() != BuyerParticipation.NO_SUPPLIER)
-        {
-            final Trader supplier = market_.getEconomy().getTraders().get(buyer_.getSupplierIndex());
-            // TODO: should this be capacity or utilizationUpperBound*capacity?
-            checkArgument(newPeakQuantity <= supplier.getCommoditySold(type_).getCapacity());
-        }
-        buyer_.setPeakQuantity(market_.getBasket().indexOf(type_),newPeakQuantity);
+        checkArgument(0 <= newPeakQuantity);
+        // TODO: should we check anything else about newPeakQuantity like comparing it with capacity?
+        participation_.setPeakQuantity(commodityIndex_,newPeakQuantity);
         return this;
     }
-
 
 } // end CommodityBought class

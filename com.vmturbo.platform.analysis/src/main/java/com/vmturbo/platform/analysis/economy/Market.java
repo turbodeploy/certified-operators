@@ -128,24 +128,4 @@ public final class Market {
             ? null : getEconomy().getTraders().get(participation.getSupplierIndex());
     }
 
-    /**
-     * Returns an unmodifiable list of the commodities the given buyer participation is buying in
-     * {@code this} market.
-     *
-     * <p>
-     *  If the given buyer participation is not currently buying these commodities from anyone, then
-     *  they just represent the quantities and peak quantities the buyer intends to buy.
-     * </p>
-     */
-    @Pure
-    public @NonNull @ReadOnly List<@NonNull CommodityBought> getCommoditiesBought(@ReadOnly Market this,
-                                               @NonNull @ReadOnly BuyerParticipation participation) {
-        @NonNull List<@NonNull CommodityBought> result = new ArrayList<>(getBasket().size());
-        for (CommoditySpecification specification : getBasket().getCommoditySpecifications()) {
-            result.add(new CommodityBought(this, participation, specification));
-        }
-
-        return result;
-    }
-
 } // end Market class

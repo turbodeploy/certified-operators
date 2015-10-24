@@ -41,8 +41,7 @@ public final class Main {
         economy.moveTrader(economy.getMarketsAsBuyer(trader1).get(economy.getMarket(basket2)).get(1), trader4);
 
         trader2.getCommoditySold(cpu).setCapacity(100);
-        economy.getMarket(basket1).getCommoditiesBought(economy.getMarketsAsBuyer(trader1)
-            .get(economy.getMarket(basket1)).get(0)).get(basket1.indexOf(cpu)).setQuantity(42);
+        economy.getCommodityBought(economy.getMarketsAsBuyer(trader1).get(economy.getMarket(basket1)).get(0),cpu).setQuantity(42);
     }
 
     /**
