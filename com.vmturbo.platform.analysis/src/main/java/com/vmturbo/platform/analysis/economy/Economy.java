@@ -185,7 +185,7 @@ public final class Economy implements Cloneable {
                 ((CommoditySoldWithSettings)newSupplier.getCommoditiesSold().get(i)).getModifiableBuyersList().add(participationToMove);
             }
 
-            participationToMove.setSupplierIndex(traders.indexOf(trader));
+            participationToMove.setSupplierIndex(traders.indexOf(newSupplier));
         }
         else
             participationToMove.setSupplierIndex(BuyerParticipation.NO_SUPPLIER);

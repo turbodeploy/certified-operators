@@ -26,7 +26,8 @@ public final class Main {
         Supplier<String> greeter = () -> "Hello Java 8 world!!!";
         System.out.println(greeter.get());
 
-        Basket basket1 = new Basket(new CommoditySpecification((short)0),new CommoditySpecification((short)1),
+        CommoditySpecification cpu = new CommoditySpecification((short)0);
+        Basket basket1 = new Basket(cpu,new CommoditySpecification((short)1),
                                     new CommoditySpecification((short)2),new CommoditySpecification((short)3));
         Basket basket2 = new Basket(new CommoditySpecification((short)4),new CommoditySpecification((short)5));
 
@@ -38,6 +39,10 @@ public final class Main {
         economy.moveTrader(trader1, economy.getMarketsAsBuyer(trader1).get(economy.getMarket(basket1)).get(0), trader2);
         economy.moveTrader(trader1, economy.getMarketsAsBuyer(trader1).get(economy.getMarket(basket2)).get(0), trader3);
         economy.moveTrader(trader1, economy.getMarketsAsBuyer(trader1).get(economy.getMarket(basket2)).get(1), trader4);
+
+        trader2.getCommoditiesSold().get(basket1.indexOf(cpu)).setCapacity(100);
+        economy.getMarket(basket1).getCommoditiesBought(economy.getMarketsAsBuyer(trader1)
+            .get(economy.getMarket(basket1)).get(0)).get(basket1.indexOf(cpu)).setQuantity(42);
     }
 
     /**
