@@ -148,14 +148,13 @@ public final class Economy implements Cloneable {
     }
 
     @Deterministic
-    public @NonNull Economy moveTrader(@NonNull Trader trader, @NonNull BuyerParticipation participationToMove,
+    public @NonNull Economy moveTrader(@NonNull BuyerParticipation participationToMove,
                                        @NonNull Trader newSupplier) {
-        checkArgument(((TraderWithSettings)trader).getMarketsAsBuyer().containsValue(participationToMove));
-
+        @NonNull TraderWithSettings trader = traders.get(participationToMove.getBuyerIndex());
         @NonNull Market market = new Market(this, new Basket()); // dummy initialization to avoid errors.
 
         // Find the correct market.
-        for (Map.Entry<Market,BuyerParticipation> entry : ((TraderWithSettings)trader).getMarketsAsBuyer().entries()) {
+        for (Map.Entry<Market,BuyerParticipation> entry : trader.getMarketsAsBuyer().entries()) {
             if (participationToMove == entry.getValue()) {
                 market = entry.getKey();
                 break;

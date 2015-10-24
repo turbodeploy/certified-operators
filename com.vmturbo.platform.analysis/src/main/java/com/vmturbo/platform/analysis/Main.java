@@ -36,9 +36,9 @@ public final class Main {
         Trader trader2 = economy.addTrader(1, TraderState.ACTIVE, basket1);
         Trader trader3 = economy.addTrader(2, TraderState.ACTIVE, basket2);
         Trader trader4 = economy.addTrader(2, TraderState.ACTIVE, basket2);
-        economy.moveTrader(trader1, economy.getMarketsAsBuyer(trader1).get(economy.getMarket(basket1)).get(0), trader2);
-        economy.moveTrader(trader1, economy.getMarketsAsBuyer(trader1).get(economy.getMarket(basket2)).get(0), trader3);
-        economy.moveTrader(trader1, economy.getMarketsAsBuyer(trader1).get(economy.getMarket(basket2)).get(1), trader4);
+        economy.moveTrader(economy.getMarketsAsBuyer(trader1).get(economy.getMarket(basket1)).get(0), trader2);
+        economy.moveTrader(economy.getMarketsAsBuyer(trader1).get(economy.getMarket(basket2)).get(0), trader3);
+        economy.moveTrader(economy.getMarketsAsBuyer(trader1).get(economy.getMarket(basket2)).get(1), trader4);
 
         trader2.getCommoditiesSold().get(basket1.indexOf(cpu)).setCapacity(100);
         economy.getMarket(basket1).getCommoditiesBought(economy.getMarketsAsBuyer(trader1)
