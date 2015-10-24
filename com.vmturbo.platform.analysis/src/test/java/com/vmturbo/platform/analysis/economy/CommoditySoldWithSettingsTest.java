@@ -50,6 +50,8 @@ public final class CommoditySoldWithSettingsTest {
         csws.setPriceFunction(csws.getPriceFunction());
     }
 
+    // Tests for CommoditySold
+
     @Test // That the returned list is indeed unmodifiable (part 1)
     public final void testGetBuyers_ValidOperations() {
         @NonNull @ReadOnly List<@NonNull @ReadOnly BuyerParticipation> buyers = new CommoditySoldWithSettings().getBuyers();
@@ -165,6 +167,70 @@ public final class CommoditySoldWithSettingsTest {
     }
 
     @Test
+    @Parameters({"0.0,0.0",
+                 "0.0,1.0","1.0,1.0",
+                 "0.0,1000","1.0,1000","1000,1000"})
+    @TestCaseName("Test #{index}: getUtilization() == {0}/{1}")
+    public final void testGetUtilization(double quantity, double capacity) {
+        fixture.setCapacity(capacity);
+        fixture.setQuantity(quantity);
+        assertEquals(quantity/capacity, fixture.getUtilization(), 0.0);
+    }
+
+    @Test
+    @Parameters({"0.0,0.0",
+                 "0.0,1.0","1.0,1.0",
+                 "0.0,1000","1.0,1000","1000,1000"})
+    @TestCaseName("Test #{index}: getPeakUtilization() == {0}/{1}")
+    public final void testGetPeakUtilization(double peakQuantity, double capacity) {
+        fixture.setCapacity(capacity);
+        fixture.setPeakQuantity(peakQuantity);
+        assertEquals(peakQuantity/capacity, fixture.getPeakUtilization(), 0.0);
+    }
+
+    @Test
+    @Parameters({"0.0,0.0",
+                 "0.0,1.0","1.0,1.0",
+                 "0.0,1000","1.0,1000","1000,1000"})
+    @TestCaseName("Test #{index}: (set|get)Quantity({0}) with capacity == {1}")
+    public final void testGetSetQuantity_NormalInput(double quantity, double capacity) {
+        fixture.setCapacity(capacity);
+        fixture.setQuantity(quantity);
+        assertEquals(quantity, fixture.getQuantity(), 0.0);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    @Parameters({"-0.001,0.0","-1.0,0.0","-1000,0.0","1.0,0.0","1000,0.0",
+                 "-0.001,1.0","-1.0,1.0","-1000,1.0","1000,1.0",
+                 "-0.001,1000","-1.0,1000","-1000,1000","1000.1,1000"})
+    @TestCaseName("Test #{index}: (set|get)Quantity({0}) with capacity == {1}")
+    public final void testGetSetQuantity_InvalidInput(double qauantity, double capacity) {
+        fixture.setCapacity(capacity);
+        fixture.setQuantity(qauantity);
+    }
+
+    @Test
+    @Parameters({"0.0,0.0",
+                 "0.0,1.0","1.0,1.0",
+                 "0.0,1000","1.0,1000","1000,1000"})
+    @TestCaseName("Test #{index}: (set|get)PeakQuantity({0}) with capacity == {1}")
+    public final void testGetSetPeakQuantity_NormalInput(double peakQuantity, double capacity) {
+        fixture.setCapacity(capacity);
+        fixture.setPeakQuantity(peakQuantity);
+        assertEquals(peakQuantity, fixture.getPeakQuantity(), 0.0);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    @Parameters({"-0.001,0.0","-1.0,0.0","-1000,0.0","1.0,0.0","1000,0.0",
+                 "-0.001,1.0","-1.0,1.0","-1000,1.0","1000,1.0",
+                 "-0.001,1000","-1.0,1000","-1000,1000","1000.1,1000"})
+    @TestCaseName("Test #{index}: (set|get)PeakQuantity({0}) with capacity == {1}")
+    public final void testGetSetPeakQuantity_InvalidInput(double peakQauantity, double capacity) {
+        fixture.setCapacity(capacity);
+        fixture.setPeakQuantity(peakQauantity);
+    }
+
+    @Test
     @Parameters({"0.0","1.0","1000"})
     @TestCaseName("Test #{index}: (set|get)Capacity({0})")
     public final void testGetSetCapacity_NormalInput(double capacity) {
@@ -180,12 +246,25 @@ public final class CommoditySoldWithSettingsTest {
     }
 
     @Test
+    @Parameters({"0.0,0.0","1.0,0.0","1000,0.0",
+                 "0.0,0.5","1.0,0.5","1000,0.5",
+                 "0.0,1.0","1.0,1.0","1000,1.0"})
+    @TestCaseName("Test #{index}: getEffectiveCapacity() == {0}*{1}")
+    public final void testGetEffectiveCapacity(double capacity, double utilizationUpperBound) {
+        fixture.setCapacity(capacity);
+        fixture.setUtilizationUpperBound(utilizationUpperBound);
+        assertEquals(capacity*utilizationUpperBound, fixture.getEffectiveCapacity(), 0.0);
+    }
+
+    @Test
     @Parameters({"true","false"})
     @TestCaseName("Test #{index}: (set|is)Thin({0})")
     public final void testIsSetThin(boolean thin) {
         fixture.setThin(thin);
         assertEquals(thin, fixture.isThin());
     }
+
+    // Tests for CommoditySoldSettings
 
     @Test
     @Parameters({"true","false"})

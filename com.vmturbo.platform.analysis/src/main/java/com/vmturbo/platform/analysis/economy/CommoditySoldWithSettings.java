@@ -10,13 +10,16 @@ import java.util.function.UnaryOperator;
 import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
+import org.checkerframework.dataflow.qual.Deterministic;
 import org.checkerframework.dataflow.qual.Pure;
 
 final class CommoditySoldWithSettings implements CommoditySold, CommoditySoldSettings {
 
     // Fields for CommoditySold
     private final @NonNull ArrayList<@NonNull BuyerParticipation> buyers_ = new ArrayList<>();
-    private double capacity_ = 0.0;
+    private double quantity_ = 0.0;
+    private double peakQuantity_ = 0.0;
+    private double capacity_ = Double.MAX_VALUE;
     private boolean thin_ = false;
 
     // Fields for CommoditySoldSettings
@@ -36,7 +39,7 @@ final class CommoditySoldWithSettings implements CommoditySold, CommoditySoldSet
      */
     public CommoditySoldWithSettings() {}
 
-    // Methods
+    // Methods for CommoditySold
 
     @Override
     @Pure
@@ -60,8 +63,38 @@ final class CommoditySoldWithSettings implements CommoditySold, CommoditySoldSet
 
     @Override
     @Pure
+    public double getUtilization(@ReadOnly CommoditySoldWithSettings this) {
+        return getQuantity()/getCapacity();
+    }
+
+    @Override
+    @Pure
+    public double getPeakUtilization(@ReadOnly CommoditySoldWithSettings this) {
+        return getPeakQuantity()/getCapacity();
+    }
+
+    @Override
+    @Pure
+    public double getQuantity(@ReadOnly CommoditySoldWithSettings this) {
+        return quantity_;
+    }
+
+    @Override
+    @Pure
+    public double getPeakQuantity(@ReadOnly CommoditySoldWithSettings this) {
+        return peakQuantity_;
+    }
+
+    @Override
+    @Pure
     public double getCapacity(@ReadOnly CommoditySoldWithSettings this) {
         return capacity_;
+    }
+
+    @Override
+    @Pure
+    public double getEffectiveCapacity(@ReadOnly CommoditySoldWithSettings this) {
+        return getUtilizationUpperBound()*getCapacity();
     }
 
     @Override
@@ -69,6 +102,39 @@ final class CommoditySoldWithSettings implements CommoditySold, CommoditySoldSet
     public boolean isThin(@ReadOnly CommoditySoldWithSettings this) {
         return thin_;
     }
+
+    @Override
+    @Deterministic
+    public @NonNull CommoditySold setQuantity(double quantity) {
+        checkArgument(0 <= quantity && quantity <= getCapacity());
+        quantity_ = quantity;
+        return this;
+    }
+
+    @Override
+    @Deterministic
+    public @NonNull CommoditySold setPeakQuantity(double peakQuantity) {
+        checkArgument(0 <= peakQuantity && peakQuantity <= getCapacity());
+        peakQuantity_ = peakQuantity;
+        return this;
+    }
+
+    @Override
+    @Deterministic
+    public @NonNull CommoditySold setCapacity(double capacity) {
+        checkArgument(0 <= capacity); // should we check that this is >= max(quantity,peakQuantity)?
+        capacity_ = capacity;
+        return this;
+    }
+
+    @Override
+    @Deterministic
+    public @NonNull CommoditySold setThin(boolean thin) {
+        thin_ = thin;
+        return this;
+    }
+
+    // Methods for CommoditySoldSettings
 
     @Override
     @Pure
@@ -101,17 +167,20 @@ final class CommoditySoldWithSettings implements CommoditySold, CommoditySoldSet
     }
 
     @Override
+    @Pure
     public @NonNull @PolyRead UnaryOperator<@NonNull Double> getPriceFunction(@PolyRead CommoditySoldWithSettings this) {
         return priceFunction_;
     }
 
     @Override
+    @Deterministic
     public @NonNull CommoditySoldSettings setResizable(boolean resizable) {
         resizable_ = resizable;
         return this;
     }
 
     @Override
+    @Deterministic
     public @NonNull CommoditySoldSettings setCapacityUpperBound(double capacityUpperBound) {
         checkArgument(getCapacityLowerBound() <= capacityUpperBound);
         capacityUpperBound_ = capacityUpperBound;
@@ -119,6 +188,7 @@ final class CommoditySoldWithSettings implements CommoditySold, CommoditySoldSet
     }
 
     @Override
+    @Deterministic
     public @NonNull CommoditySoldSettings setCapacityLowerBound(double capacityLowerBound) {
         checkArgument(0 <= capacityLowerBound);
         checkArgument(capacityLowerBound <= getCapacityUpperBound());
@@ -127,6 +197,7 @@ final class CommoditySoldWithSettings implements CommoditySold, CommoditySoldSet
     }
 
     @Override
+    @Deterministic
     public @NonNull CommoditySoldSettings setCapacityIncrement(double capacityIncrement) {
         checkArgument(0 <= capacityIncrement);
         capacityIncrement_ = capacityIncrement;
@@ -134,6 +205,7 @@ final class CommoditySoldWithSettings implements CommoditySold, CommoditySoldSet
     }
 
     @Override
+    @Deterministic
     public @NonNull CommoditySoldSettings setUtilizationUpperBound(double utilizationUpperBound) {
         checkArgument(0.0 <= utilizationUpperBound && utilizationUpperBound <= 1.0);
         utilizationUpperBound_ = utilizationUpperBound;
@@ -141,19 +213,7 @@ final class CommoditySoldWithSettings implements CommoditySold, CommoditySoldSet
     }
 
     @Override
-    public @NonNull CommoditySold setCapacity(double capacity) {
-        checkArgument(0 <= capacity);
-        capacity_ = capacity;
-        return this;
-    }
-
-    @Override
-    public @NonNull CommoditySold setThin(boolean thin) {
-        thin_ = thin;
-        return this;
-    }
-
-    @Override
+    @Deterministic
     public @NonNull CommoditySoldSettings setPriceFunction(@NonNull UnaryOperator<@NonNull Double> priceFunction) {
         priceFunction_ = priceFunction;
         return this;
