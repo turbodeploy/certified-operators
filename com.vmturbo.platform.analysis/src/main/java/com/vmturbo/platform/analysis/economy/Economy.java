@@ -65,6 +65,12 @@ public final class Economy implements Cloneable {
     }
 
     @Pure
+    public @NonNull Market getMarket(@ReadOnly Economy this, @NonNull @ReadOnly BuyerParticipation participation) {
+        return Multimaps.invertFrom(((TraderWithSettings)getBuyer(participation)).getMarketsAsBuyer(),
+            ArrayListMultimap.create()).get(participation).get(0); // only one market in inverse view
+    }
+
+    @Pure
     public @NonNull Trader getBuyer(@ReadOnly Economy this, @NonNull @ReadOnly BuyerParticipation participation) {
         return traders_.get(participation.getBuyerIndex());
     }
@@ -95,8 +101,7 @@ public final class Economy implements Cloneable {
     @Pure
     public @NonNull @ReadOnly List<@NonNull CommodityBought> getCommoditiesBought(@ReadOnly Economy this,
                                                @NonNull @ReadOnly BuyerParticipation participation) {
-        @NonNull Market market = Multimaps.invertFrom(((TraderWithSettings)getBuyer(participation)).getMarketsAsBuyer(),
-            ArrayListMultimap.create()).get(participation).get(0); // only one market in inverse view
+        @NonNull Market market = getMarket(participation);
         @NonNull List<@NonNull CommodityBought> result = new ArrayList<>(market.getBasket().size());
 
         for (int i = 0; i < market.getBasket().size(); ++i) { // should be same size as participation
@@ -110,9 +115,7 @@ public final class Economy implements Cloneable {
     public @NonNull @PolyRead CommodityBought getCommodityBought(@PolyRead Economy this,
                                          @NonNull @PolyRead BuyerParticipation participation,
                                          @NonNull @ReadOnly CommoditySpecification specification) {
-        return new CommodityBought(participation, Multimaps.invertFrom(
-            ((TraderWithSettings)getBuyer(participation)).getMarketsAsBuyer(), ArrayListMultimap.create())
-           .get(participation).get(0).getBasket().indexOf(specification));
+        return new CommodityBought(participation,getMarket(participation).getBasket().indexOf(specification));
     }
 
     /**
@@ -205,9 +208,7 @@ public final class Economy implements Cloneable {
     @Deterministic
     public @NonNull Economy moveTrader(@NonNull BuyerParticipation participationToMove,
                                        @NonNull Trader newSupplier) {
-        @NonNull TraderWithSettings trader = (TraderWithSettings)getBuyer(participationToMove);
-        @NonNull Market market = Multimaps.invertFrom(trader.getMarketsAsBuyer(),ArrayListMultimap.create())
-                                                                    .get(participationToMove).get(0);
+        @NonNull Market market = getMarket(participationToMove);
 
         Trader supplier = getSupplier(participationToMove);
         if (supplier != null) {
@@ -297,7 +298,7 @@ public final class Economy implements Cloneable {
     public @NonNull Economy addCommodityBought(@NonNull BuyerParticipation participation,
                                               @NonNull @ReadOnly CommoditySpecification commodityTypeToAdd) {
         @NonNull TraderWithSettings trader = (TraderWithSettings)getBuyer(participation);
-        @NonNull Market market = Multimaps.invertFrom(trader.getMarketsAsBuyer(),ArrayListMultimap.create()).get(participation).get(0);
+        @NonNull Market market = getMarket(participation);
 
         market.removeBuyerParticipation(this,participation);
 
@@ -334,7 +335,7 @@ public final class Economy implements Cloneable {
     public @NonNull Economy removeCommodityBought(@NonNull BuyerParticipation participation,
                                                   @NonNull @ReadOnly CommoditySpecification commodityTypeToRemove) {
         @NonNull TraderWithSettings trader = (TraderWithSettings)getBuyer(participation);
-        @NonNull Market market = Multimaps.invertFrom(trader.getMarketsAsBuyer(),ArrayListMultimap.create()).get(participation).get(0);
+        @NonNull Market market = getMarket(participation);
 
         market.removeBuyerParticipation(this,participation);
 
