@@ -19,8 +19,8 @@ import org.checkerframework.dataflow.qual.Pure;
  */
 public final class CommodityBought {
     // Fields
-    private final @NonNull BuyerParticipation participation_;
-    private final int commodityIndex_;
+    private final @NonNull BuyerParticipation participation_; // the buyer participation backing the view.
+    private final int commodityIndex_; // the index into the quantity and peak quantity vectors.
 
     // Constructors
 
@@ -43,22 +43,51 @@ public final class CommodityBought {
      */
     // TODO: are they invalidated in other cases? what about addCommodityBought?
     CommodityBought(@NonNull BuyerParticipation participation, int commodityIndex) {
-        checkArgument(0 <= commodityIndex && commodityIndex <= participation.getQuantities().length);
+        checkArgument(0 <= commodityIndex && commodityIndex < participation.getQuantities().length);
 
         participation_ = participation;
         commodityIndex_ = commodityIndex;
     }
 
+    /**
+     * Returns the <b>quantity</b> of {@code this} commodity bought.
+     *
+     * <p>
+     *  This is the quantity one buyer participation is buying or intends to buy from a given type.
+     * </p>
+     */
     @Pure
     public double getQuantity(@ReadOnly CommodityBought this) {
         return participation_.getQuantity(commodityIndex_);
     }
 
+    /**
+     * Returns the <b>peak quantity</b> of {@code this} commodity bought.
+     *
+     * <p>
+     *  The peak quantity is the running max of quantity in some rolling time window, but the width
+     *  of this window is not known or customizable form inside the Economy and it is assumed that
+     *  the Mediation can get more accurate values for peak quantity from the Hypervisor than could
+     *  be calculated using the quantity samples alone.
+     * </p>
+     */
     @Pure
     public double getPeakQuantity(@ReadOnly CommodityBought this) {
         return participation_.getPeakQuantity(commodityIndex_);
     }
 
+    /**
+     * Sets the value of the <b>quantity</b> field.
+     *
+     * <p>
+     *  Has no observable side-effects except setting the above field.
+     * </p>
+     *
+     * @param newQuantity the new value for the field. Must be non-negative.
+     * @return {@code this}
+     *
+     * @see #getQuantity()
+     */
     @Deterministic
     public CommodityBought setQuantity(double newQuantity) {
         checkArgument(0 <= newQuantity);
@@ -67,6 +96,18 @@ public final class CommodityBought {
         return this;
     }
 
+    /**
+     * Sets the value of the <b>peak quantity</b> field.
+     *
+     * <p>
+     *  Has no observable side-effects except setting the above field.
+     * </p>
+     *
+     * @param newPeakQuantity the new value for the field. Must be non-negative.
+     * @return {@code this}
+     *
+     * @see #getQuantity()
+     */
     @Deterministic
     public CommodityBought setPeakQuantity(double newPeakQuantity) {
         checkArgument(0 <= newPeakQuantity);
