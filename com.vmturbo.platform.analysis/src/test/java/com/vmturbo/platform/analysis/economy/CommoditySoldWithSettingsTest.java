@@ -40,6 +40,8 @@ public final class CommoditySoldWithSettingsTest {
     public final void testCommoditySoldWithSettings() {
         CommoditySoldWithSettings csws = new CommoditySoldWithSettings();
         // Sanity check: make sure initial values are valid.
+        csws.setQuantity(csws.getQuantity());
+        csws.setPeakQuantity(csws.getPeakQuantity());
         csws.setCapacity(csws.getCapacity());
         csws.setCapacityIncrement(csws.getCapacityIncrement());
         csws.setCapacityLowerBound(csws.getCapacityLowerBound());
@@ -204,8 +206,8 @@ public final class CommoditySoldWithSettingsTest {
     @Parameters({"-0.001,0.0","-1.0,0.0","-1000,0.0","1.0,0.0","1000,0.0",
                  "-0.001,1.0","-1.0,1.0","-1000,1.0","1000,1.0",
                  "-0.001,1000","-1.0,1000","-1000,1000","1000.1,1000"})
-    @TestCaseName("Test #{index}: (set|get)Quantity({0}) with capacity == {1}")
-    public final void testGetSetQuantity_InvalidInput(double qauantity, double capacity) {
+    @TestCaseName("Test #{index}: setQuantity({0}) with capacity == {1}")
+    public final void testSetQuantity_InvalidInput(double qauantity, double capacity) {
         fixture_.setCapacity(capacity);
         fixture_.setQuantity(qauantity);
     }
@@ -225,8 +227,8 @@ public final class CommoditySoldWithSettingsTest {
     @Parameters({"-0.001,0.0","-1.0,0.0","-1000,0.0","1.0,0.0","1000,0.0",
                  "-0.001,1.0","-1.0,1.0","-1000,1.0","1000,1.0",
                  "-0.001,1000","-1.0,1000","-1000,1000","1000.1,1000"})
-    @TestCaseName("Test #{index}: (set|get)PeakQuantity({0}) with capacity == {1}")
-    public final void testGetSetPeakQuantity_InvalidInput(double peakQauantity, double capacity) {
+    @TestCaseName("Test #{index}: setPeakQuantity({0}) with capacity == {1}")
+    public final void testSetPeakQuantity_InvalidInput(double peakQauantity, double capacity) {
         fixture_.setCapacity(capacity);
         fixture_.setPeakQuantity(peakQauantity);
     }
@@ -241,8 +243,8 @@ public final class CommoditySoldWithSettingsTest {
 
     @Test(expected = IllegalArgumentException.class)
     @Parameters({"-0.001","-1.0","-1000"})
-    @TestCaseName("Test #{index}: (set|get)Capacity({0})")
-    public final void testGetSetCapacity_InvalidInput(double capacity) {
+    @TestCaseName("Test #{index}: setCapacity({0})")
+    public final void testSetCapacity_InvalidInput(double capacity) {
         fixture_.setCapacity(capacity);
     }
 
@@ -290,8 +292,8 @@ public final class CommoditySoldWithSettingsTest {
     @Parameters({"0.0,-0.1","0.0,-1.0",
                  "1.0,0.0","1.0,-1000",
                  "1000,2","1000,-500"})
-    @TestCaseName("Test #{index}: (set|get)CapacityUpperBound({1}) with capacityLowerBound == {0}")
-    public final void testGetSetCapacityUpperBound_InvalidInput(double capacityLowerBound, double capacityUpperBound) {
+    @TestCaseName("Test #{index}: setCapacityUpperBound({1}) with capacityLowerBound == {0}")
+    public final void testSetCapacityUpperBound_InvalidInput(double capacityLowerBound, double capacityUpperBound) {
         fixture_.setCapacityLowerBound(capacityLowerBound);
         fixture_.setCapacityUpperBound(capacityUpperBound);
     }
@@ -311,11 +313,10 @@ public final class CommoditySoldWithSettingsTest {
     @Parameters({"-0.01,0.0","1000,0.0",
                  "-50,1.0","2.0,1.0",
                  "-1.0,1000","2000,1000"})
-    @TestCaseName("Test #{index}: (set|get)CapacityLowerBound({0}) with capacityUpperBound == {1}")
-    public final void testGetSetCapacityLowerBound_InvalidInput(double capacityLowerBound, double capacityUpperBound) {
+    @TestCaseName("Test #{index}: setCapacityLowerBound({0}) with capacityUpperBound == {1}")
+    public final void testSetCapacityLowerBound_InvalidInput(double capacityLowerBound, double capacityUpperBound) {
         fixture_.setCapacityUpperBound(capacityUpperBound);
         fixture_.setCapacityLowerBound(capacityLowerBound);
-        assertEquals(capacityLowerBound, fixture_.getCapacityLowerBound(), 0.0);
     }
 
     @Test
@@ -328,8 +329,8 @@ public final class CommoditySoldWithSettingsTest {
 
     @Test(expected = IllegalArgumentException.class)
     @Parameters({"-0.01","-2","-100"})
-    @TestCaseName("Test #{index}: (set|get)CapacityIncrement({0})")
-    public final void testGetSetCapacityIncrement_InvalidInput(double capacityIncrement) {
+    @TestCaseName("Test #{index}: setCapacityIncrement({0})")
+    public final void testSetCapacityIncrement_InvalidInput(double capacityIncrement) {
         fixture_.setCapacityIncrement(capacityIncrement);
     }
 
@@ -343,8 +344,8 @@ public final class CommoditySoldWithSettingsTest {
 
     @Test(expected = IllegalArgumentException.class)
     @Parameters({"-0.01","-5","1.001","100"})
-    @TestCaseName("Test #{index}: (set|get)UtilizationUpperBound({0})")
-    public final void testGetSetUtilizationUpperBound_InvalidInput(double utilizationUpperBound) {
+    @TestCaseName("Test #{index}: setUtilizationUpperBound({0})")
+    public final void testSetUtilizationUpperBound_InvalidInput(double utilizationUpperBound) {
         fixture_.setUtilizationUpperBound(utilizationUpperBound);
     }
 
