@@ -100,6 +100,13 @@ public final class Market {
      *  updated.
      * </p>
      *
+     * <p>
+     *  Note that if there are buyer participations in the market buying from sellerToRemove, they
+     *  are left unchanged. That's because it's legal from a buyer to temporarily buy from a seller
+     *  in another market if e.g. an access commodity has been removed, but the recommendation to
+     *  move the buyer hasn't been taken yet.
+     * </p>
+     *
      * @param sellerToRemove The existing trader that should seize selling in this market.
      * @return {@code this}
      */

@@ -26,21 +26,26 @@ import com.google.common.collect.Multimaps;
  * A set of related markets and the traders participating in them.
  *
  * <p>
- *  It is responsible for creating and destroying markets as traders are added/removed.
+ *  It is responsible for creating and removing traders while simultaneously creating, updating and
+ *  destroying markets while that happens.
  * </p>
  */
 public final class Economy implements Cloneable {
     // Fields
 
     // The map that associates Baskets with Markets.
-    private @NonNull Map<@NonNull @ReadOnly Basket,@NonNull Market> markets_ = new TreeMap<>();
+    private final @NonNull Map<@NonNull @ReadOnly Basket,@NonNull Market> markets_ = new TreeMap<>();
     // The list of all Traders participating in the Economy.
-    private @NonNull List<@NonNull TraderWithSettings> traders_ = new ArrayList<>();
+    private final @NonNull List<@NonNull TraderWithSettings> traders_ = new ArrayList<>();
 
     // Constructors
 
     /**
      * Constructs an empty Economy.
+     *
+     * <p>
+     *  It will initially contain no Markets nor Traders.
+     * </p>
      */
     public Economy() {}
 
@@ -53,49 +58,112 @@ public final class Economy implements Cloneable {
      *  This changes dynamically as new {@link Trader traders} are added and/or removed from the
      *  economy. It is an O(1) operation.
      * </p>
+     *
+     * <p>
+     *  Whether the returned list will be updated or not after it is returned and a call to
+     *  add/removeTrader and/or add/removeCommodityBought is made, is undefined.
+     * </p>
      */
     @Pure
     public @NonNull @ReadOnly Collection<@NonNull @ReadOnly Market> getMarkets(@ReadOnly Economy this) {
         return Collections.unmodifiableCollection(markets_.values());
     }
 
+    /**
+     * Returns the {@link Market market} where the commodities specified by the given
+     * {@link Basket basket bought} are traded.
+     *
+     * @param basket The basket bought by some trader in the market. If it is not bought by any
+     *               trader in {@code this} economy, the results are undefined.
+     * @return The market where the commodities specified by the basket are traded.
+     */
     @Pure
     public @NonNull @ReadOnly Market getMarket(@ReadOnly Economy this, @NonNull @ReadOnly Basket basket) {
+        checkArgument(markets_.containsKey(basket));
+
         return markets_.get(basket);
     }
 
+    /**
+     * Returns the {@link Market market} that created and owns the given {@link BuyerParticipation
+     * buyer participation}.
+     *
+     * <p>
+     *  If given buyer participation has been invalidated, the results are undefined. The latter
+     *  can happen for example if the associated buyer is removed from the economy or the market
+     *  that owned the participation.
+     * </p>
+     *
+     * @param participation The valid buyer participation for which the market should be returned.
+     * @return The market that created and owns participation.
+     */
     @Pure
-    public @NonNull Market getMarket(@ReadOnly Economy this, @NonNull @ReadOnly BuyerParticipation participation) {
+    public @NonNull @ReadOnly Market getMarket(@ReadOnly Economy this, @NonNull @ReadOnly BuyerParticipation participation) {
+        checkArgument(((TraderWithSettings)getBuyer(participation)).getMarketsAsBuyer().containsValue(participation));
+
         return Multimaps.invertFrom(((TraderWithSettings)getBuyer(participation)).getMarketsAsBuyer(),
             ArrayListMultimap.create()).get(participation).get(0); // only one market in inverse view
     }
 
+    /**
+     * Returns the {@link Trader buyer} associated with the given {@link BuyerParticipation buyer
+     * participation}.
+     *
+     * <p>
+     *  If the given buyer participation has been invalidated, the results are undefined. The latter
+     *  can happen for example if the associated buyer has been removed from the economy.
+     * </p>
+     *
+     * @param participation The valid buyer participation for which the buyer should be returned.
+     * @return The buyer participating in a market as this buyer participation.
+     */
     @Pure
     public @NonNull Trader getBuyer(@ReadOnly Economy this, @NonNull @ReadOnly BuyerParticipation participation) {
+        // Note: this may throw IndexOutOfBoundsException or just return another trader if
+        // participation is invalid. Hard to check here, but can update buyerIndex accordingly in
+        // removeTrader.
         return traders_.get(participation.getBuyerIndex());
     }
 
     /**
-     * Returns the supplier of the given buyer participation in {@code this} economy or {@code null}
-     * if there is no such supplier.
+     * Returns the {@link Trader supplier} of the given {@link BuyerParticipation buyer participation}
+     * in {@code this} economy or {@code null} if there is no such supplier.
      *
-     * @param participation The buyer participation for which we query the supplier.
+     * <p>
+     *  If the given buyer participation has been invalidated, the results are undefined. The latter
+     *  can happen for example if the associated buyer has been removed from the economy.
+     * </p>
+     *
+     * @param participation The valid buyer participation for which the supplier should be returned.
      * @return The supplier or {@code null} if the given buyer participation is currently not buying
      *          the corresponding basket from anyone.
      */
     @Pure
     public @Nullable @ReadOnly Trader getSupplier(@ReadOnly Economy this, @NonNull @ReadOnly BuyerParticipation participation) {
+        // Note: hard to check validity here. Best way would probably set indices appropriately in
+        // removeTrader.
         return participation.getSupplierIndex() == BuyerParticipation.NO_SUPPLIER
             ? null : traders_.get(participation.getSupplierIndex());
     }
 
     /**
-     * Returns an unmodifiable list of the commodities the given buyer participation is buying in
-     * {@code this} market.
+     * Returns an unmodifiable list of the {@link CommodityBought commodities} the given
+     * {@link BuyerParticipation buyer participation} is buying in {@code this} economy.
      *
      * <p>
      *  If the given buyer participation is not currently buying these commodities from anyone, then
      *  they just represent the quantities and peak quantities the buyer intends to buy.
+     * </p>
+     *
+     * <p>
+     *  The commodities bought, are returned in the same order that quantities and peak quantities
+     *  appear in the respective vectors, which in turn is the same as the order in which the
+     *  commodity specifications appear in the respective basket bought.
+     * </p>
+     *
+     * <p>
+     *  The returned commodities remains valid for as long as the buyer participation remains valid.
+     *  After this point the results of using them are undefined.
      * </p>
      */
     @Pure
@@ -111,6 +179,22 @@ public final class Economy implements Cloneable {
         return result;
     }
 
+    /**
+     * Returns the {@link CommodityBought commodity} bought by the given {@link BuyerParticipation
+     * buyer participation} and specified by the given {@link CommoditySpecification commodity
+     * specification}.
+     *
+     * <p>
+     *  It remains valid for as long as the buyer participation remains valid. After this point the
+     *  results of using it are undefined.
+     * </p>
+     *
+     * @param participation The buyer participation buying the returned commodity.
+     * @param specification The specification specifying the returned commodity. It must be in the
+     *                      basket bought by participation.
+     * @return The commodity bought by the given buyer participation and specified by the given
+     *         commodity specification.
+     */
     @Pure
     public @NonNull @PolyRead CommodityBought getCommodityBought(@PolyRead Economy this,
                                          @NonNull @PolyRead BuyerParticipation participation,
@@ -123,7 +207,13 @@ public final class Economy implements Cloneable {
      * economy.
      *
      * <p>
-     *  It is an O(1) operation.
+     *  This changes dynamically as new {@link Trader traders} are added and/or removed from the
+     *  economy. It is an O(1) operation.
+     * </p>
+     *
+     * <p>
+     *  Whether the returned list will be updated or not after it is returned and a call to
+     *  add/removeTrader is made, is undefined.
      * </p>
      */
     @Pure
@@ -132,22 +222,30 @@ public final class Economy implements Cloneable {
     }
 
     /**
-     * Adds a new {@link Trader trader} to the economy.
+     * Creates a new {@link Trader trader} with the given characteristics and adds it to the economy.
      *
      * <p>
-     *  It is an O(M*C) operation, where M is the number of markets present in the economy and C is
-     *  the number of commodities sold by the trader.
+     *  It is an O(B*logM + M*SC) operation, where M is the number of markets present in the economy,
+     *  SC is the number of commodities sold by the trader and B is the number of baskets bought, if
+     *  no new markets are created as a result of adding the trader
      * </p>
      *
-     * @return {@code this}
+     * <p>
+     *  If new markets have to be created as a result of adding the trader, then there is an extra
+     *  O(T*BC) cost for each basket bought creating a new market, where T is the number of traders
+     *  in the economy and BC is the number of commodities in the basket creating the market.
+     * </p>
+     *
+     * @return The newly created trader, so that its properties can be updated.
      */
     @Deterministic
     public @NonNull Trader addTrader(int type, @NonNull TraderState state,
                                       @NonNull Basket basketSold, @NonNull Basket... basketsBought) {
         TraderWithSettings newTrader = new TraderWithSettings(traders_.size(), type, state, basketSold);
 
-        // Add a buyer
+        // Add as buyer
         for (Basket basketBought : basketsBought) {
+            // create a market if it doesn't already exist.
             if (!markets_.containsKey(basketBought)) {
                 Market newMarket = new Market(basketBought);
 
@@ -161,6 +259,7 @@ public final class Economy implements Cloneable {
                 }
             }
 
+            // add the buyer to the correct market.
             markets_.get(basketBought).addBuyer(newTrader);
         }
 
@@ -171,6 +270,7 @@ public final class Economy implements Cloneable {
             }
         }
 
+        // update traders list
         traders_.add(newTrader);
         return newTrader;
     }
@@ -179,41 +279,95 @@ public final class Economy implements Cloneable {
      * Removes an existing {@link Trader trader} from the economy.
      *
      * <p>
-     *  It is an O(T) operation, where T is the number of traders in the economy.
-     *  All existing indices to traders are potentially invalidated.
+     *  All buyers buying from traderToRemove will afterwards buy from no-one and all sellers
+     *  selling to traderToRemove will remove him from their lists of customers.
      * </p>
      *
-     * @param existingTrader The trader to be removed.
+     * <p>
+     *  It is an O(T) operation, where T is the number of traders in the economy.
+     *  Buyer participations of the trader are invalidated, as are the commodities bought by these
+     *  participations.
+     * </p>
+     *
+     * <p>
+     *  Any buyer participations of traderToRemove and corresponding commodities bought, will become
+     *  invalid.
+     * </p>
+     *
+     * @param traderToRemove The trader to be removed. Must be in {@code this} economy.
      * @return {@code this}
      */
+    // TODO: consider removing markets that no longer have buyers. (may keep them in case they
+    // acquire again, to avoid recalculation of sellers)
     @Deterministic
-    public @NonNull Economy removeTrader(@NonNull Trader existingTrader) {
+    public @NonNull Economy removeTrader(@NonNull Trader traderToRemove) {
+        checkArgument(traders_.contains(traderToRemove));
+
+        // Stop everyone from buying from the trader.
+        for (@NonNull BuyerParticipation participation : getCustomerParticipations(traderToRemove)) {
+            moveTrader(participation, null); // this is not the cheapest way, but the safest...
+        }
+
+        // Remove the trader from all markets it participated as seller
         // may need to copy list to avoid exception...
-        for (Market market : ((TraderWithSettings)existingTrader).getMarketsAsSeller()) {
-            market.removeSeller((TraderWithSettings)existingTrader);
+        for (Market market : ((TraderWithSettings)traderToRemove).getMarketsAsSeller()) {
+            market.removeSeller((TraderWithSettings)traderToRemove);
         }
+
+        // Remove the trader from all markets it participated as buyer
         // may need to copy the map to avoid exception.
-        for (Map.Entry<Market,BuyerParticipation> entry : ((TraderWithSettings)existingTrader).getMarketsAsBuyer().entries()) {
+        for (Map.Entry<Market,BuyerParticipation> entry : ((TraderWithSettings)traderToRemove).getMarketsAsBuyer().entries()) {
             entry.getKey().removeBuyerParticipation(this,entry.getValue());
+            // TODO: consider invalidating the participation.
         }
+
+        // Update indices for all buyer participations.
+        for (Market market : markets_.values()) {
+            for (BuyerParticipation participation : market.getBuyers()) {
+                if (participation.getBuyerIndex() > ((TraderWithSettings)traderToRemove).getEconomyIndex()) {
+                    participation.setBuyerIndex(participation.getBuyerIndex() - 1);
+                }
+                if (participation.getSupplierIndex() > ((TraderWithSettings)traderToRemove).getEconomyIndex()) {
+                    participation.setSupplierIndex(participation.getSupplierIndex() - 1);
+                }
+            }
+        }
+
+        // Update economy indices of all traders and remove trader from list.
         for (TraderWithSettings trader : traders_) {
-            if (trader.getEconomyIndex() > ((TraderWithSettings)existingTrader).getEconomyIndex()) {
+            if (trader.getEconomyIndex() > ((TraderWithSettings)traderToRemove).getEconomyIndex()) {
                 trader.setEconomyIndex(trader.getEconomyIndex() - 1);
             }
         }
-        traders_.remove(existingTrader);
+        traders_.remove(traderToRemove);
+
         return this;
     }
 
+    /**
+     * Moves one buyer participation of a buyer to a new supplier, causing customer and supplier
+     * lists to be updated.
+     *
+     * <p>
+     *  It can be used to first position a buyer participation buying from no-one (like the one of a
+     *  newly created trader) to its first supplier, or to make a buyer participation seize buying
+     *  from anyone.
+     * </p>
+     *
+     * @param participationToMove The buyer participation that should change supplier.
+     * @param newSupplier The new supplier of participationToMove.
+     * @return {@code this}
+     */
     @Deterministic
     public @NonNull Economy moveTrader(@NonNull BuyerParticipation participationToMove,
                                        @NonNull Trader newSupplier) {
-        @NonNull Market market = getMarket(participationToMove);
+        final @NonNull Basket basket = getMarket(participationToMove).getBasket();
 
-        Trader supplier = getSupplier(participationToMove);
+        // Update old supplier to exclude participationToMove from its customers.
+        final Trader supplier = getSupplier(participationToMove);
         if (supplier != null) {
             int i = 0;
-            for (CommoditySpecification specification : market.getBasket().getCommoditySpecifications()) {
+            for (CommoditySpecification specification : basket.getCommoditySpecifications()) {
                 // there should be at least one that matches
                 while(!specification.isSatisfiedBy((supplier.getBasketSold().getCommoditySpecifications().get(i)))) {
                     ++i;
@@ -222,10 +376,11 @@ public final class Economy implements Cloneable {
             }
         }
 
+        // Update new supplier to include participationToMove to its customers.
         if (newSupplier != null) {
-            checkArgument(market.getBasket().isSatisfiedBy(newSupplier.getBasketSold()));
+            checkArgument(basket.isSatisfiedBy(newSupplier.getBasketSold()));
             int i = 0;
-            for (CommoditySpecification specification : market.getBasket().getCommoditySpecifications()) {
+            for (CommoditySpecification specification : basket.getCommoditySpecifications()) {
                 // there should be at least one that matches
                 while(!specification.isSatisfiedBy((newSupplier.getBasketSold().getCommoditySpecifications().get(i)))) {
                     ++i;
@@ -233,7 +388,7 @@ public final class Economy implements Cloneable {
                 ((CommoditySoldWithSettings)newSupplier.getCommoditiesSold().get(i)).getModifiableBuyersList().add(participationToMove);
             }
 
-            participationToMove.setSupplierIndex(traders_.indexOf(newSupplier));
+            participationToMove.setSupplierIndex(((TraderWithSettings)newSupplier).getEconomyIndex());
         }
         else
             participationToMove.setSupplierIndex(BuyerParticipation.NO_SUPPLIER);
@@ -242,15 +397,23 @@ public final class Economy implements Cloneable {
     }
 
     /**
-     * Returns an unmodifiable list of {@code this} seller's customers.
+     * Returns an unmodifiable set of the given trader's customers.
+     *
+     * <p>
+     *  A trader is a customer of another trader iff the former currently buys any subset of the
+     *  commodities the latter is selling.
+     * </p>
+     *
+     * @see #getCustomerParticipations(Trader)
      */
     @Pure
-    public @NonNull @ReadOnly Set<@NonNull @ReadOnly Trader> getCustomers(@ReadOnly Economy this, @NonNull @ReadOnly Trader trader) {
+    public @NonNull @ReadOnly Set<@NonNull @ReadOnly Trader> getCustomers(@ReadOnly Economy this,
+                                                                          @NonNull @ReadOnly Trader trader) {
         @NonNull Set<@NonNull @ReadOnly Trader> customers = new TreeSet<>();
 
         for (CommoditySold commSold : trader.getCommoditiesSold()) {
             for (BuyerParticipation customer : commSold.getBuyers()) {
-                customers.add(traders_.get(customer.getBuyerIndex()));
+                customers.add(getBuyer(customer));
             }
         }
 
@@ -258,21 +421,68 @@ public final class Economy implements Cloneable {
     }
 
     /**
-     * Returns an unmodifiable list of {@code this} buyer's suppliers.
+     * Returns an unmodifiable set of the given trader's customer participations.
+     *
+     * <p>
+     *  A customer participation of a trader, is a buyer participation that has the trader as its
+     *  supplier.
+     * </p>
+     *
+     * <p>
+     *  This is similar to {@link #getCustomers(Trader)}, except that if a buyer buys multiple times
+     *  from the same seller, he will appear only once as a customer, but will have both of his
+     *  buyer participations appear as customer participations.
+     * </p>
+     *
+     * @see #getCustomers(Trader)
      */
     @Pure
-    public @NonNull @ReadOnly List<@NonNull @ReadOnly Trader> getSuppliers(@ReadOnly Economy this, @NonNull @ReadOnly Trader trader) {
+    public @NonNull @ReadOnly Set<@NonNull BuyerParticipation> getCustomerParticipations(@ReadOnly Economy this,
+                                                                                         @NonNull @ReadOnly Trader trader) {
+        @NonNull Set<@NonNull BuyerParticipation> customers = new TreeSet<>();
+
+        for (CommoditySold commSold : trader.getCommoditiesSold()) {
+            for (BuyerParticipation customerParticipation : commSold.getBuyers()) {
+                customers.add(customerParticipation);
+            }
+        }
+
+        return Collections.unmodifiableSet(customers);
+    }
+
+    /**
+     * Returns an unmodifiable list of the given trader's suppliers.
+     *
+     * <p>
+     *  It may contain the same supplier multiple times, one for each buyer participation of the
+     *  trader that has the same supplier.
+     * </p>
+     *
+     * <p>
+     *  A trader is a supplier of another trader, iff the former is currently selling some commodity
+     *  to the latter.
+     * </p>
+     */
+    @Pure
+    public @NonNull @ReadOnly List<@NonNull @ReadOnly Trader> getSuppliers(@ReadOnly Economy this,
+                                                                           @NonNull @ReadOnly Trader trader) {
         @NonNull List<@NonNull @ReadOnly Trader> suppliers = new ArrayList<>();
 
-        for (BuyerParticipation participation : ((TraderWithSettings)trader).getMarketsAsBuyer().values()) {
-            suppliers.add(getSupplier(participation));
+        for (BuyerParticipation participation : getMarketsAsBuyer(trader).values()) {
+            if (participation.getSupplierIndex() != BuyerParticipation.NO_SUPPLIER) {
+                suppliers.add(getSupplier(participation));
+            }
         }
 
         return suppliers;
     }
 
     /**
-     * Returns an unmodifiable multimap of the markets {@code this} trader participates in as a buyer.
+     * Returns an unmodifiable multimap of the markets the given trader participates in as a buyer.
+     *
+     * <p>
+     *  It maps each market to the list of buyer participations the given trader has in the market.
+     * </p>
      */
     @Pure
     public @NonNull @ReadOnly ListMultimap<@NonNull Market, @NonNull BuyerParticipation>
@@ -281,28 +491,42 @@ public final class Economy implements Cloneable {
     }
 
     /**
-     * Returns an unmodifiable list of the markets {@code this} trader participates in as a seller.
+     * Returns an unmodifiable list of the markets the given trader participates in as a seller.
      */
     @Pure
-    public @NonNull @ReadOnly List<@NonNull @ReadOnly Market> getMarketsAsSeller(@ReadOnly Economy this, @NonNull @ReadOnly Trader trader) {
+    public @NonNull @ReadOnly List<@NonNull @ReadOnly Market> getMarketsAsSeller(@ReadOnly Economy this,
+                                                                                 @NonNull @ReadOnly Trader trader) {
         return Collections.unmodifiableList(((TraderWithSettings)trader).getMarketsAsSeller());
     }
 
     /**
-     * Adds a new commodity specification to a given basket bought by this buyer.
+     * Adds a new commodity specification and corresponding commodity bought to a given buyer
+     * participation, updating markets and baskets as needed.
      *
-     * @param commodityTypeToAdd the commodity specification to add to the basket bought.
+     * <p>
+     *  Normally a commodity specification is added to a basket. But when a buyer buys the same
+     *  basket multiple times, the question arises: which instance of the basket should the
+     *  specification be added to? The solution is to distinguish the baskets using the buyer
+     *  participations that are unique. Then only one of the multiple instances will be updated.
+     * </p>
+     *
+     * @param participation The buyer participation that should be changed. It will be invalidated.
+     * @param commoditySpecificationToAdd The commodity specification of the commodity that will be
+     *                                    added to the buyer participation.
      * @return {@code this}
      */
     @Deterministic
     public @NonNull Economy addCommodityBought(@NonNull BuyerParticipation participation,
-                                              @NonNull @ReadOnly CommoditySpecification commodityTypeToAdd) {
+                                              @NonNull @ReadOnly CommoditySpecification commoditySpecificationToAdd) {
         @NonNull TraderWithSettings trader = (TraderWithSettings)getBuyer(participation);
-        @NonNull Market market = getMarket(participation);
+        @NonNull Market oldMarket = getMarket(participation);
 
-        market.removeBuyerParticipation(this,participation);
+        // remove the participation from the old market
+        oldMarket.removeBuyerParticipation(this,participation);
 
-        Basket newBasketBought = market.getBasket().add(commodityTypeToAdd);
+        Basket newBasketBought = oldMarket.getBasket().add(commoditySpecificationToAdd);
+
+        // create new market if it doesn't already exist.
         if (!markets_.containsKey(newBasketBought)) {
             Market newMarket = new Market(newBasketBought);
 
@@ -316,30 +540,51 @@ public final class Economy implements Cloneable {
             }
         }
 
-        // TODO: should existing commodities bought be somehow preserved?
-        markets_.get(newBasketBought).addBuyer(trader);
+        // add the trader to the new market.
+        BuyerParticipation newParticipation = markets_.get(newBasketBought).addBuyer(trader);
+
+        // copy quantity and peak quantity values from old participation.
+        int specificationIndex = newBasketBought.indexOf(commoditySpecificationToAdd);
+        for (int i = 0 ; i < specificationIndex ; ++i) {
+            newParticipation.setQuantity(i, participation.getQuantity(i));
+            newParticipation.setPeakQuantity(i, participation.getPeakQuantity(i));
+        }
+        for (int i = specificationIndex + 1 ; i < newBasketBought.size() ; ++i) {
+            newParticipation.setQuantity(i, participation.getQuantity(i-1));
+            newParticipation.setPeakQuantity(i, participation.getPeakQuantity(i-1));
+        }
+
         return this;
     }
 
     /**
-     * Removes an existing commodity specification from a given basket bought by this buyer.
+     * Removes an existing commodity specification and corresponding commodity bought from a given
+     * buyer participation, updating markets and baskets as needed.
      *
      * <p>
-     *  Baskets contain at most one of each commodity specification.
+     *  Normally a commodity specification is removed from a basket. But when a buyer buys the same
+     *  basket multiple times, the question arises: which instance of the basket should the
+     *  specification be removed from? The solution is to distinguish the baskets using the buyer
+     *  participations that are unique. Then only one of the multiple instances will be updated.
      * </p>
      *
-     * @param commodityTypeToRemove the commodity specification that should be removed from the basket.
+     * @param participation The buyer participation that should be changed. It will be invalidated.
+     * @param commoditySpecificationToRemove The commodity specification of the commodity that will
+     *                                       be removed from the buyer participation.
      * @return {@code this}
      */
     @Deterministic
     public @NonNull Economy removeCommodityBought(@NonNull BuyerParticipation participation,
-                                                  @NonNull @ReadOnly CommoditySpecification commodityTypeToRemove) {
+                                                  @NonNull @ReadOnly CommoditySpecification commoditySpecificationToRemove) {
         @NonNull TraderWithSettings trader = (TraderWithSettings)getBuyer(participation);
-        @NonNull Market market = getMarket(participation);
+        @NonNull Market oldMarket = getMarket(participation);
 
-        market.removeBuyerParticipation(this,participation);
+        // remove the participation from the old market
+        oldMarket.removeBuyerParticipation(this,participation);
 
-        Basket newBasketBought = market.getBasket().remove(commodityTypeToRemove);
+        Basket newBasketBought = oldMarket.getBasket().remove(commoditySpecificationToRemove);
+
+        // create new market if it doesn't already exist.
         if (!markets_.containsKey(newBasketBought)) {
             Market newMarket = new Market(newBasketBought);
 
@@ -353,11 +598,21 @@ public final class Economy implements Cloneable {
             }
         }
 
-        // TODO: should existing commodities bought be somehow preserved?
-        markets_.get(newBasketBought).addBuyer(trader);
+        // add the trader to the new market.
+        BuyerParticipation newParticipation = markets_.get(newBasketBought).addBuyer(trader);
+
+        // copy quantity and peak quantity values from old participation.
+        int specificationIndex = oldMarket.getBasket().indexOf(commoditySpecificationToRemove);
+        for (int i = 0 ; i < specificationIndex ; ++i) {
+            newParticipation.setQuantity(i, participation.getQuantity(i));
+            newParticipation.setPeakQuantity(i, participation.getPeakQuantity(i));
+        }
+        for (int i = specificationIndex ; i < newBasketBought.size() ; ++i) {
+            newParticipation.setQuantity(i, participation.getQuantity(i+1));
+            newParticipation.setPeakQuantity(i, participation.getPeakQuantity(i+1));
+        }
         return this;
     }
-
 
     /**
      * Returns a deep copy of {@code this} economy.
