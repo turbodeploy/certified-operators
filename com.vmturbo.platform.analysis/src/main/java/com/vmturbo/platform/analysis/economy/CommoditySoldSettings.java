@@ -1,11 +1,11 @@
 package com.vmturbo.platform.analysis.economy;
 
-import java.util.function.UnaryOperator;
-
 import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
+
+import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 
 /**
  * The settings associated with and controlling the behavior of a single {@link CommoditySold}.
@@ -78,8 +78,9 @@ public interface CommoditySoldSettings {
      *  returned by this function. In that sense, this is the low level price function.
      * </p>
      */
+    // TODO: update the documentation when we settle on the semantics...
     @Pure
-    @NonNull @PolyRead UnaryOperator<@NonNull Double> getPriceFunction(@PolyRead CommoditySoldSettings this);
+    @NonNull @PolyRead PriceFunction getPriceFunction(@PolyRead CommoditySoldSettings this);
 
     /**
      * Sets the value of the <b>resizable</b> field.
@@ -150,7 +151,9 @@ public interface CommoditySoldSettings {
      *
      * @param priceFunction the new value for the field.
      * @return {@code this}
+     *
+     * @see #getPriceFunction()
      */
-    @NonNull CommoditySoldSettings setPriceFunction(@NonNull UnaryOperator<@NonNull Double> priceFunction);
+    @NonNull CommoditySoldSettings setPriceFunction(@NonNull PriceFunction priceFunction);
 
 } // end CommoditySoldSettings interface

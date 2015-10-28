@@ -4,13 +4,14 @@ import static org.junit.Assert.*;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.UnaryOperator;
-
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+
+import com.vmturbo.platform.analysis.pricefunction.PFUtility;
+import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
@@ -352,7 +353,7 @@ public final class CommoditySoldWithSettingsTest {
     @Test
     @Parameters
     @TestCaseName("Test #{index}: (set|get)PriceFunction({0})")
-    public final void testGetSetPriceFunction(UnaryOperator<Double> priceFunction) {
+    public final void testGetSetPriceFunction(PriceFunction priceFunction) {
         fixture_.setPriceFunction(priceFunction);
         assertSame(priceFunction, fixture_.getPriceFunction());
     }
@@ -360,9 +361,9 @@ public final class CommoditySoldWithSettingsTest {
     @SuppressWarnings("unused") // it is used reflectively
     private static Object[] parametersForTestGetSetPriceFunction() {
         return new Object[]{
-            (UnaryOperator<Double>)x -> x*x,
-            (UnaryOperator<Double>)x -> 1 / ((1-x)*(1-x)),
-            (UnaryOperator<Double>)x -> 1/x
+            PFUtility.createPriceFunction(x -> x*x),
+            PFUtility.createPriceFunction(x -> 1 / ((1-x)*(1-x))),
+            PFUtility.createPriceFunction(x -> 1/x)
         };
     }
 
@@ -370,7 +371,7 @@ public final class CommoditySoldWithSettingsTest {
     @Parameters({"0,1","0.1,1.234567","0.5,4","0.9,100"})
     @TestCaseName("Test #{index}: getPriceFunction.apply({0}) == {1}")
     public final void testDefaultPriceFunction(double input, double output) {
-        assertEquals(output, fixture_.getPriceFunction().apply(input), 0.000001f); // TODO: improve delta
+        assertEquals(output, fixture_.getPriceFunction().unitPrice(input), 0.000001f); // TODO: improve delta
     }
 
 } // end class CommoditySoldWithSettingsTest

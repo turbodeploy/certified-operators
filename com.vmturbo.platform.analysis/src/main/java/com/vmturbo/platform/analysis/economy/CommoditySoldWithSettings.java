@@ -5,13 +5,14 @@ import static com.google.common.base.Preconditions.checkArgument;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.UnaryOperator;
-
 import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Deterministic;
 import org.checkerframework.dataflow.qual.Pure;
+
+import com.vmturbo.platform.analysis.pricefunction.PFUtility;
+import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 
 final class CommoditySoldWithSettings implements CommoditySold, CommoditySoldSettings {
 
@@ -28,8 +29,7 @@ final class CommoditySoldWithSettings implements CommoditySold, CommoditySoldSet
     private double capacityUpperBound_ = Double.MAX_VALUE;
     private double capacityIncrement_ = 1;
     private double utilizationUpperBound_ = 1.0;
-    // TODO: change to named price function when implemented.
-    private @NonNull UnaryOperator<@NonNull Double> priceFunction_ = x -> 1/((1-x)*(1-x));
+    private @NonNull PriceFunction priceFunction_ = PFUtility.createStandardWeightedPriceFunction(1.0);
 
     // Constructors
 
@@ -168,7 +168,7 @@ final class CommoditySoldWithSettings implements CommoditySold, CommoditySoldSet
 
     @Override
     @Pure
-    public @NonNull @PolyRead UnaryOperator<@NonNull Double> getPriceFunction(@PolyRead CommoditySoldWithSettings this) {
+    public @NonNull @PolyRead PriceFunction getPriceFunction(@PolyRead CommoditySoldWithSettings this) {
         return priceFunction_;
     }
 
@@ -214,7 +214,7 @@ final class CommoditySoldWithSettings implements CommoditySold, CommoditySoldSet
 
     @Override
     @Deterministic
-    public @NonNull CommoditySoldSettings setPriceFunction(@NonNull UnaryOperator<@NonNull Double> priceFunction) {
+    public @NonNull CommoditySoldSettings setPriceFunction(@NonNull PriceFunction priceFunction) {
         priceFunction_ = priceFunction;
         return this;
     }
