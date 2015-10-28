@@ -4,7 +4,7 @@
 	<parent>
 		<artifactId>OpsManager</artifactId>
 		<groupId>com.vmturbo</groupId>
-		<version>5.4-SNAPSHOT</version>
+		<version>5.5-SNAPSHOT</version>
 		<relativePath>../build/pom.xml</relativePath>
 	</parent>
 	<groupId>com.vmturbo.analysis</groupId>
@@ -117,7 +117,7 @@
 		<dependency>
 			<groupId>com.vmturbo</groupId>
 			<artifactId>com.vmturbo.platform</artifactId>
-			<version>5.4-SNAPSHOT</version>
+			<version>5.5-SNAPSHOT</version>
 		</dependency>
 		<dependency>
 			<groupId>com.typesafe.akka</groupId>
