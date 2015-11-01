@@ -212,7 +212,8 @@ public final class CommoditySpecification implements Comparable<CommoditySpecifi
 
     /**
      * Returns a string representation of {@code this} commodity specification as a triple of the
-     * form (type,qualityLowerBound,qualityUpperBound).
+     * form <type, qualityLowerBound, qualityUpperBound>. When upper bound is the maximum value
+     * we print the string MAX_VALUE, as in <17, 10, MX_VALUE>.
      *
      * <p>
      *  This is included mostly for use by the assert* methods of JUnit so that they produce
@@ -221,7 +222,16 @@ public final class CommoditySpecification implements Comparable<CommoditySpecifi
      */
     @Override
     public String toString() {
-        return "(" + type_ + ',' + qualityLowerBound_ + ',' + qualityUpperBound_ + ')';
+        StringBuffer b = new StringBuffer();
+        b.append('<');
+        b.append(type_);
+        b.append(", ");
+        b.append(qualityLowerBound_);
+        b.append(", ");
+        b.append(qualityUpperBound_ == Integer.MAX_VALUE ?
+                "MAX_VALUE" : qualityUpperBound_);
+        b.append('>');
+        return b.toString();
     }
 
 } // end CommoditySpecification class

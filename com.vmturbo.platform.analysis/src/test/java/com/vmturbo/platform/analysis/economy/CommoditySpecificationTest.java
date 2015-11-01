@@ -248,15 +248,20 @@ public class CommoditySpecificationTest {
         assertEquals(result, new CommoditySpecification(type, lowerBound, upperBound).toString());
     }
 
+    @Test
+    public final void testToStringNoQuality() {
+        assertEquals("<10, 0, MAX_VALUE>", new CommoditySpecification((short)10).toString());
+    }
+
     @SuppressWarnings("unused") // it is used reflectively
     private static Object[] parametersForTestToString() {
         return new Object[][]{
-            {(short)0,0,0,"(0,0,0)"},
-            {(short)0,0,1,"(0,0,1)"},
-            {(short)0,1,1,"(0,1,1)"},
-            {(short)1,0,0,"(1,0,0)"},
-            {(short)1,0,1,"(1,0,1)"},
-            {(short)1,1,1,"(1,1,1)"}
+            {(short)0, 0, 0, "<0, 0, 0>"},
+            {(short)0, 0, 1, "<0, 0, 1>"},
+            {(short)0, 1, 1, "<0, 1, 1>"},
+            {(short)1, 0, 0, "<1, 0, 0>"},
+            {(short)1, 0, 1, "<1, 0, 1>"},
+            {(short)1, 1, 1, "<1, 1, 1>"}
         };
     }
 
