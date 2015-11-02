@@ -236,6 +236,10 @@ public final class Economy implements Cloneable {
      *  in the economy and BC is the number of commodities in the basket creating the market.
      * </p>
      *
+     * <p>
+     *  New traders are always added to the end of the {@link #getTraders() traders list}.
+     * </p>
+     *
      * @return The newly created trader, so that its properties can be updated.
      */
     @Deterministic
@@ -245,22 +249,7 @@ public final class Economy implements Cloneable {
 
         // Add as buyer
         for (Basket basketBought : basketsBought) {
-            // create a market if it doesn't already exist.
-            if (!markets_.containsKey(basketBought)) {
-                Market newMarket = new Market(basketBought);
-
-                markets_.put(basketBought, newMarket);
-
-                // Populate new market
-                for (TraderWithSettings seller : traders_) {
-                    if (newMarket.getBasket().isSatisfiedBy(seller.getBasketSold())) {
-                        newMarket.addSeller(seller);
-                    }
-                }
-            }
-
-            // add the buyer to the correct market.
-            markets_.get(basketBought).addBuyer(newTrader);
+            addBasketBought(newTrader, basketBought);
         }
 
         // Add as seller
@@ -500,6 +489,64 @@ public final class Economy implements Cloneable {
     }
 
     /**
+     * Makes a {@link Trader buyer} start buying a new {@link Basket basket}, or an old one one more
+     * time.
+     *
+     * <p>
+     *  The buyer's {@link #getMarketsAsBuyer(Trader) market-to-buyer-participation map} and the
+     *  economy's markets are updated accordingly.
+     * </p>
+     *
+     * @param buyer The trader that should start buying the new basket.
+     * @param basketBought The basket that the buyer should start buying.
+     * @return The new buyer participation of the buyer in the market corresponding to the
+     *         basketBought.
+     */
+    public @NonNull BuyerParticipation addBasketBought(@NonNull Trader buyer, @NonNull @ReadOnly Basket basketBought) {
+        // create a market if it doesn't already exist.
+        if (!markets_.containsKey(basketBought)) {
+            Market newMarket = new Market(basketBought);
+
+            markets_.put(basketBought, newMarket);
+
+            // Populate new market
+            for (TraderWithSettings seller : traders_) {
+                if (newMarket.getBasket().isSatisfiedBy(seller.getBasketSold())) {
+                    newMarket.addSeller(seller);
+                }
+            }
+        }
+
+        // add the buyer to the correct market.
+        return markets_.get(basketBought).addBuyer((@NonNull TraderWithSettings)buyer);
+    }
+
+    /**
+     * Makes a {@link Trader buyer} stop buying a specific instance of a {@link Basket basket},
+     * designated by a {@link BuyerParticipation buyer participation}.
+     *
+     * <p>
+     *  Normally you would supply the basket to be removed. But when a buyer buys the same basket
+     *  multiple times, the question arises: which instance of the basket should be removed? The
+     *  solution is to distinguish the baskets using the buyer participations that are unique. Then
+     *  only one of the multiple instances will be removed.
+     * </p>
+     *
+     * @param participation The buyer participation uniquely identifying the basket instance that
+     *                      should be removed.
+     * @return The basket that was removed.
+     */
+    // TODO: consider removing markets that no longer have buyers. (may keep them in case they
+    // acquire again, to avoid recalculation of sellers)
+    public @NonNull @ReadOnly Basket removeBasketBought(@NonNull BuyerParticipation participation) {
+        @NonNull Market market = getMarket(participation);
+
+        market.removeBuyerParticipation(this, participation);
+
+        return market.getBasket();
+    }
+
+    /**
      * Adds a new commodity specification and corresponding commodity bought to a given buyer
      * participation, updating markets and baskets as needed.
      *
@@ -519,29 +566,12 @@ public final class Economy implements Cloneable {
     public @NonNull Economy addCommodityBought(@NonNull BuyerParticipation participation,
                                               @NonNull @ReadOnly CommoditySpecification commoditySpecificationToAdd) {
         @NonNull TraderWithSettings trader = (TraderWithSettings)getBuyer(participation);
-        @NonNull Market oldMarket = getMarket(participation);
 
         // remove the participation from the old market
-        oldMarket.removeBuyerParticipation(this,participation);
-
-        Basket newBasketBought = oldMarket.getBasket().add(commoditySpecificationToAdd);
-
-        // create new market if it doesn't already exist.
-        if (!markets_.containsKey(newBasketBought)) {
-            Market newMarket = new Market(newBasketBought);
-
-            markets_.put(newBasketBought, newMarket);
-
-            // Populate new market
-            for (TraderWithSettings seller : traders_) {
-                if (newMarket.getBasket().isSatisfiedBy(seller.getBasketSold())) {
-                    newMarket.addSeller(seller);
-                }
-            }
-        }
+        Basket newBasketBought = removeBasketBought(participation).add(commoditySpecificationToAdd);
 
         // add the trader to the new market.
-        BuyerParticipation newParticipation = markets_.get(newBasketBought).addBuyer(trader);
+        BuyerParticipation newParticipation = addBasketBought(trader, newBasketBought);
 
         // copy quantity and peak quantity values from old participation.
         int specificationIndex = newBasketBought.indexOf(commoditySpecificationToAdd);
@@ -577,32 +607,17 @@ public final class Economy implements Cloneable {
     public @NonNull Economy removeCommodityBought(@NonNull BuyerParticipation participation,
                                                   @NonNull @ReadOnly CommoditySpecification commoditySpecificationToRemove) {
         @NonNull TraderWithSettings trader = (TraderWithSettings)getBuyer(participation);
-        @NonNull Market oldMarket = getMarket(participation);
 
         // remove the participation from the old market
-        oldMarket.removeBuyerParticipation(this,participation);
+        @NonNull Basket oldBasket = removeBasketBought(participation);
 
-        Basket newBasketBought = oldMarket.getBasket().remove(commoditySpecificationToRemove);
-
-        // create new market if it doesn't already exist.
-        if (!markets_.containsKey(newBasketBought)) {
-            Market newMarket = new Market(newBasketBought);
-
-            markets_.put(newBasketBought, newMarket);
-
-            // Populate new market
-            for (TraderWithSettings seller : traders_) {
-                if (newMarket.getBasket().isSatisfiedBy(seller.getBasketSold())) {
-                    newMarket.addSeller(seller);
-                }
-            }
-        }
+        Basket newBasketBought = oldBasket.remove(commoditySpecificationToRemove);
 
         // add the trader to the new market.
-        BuyerParticipation newParticipation = markets_.get(newBasketBought).addBuyer(trader);
+        BuyerParticipation newParticipation = addBasketBought(trader, newBasketBought);
 
         // copy quantity and peak quantity values from old participation.
-        int specificationIndex = oldMarket.getBasket().indexOf(commoditySpecificationToRemove);
+        int specificationIndex = oldBasket.indexOf(commoditySpecificationToRemove);
         for (int i = 0 ; i < specificationIndex ; ++i) {
             newParticipation.setQuantity(i, participation.getQuantity(i));
             newParticipation.setPeakQuantity(i, participation.getPeakQuantity(i));
