@@ -23,9 +23,9 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.BuyerParticipation;
-import com.vmturbo.platform.analysis.economy.CommodityBought;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.topology.Topology;
@@ -86,6 +86,8 @@ public class EMF2MarketHandler extends DefaultHandler {
         // Ignore shadow entities
         String name = attributes.getValue("name");
         if (name != null && name.endsWith("_shadow")) return;
+        // Ignore templates
+        if ("true".equals(attributes.getValue("isTemplate"))) return;
         // This version only parses service entities that are contained in another object, e.g. a Market.
         // Otherwise there is no xsi:type and instead the qName is the type. These are currently skipped.
         if (parent != null && parent.getValue(XSITYPE) == null) return;
@@ -177,6 +179,7 @@ public class EMF2MarketHandler extends DefaultHandler {
         Map<Basket, Trader> shopper = Maps.newHashMap();
 
         for (String traderUuid : traders.keySet()) {
+            System.out.println("==========================");
             Attributes traderAttr = traders.get(traderUuid);
             printAttributes("Trader ", traderAttr);
             Set<String> keysSold = trader2basketSold.get(traderUuid);
@@ -185,7 +188,7 @@ public class EMF2MarketHandler extends DefaultHandler {
             int traderType = traderTypes.get(traderAttr.getValue(XSITYPE));
             Trader aSeller = economy.addTrader(traderType, TraderState.ACTIVE, basketSold);
             uuid2trader.put(traderUuid, aSeller);
-            
+
             // Baskets bought
             // Keys are the sellers that this buyer is buying from
             // Values are the commodities sold by this sells
@@ -218,10 +221,10 @@ public class EMF2MarketHandler extends DefaultHandler {
                 }
                 sellerAttr2commsBoughtAttr.get(seller).add(commBoughtAttr);
             }
-            System.out.println("Trader Summary");
+            System.out.println("Trader Summary @" + aSeller.hashCode());
             List<Basket> basketsBoughtByTrader = new ArrayList<Basket>();
             for (Entry<Attributes, List<Attributes>> entry : sellerAttr2commsSoldAttr.entrySet()) {
-            	Attributes sellerAttrs = entry.getKey();
+                Attributes sellerAttrs = entry.getKey();
                 printAttributes("    Buys from ", sellerAttrs);
                 Set<String> keysBought = new HashSet<String>();
                 for (Attributes commSold : entry.getValue()) {
@@ -231,18 +234,18 @@ public class EMF2MarketHandler extends DefaultHandler {
                 System.out.println("    Basket : " + keysBought);
                 Basket basketBought = keysToBasket(keysBought, commoditySpecs);
                 economy.addBasketBought(aSeller, basketBought);
-                
+
                 for (Attributes commBought : sellerAttr2commsBoughtAttr.get(sellerAttrs)) {
-                	String sUsed = commBought.getValue("used");
-                	Float used = sUsed != null ? Float.valueOf(sUsed) : 0.0f;
-                	CommoditySpecification specification = commSpec(commoditySpecs.get(commoditySpec(commBought)));
-                	BuyerParticipation participation = economy.getMarketsAsBuyer(aSeller).get(economy.getMarket(basketBought)).get(0);
-                	economy.getCommodityBought(participation, specification).setQuantity(used);
+                    String sUsed = commBought.getValue("used");
+                    Double used = sUsed != null ? Double.valueOf(sUsed) : 0.0;
+                    CommoditySpecification specification = commSpec(commoditySpecs.get(commoditySpec(commBought)));
+                    BuyerParticipation participation = economy.getMarketsAsBuyer(aSeller).get(economy.getMarket(basketBought)).get(0);
+                    economy.getCommodityBought(participation, specification).setQuantity(used);
                 }
 
                 placement.put(basketBought, uuid(entry.getKey()));
                 shopper.put(basketBought,  aSeller);
-                
+
                 basketsBoughtByTrader.add(basketBought);
                 allBasketsBought.add(basketBought);
             }
@@ -266,17 +269,17 @@ public class EMF2MarketHandler extends DefaultHandler {
 
         // Set capacities
         for (Entry<String, Attributes> entry : commoditySold2trader.entrySet()) {
-        	Attributes commSoldAttr = commodities.get(entry.getKey());
-        	printAttributes("Commodity sold ",  commSoldAttr);
-        	String sCapacity = commSoldAttr.getValue("capacity");
-        	if (sCapacity == null) {
-        		sCapacity = commSoldAttr.getValue("startCapacity");
-        	}
-        	Double capacity = sCapacity != null ? Double.valueOf(sCapacity) : 0.0;
-        	CommoditySpecification specification = commSpec(commoditySpecs.get(commoditySpec(commSoldAttr)));
-        	Trader trader = uuid2trader.get(uuid(entry.getValue()));
+            Attributes commSoldAttr = commodities.get(entry.getKey());
+            printAttributes("Commodity sold ",  commSoldAttr);
+            String sCapacity = commSoldAttr.getValue("capacity");
+            if (sCapacity == null) {
+                sCapacity = commSoldAttr.getValue("startCapacity");
+            }
+            Double capacity = sCapacity != null ? Double.valueOf(sCapacity) : 0.0;
+            CommoditySpecification specification = commSpec(commoditySpecs.get(commoditySpec(commSoldAttr)));
+            Trader trader = uuid2trader.get(uuid(entry.getValue()));
 
-        	trader.getCommoditySold(specification).setCapacity(capacity);
+            trader.getCommoditySold(specification).setCapacity(capacity);
         }
 
         // Assume baskets are not reused
@@ -313,21 +316,25 @@ public class EMF2MarketHandler extends DefaultHandler {
      */
     private void verify() {
         for (Trader trader : economy.getTraders()) {
-            System.out.println(trader.getType());
+            System.out.println(traderTypes.getByValue(trader.getType()) + " @" + trader.hashCode());
             System.out.println("    Sells " + trader.getBasketSold());
+            System.out.println("       " + basketAsStrings(trader.getBasketSold()));
             System.out.println("        with capacities "
-            		+ trader.getCommoditiesSold()
-            		.stream().map(c -> c.getCapacity())
-            		.collect(Collectors.toList()));
+                    + trader.getCommoditiesSold()
+                    .stream().map(c -> c.getCapacity())
+                    .collect(Collectors.toList()));
             //TODO: placement
             System.out.println("    Buys from "
-            		+ economy.getSuppliers(trader)
-            		.stream().map(t -> t.getType())
-            		.collect(Collectors.toList()));
-            for (BuyerParticipation participation : economy.getCustomerParticipations(trader)) {
-            	for (@NonNull CommodityBought commBought : economy.getCommoditiesBought(participation)) {
-            		System.out.println(commBought.getQuantity());
-            	}
+                    + economy.getSuppliers(trader)
+                    .stream().map(t -> t.getType())
+                    .map(k -> traderTypes.getByValue(k))
+                    .collect(Collectors.toList()));
+            for (@NonNull Entry<@NonNull Market, @NonNull BuyerParticipation> entry : economy.getMarketsAsBuyer(trader).entries()) {
+                BuyerParticipation participation = entry.getValue();
+                System.out.println("    -- participation @" + participation.hashCode());
+                System.out.println("         basket: " + basketAsStrings(entry.getKey().getBasket()));
+                System.out.println("         quantities: " + Arrays.toString(participation.getQuantities()));
+                System.out.println("         peaks     : " + Arrays.toString(participation.getPeakQuantities()));
             }
         }
     }
@@ -346,16 +353,24 @@ public class EMF2MarketHandler extends DefaultHandler {
         return new Basket(list);
     }
 
+    List<String> basketAsStrings(Basket basket) {
+        return basket.getCommoditySpecifications()
+                .stream().map(cs -> cs.getType())
+                .map(k -> commoditySpecs.getByValue((int)k))
+                .map(o -> o.toString())
+                .collect(Collectors.toList());
+    }
+
     CommoditySpecification commSpec(int i) {
         return new CommoditySpecification((short)i);
     }
 
-    
-	CommoditySpecification commSpec(Attributes commAttr) {
-		return commSpec(commoditySpecs.get(commoditySpec(commAttr)));
-	}
 
-    
+    CommoditySpecification commSpec(Attributes commAttr) {
+        return commSpec(commoditySpecs.get(commoditySpec(commAttr)));
+    }
+
+
     /**
      * Used to allocate integer values to strings.
      */
@@ -363,6 +378,7 @@ public class EMF2MarketHandler extends DefaultHandler {
     class TypeMap extends HashMap<Object, Integer> {
         // Not thread safe but we don't care
         int counter = 0;
+        Map<Integer, Object> reverse = new HashMap<Integer, Object>();
 
         /**
          * If the key exists then return its type.
@@ -375,8 +391,13 @@ public class EMF2MarketHandler extends DefaultHandler {
                 return this.get(key);
             } else {
                 put(key, ++counter);
+                reverse.put(counter, key);
                 return counter;
             }
+        }
+
+        Object getByValue(Integer val) {
+            return reverse.get(val);
         }
     }
 }
