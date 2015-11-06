@@ -13,7 +13,6 @@ import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.Trader;
-import com.vmturbo.platform.analysis.ese.EseCommon;
 import com.vmturbo.platform.analysis.recommendations.RecommendationItem;
 
 public class Placement {
@@ -66,7 +65,13 @@ public class Placement {
     	    			continue;
     	    		}
     	    		quote = EseCommon.calcQuote(buyerParticipation, market, economy, seller);
-    	    		currentQuote = currentSupplier.equals(seller) ? quote : currentQuote;
+    	    		if (seller.equals(currentSupplier)) {
+    	    		    currentQuote = quote;
+    	    		    if (cheapestQuote == Double.MAX_VALUE) {
+    	    		        cheapestQuote = quote;
+    	    		        cheapestSeller = seller;
+    	    		    }
+    	    		}
     	    		// compare quote with minQuote
     	    		if (quote < cheapestQuote) {
     	    			cheapestQuote = quote;
@@ -75,7 +80,8 @@ public class Placement {
     	    	}
 
     	    	// move, and update economy and state
-    			if (currentQuote > cheapestQuote + market.getBasket().size() * 2.0) {
+    	    	// TODO: decide how much cheaper the new supplier should be to decide to move
+    			if (currentQuote > cheapestQuote) { // + market.getBasket().size() * 2.0) {
     				//TODO (Apostolos): use economy.getSettings().getQuoteFactor() above
     				// create recommendation and add it to the result list
     				recommendationList.add(EseCommon.recommendPlace(buyerParticipation, economy,
@@ -120,27 +126,36 @@ public class Placement {
 	    for (int index = 0; index < basket.size(); index++) {
             CommoditySpecification basketCommSpec = basket.getCommoditySpecifications().get(index);
 
-            // Find the corresponding commodity sold in the current and the new supplier.
-            List<CommoditySpecification> currCommSoldSpecs =
+            // Update current supplier
+            if (currentSupplier != null) {
+                // Find the corresponding commodity sold in the current supplier.
+                List<CommoditySpecification> currCommSoldSpecs =
                             currentSupplier.getBasketSold().getCommoditySpecifications();
+                while (!basketCommSpec.isSatisfiedBy(currCommSoldSpecs.get(currCommSoldIndex))) {
+                    currCommSoldIndex++;
+                }
+                CommoditySold currCommSold = currentSupplier.getCommoditiesSold().get(currCommSoldIndex);
+
+                // adjust quantities at current supplier
+                // TODO: the following is problematic for commodities such as latency, peaks, etc.
+                // TODO: this is the reason for the Math.min, but it is not a good solution
+                currCommSold.setQuantity(Math.max(0.0, currCommSold.getQuantity() - quantities[index]));
+                currCommSold.setPeakQuantity(Math.max(0.0, currCommSold.getPeakQuantity() - peakQuantities[index]));
+            }
+
+            // Update new supplier
+            // Find the corresponding commodity sold in the new supplier.
             List<CommoditySpecification> newCommSoldSpecs =
                             newSupplier.getBasketSold().getCommoditySpecifications();
-            while (!basketCommSpec.isSatisfiedBy(currCommSoldSpecs.get(currCommSoldIndex))) {
-                currCommSoldIndex++;
-            }
+
             while (!basketCommSpec.isSatisfiedBy(newCommSoldSpecs.get(newCommSoldIndex))) {
                 newCommSoldIndex++;
             }
-            CommoditySold currCommSold = currentSupplier.getCommoditiesSold().get(currCommSoldIndex);
             CommoditySold newCommSold = newSupplier.getCommoditiesSold().get(newCommSoldIndex);
 
-            // adjust quantities at current supplier
-            currCommSold.setQuantity(quantities[index] + currCommSold.getQuantity());
-            currCommSold.setPeakQuantity(peakQuantities[index] + currCommSold.getPeakQuantity());
-
             // adjust quantities at new supplier
-            newCommSold.setQuantity(quantities[index] + newCommSold.getQuantity());
-            newCommSold.setPeakQuantity(peakQuantities[index] + newCommSold.getPeakQuantity());
+            newCommSold.setQuantity(newCommSold.getQuantity() + quantities[index]);
+            newCommSold.setPeakQuantity(newCommSold.getPeakQuantity() + peakQuantities[index]);
         }
 	}
 }
