@@ -13,16 +13,15 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
-import org.xml.sax.Attributes;
 import org.xml.sax.SAXException;
 import org.xml.sax.SAXParseException;
-import org.xml.sax.helpers.AttributesImpl;
 import org.xml.sax.helpers.DefaultHandler;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.BuyerParticipation;
+import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
@@ -76,10 +75,10 @@ public class EMF2MarketHandler extends DefaultHandler {
     }
 
     @Override
-    public void startElement(String uri, String localName, String qName, Attributes attributes) throws SAXException {
+    public void startElement(String uri, String localName, String qName, org.xml.sax.Attributes attr) throws SAXException {
         // attributes is an instance of AbstractSAXParser$AttributesProxy, which is always the same instance.
         // So creating a new copy.
-        attributes = new AttributesImpl(attributes);
+        Attributes attributes = new Attributes(qName, attr);
         Attributes parent = attributesStack.peek();
         elementsStack.push(qName);
         attributesStack.push(attributes);
@@ -116,14 +115,29 @@ public class EMF2MarketHandler extends DefaultHandler {
 
     private void printAttributes(String prefix, Attributes attributes) {
         System.out.print(prefix);
-        for (int i = 0; i < attributes.getLength(); i++) {
-            System.out.print(attributes.getLocalName(i) + "=" + attributes.getValue(i) + " ");
+        String xsiType = attributes.get(XSITYPE);
+        if (xsiType != null) {
+            System.out.print(XSITYPE + "=" + xsiType + " ");
         }
+        attributes.keySet().stream()
+            .filter(k -> !XSITYPE.equals(k))
+            .sorted()
+            .forEach(k -> System.out.print(k + "=" + attributes.get(k) + " "));
         System.out.println();
     }
 
     String uuid(Attributes attr) {
         return attr.getValue("uuid");
+    }
+
+    double value(Attributes attr, String...props) {
+        for (String prop : props) {
+            String sProp = attr.get(prop);
+            if (sProp != null) {
+                return Double.valueOf(sProp);
+            }
+        }
+        return 0.0;
     }
 
     private void trader(Attributes trader) {
@@ -236,8 +250,7 @@ public class EMF2MarketHandler extends DefaultHandler {
                 economy.addBasketBought(aSeller, basketBought);
 
                 for (Attributes commBought : sellerAttr2commsBoughtAttr.get(sellerAttrs)) {
-                    String sUsed = commBought.getValue("used");
-                    Double used = sUsed != null ? Double.valueOf(sUsed) : 0.0;
+                    double used = value(commBought, "used");
                     CommoditySpecification specification = commSpec(commoditySpecs.get(commoditySpec(commBought)));
                     BuyerParticipation participation = economy.getMarketsAsBuyer(aSeller).get(economy.getMarket(basketBought)).get(0);
                     economy.getCommodityBought(participation, specification).setQuantity(used);
@@ -271,15 +284,17 @@ public class EMF2MarketHandler extends DefaultHandler {
         for (Entry<String, Attributes> entry : commoditySold2trader.entrySet()) {
             Attributes commSoldAttr = commodities.get(entry.getKey());
             printAttributes("Commodity sold ",  commSoldAttr);
-            String sCapacity = commSoldAttr.getValue("capacity");
-            if (sCapacity == null) {
-                sCapacity = commSoldAttr.getValue("startCapacity");
-            }
-            Double capacity = sCapacity != null ? Double.valueOf(sCapacity) : 0.0;
+            Double capacity = value(commSoldAttr, "capacity", "startCapacity");
+            Double used = value(commSoldAttr, "used");
             CommoditySpecification specification = commSpec(commoditySpecs.get(commoditySpec(commSoldAttr)));
             Trader trader = uuid2trader.get(uuid(entry.getValue()));
-
-            trader.getCommoditySold(specification).setCapacity(capacity);
+            CommoditySold commSold = trader.getCommoditySold(specification);
+            if (used > capacity) {
+                System.out.println("used > cxapacity");
+                used = capacity;
+            }
+            commSold.setCapacity(capacity);
+            commSold.setQuantity(used);
         }
 
         // Assume baskets are not reused
@@ -318,11 +333,17 @@ public class EMF2MarketHandler extends DefaultHandler {
         for (Trader trader : economy.getTraders()) {
             System.out.println(traderTypes.getByValue(trader.getType()) + " @" + trader.hashCode());
             System.out.println("    Sells " + trader.getBasketSold());
-            System.out.println("       " + basketAsStrings(trader.getBasketSold()));
-            System.out.println("        with capacities "
-                    + trader.getCommoditiesSold()
-                    .stream().map(c -> c.getCapacity())
-                    .collect(Collectors.toList()));
+            if (!trader.getCommoditiesSold().isEmpty()) {
+                System.out.println("       " + basketAsStrings(trader.getBasketSold()));
+                System.out.println("        with capacities "
+                        + trader.getCommoditiesSold()
+                        .stream().map(c -> c.getCapacity())
+                        .collect(Collectors.toList()));
+                System.out.println("         and quantities "
+                        + trader.getCommoditiesSold()
+                        .stream().map(c -> c.getQuantity())
+                        .collect(Collectors.toList()));
+            }
             //TODO: placement
             System.out.println("    Buys from "
                     + economy.getSuppliers(trader)
@@ -398,6 +419,25 @@ public class EMF2MarketHandler extends DefaultHandler {
 
         Object getByValue(Integer val) {
             return reverse.get(val);
+        }
+    }
+
+    class Attributes extends HashMap<String, String> {
+        private static final long serialVersionUID = 1L;
+
+        Attributes(String qName, org.xml.sax.Attributes attributes) {
+            super();
+            if (attributes.getValue(XSITYPE) == null) {
+                // SE that is a child of the document root
+                put(XSITYPE, qName);
+            }
+            for (int i = 0; i < attributes.getLength(); i++) {
+                put(attributes.getLocalName(i), attributes.getValue(i));
+            }
+        }
+
+        public String getValue(String key) {
+            return get(key);
         }
     }
 }
