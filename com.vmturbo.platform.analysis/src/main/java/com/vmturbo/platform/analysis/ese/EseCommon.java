@@ -53,10 +53,6 @@ public class EseCommon {
     			(quantities[index] + commSold.getQuantity()) / capacity;
     		double peakUtilization = isCurrentSupplier ? commSold.getPeakUtilization() :
     			(peakQuantities[index] + commSold.getPeakQuantity()) / capacity;
-    		if (isCurrentSupplier) {
-    		    utilization = commSold.getUtilization();
-    		    peakUtilization = commSold.getPeakUtilization();
-    		}
     		double utilUpperBound = commSold.getSettings().getUtilizationUpperBound();
 
     		// calculate the price per unit for quantity and peak quantity
@@ -65,9 +61,10 @@ public class EseCommon {
     		double pricePeak = pf.unitPeakPrice(utilization, peakUtilization, utilUpperBound);
 
     		// calculate quote
-    		// TODO (Apostolos): consider removing 100 from everywhere in the code. It is redundant
+    		// TODO: consider removing 100 from everywhere in the code. It is redundant
+    		// TODO: decide what to do if peakQuantity is less than quantity
     		quote += 100.0 * (quantities[index] / capacity * priceUsed
-    				+ (peakQuantities[index] - quantities[index]) / capacity * pricePeak);
+    				+ Math.max(0.0, peakQuantities[index]-quantities[index]) / capacity * pricePeak);
 
     	}
     	return quote;
@@ -95,7 +92,8 @@ public class EseCommon {
     	       description = "Start: " + buyerIndex + " in: " + newSupplierIndex;
     	       reason = "Buyer is currently not placed in any supplier selling " +
     	                market.getBasket().toString();
-    	       return(new RecommendationItem(description, reason));
+    	       return(new RecommendationItem(description, reason, buyerIndex, currentSupplierIndex,
+    	                       newSupplierIndex));
     	}
 
     	description = "Move: " + buyerIndex + " from: " +  currentSupplierIndex + " to: " +
@@ -108,7 +106,8 @@ public class EseCommon {
     	                    " is not selling one or more of the following: " +
     	                    market.getBasket().toString();
     	}
-    	return(new RecommendationItem(description, reason));
+    	return(new RecommendationItem(description, reason, buyerIndex, currentSupplierIndex,
+    	                newSupplierIndex));
     }
 
     /**
@@ -123,6 +122,6 @@ public class EseCommon {
         int buyerIndex = economy.getTraders().indexOf(economy.getBuyer(buyerParticipation));
         String description = "Reconfigure: " + buyerIndex;
         String reason = "There are no suppliers selling: " + market.getBasket().toString();
-        return(new RecommendationItem(description, reason));
+        return(new RecommendationItem(description, reason, buyerIndex, -1, -1));
     }
 }
