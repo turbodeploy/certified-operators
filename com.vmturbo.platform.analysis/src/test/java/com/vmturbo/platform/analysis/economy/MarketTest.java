@@ -23,9 +23,9 @@ public class MarketTest {
 
     // Fields
 
-    private static final CommoditySpecification A = new CommoditySpecification((short)0,0,0);
-    private static final CommoditySpecification B = new CommoditySpecification((short)0,0,100);
-    private static final CommoditySpecification C = new CommoditySpecification((short)1,0,100);
+    private static final CommoditySpecification A = new CommoditySpecification(0,0,0);
+    private static final CommoditySpecification B = new CommoditySpecification(0,0,100);
+    private static final CommoditySpecification C = new CommoditySpecification(1,0,100);
 
     private static final TraderWithSettings T0 = new TraderWithSettings(0, 0, TraderState.ACTIVE, new Basket());
     private static final TraderWithSettings T0A = new TraderWithSettings(0, 0, TraderState.ACTIVE, new Basket(A));

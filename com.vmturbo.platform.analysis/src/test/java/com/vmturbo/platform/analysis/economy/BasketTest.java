@@ -17,14 +17,14 @@ import junitparams.naming.TestCaseName;
 @RunWith(JUnitParamsRunner.class)
 public class BasketTest {
     // Fields
-    private static final CommoditySpecification A = new CommoditySpecification((short)0);
-    private static final CommoditySpecification B = new CommoditySpecification((short)0,4,8);
-    private static final CommoditySpecification C1 = new CommoditySpecification((short)0,5,10);
-    private static final CommoditySpecification C2 = new CommoditySpecification((short)0,5,10);
-    private static final CommoditySpecification D = new CommoditySpecification((short)1,2,5);
-    private static final CommoditySpecification E = new CommoditySpecification((short)1,9,11);
-    private static final CommoditySpecification F = new CommoditySpecification((short)2,2,5);
-    private static final CommoditySpecification G = new CommoditySpecification((short)2,9,11);
+    private static final CommoditySpecification A = new CommoditySpecification(0);
+    private static final CommoditySpecification B = new CommoditySpecification(0,4,8);
+    private static final CommoditySpecification C1 = new CommoditySpecification(0,5,10);
+    private static final CommoditySpecification C2 = new CommoditySpecification(0,5,10);
+    private static final CommoditySpecification D = new CommoditySpecification(1,2,5);
+    private static final CommoditySpecification E = new CommoditySpecification(1,9,11);
+    private static final CommoditySpecification F = new CommoditySpecification(2,2,5);
+    private static final CommoditySpecification G = new CommoditySpecification(2,9,11);
 
     // Methods
 

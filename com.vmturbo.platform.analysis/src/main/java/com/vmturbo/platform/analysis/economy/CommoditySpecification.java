@@ -32,7 +32,7 @@ import com.google.common.hash.Hashing;
  */
 public final class CommoditySpecification implements Comparable<CommoditySpecification> {
     // Fields
-    private final short type_; // must be non-negative.
+    private final int type_; // must be non-negative.
     private final int qualityLowerBound_; // must be non-negative and less than or equal to qualityUpperBound_.
     private final int qualityUpperBound_; // must be non-negative and greater than or equal to qualityLowerBound_.
 
@@ -41,11 +41,11 @@ public final class CommoditySpecification implements Comparable<CommoditySpecifi
     /**
      * Constructs a new CommoditySpecification with the given type and the maximum quality range.
      *
-     * @param type The type of commodity sold or bought as a short. It may represent e.g. CPU or
+     * @param type The type of commodity sold or bought as an int. It may represent e.g. CPU or
      *             memory but the exact correspondence is kept by an outside source.
      *             It must be non-negative.
      */
-    public CommoditySpecification(short type) {
+    public CommoditySpecification(int type) {
         checkArgument(type >= 0);
 
         type_ = type;
@@ -54,33 +54,9 @@ public final class CommoditySpecification implements Comparable<CommoditySpecifi
     }
 
     /**
-     * Constructs a new CommoditySpecification with the given type and both quality bounds set to
-     * the same value that can be thought of as a key.
-     *
-     * <p>
-     *  This is deprecated and supplied for backward compatibility with versions of Mediation that
-     *  don't know how to use quality.
-     * </p>
-     *
-     * @param type The type of commodity sold or bought as a short. It may represent e.g. CPU or
-     *             memory but the exact correspondence is kept by an outside source.
-     *             It must be non-negative.
-     * @param key  A value that uniquely distinguishes a commodity between others of the same type.
-     *             It must be non-negative.
-     */
-    @Deprecated
-    public CommoditySpecification(short type, int key) {
-        checkArgument(type >= 0);
-        checkArgument(key >= 0);
-
-        type_ = type;
-        qualityUpperBound_ = qualityLowerBound_ = key;
-    }
-
-    /**
      * Constructs a new CommoditySpecification with the given type and quality bounds.
      *
-     * @param type The type of commodity sold or bought as a short. It may represent e.g. CPU or
+     * @param type The type of commodity sold or bought as an int. It may represent e.g. CPU or
      *             memory but the exact correspondence is kept by an outside source.
      *             It must be non-negative.
      * @param qualityLowerBound The lowest quality of this commodity a buyer can accept or a seller
@@ -88,7 +64,7 @@ public final class CommoditySpecification implements Comparable<CommoditySpecifi
      * @param qualityUpperBound The highest quality of this commodity a buyer can accept or a seller
      *             provide. It must be non-negative and greater than or equal to qualityUpperBound.
      */
-    public CommoditySpecification(short type, int qualityLowerBound, int qualityUpperBound) {
+    public CommoditySpecification(int type, int qualityLowerBound, int qualityUpperBound) {
         checkArgument(type >= 0);
         checkArgument(0 <= qualityLowerBound);
         checkArgument(qualityLowerBound <= qualityUpperBound);
@@ -110,7 +86,7 @@ public final class CommoditySpecification implements Comparable<CommoditySpecifi
      * </p>
      */
     @Pure
-    public short getType(@ReadOnly CommoditySpecification this) {
+    public int getType(@ReadOnly CommoditySpecification this) {
         return type_;
     }
 
@@ -206,7 +182,7 @@ public final class CommoditySpecification implements Comparable<CommoditySpecifi
     @Override
     @Pure
     public int hashCode() {
-        return Hashing.md5().newHasher().putShort(type_).putInt(qualityLowerBound_)
+        return Hashing.md5().newHasher().putInt(type_).putInt(qualityLowerBound_)
             .putInt(qualityUpperBound_).hash().asInt(); // no particular reason to use md5.
     }
 

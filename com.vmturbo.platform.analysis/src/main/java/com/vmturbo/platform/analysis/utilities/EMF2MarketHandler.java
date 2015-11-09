@@ -383,7 +383,7 @@ public class EMF2MarketHandler extends DefaultHandler {
     }
 
     CommoditySpecification commSpec(int i) {
-        return new CommoditySpecification((short)i);
+        return new CommoditySpecification(i);
     }
 
 

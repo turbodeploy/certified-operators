@@ -29,10 +29,10 @@ public final class Main {
         Supplier<String> greeter = () -> "Hello Java 8 world!!!";
         System.out.println(greeter.get());
 
-        CommoditySpecification cpu = new CommoditySpecification((short)0);
-        Basket basket1 = new Basket(cpu,new CommoditySpecification((short)1),
-                                    new CommoditySpecification((short)2),new CommoditySpecification((short)3));
-        Basket basket2 = new Basket(new CommoditySpecification((short)4),new CommoditySpecification((short)5));
+        CommoditySpecification cpu = new CommoditySpecification(0);
+        Basket basket1 = new Basket(cpu,new CommoditySpecification(1),
+                                    new CommoditySpecification(2),new CommoditySpecification(3));
+        Basket basket2 = new Basket(new CommoditySpecification(4),new CommoditySpecification(5));
 
         Economy economy = new Economy();
         Trader trader1 = economy.addTrader(0, TraderState.ACTIVE, new Basket(), basket1, basket2, basket2);
