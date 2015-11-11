@@ -8,77 +8,77 @@ import com.vmturbo.platform.analysis.economy.Trader;
  */
 public class StateItem {
 
-	// Fields
+    // Fields
 
     // the Trader associated with the StateItem
-	private final Trader trader_;
+    private final Trader trader_;
 
-	// times capturing decisions for the Trader
-	private long cloneOnlyAfterThisTime_;
-	private long suspendOnlyAfterThisTime_;
-	private long moveFromOnlyAfterThisTime_;
-	private long moveToOnlyAfterThisTime_;
-	private long moveOnlyAfterThisTime_;
+    // times capturing decisions for the Trader
+    private long cloneOnlyAfterThisTime_;
+    private long suspendOnlyAfterThisTime_;
+    private long moveFromOnlyAfterThisTime_;
+    private long moveToOnlyAfterThisTime_;
+    private long moveOnlyAfterThisTime_;
 
-	// Constructors
+    // Constructors
 
-	/**
-	 * Constructs a State Item and associates it with a Trader
-	 *
-	 * @param correspondingTrader - the Trader to which the State Item corresponds
-	 */
-	public StateItem(Trader correspondingTrader) {
-	    trader_ = correspondingTrader;
-	}
+    /**
+     * Constructs a State Item and associates it with a Trader
+     *
+     * @param correspondingTrader - the Trader to which the State Item corresponds
+     */
+    public StateItem(Trader correspondingTrader) {
+        trader_ = correspondingTrader;
+    }
 
-	// Methods
+    // Methods
 
-	public Trader getTrader() {
+    public Trader getTrader() {
         return trader_;
     }
 
-	public long getCloneOnlyAfterThisTime() {
-		return cloneOnlyAfterThisTime_;
-	}
+    public long getCloneOnlyAfterThisTime() {
+        return cloneOnlyAfterThisTime_;
+    }
 
-	public StateItem setCloneOnlyAfterThisTime(long time) {
-		cloneOnlyAfterThisTime_ = time;
-		return this;
-	}
+    public StateItem setCloneOnlyAfterThisTime(long time) {
+        cloneOnlyAfterThisTime_ = time;
+        return this;
+    }
 
-	public long getSuspendOnlyAfterThisTime() {
-		return suspendOnlyAfterThisTime_;
-	}
+    public long getSuspendOnlyAfterThisTime() {
+        return suspendOnlyAfterThisTime_;
+    }
 
-	public StateItem setSuspendOnlyAfterThisTime(long time) {
-		suspendOnlyAfterThisTime_ = time;
-		return this;
-	}
+    public StateItem setSuspendOnlyAfterThisTime(long time) {
+        suspendOnlyAfterThisTime_ = time;
+        return this;
+    }
 
-	public long getMoveFromOnlyAfterThisTime() {
-		return moveFromOnlyAfterThisTime_;
-	}
+    public long getMoveFromOnlyAfterThisTime() {
+        return moveFromOnlyAfterThisTime_;
+    }
 
-	public StateItem setMoveFromOnlyAfterThisTime(long time) {
-		moveFromOnlyAfterThisTime_ = time;
-		return this;
-	}
+    public StateItem setMoveFromOnlyAfterThisTime(long time) {
+        moveFromOnlyAfterThisTime_ = time;
+        return this;
+    }
 
-	public long getMoveToOnlyAfterThisTime() {
-		return moveToOnlyAfterThisTime_;
-	}
+    public long getMoveToOnlyAfterThisTime() {
+        return moveToOnlyAfterThisTime_;
+    }
 
-	public StateItem setMoveToOnlyAfterThisTime(long time) {
-		moveToOnlyAfterThisTime_ = time;
-		return this;
-	}
+    public StateItem setMoveToOnlyAfterThisTime(long time) {
+        moveToOnlyAfterThisTime_ = time;
+        return this;
+    }
 
-	public long getMoveOnlyAfterThisTime() {
-		return moveOnlyAfterThisTime_;
-	}
+    public long getMoveOnlyAfterThisTime() {
+        return moveOnlyAfterThisTime_;
+    }
 
-	public StateItem setMoveOnlyAfterThisTime(long time) {
-		moveOnlyAfterThisTime_ = time;
-		return this;
-	}
+    public StateItem setMoveOnlyAfterThisTime(long time) {
+        moveOnlyAfterThisTime_ = time;
+        return this;
+    }
 }
