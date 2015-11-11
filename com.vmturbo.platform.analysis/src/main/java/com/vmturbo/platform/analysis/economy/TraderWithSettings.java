@@ -18,14 +18,15 @@ import com.google.common.collect.ListMultimap;
 final class TraderWithSettings implements Trader, TraderSettings {
     // Internal fields
     private int economyIndex_;
+    private final @NonNull ListMultimap<@NonNull Market, @NonNull BuyerParticipation> marketsAsBuyer_ = ArrayListMultimap.create();
+    private final @NonNull List<Market> marketsAsSeller_ = new ArrayList<>();
+    private final @NonNull ArrayList<@NonNull BuyerParticipation> customers_ = new ArrayList<>();
 
     // Fields for Trader
     private final int type_; // this should never change once the object is created.
     private @NonNull TraderState state_;
     private @NonNull Basket basketSold_;
     private final @NonNull List<@NonNull CommoditySold> commoditiesSold_ = new ArrayList<>();
-    private final @NonNull ListMultimap<@NonNull Market, @NonNull BuyerParticipation> marketsAsBuyer_ = ArrayListMultimap.create();
-    private final @NonNull List<Market> marketsAsSeller_ = new ArrayList<>();
 
     // Fields for TraderSettings
     private boolean suspendable_ = false;
@@ -133,6 +134,25 @@ final class TraderWithSettings implements Trader, TraderSettings {
     @Pure
     @NonNull @PolyRead List<@NonNull @PolyRead Market> getMarketsAsSeller(@PolyRead TraderWithSettings this) {
         return marketsAsSeller_;
+    }
+
+    /**
+     * Returns a list of {@code this} trader's customers.
+     *
+     * <p>
+     *  A trader is a customer of another trader, iff the former is currently buying at least one
+     *  commodity the latter is selling.
+     * </p>
+     *
+     * <p>
+     *  This method really returns buyer participations instead of discrete traders, so if a trader
+     *  buys the same commodity specification more than once, the list will contain more than one
+     *  buyer participation belonging to the same trader.
+     * </p>
+     */
+    @Pure
+    public @NonNull @PolyRead List<@NonNull @PolyRead BuyerParticipation> getCustomers(@PolyRead TraderWithSettings this) {
+        return customers_;
     }
 
     // Methods for Trader

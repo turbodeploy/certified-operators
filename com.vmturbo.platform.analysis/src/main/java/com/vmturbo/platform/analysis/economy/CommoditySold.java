@@ -1,7 +1,5 @@
 package com.vmturbo.platform.analysis.economy;
 
-import java.util.List;
-
 import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -16,12 +14,6 @@ import org.checkerframework.dataflow.qual.Pure;
  * </p>
  */
 public interface CommoditySold {
-    /**
-     * Returns an unmodifiable list of traders buying {@code this} commodity.
-     */
-    @Pure
-    @NonNull @ReadOnly List<@NonNull @ReadOnly BuyerParticipation> getBuyers(@ReadOnly CommoditySold this);
-
     /**
      * The {@link CommoditySoldSettings settings} controlling {@code this} commodity's behavior.
      */

@@ -2,10 +2,6 @@ package com.vmturbo.platform.analysis.economy;
 
 import static org.junit.Assert.*;
 
-import java.util.Arrays;
-import java.util.List;
-import org.checkerframework.checker.javari.qual.ReadOnly;
-import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -54,116 +50,6 @@ public final class CommoditySoldWithSettingsTest {
     }
 
     // Tests for CommoditySold
-
-    @Test // That the returned list is indeed unmodifiable (part 1)
-    public final void testGetBuyers_ValidOperations() {
-        @NonNull @ReadOnly List<@NonNull @ReadOnly BuyerParticipation> buyers = new CommoditySoldWithSettings().getBuyers();
-        assertFalse(buyers.contains(null));
-        assertFalse(buyers.containsAll(Arrays.asList(null,null)));
-        assertTrue(buyers.equals(buyers));
-        assertEquals(-1, buyers.indexOf(null));
-        assertTrue(buyers.isEmpty());
-        assertNotNull(buyers.iterator());
-        assertEquals(-1, buyers.lastIndexOf(null));
-        assertNotNull(buyers.listIterator());
-        assertEquals(0, buyers.size());
-        assertNotNull(buyers.toArray());
-    }
-
-    @Test // That the returned list is indeed unmodifiable (part 2)
-    public final void testGetBuyers_InvalidOperations() {
-        @NonNull @ReadOnly List<@NonNull @ReadOnly BuyerParticipation> buyers = new CommoditySoldWithSettings().getBuyers();
-        @NonNull BuyerParticipation participation = new BuyerParticipation(0, 0, 0); // dummy object
-
-        // TODO: may also need to test these on a non-empty buyers list because the API does not
-        // guarantee that this exception will be thrown in some cases.
-        try{
-            buyers.add(participation);
-            fail();
-        } catch(UnsupportedOperationException e) {
-            // ignore
-        }
-        try{
-            buyers.add(0,participation);
-            fail();
-        } catch(UnsupportedOperationException e) {
-            // ignore
-        }
-        try{
-            buyers.addAll(Arrays.asList(participation,participation));
-            fail();
-        } catch(UnsupportedOperationException e) {
-            // ignore
-        }
-        try{
-            buyers.addAll(0,Arrays.asList(participation,participation));
-            fail();
-        } catch(UnsupportedOperationException e) {
-            // ignore
-        }
-        try{
-            buyers.clear();
-            fail();
-        } catch(UnsupportedOperationException e) {
-            // ignore
-        }
-        try{
-            buyers.remove(0);
-            fail();
-        } catch(UnsupportedOperationException e) {
-            // ignore
-        }
-        try{
-            buyers.remove(participation);
-            fail();
-        } catch(UnsupportedOperationException e) {
-            // ignore
-        }
-        try{
-            buyers.removeAll(buyers);
-            fail();
-        } catch(UnsupportedOperationException e) {
-            // ignore
-        }
-        try{
-            buyers.retainAll(buyers);
-            fail();
-        } catch(UnsupportedOperationException e) {
-            // ignore
-        }
-        try{
-            buyers.set(0, participation);
-            fail();
-        } catch(UnsupportedOperationException e) {
-            // ignore
-        }
-    }
-
-    @Test // That the returned list is indeed modifiable.
-    public final void testGetModifiableBuyersList() {
-        @NonNull List<@NonNull @ReadOnly BuyerParticipation> buyers = new CommoditySoldWithSettings().getModifiableBuyersList();
-        assertFalse(buyers.contains(null));
-        assertFalse(buyers.containsAll(Arrays.asList(null,null)));
-        assertTrue(buyers.equals(buyers));
-        assertEquals(-1, buyers.indexOf(null));
-        assertTrue(buyers.isEmpty());
-        assertNotNull(buyers.iterator());
-        assertEquals(-1, buyers.lastIndexOf(null));
-        assertNotNull(buyers.listIterator());
-        assertEquals(0, buyers.size());
-        assertNotNull(buyers.toArray());
-        assertTrue(buyers.add(null));
-        buyers.add(0,null);
-        assertTrue(buyers.addAll(Arrays.asList(null,null)));
-        assertTrue(buyers.addAll(0,Arrays.asList(null,null)));
-        //buyers.remove(0);
-        assertTrue(buyers.remove(null));
-        assertTrue(buyers.removeAll(buyers));
-        assertFalse(buyers.retainAll(buyers));
-        //buyers.set(0, null);
-        buyers.clear();
-    }
-
 
     @Test
     public final void testGetSettings() {

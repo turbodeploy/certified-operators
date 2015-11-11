@@ -2,9 +2,6 @@ package com.vmturbo.platform.analysis.economy;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -17,7 +14,6 @@ import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 final class CommoditySoldWithSettings implements CommoditySold, CommoditySoldSettings {
 
     // Fields for CommoditySold
-    private final @NonNull ArrayList<@NonNull BuyerParticipation> buyers_ = new ArrayList<>();
     private double quantity_ = 0.0;
     private double peakQuantity_ = 0.0;
     private double capacity_ = Double.MAX_VALUE;
@@ -40,20 +36,6 @@ final class CommoditySoldWithSettings implements CommoditySold, CommoditySoldSet
     public CommoditySoldWithSettings() {}
 
     // Methods for CommoditySold
-
-    @Override
-    @Pure
-    public @NonNull @ReadOnly List<@NonNull @ReadOnly BuyerParticipation> getBuyers(@ReadOnly CommoditySoldWithSettings this) {
-        return Collections.unmodifiableList(buyers_);
-    }
-
-    /**
-     * Returns a modifiable list of traders buying {@code this} commodity.
-     */
-    @Pure
-    @NonNull List<@NonNull @ReadOnly BuyerParticipation> getModifiableBuyersList() {
-        return buyers_;
-    }
 
     @Override
     @Pure

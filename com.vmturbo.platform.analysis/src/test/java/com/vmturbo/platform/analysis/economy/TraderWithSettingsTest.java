@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Before;
@@ -194,6 +195,33 @@ public final class TraderWithSettingsTest {
         assertTrue(markets.removeAll(markets));
         assertFalse(markets.retainAll(markets));
         markets.clear();
+    }
+
+    @Test // That the returned list indeed implements all operations.
+    public final void testGetCustomers() {
+        @NonNull List<@NonNull @ReadOnly BuyerParticipation> customers = fixture_.getCustomers();
+        @NonNull BuyerParticipation customer = new BuyerParticipation(0, 0, 0);
+
+        assertFalse(customers.contains(null));
+        assertFalse(customers.containsAll(Arrays.asList(null,null)));
+        assertTrue(customers.equals(customers));
+        assertEquals(-1, customers.indexOf(null));
+        assertTrue(customers.isEmpty());
+        assertNotNull(customers.iterator());
+        assertEquals(-1, customers.lastIndexOf(null));
+        assertNotNull(customers.listIterator());
+        assertEquals(0, customers.size());
+        assertNotNull(customers.toArray());
+        assertTrue(customers.add(customer));
+        customers.add(0,customers.get(0));
+        assertTrue(customers.addAll(customers));
+        assertTrue(customers.addAll(0,customers));
+        customers.remove(0);
+        assertSame(customer, customers.set(0, customer));
+        assertFalse(customers.remove(null));
+        assertTrue(customers.removeAll(customers));
+        assertFalse(customers.retainAll(customers));
+        customers.clear();
     }
 
     // Tests for Trader methods

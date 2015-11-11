@@ -347,36 +347,19 @@ public final class Economy implements Cloneable {
      * @param newSupplier The new supplier of participationToMove.
      * @return {@code this}
      */
+    // TODO: if newSupplier does not really sell the required basket, should it be counted as a
+    // customer?
     @Deterministic
     public @NonNull Economy moveTrader(@NonNull BuyerParticipation participationToMove,
                                        @NonNull Trader newSupplier) {
-        final @NonNull Basket basket = getMarket(participationToMove).getBasket();
-
         // Update old supplier to exclude participationToMove from its customers.
-        final Trader supplier = getSupplier(participationToMove);
-        if (supplier != null) {
-            int i = 0;
-            for (CommoditySpecification specification : basket) {
-                // there should be at least one that matches
-                while(!specification.isSatisfiedBy((supplier.getBasketSold().get(i)))) {
-                    ++i;
-                }
-                ((CommoditySoldWithSettings)supplier.getCommoditiesSold().get(i)).getModifiableBuyersList().remove(participationToMove);
-            }
+        if (participationToMove.getSupplierIndex() != BuyerParticipation.NO_SUPPLIER) {
+            ((TraderWithSettings)getSupplier(participationToMove)).getCustomers().remove(participationToMove);
         }
 
         // Update new supplier to include participationToMove to its customers.
         if (newSupplier != null) {
-            checkArgument(basket.isSatisfiedBy(newSupplier.getBasketSold()));
-            int i = 0;
-            for (CommoditySpecification specification : basket) {
-                // there should be at least one that matches
-                while(!specification.isSatisfiedBy((newSupplier.getBasketSold().get(i)))) {
-                    ++i;
-                }
-                ((CommoditySoldWithSettings)newSupplier.getCommoditiesSold().get(i)).getModifiableBuyersList().add(participationToMove);
-            }
-
+            ((TraderWithSettings)newSupplier).getCustomers().add(participationToMove);
             participationToMove.setSupplierIndex(((TraderWithSettings)newSupplier).getEconomyIndex());
         }
         else
@@ -400,17 +383,15 @@ public final class Economy implements Cloneable {
                                                                           @NonNull @ReadOnly Trader trader) {
         @NonNull Set<@NonNull @ReadOnly Trader> customers = new TreeSet<>();
 
-        for (CommoditySold commSold : trader.getCommoditiesSold()) {
-            for (BuyerParticipation customer : commSold.getBuyers()) {
-                customers.add(getBuyer(customer));
-            }
+        for (@NonNull BuyerParticipation participation : getCustomerParticipations(trader)) {
+            customers.add(getBuyer(participation));
         }
 
         return Collections.unmodifiableSet(customers);
     }
 
     /**
-     * Returns an unmodifiable set of the given trader's customer participations.
+     * Returns an unmodifiable set of the given trader's customer participations as a list.
      *
      * <p>
      *  A customer participation of a trader, is a buyer participation that has the trader as its
@@ -426,17 +407,9 @@ public final class Economy implements Cloneable {
      * @see #getCustomers(Trader)
      */
     @Pure
-    public @NonNull @ReadOnly Set<@NonNull BuyerParticipation> getCustomerParticipations(@ReadOnly Economy this,
-                                                                                         @NonNull @ReadOnly Trader trader) {
-        @NonNull Set<@NonNull BuyerParticipation> customers = new TreeSet<>();
-
-        for (CommoditySold commSold : trader.getCommoditiesSold()) {
-            for (BuyerParticipation customerParticipation : commSold.getBuyers()) {
-                customers.add(customerParticipation);
-            }
-        }
-
-        return Collections.unmodifiableSet(customers);
+    public @NonNull @ReadOnly List<@NonNull BuyerParticipation> getCustomerParticipations(@ReadOnly Economy this,
+                                                                                          @NonNull @ReadOnly Trader trader) {
+        return Collections.unmodifiableList(((TraderWithSettings)trader).getCustomers());
     }
 
     /**
