@@ -3,13 +3,14 @@ package com.vmturbo.platform.analysis.economy;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.TreeSet;
 
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
+import org.checkerframework.dataflow.qual.SideEffectFree;
 
 import com.google.common.collect.ObjectArrays;
 import com.google.common.collect.Ordering;
@@ -28,7 +29,7 @@ import com.google.common.collect.Ordering;
  */
 // TODO: investigate the effect of having two different commodity specifications with the same type
 // in the same basket.
-public final class Basket implements Comparable<@NonNull @ReadOnly Basket> {
+public final class Basket implements Comparable<@NonNull @ReadOnly Basket>, Iterable<@NonNull @ReadOnly CommoditySpecification>{
     // Fields
 
     // An array holding the commodity specifications comprising this basket.
@@ -40,7 +41,7 @@ public final class Basket implements Comparable<@NonNull @ReadOnly Basket> {
     /**
      * @see #Basket(Collection)
      */
-    public Basket(@NonNull CommoditySpecification... contents) {
+    public Basket(@NonNull @ReadOnly CommoditySpecification... contents) {
         this(Arrays.asList(contents));
     }
 
@@ -91,15 +92,6 @@ public final class Basket implements Comparable<@NonNull @ReadOnly Basket> {
         return true;
     }
 
-    /**
-     * Returns an unmodifiable list of the commodity specifications comprising {@code this} basket
-     * in ascending order.
-     */
-    @Pure
-    public final @NonNull @ReadOnly List<@NonNull @ReadOnly CommoditySpecification> getCommoditySpecifications(@ReadOnly Basket this) {
-        return Collections.unmodifiableList(Arrays.asList(contents_));
-    }
-
     // Some methods of Collection and List are included here, but not the complete implementation
     // of the interfaces.
 
@@ -117,6 +109,14 @@ public final class Basket implements Comparable<@NonNull @ReadOnly Basket> {
     @Pure
     public final boolean isEmpty(@ReadOnly Basket this) {
         return size() == 0;
+    }
+
+    /**
+     * @see List#get(int)
+     */
+    @Pure
+    public final CommoditySpecification get(@ReadOnly Basket this, int index) {
+        return contents_[index];
     }
 
     /**
@@ -170,13 +170,39 @@ public final class Basket implements Comparable<@NonNull @ReadOnly Basket> {
     @Pure
     public final @NonNull Basket remove(@ReadOnly Basket this, CommoditySpecification specificationToRemove) {
         // TODO: improve efficiency. Perhaps even reuse instance if already contained.
-        @NonNull List<@NonNull CommoditySpecification> newContents = new ArrayList<>(getCommoditySpecifications());
-        newContents.remove(specificationToRemove);
+        @NonNull List<@NonNull CommoditySpecification> newContents = new ArrayList<>(size());
+
+        for (CommoditySpecification specification : contents_) {
+            if (!specification.equals(specificationToRemove)) {
+                newContents.add(specification);
+            }
+        }
 
         return new Basket(newContents); // will remove the duplicate
     }
 
     // TODO: might be a good idea to define equals as well, although this shouldn't be necessary.
+
+    /**
+     * @see Iterable#iterator()
+     */
+    @Override
+    @SideEffectFree
+    public Iterator<@NonNull @ReadOnly CommoditySpecification> iterator(@ReadOnly Basket this) {
+        return new Iterator<@NonNull @ReadOnly CommoditySpecification>() {
+            private int index = 0;
+
+            @Override
+            public boolean hasNext() {
+                return index < contents_.length;
+            }
+
+            @Override
+            public @NonNull @ReadOnly CommoditySpecification next() {
+                return contents_[index++];
+            }
+        }; // end Iterator implementation
+    }
 
     /**
      * A total ordering on the Baskets to allow sorting and insertion into maps.
@@ -202,7 +228,7 @@ public final class Basket implements Comparable<@NonNull @ReadOnly Basket> {
      * </p>
      */
     @Override
-    public String toString() {
+    public String toString(@ReadOnly Basket this) {
         return Arrays.deepToString(contents_);
     }
 

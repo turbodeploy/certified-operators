@@ -124,14 +124,12 @@ public class Placement {
 	    double [] quantities = buyerParticipation.getQuantities();
         double [] peakQuantities = buyerParticipation.getPeakQuantities();
 	    for (int index = 0; index < basket.size(); index++) {
-            CommoditySpecification basketCommSpec = basket.getCommoditySpecifications().get(index);
+            CommoditySpecification basketCommSpec = basket.get(index);
 
             // Update current supplier
             if (currentSupplier != null) {
                 // Find the corresponding commodity sold in the current supplier.
-                List<CommoditySpecification> currCommSoldSpecs =
-                            currentSupplier.getBasketSold().getCommoditySpecifications();
-                while (!basketCommSpec.isSatisfiedBy(currCommSoldSpecs.get(currCommSoldIndex))) {
+                while (!basketCommSpec.isSatisfiedBy(currentSupplier.getBasketSold().get(currCommSoldIndex))) {
                     currCommSoldIndex++;
                 }
                 CommoditySold currCommSold = currentSupplier.getCommoditiesSold().get(currCommSoldIndex);
@@ -145,10 +143,7 @@ public class Placement {
 
             // Update new supplier
             // Find the corresponding commodity sold in the new supplier.
-            List<CommoditySpecification> newCommSoldSpecs =
-                            newSupplier.getBasketSold().getCommoditySpecifications();
-
-            while (!basketCommSpec.isSatisfiedBy(newCommSoldSpecs.get(newCommSoldIndex))) {
+            while (!basketCommSpec.isSatisfiedBy(newSupplier.getBasketSold().get(newCommSoldIndex))) {
                 newCommSoldIndex++;
             }
             CommoditySold newCommSold = newSupplier.getCommoditiesSold().get(newCommSoldIndex);

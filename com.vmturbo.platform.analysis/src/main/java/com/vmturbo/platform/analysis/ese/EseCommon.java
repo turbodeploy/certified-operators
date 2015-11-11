@@ -1,7 +1,5 @@
 package com.vmturbo.platform.analysis.ese;
 
-import java.util.List;
-
 import com.vmturbo.platform.analysis.economy.BuyerParticipation;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
@@ -36,13 +34,11 @@ public class EseCommon {
     	// go over all commodities in basket
     	for (int index = 0; index < market.getBasket().size(); index++) {
     		CommoditySpecification basketCommSpec =
-    				market.getBasket().getCommoditySpecifications().get(index);
+    				market.getBasket().get(index);
 
     		// Find corresponding commodity sold. Commodities sold are ordered the same way as the
     		// basket commodities, so iterate once (O(N)) as opposed to searching each time (O(NLog(N))
-    		List<CommoditySpecification> commSoldSpecs =
-    		                seller.getBasketSold().getCommoditySpecifications();
-    		while (!basketCommSpec.isSatisfiedBy(commSoldSpecs.get(commSoldIndex))) {
+    		while (!basketCommSpec.isSatisfiedBy(seller.getBasketSold().get(commSoldIndex))) {
     		    commSoldIndex++;
     		}
     		CommoditySold commSold = seller.getCommoditiesSold().get(commSoldIndex);

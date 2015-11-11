@@ -30,13 +30,20 @@ public class BasketTest {
 
     @Test
     @Parameters
-    @TestCaseName("Test #{index}: Basket({0}).getCommoditySpecifications() == {1}") // Java doesn't know how to print arrays. may need a workaround...
-    public final void testGetCommoditySpecifications(CommoditySpecification[] input, CommoditySpecification[] output) {
-        assertArrayEquals(output, new Basket(input).getCommoditySpecifications().toArray());
+    @TestCaseName("Test #{index}: Basket({0}).iterator() == {1}") // Java doesn't know how to print arrays. may need a workaround...
+    public final void testIterator(CommoditySpecification[] input, CommoditySpecification[] output) {
+        final Basket basket = new Basket(input);
+        assertEquals(output.length, basket.size());
+
+        int i = 0;
+        for (CommoditySpecification specification : basket) {
+            assertEquals(output[i++], specification);
+        }
+        assertEquals(basket.size(), i);
     }
 
     @SuppressWarnings("unused") // it is used reflectively
-    private static Object[] parametersForTestGetCommoditySpecifications() {
+    private static Object[] parametersForTestIterator() {
         return new CommoditySpecification[][][]{
             {{}, {}},
             {{A}, {A}},
@@ -52,7 +59,7 @@ public class BasketTest {
     }
 
     @Test
-    @Parameters(method = "parametersForTestGetCommoditySpecifications") // reuse test inputs
+    @Parameters(method = "parametersForTestIterator") // reuse test inputs
     @TestCaseName("Test #{index}: Basket(Arrays.asList({0})).compareTo(Basket({1})) == 0") // Java doesn't know how to print arrays. may need a workaround...
     public final void testConstructors(CommoditySpecification[] input, CommoditySpecification[] output) {
         assertEquals(0,new Basket(Arrays.asList(input)).compareTo(new Basket(input)));
@@ -102,6 +109,50 @@ public class BasketTest {
             {new CommoditySpecification[]{C2,C1}, false},
             {new CommoditySpecification[]{A,B,C1}, false},
             {new CommoditySpecification[]{A,B,C1,C2}, false}
+        };
+    }
+
+    @Test
+    @Parameters
+    @TestCaseName("Test #{index}: {0}.get({1}) == {2}")
+    public final void testGet_NormalInput(Basket basket, int index, CommoditySpecification output) {
+        assertEquals(output, basket.get(index));
+    }
+
+    @SuppressWarnings("unused") // it is used reflectively
+    private static Object[] parametersForTestGet_NormalInput() {
+        return new Object[][]{
+            {new Basket(A), 0, A},
+            {new Basket(B), 0, B},
+            {new Basket(A,B), 0, A},
+            {new Basket(A,B), 1, B},
+            {new Basket(A,B,C1), 0, A},
+            {new Basket(A,B,C1), 1, B},
+            {new Basket(A,B,C1), 2, C1},
+        };
+    }
+
+    @Test(expected = IndexOutOfBoundsException.class)
+    @Parameters
+    @TestCaseName("Test #{index}: {0}.get({1})")
+    public final void testGet_InvalidInput(Basket basket, int index) {
+        basket.get(index);
+    }
+
+    @SuppressWarnings("unused") // it is used reflectively
+    private static Object[] parametersForTestGet_InvalidInput() {
+        return new Object[][]{
+            {new Basket(), -1},
+            {new Basket(), 0},
+            {new Basket(), 1},
+            {new Basket(A), -1},
+            {new Basket(B), 1},
+            {new Basket(A,B), -1},
+            {new Basket(A,B), 2},
+            {new Basket(A,B,C1), -1},
+            {new Basket(A,B,C1), -100},
+            {new Basket(A,B,C1), 3},
+            {new Basket(A,B,C1), 100},
         };
     }
 

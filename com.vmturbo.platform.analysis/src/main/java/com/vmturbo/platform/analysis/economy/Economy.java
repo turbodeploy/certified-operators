@@ -356,9 +356,9 @@ public final class Economy implements Cloneable {
         final Trader supplier = getSupplier(participationToMove);
         if (supplier != null) {
             int i = 0;
-            for (CommoditySpecification specification : basket.getCommoditySpecifications()) {
+            for (CommoditySpecification specification : basket) {
                 // there should be at least one that matches
-                while(!specification.isSatisfiedBy((supplier.getBasketSold().getCommoditySpecifications().get(i)))) {
+                while(!specification.isSatisfiedBy((supplier.getBasketSold().get(i)))) {
                     ++i;
                 }
                 ((CommoditySoldWithSettings)supplier.getCommoditiesSold().get(i)).getModifiableBuyersList().remove(participationToMove);
@@ -369,9 +369,9 @@ public final class Economy implements Cloneable {
         if (newSupplier != null) {
             checkArgument(basket.isSatisfiedBy(newSupplier.getBasketSold()));
             int i = 0;
-            for (CommoditySpecification specification : basket.getCommoditySpecifications()) {
+            for (CommoditySpecification specification : basket) {
                 // there should be at least one that matches
-                while(!specification.isSatisfiedBy((newSupplier.getBasketSold().getCommoditySpecifications().get(i)))) {
+                while(!specification.isSatisfiedBy((newSupplier.getBasketSold().get(i)))) {
                     ++i;
                 }
                 ((CommoditySoldWithSettings)newSupplier.getCommoditiesSold().get(i)).getModifiableBuyersList().add(participationToMove);

@@ -69,7 +69,7 @@ public final class TraderWithSettingsTest {
         assertSame(state, trader.getState());
         assertSame(basket, trader.getBasketSold());
         assertEquals(basket.size(), trader.getCommoditiesSold().size());
-        for (CommoditySpecification specification : basket.getCommoditySpecifications()) {
+        for (CommoditySpecification specification : basket) {
             assertNotNull(trader.getCommoditySold(specification));
         }
     }

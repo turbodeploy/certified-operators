@@ -375,11 +375,19 @@ public class EMF2MarketHandler extends DefaultHandler {
     }
 
     List<String> basketAsStrings(Basket basket) {
-        return basket.getCommoditySpecifications()
-                .stream().map(cs -> cs.getType())
-                .map(k -> commoditySpecs.getByValue((int)k))
-                .map(o -> o.toString())
-                .collect(Collectors.toList());
+        ArrayList<String> result = new ArrayList<>(basket.size());
+
+        for (CommoditySpecification specification : basket) {
+            result.add(commoditySpecs.getByValue(specification.getType()).toString());
+        }
+
+        return result;
+// TODO: consider making basket implement Collection
+//        return basket
+//                .stream().map(cs -> cs.getType())
+//                .map(k -> commoditySpecs.getByValue((int)k))
+//                .map(o -> o.toString())
+//                .collect(Collectors.toList());
     }
 
     CommoditySpecification commSpec(int i) {
