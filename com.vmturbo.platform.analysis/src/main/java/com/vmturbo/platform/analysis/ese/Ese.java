@@ -5,6 +5,7 @@ import java.util.Date;
 import java.util.List;
 
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.recommendations.RecommendationItem;
 
 /**
@@ -36,7 +37,7 @@ public class Ese {
      * @return A list of recommendations suggested by the economic scheduling engine
      */
     public List<RecommendationItem> createRecommendations(Economy economy) {
-        List<RecommendationItem> recommendations = new ArrayList<RecommendationItem>();
+        List<RecommendationItem> recommendations = new ArrayList<>();
         long time = new Date().getTime();
 
         // update the state

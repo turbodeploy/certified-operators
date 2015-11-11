@@ -166,14 +166,14 @@ public class EMF2MarketHandler extends DefaultHandler {
 
     @Override
     public void startDocument() throws SAXException {
-        elementsStack = new ArrayDeque<String>();
-        attributesStack = new ArrayDeque<Attributes>();
-        traders = new HashMap<String, Attributes>();
-        commodities = new HashMap<String, Attributes>();
-        trader2commoditiesBought = new HashMap<String, List<Attributes>>();
-        trader2basketSold = new HashMap<String, Set<String>>();
-        commoditySold2trader = new HashMap<String, Attributes>();
-        multipleConsumes = new HashMap<String, String>();
+        elementsStack = new ArrayDeque<>();
+        attributesStack = new ArrayDeque<>();
+        traders = new HashMap<>();
+        commodities = new HashMap<>();
+        trader2commoditiesBought = new HashMap<>();
+        trader2basketSold = new HashMap<>();
+        commoditySold2trader = new HashMap<>();
+        multipleConsumes = new HashMap<>();
         startTime = System.currentTimeMillis();
 
         System.out.println("Start reading file");
@@ -184,8 +184,8 @@ public class EMF2MarketHandler extends DefaultHandler {
         System.out.println("Done reading file");
 
         // Just for counting purposes
-        Set<Basket> allBasketsBought = new HashSet<Basket>();
-        Set<Basket> allBasketsSold = new HashSet<Basket>();
+        Set<Basket> allBasketsBought = new HashSet<>();
+        Set<Basket> allBasketsSold = new HashSet<>();
 
         // From basket bought to trader uuid
         Map<Basket, String> placement = Maps.newHashMap();
@@ -236,11 +236,11 @@ public class EMF2MarketHandler extends DefaultHandler {
                 sellerAttr2commsBoughtAttr.get(seller).add(commBoughtAttr);
             }
             System.out.println("Trader Summary @" + aSeller.hashCode());
-            List<Basket> basketsBoughtByTrader = new ArrayList<Basket>();
+            List<Basket> basketsBoughtByTrader = new ArrayList<>();
             for (Entry<Attributes, List<Attributes>> entry : sellerAttr2commsSoldAttr.entrySet()) {
                 Attributes sellerAttrs = entry.getKey();
                 printAttributes("    Buys from ", sellerAttrs);
-                Set<String> keysBought = new HashSet<String>();
+                Set<String> keysBought = new HashSet<>();
                 for (Attributes commSold : entry.getValue()) {
                     printAttributes("      - ", commSold);
                     keysBought.add(commoditySpec(commSold));
@@ -265,7 +265,7 @@ public class EMF2MarketHandler extends DefaultHandler {
 
             System.out.println("Created trader " + traderAttr.getValue(XSITYPE) + " (type " + traderType + ")");
             System.out.println("    Sells " + basketSold);
-            Set<Basket> baskets_ = new HashSet<Basket>();
+            Set<Basket> baskets_ = new HashSet<>();
             for (Basket basket : basketsBoughtByTrader) {
                 boolean dup = false;
                 for (Basket basket_ : baskets_) {
@@ -407,7 +407,7 @@ public class EMF2MarketHandler extends DefaultHandler {
     class TypeMap extends HashMap<Object, Integer> {
         // Not thread safe but we don't care
         int counter = 0;
-        Map<Integer, Object> reverse = new HashMap<Integer, Object>();
+        Map<Integer, Object> reverse = new HashMap<>();
 
         /**
          * If the key exists then return its type.

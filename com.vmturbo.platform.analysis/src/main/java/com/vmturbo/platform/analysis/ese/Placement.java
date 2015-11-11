@@ -26,7 +26,7 @@ public class Placement {
 	public static List<RecommendationItem> placementDecisions(Economy economy, List<StateItem> state,
 	                long time) {
 
-		List<RecommendationItem> recommendationList = new ArrayList<RecommendationItem>();
+		List<RecommendationItem> recommendationList = new ArrayList<>();
 
 		// iterate over all markets, i.e., all sets of providers selling a specific basket
 		for (Market market: economy.getMarkets()) {

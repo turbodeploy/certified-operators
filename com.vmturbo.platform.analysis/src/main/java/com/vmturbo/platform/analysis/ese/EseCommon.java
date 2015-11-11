@@ -15,9 +15,9 @@ public class EseCommon {
 	 * Calculate the quote of a seller for a basket bought by a buyer.
 	 *
 	 * @param buyerParticipation - participation buying specific quantities of the basket commodities
-	 * @param - the market trading the basket bought by the buyer participation
-	 * @economy - the economy where the market belongs
-	 * @seller - the seller that will give the quote
+	 * @param market - the market trading the basket bought by the buyer participation
+	 * @param economy - the economy where the market belongs
+	 * @param seller - the seller that will give the quote
 	 */
     public static double calcQuote(BuyerParticipation buyerParticipation, Market market,
                     Economy economy, Trader seller) {
