@@ -257,7 +257,7 @@ public final class CommoditySoldWithSettingsTest {
     @Parameters({"0,1","0.1,1.234567","0.5,4","0.9,100"})
     @TestCaseName("Test #{index}: getPriceFunction.apply({0}) == {1}")
     public final void testDefaultPriceFunction(double input, double output) {
-        assertEquals(output, fixture_.getPriceFunction().unitPrice(input), 0.000001f); // TODO: improve delta
+        assertEquals(output, fixture_.getPriceFunction().unitPrice(input, 1.0), 0.000001f); // TODO: improve delta
     }
 
 } // end class CommoditySoldWithSettingsTest
