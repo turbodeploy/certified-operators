@@ -2,111 +2,166 @@ package com.vmturbo.platform.analysis.pricefunction;
 
 import static org.junit.Assert.*;
 
+import java.lang.ref.WeakReference;
 import java.util.function.UnaryOperator;
 
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
+import junitparams.JUnitParamsRunner;
+import junitparams.Parameters;
+import junitparams.naming.TestCaseName;
+
+@RunWith(JUnitParamsRunner.class)
 public class TestPriceFunction {
-
-    final static double CONST = 40;
 
     @Test
     /**
      * Test that the factory reuses instances of PriceFunction
      */
     public void testMap() {
-        PriceFunction pf1 = PFUtility.createConstantPriceFunction(CONST);
-        PriceFunction pf2 = PFUtility.createConstantPriceFunction(CONST);
-        assertSame(pf1, pf2);
+        final double CONST2 = 400;
+        // Test that price functions are reused
 
-        int h1 = System.identityHashCode(pf1);
-        pf1 = null;
-        pf2 = null;
-        // Now the price function has no references, so in the next GC it is
-        // supposed to be removed from the map.
+        PriceFunction pf1a = PFUtility.createConstantPriceFunction(CONST2);
+        PriceFunction pf1b = PFUtility.createConstantPriceFunction(CONST2);
+        assertSame(pf1a, pf1b);
+
+        WeakReference<PriceFunction> weakPf1a = new WeakReference<PriceFunction>(pf1a);
+        pf1a = null;
+        pf1b = null;
+        // Now the price function has only weak references (weakPf1 and a link from the map),
+        // so in the next GC it is supposed to be removed from the map.
         System.gc();
-        // Asserting that another request for a constant price function
-        // will give a new instance (one with a different identity hash code).
-        pf1 = PFUtility.createConstantPriceFunction(CONST);
-        assertNotEquals(h1, System.identityHashCode(pf1));
+        assertNull(weakPf1a.get());
 
-        PriceFunction pf3 = PFUtility.createStandardWeightedPriceFunction(CONST + 1);
-        assertNotSame(pf1, pf3);
+        // Different arguments give different price functions
+        PriceFunction pf3a = PFUtility.createStandardWeightedPriceFunction(CONST2 + 1);
+        PriceFunction pf3b = PFUtility.createStandardWeightedPriceFunction(CONST2);
+        assertNotSame(pf3b, pf3a);
 
-        UnaryOperator<Double> uod = (u) -> u * u;
-        PriceFunction pf4 = PFUtility.createPriceFunction(uod);
-        PriceFunction pf5 = PFUtility.createPriceFunction(uod);
-        assertSame(pf4, pf5);
+        UnaryOperator<Double> uod = u -> u * u;
+        PriceFunction pf4a = PFUtility.createPriceFunction(uod);
+        PriceFunction pf4b = PFUtility.createPriceFunction(uod);
+        assertSame(pf4a, pf4b);
 
-        PriceFunction pf6 = PFUtility.createPriceFunction((u) -> u * u);
+        PriceFunction pf4c = PFUtility.createPriceFunction(u -> u * u);
         // although the function is the same, these are two distinct instances
-        assertNotSame(pf5, pf6);
+        assertNotSame(pf4b, pf4c);
     }
 
-    final static double delta = 1e-10; // used in assertEquals(double, double, delta)
+    private final static double ONE = 1.0;
+    private final static double delta = 1e-10; // used in assertEquals(double, double, delta)
+
+    private final static double CONST = 40;
+    private final static PriceFunction pfConst = PFUtility.createConstantPriceFunction(CONST);
 
     @Test
+    @Parameters
+    @TestCaseName("Test #{index}: constant price function with u={0} and ut={1}")
     /**
      * Test that the values returned by the constant price function are as expected
      */
-    public void testValuesConst() {
-        PriceFunction pfConst = PFUtility.createConstantPriceFunction(CONST);
-        assertEquals(pfConst.unitPrice(0.0), CONST, delta);
-        assertEquals(pfConst.unitPrice(0.5), CONST, delta);
-        assertEquals(pfConst.unitPrice(1.0 - delta), CONST, delta);
-        assertEquals(pfConst.unitPrice(1.0), PFUtility.MAX_UNIT_PRICE, delta);
+    public void testValuesConst(double u, double ut, double p) {
+        assertEquals(CONST, pfConst.unitPrice(u, ut), delta);
     }
 
-    final static double BELOW = 5;
-    final static double ABOVE = 100;
-    final static double STEP_AT = 0.7;
+    @SuppressWarnings("unused")
+    private static Double[][] parametersForTestValuesConst() {
+        return new Double[][]{
+            {0.0, ONE, CONST},
+            {0.5, ONE, CONST},
+            {ONE - delta, ONE, CONST}
+        };
+    }
+
+    private final static double BELOW = 5;
+    private final static double ABOVE = 100;
+    private final static double STEP_AT = 0.7;
+    private final static PriceFunction pfStep = PFUtility.createStepPriceFunction(STEP_AT, BELOW, ABOVE);
 
     @Test
+    @Parameters
+    @TestCaseName("Test #{index}: step price function with u={0} and ut={1}")
     /**
      * Test that the values returned by the step price function are as expected
      */
-    public void testValuesStep() {
-        PriceFunction pfStep = PFUtility.createStepPriceFunction(STEP_AT, BELOW, ABOVE);
-        assertEquals(pfStep.unitPrice(0.0), BELOW, delta);
-        assertEquals(pfStep.unitPrice(STEP_AT - delta), BELOW, delta);
-        assertEquals(pfStep.unitPrice(STEP_AT + delta), ABOVE, delta);
-        assertEquals(pfStep.unitPrice(1.0 - delta), ABOVE, delta);
-        assertEquals(pfStep.unitPrice(1.0), PFUtility.MAX_UNIT_PRICE, delta);
+    public void testValuesStep(double u, double ut, double p) {
+        assertEquals(p, pfStep.unitPrice(u, ut), delta);
     }
 
-    final static double WEIGHT = 27.0;
+    @SuppressWarnings("unused")
+    private static Double[][] parametersForTestValuesStep() {
+        return new Double[][]{
+            {0.0, ONE, BELOW},
+            {STEP_AT - delta, ONE, BELOW},
+            {STEP_AT + delta, ONE, ABOVE},
+            {ONE - delta, ONE, ABOVE}
+        };
+    }
+
+    private static final double WEIGHT = 27.0;
+    private static final PriceFunction pfStd = PFUtility.createStandardWeightedPriceFunction(WEIGHT);
 
     @Test
+    @Parameters
+    @TestCaseName("Test #{index}: standard weighted price function with u={0}")
     /**
      * Test that the values returned by the standard weighted price function are as expected
      */
-    public void testValuesStandardWeighted() {
-        PriceFunction pfStd = PFUtility.createStandardWeightedPriceFunction(WEIGHT);
-        assertEquals(pfStd.unitPrice(0.0), WEIGHT, delta);
-        assertEquals(pfStd.unitPrice(0.5), 4 * WEIGHT, delta);
-        assertEquals(pfStd.unitPrice(0.75), 16 * WEIGHT, delta);
-        assertEquals(pfStd.unitPrice(1.0), PFUtility.MAX_UNIT_PRICE, delta);
+    public void testValuesStandardWeighted(double u, double factor) {
+        assertEquals(factor * WEIGHT, pfStd.unitPrice(u, ONE), delta);
     }
 
-    final static UnaryOperator<Double> uod = (u) -> 0.7 + u + u * u;
+    @SuppressWarnings("unused")
+    private static Double[][] parametersForTestValuesStandardWeighted() {
+        return new Double[][]{
+            {0.0, 1.0},
+            {0.5, 4.0},
+            {0.75, 16.0}
+        };
+    }
 
-    @Test
+    private final static UnaryOperator<Double> uod = u -> 0.7 + u + u * u;
+    private final static PriceFunction pfCustom = PFUtility.createPriceFunction(uod);
+
     /**
      * Test that a custom price function returns the expected values
      */
-    public void testCustom() {
-        PriceFunction pfCustom = PFUtility.createPriceFunction(uod);
-        for (double d : new Double[]{0.0, 0.3, 0.7, 1.0 - delta}) {
-            assertEquals(pfCustom.unitPrice(d), uod.apply(d), delta);
-        }
-        assertEquals(pfCustom.unitPrice(1.0), PFUtility.MAX_UNIT_PRICE, delta);
+    @Test
+    @Parameters
+    @TestCaseName("Test #{index}: Custom price function with value {0}")
+    public void testCustom(double d) {
+        assertEquals(pfCustom.unitPrice(d, ONE), uod.apply(d), delta);
+    }
+
+    @SuppressWarnings("unused") // it is used reflectively
+    private static Double[] parametersForTestCustom() {
+        return new Double[]{0.0, 0.3, 0.7, ONE - delta};
+    }
+
+    @Test
+    @Parameters
+    @TestCaseName("Test #{index}: {1} function")
+    public void testMaxPrice(PriceFunction pf, String name) {
+        assertEquals(PFUtility.MAX_UNIT_PRICE, pf.unitPrice(ONE, ONE), delta);
+    }
+
+    @SuppressWarnings("unused")
+    private static Object[][] parametersForTestMaxPrice() {
+        return new Object[][]{
+            {pfConst, "Constant"},
+            {pfStep, "Step"},
+            {pfStd, "Starndard Weighted"},
+            {pfCustom, "Custom"}
+        };
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testBadValue() {
         PriceFunction pfCustom = PFUtility.createPriceFunction(uod);
-        double unitPrice = pfCustom.unitPrice(-0.5);
-        fail("Not supposed to get here : " + unitPrice);
+        @SuppressWarnings("unused")
+        double unitPrice = pfCustom.unitPrice(-0.5, ONE);
     }
 
     // TODO(Shai): add unit test for unit peak price function
