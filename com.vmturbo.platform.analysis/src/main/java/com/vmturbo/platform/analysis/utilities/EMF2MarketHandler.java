@@ -6,19 +6,24 @@ import java.util.Arrays;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.apache.log4j.Logger;
+import org.apache.log4j.Level;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.xml.sax.SAXException;
 import org.xml.sax.SAXParseException;
 import org.xml.sax.helpers.DefaultHandler;
 
+import com.google.common.base.Strings;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.BuyerParticipation;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
@@ -27,6 +32,8 @@ import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
+import com.vmturbo.platform.analysis.pricefunction.PFUtility;
+import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 import com.vmturbo.platform.analysis.topology.Topology;
 
 /**
@@ -38,6 +45,8 @@ public class EMF2MarketHandler extends DefaultHandler {
             Arrays.asList(new String[]{"Commodities", "CommoditiesBought"});
 
     private static final String XSITYPE = "xsi:type";
+
+    Logger logger = Logger.getLogger(this.getClass().getCanonicalName());
 
     Topology topology;
     Economy economy;
@@ -61,8 +70,17 @@ public class EMF2MarketHandler extends DefaultHandler {
     Map<String, Set<String>> trader2basketSold;
     // Used to log commodities bought that consume more than one commodity sold
     Map<String, String> multipleConsumes;
+    // Commodities sold which "SoldBy" reference points to the UUID of a trader not persent in the file
+    List<Attributes> noSeller;
+    // Commodities bought which "Consumes" reference points to the UUID of a commodity not present in the file
+    List<Attributes> noConsumes;
+    // First key is the types of buyer and seller that are skipped
+    // Second key is their uuids. The value is how many commodities were skipped for this specific pair.
+    Map<String, Set<String>> skippedBaskets;
+    Set<String> skippedPairs;
 
     long startTime;
+    long elementCount;
 
     public EMF2MarketHandler() {
         super();
@@ -76,6 +94,10 @@ public class EMF2MarketHandler extends DefaultHandler {
 
     @Override
     public void startElement(String uri, String localName, String qName, org.xml.sax.Attributes attr) throws SAXException {
+        elementCount++;
+        if (elementCount % 100000 == 0) {
+            logger.info(String.format("%(,d elemets, %(,d traders, %(,d commodities", elementCount, traders.size(), commodities.size()));
+        }
         // attributes is an instance of AbstractSAXParser$AttributesProxy, which is always the same instance.
         // So creating a new copy.
         Attributes attributes = new Attributes(qName, attr);
@@ -91,7 +113,7 @@ public class EMF2MarketHandler extends DefaultHandler {
         // Otherwise there is no xsi:type and instead the qName is the type. These are currently skipped.
         if (parent != null && parent.getValue(XSITYPE) == null) return;
         if (COMM_REFS.contains(qName)) {
-            printAttributes("Start Element :", attributes);
+            printAttributes("Start Element :", attributes, Level.TRACE);
             trader(parent);
             commodity(attributes);
             if (qName.equals("CommoditiesBought")) {
@@ -113,23 +135,26 @@ public class EMF2MarketHandler extends DefaultHandler {
         // TODO: Create the trader here. We have the basket sold.
     }
 
-    private void printAttributes(String prefix, Attributes attributes) {
-        System.out.print(prefix);
+    private void printAttributes(String prefix, Attributes attributes, Level level) {
+        if (!logger.isEnabledFor(level)) return;
+
+        StringBuffer sb = new StringBuffer(prefix);
         String xsiType = attributes.get(XSITYPE);
         if (xsiType != null) {
-            System.out.print(XSITYPE + "=" + xsiType + " ");
+            sb.append(XSITYPE).append("=").append(xsiType).append(" ");
         }
         attributes.keySet().stream()
             .filter(k -> !XSITYPE.equals(k))
             .sorted()
-            .forEach(k -> System.out.print(k + "=" + attributes.get(k) + " "));
-        System.out.println();
+            .forEach(k -> sb.append(k).append("=").append(attributes.get(k)).append(" "));
+        logger.log(level, sb);
     }
 
     String uuid(Attributes attr) {
         return attr.getValue("uuid");
     }
 
+    // return the value (as double) of the first attribute in the the list of properties
     double value(Attributes attr, String...props) {
         for (String prop : props) {
             String sProp = attr.get(prop);
@@ -166,36 +191,49 @@ public class EMF2MarketHandler extends DefaultHandler {
 
     @Override
     public void startDocument() throws SAXException {
-        elementsStack = new ArrayDeque<>();
-        attributesStack = new ArrayDeque<>();
-        traders = new HashMap<>();
-        commodities = new HashMap<>();
-        trader2commoditiesBought = new HashMap<>();
-        trader2basketSold = new HashMap<>();
-        commoditySold2trader = new HashMap<>();
-        multipleConsumes = new HashMap<>();
-        startTime = System.currentTimeMillis();
+        elementsStack = new ArrayDeque<String>();
+        attributesStack = new ArrayDeque<Attributes>();
+        /* Use LinkedHashMap when the order of iteration matters,
+         * HashMap otherwise.
+         * It matters if we want to get exactly the same results
+         * when loading the same file in different runs or on
+         * different machines.
+         */
+        traders = new LinkedHashMap<String, Attributes>();
+        commodities = new HashMap<String, Attributes>();
+        trader2commoditiesBought = new LinkedHashMap<String, List<Attributes>>();
+        trader2basketSold = new LinkedHashMap<String, Set<String>>();
+        commoditySold2trader = new LinkedHashMap<String, Attributes>();
+        multipleConsumes = new HashMap<String, String>();
+        noSeller = new ArrayList<Attributes>();
+        noConsumes = new ArrayList<Attributes>();
+        skippedBaskets = Maps.newHashMap();
+        skippedPairs = Sets.newHashSet();
 
-        System.out.println("Start reading file");
+        startTime = System.currentTimeMillis();
+        elementCount = 0;
+
+        logger.info("Start reading file");
     }
 
     @Override
     public void endDocument() throws SAXException {
-        System.out.println("Done reading file");
+        logger.info("Done reading file");
 
         // Just for counting purposes
         Set<Basket> allBasketsBought = new HashSet<>();
         Set<Basket> allBasketsSold = new HashSet<>();
 
         // From basket bought to trader uuid
-        Map<Basket, String> placement = Maps.newHashMap();
+        Map<Basket, String> placement = Maps.newLinkedHashMap();
         Map<String, Trader> uuid2trader = Maps.newHashMap();
         Map<Basket, Trader> shopper = Maps.newHashMap();
 
+        logger.info("Start creating traders");
         for (String traderUuid : traders.keySet()) {
-            System.out.println("==========================");
+            logger.trace("==========================");
             Attributes traderAttr = traders.get(traderUuid);
-            printAttributes("Trader ", traderAttr);
+            printAttributes("Trader ", traderAttr, Level.DEBUG);
             Set<String> keysSold = trader2basketSold.get(traderUuid);
             Basket basketSold = keysToBasket(keysSold, commoditySpecs);
             allBasketsSold.add(basketSold);
@@ -205,13 +243,13 @@ public class EMF2MarketHandler extends DefaultHandler {
 
             // Baskets bought
             // Keys are the sellers that this buyer is buying from
-            // Values are the commodities sold by this sells
-            Map<Attributes, List<Attributes>> sellerAttr2commsSoldAttr = Maps.newHashMap();
+            // Values are the commodities sold by this seller
+            Map<Attributes, List<Attributes>> sellerAttr2commsSoldAttr = Maps.newLinkedHashMap();
             // Keys are the same as above
             // Values are the commodities that consume commodities from this seller
-            Map<Attributes, List<Attributes>> sellerAttr2commsBoughtAttr = Maps.newHashMap();
+            Map<Attributes, List<Attributes>> sellerAttr2commsBoughtAttr = Maps.newLinkedHashMap();
             for (Attributes commBoughtAttr : trader2commoditiesBought.get(traderUuid)) {
-                printAttributes("    Buys ", commBoughtAttr);
+                printAttributes("    Buys ", commBoughtAttr, Level.TRACE);
                 String consumes = commBoughtAttr.getValue("Consumes");
                 if (consumes == null) {
                     continue;
@@ -222,37 +260,52 @@ public class EMF2MarketHandler extends DefaultHandler {
                     continue;
                 }
                 Attributes commSoldAttr = commodities.get(consumes);
-                printAttributes("        Consumes ", commSoldAttr);
-                Attributes seller = commoditySold2trader.get(consumes);
-                if (seller == null) throw new IllegalArgumentException(consumes);
-                printAttributes("            Sold by ", seller);
-                if (!sellerAttr2commsSoldAttr.containsKey(seller)) {
-                    sellerAttr2commsSoldAttr.put(seller, new ArrayList<Attributes>());
+                if (commSoldAttr == null) {
+                    printAttributes("Cannot find commodity sold consumed by ", commBoughtAttr, Level.WARN);
+                    noConsumes.add(commBoughtAttr);
+                    continue;
                 }
-                sellerAttr2commsSoldAttr.get(seller).add(commSoldAttr);
-                if (!sellerAttr2commsBoughtAttr.containsKey(seller)) {
-                    sellerAttr2commsBoughtAttr.put(seller, new ArrayList<Attributes>());
+                printAttributes("        Consumes ", commSoldAttr, Level.TRACE);
+                Attributes sellerAttr = commoditySold2trader.get(consumes);
+                if (sellerAttr == null) {
+                    logger.warn("No seller");
+                    noSeller.add(commSoldAttr);
+                    continue;
                 }
-                sellerAttr2commsBoughtAttr.get(seller).add(commBoughtAttr);
+                printAttributes("            Sold by ", sellerAttr, Level.TRACE);
+
+                if (skip(traderAttr, sellerAttr)) {
+                    printAttributes("Skipping ", traderAttr, Level.TRACE);
+                    printAttributes("   buying from ", sellerAttr, Level.TRACE);
+                    continue;
+                }
+
+                // if key doesn't exist then create one, otherwise return the existing value,
+                // then add the entry to the list
+                sellerAttr2commsSoldAttr
+                    .compute(sellerAttr, (k, v) -> v == null ? new ArrayList<Attributes>() : v)
+                        .add(commSoldAttr);
+                sellerAttr2commsBoughtAttr
+                    .compute(sellerAttr, (k, v) -> v == null ? new ArrayList<Attributes>() : v)
+                        .add(commBoughtAttr);
             }
-            System.out.println("Trader Summary @" + aSeller.hashCode());
             List<Basket> basketsBoughtByTrader = new ArrayList<>();
             for (Entry<Attributes, List<Attributes>> entry : sellerAttr2commsSoldAttr.entrySet()) {
                 Attributes sellerAttrs = entry.getKey();
-                printAttributes("    Buys from ", sellerAttrs);
+                printAttributes("    Buys from ", sellerAttrs, Level.DEBUG);
                 Set<String> keysBought = new HashSet<>();
                 for (Attributes commSold : entry.getValue()) {
-                    printAttributes("      - ", commSold);
+                    printAttributes("      - ", commSold, Level.TRACE);
                     keysBought.add(commoditySpec(commSold));
                 }
-                System.out.println("    Basket : " + keysBought);
+                logger.debug("    Basket : " + keysBought);
                 Basket basketBought = keysToBasket(keysBought, commoditySpecs);
                 economy.addBasketBought(aSeller, basketBought);
 
                 for (Attributes commBought : sellerAttr2commsBoughtAttr.get(sellerAttrs)) {
-                    double used = value(commBought, "used");
                     CommoditySpecification specification = commSpec(commoditySpecs.get(commoditySpec(commBought)));
                     BuyerParticipation participation = economy.getMarketsAsBuyer(aSeller).get(economy.getMarket(basketBought)).get(0);
+                    double used = value(commBought, "used");
                     economy.getCommodityBought(participation, specification).setQuantity(used);
                 }
 
@@ -263,8 +316,8 @@ public class EMF2MarketHandler extends DefaultHandler {
                 allBasketsBought.add(basketBought);
             }
 
-            System.out.println("Created trader " + traderAttr.getValue(XSITYPE) + " (type " + traderType + ")");
-            System.out.println("    Sells " + basketSold);
+            logger.debug("Created trader " + traderAttr.getValue(XSITYPE) + " (type " + traderType + ")");
+            logger.debug("    Sells " + basketSold);
             Set<Basket> baskets_ = new HashSet<>();
             for (Basket basket : basketsBoughtByTrader) {
                 boolean dup = false;
@@ -275,55 +328,83 @@ public class EMF2MarketHandler extends DefaultHandler {
                          break;
                     }
                 }
-                System.out.println("    Buys " + basket + (dup ? " (duplicate)" : ""));
+                logger.debug("    Buys " + basket + (dup ? " (duplicate)" : ""));
                 baskets_.add(basket);
             }
         }
 
-        // Set capacities
+        // Set various properties of commodity sold capacities
+        logger.info("Set commodity properties");
         for (Entry<String, Attributes> entry : commoditySold2trader.entrySet()) {
             Attributes commSoldAttr = commodities.get(entry.getKey());
-            printAttributes("Commodity sold ",  commSoldAttr);
+            printAttributes("Commodity sold ",  commSoldAttr, Level.TRACE);
             Double capacity = value(commSoldAttr, "capacity", "startCapacity");
             Double used = value(commSoldAttr, "used");
+            Double peakUtil = value(commSoldAttr, "peakUtilization");
             CommoditySpecification specification = commSpec(commoditySpecs.get(commoditySpec(commSoldAttr)));
             Trader trader = uuid2trader.get(uuid(entry.getValue()));
             CommoditySold commSold = trader.getCommoditySold(specification);
             if (used > capacity) {
-                System.out.println("used > cxapacity");
+                printAttributes("used > capacity ", commSoldAttr, Level.WARN);
                 used = capacity;
+            }
+            if (peakUtil > 1.0) {
+                printAttributes("peakUtilization > 1.0 ", commSoldAttr, Level.WARN);
+                peakUtil = 1.0;
             }
             commSold.setCapacity(capacity);
             commSold.setQuantity(used);
+            commSold.setPeakQuantity(peakUtil * capacity);
+            PriceFunction pf = priceFunction(commSoldAttr);
+            commSold.getSettings().setPriceFunction(pf);
         }
 
         // Assume baskets are not reused
-        System.out.println("Processing placement");
-        for (Entry<Basket, String> foo : placement.entrySet()) {
-            Basket basket = foo.getKey();
+        logger.info("Processing placement");
+        for (Entry<Basket, String> entry : placement.entrySet()) {
+            Basket basket = entry.getKey();
             Trader placeTrader = shopper.get(basket);
-            Trader onTrader = uuid2trader.get(foo.getValue());
+            Trader onTrader = uuid2trader.get(entry.getValue());
             economy.moveTrader(economy.getMarketsAsBuyer(placeTrader).get(economy.getMarket(basket)).get(0), onTrader);
         }
 
-        // Commodities consuming more than one commodity (skipped)
-        System.out.println("Multiple Consumes");
-        for (Entry<String, String> mcEntry : multipleConsumes.entrySet()) {
-            printAttributes("", commodities.get(mcEntry.getKey()));
-            for (String uuid : mcEntry.getValue().split(" ")) {
-                printAttributes("    Consumes ", commodities.get(uuid));
-            }
+        if (logger.isTraceEnabled()) {
+            verify();
         }
 
-        System.out.println(traders.size() + " traders");
-        System.out.println(commodities.size() + " commodities (bought and sold)");
-        System.out.println(allBasketsBought.size() + " baskets bought");
-        System.out.println(allBasketsSold.size() + " baskets sold");
-        System.out.println(traderTypes.size() + " trader types : " + traderTypes);
-        System.out.println(commoditySpecs.size() + " commodity types : " + commoditySpecs);
-        System.out.println((System.currentTimeMillis() - startTime) / 1000.0 + " seconds");
+        // Commodities consuming more than one commodity (skipped)
+        logger.log(warning(!multipleConsumes.isEmpty()), multipleConsumes.size() + " Multiple Consumes");
+        if (logger.isDebugEnabled()) {
+	        for (Entry<String, String> mcEntry : multipleConsumes.entrySet()) {
+	            printAttributes("", commodities.get(mcEntry.getKey()), Level.WARN);
+	            for (String uuid : mcEntry.getValue().split(" ")) {
+	                printAttributes("    Consumes ", commodities.get(uuid), Level.WARN);
+	            }
+	        }
+        }
 
-        verify();
+        logger.log(warning(!noConsumes.isEmpty()) , noConsumes.size() + " No Consumes");
+        noConsumes.forEach(a -> printAttributes("", a, Level.WARN));
+
+        logger.log(warning(!noSeller.isEmpty()), noSeller.size() + " No seller");
+        noSeller.forEach(a -> printAttributes("", a, Level.WARN));
+
+        skippedBaskets.forEach((k, v) -> logger.info("Skipped " + v.size() + " " + k));
+
+        logger.info(traders.size() + " traders");
+        logger.info(commodities.size() + " commodities (bought and sold)");
+        logger.info(allBasketsBought.size() + " baskets bought");
+        logger.info(allBasketsSold.size() + " baskets sold");
+        logger.info(traderTypes.size() + " trader types");
+        if (logger.isTraceEnabled()) traderTypes.entrySet().stream().forEach(logger::trace);
+        logger.info(commoditySpecs.size() + " commodity types");
+        if (logger.isTraceEnabled()) commoditySpecs.entrySet().stream().forEach(logger::trace);
+        logger.info((System.currentTimeMillis() - startTime) / 1000.0 + " seconds");
+
+    }
+
+    Level warning(boolean warning) {
+        return warning ? Level.WARN : Level.INFO;
     }
 
     /**
@@ -331,31 +412,34 @@ public class EMF2MarketHandler extends DefaultHandler {
      */
     private void verify() {
         for (Trader trader : economy.getTraders()) {
-            System.out.println(traderTypes.getByValue(trader.getType()) + " @" + trader.hashCode());
-            System.out.println("    Sells " + trader.getBasketSold());
+            logger.trace(traderTypes.getByValue(trader.getType()) + " @" + trader.hashCode());
+            logger.trace("    Sells " + trader.getBasketSold());
             if (!trader.getCommoditiesSold().isEmpty()) {
-                System.out.println("       " + basketAsStrings(trader.getBasketSold()));
-                System.out.println("        with capacities "
+                logger.trace("       " + basketAsStrings(trader.getBasketSold()));
+                logger.trace("        with capacities "
                         + trader.getCommoditiesSold()
-                        .stream().map(c -> c.getCapacity())
+                        .stream().map(CommoditySold::getCapacity)
                         .collect(Collectors.toList()));
-                System.out.println("         and quantities "
+                logger.trace("         and quantities "
                         + trader.getCommoditiesSold()
-                        .stream().map(c -> c.getQuantity())
+                        .stream().map(CommoditySold::getQuantity)
                         .collect(Collectors.toList()));
             }
             //TODO: placement
-            System.out.println("    Buys from "
+            logger.trace("    Buys from "
                     + economy.getSuppliers(trader)
-                    .stream().map(t -> t.getType())
-                    .map(k -> traderTypes.getByValue(k))
+                    .stream().map(Trader::getType)
+                    .map(traderTypes::getByValue)
                     .collect(Collectors.toList()));
+            logger.trace(economy.getMarketsAsBuyer(trader).size() + " participations ");
+            // Print "P" x number of participations (e.g. PPPPP for 5 participations). Makes search easier.
+            logger.trace(Strings.repeat("P", economy.getMarketsAsBuyer(trader).size()));
             for (@NonNull Entry<@NonNull Market, @NonNull BuyerParticipation> entry : economy.getMarketsAsBuyer(trader).entries()) {
                 BuyerParticipation participation = entry.getValue();
-                System.out.println("    -- participation @" + participation.hashCode());
-                System.out.println("         basket: " + basketAsStrings(entry.getKey().getBasket()));
-                System.out.println("         quantities: " + Arrays.toString(participation.getQuantities()));
-                System.out.println("         peaks     : " + Arrays.toString(participation.getPeakQuantities()));
+                logger.trace("    -- participation @" + participation.hashCode());
+                logger.trace("         basket: " + basketAsStrings(entry.getKey().getBasket()));
+                logger.trace("         quantities: " + Arrays.toString(participation.getQuantities()));
+                logger.trace("         peaks     : " + Arrays.toString(participation.getPeakQuantities()));
             }
         }
     }
@@ -375,19 +459,12 @@ public class EMF2MarketHandler extends DefaultHandler {
     }
 
     List<String> basketAsStrings(Basket basket) {
-        ArrayList<String> result = new ArrayList<>(basket.size());
-
+        List<String> result = new ArrayList<>(basket.size());
         for (CommoditySpecification specification : basket) {
             result.add(commoditySpecs.getByValue(specification.getType()).toString());
         }
 
         return result;
-// TODO: consider making basket implement Collection
-//        return basket
-//                .stream().map(cs -> cs.getType())
-//                .map(k -> commoditySpecs.getByValue((int)k))
-//                .map(o -> o.toString())
-//                .collect(Collectors.toList());
     }
 
     CommoditySpecification commSpec(int i) {
@@ -399,15 +476,55 @@ public class EMF2MarketHandler extends DefaultHandler {
         return commSpec(commoditySpecs.get(commoditySpec(commAttr)));
     }
 
+    private static final String PHYSICAL_MACHINE = "Abstraction:PhysicalMachine";
+    private static final String VIRTUAL_MACHINE = "Abstraction:VirtualMachine";
+    private static final String STORAGE = "Abstraction:Storage";
+    private static final String APPLICATION = "Abstraction:Application";
+
+    boolean skip(Attributes buyer, Attributes seller) {
+        String buyerType = buyer.getValue(XSITYPE);
+        String sellerType = seller.getValue(XSITYPE);
+        if (
+            (PHYSICAL_MACHINE.equals(buyerType) && STORAGE.equals(sellerType))
+            || (APPLICATION.equals(buyerType) && VIRTUAL_MACHINE.equals(sellerType))) {
+            String key = buyerType.split(":")[1] + " buying from " + sellerType.split(":")[1];
+            String skippedPair = uuid(buyer)+"/"+uuid(seller);
+            skippedBaskets.compute(key, (k, v) -> v == null ? Sets.newHashSet() : v).add(skippedPair);
+            return true;
+        }
+        return false;
+    }
+
+    PriceFunction priceFunction(Attributes commodity) {
+        String type = commodity.getValue(XSITYPE);
+        switch(type) {
+        case "Abstraction:StorageAmount":
+        case "Abstraction:StorageProvisioned":
+        case "Abstraction:VStorage":
+            return PFUtility.createStepPriceFunction(value(commodity, "utilThreshold"), 0.0, 20000.0);
+        case "Abstraction:Power":
+        case "Abstraction:Cooling":
+        case "Abstraction:Space":
+            return PFUtility.createConstantPriceFunction(27.0);
+        case "Abstraction:SegmentationCommodity":
+        case "Abstraction:DrsSegmentationCommodity":
+        case "Abstraction:ClusterCommodity":
+        case "Abstraction:StorageClusterCommodity":
+            return PFUtility.createConstantPriceFunction(0.0);
+        default:
+            return PFUtility.createStandardWeightedPriceFunction(1.0);
+        }
+    }
 
     /**
      * Used to allocate integer values to strings.
      */
     @SuppressWarnings("serial")
-    class TypeMap extends HashMap<Object, Integer> {
+    static class TypeMap extends LinkedHashMap<Object, Integer> {
+        // TODO(Shai): use BiMap
         // Not thread safe but we don't care
         int counter = 0;
-        Map<Integer, Object> reverse = new HashMap<>();
+        Map<Integer, Object> reverse = new LinkedHashMap<Integer, Object>();
 
         /**
          * If the key exists then return its type.
