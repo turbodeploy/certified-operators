@@ -1,42 +1,45 @@
 package com.vmturbo.platform.analysis.recommendations;
 
+import com.vmturbo.platform.analysis.economy.Trader;
+
 /**
- * A set of fields describing the recommendation.
+ * A set of fields describing the recommendations produced by the Economic Decisions Engine.
  *
  * <p>
- * For now it contains two strings, description and reason, and the economy trader indexes 
- * for the buyer, the current supplier and the new supplier.
+ * For now it contains two strings, description and reason, and the economy trader references
+ * for the buyer, the current supplier and the new supplier. This is only temporary and will change
+ * in the near future.
  * </p>
  */
 public class RecommendationItem {
 
-	// Fields
+    // Fields
 
-    // buyer
-    int buyer_;
-    // current supplier
-    int currentSupplier_;
-    // new supplier
-    int newSupplier_;
+    // buyer: the {@link Trader trader} for which the recommendation is intended
+    private final Trader buyer_;
+    // current supplier: The {@link Trader seller} currently hosting the {@link Trader buyer}
+    private final Trader currentSupplier_;
+    // new supplier: The {@link Trader seller} where the {@link Trader buyer} should move to
+    private final Trader newSupplier_;
     // description of the recommendation
     private String description_ = null;
     // reason for the recommendation
-	private String reason_ = null;
+    private String reason_ = null;
 
     // Constructors
 
-	/**
-	 *
-	 * @param description - String describing the recommendation
-	 * @param reason - String describing the reason for the recommendation
-	 */
-    public RecommendationItem(String description, String reason, int buyerIndex,
-                    int currentSupplierIndex, int newSupplierIndex) {
+    /**
+     *
+     * @param description - String describing the recommendation
+     * @param reason - String describing the reason for the recommendation
+     */
+    public RecommendationItem(String description, String reason, Trader buyer,
+                    Trader currentSupplier, Trader newSupplier) {
         description_ = description;
         reason_ = reason;
-        buyer_ = buyerIndex;
-        currentSupplier_ = currentSupplierIndex;
-        newSupplier_ = newSupplierIndex;
+        buyer_ = buyer;
+        currentSupplier_ = currentSupplier;
+        newSupplier_ = newSupplier;
     }
 
     // Methods
@@ -45,34 +48,34 @@ public class RecommendationItem {
      * Returns the description for a {@link RecommendationItem recommendation item}.
      */
     public String getDescription() {
-    	return description_;
+        return description_;
     }
 
     /**
      * Returns the reason for a {@link RecommendationItem recommendation item}.
      */
     public String getReason() {
-    	return reason_;
+        return reason_;
     }
 
     /**
-     * Returns the buyer index for a {@link RecommendationItem recommendation item}.
+     * Returns the buyer for a {@link RecommendationItem recommendation item}.
      */
-    public int getBuyer() {
+    public Trader getBuyer() {
         return buyer_;
     }
 
     /**
-     * Returns the current supplier index for a {@link RecommendationItem recommendation item}.
+     * Returns the current supplier for a {@link RecommendationItem recommendation item}.
      */
-    public int getCurrentSupplier() {
+    public Trader getCurrentSupplier() {
         return currentSupplier_;
     }
 
     /**
-     * Returns the new supplier index for a {@link RecommendationItem recommendation item}.
+     * Returns the new supplier for a {@link RecommendationItem recommendation item}.
      */
-    public int getNewSupplier() {
+    public Trader getNewSupplier() {
         return newSupplier_;
     }
 }
