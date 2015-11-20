@@ -23,8 +23,7 @@ public class EseCommon {
                                    Economy economy, Trader seller) {
         //TODO (Apostolos): we have not dealt with equivalent commodities
         double quote = 0.0;
-        boolean isCurrentSupplier = (economy.getSupplier(buyerParticipation) != null
-                                     && economy.getSupplier(buyerParticipation).equals(seller));
+        boolean isCurrentSupplier = seller.equals(economy.getSupplier(buyerParticipation));
         int commSoldIndex = 0;
 
         // get the quantity and peak quantity to buy for each commodity of the basket
@@ -74,31 +73,24 @@ public class EseCommon {
      */
     public static RecommendationItem recommendPlace(BuyerParticipation buyerParticipation,
                                                     Economy economy, Market market, Trader newSupplier) {
-        int buyerIndex = economy.getTraders().indexOf(economy.getBuyer(buyerParticipation));
+        Trader buyer = economy.getBuyer(buyerParticipation);
         Trader currentSupplier = economy.getSupplier(buyerParticipation);
-        int currentSupplierIndex = currentSupplier != null
-                        ? economy.getTraders().indexOf(currentSupplier) : -1;
-        int newSupplierIndex = newSupplier != null ? economy.getTraders().indexOf(newSupplier) : -1;
-        String description = "";
         String reason = "";
 
         // if there is no current supplier, recommend to start buyer in new supplier
         if (currentSupplier == null) {
-            description = "Start: " + buyerIndex + " in: " + newSupplierIndex;
             reason = "Buyer is currently not placed in any supplier selling " +
                      market.getBasket().toString();
-            return new RecommendationItem(description, reason, buyerIndex, currentSupplierIndex, newSupplierIndex);
+            return new RecommendationItem("Start ", reason, buyer, currentSupplier, newSupplier);
         }
-
-        description = "Move: " + buyerIndex + " from: " + currentSupplierIndex + " to: " + newSupplierIndex;
 
         if (market.getSellers().contains(currentSupplier)) {
             reason = "bla bla bla";
         } else { // current supplier is not part of the market, i.e. not selling what the buyer wants
-            reason = "Current supplier: " + currentSupplierIndex
-                   + " is not selling one or more of the following: " + market.getBasket().toString();
+            reason = "Current supplier is not selling one or more of the following: "
+                            + market.getBasket().toString();
         }
-        return new RecommendationItem(description, reason, buyerIndex, currentSupplierIndex, newSupplierIndex);
+        return new RecommendationItem("Move ", reason, buyer, currentSupplier, newSupplier);
     }
 
     /**
@@ -110,9 +102,8 @@ public class EseCommon {
      */
     public static RecommendationItem recommendReconfigure(BuyerParticipation buyerParticipation,
                                                           Market market, Economy economy) {
-        int buyerIndex = economy.getTraders().indexOf(economy.getBuyer(buyerParticipation));
-        String description = "Reconfigure: " + buyerIndex;
+        Trader buyer = economy.getBuyer(buyerParticipation);
         String reason = "There are no suppliers selling: " + market.getBasket().toString();
-        return (new RecommendationItem(description, reason, buyerIndex, -1, -1));
+        return (new RecommendationItem("Reconfigure ", reason, buyer, null, null));
     }
 }
