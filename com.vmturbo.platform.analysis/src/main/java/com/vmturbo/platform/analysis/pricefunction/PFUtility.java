@@ -61,9 +61,11 @@ public class PFUtility {
         @Override
         public double unitPeakPrice(double utilization, double peakUtilization, double utilUpperBound) {
             double normalizedExcessUtil =
+            		peakUtilization > utilization ?
                     (peakUtilization - utilization)
                     / (1.0f - utilization)
-                    / utilUpperBound;
+                    / utilUpperBound
+                    : 0;
             return unitPrice(normalizedExcessUtil);
         }
 
