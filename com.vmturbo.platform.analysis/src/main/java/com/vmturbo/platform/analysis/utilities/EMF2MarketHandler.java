@@ -601,7 +601,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
         }
     }
 
-	public TopologyMapping getTopologyMapping() {
-		return topoMapping;
-	}
+    public TopologyMapping getTopologyMapping() {
+        return topoMapping;
+    }
 }
