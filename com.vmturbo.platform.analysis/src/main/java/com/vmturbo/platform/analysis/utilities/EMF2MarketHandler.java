@@ -39,53 +39,69 @@ import com.vmturbo.platform.analysis.topology.Topology;
 /**
  * A SAX handler that loads EMF topology files and creates a Market2 topology
  */
-public class EMF2MarketHandler extends DefaultHandler {
+final public class EMF2MarketHandler extends DefaultHandler {
 
     private static final List<String> COMM_REFS =
-            Arrays.asList(new String[]{"Commodities", "CommoditiesBought"});
+            Arrays.asList("Commodities", "CommoditiesBought");
 
     private static final String XSITYPE = "xsi:type";
 
-    Logger logger = Logger.getLogger(this.getClass().getCanonicalName());
+    // Aggregated stats will be logged at info level every time ELEMENT_LOG more elements are loaded
+    private static final long ELEMENT_LOG = 100000;
 
-    Topology topology;
-    Economy economy;
+    private Logger logger;
+
+    private Topology topology;
+    private Economy economy;
 
     // Map from trader type string (e.g. "Abstraction:PhysicalMachine") to trader type number
-    TypeMap traderTypes = new TypeMap();
+    private TypeMap traderTypes = new TypeMap();
     // Map from commodity type string (class + key) to commodity specification number
-    TypeMap commoditySpecs = new TypeMap();
+    private TypeMap commoditySpecs = new TypeMap();
 
-    // Stacks are used to keep track of the parent of an xml element
-    Deque<String> elementsStack;
-    Deque<Attributes> attributesStack;
+    // Stacks (using the Deque implementation) are used to keep track of the parent of an xml element
+    private Deque<String> elementsStack;
+    private Deque<Attributes> attributesStack;
 
     // The loaded entities. In all these maps the key is the object UUID
     // Traders and commodities are kept as Attributes, which are key/value pairs
-    Map<String, Attributes> traders;
-    Map<String, Attributes> commodities;
-    Map<String, Attributes> commoditySold2trader;
-    Map<String, List<Attributes>> trader2commoditiesBought;
+    private Map<String, Attributes> traders;
+    private Map<String, Attributes> commodities;
+    private Map<String, Attributes> commoditySold2trader;
+    private Map<String, List<Attributes>> trader2commoditiesBought;
     // Basket is a set of commodity type strings
-    Map<String, Set<String>> trader2basketSold;
+    private Map<String, Set<String>> trader2basketSold;
     // Used to log commodities bought that consume more than one commodity sold
-    Map<String, String> multipleConsumes;
+    private Map<String, String> multipleConsumes;
     // Commodities sold which "SoldBy" reference points to the UUID of a trader not persent in the file
-    List<Attributes> noSeller;
+    private List<Attributes> noSeller;
     // Commodities bought which "Consumes" reference points to the UUID of a commodity not present in the file
-    List<Attributes> noConsumes;
-    // First key is the types of buyer and seller that are skipped
-    // Second key is their uuids. The value is how many commodities were skipped for this specific pair.
-    Map<String, Set<String>> skippedBaskets;
-    Set<String> skippedPairs;
+    private List<Attributes> noConsumes;
+    // This map is used for logging.
+    // First key is the types of buyer and seller that are skipped, separated with " buying from ",
+    // for example "PhysicalMachine buying from Storage"
+    // The entries in the set are UUIDs of pairs of skipped traders, separated with a forward slash.
+    private Map<String, Set<String>> skippedBaskets;
 
-    long startTime;
-    long elementCount;
+    private long startTime;
+    private long elementCount;
 
-    public EMF2MarketHandler() {
-        super();
+    /**
+     * A constructor that allows the client to specify which logger to use
+     * @param logger the {@link Logger} to use for logging
+     */
+    public EMF2MarketHandler(Logger logger) {
         topology = new Topology();
         economy = topology.getEconomy();
+        this.logger = logger;
+    }
+
+    /**
+     * A constructor that uses the class logger for logging.
+     * The class logger is Logger.getLogger(EMF2MarketHandler.class)
+     */
+    public EMF2MarketHandler() {
+        this(Logger.getLogger(EMF2MarketHandler.class));
     }
 
     public Topology getTopology() {
@@ -95,7 +111,7 @@ public class EMF2MarketHandler extends DefaultHandler {
     @Override
     public void startElement(String uri, String localName, String qName, org.xml.sax.Attributes attr) throws SAXException {
         elementCount++;
-        if (elementCount % 100000 == 0) {
+        if (elementCount % ELEMENT_LOG == 0) {
             logger.info(String.format("%(,d elemets, %(,d traders, %(,d commodities", elementCount, traders.size(), commodities.size()));
         }
         // attributes is an instance of AbstractSAXParser$AttributesProxy, which is always the same instance.
@@ -105,22 +121,22 @@ public class EMF2MarketHandler extends DefaultHandler {
         elementsStack.push(qName);
         attributesStack.push(attributes);
         // Ignore shadow entities
-        String name = attributes.getValue("name");
+        String name = attributes.get("name");
         if (name != null && name.endsWith("_shadow")) return;
         // Ignore templates
-        if ("true".equals(attributes.getValue("isTemplate"))) return;
+        if ("true".equals(attributes.get("isTemplate"))) return;
         // This version only parses service entities that are contained in another object, e.g. a Market.
         // Otherwise there is no xsi:type and instead the qName is the type. These are currently skipped.
-        if (parent != null && parent.getValue(XSITYPE) == null) return;
+        if (parent != null && parent.xsitype() == null) return;
         if (COMM_REFS.contains(qName)) {
             printAttributes("Start Element :", attributes, Level.TRACE);
-            trader(parent);
-            commodity(attributes);
+            handleTraderElement(parent);
+            handleCommodityElement(attributes);
             if (qName.equals("CommoditiesBought")) {
-                trader2commoditiesBought.get(uuid(parent)).add(attributes);
+                trader2commoditiesBought.get(parent.uuid()).add(attributes);
             } else {
-                commoditySold2trader.put(uuid(attributes), parent);
-                trader2basketSold.get(uuid(parent)).add(commoditySpec(attributes));
+                commoditySold2trader.put(attributes.uuid(), parent);
+                trader2basketSold.get(parent.uuid()).add(attributes.commoditySpecString());
             }
         }
     }
@@ -144,49 +160,38 @@ public class EMF2MarketHandler extends DefaultHandler {
             sb.append(XSITYPE).append("=").append(xsiType).append(" ");
         }
         attributes.keySet().stream()
-            .filter(k -> !XSITYPE.equals(k))
+            .filter(key -> !XSITYPE.equals(key))
             .sorted()
-            .forEach(k -> sb.append(k).append("=").append(attributes.get(k)).append(" "));
+            .forEach(key -> sb.append(key).append("=").append(attributes.get(key)).append(" "));
         logger.log(level, sb);
     }
 
-    String uuid(Attributes attr) {
-        return attr.getValue("uuid");
-    }
-
-    // return the value (as double) of the first attribute in the the list of properties
-    double value(Attributes attr, String...props) {
-        for (String prop : props) {
-            String sProp = attr.get(prop);
-            if (sProp != null) {
-                return Double.valueOf(sProp);
-            }
-        }
-        return 0.0;
-    }
-
-    private void trader(Attributes trader) {
-        String uuid = uuid(trader);
+    /**
+     * Handle an element that represents a trader. Check if it was already handled and if not then
+     * add to maps for processing when done loading the document.
+     * @param trader Attributes representing a service entity element in the loaded file
+     */
+    private void handleTraderElement(@NonNull Attributes trader) {
+        String uuid = trader.uuid();
         if (!traders.containsKey(uuid)) {
             traders.put(uuid, trader);
             trader2commoditiesBought.put(uuid, new ArrayList<Attributes>());
             trader2basketSold.put(uuid, new HashSet<String>());
-            traderTypes.insert(trader.getValue(XSITYPE));
+            traderTypes.insert(trader.xsitype());
         }
     }
 
-    private void commodity(Attributes comm) {
-        String uuid = uuid(comm);
+    /**
+     * Handle an element that represents a commodity bought or sold. Check if it was already handled and
+     * if not then add to maps for processing when done loading the document.
+     * @param comm Attributes representing a commodity (bought or sold) element in the loaded file
+     */
+    private void handleCommodityElement(@NonNull Attributes comm) {
+        String uuid = comm.uuid();
         if (!commodities.containsKey(uuid)) {
             commodities.put(uuid, comm);
-            commoditySpecs.insert(commoditySpec(comm));
+            commoditySpecs.insert(comm.commoditySpecString());
         }
-    }
-
-    private String commoditySpec(Attributes commodity) {
-        String commType = commodity.getValue(XSITYPE);
-        String key = commodity.getValue("key");
-        return commType + (key != null ? "[" + key + "]" : "");
     }
 
     @Override
@@ -208,7 +213,6 @@ public class EMF2MarketHandler extends DefaultHandler {
         noSeller = new ArrayList<Attributes>();
         noConsumes = new ArrayList<Attributes>();
         skippedBaskets = Maps.newHashMap();
-        skippedPairs = Sets.newHashSet();
 
         startTime = System.currentTimeMillis();
         elementCount = 0;
@@ -237,7 +241,7 @@ public class EMF2MarketHandler extends DefaultHandler {
             Set<String> keysSold = trader2basketSold.get(traderUuid);
             Basket basketSold = keysToBasket(keysSold, commoditySpecs);
             allBasketsSold.add(basketSold);
-            int traderType = traderTypes.get(traderAttr.getValue(XSITYPE));
+            int traderType = traderTypes.get(traderAttr.xsitype());
             Trader aSeller = economy.addTrader(traderType, TraderState.ACTIVE, basketSold);
             uuid2trader.put(traderUuid, aSeller);
 
@@ -250,12 +254,12 @@ public class EMF2MarketHandler extends DefaultHandler {
             Map<Attributes, List<Attributes>> sellerAttr2commsBoughtAttr = Maps.newLinkedHashMap();
             for (Attributes commBoughtAttr : trader2commoditiesBought.get(traderUuid)) {
                 printAttributes("    Buys ", commBoughtAttr, Level.TRACE);
-                String consumes = commBoughtAttr.getValue("Consumes");
+                String consumes = commBoughtAttr.get("Consumes");
                 if (consumes == null) {
                     continue;
                 }
                 if (consumes.contains(" ")) {
-                    multipleConsumes.put(uuid(commBoughtAttr), consumes);
+                    multipleConsumes.put(commBoughtAttr.uuid(), consumes);
                     // TODO: how do we handle this?
                     continue;
                 }
@@ -283,10 +287,10 @@ public class EMF2MarketHandler extends DefaultHandler {
                 // if key doesn't exist then create one, otherwise return the existing value,
                 // then add the entry to the list
                 sellerAttr2commsSoldAttr
-                    .compute(sellerAttr, (k, v) -> v == null ? new ArrayList<Attributes>() : v)
+                    .compute(sellerAttr, (key, val) -> val == null ? new ArrayList<Attributes>() : val)
                         .add(commSoldAttr);
                 sellerAttr2commsBoughtAttr
-                    .compute(sellerAttr, (k, v) -> v == null ? new ArrayList<Attributes>() : v)
+                    .compute(sellerAttr, (key, val) -> val == null ? new ArrayList<Attributes>() : val)
                         .add(commBoughtAttr);
             }
             List<Basket> basketsBoughtByTrader = new ArrayList<>();
@@ -296,27 +300,27 @@ public class EMF2MarketHandler extends DefaultHandler {
                 Set<String> keysBought = new HashSet<>();
                 for (Attributes commSold : entry.getValue()) {
                     printAttributes("      - ", commSold, Level.TRACE);
-                    keysBought.add(commoditySpec(commSold));
+                    keysBought.add(commSold.commoditySpecString());
                 }
                 logger.debug("    Basket : " + keysBought);
                 Basket basketBought = keysToBasket(keysBought, commoditySpecs);
                 economy.addBasketBought(aSeller, basketBought);
 
                 for (Attributes commBought : sellerAttr2commsBoughtAttr.get(sellerAttrs)) {
-                    CommoditySpecification specification = commSpec(commoditySpecs.get(commoditySpec(commBought)));
+                    CommoditySpecification specification = commSpec(commoditySpecs.get(commBought.commoditySpecString()));
                     BuyerParticipation participation = economy.getMarketsAsBuyer(aSeller).get(economy.getMarket(basketBought)).get(0);
-                    double used = value(commBought, "used");
+                    double used = commBought.value("used");
                     economy.getCommodityBought(participation, specification).setQuantity(used);
                 }
 
-                placement.put(basketBought, uuid(entry.getKey()));
+                placement.put(basketBought, entry.getKey().uuid());
                 shopper.put(basketBought,  aSeller);
 
                 basketsBoughtByTrader.add(basketBought);
                 allBasketsBought.add(basketBought);
             }
 
-            logger.debug("Created trader " + traderAttr.getValue(XSITYPE) + " (type " + traderType + ")");
+            logger.debug("Created trader " + traderAttr.xsitype() + " (type " + traderType + ")");
             logger.debug("    Sells " + basketSold);
             Set<Basket> baskets_ = new HashSet<>();
             for (Basket basket : basketsBoughtByTrader) {
@@ -338,11 +342,11 @@ public class EMF2MarketHandler extends DefaultHandler {
         for (Entry<String, Attributes> entry : commoditySold2trader.entrySet()) {
             Attributes commSoldAttr = commodities.get(entry.getKey());
             printAttributes("Commodity sold ",  commSoldAttr, Level.TRACE);
-            Double capacity = value(commSoldAttr, "capacity", "startCapacity");
-            Double used = value(commSoldAttr, "used");
-            Double peakUtil = value(commSoldAttr, "peakUtilization");
-            CommoditySpecification specification = commSpec(commoditySpecs.get(commoditySpec(commSoldAttr)));
-            Trader trader = uuid2trader.get(uuid(entry.getValue()));
+            double capacity = commSoldAttr.value("capacity", "startCapacity");
+            double used = commSoldAttr.value("used");
+            double peakUtil = commSoldAttr.value("peakUtilization");
+            CommoditySpecification specification = commSpec(commoditySpecs.get(commSoldAttr.commoditySpecString()));
+            Trader trader = uuid2trader.get(entry.getValue().uuid());
             CommoditySold commSold = trader.getCommoditySold(specification);
             if (used > capacity) {
                 printAttributes("used > capacity ", commSoldAttr, Level.WARN);
@@ -375,12 +379,12 @@ public class EMF2MarketHandler extends DefaultHandler {
         // Commodities consuming more than one commodity (skipped)
         logger.log(warning(!multipleConsumes.isEmpty()), multipleConsumes.size() + " Multiple Consumes");
         if (logger.isDebugEnabled()) {
-	        for (Entry<String, String> mcEntry : multipleConsumes.entrySet()) {
-	            printAttributes("", commodities.get(mcEntry.getKey()), Level.WARN);
-	            for (String uuid : mcEntry.getValue().split(" ")) {
-	                printAttributes("    Consumes ", commodities.get(uuid), Level.WARN);
-	            }
-	        }
+            for (Entry<String, String> mcEntry : multipleConsumes.entrySet()) {
+                printAttributes("", commodities.get(mcEntry.getKey()), Level.WARN);
+                for (String uuid : mcEntry.getValue().split(" ")) {
+                    printAttributes("    Consumes ", commodities.get(uuid), Level.WARN);
+                }
+            }
         }
 
         logger.log(warning(!noConsumes.isEmpty()) , noConsumes.size() + " No Consumes");
@@ -389,7 +393,7 @@ public class EMF2MarketHandler extends DefaultHandler {
         logger.log(warning(!noSeller.isEmpty()), noSeller.size() + " No seller");
         noSeller.forEach(a -> printAttributes("", a, Level.WARN));
 
-        skippedBaskets.forEach((k, v) -> logger.info("Skipped " + v.size() + " " + k));
+        skippedBaskets.forEach((key, val) -> logger.info("Skipped " + val.size() + " " + key));
 
         logger.info(traders.size() + " traders");
         logger.info(commodities.size() + " commodities (bought and sold)");
@@ -467,13 +471,8 @@ public class EMF2MarketHandler extends DefaultHandler {
         return result;
     }
 
-    CommoditySpecification commSpec(int i) {
+    private CommoditySpecification commSpec(int i) {
         return new CommoditySpecification(i);
-    }
-
-
-    CommoditySpecification commSpec(Attributes commAttr) {
-        return commSpec(commoditySpecs.get(commoditySpec(commAttr)));
     }
 
     private static final String PHYSICAL_MACHINE = "Abstraction:PhysicalMachine";
@@ -482,13 +481,13 @@ public class EMF2MarketHandler extends DefaultHandler {
     private static final String APPLICATION = "Abstraction:Application";
 
     boolean skip(Attributes buyer, Attributes seller) {
-        String buyerType = buyer.getValue(XSITYPE);
-        String sellerType = seller.getValue(XSITYPE);
+        String buyerType = buyer.xsitype();
+        String sellerType = seller.xsitype();
         if (
             (PHYSICAL_MACHINE.equals(buyerType) && STORAGE.equals(sellerType))
             || (APPLICATION.equals(buyerType) && VIRTUAL_MACHINE.equals(sellerType))) {
             String key = buyerType.split(":")[1] + " buying from " + sellerType.split(":")[1];
-            String skippedPair = uuid(buyer)+"/"+uuid(seller);
+            String skippedPair = buyer.uuid()+"/"+seller.uuid();
             skippedBaskets.compute(key, (k, v) -> v == null ? Sets.newHashSet() : v).add(skippedPair);
             return true;
         }
@@ -496,12 +495,12 @@ public class EMF2MarketHandler extends DefaultHandler {
     }
 
     PriceFunction priceFunction(Attributes commodity) {
-        String type = commodity.getValue(XSITYPE);
+        String type = commodity.xsitype();
         switch(type) {
         case "Abstraction:StorageAmount":
         case "Abstraction:StorageProvisioned":
         case "Abstraction:VStorage":
-            return PFUtility.createStepPriceFunction(value(commodity, "utilThreshold"), 0.0, 20000.0);
+            return PFUtility.createStepPriceFunction(commodity.value("utilThreshold"), 0.0, 20000.0);
         case "Abstraction:Power":
         case "Abstraction:Cooling":
         case "Abstraction:Space":
@@ -520,11 +519,8 @@ public class EMF2MarketHandler extends DefaultHandler {
      * Used to allocate integer values to strings.
      */
     @SuppressWarnings("serial")
-    static class TypeMap extends LinkedHashMap<Object, Integer> {
-        // TODO(Shai): use BiMap
-        // Not thread safe but we don't care
-        int counter = 0;
-        Map<Integer, Object> reverse = new LinkedHashMap<Integer, Object>();
+    static class TypeMap extends LinkedHashMap<@NonNull Object, @NonNull Integer> {
+        private List<Object> reverse = new ArrayList<Object>();
 
         /**
          * If the key exists then return its type.
@@ -532,26 +528,30 @@ public class EMF2MarketHandler extends DefaultHandler {
          * @param key either a new or an existing key
          * @return the integer type of the provided key.
          */
-        Integer insert(Object key) {
-            if (this.containsKey(key)) {
-                return this.get(key);
+        int insert(Object key) {
+            @NonNull
+            Integer val = get(key);
+            if (val != null) {
+                return val;
             } else {
-                put(key, ++counter);
-                reverse.put(counter, key);
-                return counter;
+                put(key, reverse.size());
+                reverse.add(key);
+                return reverse.size();
             }
         }
 
-        Object getByValue(Integer val) {
+        Object getByValue(int val) {
             return reverse.get(val);
         }
     }
 
-    class Attributes extends HashMap<String, String> {
+    /**
+     * A representation of an XML element from the file as a key-value map.
+     */
+    static class Attributes extends HashMap<@NonNull String, @NonNull String> {
         private static final long serialVersionUID = 1L;
 
-        Attributes(String qName, org.xml.sax.Attributes attributes) {
-            super();
+        Attributes(@NonNull String qName, org.xml.sax.Attributes attributes) {
             if (attributes.getValue(XSITYPE) == null) {
                 // SE that is a child of the document root
                 put(XSITYPE, qName);
@@ -561,8 +561,38 @@ public class EMF2MarketHandler extends DefaultHandler {
             }
         }
 
-        public String getValue(String key) {
-            return get(key);
+        String uuid() {
+            return get("uuid");
+        }
+
+        /**
+         * @return the value (as double) of the first attribute in the the list of properties
+         */
+        double value(String...props) {
+            for (String prop : props) {
+                String sProp = get(prop);
+                if (sProp != null) {
+                    return Double.valueOf(sProp);
+                }
+            }
+            return 0.0;
+        }
+
+        /**
+         * The string mapping of the commodity spec for the commodity represented by the attributes
+         * @return xsitype when there is no key, and xsitype[key] when a key exists
+         */
+        private String commoditySpecString() {
+            String commType = xsitype();
+            String key = get("key");
+            return commType + (key != null ? "[" + key + "]" : "");
+        }
+
+        /**
+         * @return the xsi::type of the element
+         */
+        private String xsitype() {
+            return get(XSITYPE);
         }
     }
 }
