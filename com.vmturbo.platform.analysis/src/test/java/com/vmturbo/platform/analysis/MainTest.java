@@ -1,13 +1,10 @@
 package com.vmturbo.platform.analysis;
 
-import static org.junit.Assert.*;
-
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import junitparams.JUnitParamsRunner;
-import junitparams.Parameters;
-import junitparams.naming.TestCaseName;
 
 /**
  * Test cases for Main class.
@@ -30,22 +27,14 @@ public final class MainTest {
     }
 
     @Test
+    @Ignore // TODO: decide what there is to test about main method
     public void testMain() {
-        Main.main(null);
+        Main.main(new String[0]);
     }
 
-    @Test
-    @Parameters({"0,1","1,1","2,2","3,6","4,24","5,120"})
-    @TestCaseName("factorial({0}) = {1}")
-    public void testFactorialNormalInput(int input, int output) {
-        assertEquals(output, Main.factorial(input));
+    @Test // TODO: move test to EconomyTest when the latter is ready.
+    public void testSampleTopology() {
+        Main.sampleTopology();
     }
 
-    @Test(expected = IllegalArgumentException.class)
-    @Parameters({"-1","-2","-100"})
-    @TestCaseName("factorial({0})")
-    public void testFactorialInvalidInput(int input) {
-        Main.factorial(input);
-    }
-
-}
+} // end MainTest class

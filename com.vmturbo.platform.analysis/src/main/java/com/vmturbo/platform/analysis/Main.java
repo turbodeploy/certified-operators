@@ -1,11 +1,7 @@
 package com.vmturbo.platform.analysis;
 
-import static com.google.common.base.Preconditions.*;
-
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
-
 import org.apache.log4j.Logger;
 
 import com.vmturbo.platform.analysis.economy.Basket;
@@ -36,6 +32,11 @@ public final class Main {
     static Logger logger = Logger.getLogger(Main.class);
 
     public static void main(String[] args) {
+        if (args.length != 1) {
+            logger.error("Correct usage: java Main \"topology-to-analyse\"");
+            System.exit(0);
+        }
+
         TopologyMapping mapping = M2Utils.loadFile(args[0]);
         Topology topology = mapping.getTopology();
         Economy economy = topology.getEconomy();
@@ -56,11 +57,6 @@ public final class Main {
         Economy economy = mapping.getTopology().getEconomy();
         int i = economy.getTraders().indexOf(trader);
         return String.format("%s (#%d)", mapping.getTraderName(i), i);
-    }
-
-    public static void hello8() {
-        Supplier<String> greeter = () -> "Hello Java 8 world!!!";
-        System.out.println(greeter.get());
     }
 
     public static void sampleTopology() {
@@ -107,21 +103,4 @@ public final class Main {
         economy.moveTrader(economy.addBasketBought(trader1, basket2), trader4);
     }
 
-    /**
-     * A simple factorial method, whose purpose is to test that Maven runs tests properly.
-     *
-     * @param n The natural number whose factorial should be returned.
-     * @return n!
-     */
-    public static long factorial(int n) {
-        checkArgument(n >= 0);
-
-        long p = 1;
-        while (n > 1) {
-            p *= n;
-            --n;
-        }
-
-        return p;
-    }
-}
+} // end Main class
