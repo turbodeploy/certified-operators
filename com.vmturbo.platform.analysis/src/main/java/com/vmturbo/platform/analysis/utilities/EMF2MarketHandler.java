@@ -35,6 +35,7 @@ import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.pricefunction.PFUtility;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 import com.vmturbo.platform.analysis.topology.Topology;
+import com.vmturbo.platform.analysis.utilities.M2Utils.TopologyMapping;
 
 /**
  * A SAX handler that loads EMF topology files and creates a Market2 topology
@@ -51,6 +52,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
 
     private Logger logger;
 
+    private TopologyMapping topoMapping;
     private Topology topology;
     private Economy economy;
 
@@ -93,6 +95,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
     public EMF2MarketHandler(Logger logger) {
         topology = new Topology();
         economy = topology.getEconomy();
+        topoMapping = new TopologyMapping(topology);
         this.logger = logger;
     }
 
@@ -243,6 +246,8 @@ final public class EMF2MarketHandler extends DefaultHandler {
             allBasketsSold.add(basketSold);
             int traderType = traderTypes.get(traderAttr.xsitype());
             Trader aSeller = economy.addTrader(traderType, TraderState.ACTIVE, basketSold);
+            String traderName = String.format("%s [%s]", traderAttr.get("displayName"), traderAttr.uuid());
+            topoMapping.addTraderMapping(economy.getTraders().indexOf(aSeller), traderName);
             uuid2trader.put(traderUuid, aSeller);
 
             // Baskets bought
@@ -595,4 +600,8 @@ final public class EMF2MarketHandler extends DefaultHandler {
             return get(XSITYPE);
         }
     }
+
+	public TopologyMapping getTopologyMapping() {
+		return topoMapping;
+	}
 }

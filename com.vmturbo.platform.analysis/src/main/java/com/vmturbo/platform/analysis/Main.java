@@ -2,8 +2,11 @@ package com.vmturbo.platform.analysis;
 
 import static com.google.common.base.Preconditions.*;
 
+import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
+
+import org.apache.log4j.Logger;
 
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.BuyerParticipation;
@@ -12,6 +15,11 @@ import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
+import com.vmturbo.platform.analysis.ese.Ese;
+import com.vmturbo.platform.analysis.recommendations.RecommendationItem;
+import com.vmturbo.platform.analysis.topology.Topology;
+import com.vmturbo.platform.analysis.utilities.M2Utils;
+import com.vmturbo.platform.analysis.utilities.M2Utils.TopologyMapping;
 
 /**
  * The Main class for the application.
@@ -25,10 +33,35 @@ import com.vmturbo.platform.analysis.economy.TraderState;
  */
 public final class Main {
 
+    static Logger logger = Logger.getLogger(Main.class);
+
     public static void main(String[] args) {
+        TopologyMapping mapping = M2Utils.loadFile(args[0]);
+        Topology topology = mapping.getTopology();
+        Economy economy = topology.getEconomy();
+        Ese ese = new Ese();
+        List<RecommendationItem> recommendations = ese.createRecommendations(economy);
+        logger.info(recommendations.size() + " recommendations");
+        for (RecommendationItem recommendation : recommendations) {
+            boolean move = recommendation.getCurrentSupplier() != -1;
+            String action = move ? "Move " : "Start ";
+            String buyer = traderString(mapping, recommendation.getBuyer());
+            String from = move ? ( " from " + traderString(mapping, recommendation.getCurrentSupplier())) : "";
+            String to = (move ? " to " : " on ") + traderString(mapping, recommendation.getNewSupplier());
+            logger.info(action + buyer + from + to);
+        }
+    }
+
+    static private String traderString(TopologyMapping mapping, int i) {
+        return String.format("%s (#%d)", mapping.getTraderName(i), i);
+    }
+
+    public static void hello8() {
         Supplier<String> greeter = () -> "Hello Java 8 world!!!";
         System.out.println(greeter.get());
+    }
 
+    public static void sampleTopology() {
         CommoditySpecification cpu = new CommoditySpecification(0);
         Basket basket1 = new Basket(cpu,new CommoditySpecification(1),
                                     new CommoditySpecification(2),new CommoditySpecification(3));
