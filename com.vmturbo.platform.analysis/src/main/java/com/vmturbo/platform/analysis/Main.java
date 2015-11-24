@@ -15,7 +15,7 @@ import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
-import com.vmturbo.platform.analysis.ese.Ese;
+import com.vmturbo.platform.analysis.ese.Ede;
 import com.vmturbo.platform.analysis.recommendations.RecommendationItem;
 import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.utilities.M2Utils;
@@ -39,11 +39,11 @@ public final class Main {
         TopologyMapping mapping = M2Utils.loadFile(args[0]);
         Topology topology = mapping.getTopology();
         Economy economy = topology.getEconomy();
-        Ese ese = new Ese();
+        Ede ese = new Ede();
         List<RecommendationItem> recommendations = ese.createRecommendations(economy);
         logger.info(recommendations.size() + " recommendations");
         for (RecommendationItem recommendation : recommendations) {
-            boolean move = recommendation.getCurrentSupplier() != -1;
+            boolean move = recommendation.getCurrentSupplier() != null;
             String action = move ? "Move " : "Start ";
             String buyer = traderString(mapping, recommendation.getBuyer());
             String from = move ? ( " from " + traderString(mapping, recommendation.getCurrentSupplier())) : "";
@@ -52,7 +52,9 @@ public final class Main {
         }
     }
 
-    static private String traderString(TopologyMapping mapping, int i) {
+    static private String traderString(TopologyMapping mapping, Trader trader) {
+        Economy economy = mapping.getTopology().getEconomy();
+        int i = economy.getTraders().indexOf(trader);
         return String.format("%s (#%d)", mapping.getTraderName(i), i);
     }
 
