@@ -3,8 +3,6 @@ package com.vmturbo.platform.analysis.pricefunction;
 import static org.junit.Assert.*;
 
 import java.lang.ref.WeakReference;
-import java.util.function.UnaryOperator;
-
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -40,7 +38,7 @@ public class CacheTest {
         PriceFunction pf3b = Cache.createStandardWeightedPriceFunction(CONST2);
         assertNotSame(pf3b, pf3a);
 
-        UnaryOperator<Double> uod = u -> u * u;
+        PriceFunction uod = u -> u * u;
         PriceFunction pf4a = Cache.createPriceFunction(uod);
         PriceFunction pf4b = Cache.createPriceFunction(uod);
         assertSame(pf4a, pf4b);
@@ -122,7 +120,7 @@ public class CacheTest {
         };
     }
 
-    private static final UnaryOperator<Double> uod = u -> 0.7 + u + u * u;
+    private static final PriceFunction uod = u -> 0.7 + u + u * u;
     private static final PriceFunction pfCustom = Cache.createPriceFunction(uod);
 
     /**
@@ -144,7 +142,7 @@ public class CacheTest {
     @Parameters
     @TestCaseName("Test #{index}: {1} function")
     public void testMaxPrice(PriceFunction pf, String name) {
-        assertEquals(Cache.MAX_UNIT_PRICE, pf.unitPrice(ONE, ONE), delta);
+        assertEquals(PriceFunction.MAX_UNIT_PRICE, pf.unitPrice(ONE, ONE), delta);
     }
 
     @SuppressWarnings("unused")
