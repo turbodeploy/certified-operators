@@ -55,7 +55,7 @@ public final class Main {
 
     static private String traderString(TopologyMapping mapping, Trader trader) {
         Economy economy = mapping.getTopology().getEconomy();
-        int i = economy.getTraders().indexOf(trader);
+        int i = economy.getIndex(trader);
         return String.format("%s (#%d)", mapping.getTraderName(i), i);
     }
 

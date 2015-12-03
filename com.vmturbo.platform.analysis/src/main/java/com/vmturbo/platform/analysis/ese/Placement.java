@@ -46,15 +46,12 @@ public class Placement {
                     EdeCommon.recommendReconfigure(buyerParticipation, market, economy);
                     continue;
                 }
-
                 final Trader currentSupplier = economy.getSupplier(buyerParticipation);
-                final int buyerIndex = economy.getTraders().indexOf(economy.getBuyer(buyerParticipation));
-                final int currentSupplierIndex = economy.getTraders().indexOf(currentSupplier);
-
+                final int buyerIndex = economy.getIndex(economy.getBuyer(buyerParticipation));
                 // check if the buyer cannot move, or cannot move out of current supplier
                 if (timeMiliSec < state.get(buyerIndex).getMoveOnlyAfterThisTime()
                     || (currentSupplier != null
-                        && timeMiliSec < state.get(currentSupplierIndex).getMoveFromOnlyAfterThisTime())) {
+                        && timeMiliSec < state.get(economy.getIndex(currentSupplier)).getMoveFromOnlyAfterThisTime())) {
                     continue;
                 }
 
@@ -66,7 +63,7 @@ public class Placement {
                     // if it is not the current supplier and we cannot move to this seller, skip it
                     if (seller != currentSupplier
                         && timeMiliSec
-                           < state.get(economy.getTraders().indexOf(seller)).getMoveToOnlyAfterThisTime()) {
+                           < state.get(economy.getIndex(seller)).getMoveToOnlyAfterThisTime()) {
                         continue;
                     }
                     final double quote = EdeCommon.quote(buyerParticipation, market.getBasket(),
@@ -92,7 +89,7 @@ public class Placement {
                     moveTraderAndUpdateQuantitiesSold(buyerParticipation, cheapestSeller,
                                     market.getBasket(), economy);
                     // update the state
-                    int newSellerIndex = economy.getTraders().indexOf(cheapestSeller);
+                    int newSellerIndex = economy.getIndex(cheapestSeller);
                     // TODO (Apostolos): use economy.getSettings().getPlacementInterval() below
                     long newTime = timeMiliSec + 1200000; // wait two 10 min intervals
                     state.get(newSellerIndex).setSuspendOnlyAfterThisTime(newTime);

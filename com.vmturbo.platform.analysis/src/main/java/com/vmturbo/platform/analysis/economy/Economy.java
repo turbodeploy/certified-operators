@@ -106,6 +106,27 @@ public final class Economy implements Cloneable {
     }
 
     /**
+     * Returns the <em>economy index</em> of the given trader.
+     *
+     * <p>
+     *  The economy index of a trader is its position in the {@link #getTraders() traders list} and
+     *  it's non-increasing. It will be decreased iff a trader with lower economy index is removed
+     *  from the economy.
+     * </p>
+     *
+     * <p>
+     *  This is an O(1) operation.
+     * </p>
+     *
+     * @param trader The trader whose economy index should be returned.
+     * @return The economy index of the given trader. It's non-negative.
+     */
+    @Pure
+    public int getIndex(@ReadOnly Economy this, @NonNull @ReadOnly Trader trader) {
+        return ((TraderWithSettings)trader).getEconomyIndex();
+    }
+
+    /**
      * Returns the {@link Trader buyer} associated with the given {@link BuyerParticipation buyer
      * participation}.
      *
@@ -313,10 +334,10 @@ public final class Economy implements Cloneable {
         // Update indices for all buyer participations.
         for (Market market : markets_.values()) {
             for (BuyerParticipation participation : market.getBuyers()) {
-                if (participation.getBuyerIndex() > ((TraderWithSettings)traderToRemove).getEconomyIndex()) {
+                if (participation.getBuyerIndex() > getIndex(traderToRemove)) {
                     participation.setBuyerIndex(participation.getBuyerIndex() - 1);
                 }
-                if (participation.getSupplierIndex() > ((TraderWithSettings)traderToRemove).getEconomyIndex()) {
+                if (participation.getSupplierIndex() > getIndex(traderToRemove)) {
                     participation.setSupplierIndex(participation.getSupplierIndex() - 1);
                 }
             }
@@ -324,7 +345,7 @@ public final class Economy implements Cloneable {
 
         // Update economy indices of all traders and remove trader from list.
         for (TraderWithSettings trader : traders_) {
-            if (trader.getEconomyIndex() > ((TraderWithSettings)traderToRemove).getEconomyIndex()) {
+            if (trader.getEconomyIndex() > getIndex(traderToRemove)) {
                 trader.setEconomyIndex(trader.getEconomyIndex() - 1);
             }
         }
@@ -360,7 +381,7 @@ public final class Economy implements Cloneable {
         // Update new supplier to include participationToMove to its customers.
         if (newSupplier != null) {
             ((TraderWithSettings)newSupplier).getCustomers().add(participationToMove);
-            participationToMove.setSupplierIndex(((TraderWithSettings)newSupplier).getEconomyIndex());
+            participationToMove.setSupplierIndex(getIndex(newSupplier));
         }
         else
             participationToMove.setSupplierIndex(BuyerParticipation.NO_SUPPLIER);

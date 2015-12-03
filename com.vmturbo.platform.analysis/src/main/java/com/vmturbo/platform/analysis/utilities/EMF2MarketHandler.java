@@ -247,7 +247,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
             int traderType = traderTypes.get(traderAttr.xsitype());
             Trader aSeller = economy.addTrader(traderType, TraderState.ACTIVE, basketSold);
             String traderName = String.format("%s [%s]", traderAttr.get("displayName"), traderAttr.uuid());
-            topoMapping.addTraderMapping(economy.getTraders().indexOf(aSeller), traderName);
+            topoMapping.addTraderMapping(economy.getIndex(aSeller), traderName);
             uuid2trader.put(traderUuid, aSeller);
 
             // Baskets bought
