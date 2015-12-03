@@ -10,9 +10,9 @@ import com.google.common.collect.MapMaker;
 /**
  * A factory for price functions
  */
-public class PFUtility {
+public class Cache {
 
-    public final static double MAX_UNIT_PRICE = 1e22;
+    public static final double MAX_UNIT_PRICE = 1e22;
 
     /**
      * Cache instances of {@link PriceFunction}. If a requested one

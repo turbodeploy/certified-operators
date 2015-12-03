@@ -8,7 +8,7 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Deterministic;
 import org.checkerframework.dataflow.qual.Pure;
 
-import com.vmturbo.platform.analysis.pricefunction.PFUtility;
+import com.vmturbo.platform.analysis.pricefunction.Cache;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 
 final class CommoditySoldWithSettings implements CommoditySold, CommoditySoldSettings {
@@ -25,7 +25,7 @@ final class CommoditySoldWithSettings implements CommoditySold, CommoditySoldSet
     private double capacityUpperBound_ = Double.MAX_VALUE;
     private double capacityIncrement_ = 1;
     private double utilizationUpperBound_ = 1.0;
-    private @NonNull PriceFunction priceFunction_ = PFUtility.createStandardWeightedPriceFunction(1.0);
+    private @NonNull PriceFunction priceFunction_ = Cache.createStandardWeightedPriceFunction(1.0);
 
     // Constructors
 

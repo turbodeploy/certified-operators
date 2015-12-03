@@ -13,7 +13,7 @@ import junitparams.Parameters;
 import junitparams.naming.TestCaseName;
 
 @RunWith(JUnitParamsRunner.class)
-public class TestPriceFunction {
+public class CacheTest {
 
     @Test
     /**
@@ -23,11 +23,11 @@ public class TestPriceFunction {
         final double CONST2 = 400;
         // Test that price functions are reused
 
-        PriceFunction pf1a = PFUtility.createConstantPriceFunction(CONST2);
-        PriceFunction pf1b = PFUtility.createConstantPriceFunction(CONST2);
+        PriceFunction pf1a = Cache.createConstantPriceFunction(CONST2);
+        PriceFunction pf1b = Cache.createConstantPriceFunction(CONST2);
         assertSame(pf1a, pf1b);
 
-        WeakReference<PriceFunction> weakPf1a = new WeakReference<PriceFunction>(pf1a);
+        WeakReference<PriceFunction> weakPf1a = new WeakReference<>(pf1a);
         pf1a = null;
         pf1b = null;
         // Now the price function has only weak references (weakPf1 and a link from the map),
@@ -36,25 +36,25 @@ public class TestPriceFunction {
         assertNull(weakPf1a.get());
 
         // Different arguments give different price functions
-        PriceFunction pf3a = PFUtility.createStandardWeightedPriceFunction(CONST2 + 1);
-        PriceFunction pf3b = PFUtility.createStandardWeightedPriceFunction(CONST2);
+        PriceFunction pf3a = Cache.createStandardWeightedPriceFunction(CONST2 + 1);
+        PriceFunction pf3b = Cache.createStandardWeightedPriceFunction(CONST2);
         assertNotSame(pf3b, pf3a);
 
         UnaryOperator<Double> uod = u -> u * u;
-        PriceFunction pf4a = PFUtility.createPriceFunction(uod);
-        PriceFunction pf4b = PFUtility.createPriceFunction(uod);
+        PriceFunction pf4a = Cache.createPriceFunction(uod);
+        PriceFunction pf4b = Cache.createPriceFunction(uod);
         assertSame(pf4a, pf4b);
 
-        PriceFunction pf4c = PFUtility.createPriceFunction(u -> u * u);
+        PriceFunction pf4c = Cache.createPriceFunction(u -> u * u);
         // although the function is the same, these are two distinct instances
         assertNotSame(pf4b, pf4c);
     }
 
-    private final static double ONE = 1.0;
-    private final static double delta = 1e-10; // used in assertEquals(double, double, delta)
+    private static final double ONE = 1.0;
+    private static final double delta = 1e-10; // used in assertEquals(double, double, delta)
 
-    private final static double CONST = 40;
-    private final static PriceFunction pfConst = PFUtility.createConstantPriceFunction(CONST);
+    private static final double CONST = 40;
+    private static final PriceFunction pfConst = Cache.createConstantPriceFunction(CONST);
 
     @Test
     @Parameters
@@ -75,10 +75,10 @@ public class TestPriceFunction {
         };
     }
 
-    private final static double BELOW = 5;
-    private final static double ABOVE = 100;
-    private final static double STEP_AT = 0.7;
-    private final static PriceFunction pfStep = PFUtility.createStepPriceFunction(STEP_AT, BELOW, ABOVE);
+    private static final double BELOW = 5;
+    private static final double ABOVE = 100;
+    private static final double STEP_AT = 0.7;
+    private static final PriceFunction pfStep = Cache.createStepPriceFunction(STEP_AT, BELOW, ABOVE);
 
     @Test
     @Parameters
@@ -101,7 +101,7 @@ public class TestPriceFunction {
     }
 
     private static final double WEIGHT = 27.0;
-    private static final PriceFunction pfStd = PFUtility.createStandardWeightedPriceFunction(WEIGHT);
+    private static final PriceFunction pfStd = Cache.createStandardWeightedPriceFunction(WEIGHT);
 
     @Test
     @Parameters
@@ -122,8 +122,8 @@ public class TestPriceFunction {
         };
     }
 
-    private final static UnaryOperator<Double> uod = u -> 0.7 + u + u * u;
-    private final static PriceFunction pfCustom = PFUtility.createPriceFunction(uod);
+    private static final UnaryOperator<Double> uod = u -> 0.7 + u + u * u;
+    private static final PriceFunction pfCustom = Cache.createPriceFunction(uod);
 
     /**
      * Test that a custom price function returns the expected values
@@ -144,7 +144,7 @@ public class TestPriceFunction {
     @Parameters
     @TestCaseName("Test #{index}: {1} function")
     public void testMaxPrice(PriceFunction pf, String name) {
-        assertEquals(PFUtility.MAX_UNIT_PRICE, pf.unitPrice(ONE, ONE), delta);
+        assertEquals(Cache.MAX_UNIT_PRICE, pf.unitPrice(ONE, ONE), delta);
     }
 
     @SuppressWarnings("unused")
@@ -159,7 +159,7 @@ public class TestPriceFunction {
 
     @Test(expected = IllegalArgumentException.class)
     public void testBadValue() {
-        PriceFunction pfCustom = PFUtility.createPriceFunction(uod);
+        PriceFunction pfCustom = Cache.createPriceFunction(uod);
         @SuppressWarnings("unused")
         double unitPrice = pfCustom.unitPrice(-0.5, ONE);
     }
