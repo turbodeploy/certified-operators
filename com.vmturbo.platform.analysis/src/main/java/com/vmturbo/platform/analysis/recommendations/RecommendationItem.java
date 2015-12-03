@@ -1,5 +1,6 @@
 package com.vmturbo.platform.analysis.recommendations;
 
+import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.Trader;
 
 /**
@@ -21,42 +22,23 @@ public class RecommendationItem {
     private final Trader currentSupplier_;
     // new supplier: The {@link Trader seller} where the {@link Trader buyer} should move to
     private final Trader newSupplier_;
-    // description of the recommendation
-    private String description_ = null;
-    // reason for the recommendation
-    private String reason_ = null;
+    // the market where the recommendation originated from. Used for 'reason' generation.
+    private final Market market_;
+
 
     // Constructors
 
     /**
      *
-     * @param description - String describing the recommendation
-     * @param reason - String describing the reason for the recommendation
      */
-    public RecommendationItem(String description, String reason, Trader buyer,
-                    Trader currentSupplier, Trader newSupplier) {
-        description_ = description;
-        reason_ = reason;
+    public RecommendationItem(Trader buyer, Trader currentSupplier, Trader newSupplier, Market market) {
         buyer_ = buyer;
         currentSupplier_ = currentSupplier;
         newSupplier_ = newSupplier;
+        market_  = market;
     }
 
     // Methods
-
-    /**
-     * Returns the description for a {@link RecommendationItem recommendation item}.
-     */
-    public String getDescription() {
-        return description_;
-    }
-
-    /**
-     * Returns the reason for a {@link RecommendationItem recommendation item}.
-     */
-    public String getReason() {
-        return reason_;
-    }
 
     /**
      * Returns the buyer for a {@link RecommendationItem recommendation item}.
@@ -77,5 +59,12 @@ public class RecommendationItem {
      */
     public Trader getNewSupplier() {
         return newSupplier_;
+    }
+
+    /**
+     * Returns the market where the {@link RecommendationItem recommendation item} originated from.
+     */
+    public Market getMarket() {
+        return market_;
     }
 }

@@ -7,11 +7,8 @@ import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.BuyerParticipation;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
-import com.vmturbo.platform.analysis.economy.Economy;
-import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
-import com.vmturbo.platform.analysis.recommendations.RecommendationItem;
 
 /**
  * EdeCommon contains a number of methods that are common across decisions algorithms in the engine.
@@ -74,46 +71,4 @@ public final class EdeCommon {
         return quote;
     }
 
-    /**
-     * Create and return a placement {@link RecommendationItem recommendation item}.
-     *
-     * @param buyerParticipation - the buyer participation to be moved
-     * @param economy - the economy where the Buyer belongs
-     * @param newSupplier - the new Seller where we are going to move the Buyer
-     */
-    public static RecommendationItem recommendPlace(BuyerParticipation buyerParticipation,
-                                                    Economy economy, Market market, Trader newSupplier) {
-        Trader buyer = economy.getBuyer(buyerParticipation);
-        Trader currentSupplier = economy.getSupplier(buyerParticipation);
-        String reason = "";
-
-        // if there is no current supplier, recommend to start buyer in new supplier
-        if (currentSupplier == null) {
-            reason = "Buyer is currently not placed in any supplier selling " +
-                     market.getBasket().toString();
-            return new RecommendationItem("Start ", reason, buyer, currentSupplier, newSupplier);
-        }
-
-        if (market.getSellers().contains(currentSupplier)) {
-            reason = "bla bla bla";
-        } else { // current supplier is not part of the market, i.e. not selling what the buyer wants
-            reason = "Current supplier is not selling one or more of the following: "
-                            + market.getBasket().toString();
-        }
-        return new RecommendationItem("Move ", reason, buyer, currentSupplier, newSupplier);
-    }
-
-    /**
-     * Create and return a reconfigure {@link RecommendationItem recommendation item}.
-     *
-     * @param buyerParticipation - the buyer participation to be moved
-     * @param market - the market where the buyer participation is shopping
-     * @param economy - the economy where the Buyer belongs
-     */
-    public static RecommendationItem recommendReconfigure(BuyerParticipation buyerParticipation,
-                                                          Market market, Economy economy) {
-        Trader buyer = economy.getBuyer(buyerParticipation);
-        String reason = "There are no suppliers selling: " + market.getBasket().toString();
-        return (new RecommendationItem("Reconfigure ", reason, buyer, null, null));
-    }
 }

@@ -13,7 +13,6 @@ import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.ese.Ede;
 import com.vmturbo.platform.analysis.recommendations.RecommendationItem;
-import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.utilities.M2Utils;
 import com.vmturbo.platform.analysis.utilities.M2Utils.TopologyMapping;
 
@@ -38,25 +37,56 @@ public final class Main {
         }
 
         TopologyMapping mapping = M2Utils.loadFile(args[0]);
-        Topology topology = mapping.getTopology();
-        Economy economy = topology.getEconomy();
-        Ede ese = new Ede();
-        List<RecommendationItem> recommendations = ese.createRecommendations(economy);
+        Economy economy = mapping.getTopology().getEconomy();
+        Ede ede = new Ede();
+        List<RecommendationItem> recommendations = ede.createRecommendations(economy);
         logger.info(recommendations.size() + " recommendations");
         for (RecommendationItem recommendation : recommendations) {
-            boolean move = recommendation.getCurrentSupplier() != null;
-            String action = move ? "Move " : "Start ";
-            String buyer = traderString(mapping, recommendation.getBuyer());
-            String from = move ? ( " from " + traderString(mapping, recommendation.getCurrentSupplier())) : "";
-            String to = (move ? " to " : " on ") + traderString(mapping, recommendation.getNewSupplier());
-            logger.info(action + buyer + from + to);
+            logger.info("What: " + description(recommendation, mapping));
+            logger.info("Why:  " + reason(recommendation));
+            logger.info(null);
         }
     }
 
-    static private String traderString(TopologyMapping mapping, Trader trader) {
+    private static String traderString(TopologyMapping mapping, Trader trader) {
         Economy economy = mapping.getTopology().getEconomy();
         int i = economy.getIndex(trader);
         return String.format("%s (#%d)", mapping.getTraderName(i), i);
+    }
+
+    /**
+     * Create and return a description for the recommendation.
+     */
+    public static String description(RecommendationItem recommendation, TopologyMapping mapping) {
+        final String buyer = traderString(mapping, recommendation.getBuyer());
+
+        if (recommendation.getNewSupplier() == null) { // reconfigure
+            return "Reconfigure " + buyer;
+        } else if (recommendation.getCurrentSupplier() != null) { // move
+            return "Move " + buyer + " from " + traderString(mapping, recommendation.getCurrentSupplier())
+                + " to " + traderString(mapping, recommendation.getNewSupplier());
+        } else { // start
+            return "Start " + buyer + " on " + traderString(mapping, recommendation.getNewSupplier());
+        }
+    }
+
+    /**
+     * Create and return a reason for the recommendation.
+     */
+    public static String reason(RecommendationItem recommendation) {
+        if (recommendation.getNewSupplier() == null) { // reconfigure
+            return "There are no suppliers selling: " + recommendation.getMarket().getBasket().toString();
+        } else if (recommendation.getCurrentSupplier() != null) { // move
+            if (recommendation.getMarket().getSellers().contains(recommendation.getCurrentSupplier())) {
+                return "bla bla bla"; // TODO (Apostolos): put something reasonable here!
+            } else { // current supplier is not part of the market, i.e. not selling what the buyer wants
+                return "Current supplier is not selling one or more of the following: "
+                + recommendation.getMarket().getBasket().toString();
+            }
+        } else { // start
+            return "Buyer is currently not placed in any supplier selling "
+                        + recommendation.getMarket().getBasket().toString();
+        }
     }
 
     public static void sampleTopology() {

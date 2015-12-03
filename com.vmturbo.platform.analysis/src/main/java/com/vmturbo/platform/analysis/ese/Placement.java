@@ -42,12 +42,13 @@ public class Placement {
             for (@NonNull BuyerParticipation buyerParticipation : market.getBuyers()) {
 
                 // if there are no sellers in the market, the buyer is misconfigured
+                final @NonNull Trader buyer = economy.getBuyer(buyerParticipation);
                 if (market.getSellers().isEmpty()) {
-                    EdeCommon.recommendReconfigure(buyerParticipation, market, economy);
+                    recommendations.add(new RecommendationItem(buyer, null, null, market));
                     continue;
                 }
                 final Trader currentSupplier = economy.getSupplier(buyerParticipation);
-                final int buyerIndex = economy.getIndex(economy.getBuyer(buyerParticipation));
+                final int buyerIndex = economy.getIndex(buyer);
                 // check if the buyer cannot move, or cannot move out of current supplier
                 if (timeMiliSec < state.get(buyerIndex).getMoveOnlyAfterThisTime()
                     || (currentSupplier != null
@@ -83,8 +84,7 @@ public class Placement {
                 if (currentQuote > cheapestQuote) { // + market.getBasket().size() * 2.0) {
                     //TODO (Apostolos): use economy.getSettings().getQuoteFactor() above
                     // create recommendation and add it to the result list
-                    recommendations.add(EdeCommon.recommendPlace(buyerParticipation, economy,
-                                                                    market, cheapestSeller));
+                    recommendations.add(new RecommendationItem(buyer, currentSupplier, cheapestSeller, market));
                     // update the economy to reflect the decision
                     moveTraderAndUpdateQuantitiesSold(buyerParticipation, cheapestSeller,
                                     market.getBasket(), economy);
