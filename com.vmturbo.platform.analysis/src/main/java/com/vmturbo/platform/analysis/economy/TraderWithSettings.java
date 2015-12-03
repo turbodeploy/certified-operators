@@ -34,6 +34,11 @@ final class TraderWithSettings implements Trader, TraderSettings {
     private double maxDesiredUtilization_ = 1.0;
     private double minDesiredUtilization_ = 0.0;
 
+    // Cached data
+
+    // Cached unmodifiable view of the commoditiesSold_ list.
+    private final @NonNull List<@NonNull CommoditySold> unmodifiableCommoditiesSold_ = Collections.unmodifiableList(commoditiesSold_);
+
     // Constructors
 
     /**
@@ -151,7 +156,7 @@ final class TraderWithSettings implements Trader, TraderSettings {
      * </p>
      */
     @Pure
-    public @NonNull @PolyRead List<@NonNull @PolyRead BuyerParticipation> getCustomers(@PolyRead TraderWithSettings this) {
+    @NonNull @PolyRead List<@NonNull @PolyRead BuyerParticipation> getCustomers(@PolyRead TraderWithSettings this) {
         return customers_;
     }
 
@@ -166,7 +171,7 @@ final class TraderWithSettings implements Trader, TraderSettings {
     @Override
     @Pure
     public @NonNull List<@NonNull @ReadOnly CommoditySold> getCommoditiesSold(@ReadOnly TraderWithSettings this) {
-        return Collections.unmodifiableList(commoditiesSold_);
+        return unmodifiableCommoditiesSold_;
     }
 
     @Override

@@ -38,6 +38,13 @@ public final class Economy implements Cloneable {
     // The list of all Traders participating in the Economy.
     private final @NonNull List<@NonNull TraderWithSettings> traders_ = new ArrayList<>();
 
+    // Cached data
+
+    // Cached unmodifiable view of the markets_.values() collection.
+    private final @NonNull Collection<@NonNull Market> unmodifiableMarkets_ = Collections.unmodifiableCollection(markets_.values());
+    // Cached unmodifiable view of the traders_ list.
+    private final @NonNull List<@NonNull Trader> unmodifiableTraders_ = Collections.unmodifiableList(traders_);
+
     // Constructors
 
     /**
@@ -66,7 +73,7 @@ public final class Economy implements Cloneable {
      */
     @Pure
     public @NonNull @ReadOnly Collection<@NonNull @ReadOnly Market> getMarkets(@ReadOnly Economy this) {
-        return Collections.unmodifiableCollection(markets_.values());
+        return unmodifiableMarkets_;
     }
 
     /**
@@ -239,7 +246,7 @@ public final class Economy implements Cloneable {
      */
     @Pure
     public @NonNull @ReadOnly List<@NonNull @ReadOnly Trader> getTraders(@ReadOnly Economy this) {
-        return Collections.unmodifiableList(traders_);
+        return unmodifiableTraders_;
     }
 
     /**

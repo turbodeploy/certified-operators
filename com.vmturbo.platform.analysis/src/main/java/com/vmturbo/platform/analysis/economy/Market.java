@@ -27,6 +27,13 @@ public final class Market {
     // TODO (Vaptistis): consider making sellers_ a Set.
     private final @NonNull List<@NonNull Trader> sellers_ = new ArrayList<>(); // see #getSellers()
 
+    // Cached data
+
+    // Cached unmodifiable view of the buyers_ list.
+    private final @NonNull List<@NonNull BuyerParticipation> unmodifiableBuyers_ = Collections.unmodifiableList(buyers_);
+    // Cached unmodifiable view of the sellers_ list.
+    private final @NonNull List<@NonNull Trader> unmodifiableSellers_ = Collections.unmodifiableList(sellers_);
+
     // Constructors
 
     /**
@@ -63,7 +70,7 @@ public final class Market {
      */
     @Pure
     public @NonNull @ReadOnly List<@NonNull Trader> getSellers(@ReadOnly Market this) {
-        return Collections.unmodifiableList(sellers_);
+        return unmodifiableSellers_;
     }
 
     /**
@@ -131,7 +138,7 @@ public final class Market {
      */
     @Pure
     public @NonNull @ReadOnly List<@NonNull BuyerParticipation> getBuyers(@ReadOnly Market this) {
-        return Collections.unmodifiableList(buyers_);
+        return unmodifiableBuyers_;
     }
 
     /**
