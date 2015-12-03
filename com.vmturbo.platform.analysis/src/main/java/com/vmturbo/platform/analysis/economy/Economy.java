@@ -14,7 +14,6 @@ import java.util.TreeSet;
 import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
-import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Deterministic;
 import org.checkerframework.dataflow.qual.Pure;
 
@@ -106,9 +105,9 @@ public final class Economy implements Cloneable {
      */
     @Pure
     public @NonNull @ReadOnly Market getMarket(@ReadOnly Economy this, @NonNull @ReadOnly BuyerParticipation participation) {
-        checkArgument(((TraderWithSettings)getBuyer(participation)).getMarketsAsBuyer().containsValue(participation));
+        checkArgument(((TraderWithSettings)participation.getBuyer()).getMarketsAsBuyer().containsValue(participation));
 
-        return Multimaps.invertFrom(((TraderWithSettings)getBuyer(participation)).getMarketsAsBuyer(),
+        return Multimaps.invertFrom(((TraderWithSettings)participation.getBuyer()).getMarketsAsBuyer(),
             ArrayListMultimap.create()).get(participation).get(0); // only one market in inverse view
     }
 
@@ -131,47 +130,6 @@ public final class Economy implements Cloneable {
     @Pure
     public int getIndex(@ReadOnly Economy this, @NonNull @ReadOnly Trader trader) {
         return ((TraderWithSettings)trader).getEconomyIndex();
-    }
-
-    /**
-     * Returns the {@link Trader buyer} associated with the given {@link BuyerParticipation buyer
-     * participation}.
-     *
-     * <p>
-     *  If the given buyer participation has been invalidated, the results are undefined. The latter
-     *  can happen for example if the associated buyer has been removed from the economy.
-     * </p>
-     *
-     * @param participation The valid buyer participation for which the buyer should be returned.
-     * @return The buyer participating in a market as this buyer participation.
-     */
-    @Pure
-    public @NonNull Trader getBuyer(@ReadOnly Economy this, @NonNull @ReadOnly BuyerParticipation participation) {
-        // Note: this may throw IndexOutOfBoundsException or just return another trader if
-        // participation is invalid. Hard to check here, but can update buyerIndex accordingly in
-        // removeTrader.
-        return traders_.get(participation.getBuyerIndex());
-    }
-
-    /**
-     * Returns the {@link Trader supplier} of the given {@link BuyerParticipation buyer participation}
-     * in {@code this} economy or {@code null} if there is no such supplier.
-     *
-     * <p>
-     *  If the given buyer participation has been invalidated, the results are undefined. The latter
-     *  can happen for example if the associated buyer has been removed from the economy.
-     * </p>
-     *
-     * @param participation The valid buyer participation for which the supplier should be returned.
-     * @return The supplier or {@code null} if the given buyer participation is currently not buying
-     *          the corresponding basket from anyone.
-     */
-    @Pure
-    public @Nullable @ReadOnly Trader getSupplier(@ReadOnly Economy this, @NonNull @ReadOnly BuyerParticipation participation) {
-        // Note: hard to check validity here. Best way would probably set indices appropriately in
-        // removeTrader.
-        return participation.getSupplierIndex() == BuyerParticipation.NO_SUPPLIER
-            ? null : traders_.get(participation.getSupplierIndex());
     }
 
     /**
@@ -338,18 +296,6 @@ public final class Economy implements Cloneable {
             // TODO: consider invalidating the participation.
         }
 
-        // Update indices for all buyer participations.
-        for (Market market : markets_.values()) {
-            for (BuyerParticipation participation : market.getBuyers()) {
-                if (participation.getBuyerIndex() > getIndex(traderToRemove)) {
-                    participation.setBuyerIndex(participation.getBuyerIndex() - 1);
-                }
-                if (participation.getSupplierIndex() > getIndex(traderToRemove)) {
-                    participation.setSupplierIndex(participation.getSupplierIndex() - 1);
-                }
-            }
-        }
-
         // Update economy indices of all traders and remove trader from list.
         for (TraderWithSettings trader : traders_) {
             if (trader.getEconomyIndex() > getIndex(traderToRemove)) {
@@ -378,20 +324,17 @@ public final class Economy implements Cloneable {
     // TODO: if newSupplier does not really sell the required basket, should it be counted as a
     // customer?
     @Deterministic
-    public @NonNull Economy moveTrader(@NonNull BuyerParticipation participationToMove,
-                                       @NonNull Trader newSupplier) {
+    public @NonNull Economy moveTrader(@NonNull BuyerParticipation participationToMove, Trader newSupplier) {
         // Update old supplier to exclude participationToMove from its customers.
-        if (participationToMove.getSupplierIndex() != BuyerParticipation.NO_SUPPLIER) {
-            ((TraderWithSettings)getSupplier(participationToMove)).getCustomers().remove(participationToMove);
+        if (participationToMove.getSupplier() != null) {
+            ((TraderWithSettings)participationToMove.getSupplier()).getCustomers().remove(participationToMove);
         }
 
         // Update new supplier to include participationToMove to its customers.
         if (newSupplier != null) {
             ((TraderWithSettings)newSupplier).getCustomers().add(participationToMove);
-            participationToMove.setSupplierIndex(getIndex(newSupplier));
         }
-        else
-            participationToMove.setSupplierIndex(BuyerParticipation.NO_SUPPLIER);
+        participationToMove.setSupplier(newSupplier);
 
         return this;
     }
@@ -412,7 +355,7 @@ public final class Economy implements Cloneable {
         @NonNull Set<@NonNull @ReadOnly Trader> customers = new TreeSet<>();
 
         for (@NonNull BuyerParticipation participation : getCustomerParticipations(trader)) {
-            customers.add(getBuyer(participation));
+            customers.add(participation.getBuyer());
         }
 
         return Collections.unmodifiableSet(customers);
@@ -459,8 +402,8 @@ public final class Economy implements Cloneable {
         @NonNull List<@NonNull @ReadOnly Trader> suppliers = new ArrayList<>();
 
         for (BuyerParticipation participation : getMarketsAsBuyer(trader).values()) {
-            if (participation.getSupplierIndex() != BuyerParticipation.NO_SUPPLIER) {
-                suppliers.add(getSupplier(participation));
+            if (participation.getSupplier() != null) {
+                suppliers.add(participation.getSupplier());
             }
         }
 
@@ -566,7 +509,7 @@ public final class Economy implements Cloneable {
     @Deterministic
     public @NonNull Economy addCommodityBought(@NonNull BuyerParticipation participation,
                                               @NonNull @ReadOnly CommoditySpecification commoditySpecificationToAdd) {
-        @NonNull TraderWithSettings trader = (TraderWithSettings)getBuyer(participation);
+        @NonNull TraderWithSettings trader = (TraderWithSettings)participation.getBuyer();
 
         // remove the participation from the old market
         Basket newBasketBought = removeBasketBought(participation).add(commoditySpecificationToAdd);
@@ -607,7 +550,7 @@ public final class Economy implements Cloneable {
     @Deterministic
     public @NonNull Economy removeCommodityBought(@NonNull BuyerParticipation participation,
                                                   @NonNull @ReadOnly CommoditySpecification commoditySpecificationToRemove) {
-        @NonNull TraderWithSettings trader = (TraderWithSettings)getBuyer(participation);
+        @NonNull TraderWithSettings trader = (TraderWithSettings)participation.getBuyer();
 
         // remove the participation from the old market
         @NonNull Basket oldBasket = removeBasketBought(participation);

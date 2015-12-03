@@ -158,8 +158,7 @@ public final class Market {
     @NonNull BuyerParticipation addBuyer(@NonNull TraderWithSettings newBuyer) {
         checkArgument(newBuyer.getState().isActive());
 
-        BuyerParticipation newParticipation = new BuyerParticipation(newBuyer.getEconomyIndex(),
-            BuyerParticipation.NO_SUPPLIER, basket_.size());
+        BuyerParticipation newParticipation = new BuyerParticipation(newBuyer, null, basket_.size());
         buyers_.add(newParticipation);
         newBuyer.getMarketsAsBuyer().put(this, newParticipation);
 
@@ -180,7 +179,7 @@ public final class Market {
         checkArgument(buyers_.contains(participationToRemove));
         economy.moveTrader(participationToRemove, null);
         buyers_.remove(participationToRemove);
-        ((TraderWithSettings)economy.getBuyer(participationToRemove)).getMarketsAsBuyer().remove(this, participationToRemove);
+        ((TraderWithSettings)participationToRemove.getBuyer()).getMarketsAsBuyer().remove(this, participationToRemove);
 
         return this;
     }

@@ -116,7 +116,7 @@ public final class Main {
         economy.moveTrader(economy.getMarketsAsBuyer(trader1).get(economy.getMarket(basket2)).get(1), null);
 
         for (Map.Entry<Market, BuyerParticipation> entry : economy.getMarketsAsBuyer(trader1).entries()) {
-            if (economy.getSupplier(entry.getValue()) == null) {
+            if (entry.getValue().getSupplier() == null) {
                 System.out.print("Trader1 is not currently buying basket ");
                 System.out.print(entry.getKey().getBasket());
                 System.out.println(" from anyone!");

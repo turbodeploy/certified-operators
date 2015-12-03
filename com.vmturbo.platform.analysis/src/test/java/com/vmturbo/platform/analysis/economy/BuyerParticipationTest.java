@@ -16,10 +16,13 @@ import junitparams.naming.TestCaseName;
 @RunWith(JUnitParamsRunner.class)
 public class BuyerParticipationTest {
     // Fields
-    private static final Integer[] validBuyerIndices = {0,1,100,Integer.MAX_VALUE};
-    private static final Integer[] invalidBuyerIndices = {-1,-10,Integer.MIN_VALUE};
-    private static final Integer[] validSupplierIndices = {BuyerParticipation.NO_SUPPLIER,0,1,100,Integer.MAX_VALUE};
-    private static final Integer[] invalidSupplierIndices = {-2,-3,Integer.MIN_VALUE};
+    private static final Trader trader1 = new TraderWithSettings(0, 0, TraderState.ACTIVE, new Basket());
+    private static final Trader trader2 = new TraderWithSettings(0, 0, TraderState.INACTIVE, new Basket());
+    private static final Trader trader3 = new TraderWithSettings(0, 0, TraderState.ACTIVE, new Basket(new CommoditySpecification(0, 0, 0)));
+    private static final Trader trader4 = new TraderWithSettings(0, 0, TraderState.INACTIVE, new Basket(new CommoditySpecification(0, 0, 0)));
+
+    private static final Trader[] validBuyers = {trader1, trader2, trader3, trader4};
+    private static final Trader[] validSuppliers = {null,trader1, trader2, trader3, trader4};
     private static final Integer[] validSizes = {0,1,100};
     private static final Integer[] invalidSizes = {-1,Integer.MIN_VALUE};
     private static final Double[] validQuantities = {0.0,1.0,100.0};
@@ -33,16 +36,16 @@ public class BuyerParticipationTest {
     // Methods
     @Before
     public void setUp() {
-        fixture_ = new BuyerParticipation(0, BuyerParticipation.NO_SUPPLIER, 10);
+        fixture_ = new BuyerParticipation(trader1, null, 10);
     }
 
     @Test
     @Parameters
     @TestCaseName("Test #{index}: new BuyerParticipation({0},{1},{2})")
-    public final void testBuyerParticipation_NormalInput(int buyerIndex, int supplierIndex, int nCommodities) {
-        BuyerParticipation participation = new BuyerParticipation(buyerIndex, supplierIndex, nCommodities);
-        assertEquals(buyerIndex, participation.getBuyerIndex());
-        assertEquals(supplierIndex, participation.getSupplierIndex());
+    public final void testBuyerParticipation_NormalInput(Trader buyer, Trader supplier, int nCommodities) {
+        BuyerParticipation participation = new BuyerParticipation(buyer, supplier, nCommodities);
+        assertSame(buyer, participation.getBuyer());
+        assertSame(supplier, participation.getSupplier());
         assertNotSame(participation.getQuantities(), participation.getPeakQuantities());
         assertEquals(nCommodities, participation.getQuantities().length);
         assertEquals(nCommodities, participation.getPeakQuantities().length);
@@ -50,37 +53,15 @@ public class BuyerParticipationTest {
 
     @SuppressWarnings("unused") // it is used reflectively
     private static Object[] parametersForTestBuyerParticipation_NormalInput() {
-        Integer[][] output = new Integer[validBuyerIndices.length*validSupplierIndices.length*validSizes.length][];
+        Object[][] output = new Object[validBuyers.length*validSuppliers.length*validSizes.length][];
 
         int c = 0;
-        for(int buyerIndex : validBuyerIndices) {
-            for(int supplierIndex : validSupplierIndices) {
+        for(Trader buyer : validBuyers) {
+            for(Trader supplier : validSuppliers) {
                 for(int size : validSizes) {
-                    output[c++] = new Integer[]{buyerIndex,supplierIndex,size};
+                    output[c++] = new Object[]{buyer,supplier,size};
                 }
             }
-        }
-
-        return output;
-    }
-
-    @Test(expected = IllegalArgumentException.class)
-    @Parameters
-    @TestCaseName("Test #{index}: new BuyerParticipation({0},{1},{2})")
-    public final void testBuyerParticipation_InvalidIndices(int buyerIndex, int supplierIndex, int nCommodities) {
-        new BuyerParticipation(buyerIndex, supplierIndex, nCommodities);
-    }
-
-    @SuppressWarnings("unused") // it is used reflectively
-    private static Object[] parametersForTestBuyerParticipation_InvalidIndices() {
-        Integer[][] output = new Integer[invalidBuyerIndices.length + invalidSupplierIndices.length][];
-
-        int c = 0;
-        for(int buyerIndex : invalidBuyerIndices) {
-            output[c++] = new Integer[]{buyerIndex,0,10}; // should cover more combinations...
-        }
-        for(int supplierIndex : invalidSupplierIndices) {
-            output[c++] = new Integer[]{0,supplierIndex,10}; // should cover more combinations...
         }
 
         return output;
@@ -89,17 +70,21 @@ public class BuyerParticipationTest {
     @Test(expected = NegativeArraySizeException.class)
     @Parameters
     @TestCaseName("Test #{index}: new BuyerParticipation({0},{1},{2})")
-    public final void testBuyerParticipation_InvalidSizes(int buyerIndex, int supplierIndex, int nCommodities) {
-        new BuyerParticipation(buyerIndex, supplierIndex, nCommodities);
+    public final void testBuyerParticipation_InvalidSizes(Trader buyer, Trader supplier, int nCommodities) {
+        new BuyerParticipation(buyer, supplier, nCommodities);
     }
 
     @SuppressWarnings("unused") // it is used reflectively
     private static Object[] parametersForTestBuyerParticipation_InvalidSizes() {
-        Integer[][] output = new Integer[invalidSizes.length][];
+        Object[][] output = new Object[validBuyers.length*validSuppliers.length*invalidSizes.length][];
 
         int c = 0;
-        for(int size : invalidSizes) {
-            output[c++] = new Integer[]{0,0,size}; // should cover more combinations...
+        for(Trader buyer : validBuyers) {
+            for(Trader supplier : validSuppliers) {
+                for(int size : invalidSizes) {
+                    output[c++] = new Object[]{buyer,supplier,size};
+                }
+            }
         }
 
         return output;
@@ -107,28 +92,15 @@ public class BuyerParticipationTest {
 
     @Test
     @Parameters
-    @TestCaseName("Test #{index}: (set|get)BuyerIndex({0})")
-    public final void testSetGetBuyerIndex_NormalInput(int buyerIndex) {
-        assertSame(fixture_, fixture_.setBuyerIndex(buyerIndex));
-        assertEquals(buyerIndex, fixture_.getBuyerIndex());
+    @TestCaseName("Test #{index}: (set|get)Supplier({0})")
+    public final void testSetGetSupplier_NormalInput(Trader supplier) {
+        assertSame(fixture_, fixture_.setSupplier(supplier));
+        assertSame(supplier, fixture_.getSupplier());
     }
 
     @SuppressWarnings("unused") // it is used reflectively
-    private static Object[] parametersForTestSetGetBuyerIndex_NormalInput() {
-        return validBuyerIndices;
-    }
-
-    @Test
-    @Parameters
-    @TestCaseName("Test #{index}: (set|get)SupplierIndex({0})")
-    public final void testSetGetSupplierIndex_NormalInput(int supplierIndex) {
-        assertSame(fixture_, fixture_.setSupplierIndex(supplierIndex));
-        assertEquals(supplierIndex, fixture_.getSupplierIndex());
-    }
-
-    @SuppressWarnings("unused") // it is used reflectively
-    private static Object[] parametersForTestSetGetSupplierIndex_NormalInput() {
-        return validSupplierIndices;
+    private static Object[] parametersForTestSetGetSupplier_NormalInput() {
+        return validSuppliers;
     }
 
     @Test
@@ -173,30 +145,6 @@ public class BuyerParticipationTest {
         assertSame(fixture_, fixture_.setPeakQuantity(index, peakQuantity));
         assertEquals(peakQuantity, fixture_.getPeakQuantity(index), 0.0);
         assertEquals(peakQuantity, fixture_.getPeakQuantities()[index], 0.0);
-    }
-
-    @Test(expected = IllegalArgumentException.class)
-    @Parameters
-    @TestCaseName("Test #{index}: setBuyerIndex({0})")
-    public final void testSetBuyerIndex_InvalidInput(int buyerIndex) {
-        fixture_.setBuyerIndex(buyerIndex);
-    }
-
-    @SuppressWarnings("unused") // it is used reflectively
-    private static Object[] parametersForTestSetBuyerIndex_InvalidInput() {
-        return invalidBuyerIndices;
-    }
-
-    @Test(expected = IllegalArgumentException.class)
-    @Parameters
-    @TestCaseName("Test #{index}: setSupplierIndex({0})")
-    public final void testSetSupplierIndex_InvalidInput(int supplierIndex) {
-        fixture_.setSupplierIndex(supplierIndex);
-    }
-
-    @SuppressWarnings("unused") // it is used reflectively
-    private static Object[] parametersForTestSetSupplierIndex_InvalidInput() {
-        return invalidSupplierIndices;
     }
 
     @Test(expected = IndexOutOfBoundsException.class)
@@ -254,6 +202,5 @@ public class BuyerParticipationTest {
     public final void testSetPeakQuantity_InvalidQuantity(int index, double peakQuantity) {
         fixture_.setPeakQuantity(index, peakQuantity);
     }
-
 
 } // end BuyerParticipationTest class

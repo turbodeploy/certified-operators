@@ -21,8 +21,9 @@ public class CommodityBoughtTest {
     // Methods
 
     @Before
-    public void setUp() throws Exception {
-        fixture_ = new CommodityBought(new BuyerParticipation(0, BuyerParticipation.NO_SUPPLIER, 1), 0);
+    public void setUp() {
+        fixture_ = new CommodityBought(new BuyerParticipation(
+                      new TraderWithSettings(0, 0, TraderState.ACTIVE, new Basket()), null, 1), 0);
     }
 
     @Test
@@ -31,7 +32,8 @@ public class CommodityBoughtTest {
                  "100,0","100,50","100,99"})
     @TestCaseName("Test #{index}: new CommodityBought(new BuyerParticipation(?,?,{0}),{1}")
     public final void testCommodityBought_NormalInput(int size, int index) {
-        CommodityBought commodity = new CommodityBought(new BuyerParticipation(0, BuyerParticipation.NO_SUPPLIER, size), index);
+        CommodityBought commodity = new CommodityBought(new BuyerParticipation(
+            new TraderWithSettings(0, 0, TraderState.ACTIVE, new Basket()), null, size), index);
         // Sanity check: make sure initial values are valid and that no exceptions are thrown.
         commodity.setQuantity(commodity.getQuantity());
         commodity.setPeakQuantity(commodity.getPeakQuantity());
@@ -43,7 +45,8 @@ public class CommodityBoughtTest {
                  "100,-1","100,-100","100,100","100,1000"})
     @TestCaseName("Test #{index}: new CommodityBought(new BuyerParticipation(?,?,{0}),{1}")
     public final void testCommodityBought_InvalidInput(int size, int index) {
-        new CommodityBought(new BuyerParticipation(0, BuyerParticipation.NO_SUPPLIER, size), index);
+        new CommodityBought(new BuyerParticipation(
+               new TraderWithSettings(0, 0, TraderState.ACTIVE, new Basket()), null, size), index);
     }
 
     @Test

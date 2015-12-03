@@ -42,12 +42,12 @@ public class Placement {
             for (@NonNull BuyerParticipation buyerParticipation : market.getBuyers()) {
 
                 // if there are no sellers in the market, the buyer is misconfigured
-                final @NonNull Trader buyer = economy.getBuyer(buyerParticipation);
+                final @NonNull Trader buyer = buyerParticipation.getBuyer();
                 if (market.getSellers().isEmpty()) {
                     recommendations.add(new RecommendationItem(buyer, null, null, market));
                     continue;
                 }
-                final Trader currentSupplier = economy.getSupplier(buyerParticipation);
+                final Trader currentSupplier = buyerParticipation.getSupplier();
                 final int buyerIndex = economy.getIndex(buyer);
                 // check if the buyer cannot move, or cannot move out of current supplier
                 if (timeMiliSec < state.get(buyerIndex).getMoveOnlyAfterThisTime()
@@ -132,7 +132,7 @@ public class Placement {
         int newCommSoldIndex = 0;
         final double[] quantities = buyerParticipation.getQuantities();
         final double[] peakQuantities = buyerParticipation.getPeakQuantities();
-        final Trader currSupplier = economy.getSupplier(buyerParticipation);
+        final Trader currSupplier = buyerParticipation.getSupplier();
         final Basket currBasketSold = currSupplier.getBasketSold();
         final int currSupplierBasketSize = currSupplier.getBasketSold().size();
         for (int index = 0; index < basket.size(); index++) {

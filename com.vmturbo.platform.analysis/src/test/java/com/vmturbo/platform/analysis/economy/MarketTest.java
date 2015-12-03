@@ -284,7 +284,7 @@ public class MarketTest {
     @Test // That the returned list is indeed unmodifiable (part 2)
     public final void testGetBuyers_InvalidOperations() {
         @NonNull @ReadOnly List<@NonNull BuyerParticipation> buyers = fixture_.getBuyers();
-        @NonNull BuyerParticipation participation = new BuyerParticipation(0, 0, 0); // dummy object
+        @NonNull BuyerParticipation participation = new BuyerParticipation(T0, null, 0); // dummy object
 
         // TODO: may also need to test these on a non-empty buyers list because the API does not
         // guarantee that this exception will be thrown in some cases.

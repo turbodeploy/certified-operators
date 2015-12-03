@@ -6,6 +6,7 @@ import java.util.Arrays;
 
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
+import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Deterministic;
 import org.checkerframework.dataflow.qual.Pure;
 
@@ -24,12 +25,9 @@ import org.checkerframework.dataflow.qual.Pure;
  */
 public final class BuyerParticipation {
     // Fields
-    static final int NO_SUPPLIER = -1; // new traders may temporarily buy from no one.
-
-    private int buyerIndex_; // @see #setBuyerIndex(int). It may need to be updated when traders are
-        // removed from the economy.
-    private int supplierIndex_; // @see #setSupplierIndex(int). It may need to be updated when
-        // traders are removed from the economy.
+    private final @NonNull Trader buyer_; // @see #getBuyer().
+    private @Nullable Trader supplier_; // @see #setSupplier(Trader).
+                                       // New traders may temporarily buy from no one.
     private final double @NonNull [] quantities_; // @see #getQuantities()
     private final double @NonNull [] peakQuantities_; // @see #getPeakQuantities().
                                                      // Must be same size as quantities_.
@@ -39,15 +37,15 @@ public final class BuyerParticipation {
     /**
      * Constructs a new BuyerParticipation instance with the specified properties.
      *
-     * @param buyerIndex see {@link #setBuyerIndex(int)}
-     * @param supplierIndex see {@link #setSupplierIndex(int)}
+     * @param buyer see {@link #getBuyer()}
+     * @param supplier see {@link #setSupplier(Trader)}
      * @param numberOfCommodities The number of commodities bought that should be associated with
      *         the new BuyerParticipation instance. It should be equal to the basket size of the
      *         market this participation belongs to.
      */
-    BuyerParticipation(int buyerIndex, int supplierIndex, int numberOfCommodities) {
-        setBuyerIndex(buyerIndex);
-        setSupplierIndex(supplierIndex);
+    BuyerParticipation(@NonNull Trader buyer, @Nullable Trader supplier, int numberOfCommodities) {
+        buyer_ = buyer;
+        setSupplier(supplier);
         quantities_ = new double[numberOfCommodities];
         peakQuantities_ = new double[numberOfCommodities];
     }
@@ -55,43 +53,22 @@ public final class BuyerParticipation {
     // Methods
 
     /**
-     * Returns the economy index of the buyer {@code this} participation belongs to.
-     *
-     * <p>
-     *  Each trader in the economy is associated with a unique number that is equal to the index
-     *  the trader has in the traders list of the economy. This is the economy index of the trader.
-     * </p>
-     *
-     * <p>
-     *  Moreover if the trader participates in one or more markets, each of its participations will
-     *  be associated with a market index.
-     * </p>
-     *
-     * @see #setBuyerIndex(int)
+     * Returns the {@link Trader buyer} {@code this} buyer participation belongs to.
      */
     @Pure
-    int getBuyerIndex(@ReadOnly BuyerParticipation this) {
-        return buyerIndex_;
+    public @NonNull Trader getBuyer(@ReadOnly BuyerParticipation this) {
+        return buyer_;
     }
 
     /**
-     * Returns the economy index of the buyer {@code this} participation belongs to.
+     * Returns the (current) {@link Trader supplier} of {@code this} buyer participation, or
+     * {@code null} if the buyer participation is not currently buying from anyone.
      *
-     * <p>
-     *  Each trader in the economy is associated with a unique number that is equal to the index
-     *  the trader has in the traders list of the economy. This is the economy index of the trader.
-     * </p>
-     *
-     * <p>
-     *  Moreover if the trader participates in one or more markets, each of its participations will
-     *  be associated with a market index.
-     * </p>
-     *
-     * @see #setBuyerIndex(int)
+     * @see #setSupplier(Trader)
      */
     @Pure
-    int getSupplierIndex(@ReadOnly BuyerParticipation this) {
-        return supplierIndex_;
+    public @Nullable Trader getSupplier(@ReadOnly BuyerParticipation this) {
+        return supplier_;
     }
 
     /**
@@ -145,40 +122,20 @@ public final class BuyerParticipation {
     }
 
     /**
-     * Sets the value of the <b>buyer index</b> field.
+     * Sets the value of the <b>supplier</b> field.
      *
      * <p>
      *  Has no observable side-effects except setting the above field.
      * </p>
      *
-     * @param newBuyerIndex the new value for the field. Must be non-negative.
+     * @param newSupplier the new value for the field.
      * @return {@code this}
      *
-     * @see #getBuyerIndex()
+     * @see #getSupplier()
      */
     @Deterministic
-    @NonNull BuyerParticipation setBuyerIndex(int newBuyerIndex) {
-        checkArgument(newBuyerIndex >= 0);
-        buyerIndex_ = newBuyerIndex;
-        return this;
-    }
-
-    /**
-     * Sets the value of the <b>supplier index</b> field.
-     *
-     * <p>
-     *  Has no observable side-effects except setting the above field.
-     * </p>
-     *
-     * @param newSupplierIndex the new value for the field. Must be non-negative or NO_SUPPLIER.
-     * @return {@code this}
-     *
-     * @see #getSupplierIndex()
-     */
-    @Deterministic
-    @NonNull BuyerParticipation setSupplierIndex(int newSupplierIndex) {
-        checkArgument(newSupplierIndex >= 0  || newSupplierIndex == NO_SUPPLIER);
-        supplierIndex_ = newSupplierIndex;
+    public @NonNull BuyerParticipation setSupplier(@Nullable Trader newSupplier) {
+        supplier_ = newSupplier;
         return this;
     }
 
