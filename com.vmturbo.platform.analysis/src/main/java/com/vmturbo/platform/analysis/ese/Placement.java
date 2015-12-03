@@ -59,7 +59,7 @@ public class Placement {
                 }
 
                 // get cheapest quote
-                final EdeCommon.QuoteMinimizer minimizer = market.getSellers().stream().collect(
+                final EdeCommon.QuoteMinimizer minimizer = market.getSellers().parallelStream().collect(
                     ()->new QuoteMinimizer(economy,state,timeMiliSec,buyerParticipation,
                                            market.getBasket(), currentSupplier),
                     QuoteMinimizer::accept, QuoteMinimizer::combine);
