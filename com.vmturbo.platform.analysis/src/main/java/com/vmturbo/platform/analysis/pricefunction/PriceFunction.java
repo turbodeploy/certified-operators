@@ -27,34 +27,4 @@ public interface PriceFunction {
         }
         return normalizedUtilization < 1.0 ? apply(normalizedUtilization) : MAX_UNIT_PRICE;
     }
-
-    /**
-     * The unit price of the normalized utilization, which is utilization divided by
-     * the utilization upper bound
-     * @param utilization the actual utilization of the {@link CommoditySold}
-     * @param utilUpperBound the upper bound admissible for the {@link CommoditySold}
-     * @return unit price of the normalized utilization
-     * @see #unitPrice(double)
-     */
-    @Pure
-    default double unitPrice(double utilization, double utilUpperBound) {
-        return unitPrice(utilization / utilUpperBound);
-    }
-
-    /**
-     * The unit price of normalized excess utilization, which is calculated as
-     * (peak utilization - utilization) / (1 - utilization) / utilization upper bound.
-     * @param utilization
-     * @param peakUtilization
-     * @param utilUpperBound
-     * @return unit price of the normalized excess utilization
-     * @see #unitPrice(double)
-     */
-    @Pure
-    default double unitPeakPrice(double utilization, double peakUtilization, double utilUpperBound){
-        double normalizedExcessUtil = peakUtilization > utilization
-            ? (peakUtilization - utilization) / (1.0f - utilization) / utilUpperBound
-            : 0;
-        return unitPrice(normalizedExcessUtil);
-    }
 }

@@ -61,7 +61,7 @@ public class CacheTest {
      * Test that the values returned by the constant price function are as expected
      */
     public void testValuesConst(double u, double ut, double p) {
-        assertEquals(CONST, pfConst.unitPrice(u, ut), delta);
+        assertEquals(CONST, pfConst.unitPrice(u/ut), delta);
     }
 
     @SuppressWarnings("unused")
@@ -85,7 +85,7 @@ public class CacheTest {
      * Test that the values returned by the step price function are as expected
      */
     public void testValuesStep(double u, double ut, double p) {
-        assertEquals(p, pfStep.unitPrice(u, ut), delta);
+        assertEquals(p, pfStep.unitPrice(u/ut), delta);
     }
 
     @SuppressWarnings("unused")
@@ -108,7 +108,7 @@ public class CacheTest {
      * Test that the values returned by the standard weighted price function are as expected
      */
     public void testValuesStandardWeighted(double u, double factor) {
-        assertEquals(factor * WEIGHT, pfStd.unitPrice(u, ONE), delta);
+        assertEquals(factor * WEIGHT, pfStd.unitPrice(u), delta);
     }
 
     @SuppressWarnings("unused")
@@ -130,7 +130,7 @@ public class CacheTest {
     @Parameters
     @TestCaseName("Test #{index}: Custom price function with value {0}")
     public void testCustom(double d) {
-        assertEquals(pfCustom.unitPrice(d, ONE), uod.apply(d), delta);
+        assertEquals(pfCustom.unitPrice(d), uod.apply(d), delta);
     }
 
     @SuppressWarnings("unused") // it is used reflectively
@@ -142,7 +142,7 @@ public class CacheTest {
     @Parameters
     @TestCaseName("Test #{index}: {1} function")
     public void testMaxPrice(PriceFunction pf, String name) {
-        assertEquals(PriceFunction.MAX_UNIT_PRICE, pf.unitPrice(ONE, ONE), delta);
+        assertEquals(PriceFunction.MAX_UNIT_PRICE, pf.unitPrice(ONE), delta);
     }
 
     @SuppressWarnings("unused")
@@ -159,7 +159,7 @@ public class CacheTest {
     public void testBadValue() {
         PriceFunction pfCustom = Cache.createPriceFunction(uod);
         @SuppressWarnings("unused")
-        double unitPrice = pfCustom.unitPrice(-0.5, ONE);
+        double unitPrice = pfCustom.unitPrice(-0.5);
     }
 
     // TODO(Shai): add unit test for unit peak price function

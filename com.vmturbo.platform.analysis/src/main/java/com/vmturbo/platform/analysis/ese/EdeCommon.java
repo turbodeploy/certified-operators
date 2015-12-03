@@ -48,25 +48,24 @@ public final class EdeCommon {
             CommoditySold commSold = seller.getCommoditiesSold().get(soldIndex);
 
             // add quantities bought by buyer, to quantities already used at seller
-            final double capacity = commSold.getCapacity();
-            final double utilization = isCurrentSupplier ? commSold.getUtilization()
-                            : (quantities[boughtIndex] + commSold.getQuantity()) / capacity;
-            final double peakUtilization = isCurrentSupplier ? commSold.getPeakUtilization()
-                            : (peakQuantities[boughtIndex] + commSold.getPeakQuantity()) / capacity;
+            final double effectiveCapacity = commSold.getEffectiveCapacity();
+            final double newQuantity = isCurrentSupplier ? commSold.getQuantity()
+                                     : quantities[boughtIndex] + commSold.getQuantity();
+            final double newPeakQuantity = isCurrentSupplier ? commSold.getPeakQuantity()
+                                         : peakQuantities[boughtIndex] + commSold.getPeakQuantity();
             final double utilUpperBound = commSold.getSettings().getUtilizationUpperBound();
+            final double excessQuantity = peakQuantities[boughtIndex] - quantities[boughtIndex];
 
             // calculate the price per unit for quantity and peak quantity
             final PriceFunction pf = commSold.getSettings().getPriceFunction();
-            final double priceUsed = pf.unitPrice(utilization, utilUpperBound);
-            final double pricePeak = pf.unitPeakPrice(utilization, peakUtilization, utilUpperBound);
+            final double priceUsed = pf.unitPrice(newQuantity/effectiveCapacity);
+            final double pricePeak = pf.unitPrice(Math.max(0, newPeakQuantity-newQuantity)
+                                   / (effectiveCapacity - utilUpperBound*newQuantity));
 
             // calculate quote
-            // TODO: consider removing 100 from everywhere in the code. It is redundant
             // TODO: decide what to do if peakQuantity is less than quantity
-            quote += 100.0 * (quantities[boughtIndex] * priceUsed
-                              + Math.max(0.0, peakQuantities[boughtIndex] - quantities[boughtIndex]) * pricePeak)
-                            / capacity;
-
+            quote += (quantities[boughtIndex]*priceUsed + (excessQuantity > 0 ? excessQuantity*pricePeak : 0))
+                   / commSold.getCapacity();
         }
         return quote;
     }
