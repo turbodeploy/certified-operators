@@ -36,8 +36,7 @@ public final class EdeCommon {
         final double[] peakQuantities = buyerParticipation.getPeakQuantities();
 
         // go over all commodities in basket
-        for (int boughtIndex = 0, soldIndex = 0; boughtIndex < basket.size();
-                        boughtIndex++, soldIndex++) {
+        for (int boughtIndex = 0, soldIndex = 0; boughtIndex < basket.size(); boughtIndex++, soldIndex++) {
             CommoditySpecification basketCommSpec = basket.get(boughtIndex);
 
             // Find corresponding commodity sold. Commodities sold are ordered the same way as the
@@ -55,6 +54,10 @@ public final class EdeCommon {
                                          : peakQuantities[boughtIndex] + commSold.getPeakQuantity();
             final double utilUpperBound = commSold.getSettings().getUtilizationUpperBound();
             final double excessQuantity = peakQuantities[boughtIndex] - quantities[boughtIndex];
+
+            if (newQuantity > effectiveCapacity || newPeakQuantity > effectiveCapacity) {
+                return Double.POSITIVE_INFINITY;
+            }
 
             // calculate the price per unit for quantity and peak quantity
             final PriceFunction pf = commSold.getSettings().getPriceFunction();

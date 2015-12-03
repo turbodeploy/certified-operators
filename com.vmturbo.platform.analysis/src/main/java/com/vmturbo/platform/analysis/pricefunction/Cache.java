@@ -9,6 +9,8 @@ import com.google.common.collect.MapMaker;
  * A factory for price functions
  */
 public class Cache {
+    // Constants
+    public static final double MAX_UNIT_PRICE = 1e22;
 
     // Fields
 
@@ -37,7 +39,7 @@ public class Cache {
         // UnaryOperator.
         PriceFunction pf = pfMap.get(key);
         if (pf == null) {
-            pf = u -> weight / ((1.0f - u) * (1.0f - u));
+            pf = u -> Math.min(weight / ((1.0f - u) * (1.0f - u)), MAX_UNIT_PRICE);
             pfMap.put(key, pf);
         }
         return pf;

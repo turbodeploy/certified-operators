@@ -130,7 +130,7 @@ public class CacheTest {
     @Parameters
     @TestCaseName("Test #{index}: Custom price function with value {0}")
     public void testCustom(double d) {
-        assertEquals(pfCustom.unitPrice(d), uod.apply(d), delta);
+        assertEquals(pfCustom.unitPrice(d), uod.unitPrice(d), delta);
     }
 
     @SuppressWarnings("unused") // it is used reflectively
@@ -142,7 +142,7 @@ public class CacheTest {
     @Parameters
     @TestCaseName("Test #{index}: {1} function")
     public void testMaxPrice(PriceFunction pf, String name) {
-        assertEquals(PriceFunction.MAX_UNIT_PRICE, pf.unitPrice(ONE), delta);
+        assertTrue(pf.unitPrice(ONE) <= Cache.MAX_UNIT_PRICE);
     }
 
     @SuppressWarnings("unused")
@@ -154,13 +154,4 @@ public class CacheTest {
             {pfCustom, "Custom"}
         };
     }
-
-    @Test(expected = IllegalArgumentException.class)
-    public void testBadValue() {
-        PriceFunction pfCustom = Cache.createPriceFunction(uod);
-        @SuppressWarnings("unused")
-        double unitPrice = pfCustom.unitPrice(-0.5);
-    }
-
-    // TODO(Shai): add unit test for unit peak price function
 }
