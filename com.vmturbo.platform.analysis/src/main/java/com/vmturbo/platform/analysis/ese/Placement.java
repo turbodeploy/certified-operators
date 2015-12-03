@@ -3,8 +3,6 @@ package com.vmturbo.platform.analysis.ese;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ForkJoinPool;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -35,9 +33,8 @@ public class Placement {
      *                      (typically since Jan. 1, 1970)
      */
     public static @NonNull List<@NonNull RecommendationItem> placementDecisions(@NonNull Economy economy,
-            @NonNull List<@NonNull StateItem> state, long timeMiliSec)
-            throws InterruptedException, ExecutionException {
-        ForkJoinPool threadPool = new ForkJoinPool(8);
+                    @NonNull List<@NonNull StateItem> state, long timeMiliSec) {
+
         @NonNull List<RecommendationItem> recommendations = new ArrayList<>();
 
         // iterate over all markets, i.e., all sets of providers selling a specific basket
@@ -63,11 +60,12 @@ public class Placement {
                 }
 
                 // get cheapest quote
-                final EdeCommon.QuoteMinimizer minimizer = threadPool.submit(
-                    ()->sellers.parallelStream().collect(
+                final EdeCommon.QuoteMinimizer minimizer =
+                    // TODO (Vaptistis): use economy.getSettings().parallelismThreshold().
+                    (sellers.size() < 1000 ? sellers.stream() : sellers.parallelStream()).collect(
                         ()->new QuoteMinimizer(economy,state,timeMiliSec,buyerParticipation,
                                                market.getBasket(), currentSupplier),
-                        QuoteMinimizer::accept, QuoteMinimizer::combine)).get();
+                        QuoteMinimizer::accept, QuoteMinimizer::combine);
 
                 final double cheapestQuote = minimizer.bestQuote();
                 final Trader cheapestSeller = minimizer.bestSeller();
@@ -91,7 +89,6 @@ public class Placement {
                 }
             }
         }
-        threadPool.shutdown();
         return recommendations;
     }
 

@@ -3,7 +3,6 @@ package com.vmturbo.platform.analysis.ese;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
 
@@ -40,8 +39,7 @@ public final class Ede {
      * @param economy - the snapshot of the economy which we analyze and take decisions
      * @return A list of recommendations suggested by the economic decisions engine
      */
-    public @NonNull List<@NonNull RecommendationItem> createRecommendations(@NonNull Economy economy)
-                                                    throws InterruptedException, ExecutionException {
+    public @NonNull List<@NonNull RecommendationItem> createRecommendations(@NonNull Economy economy) {
 
         // update the state: add/remove state items for traders added/removed since last invocation
         updateState(economy);
