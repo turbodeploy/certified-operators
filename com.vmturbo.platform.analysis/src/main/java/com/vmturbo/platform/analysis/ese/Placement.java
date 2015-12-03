@@ -44,8 +44,9 @@ public class Placement {
             for (@NonNull BuyerParticipation buyerParticipation : market.getBuyers()) {
 
                 // if there are no sellers in the market, the buyer is misconfigured
+                final @NonNull List<@NonNull Trader> sellers = market.getSellers();
                 final @NonNull Trader buyer = buyerParticipation.getBuyer();
-                if (market.getSellers().isEmpty()) {
+                if (sellers.isEmpty()) {
                     recommendations.add(new RecommendationItem(buyer, null, null, market));
                     continue;
                 }
@@ -59,10 +60,12 @@ public class Placement {
                 }
 
                 // get cheapest quote
-                final EdeCommon.QuoteMinimizer minimizer = market.getSellers().parallelStream().collect(
-                    ()->new QuoteMinimizer(economy,state,timeMiliSec,buyerParticipation,
-                                           market.getBasket(), currentSupplier),
-                    QuoteMinimizer::accept, QuoteMinimizer::combine);
+                final EdeCommon.QuoteMinimizer minimizer =
+                    // TODO (Vaptistis): use economy.getSettings().parallelismThreshold().
+                    (sellers.size() < 1000 ? sellers.stream() : sellers.parallelStream()).collect(
+                        ()->new QuoteMinimizer(economy,state,timeMiliSec,buyerParticipation,
+                                               market.getBasket(), currentSupplier),
+                        QuoteMinimizer::accept, QuoteMinimizer::combine);
 
                 final double cheapestQuote = minimizer.bestQuote();
                 final Trader cheapestSeller = minimizer.bestSeller();
