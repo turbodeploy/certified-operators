@@ -1,5 +1,8 @@
 package com.vmturbo.platform.analysis.ese;
 
+import java.util.List;
+
+import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
 
@@ -7,6 +10,7 @@ import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.BuyerParticipation;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
+import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 
@@ -73,4 +77,75 @@ public final class EdeCommon {
         return quote;
     }
 
-}
+    static class QuoteMinimizer {
+        private final @NonNull Economy economy_;
+        private final @NonNull List<StateItem> state_;
+        private final long time_;
+        private final @NonNull BuyerParticipation participation_;
+        private final @NonNull Basket basket_;
+        private final Trader supplier_;
+
+        private Trader bestSeller_;
+        private double bestQuote_ = Double.POSITIVE_INFINITY;
+        private double currentQuote_ = Double.POSITIVE_INFINITY;
+
+        public QuoteMinimizer(@NonNull Economy economy, @NonNull List<StateItem> state, long time,
+                @NonNull BuyerParticipation participation, @NonNull Basket basket, Trader supplier) {
+            economy_ = economy;
+            state_ = state;
+            time_ = time;
+            participation_ = participation;
+            basket_ = basket;
+            supplier_ = supplier;
+
+            bestSeller_ = supplier;
+        }
+
+        @Pure
+        public double bestQuote(@ReadOnly QuoteMinimizer this) {
+            return bestQuote_;
+        }
+
+        @Pure
+        public Trader bestSeller(@ReadOnly QuoteMinimizer this) {
+            return bestSeller_;
+        }
+
+        @Pure
+        public double currentQuote(@ReadOnly QuoteMinimizer this) {
+            return currentQuote_;
+        }
+
+        public void accept(@NonNull Trader seller) {
+            // if we cannot move to this seller and it is not the current supplier, skip it
+            if (seller != supplier_
+                && time_ < state_.get(economy_.getIndex(seller)).getMoveToOnlyAfterThisTime()) {
+                return;
+            }
+
+            final double quote = EdeCommon.quote(participation_, basket_, supplier_, seller);
+
+            if (seller == supplier_) {
+                currentQuote_ = quote;
+            }
+
+            // keep the minimum between quotes
+            if (quote < bestQuote_) {
+                bestQuote_ = quote;
+                bestSeller_ = seller;
+            }
+        }
+
+        public void combine(@NonNull @ReadOnly QuoteMinimizer other) {
+            if (other.bestQuote_ < bestQuote_) {
+                bestQuote_ = other.bestQuote_;
+                bestSeller_ = other.bestSeller_;
+            }
+
+            if (other.currentQuote_ != Double.POSITIVE_INFINITY) {
+                currentQuote_ = other.currentQuote_;
+            }
+        }
+    } // end QuoteMinimizer class
+
+} // end EdeCommon class

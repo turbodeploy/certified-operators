@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.BuyerParticipation;
@@ -13,6 +14,7 @@ import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.Trader;
+import com.vmturbo.platform.analysis.ese.EdeCommon.QuoteMinimizer;
 import com.vmturbo.platform.analysis.recommendations.RecommendationItem;
 
 public class Placement {
@@ -47,7 +49,7 @@ public class Placement {
                     recommendations.add(new RecommendationItem(buyer, null, null, market));
                     continue;
                 }
-                final Trader currentSupplier = buyerParticipation.getSupplier();
+                final @Nullable Trader currentSupplier = buyerParticipation.getSupplier();
                 final int buyerIndex = economy.getIndex(buyer);
                 // check if the buyer cannot move, or cannot move out of current supplier
                 if (timeMiliSec < state.get(buyerIndex).getMoveOnlyAfterThisTime()
@@ -57,27 +59,14 @@ public class Placement {
                 }
 
                 // get cheapest quote
-                double cheapestQuote = Double.MAX_VALUE;
-                Trader cheapestSeller = currentSupplier;
-                double currentQuote = Double.MAX_VALUE;
-                for (Trader seller : market.getSellers()) {
-                    // if it is not the current supplier and we cannot move to this seller, skip it
-                    if (seller != currentSupplier
-                        && timeMiliSec
-                           < state.get(economy.getIndex(seller)).getMoveToOnlyAfterThisTime()) {
-                        continue;
-                    }
-                    final double quote = EdeCommon.quote(buyerParticipation, market.getBasket(),
-                                    currentSupplier, seller);
-                    if (seller == currentSupplier) {
-                        currentQuote = quote;
-                    }
-                    // compare quote with minQuote
-                    if (quote < cheapestQuote) {
-                        cheapestQuote = quote;
-                        cheapestSeller = seller;
-                    }
-                }
+                final EdeCommon.QuoteMinimizer minimizer = market.getSellers().stream().collect(
+                    ()->new QuoteMinimizer(economy,state,timeMiliSec,buyerParticipation,
+                                           market.getBasket(), currentSupplier),
+                    QuoteMinimizer::accept, QuoteMinimizer::combine);
+
+                final double cheapestQuote = minimizer.bestQuote();
+                final Trader cheapestSeller = minimizer.bestSeller();
+                final double currentQuote = minimizer.currentQuote();
 
                 // move, and update economy and state
                 // TODO: decide how much cheaper the new supplier should be to decide to move
