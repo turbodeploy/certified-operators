@@ -2,6 +2,7 @@ package com.vmturbo.platform.analysis;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import org.apache.log4j.Logger;
 
 import com.vmturbo.platform.analysis.economy.Basket;
@@ -39,12 +40,19 @@ public final class Main {
         TopologyMapping mapping = M2Utils.loadFile(args[0]);
         Economy economy = mapping.getTopology().getEconomy();
         Ede ede = new Ede();
-        List<RecommendationItem> recommendations = ede.createRecommendations(economy);
-        logger.info(recommendations.size() + " recommendations");
-        for (RecommendationItem recommendation : recommendations) {
-            logger.info("What: " + description(recommendation, mapping));
-            logger.info("Why:  " + reason(recommendation));
-            logger.info(null);
+        List<RecommendationItem> recommendations;
+        try {
+            recommendations = ede.createRecommendations(economy);
+            logger.info(recommendations.size() + " recommendations");
+            for (RecommendationItem recommendation : recommendations) {
+                logger.info("What: " + description(recommendation, mapping));
+                logger.info("Why:  " + reason(recommendation));
+                logger.info(null);
+            }
+        }
+        catch (InterruptedException | ExecutionException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
         }
     }
 
