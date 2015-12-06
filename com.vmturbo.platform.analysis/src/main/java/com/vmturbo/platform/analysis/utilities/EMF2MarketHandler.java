@@ -3,6 +3,7 @@ package com.vmturbo.platform.analysis.utilities;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -18,6 +19,7 @@ import org.apache.log4j.Level;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.xml.sax.SAXException;
 import org.xml.sax.SAXParseException;
+import org.xml.sax.helpers.AttributesImpl;
 import org.xml.sax.helpers.DefaultHandler;
 
 import com.google.common.base.Strings;
@@ -225,7 +227,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
 
     @Override
     public void endDocument() throws SAXException {
-        logger.info("Done reading file");
+        logger.info("Done reading file in " + (System.currentTimeMillis() - startTime)/1000 + " sec");
 
         // Just for counting purposes
         Set<Basket> allBasketsBought = new HashSet<>();
@@ -350,6 +352,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
             double capacity = commSoldAttr.value("capacity", "startCapacity");
             double used = commSoldAttr.value("used");
             double peakUtil = commSoldAttr.value("peakUtilization");
+            double utilThreshold = commSoldAttr.value("utilThreshold", 1.0);
             CommoditySpecification specification = commSpec(commoditySpecs.get(commSoldAttr.commoditySpecString()));
             Trader trader = uuid2trader.get(entry.getValue().uuid());
             CommoditySold commSold = trader.getCommoditySold(specification);
@@ -364,6 +367,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
             commSold.setCapacity(capacity);
             commSold.setQuantity(used);
             commSold.setPeakQuantity(peakUtil * capacity);
+            commSold.getSettings().setUtilizationUpperBound(utilThreshold);
             PriceFunction pf = priceFunction(commSoldAttr);
             commSold.getSettings().setPriceFunction(pf);
         }
@@ -505,7 +509,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
         case "Abstraction:StorageAmount":
         case "Abstraction:StorageProvisioned":
         case "Abstraction:VStorage":
-            return Cache.createStepPriceFunction(commodity.value("utilThreshold"), 0.0, 20000.0);
+            return Cache.createStepPriceFunction(commodity.value("utilThreshold", 1.0), 0.0, 20000.0);
         case "Abstraction:Power":
         case "Abstraction:Cooling":
         case "Abstraction:Space":
@@ -553,16 +557,39 @@ final public class EMF2MarketHandler extends DefaultHandler {
     /**
      * A representation of an XML element from the file as a key-value map.
      */
-    static class Attributes extends HashMap<@NonNull String, @NonNull String> {
+    static class Attributes {
         private static final long serialVersionUID = 1L;
 
+        org.xml.sax.Attributes saxAttributes;
+        String xsiType;
+        List<String> keyset = new ArrayList<String>();
+
         Attributes(@NonNull String qName, org.xml.sax.Attributes attributes) {
-            if (attributes.getValue(XSITYPE) == null) {
+            saxAttributes = new AttributesImpl(attributes);
+            xsiType = attributes.getValue(XSITYPE);
+            if (xsiType == null) {
                 // SE that is a child of the document root
-                put(XSITYPE, qName);
+                xsiType = qName;
             }
-            for (int i = 0; i < attributes.getLength(); i++) {
-                put(attributes.getLocalName(i), attributes.getValue(i));
+        }
+
+        public Collection<String> keySet() {
+            if (keyset.isEmpty()) {
+                for (int i = 0; i < saxAttributes.getLength(); i++) {
+                    keyset.add(saxAttributes.getLocalName(i));
+                }
+                if (!keyset.contains(XSITYPE)) {
+                    keyset.add(XSITYPE);
+                }
+            }
+            return keyset;
+        }
+
+        String get(String key) {
+            if (XSITYPE.equals(key)) {
+                return xsiType;
+            } else {
+                return saxAttributes.getValue(key);
             }
         }
 
@@ -584,6 +611,14 @@ final public class EMF2MarketHandler extends DefaultHandler {
         }
 
         /**
+         * Return the value (as double) of the property if it is set, or the default value otherwise.
+         */
+        private double value(String prop, double defaultValue) {
+            String sValue = saxAttributes.getValue(prop);
+            return sValue == null ? defaultValue : Double.valueOf(sValue);
+        }
+
+        /**
          * The string mapping of the commodity spec for the commodity represented by the attributes
          * @return xsitype when there is no key, and xsitype[key] when a key exists
          */
@@ -597,7 +632,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
          * @return the xsi::type of the element
          */
         private String xsitype() {
-            return get(XSITYPE);
+            return xsiType;
         }
     }
 
