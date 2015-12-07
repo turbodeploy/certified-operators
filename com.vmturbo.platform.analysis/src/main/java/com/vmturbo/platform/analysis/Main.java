@@ -28,12 +28,15 @@ import com.vmturbo.platform.analysis.utilities.M2Utils.TopologyMapping;
  */
 public final class Main {
 
-    static Logger logger = Logger.getLogger(Main.class);
+    private static final Logger logger = Logger.getLogger(Main.class);
 
     public static void main(String[] args) {
-        if (args.length != 1) {
+        if (args.length < 1) {
             logger.error("Correct usage: java Main \"topology-to-analyse\"");
             System.exit(0);
+        }
+        if (args.length > 1) {
+            logger.warn("All arguments after the first were ignored!");
         }
 
         TopologyMapping mapping = M2Utils.loadFile(args[0]);
@@ -44,7 +47,7 @@ public final class Main {
         for (RecommendationItem recommendation : recommendations) {
             logger.info("What: " + description(recommendation, mapping));
             logger.info("Why:  " + reason(recommendation));
-            logger.info(null);
+            logger.info("");
         }
     }
 
