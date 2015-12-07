@@ -3,16 +3,13 @@ package com.vmturbo.platform.analysis.economy;
 import static org.junit.Assert.*;
 import static com.vmturbo.platform.analysis.utility.ListTests.*;
 
-import java.util.ArrayList;
 import java.util.HashSet;
-import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.ListMultimap;
+import com.vmturbo.platform.analysis.utility.MultimapTests;
 
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
@@ -142,30 +139,8 @@ public final class TraderWithSettingsTest {
 
     @Test // That the returned multimap indeed implements all operations.
     public final void testGetMarketsAsBuyer() {
-        @NonNull ListMultimap<@NonNull @ReadOnly Market, @NonNull BuyerParticipation> markets = fixture_.getMarketsAsBuyer();
-        @NonNull Market market = new Market(new Basket()); // dummy object
-        @NonNull BuyerParticipation participation = new BuyerParticipation(fixture_,null,0); // dummy object
-
-        assertTrue(markets.asMap().isEmpty());
-        assertTrue(markets.equals(markets));
-        assertTrue(markets.get(market).isEmpty());
-        assertTrue(markets.removeAll(market).isEmpty());
-        assertTrue(markets.replaceValues(market,markets.values()).isEmpty());
-        assertFalse(markets.containsEntry(market, null));
-        assertFalse(markets.containsKey(market));
-        assertFalse(markets.containsValue(null));
-        assertTrue(markets.entries().isEmpty());
-        assertTrue(markets.isEmpty());
-        assertTrue(markets.keys().isEmpty());
-        assertTrue(markets.keySet().isEmpty());
-        assertTrue(markets.put(market, participation));
-        assertTrue(markets.putAll(market, new ArrayList<>(markets.values())));
-        assertTrue(markets.putAll(ArrayListMultimap.create(markets)));
-        assertTrue(markets.remove(market, participation));
-        assertEquals(3, markets.size());
-        assertEquals(3, markets.values().size());
-
-        markets.clear();
+        MultimapTests.verifyModifiable(fixture_.getMarketsAsBuyer(), new Market(new Basket()),
+                                                            new BuyerParticipation(fixture_,null,0));
     }
 
     @Test
