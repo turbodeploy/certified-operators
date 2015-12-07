@@ -16,6 +16,7 @@ import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Deterministic;
 import org.checkerframework.dataflow.qual.Pure;
+import org.checkerframework.dataflow.qual.SideEffectFree;
 
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ListMultimap;
@@ -181,7 +182,7 @@ public final class Economy implements Cloneable {
      * @return The commodity bought by the given buyer participation and specified by the given
      *         commodity specification.
      */
-    @Pure
+    @SideEffectFree
     public @NonNull @PolyRead CommodityBought getCommodityBought(@PolyRead Economy this,
                                          @NonNull @PolyRead BuyerParticipation participation,
                                          @NonNull @ReadOnly CommoditySpecification specification) {
