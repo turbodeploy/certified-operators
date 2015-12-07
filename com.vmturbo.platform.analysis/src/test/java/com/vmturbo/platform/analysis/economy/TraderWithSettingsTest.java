@@ -1,12 +1,10 @@
 package com.vmturbo.platform.analysis.economy;
 
 import static org.junit.Assert.*;
+import static com.vmturbo.platform.analysis.utility.ListTests.*;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashSet;
-import java.util.List;
-
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Before;
@@ -142,7 +140,7 @@ public final class TraderWithSettingsTest {
         return invalidIndices;
     }
 
-    @Test // That the returned list indeed implements all operations.
+    @Test // That the returned multimap indeed implements all operations.
     public final void testGetMarketsAsBuyer() {
         @NonNull ListMultimap<@NonNull @ReadOnly Market, @NonNull BuyerParticipation> markets = fixture_.getMarketsAsBuyer();
         @NonNull Market market = new Market(new Basket()); // dummy object
@@ -170,144 +168,26 @@ public final class TraderWithSettingsTest {
         markets.clear();
     }
 
-    @Test // That the returned list indeed implements all operations.
+    @Test
     public final void testGetMarketsAsSeller() {
-        @NonNull List<@NonNull Market> markets = fixture_.getMarketsAsSeller();
-        @NonNull Market market = new Market(new Basket());
-
-        assertFalse(markets.contains(null));
-        assertFalse(markets.containsAll(Arrays.asList(null,null)));
-        assertTrue(markets.equals(markets));
-        assertEquals(-1, markets.indexOf(null));
-        assertTrue(markets.isEmpty());
-        assertNotNull(markets.iterator());
-        assertEquals(-1, markets.lastIndexOf(null));
-        assertNotNull(markets.listIterator());
-        assertEquals(0, markets.size());
-        assertNotNull(markets.toArray());
-        assertTrue(markets.add(market));
-        markets.add(0,markets.get(0));
-        assertTrue(markets.addAll(markets));
-        assertTrue(markets.addAll(0,markets));
-        markets.remove(0);
-        assertSame(market, markets.set(0, market));
-        assertFalse(markets.remove(null));
-        assertTrue(markets.removeAll(markets));
-        assertFalse(markets.retainAll(markets));
-        markets.clear();
+        verifyModifiable(fixture_.getMarketsAsSeller(), new Market(new Basket()));
     }
 
-    @Test // That the returned list indeed implements all operations.
+    @Test
     public final void testGetCustomers() {
-        @NonNull List<@NonNull @ReadOnly BuyerParticipation> customers = fixture_.getCustomers();
-        @NonNull BuyerParticipation customer = new BuyerParticipation(fixture_,null,0); // dummy object
-
-        assertFalse(customers.contains(null));
-        assertFalse(customers.containsAll(Arrays.asList(null,null)));
-        assertTrue(customers.equals(customers));
-        assertEquals(-1, customers.indexOf(null));
-        assertTrue(customers.isEmpty());
-        assertNotNull(customers.iterator());
-        assertEquals(-1, customers.lastIndexOf(null));
-        assertNotNull(customers.listIterator());
-        assertEquals(0, customers.size());
-        assertNotNull(customers.toArray());
-        assertTrue(customers.add(customer));
-        customers.add(0,customers.get(0));
-        assertTrue(customers.addAll(customers));
-        assertTrue(customers.addAll(0,customers));
-        customers.remove(0);
-        assertSame(customer, customers.set(0, customer));
-        assertFalse(customers.remove(null));
-        assertTrue(customers.removeAll(customers));
-        assertFalse(customers.retainAll(customers));
-        customers.clear();
+        verifyModifiable(fixture_.getCustomers(), new BuyerParticipation(fixture_,null,0));
     }
 
     // Tests for Trader methods
 
-    @Test // That the returned list is indeed unmodifiable (part 1)
+    @Test
     public final void testGetCommoditiesSold_ValidOperations() {
-        @NonNull @ReadOnly List<@NonNull @ReadOnly CommoditySold> commodities = fixture_.getCommoditiesSold();
-        assertFalse(commodities.contains(null));
-        assertFalse(commodities.containsAll(Arrays.asList(null,null)));
-        assertTrue(commodities.equals(commodities));
-        assertEquals(-1, commodities.indexOf(null));
-        assertTrue(commodities.isEmpty());
-        assertNotNull(commodities.iterator());
-        assertEquals(-1, commodities.lastIndexOf(null));
-        assertNotNull(commodities.listIterator());
-        assertEquals(0, commodities.size());
-        assertNotNull(commodities.toArray());
+        verifyUnmodifiableValidOperations(fixture_.getCommoditiesSold());
     }
 
-    @Test // That the returned list is indeed unmodifiable (part 2)
+    @Test
     public final void testGetCommoditiesSold_InvalidOperations() {
-        @NonNull @ReadOnly List<@NonNull @ReadOnly CommoditySold> commodities = fixture_.getCommoditiesSold();
-        @NonNull CommoditySold commodity = new CommoditySoldWithSettings(); // dummy object
-
-        // TODO: may also need to test these on a non-empty buyers list because the API does not
-        // guarantee that this exception will be thrown in some cases.
-        try{
-            commodities.add(commodity);
-            fail();
-        } catch(UnsupportedOperationException e) {
-            // ignore
-        }
-        try{
-            commodities.add(0,commodity);
-            fail();
-        } catch(UnsupportedOperationException e) {
-            // ignore
-        }
-        try{
-            commodities.addAll(Arrays.asList(commodity,commodity));
-            fail();
-        } catch(UnsupportedOperationException e) {
-            // ignore
-        }
-        try{
-            commodities.addAll(0,Arrays.asList(commodity,commodity));
-            fail();
-        } catch(UnsupportedOperationException e) {
-            // ignore
-        }
-        try{
-            commodities.clear();
-            fail();
-        } catch(UnsupportedOperationException e) {
-            // ignore
-        }
-        try{
-            commodities.remove(0);
-            fail();
-        } catch(UnsupportedOperationException e) {
-            // ignore
-        }
-        try{
-            commodities.remove(commodity);
-            fail();
-        } catch(UnsupportedOperationException e) {
-            // ignore
-        }
-        try{
-            commodities.removeAll(commodities);
-            fail();
-        } catch(UnsupportedOperationException e) {
-            // ignore
-        }
-        try{
-            commodities.retainAll(commodities);
-            fail();
-        } catch(UnsupportedOperationException e) {
-            // ignore
-        }
-        try{
-            commodities.set(0, commodity);
-            fail();
-        } catch(UnsupportedOperationException e) {
-            // ignore
-        }
+        verifyUnmodifiableInvalidOperations(fixture_.getCommoditiesSold(), new CommoditySoldWithSettings());
     }
 
     @Test
