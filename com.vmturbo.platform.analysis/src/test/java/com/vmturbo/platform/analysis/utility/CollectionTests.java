@@ -32,11 +32,11 @@ public final class CollectionTests {
      * </p>
      *
      * @param elements The collection that will be tested.
-     * @param element An auxiliary element to help test some operations.
+     * @param element An auxiliary element, not in the collection, to help test some operations.
      */
     public static <E> void verifyModifiable(@NonNull Collection<@NonNull E> elements, @NonNull E element) {
-        assertFalse(elements.contains(null));
-        assertFalse(elements.containsAll(Arrays.asList(null,null)));
+        assertFalse(elements.contains(element));
+        assertFalse(elements.containsAll(Arrays.asList(element,element)));
         assertTrue(elements.equals(elements));
         elements.isEmpty();
         assertNotNull(elements.iterator());
@@ -45,7 +45,7 @@ public final class CollectionTests {
         assertNotNull(elements.toArray(new Object[elements.size()]));
         assertTrue(elements.add(element));
         assertTrue(elements.addAll(elements));
-        assertFalse(elements.remove(null));
+        assertTrue(elements.remove(element));
         assertTrue(elements.removeAll(elements));
         assertFalse(elements.retainAll(elements));
         elements.clear();
@@ -60,12 +60,13 @@ public final class CollectionTests {
      * </p>
      *
      * @param elements The collection that will be tested.
+     * @param element An auxiliary element, not in the collection, to help test some operations.
      *
      * @see #verifyUnmodifiableInvalidOperations(Collection, Object)
      */
-    public static <E> void verifyUnmodifiableValidOperations(@NonNull Collection<@NonNull E> elements) {
-        assertFalse(elements.contains(null));
-        assertFalse(elements.containsAll(Arrays.asList(null,null)));
+    public static <E> void verifyUnmodifiableValidOperations(@NonNull Collection<@NonNull E> elements, @NonNull E element) {
+        assertFalse(elements.contains(element));
+        assertFalse(elements.containsAll(Arrays.asList(element,element)));
         assertTrue(elements.equals(elements));
         elements.isEmpty();
         assertNotNull(elements.iterator());
@@ -84,9 +85,9 @@ public final class CollectionTests {
      * </p>
      *
      * @param elements The collection that will be tested.
-     * @param element An auxiliary element to help test some operations.
+     * @param element An auxiliary element, not in the collection, to help test some operations.
      *
-     * @see #verifyUnmodifiableValidOperations(Collection)
+     * @see #verifyUnmodifiableValidOperations(Collection, Object)
      */
     public static <E> void verifyUnmodifiableInvalidOperations(@NonNull Collection<@NonNull E> elements, @NonNull E element) {
         // TODO: may need to modify the test to work in a predictable way on empty collections

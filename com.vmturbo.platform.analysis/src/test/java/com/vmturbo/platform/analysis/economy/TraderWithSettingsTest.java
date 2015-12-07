@@ -182,7 +182,7 @@ public final class TraderWithSettingsTest {
 
     @Test
     public final void testGetCommoditiesSold_ValidOperations() {
-        verifyUnmodifiableValidOperations(fixture_.getCommoditiesSold());
+        verifyUnmodifiableValidOperations(fixture_.getCommoditiesSold(), new CommoditySoldWithSettings());
     }
 
     @Test

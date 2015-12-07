@@ -74,13 +74,12 @@ public class MarketTest {
 
     @Test
     public final void testGetSellers_ValidOperations() {
-        verifyUnmodifiableValidOperations(fixture_.getSellers());
+        verifyUnmodifiableValidOperations(fixture_.getSellers(),T0);
     }
 
     @Test
     public final void testGetSellers_InvalidOperations() {
-        verifyUnmodifiableInvalidOperations(fixture_.getSellers(),
-                                      new TraderWithSettings(0,0,TraderState.ACTIVE,new Basket()));
+        verifyUnmodifiableInvalidOperations(fixture_.getSellers(),T0);
     }
 
     @Test
@@ -195,7 +194,7 @@ public class MarketTest {
 
     @Test
     public final void testGetBuyers_ValidOperations() {
-        verifyUnmodifiableValidOperations(fixture_.getBuyers());
+        verifyUnmodifiableValidOperations(fixture_.getBuyers(), new BuyerParticipation(T0, null, 0));
     }
 
     @Test

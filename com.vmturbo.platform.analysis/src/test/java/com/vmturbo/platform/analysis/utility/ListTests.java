@@ -33,7 +33,7 @@ public final class ListTests {
      * </p>
      *
      * @param elements The list that will be tested.
-     * @param element An auxiliary element to help test some operations.
+     * @param element An auxiliary element, not in the list, to help test some operations.
      */
     public static <E> void verifyModifiable(@NonNull List<@NonNull E> elements, @NonNull E element) {
         CollectionTests.verifyModifiable(elements, element);
@@ -59,11 +59,12 @@ public final class ListTests {
      * </p>
      *
      * @param elements The list that will be tested.
+     * @param element An auxiliary element, not in the list, to help test some operations.
      *
      * @see #verifyUnmodifiableInvalidOperations(List, Object)
      */
-    public static <E> void verifyUnmodifiableValidOperations(@NonNull List<@NonNull E> elements) {
-        CollectionTests.verifyUnmodifiableValidOperations(elements);
+    public static <E> void verifyUnmodifiableValidOperations(@NonNull List<@NonNull E> elements, @NonNull E element) {
+        CollectionTests.verifyUnmodifiableValidOperations(elements,element);
 
         assertEquals(-1, elements.indexOf(null));
         assertEquals(-1, elements.lastIndexOf(null));
@@ -85,9 +86,9 @@ public final class ListTests {
      * </p>
      *
      * @param elements The list that will be tested.
-     * @param element An auxiliary element to help test some operations.
+     * @param element An auxiliary element, not in the list, to help test some operations.
      *
-     * @see #verifyUnmodifiableValidOperations(List)
+     * @see #verifyUnmodifiableValidOperations(List, Object)
      */
     public static <E> void verifyUnmodifiableInvalidOperations(@NonNull List<@NonNull E> elements, @NonNull E element) {
         CollectionTests.verifyUnmodifiableInvalidOperations(elements, element);
