@@ -1,7 +1,6 @@
 package com.vmturbo.platform.analysis.utility;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
@@ -13,8 +12,8 @@ import java.util.List;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
 /**
- * This class contains a number of generic tests, performed by many test classes, on lists return by
- * various methods.
+ * This class contains a number of generic tests, performed by many test classes, on lists returned
+ * by various methods.
  *
  * <p>
  *  e.g. You may want to test that a returned list is unmodifiable or that it implements all
@@ -29,34 +28,26 @@ public final class ListTests {
      *
      * <p>
      *  This is not intended as a thorough test of the correct implementation of List semantics.
-     *  Its purpose is to test that all List operations are supported and that they don't behave
+     *  Its purpose is to test that all List operations are supported and that they behave
      *  reasonably.
      * </p>
      *
      * @param elements The list that will be tested.
      * @param element An auxiliary element to help test some operations.
      */
-    public static <T> void verifyModifiable(@NonNull List<@NonNull T> elements, @NonNull T element) {
-        assertFalse(elements.contains(null));
-        assertFalse(elements.containsAll(Arrays.asList(null,null)));
-        assertTrue(elements.equals(elements));
+    public static <E> void verifyModifiable(@NonNull List<@NonNull E> elements, @NonNull E element) {
+        CollectionTests.verifyModifiable(elements, element);
+
         assertEquals(-1, elements.indexOf(null));
-        assertTrue(elements.isEmpty());
-        assertNotNull(elements.iterator());
         assertEquals(-1, elements.lastIndexOf(null));
         assertNotNull(elements.listIterator());
-        assertEquals(0, elements.size());
-        assertNotNull(elements.toArray());
-        assertTrue(elements.add(element));
-        elements.add(0,elements.get(0));
-        assertTrue(elements.addAll(elements));
+        assertNotNull(elements.subList(0, 0));
+        elements.add(0,element);
+        assertNotNull(elements.listIterator(0));
+        assertSame(element, elements.get(0));
         assertTrue(elements.addAll(0,elements));
         elements.remove(0);
         assertSame(element, elements.set(0, element));
-        assertFalse(elements.remove(null));
-        assertTrue(elements.removeAll(elements));
-        assertFalse(elements.retainAll(elements));
-        elements.clear();
     }
 
     /**
@@ -71,17 +62,17 @@ public final class ListTests {
      *
      * @see #verifyUnmodifiableInvalidOperations(List, Object)
      */
-    public static <T> void verifyUnmodifiableValidOperations(@NonNull List<@NonNull T> elements) {
-        assertFalse(elements.contains(null));
-        assertFalse(elements.containsAll(Arrays.asList(null,null)));
-        assertTrue(elements.equals(elements));
+    public static <E> void verifyUnmodifiableValidOperations(@NonNull List<@NonNull E> elements) {
+        CollectionTests.verifyUnmodifiableValidOperations(elements);
+
         assertEquals(-1, elements.indexOf(null));
-        assertTrue(elements.isEmpty());
-        assertNotNull(elements.iterator());
         assertEquals(-1, elements.lastIndexOf(null));
         assertNotNull(elements.listIterator());
-        assertEquals(0, elements.size());
-        assertNotNull(elements.toArray());
+        assertNotNull(elements.subList(0, 0));
+        if (elements.size() > 0) {
+            elements.get(0);
+            assertNotNull(elements.listIterator(0));
+        }
     }
 
     /**
@@ -98,23 +89,13 @@ public final class ListTests {
      *
      * @see #verifyUnmodifiableValidOperations(List)
      */
-    public static <T> void verifyUnmodifiableInvalidOperations(@NonNull List<@NonNull T> elements, @NonNull T element) {
+    public static <E> void verifyUnmodifiableInvalidOperations(@NonNull List<@NonNull E> elements, @NonNull E element) {
+        CollectionTests.verifyUnmodifiableInvalidOperations(elements, element);
+
         // TODO: may need to modify the test to work in a predictable way on empty lists because the
         // API does not guarantee that this exception will be thrown in some cases.
         try{
-            elements.add(element);
-            fail();
-        } catch(UnsupportedOperationException e) {
-            // ignore
-        }
-        try{
             elements.add(0,element);
-            fail();
-        } catch(UnsupportedOperationException e) {
-            // ignore
-        }
-        try{
-            elements.addAll(Arrays.asList(element,element));
             fail();
         } catch(UnsupportedOperationException e) {
             // ignore
@@ -126,31 +107,7 @@ public final class ListTests {
             // ignore
         }
         try{
-            elements.clear();
-            fail();
-        } catch(UnsupportedOperationException e) {
-            // ignore
-        }
-        try{
             elements.remove(0);
-            fail();
-        } catch(UnsupportedOperationException e) {
-            // ignore
-        }
-        try{
-            elements.remove(element);
-            fail();
-        } catch(UnsupportedOperationException e) {
-            // ignore
-        }
-        try{
-            elements.removeAll(elements);
-            fail();
-        } catch(UnsupportedOperationException e) {
-            // ignore
-        }
-        try{
-            elements.retainAll(elements);
             fail();
         } catch(UnsupportedOperationException e) {
             // ignore
