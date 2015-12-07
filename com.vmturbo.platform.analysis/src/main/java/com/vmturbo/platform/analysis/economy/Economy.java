@@ -5,12 +5,11 @@ import java.lang.AssertionError;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.TreeSet;
-
 import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -156,10 +155,10 @@ public final class Economy implements Cloneable {
     @Pure
     public @NonNull @ReadOnly List<@NonNull CommodityBought> getCommoditiesBought(@ReadOnly Economy this,
                                                @NonNull @ReadOnly BuyerParticipation participation) {
-        @NonNull Market market = getMarket(participation);
-        @NonNull List<@NonNull CommodityBought> result = new ArrayList<>(market.getBasket().size());
+        final int basketSize = getMarket(participation).getBasket().size();
+        final @NonNull List<@NonNull CommodityBought> result = new ArrayList<>(basketSize);
 
-        for (int i = 0; i < market.getBasket().size(); ++i) { // should be same size as participation
+        for (int i = 0; i < basketSize; ++i) { // should be same size as participation
             result.add(new CommodityBought(participation, i));
         }
 
@@ -278,23 +277,21 @@ public final class Economy implements Cloneable {
     @Deterministic
     public @NonNull Economy removeTrader(@NonNull Trader traderToRemove) {
         checkArgument(traders_.contains(traderToRemove));
+        final TraderWithSettings castTraderToRemove = (TraderWithSettings)traderToRemove;
 
         // Stop everyone from buying from the trader.
-        for (@NonNull BuyerParticipation participation : getCustomerParticipations(traderToRemove)) {
+        for (@NonNull BuyerParticipation participation : new ArrayList<>(castTraderToRemove.getCustomers())) {
             moveTrader(participation, null); // this is not the cheapest way, but the safest...
         }
 
         // Remove the trader from all markets it participated as seller
-        // may need to copy list to avoid exception...
-        for (Market market : ((TraderWithSettings)traderToRemove).getMarketsAsSeller()) {
-            market.removeSeller((TraderWithSettings)traderToRemove);
+        for (Market market : new ArrayList<>(castTraderToRemove.getMarketsAsSeller())) {
+            market.removeSeller(castTraderToRemove);
         }
 
         // Remove the trader from all markets it participated as buyer
-        // may need to copy the map to avoid exception.
-        for (Map.Entry<Market,BuyerParticipation> entry : ((TraderWithSettings)traderToRemove).getMarketsAsBuyer().entries()) {
+        for (Map.Entry<Market,BuyerParticipation> entry : new ArrayList<>(castTraderToRemove.getMarketsAsBuyer().entries())) {
             entry.getKey().removeBuyerParticipation(this,entry.getValue());
-            // TODO: consider invalidating the participation.
         }
 
         // Update economy indices of all traders and remove trader from list.
@@ -353,7 +350,7 @@ public final class Economy implements Cloneable {
     @Pure
     public @NonNull @ReadOnly Set<@NonNull @ReadOnly Trader> getCustomers(@ReadOnly Economy this,
                                                                           @NonNull @ReadOnly Trader trader) {
-        @NonNull Set<@NonNull @ReadOnly Trader> customers = new TreeSet<>();
+        @NonNull Set<@NonNull @ReadOnly Trader> customers = new HashSet<>();
 
         for (@NonNull BuyerParticipation participation : getCustomerParticipations(trader)) {
             customers.add(participation.getBuyer());
@@ -408,7 +405,7 @@ public final class Economy implements Cloneable {
             }
         }
 
-        return suppliers;
+        return Collections.unmodifiableList(suppliers);
     }
 
     /**
@@ -505,11 +502,11 @@ public final class Economy implements Cloneable {
      * @param participation The buyer participation that should be changed. It will be invalidated.
      * @param commoditySpecificationToAdd The commodity specification of the commodity that will be
      *                                    added to the buyer participation.
-     * @return {@code this}
+     * @return The buyer participation that will replace the one that was changed.
      */
     @Deterministic
-    public @NonNull Economy addCommodityBought(@NonNull BuyerParticipation participation,
-                                              @NonNull @ReadOnly CommoditySpecification commoditySpecificationToAdd) {
+    public @NonNull BuyerParticipation addCommodityBought(@NonNull BuyerParticipation participation,
+                              @NonNull @ReadOnly CommoditySpecification commoditySpecificationToAdd) {
         @NonNull TraderWithSettings trader = (TraderWithSettings)participation.getBuyer();
 
         // remove the participation from the old market
@@ -529,7 +526,7 @@ public final class Economy implements Cloneable {
             newParticipation.setPeakQuantity(i, participation.getPeakQuantity(i-1));
         }
 
-        return this;
+        return newParticipation;
     }
 
     /**
@@ -545,12 +542,13 @@ public final class Economy implements Cloneable {
      *
      * @param participation The buyer participation that should be changed. It will be invalidated.
      * @param commoditySpecificationToRemove The commodity specification of the commodity that will
-     *                                       be removed from the buyer participation.
-     * @return {@code this}
+     *            be removed from the buyer participation. If this commodity isn't in the buyer
+     *            participation, the call will just replace the buyer participation with a new one.
+     * @return The buyer participation that will replace the one that was changed.
      */
     @Deterministic
-    public @NonNull Economy removeCommodityBought(@NonNull BuyerParticipation participation,
-                                                  @NonNull @ReadOnly CommoditySpecification commoditySpecificationToRemove) {
+    public @NonNull BuyerParticipation removeCommodityBought(@NonNull BuyerParticipation participation,
+                              @NonNull @ReadOnly CommoditySpecification commoditySpecificationToRemove) {
         @NonNull TraderWithSettings trader = (TraderWithSettings)participation.getBuyer();
 
         // remove the participation from the old market
@@ -563,6 +561,9 @@ public final class Economy implements Cloneable {
 
         // copy quantity and peak quantity values from old participation.
         int specificationIndex = oldBasket.indexOf(commoditySpecificationToRemove);
+        if (specificationIndex == -1) {
+            specificationIndex = newBasketBought.size();
+        }
         for (int i = 0 ; i < specificationIndex ; ++i) {
             newParticipation.setQuantity(i, participation.getQuantity(i));
             newParticipation.setPeakQuantity(i, participation.getPeakQuantity(i));
@@ -571,7 +572,7 @@ public final class Economy implements Cloneable {
             newParticipation.setQuantity(i, participation.getQuantity(i+1));
             newParticipation.setPeakQuantity(i, participation.getPeakQuantity(i+1));
         }
-        return this;
+        return newParticipation;
     }
 
     /**
