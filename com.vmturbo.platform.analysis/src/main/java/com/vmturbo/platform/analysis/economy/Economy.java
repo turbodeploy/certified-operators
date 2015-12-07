@@ -1,7 +1,6 @@
 package com.vmturbo.platform.analysis.economy;
 
 import static com.google.common.base.Preconditions.checkArgument;
-import java.lang.AssertionError;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -29,7 +28,7 @@ import com.google.common.collect.Multimaps;
  *  destroying markets while that happens.
  * </p>
  */
-public final class Economy implements Cloneable {
+public final class Economy {
     // Fields
 
     // The map that associates Baskets with Markets.
@@ -573,26 +572,6 @@ public final class Economy implements Cloneable {
             newParticipation.setPeakQuantity(i, participation.getPeakQuantity(i+1));
         }
         return newParticipation;
-    }
-
-    /**
-     * Returns a deep copy of {@code this} economy.
-     *
-     * <p>
-     *  It is an O(T) operation, where T is the number of traders in the economy.
-     * </p>
-     */
-    @Override
-    @Pure
-    public Economy clone(@ReadOnly Economy this) {
-        try {
-            Economy copy = (Economy)super.clone();
-            // TODO Auto-generated method stub
-            return copy;
-        }
-        catch (CloneNotSupportedException e) {
-            throw new AssertionError("Object.clone threw a CloneNotSupportedException for a Clonable object!");
-        }
     }
 
 } // end class Economy
