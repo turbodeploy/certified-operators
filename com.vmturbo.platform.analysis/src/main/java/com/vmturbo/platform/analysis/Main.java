@@ -1,16 +1,10 @@
 package com.vmturbo.platform.analysis;
 
 import java.util.List;
-import java.util.Map;
 import org.apache.log4j.Logger;
 
-import com.vmturbo.platform.analysis.economy.Basket;
-import com.vmturbo.platform.analysis.economy.BuyerParticipation;
-import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
-import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.Trader;
-import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.ese.Ede;
 import com.vmturbo.platform.analysis.recommendations.RecommendationItem;
 import com.vmturbo.platform.analysis.utilities.M2Utils;
@@ -90,50 +84,6 @@ public final class Main {
             return "Buyer is currently not placed in any supplier selling "
                         + recommendation.getMarket().getBasket().toString();
         }
-    }
-
-    public static void sampleTopology() {
-        CommoditySpecification cpu = new CommoditySpecification(0);
-        Basket basket1 = new Basket(cpu,new CommoditySpecification(1),
-                                    new CommoditySpecification(2),new CommoditySpecification(3));
-        Basket basket2 = new Basket(new CommoditySpecification(4),new CommoditySpecification(5));
-
-        Economy economy = new Economy();
-        Trader trader1 = economy.addTrader(0, TraderState.ACTIVE, new Basket(), basket1, basket2, basket2);
-        Trader trader2 = economy.addTrader(1, TraderState.ACTIVE, basket1);
-        Trader trader3 = economy.addTrader(2, TraderState.ACTIVE, basket2);
-        Trader trader4 = economy.addTrader(2, TraderState.ACTIVE, basket2);
-        economy.moveTrader(economy.getMarketsAsBuyer(trader1).get(economy.getMarket(basket1)).get(0), trader2);
-        economy.moveTrader(economy.getMarketsAsBuyer(trader1).get(economy.getMarket(basket2)).get(0), trader3);
-        economy.moveTrader(economy.getMarketsAsBuyer(trader1).get(economy.getMarket(basket2)).get(1), trader4);
-
-        trader2.getCommoditySold(cpu).setCapacity(100);
-        economy.getCommodityBought(economy.getMarketsAsBuyer(trader1).get(economy.getMarket(basket1)).get(0),cpu).setQuantity(42);
-
-        for (Trader supplier : economy.getSuppliers(trader1)) {
-            System.out.println(supplier.getType());
-        }
-
-        economy.moveTrader(economy.getMarketsAsBuyer(trader1).get(economy.getMarket(basket1)).get(0), null);
-        economy.moveTrader(economy.getMarketsAsBuyer(trader1).get(economy.getMarket(basket2)).get(0), null);
-        economy.moveTrader(economy.getMarketsAsBuyer(trader1).get(economy.getMarket(basket2)).get(1), null);
-
-        for (Map.Entry<Market, BuyerParticipation> entry : economy.getMarketsAsBuyer(trader1).entries()) {
-            if (entry.getValue().getSupplier() == null) {
-                System.out.print("Trader1 is not currently buying basket ");
-                System.out.print(entry.getKey().getBasket());
-                System.out.println(" from anyone!");
-            }
-        }
-
-        economy = new Economy();
-        trader1 = economy.addTrader(0, TraderState.ACTIVE, new Basket());
-        trader2 = economy.addTrader(1, TraderState.ACTIVE, basket1);
-        trader3 = economy.addTrader(2, TraderState.ACTIVE, basket2);
-        trader4 = economy.addTrader(2, TraderState.ACTIVE, basket2);
-        economy.moveTrader(economy.addBasketBought(trader1, basket1), trader2);
-        economy.moveTrader(economy.addBasketBought(trader1, basket2), trader3);
-        economy.moveTrader(economy.addBasketBought(trader1, basket2), trader4);
     }
 
 } // end Main class

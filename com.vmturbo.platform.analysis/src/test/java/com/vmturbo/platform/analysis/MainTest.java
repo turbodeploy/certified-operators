@@ -32,9 +32,4 @@ public final class MainTest {
         Main.main(new String[0]);
     }
 
-    @Test // TODO: move test to EconomyTest when the latter is ready.
-    public void testSampleTopology() {
-        Main.sampleTopology();
-    }
-
 } // end MainTest class

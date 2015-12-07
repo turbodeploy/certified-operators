@@ -5,7 +5,6 @@ import static org.junit.Assert.*;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Ignore;
@@ -27,6 +26,7 @@ public class EconomyTest {
     // Fields
 
     // CommoditySpecifications to use in tests
+    private static final CommoditySpecification CPU = new CommoditySpecification(0);
     private static final CommoditySpecification CPU_ANY = new CommoditySpecification(0,1,Integer.MAX_VALUE);
     private static final CommoditySpecification CPU_4 = new CommoditySpecification(0,4,4);
     private static final CommoditySpecification CPU_1to8 = new CommoditySpecification(0,1,8);
@@ -57,6 +57,13 @@ public class EconomyTest {
     private static final Basket ST_A2 = new Basket(ST_OVER1000,CLUSTER_A,SEGMENT_2);
     private static final Basket ST_SELL_A1 = new Basket(ST_UPTO1200,CLUSTER_A,SEGMENT_1);
     private static final Basket ST_SELL_A2 = new Basket(ST_UPTO1200,CLUSTER_A,SEGMENT_2);
+    private static final Basket PMtoVM = new Basket(CPU,
+        new CommoditySpecification(1), // MEM
+        new CommoditySpecification(2), // Datastore commodity with key 1
+        new CommoditySpecification(3));// Datastore commodity with key 2
+    private static final Basket STtoVM = new Basket(
+        new CommoditySpecification(4), // Storage Amount (no key)
+        new CommoditySpecification(5));// DSPM access commodity with key A
 
     private static final int[] types = {0,1};
     private static final TraderState[] states = {TraderState.ACTIVE/*,TraderState.INACTIVE*/};
@@ -164,7 +171,34 @@ public class EconomyTest {
             }
         }
 
-        // TODO (Vaptistis): add representative economies of larger size
+        // Handwritten topologies of larger size:
+
+        // Economy 1
+        economy = new Economy();
+        Trader vm = economy.addTrader(0, TraderState.ACTIVE, new Basket(), PMtoVM, STtoVM, STtoVM);
+        Trader pm = economy.addTrader(1, TraderState.ACTIVE, PMtoVM);
+        Trader st1 = economy.addTrader(2, TraderState.ACTIVE, STtoVM);
+        Trader st2 = economy.addTrader(2, TraderState.ACTIVE, STtoVM);
+        economy.moveTrader(economy.getMarketsAsBuyer(vm).get(economy.getMarket(PMtoVM)).get(0), pm);
+        economy.moveTrader(economy.getMarketsAsBuyer(vm).get(economy.getMarket(STtoVM)).get(0), st1);
+        economy.moveTrader(economy.getMarketsAsBuyer(vm).get(economy.getMarket(STtoVM)).get(1), st2);
+
+        pm.getCommoditySold(CPU).setCapacity(100);
+        economy.getCommodityBought(economy.getMarketsAsBuyer(vm).get(economy.getMarket(PMtoVM)).get(0),CPU).setQuantity(42);
+        output.add(new Object[]{economy,new Basket[]{PMtoVM,STtoVM},new Trader[]{vm,pm,st1,st2}});
+
+        // Economy 2
+        economy = new Economy();
+        vm = economy.addTrader(0, TraderState.ACTIVE, new Basket());
+        pm = economy.addTrader(1, TraderState.ACTIVE, PMtoVM);
+        st1 = economy.addTrader(2, TraderState.ACTIVE, STtoVM);
+        st2 = economy.addTrader(2, TraderState.ACTIVE, STtoVM);
+        economy.moveTrader(economy.addBasketBought(vm, PMtoVM), pm);
+        economy.moveTrader(economy.addBasketBought(vm, STtoVM), st1);
+        economy.moveTrader(economy.addBasketBought(vm, STtoVM), st2);
+        output.add(new Object[]{economy,new Basket[]{PMtoVM,STtoVM},new Trader[]{vm,pm,st1,st2}});
+
+        // TODO (Vaptistis): add more economies of larger size
         return output.toArray();
     }
 
