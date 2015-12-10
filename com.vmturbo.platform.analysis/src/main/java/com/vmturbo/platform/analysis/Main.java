@@ -1,5 +1,6 @@
 package com.vmturbo.platform.analysis;
 
+import java.io.FileNotFoundException;
 import java.util.List;
 import org.apache.log4j.Logger;
 
@@ -33,15 +34,21 @@ public final class Main {
             logger.warn("All arguments after the first were ignored!");
         }
 
-        TopologyMapping mapping = M2Utils.loadFile(args[0]);
-        Economy economy = mapping.getTopology().getEconomy();
-        Ede ede = new Ede();
-        List<RecommendationItem> recommendations = ede.createRecommendations(economy);
-        logger.info(recommendations.size() + " recommendations");
-        for (RecommendationItem recommendation : recommendations) {
-            logger.info("What: " + description(recommendation, mapping));
-            logger.info("Why:  " + reason(recommendation));
-            logger.info("");
+        TopologyMapping mapping;
+        try {
+            mapping = M2Utils.loadFile(args[0]);
+            Economy economy = mapping.getTopology().getEconomy();
+            Ede ede = new Ede();
+            List<RecommendationItem> recommendations = ede.createRecommendations(economy);
+            logger.info(recommendations.size() + " recommendations");
+            for (RecommendationItem recommendation : recommendations) {
+                logger.info("What: " + description(recommendation, mapping));
+                logger.info("Why:  " + reason(recommendation));
+                logger.info("");
+            }
+        } catch (FileNotFoundException e) {
+            logger.error(e.toString());
+            System.exit(0);
         }
     }
 

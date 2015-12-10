@@ -1,6 +1,9 @@
 package com.vmturbo.platform.analysis.utilities;
 
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
 
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.parsers.SAXParser;
@@ -15,7 +18,12 @@ import com.vmturbo.platform.analysis.topology.Topology;
 
 public class M2Utils {
     public static void main(String... args) {
-        loadFile(args[0]);
+        try {
+            loadFile(args[0]);
+        } catch (FileNotFoundException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
     }
 
     /**
@@ -23,9 +31,10 @@ public class M2Utils {
      * This method uses a static {@link Logger} which name is the {@link EMF2MarketHandler} class name.
      * @param fileName the name of the file to load
      * @return a {@link TopologyMapping} that contains a market2 representation of the entities in the file
+     * @throws FileNotFoundException
      */
-    public static TopologyMapping loadFile(String fileName) {
-        return loadFile(fileName, Logger.getLogger(EMF2MarketHandler.class));
+    public static TopologyMapping loadFile(String fileName) throws FileNotFoundException {
+        return loadStream(new FileInputStream(fileName));
     }
 
     /**
@@ -34,13 +43,36 @@ public class M2Utils {
      * @param logger the {@link Logger} to be used when parsing the file by the {@link EMF2MarketHandler}
      * SAX handler.
      * @return a {@link TopologyMapping} that contains a market2 representation of the entities in the file
+     * @throws FileNotFoundException
      */
-    public static TopologyMapping loadFile(String fileName, Logger logger) {
+    public static TopologyMapping loadFile(String fileName, Logger logger) throws FileNotFoundException {
+        return loadStream(new FileInputStream(fileName), logger);
+    }
+
+    /**
+     * Load an {@link InputStream} in the format of a file saved by an OperationsManager.
+     * Use a static {@link Logger} which name is the {@link EMF2MarketHandler} class name.
+     * @param stream the InputStream to load
+     * @return a {@link TopologyMapping} that contains a market2 representation of the entities in the file
+     * @return
+     */
+    public static TopologyMapping loadStream(InputStream stream) {
+        return loadStream(stream, Logger.getLogger(EMF2MarketHandler.class));
+    }
+
+    /**
+     * Load an {@link InputStream} in the format of a file saved by an OperationsManager.
+     * @param stream the InputStream to load
+     * @param logger the {@link Logger} to be used when parsing the stream by the {@link EMF2MarketHandler}
+     * SAX handler.
+     * @return a {@link TopologyMapping} that contains a market2 representation of the entities in the stream
+     */
+    public static TopologyMapping loadStream(InputStream stream, Logger logger) {
         SAXParserFactory factory = SAXParserFactory.newInstance();
         try {
             SAXParser parser = factory.newSAXParser();
             EMF2MarketHandler handler = new EMF2MarketHandler(logger);
-            parser.parse(fileName, handler);
+            parser.parse(stream, handler);
             return handler.getTopologyMapping();
         } catch (ParserConfigurationException | SAXException | IOException e) {
             e.printStackTrace();
