@@ -132,7 +132,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
         if ("true".equals(attributes.get("isTemplate"))) return;
         // This version only parses service entities that are contained in another object, e.g. a Market.
         // Otherwise there is no xsi:type and instead the qName is the type. These are currently skipped.
-        if (parent != null && parent.xsitype() == null) return;
+        if (parent != null && (parent.xsitype() == null || parent.xsitype().equals("Analysis:ServiceEntityTemplate"))) return;
         if (COMM_REFS.contains(qName)) {
             printAttributes("Start Element :", attributes, Level.TRACE);
             handleTraderElement(parent);
@@ -558,7 +558,6 @@ final public class EMF2MarketHandler extends DefaultHandler {
      * A representation of an XML element from the file as a key-value map.
      */
     static class Attributes {
-        private static final long serialVersionUID = 1L;
 
         org.xml.sax.Attributes saxAttributes;
         String xsiType;
