@@ -158,6 +158,10 @@ final public class EMF2MarketHandler extends DefaultHandler {
 
     private void printAttributes(String prefix, Attributes attributes, Level level) {
         if (!logger.isEnabledFor(level)) return;
+        if (attributes == null) {
+            logger.log(level, prefix + null);
+            return;
+        }
 
         StringBuffer sb = new StringBuffer(prefix);
         String xsiType = attributes.get(XSITYPE);

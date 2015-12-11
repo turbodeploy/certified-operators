@@ -40,28 +40,32 @@ public class TestLoadFile {
      * verify that applications don't buy from VMs
      */
 
-    private static Logger loggerOff = Logger.getLogger("Test");
+    private static Logger loggerOff = Logger.getLogger("Test.OFF");
+    private static Logger loggerTrace = Logger.getLogger("Test.TRACE");
     static {
         loggerOff.setLevel(Level.OFF);
+        loggerTrace.setLevel(Level.TRACE);
     }
 
     private static final String REPOS_PATH = "src/test/resources/data/repos/";
 
     private static final String XML_TOP = fileToString(REPOS_PATH + "xml_top.xml");
     private static final String XML_BOTTOM = fileToString(REPOS_PATH + "xml_bottom.xml");
+    private static final String DC_2 = fileToString(REPOS_PATH + "dc-2.xml");
     private static final String VM_1277 = fileToString(REPOS_PATH + "vm-1277.xml");
     private static final String VM_733 = fileToString(REPOS_PATH + "vm-733.xml");
     private static final String VM_1544 = fileToString(REPOS_PATH + "vm-1544.xml");
     private static final String PM_9 = fileToString(REPOS_PATH + "host-9.xml");
     private static final String DS_902 = fileToString(REPOS_PATH + "datastore-902.xml");
     private static final String APP_733 = fileToString(REPOS_PATH + "GuestLoad-vm-733.xml");
+    private static final String EDGE = fileToString(REPOS_PATH + "edge-cases.xml");
 
     // Test that a full file loads with no exception.
     @Test
     @Ignore // need to find a real file that is small enough to include in SVN and test with
     public void testLoadFullFile() {
         try {
-            M2Utils.loadFile(REPOS_PATH + "small.repos.topology", loggerOff);
+            M2Utils.loadFile(REPOS_PATH + "small.repos.topology");
         } catch (FileNotFoundException e) {
             // Have to catch this because the method throws it. Other exceptions will implicitly fail the test.
             fail("File not found : " + e);
@@ -75,6 +79,22 @@ public class TestLoadFile {
         assertEquals(0, topoMap.getTopology().getEconomy().getMarkets().size());
     }
 
+    /*
+     * Test a file that includes some edge cases:
+     * - No Consumes
+     * - Multiple Consumes
+     * - used > capacity
+     * - peakUtil > 1
+     *
+     * Use loggerTrace to increase code coverage
+     */
+
+    @Test
+    public void testEdgeCases() {
+        TopologyMapping topoMap = loadString(XML_TOP + EDGE + XML_BOTTOM, loggerTrace);
+        assertEquals(1, topoMap.getTopology().getEconomy().getTraders().size());
+        assertEquals(0, topoMap.getTopology().getEconomy().getMarkets().size());
+    }
     /**
      * Tast that loading one entity results in one trader and no markets
      */
@@ -92,7 +112,9 @@ public class TestLoadFile {
         return new String[][]{
             {"vm-1277", VM_1277},
             {"vm-733", VM_733},
+            {"vm-1544", VM_1544},
             {"host-9", PM_9},
+            {"datacenter-2", DC_2},
             {"datastore-902", DS_902},
             {"GuestLoad-vm-733", APP_733}
         };
@@ -102,9 +124,14 @@ public class TestLoadFile {
     @TestCaseName("Test #{index}: Load {0}")
     @Test
     public void testLoadSellerAndBuyer(String name, String seller, String buyer) {
-        TopologyMapping topoMap = loadString(XML_TOP + seller + buyer + XML_BOTTOM);
-        assertEquals(2, topoMap.getTopology().getEconomy().getTraders().size());
-        assertEquals(1, topoMap.getTopology().getEconomy().getMarkets().size());
+        // This test is run with loggerTrace to include logging in code coverage
+        TopologyMapping topoMap1 = loadString(XML_TOP + seller + buyer + XML_BOTTOM, loggerTrace);
+        assertEquals(2, topoMap1.getTopology().getEconomy().getTraders().size());
+        assertEquals(1, topoMap1.getTopology().getEconomy().getMarkets().size());
+        // Test that loading in the reverse order gives the same results
+        TopologyMapping topoMap2 = loadString(XML_TOP + buyer + seller + XML_BOTTOM);
+        assertEquals(2, topoMap2.getTopology().getEconomy().getTraders().size());
+        assertEquals(1, topoMap2.getTopology().getEconomy().getMarkets().size());
     }
 
     @SuppressWarnings("unused")
@@ -112,7 +139,8 @@ public class TestLoadFile {
         return new String[][]{
             {"host-9 + vm-1277", PM_9, VM_1277},
             {"host-9 + vm-733", PM_9, VM_733},
-            {"datastore-902 + vm-733", DS_902, VM_733}
+            {"datastore-902 + vm-733", DS_902, VM_733},
+            {"datacenter-2 + host-9", DC_2, PM_9}
         };
     }
 
@@ -129,7 +157,8 @@ public class TestLoadFile {
     private static String[][] parametersForTestLoadDisconnectedTraders() {
         return new String[][]{
             {"host-9 + datastore-902", PM_9, DS_902},
-            {"vm-1277 + vm-733", VM_1277, VM_733}
+            {"vm-1277 + vm-733", VM_1277, VM_733},
+            {"datacenter-2 + datastore-902", DC_2, DS_902}
         };
     }
 
@@ -156,10 +185,14 @@ public class TestLoadFile {
 
     @Test
     public void testTopology() {
-        TopologyMapping topoMap = loadString(XML_TOP + VM_1277 + VM_733 + PM_9 + DS_902 + APP_733 + VM_1544 + XML_BOTTOM);
+        TopologyMapping topoMap = loadString(
+                XML_TOP + VM_1277 + VM_733 + PM_9 + DS_902 + APP_733 + VM_1544 + DC_2 + XML_BOTTOM
+            );
         /*
-         * Expecting 6 traders in this topology: 3 VMs (trader type 0), one PM (1), one storage (2) and one application (3).
-         * Expecting 3 markets:
+         * Expecting 7 traders in this topology: 3 VMs (trader type 0), one PM (1), one storage (2),
+         * one application (3) and one datacenter (4)
+         * Expecting 4 markets:
+         * datacenter-2 sells Power, Cooloing and Space to host-9
          * host-9 selling CPU, Mem and Q2CPU to vm-1277
          * host-9 selling CPU, Mem, Q4CPU and DatastoreCommodity to vm-733
          * datastore-902 selling StorageAmount and DSPMAccessCommodity to vm-733
@@ -173,15 +206,16 @@ public class TestLoadFile {
         Economy economy = topoMap.getTopology().getEconomy();
         List<@NonNull @ReadOnly Trader> traders = economy.getTraders();
         // 6 traders - one in each file
-        assertEquals(traders.size(), 6);
+        assertEquals(traders.size(), 7);
         // 3 markets
-        assertEquals(economy.getMarkets().size(), 3);
+        assertEquals(economy.getMarkets().size(), 4);
         Trader vm_1277 = traders.get(0);
         Trader vm_733 = traders.get(1);
         Trader pm_9 = traders.get(2);
         Trader ds_902= traders.get(3);
         Trader app_733 = traders.get(4);
         Trader vm_1544 = traders.get(5);
+        Trader dc_2 = traders.get(6);
 
         // vm-1277 buying only from from the host
         assertEquals(1, economy.getSuppliers(vm_1277).size());
@@ -196,6 +230,8 @@ public class TestLoadFile {
         // vm-1544 not selling and not buying in any market
         assertTrue(economy.getSuppliers(vm_1544).isEmpty());
         assertTrue(economy.getCustomers(vm_1544).isEmpty());
+        // host-9 buying from datacenter-2
+        assertTrue(economy.getSuppliers(pm_9).contains(dc_2));
 
         // PM does not buy from Storage
         assertFalse(economy.getCustomers(ds_902).contains(pm_9));
@@ -206,7 +242,11 @@ public class TestLoadFile {
     }
 
     private TopologyMapping loadString(String xml) {
-        return M2Utils.loadStream(new ByteArrayInputStream(xml.getBytes()), loggerOff);
+        return loadString(xml, loggerOff);
+    }
+
+    private TopologyMapping loadString(String xml, Logger logger) {
+        return M2Utils.loadStream(new ByteArrayInputStream(xml.getBytes()), logger);
     }
 
     private void inspect(TopologyMapping tmap) {
