@@ -130,9 +130,14 @@ final public class EMF2MarketHandler extends DefaultHandler {
         if (name != null && name.endsWith("_shadow")) return;
         // Ignore templates
         if ("true".equals(attributes.get("isTemplate"))) return;
-        // This version only parses service entities that are contained in another object, e.g. a Market.
-        // Otherwise there is no xsi:type and instead the qName is the type. These are currently skipped.
-        if (parent != null && (parent.xsitype() == null || parent.xsitype().equals("Analysis:ServiceEntityTemplate"))) return;
+        if (parent != null
+                && (parent.xsitype() == null
+                || parent.xsitype().equals("Analysis:ServiceEntityTemplate")
+                || "true".equals(parent.get("isTemplate"))
+            )
+        ) {
+            return;
+        }
         if (COMM_REFS.contains(qName)) {
             printAttributes("Start Element :", attributes, Level.TRACE);
             handleTraderElement(parent);

@@ -11,3 +11,7 @@
 <!-- peakUtil > 1.0 -->
       <Commodities xsi:type="Abstraction:VMem" uuid="_C57QcY70EeWe143tySGqmQ" name="VKB-Memory/vm-1268" utilization="0.0" used="0.0" capacity="1048576.0" limit="-1.0" peakUtilization="2.0" peak="0.0" active="true" resizeable="true" usedIncrement="1048576.0" numConsumedBy="1" peakWeight="0.99" histUtilization="0.0" histPeakUtilization="0.0" startUsed="0.0" startCapacity="1048576.0" startPeak="0.0" startUtilization="0.0" startPeakUtilization="0.0" shortTermAccRevenues="99.999985" longTermAccExpenses="135.5788" longTermAccRevenues="100.0" shortTermAccExpenses="816.326" HistoryExtension="_YRnxX471EeWe143tySGqmQ" sumUtilization="0.0" sumUsed="0.0"/>
   </Abstraction:VirtualMachine>
+<!-- A template -->
+  <ServiceEntityTemplates xsi:type="Abstraction:DiskArray" uuid="_5hfRa2bmEeWqwPKNER9XyA" name="T-DA01" displayName="DiskArray Template 01" isTemplate="true">
+      <Commodities xsi:type="Abstraction:Extent" uuid="_5hFowGbmEeWqwPKNER9XyA" name="DA_E_Extent01" utilization="0.01" used="1.0" capacity="1000.0" price="810.0" active="true" sumUtilization="0.001" sumUsed="1.0" maxUsed="1.0"/>
+  </ServiceEntityTemplates>
