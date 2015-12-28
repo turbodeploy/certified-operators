@@ -17,13 +17,20 @@ import com.vmturbo.platform.analysis.recommendations.RecommendationItem;
 
 /**
  * A benchmark to determine the performance of the 'market algorithms' on Economies of varying sizes.
+ *
+ * <p>
+ *  May be useful to run with one or more of the following JVM options:
+ *  -verbose:gc -verbose:class -verbose:jni
+ *  -Xdiag -XX:+UnlockDiagnosticVMOptions -XX:+PrintCompilation -XX:+PrintInlining
+ *  -Xmx16G -Xms16G -Xmn6G
+ * </p>
  */
 public final class GeneratingRecommendations {
     // Methods
 
     public static void main(String[] args) {
         // Parameters
-        final int nOrdersOfMagnitude = 5;
+        final int nOrdersOfMagnitude = 20;
         final int nCommodities = 10;
         final int nIterations = 5;
 
@@ -37,7 +44,7 @@ public final class GeneratingRecommendations {
         final @NonNull Basket tradedBasket = new Basket(commoditySpecifications);
 
         final @NonNull Economy[] economies = new Economy[nOrdersOfMagnitude];
-        for (int i = 0, nBuyers = 1, nSellers = 1 ; i < nOrdersOfMagnitude ; ++i, nBuyers *= 10, nSellers *= 10) {
+        for (int i = 0, nBuyers = 500, nSellers = 1 ; i < nOrdersOfMagnitude ; ++i, nSellers *= 2) {
             long start = System.nanoTime();
             economies[i] = new Economy();
 
