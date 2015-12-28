@@ -114,21 +114,15 @@ public class Placement {
      * @param basket - the basket bought by the buyer participation
      * @param economy - the economy where the buyer and the suppliers belong
      */
-    private static void moveTraderAndUpdateQuantitiesSold(BuyerParticipation buyerParticipation,
+    static void moveTraderAndUpdateQuantitiesSold(BuyerParticipation buyerParticipation,
             @NonNull Trader newSupplier, Basket basket, Economy economy) {
-
-        // Add the buyer to the customers of newSupplier, and remove it from the customers of
-        // currentSupplier
-        economy.moveTrader(buyerParticipation, newSupplier);
 
         // Go over all commodities in the basket and update quantities in old and new Supplier
         int currCommSoldIndex = 0;
         int newCommSoldIndex = 0;
         final double[] quantities = buyerParticipation.getQuantities();
         final double[] peakQuantities = buyerParticipation.getPeakQuantities();
-        final Trader currSupplier = buyerParticipation.getSupplier();
-        final Basket currBasketSold = currSupplier.getBasketSold();
-        final int currSupplierBasketSize = currSupplier.getBasketSold().size();
+        final @Nullable Trader currSupplier = buyerParticipation.getSupplier();
         for (int index = 0; index < basket.size(); index++) {
             CommoditySpecification basketCommSpec = basket.get(index);
 
@@ -136,21 +130,22 @@ public class Placement {
             if (currSupplier != null) {
                 // Find the corresponding commodity sold in the current supplier.
                 int startIndex = currCommSoldIndex; // keep the start index for misconfigured current supplier
-                while (currCommSoldIndex < currSupplierBasketSize
-                                && !basketCommSpec.isSatisfiedBy(currBasketSold.get(currCommSoldIndex))) {
+                while (currCommSoldIndex < currSupplier.getBasketSold().size()
+                        && !basketCommSpec.isSatisfiedBy(currSupplier.getBasketSold().get(currCommSoldIndex))) {
                     currCommSoldIndex++;
                 }
                 // handle a misconfigured current supplier that is not selling the commodity
-                if (currCommSoldIndex == currSupplierBasketSize) {
+                if (currCommSoldIndex == currSupplier.getBasketSold().size()) {
                     currCommSoldIndex = startIndex;
-                }
-                final CommoditySold currCommSold = currSupplier.getCommoditiesSold().get(currCommSoldIndex);
+                } else {
+                    final CommoditySold currCommSold = currSupplier.getCommoditiesSold().get(currCommSoldIndex);
 
-                // adjust quantities at current supplier
-                // TODO: the following is problematic for commodities such as latency, peaks, etc.
-                // TODO: this is the reason for the Math.max, but it is not a good solution
-                currCommSold.setQuantity(Math.max(0.0, currCommSold.getQuantity() - quantities[index]));
-                currCommSold.setPeakQuantity(Math.max(0.0, currCommSold.getPeakQuantity() - peakQuantities[index]));
+                    // adjust quantities at current supplier
+                    // TODO: the following is problematic for commodities such as latency, peaks, etc.
+                    // TODO: this is the reason for the Math.max, but it is not a good solution
+                    currCommSold.setQuantity(Math.max(0.0, currCommSold.getQuantity() - quantities[index]));
+                    currCommSold.setPeakQuantity(Math.max(0.0, currCommSold.getPeakQuantity() - peakQuantities[index]));
+                }
             }
 
             // Update new supplier
@@ -164,5 +159,9 @@ public class Placement {
             newCommSold.setQuantity(newCommSold.getQuantity() + quantities[index]);
             newCommSold.setPeakQuantity(newCommSold.getPeakQuantity() + peakQuantities[index]);
         }
+
+        // Add the buyer to the customers of newSupplier, and remove it from the customers of
+        // currentSupplier
+        economy.moveTrader(buyerParticipation, newSupplier);
     }
 }
