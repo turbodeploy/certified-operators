@@ -105,14 +105,14 @@ public class BuyerParticipationTest {
 
     @Test
     public final void testGetQuantities() {
-        double increased = ++fixture_.getQuantities()[2]; // ideally this should be a compile time error
-        assertEquals(increased-1, fixture_.getQuantities()[2], 0.0);
+        double increased = ++fixture_.getQuantities()[2];
+        assertEquals(increased, fixture_.getQuantities()[2], 0.0);
     }
 
     @Test
     public final void testGetPeakQuantities() {
-        double increased = ++fixture_.getPeakQuantities()[2]; // ideally this should be a compile time error
-        assertEquals(increased-1, fixture_.getPeakQuantities()[2], 0.0);
+        double increased = ++fixture_.getPeakQuantities()[2];
+        assertEquals(increased, fixture_.getPeakQuantities()[2], 0.0);
     }
 
     @Test

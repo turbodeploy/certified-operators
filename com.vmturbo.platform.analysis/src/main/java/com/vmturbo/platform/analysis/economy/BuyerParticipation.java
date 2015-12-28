@@ -2,8 +2,7 @@ package com.vmturbo.platform.analysis.economy;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
-import java.util.Arrays;
-
+import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -79,11 +78,12 @@ public final class BuyerParticipation {
      *  This array contains one quantity entry for each commodity specification in the basket of the
      *  market {@code this} buyer participation belongs to, in the same order.
      * </p>
+     *
+     * @see #setQuantity(int, double)
      */
     @Pure
-    public @ReadOnly double @NonNull [] getQuantities(@ReadOnly BuyerParticipation this) {
-        return Arrays.copyOf(quantities_, quantities_.length); // if @ReadOnly was checked statically
-            // I wouldn't need to return a copy.
+    public @PolyRead double @NonNull [] getQuantities(@PolyRead BuyerParticipation this) {
+        return quantities_;
     }
 
     /**
@@ -94,11 +94,12 @@ public final class BuyerParticipation {
      *  This array contains one peak quantity entry for each commodity specification in the basket
      *  of the market {@code this} buyer participation belongs to, in the same order.
      * </p>
+     *
+     * @see #setPeakQuantity(int, double)
      */
     @Pure
-    public @ReadOnly double @NonNull [] getPeakQuantities(@ReadOnly BuyerParticipation this) {
-        return Arrays.copyOf(peakQuantities_, peakQuantities_.length); // if @ReadOnly was checked
-            // statically I wouldn't need to return a copy.
+    public @PolyRead double @NonNull [] getPeakQuantities(@PolyRead BuyerParticipation this) {
+        return peakQuantities_;
     }
 
     /**
@@ -153,7 +154,7 @@ public final class BuyerParticipation {
      * @see #getQuantity(int)
      */
     @Deterministic
-    @NonNull BuyerParticipation setQuantity(int index, double newQuantity) {
+    public @NonNull BuyerParticipation setQuantity(int index, double newQuantity) {
         checkArgument(newQuantity >= 0);
         quantities_[index] = newQuantity;
         return this;
@@ -173,7 +174,7 @@ public final class BuyerParticipation {
      * @see #getPeakQuantity(int)
      */
     @Deterministic
-    @NonNull BuyerParticipation setPeakQuantity(int index, double newPeakQuantity) {
+    public @NonNull BuyerParticipation setPeakQuantity(int index, double newPeakQuantity) {
         checkArgument(newPeakQuantity >= 0);
         peakQuantities_[index] = newPeakQuantity;
         return this;

@@ -286,24 +286,21 @@ public class EconomyTest {
                     commodityBought2.setPeakQuantity(peakQuantity += 1.5);
                     assertEquals(peakQuantity, commodityBought1.getPeakQuantity(), 0);
 
-                    // TODO (Vaptistis): the current API allows changing the bought quantity and
-                    // peak quantity through the commodity bought but not through the quantity and
-                    // peak quantity vectors. The rational was that these vectors are intended to be
-                    // used in contexts where changing these values would be wrong while the
-                    // commodities bought are intended to be used by the message handlers accepting
-                    // changes coming from Mediation. Yet this behavior is surprising!
-
                     // test quantity between commodity and vector
                     quantity = commodityBought1.getQuantity();
                     assertEquals(quantity, participation.getQuantities()[i], 0);
                     commodityBought1.setQuantity(quantity += 1.5);
                     assertEquals(quantity, participation.getQuantities()[i], 0);
+                    participation.getQuantities()[i] = quantity += 1.5;
+                    assertEquals(quantity, commodityBought1.getQuantity(), 0);
 
                     // test peak quantity between commodity and vector
                     peakQuantity = commodityBought1.getPeakQuantity();
                     assertEquals(peakQuantity, participation.getPeakQuantities()[i], 0);
                     commodityBought1.setPeakQuantity(peakQuantity += 1.5);
                     assertEquals(peakQuantity, participation.getPeakQuantities()[i], 0);
+                    participation.getPeakQuantities()[i] = quantity += 1.5;
+                    assertEquals(quantity, commodityBought1.getPeakQuantity(), 0);
                 }
             }
         }
