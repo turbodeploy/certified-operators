@@ -365,6 +365,10 @@ final public class EMF2MarketHandler extends DefaultHandler {
             CommoditySpecification specification = commSpec(commoditySpecs.get(commSoldAttr.commoditySpecString()));
             Trader trader = uuid2trader.get(entry.getValue().uuid());
             CommoditySold commSold = trader.getCommoditySold(specification);
+            if (capacity < 0) {
+                printAttributes("capacity < 0 ", commSoldAttr, Level.WARN);
+                capacity = 0.0;
+            }
             if (used > capacity) {
                 printAttributes("used > capacity ", commSoldAttr, Level.WARN);
                 used = capacity;
