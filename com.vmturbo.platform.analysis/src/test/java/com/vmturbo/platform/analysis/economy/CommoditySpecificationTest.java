@@ -186,11 +186,6 @@ public class CommoditySpecificationTest {
         assertEquals(result, new CommoditySpecification(type, lowerBound, upperBound).toString());
     }
 
-    @Test
-    public final void testToStringNoQuality() {
-        assertEquals("<10, 0, MAX_VALUE>", new CommoditySpecification(10).toString());
-    }
-
     @SuppressWarnings("unused") // it is used reflectively
     private static Object[] parametersForTestToString() {
         return new Object[][]{
@@ -199,7 +194,8 @@ public class CommoditySpecificationTest {
             {0, 1, 1, "<0, 1, 1>"},
             {1, 0, 0, "<1, 0, 0>"},
             {1, 0, 1, "<1, 0, 1>"},
-            {1, 1, 1, "<1, 1, 1>"}
+            {1, 1, 1, "<1, 1, 1>"},
+            {10,0,Integer.MAX_VALUE,"<10, 0, MAX_VALUE>"}
         };
     }
 
