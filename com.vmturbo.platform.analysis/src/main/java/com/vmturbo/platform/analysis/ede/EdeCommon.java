@@ -1,4 +1,4 @@
-package com.vmturbo.platform.analysis.ese;
+package com.vmturbo.platform.analysis.ede;
 
 import java.util.List;
 

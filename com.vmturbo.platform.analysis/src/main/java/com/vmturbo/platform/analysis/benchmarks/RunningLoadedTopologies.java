@@ -8,7 +8,7 @@ import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 
 import com.vmturbo.platform.analysis.economy.Economy;
-import com.vmturbo.platform.analysis.ese.Ede;
+import com.vmturbo.platform.analysis.ede.Ede;
 import com.vmturbo.platform.analysis.utilities.M2Utils;
 
 /**
@@ -63,9 +63,9 @@ public final class RunningLoadedTopologies {
 
         for (Economy economy : economies) {
             for (int i = 0 ; i < 3 ; ++i) {
-                Ede ese = new Ede();
+                Ede ede = new Ede();
                 long start = System.nanoTime();
-                ese.createRecommendations(economy);
+                ede.createRecommendations(economy);
                 System.out.print(System.nanoTime()-start + "\t");
             }
             System.out.println();

@@ -6,7 +6,7 @@ import org.apache.log4j.Logger;
 
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
-import com.vmturbo.platform.analysis.ese.Ede;
+import com.vmturbo.platform.analysis.ede.Ede;
 import com.vmturbo.platform.analysis.recommendations.RecommendationItem;
 import com.vmturbo.platform.analysis.utilities.M2Utils;
 import com.vmturbo.platform.analysis.utilities.M2Utils.TopologyMapping;

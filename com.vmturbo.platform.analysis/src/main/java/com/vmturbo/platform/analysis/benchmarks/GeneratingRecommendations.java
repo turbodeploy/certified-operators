@@ -12,7 +12,7 @@ import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
-import com.vmturbo.platform.analysis.ese.Ede;
+import com.vmturbo.platform.analysis.ede.Ede;
 import com.vmturbo.platform.analysis.recommendations.RecommendationItem;
 
 /**

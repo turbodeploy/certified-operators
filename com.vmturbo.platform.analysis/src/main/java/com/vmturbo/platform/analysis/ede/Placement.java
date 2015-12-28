@@ -1,4 +1,4 @@
-package com.vmturbo.platform.analysis.ese;
+package com.vmturbo.platform.analysis.ede;
 
 
 import java.util.ArrayList;
@@ -14,7 +14,7 @@ import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.Trader;
-import com.vmturbo.platform.analysis.ese.EdeCommon.QuoteMinimizer;
+import com.vmturbo.platform.analysis.ede.EdeCommon.QuoteMinimizer;
 import com.vmturbo.platform.analysis.recommendations.RecommendationItem;
 
 public class Placement {

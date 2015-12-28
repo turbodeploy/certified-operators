@@ -1,9 +1,9 @@
-package com.vmturbo.platform.analysis.ese;
+package com.vmturbo.platform.analysis.ede;
 
 import com.vmturbo.platform.analysis.economy.Trader;
 
 /**
- * A collection of attributes capturing decisions of the {@link Ese Economic Scheduling Engine} for
+ * A collection of attributes capturing decisions of the {@link Ede Economic Decision Engine} for
  * a {@link Trader}
  */
 public class StateItem {

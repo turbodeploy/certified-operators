@@ -7,7 +7,7 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
-import com.vmturbo.platform.analysis.ese.Ede;
+import com.vmturbo.platform.analysis.ede.Ede;
 import com.vmturbo.platform.analysis.utilities.M2Utils;
 
 /**
