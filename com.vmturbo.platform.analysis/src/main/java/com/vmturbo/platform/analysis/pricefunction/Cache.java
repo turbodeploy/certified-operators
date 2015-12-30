@@ -8,7 +8,7 @@ import com.google.common.collect.MapMaker;
 /**
  * A factory for price functions
  */
-public class Cache {
+class Cache {
     // Constants
     public static final double MAX_UNIT_PRICE = 1e22;
 

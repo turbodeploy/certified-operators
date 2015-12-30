@@ -34,7 +34,6 @@ import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
-import com.vmturbo.platform.analysis.pricefunction.Cache;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.utilities.M2Utils.TopologyMapping;
@@ -522,18 +521,18 @@ final public class EMF2MarketHandler extends DefaultHandler {
         case "Abstraction:StorageAmount":
         case "Abstraction:StorageProvisioned":
         case "Abstraction:VStorage":
-            return Cache.createStepPriceFunction(commodity.value("utilThreshold", 1.0), 0.0, 20000.0);
+            return PriceFunction.Cache.createStepPriceFunction(commodity.value("utilThreshold", 1.0), 0.0, 20000.0);
         case "Abstraction:Power":
         case "Abstraction:Cooling":
         case "Abstraction:Space":
-            return Cache.createConstantPriceFunction(27.0);
+            return PriceFunction.Cache.createConstantPriceFunction(27.0);
         case "Abstraction:SegmentationCommodity":
         case "Abstraction:DrsSegmentationCommodity":
         case "Abstraction:ClusterCommodity":
         case "Abstraction:StorageClusterCommodity":
-            return Cache.createConstantPriceFunction(0.0);
+            return PriceFunction.Cache.createConstantPriceFunction(0.0);
         default:
-            return Cache.createStandardWeightedPriceFunction(1.0);
+            return PriceFunction.Cache.createStandardWeightedPriceFunction(1.0);
         }
     }
 

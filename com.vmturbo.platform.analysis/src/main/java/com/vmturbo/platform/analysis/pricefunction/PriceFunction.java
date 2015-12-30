@@ -16,4 +16,7 @@ public interface PriceFunction {
      */
     @Pure
     public double unitPrice(double normalizedUtilization);
+
+    // Inner classes
+    public static class Cache extends com.vmturbo.platform.analysis.pricefunction.Cache {/* workaround */};
 }

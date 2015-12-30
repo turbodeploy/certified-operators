@@ -6,7 +6,6 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import com.vmturbo.platform.analysis.pricefunction.Cache;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 
 import junitparams.JUnitParamsRunner;
@@ -247,9 +246,9 @@ public final class CommoditySoldWithSettingsTest {
     @SuppressWarnings("unused") // it is used reflectively
     private static Object[] parametersForTestGetSetPriceFunction() {
         return new Object[]{
-            Cache.createPriceFunction(x -> x*x),
-            Cache.createPriceFunction(x -> 1 / ((1-x)*(1-x))),
-            Cache.createPriceFunction(x -> 1/x)
+            PriceFunction.Cache.createPriceFunction(x -> x*x),
+            PriceFunction.Cache.createPriceFunction(x -> 1 / ((1-x)*(1-x))),
+            PriceFunction.Cache.createPriceFunction(x -> 1/x)
         };
     }
 
