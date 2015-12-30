@@ -75,129 +75,142 @@ public class EconomyTest {
     private static final TraderWithSettings independentTrader = new TraderWithSettings(0, 0, TraderState.ACTIVE, EMPTY);
     private static final BuyerParticipation independentParticipation = new BuyerParticipation(independentTrader, null, 0);
 
-    // Methods
+    // TODO (Vaptistis): Eventually, all parameterized tests that share the same parameters can be
+    // refactored in a single parameterized test, but until we implement copying of Economies the
+    // tests that modify their arguments must be run in their own parameterized test classes.
+    @Ignore // This class contains code common to all parameterized tests in EconomyTest. One gets
+    @RunWith(Parameterized.class) // an error without these annotations...
+    public static class CommonMembersOfParameterizedTests {
+        // Fields needed by parameterized runner
+        @Parameter(value = 0) public @NonNull Economy economy;
+        @Parameter(value = 1) public @NonNull Basket @NonNull [] baskets;
+        @Parameter(value = 2) public @NonNull Trader @NonNull [] traders;
 
-    private static Collection<Object[]> generateEconomies() {
-        final List<@NonNull Object @NonNull []> output = new ArrayList<>();
-        final Trader @NonNull [] traders = new Trader[3]; // Up to 2 nodes plus 1 for null.
-        final Basket[] baskets = {EMPTY,PM_SELL};
+        @Parameters(name = "Test #{index}")
+        public static Collection<Object[]> generateEconomies() {
+            final List<@NonNull Object @NonNull []> output = new ArrayList<>();
+            final Trader @NonNull [] traders = new Trader[3]; // Up to 2 nodes plus 1 for null.
+            final Basket[] baskets = {EMPTY,PM_SELL};
 
-        // 0 nodes, 0 edges
-        Economy economy = new Economy();
-        output.add(new Object[]{economy,new Basket[]{},new Trader[]{}});
+            // 0 nodes, 0 edges
+            Economy economy = new Economy();
+            output.add(new Object[]{economy,new Basket[]{},new Trader[]{}});
 
-        // 1 node, 0 edges
-        economy = new Economy();
-        traders[0] = economy.addTrader(0, TraderState.ACTIVE, EMPTY);
-        output.add(new Object[]{economy,new Basket[]{},Arrays.copyOf(traders, 1)});
+            // 1 node, 0 edges
+            economy = new Economy();
+            traders[0] = economy.addTrader(0, TraderState.ACTIVE, EMPTY);
+            output.add(new Object[]{economy,new Basket[]{},Arrays.copyOf(traders, 1)});
 
-        // 1 node, 1 edge (2 placements x 2 baskets sold x 2 baskets bought)
-        for (Basket basketSold : baskets) {
-            for (Basket basketBought1 : baskets) {
-                for (int dst1 = 0 ; dst1 < 2 ; ++dst1) {
-                    economy = new Economy();
-                    traders[0] = economy.addTrader(0, TraderState.ACTIVE, basketSold);
-                    economy.moveTrader(economy.addBasketBought(traders[0], basketBought1), traders[dst1]);
-                    output.add(new Object[]{economy,new Basket[]{basketBought1},Arrays.copyOf(traders, 1)});
+            // 1 node, 1 edge (2 placements x 2 baskets sold x 2 baskets bought)
+            for (Basket basketSold : baskets) {
+                for (Basket basketBought1 : baskets) {
+                    for (int dst1 = 0 ; dst1 < 2 ; ++dst1) {
+                        economy = new Economy();
+                        traders[0] = economy.addTrader(0, TraderState.ACTIVE, basketSold);
+                        economy.moveTrader(economy.addBasketBought(traders[0], basketBought1), traders[dst1]);
+                        output.add(new Object[]{economy,new Basket[]{basketBought1},Arrays.copyOf(traders, 1)});
+                    }
                 }
             }
-        }
 
-        // 1 node, 2 edges (2x2 placements x 2 baskets sold x 2x2 baskets bought)
-        for (Basket basketSold : baskets) {
-            for (Basket basketBought1 : baskets) {
-                for (Basket basketBought2 : baskets) {
-                    for (int dst1 = 0 ; dst1 < 2 ; ++dst1) {
-                        for (int dst2 = 0 ; dst2 < 2 ; ++dst2) {
-                            economy = new Economy();
-                            traders[0] = economy.addTrader(0, TraderState.ACTIVE, basketSold);
-                            economy.moveTrader(economy.addBasketBought(traders[0], basketBought1), traders[dst1]);
-                            economy.moveTrader(economy.addBasketBought(traders[0], basketBought2), traders[dst2]);
-                            output.add(new Object[]{economy, basketBought1 == basketBought2
-                                            ? new Basket[]{basketBought1} : baskets, Arrays.copyOf(traders, 1)});
+            // 1 node, 2 edges (2x2 placements x 2 baskets sold x 2x2 baskets bought)
+            for (Basket basketSold : baskets) {
+                for (Basket basketBought1 : baskets) {
+                    for (Basket basketBought2 : baskets) {
+                        for (int dst1 = 0 ; dst1 < 2 ; ++dst1) {
+                            for (int dst2 = 0 ; dst2 < 2 ; ++dst2) {
+                                economy = new Economy();
+                                traders[0] = economy.addTrader(0, TraderState.ACTIVE, basketSold);
+                                economy.moveTrader(economy.addBasketBought(traders[0], basketBought1), traders[dst1]);
+                                economy.moveTrader(economy.addBasketBought(traders[0], basketBought2), traders[dst2]);
+                                output.add(new Object[]{economy, basketBought1 == basketBought2
+                                                ? new Basket[]{basketBought1} : baskets, Arrays.copyOf(traders, 1)});
+                            }
                         }
                     }
                 }
             }
-        }
 
-        // 2 nodes, 0 edges (x2 baskets sold)
-        for (Basket basketSold : baskets) {
-            economy = new Economy();
-            traders[0] = economy.addTrader(0, TraderState.ACTIVE, EMPTY);
-            traders[1] = economy.addTrader(0, TraderState.ACTIVE, basketSold);
-            output.add(new Object[]{economy,new Basket[]{}, Arrays.copyOf(traders, 2)});
-        }
+            // 2 nodes, 0 edges (x2 baskets sold)
+            for (Basket basketSold : baskets) {
+                economy = new Economy();
+                traders[0] = economy.addTrader(0, TraderState.ACTIVE, EMPTY);
+                traders[1] = economy.addTrader(0, TraderState.ACTIVE, basketSold);
+                output.add(new Object[]{economy,new Basket[]{}, Arrays.copyOf(traders, 2)});
+            }
 
-        // 2 nodes, 1 edge (6 placements x 2 baskets bought x 2 baskets sold)
-        for (Basket basketSold : baskets) {
-            for (Basket basketBought1 : baskets) {
-                for (int src1 = 0 ; src1 < 2 ; ++src1) {
-                    for (int dst1 = 0 ; dst1 < 3 ; ++dst1) {
-                        economy = new Economy();
-                        traders[0] = economy.addTrader(0, TraderState.ACTIVE, EMPTY);
-                        traders[1] = economy.addTrader(0, TraderState.ACTIVE, basketSold);
-                        economy.moveTrader(economy.addBasketBought(traders[src1], basketBought1), traders[dst1]);
-                        output.add(new Object[]{economy,new Basket[]{basketBought1}, Arrays.copyOf(traders, 2)});
+            // 2 nodes, 1 edge (6 placements x 2 baskets bought x 2 baskets sold)
+            for (Basket basketSold : baskets) {
+                for (Basket basketBought1 : baskets) {
+                    for (int src1 = 0 ; src1 < 2 ; ++src1) {
+                        for (int dst1 = 0 ; dst1 < 3 ; ++dst1) {
+                            economy = new Economy();
+                            traders[0] = economy.addTrader(0, TraderState.ACTIVE, EMPTY);
+                            traders[1] = economy.addTrader(0, TraderState.ACTIVE, basketSold);
+                            economy.moveTrader(economy.addBasketBought(traders[src1], basketBought1), traders[dst1]);
+                            output.add(new Object[]{economy,new Basket[]{basketBought1}, Arrays.copyOf(traders, 2)});
+                        }
                     }
                 }
             }
-        }
 
-        // 2 nodes, 2 edges (6x6 placements x 2x2 baskets bought x 2 baskets sold)
-        for (Basket basketSold : baskets) {
-            for (Basket basketBought1 : baskets) {
-                for (Basket basketBought2 : baskets) {
-                    for (int src1 = 0 ; src1 < 2 ; ++src1) {
-                        for (int dst1 = 0 ; dst1 < 3 ; ++dst1) {
-                            for (int src2 = 0 ; src2 < 2 ; ++src2) {
-                                for (int dst2 = 0 ; dst2 < 3 ; ++dst2) {
-                                    economy = new Economy();
-                                    traders[0] = economy.addTrader(0, TraderState.ACTIVE, EMPTY);
-                                    traders[1] = economy.addTrader(0, TraderState.ACTIVE, basketSold);
-                                    economy.moveTrader(economy.addBasketBought(traders[src1], basketBought1), traders[dst1]);
-                                    economy.moveTrader(economy.addBasketBought(traders[src2], basketBought2), traders[dst2]);
+            // 2 nodes, 2 edges (6x6 placements x 2x2 baskets bought x 2 baskets sold)
+            for (Basket basketSold : baskets) {
+                for (Basket basketBought1 : baskets) {
+                    for (Basket basketBought2 : baskets) {
+                        for (int src1 = 0 ; src1 < 2 ; ++src1) {
+                            for (int dst1 = 0 ; dst1 < 3 ; ++dst1) {
+                                for (int src2 = 0 ; src2 < 2 ; ++src2) {
+                                    for (int dst2 = 0 ; dst2 < 3 ; ++dst2) {
+                                        economy = new Economy();
+                                        traders[0] = economy.addTrader(0, TraderState.ACTIVE, EMPTY);
+                                        traders[1] = economy.addTrader(0, TraderState.ACTIVE, basketSold);
+                                        economy.moveTrader(economy.addBasketBought(traders[src1], basketBought1), traders[dst1]);
+                                        economy.moveTrader(economy.addBasketBought(traders[src2], basketBought2), traders[dst2]);
 
-                                    output.add(new Object[]{economy, basketBought1 == basketBought2
-                                        ? new Basket[]{basketBought1} : baskets, Arrays.copyOf(traders, 2)});
+                                        output.add(new Object[]{economy, basketBought1 == basketBought2
+                                            ? new Basket[]{basketBought1} : baskets, Arrays.copyOf(traders, 2)});
+                                    }
                                 }
                             }
                         }
                     }
                 }
             }
+
+            // Handwritten topologies of larger size:
+
+            // Economy 1
+            economy = new Economy();
+            Trader vm = economy.addTrader(0, TraderState.ACTIVE, new Basket(), PMtoVM, STtoVM, STtoVM);
+            Trader pm = economy.addTrader(1, TraderState.ACTIVE, PMtoVM);
+            Trader st1 = economy.addTrader(2, TraderState.ACTIVE, STtoVM);
+            Trader st2 = economy.addTrader(2, TraderState.ACTIVE, STtoVM);
+            economy.moveTrader(economy.getMarketsAsBuyer(vm).get(economy.getMarket(PMtoVM)).get(0), pm);
+            economy.moveTrader(economy.getMarketsAsBuyer(vm).get(economy.getMarket(STtoVM)).get(0), st1);
+            economy.moveTrader(economy.getMarketsAsBuyer(vm).get(economy.getMarket(STtoVM)).get(1), st2);
+
+            pm.getCommoditySold(CPU).setCapacity(100);
+            economy.getCommodityBought(economy.getMarketsAsBuyer(vm).get(economy.getMarket(PMtoVM)).get(0),CPU).setQuantity(42);
+            output.add(new Object[]{economy,new Basket[]{PMtoVM,STtoVM},new Trader[]{vm,pm,st1,st2}});
+
+            // Economy 2
+            economy = new Economy();
+            vm = economy.addTrader(0, TraderState.ACTIVE, new Basket());
+            pm = economy.addTrader(1, TraderState.ACTIVE, PMtoVM);
+            st1 = economy.addTrader(2, TraderState.ACTIVE, STtoVM);
+            st2 = economy.addTrader(2, TraderState.ACTIVE, STtoVM);
+            economy.moveTrader(economy.addBasketBought(vm, PMtoVM), pm);
+            economy.moveTrader(economy.addBasketBought(vm, STtoVM), st1);
+            economy.moveTrader(economy.addBasketBought(vm, STtoVM), st2);
+            output.add(new Object[]{economy,new Basket[]{PMtoVM,STtoVM},new Trader[]{vm,pm,st1,st2}});
+
+            // TODO (Vaptistis): add more economies of larger size
+            return output;
         }
+    } // end CommonMembersOfParameterizedTests class
 
-        // Handwritten topologies of larger size:
-
-        // Economy 1
-        economy = new Economy();
-        Trader vm = economy.addTrader(0, TraderState.ACTIVE, new Basket(), PMtoVM, STtoVM, STtoVM);
-        Trader pm = economy.addTrader(1, TraderState.ACTIVE, PMtoVM);
-        Trader st1 = economy.addTrader(2, TraderState.ACTIVE, STtoVM);
-        Trader st2 = economy.addTrader(2, TraderState.ACTIVE, STtoVM);
-        economy.moveTrader(economy.getMarketsAsBuyer(vm).get(economy.getMarket(PMtoVM)).get(0), pm);
-        economy.moveTrader(economy.getMarketsAsBuyer(vm).get(economy.getMarket(STtoVM)).get(0), st1);
-        economy.moveTrader(economy.getMarketsAsBuyer(vm).get(economy.getMarket(STtoVM)).get(1), st2);
-
-        pm.getCommoditySold(CPU).setCapacity(100);
-        economy.getCommodityBought(economy.getMarketsAsBuyer(vm).get(economy.getMarket(PMtoVM)).get(0),CPU).setQuantity(42);
-        output.add(new Object[]{economy,new Basket[]{PMtoVM,STtoVM},new Trader[]{vm,pm,st1,st2}});
-
-        // Economy 2
-        economy = new Economy();
-        vm = economy.addTrader(0, TraderState.ACTIVE, new Basket());
-        pm = economy.addTrader(1, TraderState.ACTIVE, PMtoVM);
-        st1 = economy.addTrader(2, TraderState.ACTIVE, STtoVM);
-        st2 = economy.addTrader(2, TraderState.ACTIVE, STtoVM);
-        economy.moveTrader(economy.addBasketBought(vm, PMtoVM), pm);
-        economy.moveTrader(economy.addBasketBought(vm, STtoVM), st1);
-        economy.moveTrader(economy.addBasketBought(vm, STtoVM), st2);
-        output.add(new Object[]{economy,new Basket[]{PMtoVM,STtoVM},new Trader[]{vm,pm,st1,st2}});
-
-        // TODO (Vaptistis): add more economies of larger size
-        return output;
-    }
+    // Inner test classes
 
     public static class NonParameterizedTests {
         @Test
@@ -216,28 +229,9 @@ public class EconomyTest {
     } // end TestEconomy class
 
     @RunWith(Parameterized.class)
-    public static class TestEconomyReadOnlyMethods {
-        // Fields needed by parameterized runner
-        @Parameter(value = 0) public @NonNull Economy economy;
-        @Parameter(value = 1) public @NonNull Basket @NonNull [] baskets;
-        @Parameter(value = 2) public @NonNull Trader @NonNull [] traders;
-
-        @Parameters(name = "Test #{index}")
-        public static Collection<Object[]> data() {
-            return generateEconomies();
-        }
-
-        // TODO (Vaptistis): This is not the recommended way to write tests. Normally there would be
-        // one test case method for each tested method and this would make it easier to see what went
-        // wrong when a test fails. Unfortunately there seems to be a problem with the framework that
-        // makes it spend most of its time invoking the test cases instead of running them. This means
-        // that by breaking the tests into 20 different methods we would make the test take ~20 times
-        // more time, and by then we would be risking for people not running them because they would
-        // take too long. This needs to be refactored into distinct test cases as soon as the
-        // performance issues of the testing framework are solved!
+    public static class EconomyReadOnlyMethods extends CommonMembersOfParameterizedTests{
         @Test
-        public final void testEconomyReadOnlyMethods() {
-            // Test Economy.getMarkets()
+        public final void testGetMarkets() {
             assertEquals(baskets.length, economy.getMarkets().size());
             CollectionTests.verifyUnmodifiableValidOperations(economy.getMarkets(), independentMarket);
             CollectionTests.verifyUnmodifiableInvalidOperations(economy.getMarkets(), independentMarket);
@@ -246,13 +240,17 @@ public class EconomyTest {
             for (@NonNull @ReadOnly Market market : economy.getMarkets()) {
                 assertEquals(0, market.getBasket().compareTo(baskets[i++]));
             }
+        }
 
-            // Test Economy.getMarket(Basket)
+        @Test
+        public final void testGetMarket_Basket() {
             for (Basket basket : baskets) {
                 assertEquals(0, economy.getMarket(basket).getBasket().compareTo(basket));
             }
+        }
 
-            // Test Economy.getMarket(BuyerParticipation)
+        @Test
+        public final void testGetMarket_BuyerParticipation() {
             for (@NonNull @ReadOnly Market market : economy.getMarkets()) {
                 for (@NonNull BuyerParticipation participation : market.getBuyers()) {
                     assertSame(market, economy.getMarket(participation));
@@ -262,21 +260,24 @@ public class EconomyTest {
                     // BuyerParticipationTest
                 }
             }
+        }
 
-            // Test Economy.getIndex(Trader)
-            for (i = 0 ; i < economy.getTraders().size() ; ++i) {
+        @Test
+        public final void testGetIndex_Trader() {
+            for (int i = 0 ; i < economy.getTraders().size() ; ++i) {
                 assertEquals(i, economy.getIndex(economy.getTraders().get(i)));
                 // This also implicitly checks that all traders in economy are distinct.
             }
+        }
 
-            // Test Economy.getCommoditiesBought(BuyerParticipation)
-            // and  Economy.getCommodityBought(BuyerParticipation,CommoditySpecification)
+        @Test
+        public final void testGetCommoditiesBought_And_GetCommodityBought() {
             for (@NonNull @ReadOnly Market market : economy.getMarkets()) {
                 for (@NonNull BuyerParticipation participation : market.getBuyers()) {
                     final @NonNull @ReadOnly List<@NonNull CommodityBought> commoditiesBought =
                                     economy.getCommoditiesBought(participation);
                     assertEquals(market.getBasket().size(), commoditiesBought.size());
-                    for (i = 0 ; i < commoditiesBought.size() ; ++i) {
+                    for (int i = 0 ; i < commoditiesBought.size() ; ++i) {
                         final @NonNull CommodityBought commodityBought1 = commoditiesBought.get(i);
                         final @NonNull CommodityBought commodityBought2 =
                                         economy.getCommodityBought(participation, market.getBasket().get(i));
@@ -320,13 +321,15 @@ public class EconomyTest {
                     }
                 }
             }
+        }
 
-            // Test Economy.getTraders()
+        @Test
+        public final void testGetTrader() {
             assertEquals(traders.length, economy.getTraders().size());
             ListTests.verifyUnmodifiableValidOperations(economy.getTraders(),independentTrader);
             ListTests.verifyUnmodifiableInvalidOperations(economy.getTraders(),independentTrader);
 
-            i = 0;
+            int i = 0;
             for (@NonNull @ReadOnly Trader trader : economy.getTraders()) {
                 assertSame(traders[i++], trader);
             }
@@ -345,45 +348,37 @@ public class EconomyTest {
                 ListTests.verifyUnmodifiableInvalidOperations(economy.getCustomerParticipations(trader),
                                                               independentParticipation);
             }
+        }
 
-            // Test Economy.getSuppliers(Trader)
+        @Test
+        public final void testGetSuppliers_Trader() {
             for (Trader trader : traders) {
                 ListTests.verifyUnmodifiableValidOperations(economy.getSuppliers(trader),independentTrader);
                 ListTests.verifyUnmodifiableInvalidOperations(economy.getSuppliers(trader),independentTrader);
             }
+        }
 
-            // Test Economy.getMarketsAsBuyer(Trader)
+        @Test
+        public final void testGetMarketsAsBuyer_Trader() {
             for (Trader trader : traders) {
                 MultimapTests.verifyUnmodifiableValidOperations(economy.getMarketsAsBuyer(trader),
                                                                 independentMarket,independentParticipation);
                 MultimapTests.verifyUnmodifiableInvalidOperations(economy.getMarketsAsBuyer(trader),
                                                                   independentMarket,independentParticipation);
             }
+        }
 
-            // Test Economy.getMarketsAsSeller(Trader)
+        @Test
+        public final void testGetMarketsAsSeller_Trader() {
             for (Trader trader : traders) {
                 ListTests.verifyUnmodifiableValidOperations(economy.getMarketsAsSeller(trader),independentMarket);
                 ListTests.verifyUnmodifiableInvalidOperations(economy.getMarketsAsSeller(trader),independentMarket);
             }
-
         }
-    }
+    } // end EconomyReadOnlyMethods class
 
     @RunWith(Parameterized.class)
-    public static class TestAddTrader {
-        // Fields needed by parameterized runner
-        @Parameter(value = 0) public @NonNull Economy economy;
-        @Parameter(value = 1) public @NonNull Basket @NonNull [] baskets;
-        @Parameter(value = 2) public @NonNull Trader @NonNull [] traders;
-
-        @Parameters(name = "Test #{index}")
-        public static Collection<Object[]> data() {
-            return generateEconomies();
-        }
-
-        // TODO (Vaptistis): These methods are tested separately because they modify the economies and
-        // There is no support for copying economies yet. Still this is neither fast, nor well
-        // structured.
+    public static class AddTrader extends CommonMembersOfParameterizedTests {
         @Test
         public final void testAddTrader() {
             for (int type : types) {
@@ -407,20 +402,10 @@ public class EconomyTest {
                 }
             }
         }
-    } // end TestAddTrader class
+    } // end AddTrader class
 
     @RunWith(Parameterized.class)
-    public static class TestRemoveTrader {
-        // Fields needed by parameterized runner
-        @Parameter(value = 0) public @NonNull Economy economy;
-        @Parameter(value = 1) public @NonNull Basket @NonNull [] baskets;
-        @Parameter(value = 2) public @NonNull Trader @NonNull [] traders;
-
-        @Parameters(name = "Test #{index}")
-        public static Collection<Object[]> data() {
-            return generateEconomies();
-        }
-
+    public static class RemoveTrader extends CommonMembersOfParameterizedTests {
         @Test
         public final void testRemoveTrader() {
             try {
@@ -439,20 +424,10 @@ public class EconomyTest {
             }
             assertTrue(economy.getTraders().isEmpty());
         }
-    } // end TestRemoveTrader class
+    } // end RemoveTrader class
 
     @RunWith(Parameterized.class)
-    public static class TestAddBasketBought {
-        // Fields needed by parameterized runner
-        @Parameter(value = 0) public @NonNull Economy economy;
-        @Parameter(value = 1) public @NonNull Basket @NonNull [] baskets;
-        @Parameter(value = 2) public @NonNull Trader @NonNull [] traders;
-
-        @Parameters(name = "Test #{index}")
-        public static Collection<Object[]> data() {
-            return generateEconomies();
-        }
-
+    public static class AddBasketBought extends CommonMembersOfParameterizedTests {
         @Test
         public final void testAddBasketBought() {
             final Basket[] basketsBought = {EMPTY,PM_4CORE};
@@ -467,20 +442,10 @@ public class EconomyTest {
                 }
             }
         }
-    } // end TestAddBasketBought class
+    } // end AddBasketBought class
 
     @RunWith(Parameterized.class)
-    public static class TestRemoveBasketBought {
-        // Fields needed by parameterized runner
-        @Parameter(value = 0) public @NonNull Economy economy;
-        @Parameter(value = 1) public @NonNull Basket @NonNull [] baskets;
-        @Parameter(value = 2) public @NonNull Trader @NonNull [] traders;
-
-        @Parameters(name = "Test #{index}")
-        public static Collection<Object[]> data() {
-            return generateEconomies();
-        }
-
+    public static class RemoveBasketBought extends CommonMembersOfParameterizedTests {
         @Test
         public final void testRemoveBasketBought() {
             for (@NonNull @ReadOnly Market market : economy.getMarkets()) {
@@ -492,20 +457,10 @@ public class EconomyTest {
                 assertTrue(market.getBuyers().isEmpty());
             }
         }
-    } // end TestRemoveBasketBought class
+    } // end RemoveBasketBought class
 
     @RunWith(Parameterized.class)
-    public static class TestAddCommodityBought {
-        // Fields needed by parameterized runner
-        @Parameter(value = 0) public @NonNull Economy economy;
-        @Parameter(value = 1) public @NonNull Basket @NonNull [] baskets;
-        @Parameter(value = 2) public @NonNull Trader @NonNull [] traders;
-
-        @Parameters(name = "Test #{index}")
-        public static Collection<Object[]> data() {
-            return generateEconomies();
-        }
-
+    public static class AddCommodityBought extends CommonMembersOfParameterizedTests {
         @Test
         public final void testAddCommodityBought() {
             final CommoditySpecification[] specifications = {CLUSTER_A,SEGMENT_1,CPU_ANY};
@@ -540,20 +495,10 @@ public class EconomyTest {
                 }
             }
         }
-    } // end TestAddCommodityBought class
+    } // end AddCommodityBought class
 
     @RunWith(Parameterized.class)
-    public static class TestRemoveCommodityBought {
-        // Fields needed by parameterized runner
-        @Parameter(value = 0) public @NonNull Economy economy;
-        @Parameter(value = 1) public @NonNull Basket @NonNull [] baskets;
-        @Parameter(value = 2) public @NonNull Trader @NonNull [] traders;
-
-        @Parameters(name = "Test #{index}")
-        public static Collection<Object[]> data() {
-            return generateEconomies();
-        }
-
+    public static class RemoveCommodityBought extends CommonMembersOfParameterizedTests {
         @Test
         public final void testRemoveCommodityBought() {
             final CommoditySpecification[] specifications = {CLUSTER_A,CPU_1to8,MEM};
@@ -584,6 +529,6 @@ public class EconomyTest {
                 }
             }
         }
-    } // end TestRemoveCommodityBought class
+    } // end RemoveCommodityBought class
 
 } // end EconomyTest class
