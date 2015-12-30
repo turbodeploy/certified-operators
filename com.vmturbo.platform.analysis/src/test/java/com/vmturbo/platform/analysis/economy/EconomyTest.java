@@ -4,24 +4,26 @@ import static org.junit.Assert.*;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Ignore;
 import org.junit.Test;
+import org.junit.experimental.runners.Enclosed;
 import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameter;
+import org.junit.runners.Parameterized.Parameters;
 
 import com.vmturbo.platform.analysis.utility.CollectionTests;
 import com.vmturbo.platform.analysis.utility.ListTests;
 import com.vmturbo.platform.analysis.utility.MultimapTests;
 
-import junitparams.JUnitParamsRunner;
-import junitparams.Parameters;
-
 /**
  * A test case for the {@link Economy} class.
  */
-@RunWith(JUnitParamsRunner.class)
+@RunWith(Enclosed.class)
 public class EconomyTest {
     // Fields
 
@@ -75,8 +77,7 @@ public class EconomyTest {
 
     // Methods
 
-    @SuppressWarnings("unused") // it is used reflectively
-    private static Object[] generateEconomies() {
+    private static Collection<Object[]> generateEconomies() {
         final List<@NonNull Object @NonNull []> output = new ArrayList<>();
         final Trader @NonNull [] traders = new Trader[3]; // Up to 2 nodes plus 1 for null.
         final Basket[] baskets = {EMPTY,PM_SELL};
@@ -144,8 +145,6 @@ public class EconomyTest {
         }
 
         // 2 nodes, 2 edges (6x6 placements x 2x2 baskets bought x 2 baskets sold)
-        long startAll = System.nanoTime();
-        long economyCounter = 0;
         for (Basket basketSold : baskets) {
             for (Basket basketBought1 : baskets) {
                 for (Basket basketBought2 : baskets) {
@@ -153,13 +152,11 @@ public class EconomyTest {
                         for (int dst1 = 0 ; dst1 < 3 ; ++dst1) {
                             for (int src2 = 0 ; src2 < 2 ; ++src2) {
                                 for (int dst2 = 0 ; dst2 < 3 ; ++dst2) {
-                                    long start = System.nanoTime();
                                     economy = new Economy();
                                     traders[0] = economy.addTrader(0, TraderState.ACTIVE, EMPTY);
                                     traders[1] = economy.addTrader(0, TraderState.ACTIVE, basketSold);
                                     economy.moveTrader(economy.addBasketBought(traders[src1], basketBought1), traders[dst1]);
                                     economy.moveTrader(economy.addBasketBought(traders[src2], basketBought2), traders[dst2]);
-                                    economyCounter += System.nanoTime() - start;
 
                                     output.add(new Object[]{economy, basketBought1 == basketBought2
                                         ? new Basket[]{basketBought1} : baskets, Arrays.copyOf(traders, 2)});
@@ -199,314 +196,394 @@ public class EconomyTest {
         output.add(new Object[]{economy,new Basket[]{PMtoVM,STtoVM},new Trader[]{vm,pm,st1,st2}});
 
         // TODO (Vaptistis): add more economies of larger size
-        return output.toArray();
+        return output;
     }
 
-    @Test
-    public final void testEconomy() {
-        Economy economy = new Economy();
-        assertTrue(economy.getMarkets().isEmpty());
-        assertTrue(economy.getTraders().isEmpty());
-    }
-
-    // TODO (Vaptistis): This is not the recommended way to write tests. Normally there would be
-    // one test case method for each tested method and this would make it easier to see what went
-    // wrong when a test fails. Unfortunately there seems to be a problem with the framework that
-    // makes it spend most of its time invoking the test cases instead of running them. This means
-    // that by breaking the tests into 20 different methods we would make the test take ~20 times
-    // more time, and by then we would be risking for people not running them because they would
-    // take too long. This needs to be refactored into distinct test cases as soon as the
-    // performance issues of the testing framework are solved!
-    @Test
-    @Parameters(method = "generateEconomies")
-    public final void testEconomyReadOnlyMethods(@NonNull Economy economy,
-                        @NonNull Basket @NonNull [] baskets, @NonNull Trader @NonNull [] traders) {
-        // Test Economy.getMarkets()
-        assertEquals(baskets.length, economy.getMarkets().size());
-        CollectionTests.verifyUnmodifiableValidOperations(economy.getMarkets(), independentMarket);
-        CollectionTests.verifyUnmodifiableInvalidOperations(economy.getMarkets(), independentMarket);
-
-        int i = 0;
-        for (@NonNull @ReadOnly Market market : economy.getMarkets()) {
-            assertEquals(0, market.getBasket().compareTo(baskets[i++]));
+    public static class NonParameterizedTests {
+        @Test
+        public final void testEconomy() {
+            Economy economy = new Economy();
+            assertTrue(economy.getMarkets().isEmpty());
+            assertTrue(economy.getTraders().isEmpty());
         }
 
-        // Test Economy.getMarket(Basket)
-        for (Basket basket : baskets) {
-            assertEquals(0, economy.getMarket(basket).getBasket().compareTo(basket));
+        @Test
+        @Ignore
+        public final void testMoveTrader() {
+            fail("Not yet implemented");// TODO
         }
 
-        // Test Economy.getMarket(BuyerParticipation)
-        for (@NonNull @ReadOnly Market market : economy.getMarkets()) {
-            for (@NonNull BuyerParticipation participation : market.getBuyers()) {
-                assertSame(market, economy.getMarket(participation));
-                assertEquals(market.getBasket().size(), participation.getQuantities().length);
-                // Could have also tested getPeakQuantities here, but the property
-                // getQuantities().length == getPeakQuantities().length is tested in
-                // BuyerParticipationTest
+    } // end TestEconomy class
+
+    @RunWith(Parameterized.class)
+    public static class TestEconomyReadOnlyMethods {
+        // Fields needed by parameterized runner
+        @Parameter(value = 0) public @NonNull Economy economy;
+        @Parameter(value = 1) public @NonNull Basket @NonNull [] baskets;
+        @Parameter(value = 2) public @NonNull Trader @NonNull [] traders;
+
+        @Parameters(name = "Test #{index}")
+        public static Collection<Object[]> data() {
+            return generateEconomies();
+        }
+
+        // TODO (Vaptistis): This is not the recommended way to write tests. Normally there would be
+        // one test case method for each tested method and this would make it easier to see what went
+        // wrong when a test fails. Unfortunately there seems to be a problem with the framework that
+        // makes it spend most of its time invoking the test cases instead of running them. This means
+        // that by breaking the tests into 20 different methods we would make the test take ~20 times
+        // more time, and by then we would be risking for people not running them because they would
+        // take too long. This needs to be refactored into distinct test cases as soon as the
+        // performance issues of the testing framework are solved!
+        @Test
+        public final void testEconomyReadOnlyMethods() {
+            // Test Economy.getMarkets()
+            assertEquals(baskets.length, economy.getMarkets().size());
+            CollectionTests.verifyUnmodifiableValidOperations(economy.getMarkets(), independentMarket);
+            CollectionTests.verifyUnmodifiableInvalidOperations(economy.getMarkets(), independentMarket);
+
+            int i = 0;
+            for (@NonNull @ReadOnly Market market : economy.getMarkets()) {
+                assertEquals(0, market.getBasket().compareTo(baskets[i++]));
             }
-        }
 
-        // Test Economy.getIndex(Trader)
-        for (i = 0 ; i < economy.getTraders().size() ; ++i) {
-            assertEquals(i, economy.getIndex(economy.getTraders().get(i)));
-            // This also implicitly checks that all traders in economy are distinct.
-        }
+            // Test Economy.getMarket(Basket)
+            for (Basket basket : baskets) {
+                assertEquals(0, economy.getMarket(basket).getBasket().compareTo(basket));
+            }
 
-        // Test Economy.getCommoditiesBought(BuyerParticipation)
-        // and  Economy.getCommodityBought(BuyerParticipation,CommoditySpecification)
-        for (@NonNull @ReadOnly Market market : economy.getMarkets()) {
-            for (@NonNull BuyerParticipation participation : market.getBuyers()) {
-                final @NonNull @ReadOnly List<@NonNull CommodityBought> commoditiesBought =
-                                                        economy.getCommoditiesBought(participation);
-                assertEquals(market.getBasket().size(), commoditiesBought.size());
-                for (i = 0 ; i < commoditiesBought.size() ; ++i) {
-                    final @NonNull CommodityBought commodityBought1 = commoditiesBought.get(i);
-                    final @NonNull CommodityBought commodityBought2 =
-                        economy.getCommodityBought(participation, market.getBasket().get(i));
-
-                    // The API doesn't guarantee that you'll get the same commodity bought object
-                    // each time you call getCommodityBought or that it will match one of the
-                    // objects in getCommoditiesBought, but the objects must refer to the same
-                    // quantity and peak quantity values.
-
-                    // test quantity between commodities
-                    double quantity = commodityBought1.getQuantity();
-                    assertEquals(quantity, commodityBought2.getQuantity(), 0);
-                    commodityBought1.setQuantity(quantity += 1.5);
-                    assertEquals(quantity, commodityBought2.getQuantity(), 0);
-                    commodityBought2.setQuantity(quantity += 1.5);
-                    assertEquals(quantity, commodityBought1.getQuantity(), 0);
-
-                    // test peak quantity between commodities
-                    double peakQuantity = commodityBought1.getPeakQuantity();
-                    assertEquals(peakQuantity, commodityBought2.getPeakQuantity(), 0);
-                    commodityBought1.setPeakQuantity(peakQuantity += 1.5);
-                    assertEquals(peakQuantity, commodityBought2.getPeakQuantity(), 0);
-                    commodityBought2.setPeakQuantity(peakQuantity += 1.5);
-                    assertEquals(peakQuantity, commodityBought1.getPeakQuantity(), 0);
-
-                    // test quantity between commodity and vector
-                    quantity = commodityBought1.getQuantity();
-                    assertEquals(quantity, participation.getQuantities()[i], 0);
-                    commodityBought1.setQuantity(quantity += 1.5);
-                    assertEquals(quantity, participation.getQuantities()[i], 0);
-                    participation.getQuantities()[i] = quantity += 1.5;
-                    assertEquals(quantity, commodityBought1.getQuantity(), 0);
-
-                    // test peak quantity between commodity and vector
-                    peakQuantity = commodityBought1.getPeakQuantity();
-                    assertEquals(peakQuantity, participation.getPeakQuantities()[i], 0);
-                    commodityBought1.setPeakQuantity(peakQuantity += 1.5);
-                    assertEquals(peakQuantity, participation.getPeakQuantities()[i], 0);
-                    participation.getPeakQuantities()[i] = quantity += 1.5;
-                    assertEquals(quantity, commodityBought1.getPeakQuantity(), 0);
+            // Test Economy.getMarket(BuyerParticipation)
+            for (@NonNull @ReadOnly Market market : economy.getMarkets()) {
+                for (@NonNull BuyerParticipation participation : market.getBuyers()) {
+                    assertSame(market, economy.getMarket(participation));
+                    assertEquals(market.getBasket().size(), participation.getQuantities().length);
+                    // Could have also tested getPeakQuantities here, but the property
+                    // getQuantities().length == getPeakQuantities().length is tested in
+                    // BuyerParticipationTest
                 }
             }
+
+            // Test Economy.getIndex(Trader)
+            for (i = 0 ; i < economy.getTraders().size() ; ++i) {
+                assertEquals(i, economy.getIndex(economy.getTraders().get(i)));
+                // This also implicitly checks that all traders in economy are distinct.
+            }
+
+            // Test Economy.getCommoditiesBought(BuyerParticipation)
+            // and  Economy.getCommodityBought(BuyerParticipation,CommoditySpecification)
+            for (@NonNull @ReadOnly Market market : economy.getMarkets()) {
+                for (@NonNull BuyerParticipation participation : market.getBuyers()) {
+                    final @NonNull @ReadOnly List<@NonNull CommodityBought> commoditiesBought =
+                                    economy.getCommoditiesBought(participation);
+                    assertEquals(market.getBasket().size(), commoditiesBought.size());
+                    for (i = 0 ; i < commoditiesBought.size() ; ++i) {
+                        final @NonNull CommodityBought commodityBought1 = commoditiesBought.get(i);
+                        final @NonNull CommodityBought commodityBought2 =
+                                        economy.getCommodityBought(participation, market.getBasket().get(i));
+
+                        // The API doesn't guarantee that you'll get the same commodity bought object
+                        // each time you call getCommodityBought or that it will match one of the
+                        // objects in getCommoditiesBought, but the objects must refer to the same
+                        // quantity and peak quantity values.
+
+                        // test quantity between commodities
+                        double quantity = commodityBought1.getQuantity();
+                        assertEquals(quantity, commodityBought2.getQuantity(), 0);
+                        commodityBought1.setQuantity(quantity += 1.5);
+                        assertEquals(quantity, commodityBought2.getQuantity(), 0);
+                        commodityBought2.setQuantity(quantity += 1.5);
+                        assertEquals(quantity, commodityBought1.getQuantity(), 0);
+
+                        // test peak quantity between commodities
+                        double peakQuantity = commodityBought1.getPeakQuantity();
+                        assertEquals(peakQuantity, commodityBought2.getPeakQuantity(), 0);
+                        commodityBought1.setPeakQuantity(peakQuantity += 1.5);
+                        assertEquals(peakQuantity, commodityBought2.getPeakQuantity(), 0);
+                        commodityBought2.setPeakQuantity(peakQuantity += 1.5);
+                        assertEquals(peakQuantity, commodityBought1.getPeakQuantity(), 0);
+
+                        // test quantity between commodity and vector
+                        quantity = commodityBought1.getQuantity();
+                        assertEquals(quantity, participation.getQuantities()[i], 0);
+                        commodityBought1.setQuantity(quantity += 1.5);
+                        assertEquals(quantity, participation.getQuantities()[i], 0);
+                        participation.getQuantities()[i] = quantity += 1.5;
+                        assertEquals(quantity, commodityBought1.getQuantity(), 0);
+
+                        // test peak quantity between commodity and vector
+                        peakQuantity = commodityBought1.getPeakQuantity();
+                        assertEquals(peakQuantity, participation.getPeakQuantities()[i], 0);
+                        commodityBought1.setPeakQuantity(peakQuantity += 1.5);
+                        assertEquals(peakQuantity, participation.getPeakQuantities()[i], 0);
+                        participation.getPeakQuantities()[i] = quantity += 1.5;
+                        assertEquals(quantity, commodityBought1.getPeakQuantity(), 0);
+                    }
+                }
+            }
+
+            // Test Economy.getTraders()
+            assertEquals(traders.length, economy.getTraders().size());
+            ListTests.verifyUnmodifiableValidOperations(economy.getTraders(),independentTrader);
+            ListTests.verifyUnmodifiableInvalidOperations(economy.getTraders(),independentTrader);
+
+            i = 0;
+            for (@NonNull @ReadOnly Trader trader : economy.getTraders()) {
+                assertSame(traders[i++], trader);
+            }
+
+            // Test Economy.getCustomers(Trader)
+            for (Trader trader : traders) {
+                // TODO (Vaptistis): replace with test tailored for Sets creating corresponding class.
+                CollectionTests.verifyUnmodifiableValidOperations(economy.getCustomers(trader),independentTrader);
+                CollectionTests.verifyUnmodifiableInvalidOperations(economy.getCustomers(trader),independentTrader);
+            }
+
+            // Test Economy.getCustomerParticipations(Trader)
+            for (Trader trader : traders) {
+                ListTests.verifyUnmodifiableValidOperations(economy.getCustomerParticipations(trader),
+                                                            independentParticipation);
+                ListTests.verifyUnmodifiableInvalidOperations(economy.getCustomerParticipations(trader),
+                                                              independentParticipation);
+            }
+
+            // Test Economy.getSuppliers(Trader)
+            for (Trader trader : traders) {
+                ListTests.verifyUnmodifiableValidOperations(economy.getSuppliers(trader),independentTrader);
+                ListTests.verifyUnmodifiableInvalidOperations(economy.getSuppliers(trader),independentTrader);
+            }
+
+            // Test Economy.getMarketsAsBuyer(Trader)
+            for (Trader trader : traders) {
+                MultimapTests.verifyUnmodifiableValidOperations(economy.getMarketsAsBuyer(trader),
+                                                                independentMarket,independentParticipation);
+                MultimapTests.verifyUnmodifiableInvalidOperations(economy.getMarketsAsBuyer(trader),
+                                                                  independentMarket,independentParticipation);
+            }
+
+            // Test Economy.getMarketsAsSeller(Trader)
+            for (Trader trader : traders) {
+                ListTests.verifyUnmodifiableValidOperations(economy.getMarketsAsSeller(trader),independentMarket);
+                ListTests.verifyUnmodifiableInvalidOperations(economy.getMarketsAsSeller(trader),independentMarket);
+            }
+
         }
-
-        // Test Economy.getTraders()
-        assertEquals(traders.length, economy.getTraders().size());
-        ListTests.verifyUnmodifiableValidOperations(economy.getTraders(),independentTrader);
-        ListTests.verifyUnmodifiableInvalidOperations(economy.getTraders(),independentTrader);
-
-        i = 0;
-        for (@NonNull @ReadOnly Trader trader : economy.getTraders()) {
-            assertSame(traders[i++], trader);
-        }
-
-        // Test Economy.getCustomers(Trader)
-        for (Trader trader : traders) {
-            // TODO (Vaptistis): replace with test tailored for Sets creating corresponding class.
-            CollectionTests.verifyUnmodifiableValidOperations(economy.getCustomers(trader),independentTrader);
-            CollectionTests.verifyUnmodifiableInvalidOperations(economy.getCustomers(trader),independentTrader);
-        }
-
-        // Test Economy.getCustomerParticipations(Trader)
-        for (Trader trader : traders) {
-            ListTests.verifyUnmodifiableValidOperations(economy.getCustomerParticipations(trader),
-                                                        independentParticipation);
-            ListTests.verifyUnmodifiableInvalidOperations(economy.getCustomerParticipations(trader),
-                                                          independentParticipation);
-        }
-
-        // Test Economy.getSuppliers(Trader)
-        for (Trader trader : traders) {
-            ListTests.verifyUnmodifiableValidOperations(economy.getSuppliers(trader),independentTrader);
-            ListTests.verifyUnmodifiableInvalidOperations(economy.getSuppliers(trader),independentTrader);
-        }
-
-        // Test Economy.getMarketsAsBuyer(Trader)
-        for (Trader trader : traders) {
-            MultimapTests.verifyUnmodifiableValidOperations(economy.getMarketsAsBuyer(trader),
-                                                            independentMarket,independentParticipation);
-            MultimapTests.verifyUnmodifiableInvalidOperations(economy.getMarketsAsBuyer(trader),
-                                                              independentMarket,independentParticipation);
-        }
-
-        // Test Economy.getMarketsAsSeller(Trader)
-        for (Trader trader : traders) {
-            ListTests.verifyUnmodifiableValidOperations(economy.getMarketsAsSeller(trader),independentMarket);
-            ListTests.verifyUnmodifiableInvalidOperations(economy.getMarketsAsSeller(trader),independentMarket);
-        }
-
     }
 
-    // TODO (Vaptistis): These methods are tested separately because they modify the economies and
-    // There is no support for copying economies yet. Still this is neither fast, nor well
-    // structured.
-    @Test
-    @Parameters(method = "generateEconomies")
-    public final void testAddTrader(@NonNull Economy economy, @NonNull Basket @NonNull [] baskets,
-                                       @NonNull Trader @NonNull [] traders) {
-        for (int type : types) {
-            for (TraderState state : states) {
-                for (Basket basketSold : basketsSold) {
-                    for (Basket[] basketsBought : basketsBoughtLists) {
-                        Trader trader = economy.addTrader(type, state, basketSold, basketsBought);
-                        assertEquals(type, trader.getType());
-                        assertSame(state, trader.getState());
-                        assertSame(basketSold, trader.getBasketSold());
-                        assertEquals(basketSold.size(), trader.getCommoditiesSold().size());
+    @RunWith(Parameterized.class)
+    public static class TestAddTrader {
+        // Fields needed by parameterized runner
+        @Parameter(value = 0) public @NonNull Economy economy;
+        @Parameter(value = 1) public @NonNull Basket @NonNull [] baskets;
+        @Parameter(value = 2) public @NonNull Trader @NonNull [] traders;
 
-                        assertEquals(basketsBought.length, economy.getMarketsAsBuyer(trader).size());
-                        // TODO (Vaptistis): this may not catch cases where the wrong basket appears
-                        // twice. ({1,1,2} vs {1,2,2})
-                        for (@NonNull Market market : economy.getMarketsAsBuyer(trader).keys()) {
-                            assertTrue(Arrays.asList(basketsBought).indexOf(market.getBasket()) != -1);
+        @Parameters(name = "Test #{index}")
+        public static Collection<Object[]> data() {
+            return generateEconomies();
+        }
+
+        // TODO (Vaptistis): These methods are tested separately because they modify the economies and
+        // There is no support for copying economies yet. Still this is neither fast, nor well
+        // structured.
+        @Test
+        public final void testAddTrader() {
+            for (int type : types) {
+                for (TraderState state : states) {
+                    for (Basket basketSold : basketsSold) {
+                        for (Basket[] basketsBought : basketsBoughtLists) {
+                            Trader trader = economy.addTrader(type, state, basketSold, basketsBought);
+                            assertEquals(type, trader.getType());
+                            assertSame(state, trader.getState());
+                            assertSame(basketSold, trader.getBasketSold());
+                            assertEquals(basketSold.size(), trader.getCommoditiesSold().size());
+
+                            assertEquals(basketsBought.length, economy.getMarketsAsBuyer(trader).size());
+                            // TODO (Vaptistis): this may not catch cases where the wrong basket appears
+                            // twice. ({1,1,2} vs {1,2,2})
+                            for (@NonNull Market market : economy.getMarketsAsBuyer(trader).keys()) {
+                                assertTrue(Arrays.asList(basketsBought).indexOf(market.getBasket()) != -1);
+                            }
                         }
                     }
                 }
             }
         }
-    }
+    } // end TestAddTrader class
 
-    @Test
-    @Parameters(method = "generateEconomies")
-    public final void testRemoveTrader(@NonNull Economy economy, @NonNull Basket @NonNull [] baskets,
-                                       @NonNull Trader @NonNull [] traders) {
-        try {
-            economy.removeTrader(independentTrader);
-            fail();
-        } catch(IllegalArgumentException e) {
-            // ignore
+    @RunWith(Parameterized.class)
+    public static class TestRemoveTrader {
+        // Fields needed by parameterized runner
+        @Parameter(value = 0) public @NonNull Economy economy;
+        @Parameter(value = 1) public @NonNull Basket @NonNull [] baskets;
+        @Parameter(value = 2) public @NonNull Trader @NonNull [] traders;
+
+        @Parameters(name = "Test #{index}")
+        public static Collection<Object[]> data() {
+            return generateEconomies();
         }
-        for (Trader trader : traders) {
-            assertSame(economy, economy.removeTrader(trader));
-            assertFalse(economy.getTraders().contains(trader));
+
+        @Test
+        public final void testRemoveTrader() {
+            try {
+                economy.removeTrader(independentTrader);
+                fail();
+            } catch(IllegalArgumentException e) {
+                // ignore
+            }
+            for (Trader trader : traders) {
+                assertSame(economy, economy.removeTrader(trader));
+                assertFalse(economy.getTraders().contains(trader));
+                for (@NonNull @ReadOnly Market market : economy.getMarkets()) {
+                    assertFalse(market.getSellers().contains(trader));
+                    assertEquals(0, market.getBuyers().stream().filter(p->p.getBuyer() == trader).count());
+                }
+            }
+            assertTrue(economy.getTraders().isEmpty());
+        }
+    } // end TestRemoveTrader class
+
+    @RunWith(Parameterized.class)
+    public static class TestAddBasketBought {
+        // Fields needed by parameterized runner
+        @Parameter(value = 0) public @NonNull Economy economy;
+        @Parameter(value = 1) public @NonNull Basket @NonNull [] baskets;
+        @Parameter(value = 2) public @NonNull Trader @NonNull [] traders;
+
+        @Parameters(name = "Test #{index}")
+        public static Collection<Object[]> data() {
+            return generateEconomies();
+        }
+
+        @Test
+        public final void testAddBasketBought() {
+            final Basket[] basketsBought = {EMPTY,PM_4CORE};
+            // TODO (Vaptistis): have a separate list of baskets that are not in the Economy yet.
+
+            for (Trader trader : traders) {
+                for (@NonNull Basket basket : basketsBought) {
+                    BuyerParticipation participation = economy.addBasketBought(trader, basket);
+                    assertSame(trader, participation.getBuyer());
+                    assertNull(participation.getSupplier());
+                    assertTrue(economy.getMarket(participation).getBuyers().contains(participation));
+                }
+            }
+        }
+    } // end TestAddBasketBought class
+
+    @RunWith(Parameterized.class)
+    public static class TestRemoveBasketBought {
+        // Fields needed by parameterized runner
+        @Parameter(value = 0) public @NonNull Economy economy;
+        @Parameter(value = 1) public @NonNull Basket @NonNull [] baskets;
+        @Parameter(value = 2) public @NonNull Trader @NonNull [] traders;
+
+        @Parameters(name = "Test #{index}")
+        public static Collection<Object[]> data() {
+            return generateEconomies();
+        }
+
+        @Test
+        public final void testRemoveBasketBought() {
             for (@NonNull @ReadOnly Market market : economy.getMarkets()) {
-                assertFalse(market.getSellers().contains(trader));
-                assertEquals(0, market.getBuyers().stream().filter(p->p.getBuyer() == trader).count());
+                for (@NonNull BuyerParticipation participation : new ArrayList<>(market.getBuyers())) {
+                    Basket removedBasket = economy.removeBasketBought(participation);
+                    assertEquals(0, market.getBasket().compareTo(removedBasket));
+                    assertFalse(market.getBuyers().contains(participation));
+                }
+                assertTrue(market.getBuyers().isEmpty());
             }
         }
-        assertTrue(economy.getTraders().isEmpty());
-    }
+    } // end TestRemoveBasketBought class
 
-    @Test
-    @Parameters(method = "generateEconomies")
-    public final void testAddBasketBought(@NonNull Economy economy,
-                      @NonNull Basket @NonNull [] baskets, @NonNull Trader @NonNull [] traders) {
-        final Basket[] basketsBought = {EMPTY,PM_4CORE};
-        // TODO (Vaptistis): have a separate list of baskets that are not in the Economy yet.
+    @RunWith(Parameterized.class)
+    public static class TestAddCommodityBought {
+        // Fields needed by parameterized runner
+        @Parameter(value = 0) public @NonNull Economy economy;
+        @Parameter(value = 1) public @NonNull Basket @NonNull [] baskets;
+        @Parameter(value = 2) public @NonNull Trader @NonNull [] traders;
 
-        for (Trader trader : traders) {
-            for (@NonNull Basket basket : basketsBought) {
-                BuyerParticipation participation = economy.addBasketBought(trader, basket);
-                assertSame(trader, participation.getBuyer());
-                assertNull(participation.getSupplier());
-                assertTrue(economy.getMarket(participation).getBuyers().contains(participation));
-            }
+        @Parameters(name = "Test #{index}")
+        public static Collection<Object[]> data() {
+            return generateEconomies();
         }
-    }
 
-    @Test
-    @Parameters(method = "generateEconomies")
-    public final void testRemoveBasketBought(@NonNull Economy economy,
-                      @NonNull Basket @NonNull [] baskets, @NonNull Trader @NonNull [] traders) {
-        for (@NonNull @ReadOnly Market market : economy.getMarkets()) {
-            for (@NonNull BuyerParticipation participation : new ArrayList<>(market.getBuyers())) {
-                Basket removedBasket = economy.removeBasketBought(participation);
-                assertEquals(0, market.getBasket().compareTo(removedBasket));
-                assertFalse(market.getBuyers().contains(participation));
-            }
-            assertTrue(market.getBuyers().isEmpty());
-        }
-    }
+        @Test
+        public final void testAddCommodityBought() {
+            final CommoditySpecification[] specifications = {CLUSTER_A,SEGMENT_1,CPU_ANY};
+            double quantity = 45;
+            double peakQuantity = 32.5;
 
-    @Test
-    @Parameters(method = "generateEconomies")
-    public final void testAddCommodityBought(@NonNull Economy economy,
-                      @NonNull Basket @NonNull [] baskets, @NonNull Trader @NonNull [] traders) {
-        final CommoditySpecification[] specifications = {CLUSTER_A,SEGMENT_1,CPU_ANY};
-        double quantity = 45;
-        double peakQuantity = 32.5;
+            for (@NonNull @ReadOnly Market market : new ArrayList<>(economy.getMarkets())) {
+                for (@NonNull BuyerParticipation participation : new ArrayList<>(market.getBuyers())) {
+                    BuyerParticipation newParticipation = participation;
 
-        for (@NonNull @ReadOnly Market market : new ArrayList<>(economy.getMarkets())) {
-            for (@NonNull BuyerParticipation participation : new ArrayList<>(market.getBuyers())) {
-                BuyerParticipation newParticipation = participation;
+                    for (CommoditySpecification specification : specifications) {
+                        for (CommodityBought commodityBought : economy.getCommoditiesBought(newParticipation)) {
+                            commodityBought.setQuantity(quantity);
+                            commodityBought.setPeakQuantity(peakQuantity);
+                        }
 
-                for (CommoditySpecification specification : specifications) {
-                    for (CommodityBought commodityBought : economy.getCommoditiesBought(newParticipation)) {
-                        commodityBought.setQuantity(quantity);
-                        commodityBought.setPeakQuantity(peakQuantity);
+                        newParticipation = economy.addCommodityBought(newParticipation, specification);
+                        assertTrue(economy.getMarket(newParticipation).getBasket().contains(specification));
+
+                        CommodityBought addedCommodity = economy.getCommodityBought(newParticipation, specification);
+                        addedCommodity.setQuantity(quantity);
+                        addedCommodity.setPeakQuantity(peakQuantity);
+
+                        for (CommodityBought commodityBought : economy.getCommoditiesBought(newParticipation)) {
+                            assertEquals(quantity, commodityBought.getQuantity(), 0);
+                            assertEquals(peakQuantity, commodityBought.getPeakQuantity(), 0);
+                        }
+
+                        quantity += 1.1;
+                        peakQuantity += 1.2;
                     }
-
-                    newParticipation = economy.addCommodityBought(newParticipation, specification);
-                    assertTrue(economy.getMarket(newParticipation).getBasket().contains(specification));
-
-                    CommodityBought addedCommodity = economy.getCommodityBought(newParticipation, specification);
-                    addedCommodity.setQuantity(quantity);
-                    addedCommodity.setPeakQuantity(peakQuantity);
-
-                    for (CommodityBought commodityBought : economy.getCommoditiesBought(newParticipation)) {
-                        assertEquals(quantity, commodityBought.getQuantity(), 0);
-                        assertEquals(peakQuantity, commodityBought.getPeakQuantity(), 0);
-                    }
-
-                    quantity += 1.1;
-                    peakQuantity += 1.2;
                 }
             }
         }
-    }
+    } // end TestAddCommodityBought class
 
-    @Test
-    @Parameters(method = "generateEconomies")
-    public final void testRemoveCommodityBought(@NonNull Economy economy,
-                      @NonNull Basket @NonNull [] baskets, @NonNull Trader @NonNull [] traders) {
-        final CommoditySpecification[] specifications = {CLUSTER_A,CPU_1to8,MEM};
-        double quantity = 45;
-        double peakQuantity = 32.5;
+    @RunWith(Parameterized.class)
+    public static class TestRemoveCommodityBought {
+        // Fields needed by parameterized runner
+        @Parameter(value = 0) public @NonNull Economy economy;
+        @Parameter(value = 1) public @NonNull Basket @NonNull [] baskets;
+        @Parameter(value = 2) public @NonNull Trader @NonNull [] traders;
 
-        for (@NonNull @ReadOnly Market market : new ArrayList<>(economy.getMarkets())) {
-            for (@NonNull BuyerParticipation participation : new ArrayList<>(market.getBuyers())) {
-                BuyerParticipation newParticipation = participation;
+        @Parameters(name = "Test #{index}")
+        public static Collection<Object[]> data() {
+            return generateEconomies();
+        }
 
-                for (CommoditySpecification specification : specifications) {
-                    for (CommodityBought commodityBought : economy.getCommoditiesBought(newParticipation)) {
-                        commodityBought.setQuantity(quantity);
-                        commodityBought.setPeakQuantity(peakQuantity);
+        @Test
+        public final void testRemoveCommodityBought() {
+            final CommoditySpecification[] specifications = {CLUSTER_A,CPU_1to8,MEM};
+            double quantity = 45;
+            double peakQuantity = 32.5;
+
+            for (@NonNull @ReadOnly Market market : new ArrayList<>(economy.getMarkets())) {
+                for (@NonNull BuyerParticipation participation : new ArrayList<>(market.getBuyers())) {
+                    BuyerParticipation newParticipation = participation;
+
+                    for (CommoditySpecification specification : specifications) {
+                        for (CommodityBought commodityBought : economy.getCommoditiesBought(newParticipation)) {
+                            commodityBought.setQuantity(quantity);
+                            commodityBought.setPeakQuantity(peakQuantity);
+                        }
+
+                        newParticipation = economy.removeCommodityBought(newParticipation, specification);
+                        assertFalse(economy.getMarket(newParticipation).getBasket().contains(specification));
+
+                        for (CommodityBought commodityBought : economy.getCommoditiesBought(newParticipation)) {
+                            assertEquals(quantity, commodityBought.getQuantity(), 0);
+                            assertEquals(peakQuantity, commodityBought.getPeakQuantity(), 0);
+                        }
+
+                        quantity += 1.1;
+                        peakQuantity += 1.2;
                     }
-
-                    newParticipation = economy.removeCommodityBought(newParticipation, specification);
-                    assertFalse(economy.getMarket(newParticipation).getBasket().contains(specification));
-
-                    for (CommodityBought commodityBought : economy.getCommoditiesBought(newParticipation)) {
-                        assertEquals(quantity, commodityBought.getQuantity(), 0);
-                        assertEquals(peakQuantity, commodityBought.getPeakQuantity(), 0);
-                    }
-
-                    quantity += 1.1;
-                    peakQuantity += 1.2;
                 }
             }
         }
-    }
-
-    @Test
-    @Ignore
-    public final void testMoveTrader() {
-        fail("Not yet implemented");// TODO
-    }
+    } // end TestRemoveCommodityBought class
 
 } // end EconomyTest class
