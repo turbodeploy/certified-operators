@@ -57,8 +57,9 @@ public interface CommoditySoldSettings {
      * Returns the utilization upper bound for {@code this} commodity.
      *
      * <p>
-     *  The utilization for this commodity won't be allowed to exceed this value.
-     *  It may be used in price calculations.
+     *  Our system should never produce a recommendation that causes the utilization of a commodity
+     *  sold to exceed this limit, but external factors like manual moves using other tools or just
+     *  changes in the load might. It may be used in price calculations.
      * </p>
      */
     @Pure
