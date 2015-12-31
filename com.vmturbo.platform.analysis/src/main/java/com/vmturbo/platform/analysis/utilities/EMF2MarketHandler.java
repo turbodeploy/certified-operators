@@ -8,10 +8,13 @@ import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 import org.apache.log4j.Logger;
@@ -43,6 +46,12 @@ import com.vmturbo.platform.analysis.utilities.M2Utils.TopologyMapping;
  */
 final public class EMF2MarketHandler extends DefaultHandler {
 
+	/**
+	 * When true - replace DSPM and Datastore commodities with biclique commodities.
+	 * Used mostly for testing.
+	 */
+    private static boolean doBicliques = true;
+
     private static final List<String> COMM_REFS =
             Arrays.asList("Commodities", "CommoditiesBought");
 
@@ -50,6 +59,15 @@ final public class EMF2MarketHandler extends DefaultHandler {
 
     // Aggregated stats will be logged at info level every time ELEMENT_LOG more elements are loaded
     private static final long ELEMENT_LOG = 100000;
+
+    // Prefix for biclique PM commodity
+    private static final String BCPM_PREFIX = "BC-PM-";
+    // Prefix for biclique DS commodity
+    private static final String BCDS_PREFIX = "BC-DS-";
+
+    private static final String DSPMAccess = "Abstraction:DSPMAccessCommodity";
+    private static final String DatastoreCommodity = "Abstraction:DatastoreCommodity";
+    private static String ACCESSES = "Accesses";
 
     private Logger logger;
 
@@ -85,6 +103,17 @@ final public class EMF2MarketHandler extends DefaultHandler {
     // for example "PhysicalMachine buying from Storage"
     // The entries in the set are UUIDs of pairs of skipped traders, separated with a forward slash.
     private Map<String, Set<String>> skippedBaskets;
+    private Map<String, Trader> uuid2trader = Maps.newHashMap();
+
+    // Maps related to bicliques
+    // A map from storage uuid to all the host uuids connected to it
+    private Map<String, Set<String>> dspm = new TreeMap<>();
+    // The key and value in each entry are two sets of nodes that form one biclique
+    private Map<Set<String>, Set<String>> bicliques = new LinkedHashMap<>();
+    // map(uuid1, uuid2) is the biclique number of the biclique that contains the edge between uuid1 and uuid2
+    private Map<String, Map<String, Integer>> traderUuids2bcNumber = new HashMap<>();
+    // Map from trader uuid to the set of all biclique commodity keys that the trader sells
+    private Map<String, Set<String>> traderUuid2bcCommodityKeys = new HashMap<>();
 
     private long startTime;
     private long elementCount;
@@ -146,6 +175,12 @@ final public class EMF2MarketHandler extends DefaultHandler {
             } else {
                 commoditySold2trader.put(attributes.uuid(), parent);
                 trader2basketSold.get(parent.uuid()).add(attributes.commoditySpecString());
+                // Bicliques
+                if (doBicliques && attributes.xsitype().equals(DSPMAccess)) {
+                    String uuid1 = parent.uuid();
+                    String uuid2 = attributes.get(ACCESSES);
+                    biCliqueEdge(uuid1, uuid2);
+                }
             }
         }
     }
@@ -203,7 +238,9 @@ final public class EMF2MarketHandler extends DefaultHandler {
         String uuid = comm.uuid();
         if (!commodities.containsKey(uuid)) {
             commodities.put(uuid, comm);
-            commoditySpecs.insert(comm.commoditySpecString());
+            if (!isDspmAccess(comm) && !isDatastoreCommodity(comm)) {
+                commoditySpecs.insert(comm.commoditySpecString());
+            }
         }
     }
 
@@ -230,6 +267,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
         startTime = System.currentTimeMillis();
         elementCount = 0;
 
+        logger.debug("Biclique mode is " + (doBicliques ? "on" : "off"));
         logger.info("Start reading file");
     }
 
@@ -237,22 +275,30 @@ final public class EMF2MarketHandler extends DefaultHandler {
     public void endDocument() throws SAXException {
         logger.info("Done reading file in " + (System.currentTimeMillis() - startTime)/1000 + " sec");
 
+        if (doBicliques) constructBicliques();
         // Just for counting purposes
         Set<Basket> allBasketsBought = new HashSet<>();
         Set<Basket> allBasketsSold = new HashSet<>();
 
         // From basket bought to trader uuid
         Map<Basket, String> placement = Maps.newLinkedHashMap();
-        Map<String, Trader> uuid2trader = Maps.newHashMap();
         Map<Basket, Trader> shopper = Maps.newHashMap();
 
         logger.info("Start creating traders");
         for (String traderUuid : traders.keySet()) {
-            logger.trace("==========================");
             Attributes traderAttr = traders.get(traderUuid);
             printAttributes("Trader ", traderAttr, Level.DEBUG);
-            Set<String> keysSold = trader2basketSold.get(traderUuid);
+            Set<String> keysSold = trader2basketSold.get(traderUuid)
+                    .stream()
+                    .filter(k -> !doBicliques || (!k.startsWith(DSPMAccess) && !k.startsWith(DatastoreCommodity)))
+                    .collect(Collectors.toSet());;
+            Set<String> bcKeys = traderUuid2bcCommodityKeys.get(traderUuid);
+            if (bcKeys != null) {
+                keysSold.addAll(bcKeys);
+            }
+            logger.trace("Keys sold : " + keysSold);
             Basket basketSold = keysToBasket(keysSold, commoditySpecs);
+
             allBasketsSold.add(basketSold);
             int traderType = traderTypes.get(traderAttr.xsitype());
             Trader aSeller = economy.addTrader(traderType, TraderState.ACTIVE, basketSold);
@@ -267,6 +313,8 @@ final public class EMF2MarketHandler extends DefaultHandler {
             // Keys are the same as above
             // Values are the commodities that consume commodities from this seller
             Map<Attributes, List<Attributes>> sellerAttr2commsBoughtAttr = Maps.newLinkedHashMap();
+            // Key is the uuid of the trader and value is the bilique keys bought from that trader
+            Map<String ,String> traderUuid2bcKeysBought = new HashMap<>();
             for (Attributes commBoughtAttr : trader2commoditiesBought.get(traderUuid)) {
                 printAttributes("    Buys ", commBoughtAttr, Level.TRACE);
                 String consumes = commBoughtAttr.get("Consumes");
@@ -299,6 +347,19 @@ final public class EMF2MarketHandler extends DefaultHandler {
                     continue;
                 }
 
+                if (isDspmAccess(commBoughtAttr)) {
+                    int bcNumber = bcNumber(commSoldAttr);
+                    if (bcNumber >= 0) {
+                        traderUuid2bcKeysBought.put(sellerAttr.uuid(), BCDS_PREFIX + bcNumber);
+                    }
+                    continue;
+                } else if (isDatastoreCommodity(commBoughtAttr)) {
+                    int bcNumber = bcNumber(commSoldAttr);
+                    if (bcNumber >= 0) {
+                        traderUuid2bcKeysBought.put(sellerAttr.uuid(), BCPM_PREFIX + bcNumber);
+                    }
+                    continue;
+                }
                 // if key doesn't exist then create one, otherwise return the existing value,
                 // then add the entry to the list
                 sellerAttr2commsSoldAttr
@@ -308,6 +369,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
                     .compute(sellerAttr, (key, val) -> val == null ? new ArrayList<Attributes>() : val)
                         .add(commBoughtAttr);
             }
+            printAttributes("", traderAttr, Level.DEBUG);
             List<Basket> basketsBoughtByTrader = new ArrayList<>();
             for (Entry<Attributes, List<Attributes>> entry : sellerAttr2commsSoldAttr.entrySet()) {
                 Attributes sellerAttrs = entry.getKey();
@@ -316,6 +378,10 @@ final public class EMF2MarketHandler extends DefaultHandler {
                 for (Attributes commSold : entry.getValue()) {
                     printAttributes("      - ", commSold, Level.TRACE);
                     keysBought.add(commSold.commoditySpecString());
+                }
+                String bcKeysBought = traderUuid2bcKeysBought.get(sellerAttrs.uuid());
+                if (bcKeysBought != null) {
+                    keysBought.add(bcKeysBought);
                 }
                 logger.debug("    Basket : " + keysBought);
                 Basket basketBought = keysToBasket(keysBought, commoditySpecs);
@@ -352,11 +418,16 @@ final public class EMF2MarketHandler extends DefaultHandler {
             }
         }
 
-        // Set various properties of commodity sold capacities
+        // Set various properties of commodity sold
         logger.info("Set commodity properties");
         for (Entry<String, Attributes> entry : commoditySold2trader.entrySet()) {
             Attributes commSoldAttr = commodities.get(entry.getKey());
             printAttributes("Commodity sold ",  commSoldAttr, Level.TRACE);
+            // Bicliques - skip DSPMAccess and Datastore commodities
+            if (isDspmAccess(commSoldAttr) || isDatastoreCommodity(commSoldAttr)) {
+                continue;
+            }
+
             double capacity = commSoldAttr.value("capacity", "startCapacity");
             double used = commSoldAttr.value("used");
             double peakUtil = commSoldAttr.value("peakUtilization");
@@ -382,7 +453,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
             commSold.getSettings().setUtilizationUpperBound(utilThreshold);
             PriceFunction pf = priceFunction(commSoldAttr);
             commSold.getSettings().setPriceFunction(pf);
-        }
+         }
 
         // Assume baskets are not reused
         logger.info("Processing placement");
@@ -423,9 +494,94 @@ final public class EMF2MarketHandler extends DefaultHandler {
         logger.info(traderTypes.size() + " trader types");
         if (logger.isTraceEnabled()) traderTypes.entrySet().stream().forEach(logger::trace);
         logger.info(commoditySpecs.size() + " commodity types");
+        logger.info(bicliques.size() + " bicliques");
+        if (logger.isDebugEnabled()) bicliques.forEach((k, v) -> logger.debug(names(k) + " = " + names(v)));
         if (logger.isTraceEnabled()) commoditySpecs.entrySet().stream().forEach(logger::trace);
         logger.info((System.currentTimeMillis() - startTime) / 1000.0 + " seconds");
+    }
 
+    /**
+     * The biclique number of the biclique that replaces a sold commodity.
+     * @param commSoldAttr the {@link Attributes} representing the sold commodity
+     * @return the biclique number of the biclique that replaces this commodity,
+     * or -1 if there is no such biclique.
+     */
+    private int bcNumber(Attributes commSoldAttr) {
+        // These two uuids belong to two traders that are connected with an edge in the biclique
+        Attributes sellerAttr = commoditySold2trader.get(commSoldAttr.uuid());
+        String uuid1 = sellerAttr.uuid();
+        String uuid2 = commSoldAttr.get(ACCESSES);
+        Map<String, Integer> map = traderUuids2bcNumber.get(uuid1);
+        if (map != null) {
+            return map.get(uuid2);
+        } else {
+            map = traderUuids2bcNumber.get(uuid2);
+            if (map != null) {
+                return map.get(uuid1);
+            }
+        }
+        // This can happen in testing, when a trader is referenced by "Accesses" but is not partof the topology
+        return -1;
+    }
+
+    private void constructBicliques() {
+        // This is where the bicliques are constructed
+        dspm.forEach((ds, pms) -> bicliques.compute(pms, (key, val) -> val == null ? new TreeSet<>() : val).add(ds));
+        // The rest of this method is helper maps and logging
+        int cliqueNum = 0;
+        for (Entry<Set<String>, Set<String>> clique : bicliques.entrySet()) {
+            commoditySpecs.insert(BCPM_PREFIX + cliqueNum);
+            commoditySpecs.insert(BCDS_PREFIX + cliqueNum);
+            for (String uuid1 : clique.getKey()) {
+                traderUuid2bcCommodityKeys.compute(uuid1, (key, val) -> val == null ? new HashSet<>() : val).add(BCPM_PREFIX + cliqueNum);
+                traderUuids2bcNumber.putIfAbsent(uuid1, new HashMap<>());
+                for (String uuid2 : clique.getValue()) {
+                    traderUuid2bcCommodityKeys.compute(uuid2, (key, val) -> val == null ? new HashSet<>() : val).add(BCDS_PREFIX + cliqueNum);
+                    traderUuids2bcNumber.get(uuid1).putIfAbsent(uuid2, cliqueNum);
+                }
+            }
+            cliqueNum++;
+        }
+    }
+
+    /**
+     * Convert a set of UUIDs to a set of trader names
+     * @param uuids set of trader UUIDs
+     * @return the names of the traders
+     */
+    private Collection<String> names(Set<String> uuids) {
+        Set<String> foo = uuids.stream()
+                .map(uuid2trader::get)
+                // for testing, when a trader may be referenced by "Accesses" but is not part of the topology
+                .filter(t -> t != null)
+                .map(economy::getIndex)
+                .map(topoMapping::getTraderName)
+                .collect(Collectors.toSet());
+        return foo;
+    }
+
+    /**
+     * @return True if processing bicliques ({@link #doBicliques} is true) and this is a DSPMAccessCommodity
+     */
+    private boolean isDspmAccess(Attributes commodity) {
+        return doBicliques && commodity.xsitype().equals(DSPMAccess);
+    }
+
+    /**
+     * @return True if processing bicliques ({@link #doBicliques} is true) and this is a DatastoreCommodity
+     */
+    private boolean isDatastoreCommodity(Attributes commodity) {
+        return doBicliques && commodity.xsitype().equals(DatastoreCommodity);
+    }
+
+    /**
+     * Create an edge in the graph between the nodes represented by the given uuids.
+     * This graph is later used to construct a biclique cover.
+     * @param node1
+     * @param node2
+     */
+    private void biCliqueEdge(String node1, String node2) {
+        dspm.compute(node1, (node, set) -> set == null ? new LinkedHashSet<>() : set).add(node2);
     }
 
     Level warning(boolean warning) {
@@ -477,8 +633,8 @@ final public class EMF2MarketHandler extends DefaultHandler {
      */
     Basket keysToBasket(Set<String> keys, TypeMap typeMap) {
         List<CommoditySpecification> list = Lists.newArrayList();
-        keys.stream().mapToInt(key -> typeMap.get(key)).sorted().
-            forEach(i -> list.add(commSpec(i)));
+        keys.stream().mapToInt(key -> typeMap.get(key)).sorted()
+            .forEach(i -> list.add(commSpec(i)));
         // TODO: Reuse baskets?
         return new Basket(list);
     }

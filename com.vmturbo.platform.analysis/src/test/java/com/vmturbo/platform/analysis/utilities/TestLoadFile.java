@@ -59,6 +59,7 @@ public class TestLoadFile {
     private static final String DS_902 = fileToString(REPOS_PATH + "datastore-902.xml");
     private static final String APP_733 = fileToString(REPOS_PATH + "GuestLoad-vm-733.xml");
     private static final String EDGE = fileToString(REPOS_PATH + "edge-cases.xml");
+    private static final String BICLIQUES = fileToString(REPOS_PATH + "bicliques.xml");
 
     // Test that a full file loads with no exception.
     @Test
@@ -95,8 +96,45 @@ public class TestLoadFile {
         assertEquals(1, topoMap.getTopology().getEconomy().getTraders().size());
         assertEquals(0, topoMap.getTopology().getEconomy().getMarkets().size());
     }
+
     /**
-     * Tast that loading one entity results in one trader and no markets
+     * Test that DSPMAccessCommodity and DatastoreCommodity are replaced with BC-DS and
+     * BC-PM commodities.
+     */
+    @Test
+    public void testBicliques() {
+        /*
+         * The file contains 8 commodity types: 1 CPU, 1 StorageAmount, DSPMAccessCommodity
+         * with 3 different keys, and DatastoreCommodity with 3 different keys.
+         * The algorithm replaces all the DSPMAccessCommodity and DatastoreCommodity with one
+         * biclique that has two biclique commodities: BC-DS-0 and BC-PM-0. Assert that each
+         * market (there are two) has exactly two commodity types (for a total of 4 commodity
+         * types).
+         */
+        TopologyMapping topoMap = loadString(XML_TOP + BICLIQUES + XML_BOTTOM, loggerTrace);
+        Market[] markets = topoMap.getTopology().getEconomy().getMarkets().toArray(new Market[]{});
+        assertEquals(2, markets.length);
+        for (@NonNull @ReadOnly Market market : markets) {
+            // 2 commodity types in each basket
+            assertEquals(2, market.getBasket().size());
+            // 3 sellers (the 3 PMs or 3 DSs)
+            assertEquals(3, market.getSellers().size());
+            // one buyer (the VM)
+            assertEquals(1, market.getBuyers().size());
+        }
+        // Verify that the baskets are mutually exclusive
+        // StorageAmount
+        assertEquals(0, markets[0].getBasket().get(0).getType());
+        // BC-DS-0
+        assertEquals(3, markets[0].getBasket().get(1).getType());
+        // CPU
+        assertEquals(1, markets[1].getBasket().get(0).getType());
+        // BC-PM-0
+        assertEquals(2, markets[1].getBasket().get(1).getType());
+    }
+
+    /**
+     * Test that loading one entity results in one trader and no markets
      */
     @Parameters
     @TestCaseName("Test #{index}: Load {0}")
