@@ -435,6 +435,9 @@ final public class EMF2MarketHandler extends DefaultHandler {
             CommoditySpecification specification = commSpec(commoditySpecs.get(commSoldAttr.commoditySpecString()));
             Trader trader = uuid2trader.get(entry.getValue().uuid());
             CommoditySold commSold = trader.getCommoditySold(specification);
+            // The only known way to get a negative capacity is bug OM-3669 which is fixed, but we
+            // check and recover from this error with only a warning, so that we have some tolerance
+            // in case we have to work with servers that don't have the fix and/or have other bugs.
             if (capacity < 0) {
                 printAttributes("capacity < 0 ", commSoldAttr, Level.WARN);
                 capacity = 0.0;
