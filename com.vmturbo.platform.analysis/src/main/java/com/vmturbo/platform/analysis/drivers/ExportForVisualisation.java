@@ -5,6 +5,7 @@ import org.apache.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
+import com.google.common.base.Strings;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ede.Ede;
@@ -13,6 +14,11 @@ import com.vmturbo.platform.analysis.utilities.M2Utils;
 /**
  * A simple driver program that runs the placement algorithm on a loaded Economy and exports the
  * data in a form easily loadable to Excel for further processing.
+ *
+ * <p>
+ *  The intention is that the user runs this program with a topology as input and then copies the
+ *  output and pastes it in an Excel sheet.
+ * </p>
  */
 public final class ExportForVisualisation {
     // Fields
@@ -47,29 +53,23 @@ public final class ExportForVisualisation {
     }
 
     private static void printEconomy(@NonNull Economy economy, @NonNull String name) {
+        final String tabSeparatedFieldsLine = Strings.repeat("%s\t", 10) + "%s\n";
+
         for (@NonNull @ReadOnly Trader trader : economy.getTraders()) {
             for (int i = 0 ; i < trader.getBasketSold().size() ; ++i) {
-                System.out.print(name);
-                System.out.print('\t');
-                System.out.print(economy.getIndex(trader));
-                System.out.print('\t');
-                System.out.print(trader.getType());
-                System.out.print('\t');
-                System.out.print(i);
-                System.out.print('\t');
-                System.out.print(trader.getBasketSold().get(i).getType());
-                System.out.print('\t');
-                System.out.print(trader.getCommoditiesSold().get(i).getUtilization());
-                System.out.print('\t');
-                System.out.print(trader.getCommoditiesSold().get(i).getPeakUtilization());
-                System.out.print('\t');
-                System.out.print(trader.getCommoditiesSold().get(i).getQuantity());
-                System.out.print('\t');
-                System.out.print(trader.getCommoditiesSold().get(i).getPeakQuantity());
-                System.out.print('\t');
-                System.out.print(trader.getCommoditiesSold().get(i).getCapacity());
-                System.out.print('\t');
-                System.out.println(trader.getCommoditiesSold().get(i).getEffectiveCapacity());
+                System.out.printf(tabSeparatedFieldsLine,
+                    name,
+                    economy.getIndex(trader),
+                    trader.getType(),
+                    i,
+                    trader.getBasketSold().get(i).getType(),
+                    trader.getCommoditiesSold().get(i).getUtilization(),
+                    trader.getCommoditiesSold().get(i).getPeakUtilization(),
+                    trader.getCommoditiesSold().get(i).getQuantity(),
+                    trader.getCommoditiesSold().get(i).getPeakQuantity(),
+                    trader.getCommoditiesSold().get(i).getCapacity(),
+                    trader.getCommoditiesSold().get(i).getEffectiveCapacity()
+                );
             }
         }
     }
