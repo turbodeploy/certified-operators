@@ -179,8 +179,6 @@ public class MarketTest {
             {new Basket(), new TraderWithSettings[]{IT0,T1B}, new TraderWithSettings[]{}},
             {new Basket(A), new TraderWithSettings[]{T0,T1ABC}, new TraderWithSettings[]{}},
             {new Basket(A), new TraderWithSettings[]{T0A,T1C}, new TraderWithSettings[]{}},
-            {new Basket(), new TraderWithSettings[]{T0C,T0C}, new TraderWithSettings[]{}},
-            {new Basket(A), new TraderWithSettings[]{T0A,T0A}, new TraderWithSettings[]{}},
 
             {new Basket(), new TraderWithSettings[]{}, new TraderWithSettings[]{T0}},
             {new Basket(), new TraderWithSettings[]{}, new TraderWithSettings[]{IT0}},

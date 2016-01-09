@@ -84,8 +84,6 @@ public final class Economy {
      */
     @Pure
     public @NonNull @ReadOnly Market getMarket(@ReadOnly Economy this, @NonNull @ReadOnly Basket basket) {
-        checkArgument(markets_.containsKey(basket));
-
         return markets_.get(basket);
     }
 
@@ -104,8 +102,6 @@ public final class Economy {
      */
     @Pure
     public @NonNull @ReadOnly Market getMarket(@ReadOnly Economy this, @NonNull @ReadOnly BuyerParticipation participation) {
-        checkArgument(((TraderWithSettings)participation.getBuyer()).getMarketsAsBuyer().containsValue(participation));
-
         return Multimaps.invertFrom(((TraderWithSettings)participation.getBuyer()).getMarketsAsBuyer(),
             ArrayListMultimap.create()).get(participation).get(0); // only one market in inverse view
     }
@@ -275,7 +271,6 @@ public final class Economy {
     // acquire again, to avoid recalculation of sellers)
     @Deterministic
     public @NonNull Economy removeTrader(@NonNull Trader traderToRemove) {
-        checkArgument(traders_.contains(traderToRemove));
         final TraderWithSettings castTraderToRemove = (TraderWithSettings)traderToRemove;
 
         // Stop everyone from buying from the trader.
@@ -299,7 +294,7 @@ public final class Economy {
                 trader.setEconomyIndex(trader.getEconomyIndex() - 1);
             }
         }
-        traders_.remove(traderToRemove);
+        checkArgument(traders_.remove(traderToRemove));
 
         return this;
     }

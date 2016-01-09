@@ -90,7 +90,6 @@ public final class Market {
     @NonNull Market addSeller(@NonNull TraderWithSettings newSeller) {
         checkArgument(getBasket().isSatisfiedBy(newSeller.getBasketSold()));
         checkArgument(newSeller.getState().isActive());
-        checkArgument(!sellers_.contains(newSeller));
 
         sellers_.add(newSeller);
         newSeller.getMarketsAsSeller().add(this);
@@ -119,9 +118,7 @@ public final class Market {
      */
     @Deterministic
     @NonNull Market removeSeller(@NonNull TraderWithSettings sellerToRemove) {
-        checkArgument(sellers_.contains(sellerToRemove));
-
-        sellers_.remove(sellerToRemove);
+        checkArgument(sellers_.remove(sellerToRemove));
         sellerToRemove.getMarketsAsSeller().remove(this);
 
         return this;
@@ -176,9 +173,8 @@ public final class Market {
      * @return {@code this}
      */
     @NonNull Market removeBuyerParticipation(@NonNull Economy economy, @NonNull BuyerParticipation participationToRemove) {
-        checkArgument(buyers_.contains(participationToRemove));
+        checkArgument(buyers_.remove(participationToRemove));
         economy.moveTrader(participationToRemove, null);
-        buyers_.remove(participationToRemove);
         ((TraderWithSettings)participationToRemove.getBuyer()).getMarketsAsBuyer().remove(this, participationToRemove);
 
         return this;
