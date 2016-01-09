@@ -16,7 +16,8 @@ import com.vmturbo.platform.analysis.ede.Ede;
 import com.vmturbo.platform.analysis.recommendations.RecommendationItem;
 
 /**
- * A benchmark to determine the performance of the 'market algorithms' on Economies of varying sizes.
+ * A benchmark to determine the performance of the 'market algorithms' on Economies of varying sizes
+ * with only one market.
  *
  * <p>
  *  May be useful to run with one or more of the following JVM options:
