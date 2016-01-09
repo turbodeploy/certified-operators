@@ -76,9 +76,9 @@ final public class EMF2MarketHandler extends DefaultHandler {
     private Economy economy;
 
     // Map from trader type string (e.g. "Abstraction:PhysicalMachine") to trader type number
-    private TypeMap traderTypes = new TypeMap();
+    private NumericIDAllocator traderTypes = new NumericIDAllocator();
     // Map from commodity type string (class + key) to commodity specification number
-    private TypeMap commoditySpecs = new TypeMap();
+    private NumericIDAllocator commoditySpecs = new NumericIDAllocator();
 
     // Stacks (using the Deque implementation) are used to keep track of the parent of an xml element
     private Deque<String> elementsStack;
@@ -225,7 +225,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
             traders.put(uuid, trader);
             trader2commoditiesBought.put(uuid, new ArrayList<Attributes>());
             trader2basketSold.put(uuid, new HashSet<String>());
-            traderTypes.insert(trader.xsitype());
+            traderTypes.allocate(trader.xsitype());
         }
     }
 
@@ -239,7 +239,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
         if (!commodities.containsKey(uuid)) {
             commodities.put(uuid, comm);
             if (!isDspmAccess(comm) && !isDatastoreCommodity(comm)) {
-                commoditySpecs.insert(comm.commoditySpecString());
+                commoditySpecs.allocate(comm.commoditySpecString());
             }
         }
     }
@@ -300,7 +300,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
             Basket basketSold = keysToBasket(keysSold, commoditySpecs);
 
             allBasketsSold.add(basketSold);
-            int traderType = traderTypes.get(traderAttr.xsitype());
+            int traderType = traderTypes.getId(traderAttr.xsitype());
             Trader aSeller = economy.addTrader(traderType, TraderState.ACTIVE, basketSold);
             if (VIRTUAL_MACHINE.equals(traderAttr.xsitype())) // TODO: also check for containers
                 aSeller.getSettings().setMovable(true);
@@ -390,7 +390,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
                 economy.addBasketBought(aSeller, basketBought);
 
                 for (Attributes commBought : sellerAttr2commsBoughtAttr.get(sellerAttrs)) {
-                    CommoditySpecification specification = commSpec(commoditySpecs.get(commBought.commoditySpecString()));
+                    CommoditySpecification specification = commSpec(commoditySpecs.getId(commBought.commoditySpecString()));
                     BuyerParticipation participation = economy.getMarketsAsBuyer(aSeller).get(economy.getMarket(basketBought)).get(0);
                     double used = commBought.value("used");
                     economy.getCommodityBought(participation, specification).setQuantity(used);
@@ -434,7 +434,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
             double used = commSoldAttr.value("used");
             double peakUtil = commSoldAttr.value("peakUtilization");
             double utilThreshold = commSoldAttr.value("utilThreshold", 1.0);
-            CommoditySpecification specification = commSpec(commoditySpecs.get(commSoldAttr.commoditySpecString()));
+            CommoditySpecification specification = commSpec(commoditySpecs.getId(commSoldAttr.commoditySpecString()));
             Trader trader = uuid2trader.get(entry.getValue().uuid());
             CommoditySold commSold = trader.getCommoditySold(specification);
             // The only known way to get a negative capacity is bug OM-3669 which is fixed, but we
@@ -535,8 +535,8 @@ final public class EMF2MarketHandler extends DefaultHandler {
         // The rest of this method is helper maps and logging
         int cliqueNum = 0;
         for (Entry<Set<String>, Set<String>> clique : bicliques.entrySet()) {
-            commoditySpecs.insert(BCPM_PREFIX + cliqueNum);
-            commoditySpecs.insert(BCDS_PREFIX + cliqueNum);
+            commoditySpecs.allocate(BCPM_PREFIX + cliqueNum);
+            commoditySpecs.allocate(BCDS_PREFIX + cliqueNum);
             for (String uuid1 : clique.getKey()) {
                 traderUuid2bcCommodityKeys.compute(uuid1, (key, val) -> val == null ? new HashSet<>() : val).add(BCPM_PREFIX + cliqueNum);
                 traderUuids2bcNumber.putIfAbsent(uuid1, new HashMap<>());
@@ -598,7 +598,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
      */
     private void verify() {
         for (Trader trader : economy.getTraders()) {
-            logger.trace(traderTypes.getByValue(trader.getType()) + " @" + trader.hashCode());
+            logger.trace(traderTypes.getName(trader.getType()) + " @" + trader.hashCode());
             logger.trace("    Sells " + trader.getBasketSold());
             if (!trader.getCommoditiesSold().isEmpty()) {
                 logger.trace("       " + basketAsStrings(trader.getBasketSold()));
@@ -615,7 +615,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
             logger.trace("    Buys from "
                     + economy.getSuppliers(trader)
                     .stream().map(Trader::getType)
-                    .map(traderTypes::getByValue)
+                    .map(traderTypes::getName)
                     .collect(Collectors.toList()));
             logger.trace(economy.getMarketsAsBuyer(trader).size() + " participations ");
             // Print "P" x number of participations (e.g. PPPPP for 5 participations). Makes search easier.
@@ -632,13 +632,13 @@ final public class EMF2MarketHandler extends DefaultHandler {
 
     /**
      * Construct a Basket from a set of commodity type strings
-     * @param keys commodty type strings
-     * @param typeMap a mapping from commodity type string to commodity specification number
+     * @param keys commodity type strings
+     * @param allocator an allocation of commodity specification numbers to commodity type strings
      * @return a Basket
      */
-    Basket keysToBasket(Set<String> keys, TypeMap typeMap) {
+    Basket keysToBasket(Set<String> keys, NumericIDAllocator allocator) {
         List<CommoditySpecification> list = Lists.newArrayList();
-        keys.stream().mapToInt(key -> typeMap.get(key)).sorted()
+        keys.stream().mapToInt(key -> allocator.getId(key)).sorted()
             .forEach(i -> list.add(commSpec(i)));
         // TODO: Reuse baskets?
         return new Basket(list);
@@ -647,7 +647,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
     List<String> basketAsStrings(Basket basket) {
         List<String> result = new ArrayList<>(basket.size());
         for (CommoditySpecification specification : basket) {
-            result.add(commoditySpecs.getByValue(specification.getType()).toString());
+            result.add(commoditySpecs.getName(specification.getType()).toString());
         }
 
         return result;
@@ -694,36 +694,6 @@ final public class EMF2MarketHandler extends DefaultHandler {
             return PriceFunction.Cache.createConstantPriceFunction(0.0);
         default:
             return PriceFunction.Cache.createStandardWeightedPriceFunction(1.0);
-        }
-    }
-
-    /**
-     * Used to allocate integer values to strings.
-     */
-    @SuppressWarnings("serial")
-    static class TypeMap extends LinkedHashMap<@NonNull Object, @NonNull Integer> {
-        private List<Object> reverse = new ArrayList<Object>();
-
-        /**
-         * If the key exists then return its type.
-         * Otherwise increment the counter and allocate it to the key.
-         * @param key either a new or an existing key
-         * @return the integer type of the provided key.
-         */
-        int insert(Object key) {
-            @NonNull
-            Integer val = get(key);
-            if (val != null) {
-                return val;
-            } else {
-                put(key, reverse.size());
-                reverse.add(key);
-                return reverse.size();
-            }
-        }
-
-        Object getByValue(int val) {
-            return reverse.get(val);
         }
     }
 
