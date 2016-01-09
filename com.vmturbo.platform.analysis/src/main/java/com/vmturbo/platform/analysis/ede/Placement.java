@@ -46,6 +46,8 @@ public class Placement {
                 // if there are no sellers in the market, the buyer is misconfigured
                 final @NonNull List<@NonNull Trader> sellers = market.getSellers();
                 final @NonNull Trader buyer = buyerParticipation.getBuyer();
+                if (!buyer.getSettings().isMovable())
+                    continue;
                 if (sellers.isEmpty()) {
                     recommendations.add(new RecommendationItem(buyer, null, null, market));
                     continue;

@@ -302,6 +302,8 @@ final public class EMF2MarketHandler extends DefaultHandler {
             allBasketsSold.add(basketSold);
             int traderType = traderTypes.get(traderAttr.xsitype());
             Trader aSeller = economy.addTrader(traderType, TraderState.ACTIVE, basketSold);
+            if (VIRTUAL_MACHINE.equals(traderAttr.xsitype())) // TODO: also check for containers
+                aSeller.getSettings().setMovable(true);
             String traderName = String.format("%s [%s]", traderAttr.get("displayName"), traderAttr.uuid());
             topoMapping.addTraderMapping(economy.getIndex(aSeller), traderName);
             uuid2trader.put(traderUuid, aSeller);

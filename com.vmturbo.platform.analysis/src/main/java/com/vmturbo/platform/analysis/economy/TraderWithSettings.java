@@ -31,6 +31,7 @@ final class TraderWithSettings implements Trader, TraderSettings {
     // Fields for TraderSettings
     private boolean suspendable_ = false;
     private boolean cloneable_ = false;
+    private boolean movable_ = false;
     private double maxDesiredUtilization_ = 1.0;
     private double minDesiredUtilization_ = 0.0;
 
@@ -245,6 +246,12 @@ final class TraderWithSettings implements Trader, TraderSettings {
 
     @Override
     @Pure
+    public boolean isMovable(@ReadOnly TraderWithSettings this) {
+        return movable_;
+    }
+
+    @Override
+    @Pure
     public double getMaxDesiredUtil(@ReadOnly TraderWithSettings this) {
         return maxDesiredUtilization_;
     }
@@ -266,6 +273,13 @@ final class TraderWithSettings implements Trader, TraderSettings {
     @Deterministic
     public @NonNull TraderWithSettings setCloneable(boolean cloneable) {
         cloneable_ = cloneable;
+        return this;
+    }
+
+    @Override
+    @Deterministic
+    public @NonNull TraderWithSettings setMovable(boolean movable) {
+        movable_ = movable;
         return this;
     }
 

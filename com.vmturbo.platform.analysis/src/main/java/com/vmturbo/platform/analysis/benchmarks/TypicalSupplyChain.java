@@ -40,7 +40,6 @@ public class TypicalSupplyChain {
     private static final @NonNull Basket EMPTY = new Basket();
 
     private static final int CLUSTER_BASE = 100;
-    private static final int APP_BASE = Integer.MAX_VALUE/2;
     private static final double UTILIZATION = 0.7;
     private static final double PROVISION_FACTOR = 10;
     private static final double CPU_CAPACITY = 10000;
@@ -118,7 +117,7 @@ public class TypicalSupplyChain {
             for (int i = 0 ; i < nSTsPerCluster ; ++i) {
                 final @NonNull Trader st = economy.addTrader(1, TraderState.ACTIVE, VM_ST);
 
-                //st.getCommoditySold(CLUSTER).setCapacity(1);
+                st.getCommoditySold(CLUSTER).setCapacity(1);
                 st.getCommoditySold(STORE).setCapacity(STORE_CAPACITY);
                 st.getCommoditySold(STORE_PROVISIONED).setCapacity(STORE_CAPACITY*PROVISION_FACTOR);
 
@@ -132,12 +131,12 @@ public class TypicalSupplyChain {
 
             // generate virtual machines and applications
             for (int i = 0 ; i < nVMsPerCluster ; ++i) {
-                final @NonNull CommoditySpecification BIND = new CommoditySpecification(APP_BASE+cluster*nVMsPerCluster+i);
-                final @NonNull Basket APP_VM = new Basket(VCPU, VMEM, VSTORE, BIND);
+                final @NonNull Basket APP_VM = new Basket(VCPU, VMEM, VSTORE);
                 final @NonNull Trader vm = economy.addTrader(2, TraderState.ACTIVE, APP_VM);
 
+                vm.getSettings().setMovable(true);
+
                 // Fill-in quantities and capacities sold by the virtual machine
-                vm.getCommoditySold(BIND).setCapacity(1);
                 final double PMsPerVM = nPMsPerCluster / nVMsPerCluster; // inverse of VMs per PM
                 vm.getCommoditySold(VCPU).setCapacity(PMsPerVM*UTILIZATION*CPU_CAPACITY);
                 vm.getCommoditySold(VMEM).setCapacity(PMsPerVM*UTILIZATION*MEM_CAPACITY);

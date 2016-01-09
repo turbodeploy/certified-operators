@@ -22,6 +22,15 @@ public interface TraderSettings {
     boolean isCloneable();
 
     /**
+     * Whether the associated {@link Trader} should be considered for moving.
+     *
+     * <p>
+     *  The placement algorithm should ignore immovable traders.
+     * </p>
+     */
+    boolean isMovable();
+
+    /**
      * Returns the maximum desired utilization of {@code this} trader's commodities.
      *
      * <p>
@@ -64,6 +73,18 @@ public interface TraderSettings {
      * @return {@code this}
      */
     @NonNull TraderSettings setCloneable(boolean cloneable);
+
+    /**
+     * Sets the value of the <b>movable</b> field.
+     *
+     * <p>
+     *  Has no observable side-effects except setting the above field.
+     * </p>
+     *
+     * @param movable the new value for the field.
+     * @return {@code this}
+     */
+    @NonNull TraderSettings setMovable(boolean movable);
 
     /**
      * Sets the value of the <b>max desired utilization</b> field.
