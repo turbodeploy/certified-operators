@@ -273,8 +273,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
         Set<Basket> allBasketsSold = new HashSet<>();
 
         // From basket bought to trader uuid
-        Map<Basket, String> placement = Maps.newLinkedHashMap();
-        Map<Basket, Trader> shopper = Maps.newHashMap();
+        Map<BuyerParticipation, String> placement = Maps.newLinkedHashMap();
 
         logger.info("Start creating traders");
         for (String traderUuid : traders.keySet()) {
@@ -379,17 +378,16 @@ final public class EMF2MarketHandler extends DefaultHandler {
                 }
                 logger.debug("    Basket : " + keysBought);
                 Basket basketBought = keysToBasket(keysBought, commoditySpecs);
-                economy.addBasketBought(aSeller, basketBought);
+                BuyerParticipation participation = economy.addBasketBought(aSeller, basketBought);
 
                 for (Attributes commBought : sellerAttr2commsBoughtAttr.get(sellerAttrs)) {
-                    CommoditySpecification specification = new CommoditySpecification(commoditySpecs.getId(commBought.commoditySpecString()));
-                    BuyerParticipation participation = economy.getMarketsAsBuyer(aSeller).get(economy.getMarket(basketBought)).get(0);
+                    CommoditySpecification specification =
+                        new CommoditySpecification(commoditySpecs.getId(commBought.commoditySpecString()));
                     double used = commBought.value("used");
                     economy.getCommodityBought(participation, specification).setQuantity(used);
                 }
 
-                placement.put(basketBought, entry.getKey().uuid());
-                shopper.put(basketBought,  aSeller);
+                placement.put(participation, entry.getKey().uuid());
 
                 basketsBoughtByTrader.add(basketBought);
                 allBasketsBought.add(basketBought);
@@ -426,7 +424,8 @@ final public class EMF2MarketHandler extends DefaultHandler {
             double used = commSoldAttr.value("used");
             double peakUtil = commSoldAttr.value("peakUtilization");
             double utilThreshold = commSoldAttr.value("utilThreshold", 1.0);
-            CommoditySpecification specification = new CommoditySpecification(commoditySpecs.getId(commSoldAttr.commoditySpecString()));
+            CommoditySpecification specification =
+                new CommoditySpecification(commoditySpecs.getId(commSoldAttr.commoditySpecString()));
             Trader trader = uuid2trader.get(entry.getValue().uuid());
             CommoditySold commSold = trader.getCommoditySold(specification);
             // The only known way to get a negative capacity is bug OM-3669 which is fixed, but we
@@ -454,11 +453,8 @@ final public class EMF2MarketHandler extends DefaultHandler {
 
         // Assume baskets are not reused
         logger.info("Processing placement");
-        for (Entry<Basket, String> entry : placement.entrySet()) {
-            Basket basket = entry.getKey();
-            Trader placeTrader = shopper.get(basket);
-            Trader onTrader = uuid2trader.get(entry.getValue());
-            economy.moveTrader(economy.getMarketsAsBuyer(placeTrader).get(economy.getMarket(basket)).get(0), onTrader);
+        for (Entry<BuyerParticipation, String> entry : placement.entrySet()) {
+            economy.moveTrader(entry.getKey(), uuid2trader.get(entry.getValue()));
         }
 
         if (logger.isTraceEnabled()) {
