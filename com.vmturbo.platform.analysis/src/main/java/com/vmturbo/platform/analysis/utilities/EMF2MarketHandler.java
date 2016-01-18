@@ -21,7 +21,6 @@ import org.apache.log4j.Logger;
 import org.apache.log4j.Level;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.xml.sax.SAXException;
-import org.xml.sax.SAXParseException;
 import org.xml.sax.helpers.AttributesImpl;
 import org.xml.sax.helpers.DefaultHandler;
 
@@ -81,7 +80,6 @@ final public class EMF2MarketHandler extends DefaultHandler {
     private NumericIDAllocator commoditySpecs = new NumericIDAllocator();
 
     // Stacks (using the Deque implementation) are used to keep track of the parent of an xml element
-    private Deque<String> elementsStack;
     private Deque<Attributes> attributesStack;
 
     // The loaded entities. In all these maps the key is the object UUID
@@ -151,7 +149,6 @@ final public class EMF2MarketHandler extends DefaultHandler {
         // So creating a new copy.
         Attributes attributes = new Attributes(qName, attr);
         Attributes parent = attributesStack.peek();
-        elementsStack.push(qName);
         attributesStack.push(attributes);
         // Ignore shadow entities
         String name = attributes.get("name");
@@ -187,10 +184,6 @@ final public class EMF2MarketHandler extends DefaultHandler {
 
     @Override
     public void endElement(String uri, String localName, String qName) throws SAXException {
-        String expected = elementsStack.pop();
-        if (!expected.equals(qName)) {
-            throw new SAXParseException("Expected " + expected + " but got " + qName, null);
-        }
         attributesStack.pop();
         // TODO: Create the trader here. We have the basket sold.
     }
@@ -246,7 +239,6 @@ final public class EMF2MarketHandler extends DefaultHandler {
 
     @Override
     public void startDocument() throws SAXException {
-        elementsStack = new ArrayDeque<String>();
         attributesStack = new ArrayDeque<Attributes>();
         /* Use LinkedHashMap when the order of iteration matters,
          * HashMap otherwise.
@@ -390,7 +382,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
                 economy.addBasketBought(aSeller, basketBought);
 
                 for (Attributes commBought : sellerAttr2commsBoughtAttr.get(sellerAttrs)) {
-                    CommoditySpecification specification = commSpec(commoditySpecs.getId(commBought.commoditySpecString()));
+                    CommoditySpecification specification = new CommoditySpecification(commoditySpecs.getId(commBought.commoditySpecString()));
                     BuyerParticipation participation = economy.getMarketsAsBuyer(aSeller).get(economy.getMarket(basketBought)).get(0);
                     double used = commBought.value("used");
                     economy.getCommodityBought(participation, specification).setQuantity(used);
@@ -434,7 +426,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
             double used = commSoldAttr.value("used");
             double peakUtil = commSoldAttr.value("peakUtilization");
             double utilThreshold = commSoldAttr.value("utilThreshold", 1.0);
-            CommoditySpecification specification = commSpec(commoditySpecs.getId(commSoldAttr.commoditySpecString()));
+            CommoditySpecification specification = new CommoditySpecification(commoditySpecs.getId(commSoldAttr.commoditySpecString()));
             Trader trader = uuid2trader.get(entry.getValue().uuid());
             CommoditySold commSold = trader.getCommoditySold(specification);
             // The only known way to get a negative capacity is bug OM-3669 which is fixed, but we
@@ -638,8 +630,8 @@ final public class EMF2MarketHandler extends DefaultHandler {
      */
     Basket keysToBasket(Set<String> keys, UnmodifiableNumericIDAllocator allocator) {
         List<CommoditySpecification> list = Lists.newArrayList();
-        keys.stream().mapToInt(key -> allocator.getId(key)).sorted()
-            .forEach(i -> list.add(commSpec(i)));
+        keys.stream().mapToInt(key -> allocator.getId(key))
+            .forEach(i -> list.add(new CommoditySpecification(i)));
         // TODO: Reuse baskets?
         return new Basket(list);
     }
@@ -651,10 +643,6 @@ final public class EMF2MarketHandler extends DefaultHandler {
         }
 
         return result;
-    }
-
-    private CommoditySpecification commSpec(int i) {
-        return new CommoditySpecification(i);
     }
 
     private static final String PHYSICAL_MACHINE = "Abstraction:PhysicalMachine";
