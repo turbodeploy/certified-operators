@@ -636,7 +636,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
      * @param allocator an allocation of commodity specification numbers to commodity type strings
      * @return a Basket
      */
-    Basket keysToBasket(Set<String> keys, NumericIDAllocator allocator) {
+    Basket keysToBasket(Set<String> keys, UnmodifiableNumericIDAllocator allocator) {
         List<CommoditySpecification> list = Lists.newArrayList();
         keys.stream().mapToInt(key -> allocator.getId(key)).sorted()
             .forEach(i -> list.add(commSpec(i)));
