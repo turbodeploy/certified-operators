@@ -269,8 +269,9 @@ final public class EMF2MarketHandler extends DefaultHandler {
 
         if (doBicliques) constructBicliques();
         // Just for counting purposes
-        Set<Basket> allBasketsBought = new HashSet<>();
-        Set<Basket> allBasketsSold = new HashSet<>();
+        Set<Basket> allBasketsBought = new TreeSet<>();
+        Set<Basket> allBasketsSold = new TreeSet<>();
+        int nBuyerParticipations = 0;
 
         // From basket bought to trader uuid
         Map<BuyerParticipation, String> placement = Maps.newLinkedHashMap();
@@ -363,7 +364,6 @@ final public class EMF2MarketHandler extends DefaultHandler {
                         .add(commBoughtAttr);
             }
             printAttributes("", traderAttr, Level.DEBUG);
-            List<Basket> basketsBoughtByTrader = new ArrayList<>();
             for (Entry<Attributes, List<Attributes>> entry : sellerAttr2commsSoldAttr.entrySet()) {
                 Attributes sellerAttrs = entry.getKey();
                 printAttributes("    Buys from ", sellerAttrs, Level.DEBUG);
@@ -389,24 +389,17 @@ final public class EMF2MarketHandler extends DefaultHandler {
 
                 placement.put(participation, entry.getKey().uuid());
 
-                basketsBoughtByTrader.add(basketBought);
                 allBasketsBought.add(basketBought);
+                ++nBuyerParticipations;
             }
 
-            logger.debug("Created trader " + traderAttr.xsitype() + " (type " + traderType + ")");
-            logger.debug("    Sells " + basketSold);
-            Set<Basket> baskets_ = new HashSet<>();
-            for (Basket basket : basketsBoughtByTrader) {
-                boolean dup = false;
-                for (Basket basket_ : baskets_) {
-                    // TODO: Add equals to Basket
-                    if (basket_.compareTo(basket) == 0) {
-                         dup = true;
-                         break;
-                    }
+            if (logger.isDebugEnabled()) {
+                logger.debug("Created trader " + traderAttr.xsitype() + " (type " + traderType + ")");
+                logger.debug("    Sells " + basketSold);
+                for (Entry<@NonNull Market, Collection<@NonNull BuyerParticipation>> entry
+                        : economy.getMarketsAsBuyer(aSeller).asMap().entrySet()) {
+                    logger.debug("    Buys " + entry.getKey().getBasket() + " " + entry.getValue().size() + " time(s)");
                 }
-                logger.debug("    Buys " + basket + (dup ? " (duplicate)" : ""));
-                baskets_.add(basket);
             }
         }
 
@@ -482,8 +475,9 @@ final public class EMF2MarketHandler extends DefaultHandler {
 
         logger.info(traders.size() + " traders");
         logger.info(commodities.size() + " commodities (bought and sold)");
-        logger.info(allBasketsBought.size() + " baskets bought");
-        logger.info(allBasketsSold.size() + " baskets sold");
+        logger.info(allBasketsBought.size() + " unique baskets bought");
+        logger.info(allBasketsSold.size() + " unique baskets sold");
+        logger.info(nBuyerParticipations + " buyer participations");
         logger.info(traderTypes.size() + " trader types");
         if (logger.isTraceEnabled()) traderTypes.entrySet().stream().forEach(logger::trace);
         logger.info(commoditySpecs.size() + " commodity types");
