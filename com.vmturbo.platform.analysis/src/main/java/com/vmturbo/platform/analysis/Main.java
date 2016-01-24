@@ -6,6 +6,7 @@ import org.apache.log4j.Logger;
 
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
+import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 import com.vmturbo.platform.analysis.ede.Ede;
 import com.vmturbo.platform.analysis.recommendations.RecommendationItem;
 import com.vmturbo.platform.analysis.utilities.M2Utils;
@@ -53,7 +54,7 @@ public final class Main {
     }
 
     private static String traderString(TopologyMapping mapping, Trader trader) {
-        Economy economy = mapping.getTopology().getEconomy();
+        UnmodifiableEconomy economy = mapping.getTopology().getEconomy();
         int i = economy.getIndex(trader);
         return String.format("%s (#%d)", mapping.getTraderName(i), i);
     }

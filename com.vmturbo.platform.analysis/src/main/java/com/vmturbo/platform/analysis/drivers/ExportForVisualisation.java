@@ -8,6 +8,7 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import com.google.common.base.Strings;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
+import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 import com.vmturbo.platform.analysis.ede.Ede;
 import com.vmturbo.platform.analysis.utilities.M2Utils;
 
@@ -52,7 +53,7 @@ public final class ExportForVisualisation {
         }
     }
 
-    private static void printEconomy(@NonNull Economy economy, @NonNull String name) {
+    private static void printEconomy(@NonNull UnmodifiableEconomy economy, @NonNull String name) {
         final String tabSeparatedFieldsLine = Strings.repeat("%s\t", 10) + "%s\n";
 
         for (@NonNull @ReadOnly Trader trader : economy.getTraders()) {

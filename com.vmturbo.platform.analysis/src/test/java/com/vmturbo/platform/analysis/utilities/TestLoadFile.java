@@ -21,9 +21,9 @@ import org.junit.runner.RunWith;
 import com.vmturbo.platform.analysis.economy.BuyerParticipation;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySoldSettings;
-import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.Trader;
+import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 import com.vmturbo.platform.analysis.utilities.M2Utils.TopologyMapping;
 
 import junitparams.JUnitParamsRunner;
@@ -203,7 +203,7 @@ public class TestLoadFile {
     @Test
     public void testCommodityValues() {
         TopologyMapping topoMap = loadString(XML_TOP + DS_902 + XML_BOTTOM);
-        Economy economy = topoMap.getTopology().getEconomy();
+        UnmodifiableEconomy economy = topoMap.getTopology().getEconomy();
         Trader ds = economy.getTraders().get(0);
         // StorageAmount
         CommoditySold storageAmount = ds.getCommoditiesSold().get(0);
@@ -241,7 +241,7 @@ public class TestLoadFile {
          *
          */
         inspect(topoMap);
-        Economy economy = topoMap.getTopology().getEconomy();
+        UnmodifiableEconomy economy = topoMap.getTopology().getEconomy();
         List<@NonNull @ReadOnly Trader> traders = economy.getTraders();
         // 6 traders - one in each file
         assertEquals(traders.size(), 7);
@@ -288,7 +288,7 @@ public class TestLoadFile {
     }
 
     private void inspect(TopologyMapping tmap) {
-        Economy economy = tmap.getTopology().getEconomy();
+        UnmodifiableEconomy economy = tmap.getTopology().getEconomy();
         @NonNull @ReadOnly Collection<@NonNull @ReadOnly Market> markets = economy.getMarkets();
         System.out.println("Traders:");
         for (Trader trader : economy.getTraders()) {

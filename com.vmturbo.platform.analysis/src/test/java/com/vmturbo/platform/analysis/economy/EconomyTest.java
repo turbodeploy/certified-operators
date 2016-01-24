@@ -217,7 +217,7 @@ public class EconomyTest {
     public static class NonParameterizedTests {
         @Test
         public final void testEconomy() {
-            Economy economy = new Economy();
+            UnmodifiableEconomy economy = new Economy();
             assertTrue(economy.getMarkets().isEmpty());
             assertTrue(economy.getTraders().isEmpty());
         }

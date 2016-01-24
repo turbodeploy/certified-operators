@@ -10,8 +10,8 @@ import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.BuyerParticipation;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
-import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
+import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 
 /**
@@ -78,7 +78,7 @@ public final class EdeCommon {
     }
 
     static class QuoteMinimizer {
-        private final @NonNull Economy economy_;
+        private final @NonNull UnmodifiableEconomy economy_;
         private final @NonNull List<StateItem> state_;
         private final long time_;
         private final @NonNull BuyerParticipation participation_;
@@ -89,7 +89,7 @@ public final class EdeCommon {
         private double bestQuote_ = Double.POSITIVE_INFINITY;
         private double currentQuote_ = Double.POSITIVE_INFINITY;
 
-        public QuoteMinimizer(@NonNull Economy economy, @NonNull List<StateItem> state, long time,
+        public QuoteMinimizer(@NonNull UnmodifiableEconomy economy, @NonNull List<StateItem> state, long time,
                 @NonNull BuyerParticipation participation, @NonNull Basket basket, Trader supplier) {
             economy_ = economy;
             state_ = state;

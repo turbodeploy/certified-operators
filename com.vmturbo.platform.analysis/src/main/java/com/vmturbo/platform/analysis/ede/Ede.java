@@ -8,6 +8,7 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
+import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 import com.vmturbo.platform.analysis.recommendations.RecommendationItem;
 
 /**
@@ -58,7 +59,7 @@ public final class Ede {
      *
      * @param economy - the snapshot of the economy
      */
-    private void updateState(@NonNull Economy economy) {
+    private void updateState(@NonNull UnmodifiableEconomy economy) {
         int ecoIndex = 0;
         int stateIndex = 0;
         // remove state items for traders that are no longer there
