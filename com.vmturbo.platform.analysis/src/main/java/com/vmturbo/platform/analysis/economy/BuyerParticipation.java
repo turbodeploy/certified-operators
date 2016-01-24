@@ -1,7 +1,6 @@
 package com.vmturbo.platform.analysis.economy;
 
 import static com.google.common.base.Preconditions.checkArgument;
-
 import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -37,14 +36,13 @@ public final class BuyerParticipation {
      * Constructs a new BuyerParticipation instance with the specified properties.
      *
      * @param buyer see {@link #getBuyer()}
-     * @param supplier see {@link #setSupplier(Trader)}
      * @param numberOfCommodities The number of commodities bought that should be associated with
      *         the new BuyerParticipation instance. It should be equal to the basket size of the
      *         market this participation belongs to.
      */
-    BuyerParticipation(@NonNull Trader buyer, @Nullable Trader supplier, int numberOfCommodities) {
+    BuyerParticipation(@NonNull Trader buyer, int numberOfCommodities) {
         buyer_ = buyer;
-        setSupplier(supplier);
+        supplier_ = null;
         quantities_ = new double[numberOfCommodities];
         peakQuantities_ = new double[numberOfCommodities];
     }
@@ -135,7 +133,7 @@ public final class BuyerParticipation {
      * @see #getSupplier()
      */
     @Deterministic
-    public @NonNull BuyerParticipation setSupplier(@Nullable Trader newSupplier) {
+    @NonNull BuyerParticipation setSupplier(@Nullable Trader newSupplier) {
         supplier_ = newSupplier;
         return this;
     }

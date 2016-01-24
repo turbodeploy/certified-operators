@@ -2,6 +2,11 @@ package com.vmturbo.platform.analysis.economy;
 
 import static org.junit.Assert.*;
 
+import java.util.ArrayList;
+import java.util.List;
+
+import org.checkerframework.checker.nullness.qual.NonNull;
+import org.checkerframework.checker.nullness.qual.Nullable;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -16,8 +21,9 @@ import junitparams.naming.TestCaseName;
 @RunWith(JUnitParamsRunner.class)
 public class BuyerParticipationTest {
     // Fields
-    private static final Trader trader1 = new TraderWithSettings(0, 0, TraderState.ACTIVE, new Basket());
-    private static final Trader trader2 = new TraderWithSettings(0, 0, TraderState.INACTIVE, new Basket());
+    private static final Basket EMPTY = new Basket();
+    private static final Trader trader1 = new TraderWithSettings(0, 0, TraderState.ACTIVE, EMPTY);
+    private static final Trader trader2 = new TraderWithSettings(0, 0, TraderState.INACTIVE, EMPTY);
     private static final Trader trader3 = new TraderWithSettings(0, 0, TraderState.ACTIVE, new Basket(new CommoditySpecification(0, 0, 0)));
     private static final Trader trader4 = new TraderWithSettings(0, 0, TraderState.INACTIVE, new Basket(new CommoditySpecification(0, 0, 0)));
 
@@ -36,16 +42,15 @@ public class BuyerParticipationTest {
     // Methods
     @Before
     public void setUp() {
-        fixture_ = new BuyerParticipation(trader1, null, 10);
+        fixture_ = new BuyerParticipation(trader1, 10);
     }
 
     @Test
     @Parameters
-    @TestCaseName("Test #{index}: new BuyerParticipation({0},{1},{2})")
-    public final void testBuyerParticipation_NormalInput(Trader buyer, Trader supplier, int nCommodities) {
-        BuyerParticipation participation = new BuyerParticipation(buyer, supplier, nCommodities);
+    @TestCaseName("Test #{index}: new BuyerParticipation({0},{1})")
+    public final void testBuyerParticipation_NormalInput(Trader buyer, int nCommodities) {
+        BuyerParticipation participation = new BuyerParticipation(buyer, nCommodities);
         assertSame(buyer, participation.getBuyer());
-        assertSame(supplier, participation.getSupplier());
         assertNotSame(participation.getQuantities(), participation.getPeakQuantities());
         assertEquals(nCommodities, participation.getQuantities().length);
         assertEquals(nCommodities, participation.getPeakQuantities().length);
@@ -53,14 +58,12 @@ public class BuyerParticipationTest {
 
     @SuppressWarnings("unused") // it is used reflectively
     private static Object[] parametersForTestBuyerParticipation_NormalInput() {
-        Object[][] output = new Object[validBuyers.length*validSuppliers.length*validSizes.length][];
+        Object[][] output = new Object[validBuyers.length*validSizes.length][];
 
         int c = 0;
         for(Trader buyer : validBuyers) {
-            for(Trader supplier : validSuppliers) {
-                for(int size : validSizes) {
-                    output[c++] = new Object[]{buyer,supplier,size};
-                }
+            for(int size : validSizes) {
+                output[c++] = new Object[]{buyer,size};
             }
         }
 
@@ -70,20 +73,18 @@ public class BuyerParticipationTest {
     @Test(expected = NegativeArraySizeException.class)
     @Parameters
     @TestCaseName("Test #{index}: new BuyerParticipation({0},{1},{2})")
-    public final void testBuyerParticipation_InvalidSizes(Trader buyer, Trader supplier, int nCommodities) {
-        new BuyerParticipation(buyer, supplier, nCommodities);
+    public final void testBuyerParticipation_InvalidSizes(Trader buyer, int nCommodities) {
+        new BuyerParticipation(buyer, nCommodities);
     }
 
     @SuppressWarnings("unused") // it is used reflectively
     private static Object[] parametersForTestBuyerParticipation_InvalidSizes() {
-        Object[][] output = new Object[validBuyers.length*validSuppliers.length*invalidSizes.length][];
+        Object[][] output = new Object[validBuyers.length*invalidSizes.length][];
 
         int c = 0;
         for(Trader buyer : validBuyers) {
-            for(Trader supplier : validSuppliers) {
-                for(int size : invalidSizes) {
-                    output[c++] = new Object[]{buyer,supplier,size};
-                }
+            for(int size : invalidSizes) {
+                output[c++] = new Object[]{buyer,size};
             }
         }
 

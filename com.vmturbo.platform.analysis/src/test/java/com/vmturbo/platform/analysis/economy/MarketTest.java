@@ -29,7 +29,6 @@ public class MarketTest {
 
     private static final TraderWithSettings T0 = new TraderWithSettings(0, 0, TraderState.ACTIVE, new Basket());
     private static final TraderWithSettings T0A = new TraderWithSettings(0, 0, TraderState.ACTIVE, new Basket(A));
-    private static final TraderWithSettings T0C = new TraderWithSettings(0, 0, TraderState.ACTIVE, new Basket(C));
     private static final TraderWithSettings T0AB = new TraderWithSettings(0, 0, TraderState.ACTIVE, new Basket(A,B));
     private static final TraderWithSettings T0AC = new TraderWithSettings(0, 0, TraderState.ACTIVE, new Basket(A,C));
     private static final TraderWithSettings T1A = new TraderWithSettings(1, 0, TraderState.ACTIVE, new Basket(A));
@@ -192,12 +191,12 @@ public class MarketTest {
 
     @Test
     public final void testGetBuyers_ValidOperations() {
-        verifyUnmodifiableValidOperations(fixture_.getBuyers(), new BuyerParticipation(T0, null, 0));
+        verifyUnmodifiableValidOperations(fixture_.getBuyers(), new BuyerParticipation(T0, 0));
     }
 
     @Test
     public final void testGetBuyers_InvalidOperations() {
-        verifyUnmodifiableInvalidOperations(fixture_.getBuyers(), new BuyerParticipation(T0, null, 0));
+        verifyUnmodifiableInvalidOperations(fixture_.getBuyers(), new BuyerParticipation(T0, 0));
     }
 
     @Test

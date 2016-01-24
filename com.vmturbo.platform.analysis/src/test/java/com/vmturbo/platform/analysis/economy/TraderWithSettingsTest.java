@@ -140,7 +140,7 @@ public final class TraderWithSettingsTest {
     @Test // That the returned multimap indeed implements all operations.
     public final void testGetMarketsAsBuyer() {
         MultimapTests.verifyModifiable(fixture_.getMarketsAsBuyer(), new Market(new Basket()),
-                                                            new BuyerParticipation(fixture_,null,0));
+                                                            new BuyerParticipation(fixture_,0));
     }
 
     @Test
@@ -150,7 +150,7 @@ public final class TraderWithSettingsTest {
 
     @Test
     public final void testGetCustomers() {
-        verifyModifiable(fixture_.getCustomers(), new BuyerParticipation(fixture_,null,0));
+        verifyModifiable(fixture_.getCustomers(), new BuyerParticipation(fixture_,0));
     }
 
     // Tests for Trader methods

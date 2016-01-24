@@ -23,7 +23,7 @@ public class CommodityBoughtTest {
     @Before
     public void setUp() {
         fixture_ = new CommodityBought(new BuyerParticipation(
-                      new TraderWithSettings(0, 0, TraderState.ACTIVE, new Basket()), null, 1), 0);
+                      new TraderWithSettings(0, 0, TraderState.ACTIVE, new Basket()), 1), 0);
     }
 
     @Test
@@ -33,7 +33,7 @@ public class CommodityBoughtTest {
     @TestCaseName("Test #{index}: new CommodityBought(new BuyerParticipation(?,?,{0}),{1}")
     public final void testCommodityBought_NormalInput(int size, int index) {
         CommodityBought commodity = new CommodityBought(new BuyerParticipation(
-            new TraderWithSettings(0, 0, TraderState.ACTIVE, new Basket()), null, size), index);
+            new TraderWithSettings(0, 0, TraderState.ACTIVE, new Basket()), size), index);
         // Sanity check: make sure initial values are valid and that no exceptions are thrown.
         commodity.setQuantity(commodity.getQuantity());
         commodity.setPeakQuantity(commodity.getPeakQuantity());
@@ -46,7 +46,7 @@ public class CommodityBoughtTest {
     @TestCaseName("Test #{index}: new CommodityBought(new BuyerParticipation(?,?,{0}),{1}")
     public final void testCommodityBought_InvalidInput(int size, int index) {
         new CommodityBought(new BuyerParticipation(
-               new TraderWithSettings(0, 0, TraderState.ACTIVE, new Basket()), null, size), index);
+               new TraderWithSettings(0, 0, TraderState.ACTIVE, new Basket()), size), index);
     }
 
     @Test

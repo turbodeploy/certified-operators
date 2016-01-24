@@ -73,7 +73,7 @@ public class EconomyTest {
     private static final Basket[][] basketsBoughtLists = {{},{EMPTY},{EMPTY,PM_4CORE}};
     private static final Market independentMarket = new Market(EMPTY);
     private static final TraderWithSettings independentTrader = new TraderWithSettings(0, 0, TraderState.ACTIVE, EMPTY);
-    private static final BuyerParticipation independentParticipation = new BuyerParticipation(independentTrader, null, 0);
+    private static final BuyerParticipation independentParticipation = new BuyerParticipation(independentTrader, 0);
 
     // TODO (Vaptistis): Eventually, all parameterized tests that share the same parameters can be
     // refactored in a single parameterized test, but until we implement copying of Economies the

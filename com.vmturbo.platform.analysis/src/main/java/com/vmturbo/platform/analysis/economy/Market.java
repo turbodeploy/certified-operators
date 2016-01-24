@@ -155,7 +155,7 @@ public final class Market {
     @NonNull BuyerParticipation addBuyer(@NonNull TraderWithSettings newBuyer) {
         checkArgument(newBuyer.getState().isActive());
 
-        BuyerParticipation newParticipation = new BuyerParticipation(newBuyer, null, basket_.size());
+        BuyerParticipation newParticipation = new BuyerParticipation(newBuyer, basket_.size());
         buyers_.add(newParticipation);
         newBuyer.getMarketsAsBuyer().put(this, newParticipation);
 
@@ -165,8 +165,8 @@ public final class Market {
     /**
      * Removes an existing buyer participation from {@code this} market. If it was not in
      * {@code this} market in the first place, the results are undefined.
-     *  The trader's own {@link TraderWithSettings#getMarketsAsBuyer() markets as seller} map is
-     *  updated.
+     * The trader's own {@link TraderWithSettings#getMarketsAsBuyer() markets as seller} map is
+     * updated.
      *
      * @param participationToRemove The existing buyer participation that should be removed from
      *                              {@code this} market. It should be in the market.

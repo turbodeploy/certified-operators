@@ -444,7 +444,6 @@ final public class EMF2MarketHandler extends DefaultHandler {
             commSold.getSettings().setPriceFunction(pf);
          }
 
-        // Assume baskets are not reused
         logger.info("Processing placement");
         for (Entry<BuyerParticipation, String> entry : placement.entrySet()) {
             economy.moveTrader(entry.getKey(), uuid2trader.get(entry.getValue()));
