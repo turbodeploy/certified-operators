@@ -159,12 +159,13 @@ public class NumericIDAllocatorTest {
     @Test
     @Parameters
     @TestCaseName("Test #{index}: {0}.size() == {1}")
-    public final void testSize(@NonNull NumericIDAllocator allocator, int size) {
+    public final void testSizeAndIsEmpty(@NonNull NumericIDAllocator allocator, int size, boolean empty) {
         assertEquals(size, allocator.size());
+        assertEquals(empty, allocator.isEmpty());
     }
 
     @SuppressWarnings("unused") // it is used reflectively
-    private static Object[] parametersForTestSize() {
+    private static Object[] parametersForTestSizeAndIsEmpty() {
         @NonNull NumericIDAllocator a1 = new NumericIDAllocator();
         a1.allocate("a");
         @NonNull NumericIDAllocator a2 = new NumericIDAllocator();
@@ -172,9 +173,9 @@ public class NumericIDAllocatorTest {
         a2.allocate("b");
 
         return new Object[][] {
-            {new NumericIDAllocator(), 0},
-            {a1, 1},
-            {a2, 2},
+            {new NumericIDAllocator(), 0, true},
+            {a1, 1, false},
+            {a2, 2, false},
         };
     }
 

@@ -78,6 +78,12 @@ public final class NumericIDAllocator implements UnmodifiableNumericIDAllocator 
 
     @Pure
     @Override
+    public boolean isEmpty(@ReadOnly NumericIDAllocator this) {
+        return names_.isEmpty();
+    }
+
+    @Pure
+    @Override
     public @ReadOnly @NonNull Set<Entry<@NonNull String, @NonNull Integer>> entrySet(@PolyRead NumericIDAllocator this) {
         return unmodifiableEntrySet;
     }

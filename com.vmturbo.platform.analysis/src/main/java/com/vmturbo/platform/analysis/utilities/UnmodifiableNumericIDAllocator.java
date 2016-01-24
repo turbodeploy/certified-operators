@@ -43,6 +43,12 @@ public interface UnmodifiableNumericIDAllocator {
     int size(@ReadOnly UnmodifiableNumericIDAllocator this);
 
     /**
+     * @see Collection#isEmpty()
+     */
+    @Pure
+    boolean isEmpty(@ReadOnly UnmodifiableNumericIDAllocator this);
+
+    /**
      * @see Map#entrySet() The returned set is unmodifiable.
      */
     @Pure
