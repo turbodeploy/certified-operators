@@ -38,7 +38,7 @@ public final class ExportForVisualisation {
         }
 
         try {
-            Economy economy = M2Utils.loadFile(args[0]).getTopology().getEconomy();
+            Economy economy = (Economy)M2Utils.loadFile(args[0]).getEconomy(); // TODO: remove cast
 
             System.out.println("Economy\tTrader Index\tTrader Type\tCommodity Index\tCommodity Type\t"
                 + "Utilization\tPeak Utilization\tQuantity\tPeak Quantity\tCapacity\tEffective Capacity");

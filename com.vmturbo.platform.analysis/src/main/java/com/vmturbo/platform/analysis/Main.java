@@ -3,14 +3,12 @@ package com.vmturbo.platform.analysis;
 import java.io.FileNotFoundException;
 import java.util.List;
 import org.apache.log4j.Logger;
-
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
-import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 import com.vmturbo.platform.analysis.ede.Ede;
 import com.vmturbo.platform.analysis.recommendations.RecommendationItem;
+import com.vmturbo.platform.analysis.topology.LegacyTopology;
 import com.vmturbo.platform.analysis.utilities.M2Utils;
-import com.vmturbo.platform.analysis.utilities.M2Utils.TopologyMapping;
 
 /**
  * The Main class for the application.
@@ -35,15 +33,14 @@ public final class Main {
             logger.warn("All arguments after the first were ignored!");
         }
 
-        TopologyMapping mapping;
         try {
-            mapping = M2Utils.loadFile(args[0]);
-            Economy economy = mapping.getTopology().getEconomy();
+            LegacyTopology topology = M2Utils.loadFile(args[0]);
             Ede ede = new Ede();
-            List<RecommendationItem> recommendations = ede.createRecommendations(economy);
+            List<RecommendationItem> recommendations = ede.createRecommendations((Economy)topology.getEconomy());
+                // TODO: remove cast to Economy!
             logger.info(recommendations.size() + " recommendations");
             for (RecommendationItem recommendation : recommendations) {
-                logger.info("What: " + description(recommendation, mapping));
+                logger.info("What: " + description(recommendation, topology));
                 logger.info("Why:  " + reason(recommendation));
                 logger.info("");
             }
@@ -53,25 +50,24 @@ public final class Main {
         }
     }
 
-    private static String traderString(TopologyMapping mapping, Trader trader) {
-        UnmodifiableEconomy economy = mapping.getTopology().getEconomy();
-        int i = economy.getIndex(trader);
-        return String.format("%s (#%d)", mapping.getTraderName(i), i);
+    private static String traderString(LegacyTopology topology, Trader trader) {
+        return String.format("%s [%s] (#%d)", topology.getNames().get(trader),
+            topology.getUuids().get(trader), topology.getEconomy().getIndex(trader));
     }
 
     /**
      * Create and return a description for the recommendation.
      */
-    public static String description(RecommendationItem recommendation, TopologyMapping mapping) {
-        final String buyer = traderString(mapping, recommendation.getBuyer());
+    public static String description(RecommendationItem recommendation, LegacyTopology topology) {
+        final String buyer = traderString(topology, recommendation.getBuyer());
 
         if (recommendation.getNewSupplier() == null) { // reconfigure
             return "Reconfigure " + buyer;
         } else if (recommendation.getCurrentSupplier() != null) { // move
-            return "Move " + buyer + " from " + traderString(mapping, recommendation.getCurrentSupplier())
-                + " to " + traderString(mapping, recommendation.getNewSupplier());
+            return "Move " + buyer + " from " + traderString(topology, recommendation.getCurrentSupplier())
+                + " to " + traderString(topology, recommendation.getNewSupplier());
         } else { // start
-            return "Start " + buyer + " on " + traderString(mapping, recommendation.getNewSupplier());
+            return "Start " + buyer + " on " + traderString(topology, recommendation.getNewSupplier());
         }
     }
 

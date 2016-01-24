@@ -5,11 +5,7 @@ import static org.junit.Assert.*;
 import java.io.ByteArrayInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
-
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
@@ -18,13 +14,13 @@ import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import com.vmturbo.platform.analysis.economy.BuyerParticipation;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySoldSettings;
+import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
-import com.vmturbo.platform.analysis.utilities.M2Utils.TopologyMapping;
+import com.vmturbo.platform.analysis.topology.LegacyTopology;
 
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
@@ -75,9 +71,9 @@ public class TestLoadFile {
 
     @Test
     public void testLoadEmpty() {
-        TopologyMapping topoMap = loadString(XML_TOP + XML_BOTTOM);
-        assertEquals(0, topoMap.getTopology().getEconomy().getTraders().size());
-        assertEquals(0, topoMap.getTopology().getEconomy().getMarkets().size());
+        LegacyTopology topology = loadString(XML_TOP + XML_BOTTOM);
+        assertEquals(0, topology.getEconomy().getTraders().size());
+        assertEquals(0, topology.getEconomy().getMarkets().size());
     }
 
     /*
@@ -92,9 +88,9 @@ public class TestLoadFile {
 
     @Test
     public void testEdgeCases() {
-        TopologyMapping topoMap = loadString(XML_TOP + EDGE + XML_BOTTOM, loggerTrace);
-        assertEquals(1, topoMap.getTopology().getEconomy().getTraders().size());
-        assertEquals(0, topoMap.getTopology().getEconomy().getMarkets().size());
+        LegacyTopology topology = loadString(XML_TOP + EDGE + XML_BOTTOM, loggerTrace);
+        assertEquals(1, topology.getEconomy().getTraders().size());
+        assertEquals(0, topology.getEconomy().getMarkets().size());
     }
 
     /**
@@ -111,8 +107,8 @@ public class TestLoadFile {
          * market (there are two) has exactly two commodity types (for a total of 4 commodity
          * types).
          */
-        TopologyMapping topoMap = loadString(XML_TOP + BICLIQUES + XML_BOTTOM, loggerTrace);
-        Market[] markets = topoMap.getTopology().getEconomy().getMarkets().toArray(new Market[]{});
+        LegacyTopology topology = loadString(XML_TOP + BICLIQUES + XML_BOTTOM, loggerTrace);
+        Market[] markets = topology.getEconomy().getMarkets().toArray(new Market[]{});
         assertEquals(2, markets.length);
         for (@NonNull @ReadOnly Market market : markets) {
             // 2 commodity types in each basket
@@ -123,14 +119,14 @@ public class TestLoadFile {
             assertEquals(1, market.getBuyers().size());
         }
         // Verify that the baskets are mutually exclusive
-        // StorageAmount
-        assertEquals(0, markets[0].getBasket().get(0).getType());
-        // BC-DS-0
-        assertEquals(1, markets[0].getBasket().get(1).getType());
-        // CPU
-        assertEquals(2, markets[1].getBasket().get(0).getType());
-        // BC-PM-0
-        assertEquals(3, markets[1].getBasket().get(1).getType());
+        assertTrue(markets[0].getBasket().contains(new CommoditySpecification(
+                  topology.getCommodityTypes().getId("Abstraction:StorageAmount"))));
+        assertTrue(markets[0].getBasket().contains(new CommoditySpecification(
+                  topology.getCommodityTypes().getId("BC-DS-0"))));
+        assertTrue(markets[1].getBasket().contains(new CommoditySpecification(
+                  topology.getCommodityTypes().getId("Abstraction:CPU"))));
+        assertTrue(markets[1].getBasket().contains(new CommoditySpecification(
+                  topology.getCommodityTypes().getId("BC-PM-0"))));
     }
 
     /**
@@ -140,9 +136,9 @@ public class TestLoadFile {
     @TestCaseName("Test #{index}: Load {0}")
     @Test
     public void testLoadOne(String name, String entity) {
-        TopologyMapping topoMap = loadString(XML_TOP + entity + XML_BOTTOM);
-        assertEquals(1, topoMap.getTopology().getEconomy().getTraders().size());
-        assertEquals(0, topoMap.getTopology().getEconomy().getMarkets().size());
+        LegacyTopology topology = loadString(XML_TOP + entity + XML_BOTTOM);
+        assertEquals(1, topology.getEconomy().getTraders().size());
+        assertEquals(0, topology.getEconomy().getMarkets().size());
     }
 
     @SuppressWarnings("unused")
@@ -163,13 +159,13 @@ public class TestLoadFile {
     @Test
     public void testLoadSellerAndBuyer(String name, String seller, String buyer) {
         // This test is run with loggerTrace to include logging in code coverage
-        TopologyMapping topoMap1 = loadString(XML_TOP + seller + buyer + XML_BOTTOM, loggerTrace);
-        assertEquals(2, topoMap1.getTopology().getEconomy().getTraders().size());
-        assertEquals(1, topoMap1.getTopology().getEconomy().getMarkets().size());
+        LegacyTopology topology1 = loadString(XML_TOP + seller + buyer + XML_BOTTOM, loggerTrace);
+        assertEquals(2, topology1.getEconomy().getTraders().size());
+        assertEquals(1, topology1.getEconomy().getMarkets().size());
         // Test that loading in the reverse order gives the same results
-        TopologyMapping topoMap2 = loadString(XML_TOP + buyer + seller + XML_BOTTOM);
-        assertEquals(2, topoMap2.getTopology().getEconomy().getTraders().size());
-        assertEquals(1, topoMap2.getTopology().getEconomy().getMarkets().size());
+        LegacyTopology topology2 = loadString(XML_TOP + buyer + seller + XML_BOTTOM);
+        assertEquals(2, topology2.getEconomy().getTraders().size());
+        assertEquals(1, topology2.getEconomy().getMarkets().size());
     }
 
     @SuppressWarnings("unused")
@@ -186,9 +182,9 @@ public class TestLoadFile {
     @TestCaseName("Test #{index}: Load {0}")
     @Test
     public void testLoadDisconnectedTraders(String name, String trader1, String trader2) {
-        TopologyMapping topoMap = loadString(XML_TOP + trader1 + trader2 + XML_BOTTOM);
-        assertEquals(2, topoMap.getTopology().getEconomy().getTraders().size());
-        assertEquals(0, topoMap.getTopology().getEconomy().getMarkets().size());
+        LegacyTopology topology = loadString(XML_TOP + trader1 + trader2 + XML_BOTTOM);
+        assertEquals(2, topology.getEconomy().getTraders().size());
+        assertEquals(0, topology.getEconomy().getMarkets().size());
     }
 
     @SuppressWarnings("unused")
@@ -202,11 +198,12 @@ public class TestLoadFile {
 
     @Test
     public void testCommodityValues() {
-        TopologyMapping topoMap = loadString(XML_TOP + DS_902 + XML_BOTTOM);
-        UnmodifiableEconomy economy = topoMap.getTopology().getEconomy();
+        LegacyTopology topology = loadString(XML_TOP + DS_902 + XML_BOTTOM);
+        UnmodifiableEconomy economy = topology.getEconomy();
         Trader ds = economy.getTraders().get(0);
         // StorageAmount
-        CommoditySold storageAmount = ds.getCommoditiesSold().get(4);
+        CommoditySold storageAmount = ds.getCommoditySold(new CommoditySpecification(
+             topology.getCommodityTypes().getId("Abstraction:StorageAmount")));
         assertEquals(673442.4, storageAmount.getCapacity(), 1e-9);
         assertEquals(96092.0, storageAmount.getQuantity(), 1e-9);
         assertEquals(0.0, storageAmount.getPeakQuantity(), 1e-9);
@@ -223,7 +220,7 @@ public class TestLoadFile {
 
     @Test
     public void testTopology() {
-        TopologyMapping topoMap = loadString(
+        LegacyTopology topology = loadString(
                 XML_TOP + VM_1277 + VM_733 + PM_9 + DS_902 + APP_733 + VM_1544 + DC_2 + XML_BOTTOM
             );
         /*
@@ -240,7 +237,7 @@ public class TestLoadFile {
          * application app-733 not supposed to buy from vm-733 although the commodities are in the files
          *
          */
-        UnmodifiableEconomy economy = topoMap.getTopology().getEconomy();
+        UnmodifiableEconomy economy = topology.getEconomy();
         List<@NonNull @ReadOnly Trader> traders = economy.getTraders();
         // 6 traders - one in each file
         assertEquals(traders.size(), 7);
@@ -278,11 +275,11 @@ public class TestLoadFile {
         // TODO: add tests about specific commodities
     }
 
-    private TopologyMapping loadString(String xml) {
+    private LegacyTopology loadString(String xml) {
         return loadString(xml, loggerOff);
     }
 
-    private TopologyMapping loadString(String xml, Logger logger) {
+    private LegacyTopology loadString(String xml, Logger logger) {
         return M2Utils.loadStream(new ByteArrayInputStream(xml.getBytes()), logger);
     }
 

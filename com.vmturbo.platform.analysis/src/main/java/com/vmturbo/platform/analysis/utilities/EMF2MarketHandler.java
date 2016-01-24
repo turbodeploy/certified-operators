@@ -25,20 +25,17 @@ import org.xml.sax.helpers.AttributesImpl;
 import org.xml.sax.helpers.DefaultHandler;
 
 import com.google.common.base.Strings;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.BuyerParticipation;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
-import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
-import com.vmturbo.platform.analysis.topology.Topology;
-import com.vmturbo.platform.analysis.utilities.M2Utils.TopologyMapping;
+import com.vmturbo.platform.analysis.topology.LegacyTopology;
 
 /**
  * A SAX handler that loads EMF topology files and creates a Market2 topology
@@ -69,15 +66,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
     private static String ACCESSES = "Accesses";
 
     private Logger logger;
-
-    private TopologyMapping topoMapping;
-    private Topology topology;
-    private Economy economy;
-
-    // Map from trader type string (e.g. "Abstraction:PhysicalMachine") to trader type number
-    private NumericIDAllocator traderTypes = new NumericIDAllocator();
-    // Map from commodity type string (class + key) to commodity specification number
-    private NumericIDAllocator commoditySpecs = new NumericIDAllocator();
+    private LegacyTopology topology; // the legacy topology that will be populated.
 
     // Stacks (using the Deque implementation) are used to keep track of the parent of an xml element
     private Deque<Attributes> attributesStack;
@@ -101,7 +90,6 @@ final public class EMF2MarketHandler extends DefaultHandler {
     // for example "PhysicalMachine buying from Storage"
     // The entries in the set are UUIDs of pairs of skipped traders, separated with a forward slash.
     private Map<String, Set<String>> skippedBaskets;
-    private Map<String, Trader> uuid2trader = Maps.newHashMap();
 
     // Maps related to bicliques
     // A map from storage uuid to all the host uuids connected to it
@@ -121,9 +109,6 @@ final public class EMF2MarketHandler extends DefaultHandler {
      * @param logger the {@link Logger} to use for logging
      */
     public EMF2MarketHandler(Logger logger) {
-        topology = new Topology();
-        economy = topology.getEconomy();
-        topoMapping = new TopologyMapping(topology);
         this.logger = logger;
     }
 
@@ -135,7 +120,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
         this(Logger.getLogger(EMF2MarketHandler.class));
     }
 
-    public Topology getTopology() {
+    public LegacyTopology getTopology() {
         return topology;
     }
 
@@ -235,6 +220,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
 
     @Override
     public void startDocument() throws SAXException {
+        topology = new LegacyTopology();
         attributesStack = new ArrayDeque<Attributes>();
         /* Use LinkedHashMap when the order of iteration matters,
          * HashMap otherwise.
@@ -243,7 +229,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
          * different machines.
          */
         traders = new LinkedHashMap<String, Attributes>();
-        commodities = new HashMap<String, Attributes>();
+        commodities = new LinkedHashMap<String, Attributes>();
         trader2commoditiesBought = new LinkedHashMap<String, List<Attributes>>();
         trader2basketSold = new LinkedHashMap<String, Set<String>>();
         commoditySold2trader = new LinkedHashMap<String, Attributes>();
@@ -284,17 +270,13 @@ final public class EMF2MarketHandler extends DefaultHandler {
             if (bcKeys != null) {
                 keysSold.addAll(bcKeys);
             }
-            logger.trace("Keys sold : " + keysSold);
-            Basket basketSold = keysToBasket(keysSold, commoditySpecs);
 
-            allBasketsSold.add(basketSold);
-            int traderType = traderTypes.allocate(traderAttr.xsitype());
-            Trader aSeller = economy.addTrader(traderType, TraderState.ACTIVE, basketSold);
+            logger.trace("Keys sold : " + keysSold);
+            final @NonNull Trader aSeller = topology.addTrader(traderUuid, traderAttr.get("displayName"),
+                                                traderAttr.xsitype(), TraderState.ACTIVE, keysSold);
             if (VIRTUAL_MACHINE.equals(traderAttr.xsitype())) // TODO: also check for containers
                 aSeller.getSettings().setMovable(true);
-            String traderName = String.format("%s [%s]", traderAttr.get("displayName"), traderAttr.uuid());
-            topoMapping.addTraderMapping(economy.getIndex(aSeller), traderName);
-            uuid2trader.put(traderUuid, aSeller);
+            allBasketsSold.add(aSeller.getBasketSold());
 
             // Baskets bought
             // Keys are the sellers that this buyer is buying from
@@ -363,7 +345,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
             for (Entry<Attributes, List<Attributes>> entry : sellerAttr2commsSoldAttr.entrySet()) {
                 Attributes sellerAttrs = entry.getKey();
                 printAttributes("    Buys from ", sellerAttrs, Level.DEBUG);
-                Set<String> keysBought = new HashSet<>();
+                Set<String> keysBought = new LinkedHashSet<>();
                 for (Attributes commSold : entry.getValue()) {
                     printAttributes("      - ", commSold, Level.TRACE);
                     keysBought.add(commSold.commoditySpecString());
@@ -373,14 +355,14 @@ final public class EMF2MarketHandler extends DefaultHandler {
                     keysBought.add(bcKeysBought);
                 }
                 logger.debug("    Basket : " + keysBought);
-                Basket basketBought = keysToBasket(keysBought, commoditySpecs);
-                BuyerParticipation participation = economy.addBasketBought(aSeller, basketBought);
+                BuyerParticipation participation = topology.addBasketBought(aSeller, keysBought);
+                Basket basketBought = topology.getEconomy().getMarket(participation).getBasket();
 
                 for (Attributes commBought : sellerAttr2commsBoughtAttr.get(sellerAttrs)) {
-                    CommoditySpecification specification =
-                        new CommoditySpecification(commoditySpecs.getId(commBought.commoditySpecString()));
+                    CommoditySpecification specification = new CommoditySpecification(
+                        topology.getCommodityTypes().getId(commBought.commoditySpecString()));
                     double used = commBought.value("used");
-                    economy.getCommodityBought(participation, specification).setQuantity(used);
+                    topology.getEconomy().getCommodityBought(participation, specification).setQuantity(used);
                 }
 
                 placement.put(participation, entry.getKey().uuid());
@@ -390,10 +372,10 @@ final public class EMF2MarketHandler extends DefaultHandler {
             }
 
             if (logger.isDebugEnabled()) {
-                logger.debug("Created trader " + traderAttr.xsitype() + " (type " + traderType + ")");
-                logger.debug("    Sells " + basketSold);
+                logger.debug("Created trader " + traderAttr.xsitype() + " (type " + aSeller.getType() + ")");
+                logger.debug("    Sells " + aSeller.getBasketSold());
                 for (Entry<@NonNull Market, Collection<@NonNull BuyerParticipation>> entry
-                        : economy.getMarketsAsBuyer(aSeller).asMap().entrySet()) {
+                        : topology.getEconomy().getMarketsAsBuyer(aSeller).asMap().entrySet()) {
                     logger.debug("    Buys " + entry.getKey().getBasket() + " " + entry.getValue().size() + " time(s)");
                 }
             }
@@ -413,9 +395,9 @@ final public class EMF2MarketHandler extends DefaultHandler {
             double used = commSoldAttr.value("used");
             double peakUtil = commSoldAttr.value("peakUtilization");
             double utilThreshold = commSoldAttr.value("utilThreshold", 1.0);
-            CommoditySpecification specification =
-                new CommoditySpecification(commoditySpecs.getId(commSoldAttr.commoditySpecString()));
-            Trader trader = uuid2trader.get(entry.getValue().uuid());
+            CommoditySpecification specification = new CommoditySpecification(
+                topology.getCommodityTypes().getId(commSoldAttr.commoditySpecString()));
+            Trader trader = topology.getUuids().inverse().get(entry.getValue().uuid());
             CommoditySold commSold = trader.getCommoditySold(specification);
             // The only known way to get a negative capacity is bug OM-3669 which is fixed, but we
             // check and recover from this error with only a warning, so that we have some tolerance
@@ -442,7 +424,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
 
         logger.info("Processing placement");
         for (Entry<BuyerParticipation, String> entry : placement.entrySet()) {
-            entry.getKey().move(uuid2trader.get(entry.getValue()));
+            entry.getKey().move(topology.getUuids().inverse().get(entry.getValue()));
         }
 
         if (logger.isTraceEnabled()) {
@@ -473,12 +455,12 @@ final public class EMF2MarketHandler extends DefaultHandler {
         logger.info(allBasketsBought.size() + " unique baskets bought");
         logger.info(allBasketsSold.size() + " unique baskets sold");
         logger.info(nBuyerParticipations + " buyer participations");
-        logger.info(traderTypes.size() + " trader types");
-        if (logger.isTraceEnabled()) traderTypes.entrySet().stream().forEach(logger::trace);
-        logger.info(commoditySpecs.size() + " commodity types");
+        logger.info(topology.getTraderTypes().size() + " trader types");
+        if (logger.isTraceEnabled()) topology.getTraderTypes().entrySet().stream().forEach(logger::trace);
+        logger.info(topology.getCommodityTypes().size() + " commodity types");
         logger.info(bicliques.size() + " bicliques");
         if (logger.isDebugEnabled()) bicliques.forEach((k, v) -> logger.debug(names(k) + " = " + names(v)));
-        if (logger.isTraceEnabled()) commoditySpecs.entrySet().stream().forEach(logger::trace);
+        if (logger.isTraceEnabled()) topology.getCommodityTypes().entrySet().stream().forEach(logger::trace);
         logger.info((System.currentTimeMillis() - startTime) / 1000.0 + " seconds");
     }
 
@@ -531,12 +513,12 @@ final public class EMF2MarketHandler extends DefaultHandler {
      */
     private Collection<String> names(Set<String> uuids) {
         Set<String> foo = uuids.stream()
-                .map(uuid2trader::get)
-                // for testing, when a trader may be referenced by "Accesses" but is not part of the topology
-                .filter(t -> t != null)
-                .map(economy::getIndex)
-                .map(topoMapping::getTraderName)
-                .collect(Collectors.toSet());
+            .map(topology.getUuids().inverse()::get)
+            // for testing, when a trader may be referenced by "Accesses" but is not part of the topology
+            .filter(t -> t != null)
+            .map(topology.getEconomy()::getIndex)
+            .map(topology.getNames()::get)
+            .collect(Collectors.toSet());
         return foo;
     }
 
@@ -572,8 +554,8 @@ final public class EMF2MarketHandler extends DefaultHandler {
      * print the traders and their placements
      */
     private void verify() {
-        for (Trader trader : economy.getTraders()) {
-            logger.trace(traderTypes.getName(trader.getType()) + " @" + trader.hashCode());
+        for (Trader trader : topology.getEconomy().getTraders()) {
+            logger.trace(topology.getTraderTypes().getName(trader.getType()) + " @" + trader.hashCode());
             logger.trace("    Sells " + trader.getBasketSold());
             if (!trader.getCommoditiesSold().isEmpty()) {
                 logger.trace("       " + basketAsStrings(trader.getBasketSold()));
@@ -588,14 +570,15 @@ final public class EMF2MarketHandler extends DefaultHandler {
             }
             //TODO: placement
             logger.trace("    Buys from "
-                    + economy.getSuppliers(trader)
+                    + topology.getEconomy().getSuppliers(trader)
                     .stream().map(Trader::getType)
-                    .map(traderTypes::getName)
+                    .map(topology.getTraderTypes()::getName)
                     .collect(Collectors.toList()));
-            logger.trace(economy.getMarketsAsBuyer(trader).size() + " participations ");
+            logger.trace(topology.getEconomy().getMarketsAsBuyer(trader).size() + " participations ");
             // Print "P" x number of participations (e.g. PPPPP for 5 participations). Makes search easier.
-            logger.trace(Strings.repeat("P", economy.getMarketsAsBuyer(trader).size()));
-            for (@NonNull Entry<@NonNull Market, @NonNull BuyerParticipation> entry : economy.getMarketsAsBuyer(trader).entries()) {
+            logger.trace(Strings.repeat("P", topology.getEconomy().getMarketsAsBuyer(trader).size()));
+            for (@NonNull Entry<@NonNull Market, @NonNull BuyerParticipation> entry
+                            : topology.getEconomy().getMarketsAsBuyer(trader).entries()) {
                 BuyerParticipation participation = entry.getValue();
                 logger.trace("    -- participation @" + participation.hashCode());
                 logger.trace("         basket: " + basketAsStrings(entry.getKey().getBasket()));
@@ -605,24 +588,10 @@ final public class EMF2MarketHandler extends DefaultHandler {
         }
     }
 
-    /**
-     * Construct a Basket from a set of commodity type strings
-     * @param keys commodity type strings
-     * @param allocator an allocation of commodity specification numbers to commodity type strings
-     * @return a Basket
-     */
-    Basket keysToBasket(Set<String> keys, NumericIDAllocator allocator) {
-        List<CommoditySpecification> list = Lists.newArrayList();
-        keys.stream().mapToInt(key -> allocator.allocate(key))
-            .forEach(i -> list.add(new CommoditySpecification(i)));
-        // TODO: Reuse baskets?
-        return new Basket(list);
-    }
-
     List<String> basketAsStrings(Basket basket) {
         List<String> result = new ArrayList<>(basket.size());
         for (CommoditySpecification specification : basket) {
-            result.add(commoditySpecs.getName(specification.getType()).toString());
+            result.add(topology.getCommodityTypes().getName(specification.getType()).toString());
         }
 
         return result;
@@ -747,9 +716,5 @@ final public class EMF2MarketHandler extends DefaultHandler {
         private String xsitype() {
             return xsiType;
         }
-    }
-
-    public TopologyMapping getTopologyMapping() {
-        return topoMapping;
     }
 }

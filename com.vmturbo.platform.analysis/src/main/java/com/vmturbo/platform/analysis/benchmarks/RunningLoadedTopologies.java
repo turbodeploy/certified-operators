@@ -50,7 +50,7 @@ public final class RunningLoadedTopologies {
             try {
                 System.out.printf("Loading topology %48s:", topologies[i]);
                 long start = System.nanoTime();
-                Economy economy = M2Utils.loadFile(topologies[i],logger).getTopology().getEconomy();
+                Economy economy = (Economy)M2Utils.loadFile(topologies[i],logger).getEconomy(); // TODO: remove cast
                 economies.add(economy);
                 System.out.printf("%,17dns %7s\n", System.nanoTime()-start, economy.getTraders().size());
             }
