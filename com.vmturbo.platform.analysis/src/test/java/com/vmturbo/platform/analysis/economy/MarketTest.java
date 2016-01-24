@@ -44,6 +44,9 @@ public class MarketTest {
     private static final TraderWithSettings IT0A = new TraderWithSettings(0, 0, TraderState.INACTIVE, new Basket(A));
     private static final TraderWithSettings IT1B = new TraderWithSettings(1, 0, TraderState.INACTIVE, new Basket(B));
 
+    private static final BuyerParticipation PT0_0 = new BuyerParticipation(T0, 0);
+    private static final BuyerParticipation PT0A_0 = new BuyerParticipation(T0A, 0);
+
     private Market fixture_;
 
     // Methods
@@ -204,8 +207,7 @@ public class MarketTest {
     @TestCaseName("Test #{index}: new Market({0}).(add|remove)Buyer(...) sequence")
     // TODO (Vaptistis): may need to check cases when a trader is added to more than one market.
     // May also need to check more complex sequences that include arbitrary interleaving.
-    public final void testAddRemoveBuyer_NormalInput(@NonNull Basket basket, TraderWithSettings[] tradersToAdd,
-                                                      TraderWithSettings[] tradersToRemove) {
+    public final void testAddRemoveBuyer_NormalInput(@NonNull Basket basket, TraderWithSettings[] tradersToAdd) {
         final Market market = new Market(basket);
         final BuyerParticipation[] participations = new BuyerParticipation[tradersToAdd.length];
 
@@ -219,20 +221,25 @@ public class MarketTest {
             assertTrue(tradersToAdd[i].getMarketsAsBuyer().containsEntry(market, participations[i]));
         }
 
-        // TODO (Vaptistis): test removal as well
+        for (int i = 0 ; i < participations.length ; ++i) {
+            market.removeBuyerParticipation(participations[i]);
+            assertEquals(tradersToAdd.length-i-1, market.getBuyers().size());
+            assertFalse(market.getBuyers().contains(participations[i]));
+            assertFalse(tradersToAdd[i].getMarketsAsBuyer().containsEntry(market, participations[i]));
+        }
     }
 
     @SuppressWarnings("unused") // it is used reflectively
     private static Object[] parametersForTestAddRemoveBuyer_NormalInput() {
         return new Object[][] {
-            {new Basket(), new TraderWithSettings[]{T0}, new TraderWithSettings[]{}},
-            {new Basket(), new TraderWithSettings[]{T0A}, new TraderWithSettings[]{}},
-            {new Basket(A), new TraderWithSettings[]{T0}, new TraderWithSettings[]{}},
-            {new Basket(A), new TraderWithSettings[]{T0A}, new TraderWithSettings[]{}},
-            {new Basket(A), new TraderWithSettings[]{T0,T0},new TraderWithSettings[]{}},
-            {new Basket(), new TraderWithSettings[]{T0A,T0A}, new TraderWithSettings[]{}},
-            {new Basket(A), new TraderWithSettings[]{T0A,T1B,T2AC}, new TraderWithSettings[]{}},
-            {new Basket(A), new TraderWithSettings[]{T0A,T1B,T2AC,T1B}, new TraderWithSettings[]{}},
+            {new Basket(), new TraderWithSettings[]{T0}},
+            {new Basket(), new TraderWithSettings[]{T0A}},
+            {new Basket(A), new TraderWithSettings[]{T0}},
+            {new Basket(A), new TraderWithSettings[]{T0A}},
+            {new Basket(A), new TraderWithSettings[]{T0,T0}},
+            {new Basket(), new TraderWithSettings[]{T0A,T0A}},
+            {new Basket(A), new TraderWithSettings[]{T0A,T1B,T2AC}},
+            {new Basket(A), new TraderWithSettings[]{T0A,T1B,T2AC,T1B}},
         };
     }
 
@@ -240,21 +247,25 @@ public class MarketTest {
     @Parameters
     @TestCaseName("Test #{index}: new Market({0}).(add|remove)Buyer(...) sequence")
     public final void testAddRemoveBuyer_InvalidInput(@NonNull Basket basket, TraderWithSettings[] tradersToAdd,
-                                                       TraderWithSettings[] tradersToRemove) {
+                                                      BuyerParticipation[] participationsToRemove) {
         final Market market = new Market(basket);
 
         for (TraderWithSettings trader : tradersToAdd) {
             market.addBuyer(trader);
         }
 
-        // TODO (Vaptistis): test removal as well
+        for (BuyerParticipation participation : participationsToRemove) {
+            market.removeBuyerParticipation(participation);
+        }
     }
 
     @SuppressWarnings("unused") // it is used reflectively
     private static Object[] parametersForTestAddRemoveBuyer_InvalidInput() {
         return new Object[][] {
-            {new Basket(), new TraderWithSettings[]{IT0}, new TraderWithSettings[]{}},
-            {new Basket(), new TraderWithSettings[]{IT0A}, new TraderWithSettings[]{}},
+            {new Basket(), new TraderWithSettings[]{IT0}, new BuyerParticipation[]{}},
+            {new Basket(), new TraderWithSettings[]{IT0A}, new BuyerParticipation[]{}},
+            {new Basket(), new TraderWithSettings[]{T0}, new BuyerParticipation[]{PT0_0}},
+            {new Basket(), new TraderWithSettings[]{T0,T0A}, new BuyerParticipation[]{PT0A_0}},
         };
     }
 

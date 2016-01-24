@@ -164,6 +164,6 @@ public class Placement {
 
         // Add the buyer to the customers of newSupplier, and remove it from the customers of
         // currentSupplier
-        economy.moveTrader(buyerParticipation, newSupplier);
+        buyerParticipation.move(newSupplier);
     }
 }

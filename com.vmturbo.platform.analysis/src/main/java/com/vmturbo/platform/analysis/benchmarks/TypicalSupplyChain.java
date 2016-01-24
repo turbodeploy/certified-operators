@@ -152,7 +152,7 @@ public class TypicalSupplyChain {
 
                 // Start buying from a physical machine and fill-in quantities bought
                 final @NonNull BuyerParticipation pmParticipation = economy.addBasketBought(vm, VM_PM);
-                economy.moveTrader(pmParticipation, pms.get(i % nPMsPerCluster));
+                pmParticipation.move(pms.get(i % nPMsPerCluster));
 
                 pmParticipation.setQuantity(VM_PM.indexOf(CPU), PMsPerVM*UTILIZATION*CPU_CAPACITY);
                 pmParticipation.setPeakQuantity(VM_PM.indexOf(CPU), PMsPerVM*UTILIZATION*CPU_CAPACITY);
@@ -165,7 +165,7 @@ public class TypicalSupplyChain {
 
                 // Start buying from a storage and fill-in quantities bought
                 final @NonNull BuyerParticipation stParticipation = economy.addBasketBought(vm, VM_ST);
-                economy.moveTrader(stParticipation, sts.get(i % nSTsPerCluster));
+                stParticipation.move(sts.get(i % nSTsPerCluster));
 
                 stParticipation.setQuantity(VM_ST.indexOf(STORE), STsPerVM*UTILIZATION*STORE_CAPACITY);
                 stParticipation.setPeakQuantity(VM_ST.indexOf(STORE), STsPerVM*UTILIZATION*STORE_CAPACITY);
@@ -175,7 +175,7 @@ public class TypicalSupplyChain {
                 // Add an application and tie it to the virtual machine.
                 final @NonNull Trader app = economy.addTrader(3, TraderState.ACTIVE, EMPTY);
                 final @NonNull BuyerParticipation vmParticipation = economy.addBasketBought(app, APP_VM);
-                economy.moveTrader(vmParticipation, vm);
+                vmParticipation.move(vm);
 
                 // Fill-in quantities bought by the application
                 vmParticipation.setQuantity(APP_VM.indexOf(VCPU), PMsPerVM*UTILIZATION*UTILIZATION*CPU_CAPACITY);

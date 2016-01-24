@@ -446,7 +446,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
 
         logger.info("Processing placement");
         for (Entry<BuyerParticipation, String> entry : placement.entrySet()) {
-            economy.moveTrader(entry.getKey(), uuid2trader.get(entry.getValue()));
+            entry.getKey().move(uuid2trader.get(entry.getValue()));
         }
 
         if (logger.isTraceEnabled()) {

@@ -204,4 +204,58 @@ public class BuyerParticipationTest {
         fixture_.setPeakQuantity(index, peakQuantity);
     }
 
+    @Test
+    @Parameters
+    @TestCaseName("Test #{index}: {0}.move({1})")
+    public final void testMove(@NonNull BuyerParticipation participation, @Nullable TraderWithSettings newSupplier) {
+        final @Nullable TraderWithSettings oldSupplier = (TraderWithSettings)participation.getSupplier();
+        final int oldSupplierSize = oldSupplier == null ? 0 : oldSupplier.getCustomers().size();
+        final int newSupplierSize = newSupplier == null ? 0 : newSupplier.getCustomers().size();
+
+        assertSame(participation, participation.move(newSupplier));
+        assertSame(newSupplier, participation.getSupplier());
+        assertTrue(oldSupplier == null || !oldSupplier.getCustomers().contains(participation));
+        assertTrue(newSupplier == null || newSupplier.getCustomers().contains(participation));
+
+        if (oldSupplier != null)
+            assertEquals(oldSupplierSize-1, oldSupplier.getCustomers().size());
+        if (newSupplier != null)
+            assertEquals(newSupplierSize+1, newSupplier.getCustomers().size());
+    }
+
+    @SuppressWarnings("unused") // it is used reflectively
+    private static Object[] parametersForTestMove() { // TODO: refactor to make more readable.
+        List<Object[]> parameters = new ArrayList<>();
+
+        for (int i = 0 ; i < 4 ; ++i) {
+            for (int j = 0 ; j < 4 ; ++j) {
+                BuyerParticipation participation = new BuyerParticipation(trader1, 1);
+
+                if (i > 0) {
+                    TraderWithSettings oldSupplier = new TraderWithSettings(0, 0, TraderState.ACTIVE, EMPTY);
+                    participation.setSupplier(oldSupplier);
+                    oldSupplier.getCustomers().add(participation);
+
+                    if (i > 1) {
+                        BuyerParticipation auxiliary = new BuyerParticipation(trader1, 1);
+                        auxiliary.setSupplier(oldSupplier);
+                        oldSupplier.getCustomers().add(i == 2 ? 0 : 1, auxiliary);
+                    }
+                }
+
+                TraderWithSettings newSupplier = j == 0 ? null : new TraderWithSettings(0, 0, TraderState.ACTIVE, EMPTY);
+
+                for (int k = 1 ; k < j ; ++k) {
+                    BuyerParticipation auxiliary = new BuyerParticipation(trader1, 1);
+                    auxiliary.setSupplier(newSupplier);
+                    newSupplier.getCustomers().add(auxiliary);
+                }
+
+                parameters.add(new Object[]{participation,newSupplier});
+            }
+        }
+
+        return parameters.toArray();
+    }
+
 } // end BuyerParticipationTest class

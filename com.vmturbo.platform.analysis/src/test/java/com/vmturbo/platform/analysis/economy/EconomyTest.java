@@ -107,7 +107,8 @@ public class EconomyTest {
                     for (int dst1 = 0 ; dst1 < 2 ; ++dst1) {
                         economy = new Economy();
                         traders[0] = economy.addTrader(0, TraderState.ACTIVE, basketSold);
-                        economy.moveTrader(economy.addBasketBought(traders[0], basketBought1), traders[dst1]);
+                        economy.addBasketBought(traders[0], basketBought1).move(traders[dst1]);
+
                         output.add(new Object[]{economy,new Basket[]{basketBought1},Arrays.copyOf(traders, 1)});
                     }
                 }
@@ -121,8 +122,9 @@ public class EconomyTest {
                             for (int dst2 = 0 ; dst2 < 2 ; ++dst2) {
                                 economy = new Economy();
                                 traders[0] = economy.addTrader(0, TraderState.ACTIVE, basketSold);
-                                economy.moveTrader(economy.addBasketBought(traders[0], basketBought1), traders[dst1]);
-                                economy.moveTrader(economy.addBasketBought(traders[0], basketBought2), traders[dst2]);
+                                economy.addBasketBought(traders[0], basketBought1).move(traders[dst1]);
+                                economy.addBasketBought(traders[0], basketBought2).move(traders[dst2]);
+
                                 output.add(new Object[]{economy, basketBought1 == basketBought2
                                                 ? new Basket[]{basketBought1} : baskets, Arrays.copyOf(traders, 1)});
                             }
@@ -147,7 +149,8 @@ public class EconomyTest {
                             economy = new Economy();
                             traders[0] = economy.addTrader(0, TraderState.ACTIVE, EMPTY);
                             traders[1] = economy.addTrader(0, TraderState.ACTIVE, basketSold);
-                            economy.moveTrader(economy.addBasketBought(traders[src1], basketBought1), traders[dst1]);
+                            economy.addBasketBought(traders[src1], basketBought1).move(traders[dst1]);
+
                             output.add(new Object[]{economy,new Basket[]{basketBought1}, Arrays.copyOf(traders, 2)});
                         }
                     }
@@ -165,8 +168,8 @@ public class EconomyTest {
                                         economy = new Economy();
                                         traders[0] = economy.addTrader(0, TraderState.ACTIVE, EMPTY);
                                         traders[1] = economy.addTrader(0, TraderState.ACTIVE, basketSold);
-                                        economy.moveTrader(economy.addBasketBought(traders[src1], basketBought1), traders[dst1]);
-                                        economy.moveTrader(economy.addBasketBought(traders[src2], basketBought2), traders[dst2]);
+                                        economy.addBasketBought(traders[src1], basketBought1).move(traders[dst1]);
+                                        economy.addBasketBought(traders[src2], basketBought2).move(traders[dst2]);
 
                                         output.add(new Object[]{economy, basketBought1 == basketBought2
                                             ? new Basket[]{basketBought1} : baskets, Arrays.copyOf(traders, 2)});
@@ -186,10 +189,9 @@ public class EconomyTest {
             Trader pm = economy.addTrader(1, TraderState.ACTIVE, PMtoVM);
             Trader st1 = economy.addTrader(2, TraderState.ACTIVE, STtoVM);
             Trader st2 = economy.addTrader(2, TraderState.ACTIVE, STtoVM);
-            economy.moveTrader(economy.getMarketsAsBuyer(vm).get(economy.getMarket(PMtoVM)).get(0), pm);
-            economy.moveTrader(economy.getMarketsAsBuyer(vm).get(economy.getMarket(STtoVM)).get(0), st1);
-            economy.moveTrader(economy.getMarketsAsBuyer(vm).get(economy.getMarket(STtoVM)).get(1), st2);
-
+            economy.getMarketsAsBuyer(vm).get(economy.getMarket(PMtoVM)).get(0).move(pm);
+            economy.getMarketsAsBuyer(vm).get(economy.getMarket(STtoVM)).get(0).move(st1);
+            economy.getMarketsAsBuyer(vm).get(economy.getMarket(STtoVM)).get(1).move(st2);
             pm.getCommoditySold(CPU).setCapacity(100);
             economy.getCommodityBought(economy.getMarketsAsBuyer(vm).get(economy.getMarket(PMtoVM)).get(0),CPU).setQuantity(42);
             output.add(new Object[]{economy,new Basket[]{PMtoVM,STtoVM},new Trader[]{vm,pm,st1,st2}});
@@ -200,9 +202,9 @@ public class EconomyTest {
             pm = economy.addTrader(1, TraderState.ACTIVE, PMtoVM);
             st1 = economy.addTrader(2, TraderState.ACTIVE, STtoVM);
             st2 = economy.addTrader(2, TraderState.ACTIVE, STtoVM);
-            economy.moveTrader(economy.addBasketBought(vm, PMtoVM), pm);
-            economy.moveTrader(economy.addBasketBought(vm, STtoVM), st1);
-            economy.moveTrader(economy.addBasketBought(vm, STtoVM), st2);
+            economy.addBasketBought(vm, PMtoVM).move(pm);
+            economy.addBasketBought(vm, STtoVM).move(st1);
+            economy.addBasketBought(vm, STtoVM).move(st2);
             output.add(new Object[]{economy,new Basket[]{PMtoVM,STtoVM},new Trader[]{vm,pm,st1,st2}});
 
             // TODO (Vaptistis): add more economies of larger size

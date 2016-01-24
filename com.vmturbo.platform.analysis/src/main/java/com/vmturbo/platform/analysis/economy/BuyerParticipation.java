@@ -178,4 +178,33 @@ public final class BuyerParticipation {
         return this;
     }
 
+    /**
+     * Moves {@code this} buyer participation of a buyer to a new supplier, causing the customer
+     * lists of former and future supplier to be updated.
+     *
+     * <p>
+     *  It can be used to first position a buyer participation buying from no-one (like the one of a
+     *  newly created trader) to its first supplier, or to make a buyer participation seize buying
+     *  from anyone.
+     * </p>
+     *
+     * @param newSupplier The new supplier of {@code this}.
+     * @return {@code this}
+     */
+    @Deterministic
+    public @NonNull BuyerParticipation move(Trader newSupplier) {
+        // Update old supplier to exclude this from its customers.
+        if (getSupplier() != null) {
+            checkArgument(((TraderWithSettings)getSupplier()).getCustomers().remove(this));
+        }
+
+        // Update new supplier to include this to its customers.
+        if (newSupplier != null) {
+            ((TraderWithSettings)newSupplier).getCustomers().add(this);
+        }
+        setSupplier(newSupplier);
+
+        return this;
+    }
+
 } // end BuyerParticipation class

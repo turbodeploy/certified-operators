@@ -73,7 +73,7 @@ public final class PlacementTest {
         pm2.getCommoditySold(CPU).setQuantity(3);
         pm2.getCommoditySold(MEM).setQuantity(6);
 
-        economy.moveTrader(participation, pm1);
+        participation.move(pm1);
 
         Placement.moveTraderAndUpdateQuantitiesSold(participation, pm2, PM, economy);
 
@@ -102,7 +102,7 @@ public final class PlacementTest {
         pm2.getCommoditySold(DRS).setQuantity(6);
         pm2.getCommoditySold(MEM).setQuantity(9);
 
-        economy.moveTrader(participation, pm1);
+        participation.move(pm1);
 
         Placement.moveTraderAndUpdateQuantitiesSold(participation, pm2, PM_EXT, economy);
 
@@ -133,7 +133,7 @@ public final class PlacementTest {
         pm2.getCommoditySold(DRS).setQuantity(6);
         pm2.getCommoditySold(MEM).setQuantity(9);
 
-        economy.moveTrader(participation, pm1);
+        participation.move(pm1);
 
         Placement.moveTraderAndUpdateQuantitiesSold(participation, pm2, PM, economy);
 

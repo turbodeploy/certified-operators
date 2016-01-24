@@ -275,7 +275,7 @@ public final class Economy {
 
         // Stop everyone from buying from the trader.
         for (@NonNull BuyerParticipation participation : new ArrayList<>(castTraderToRemove.getCustomers())) {
-            moveTrader(participation, null); // this is not the cheapest way, but the safest...
+            participation.move(null); // this is not the cheapest way, but the safest...
         }
 
         // Remove the trader from all markets it participated as seller
@@ -285,7 +285,7 @@ public final class Economy {
 
         // Remove the trader from all markets it participated as buyer
         for (Map.Entry<Market,BuyerParticipation> entry : new ArrayList<>(castTraderToRemove.getMarketsAsBuyer().entries())) {
-            entry.getKey().removeBuyerParticipation(this,entry.getValue());
+            entry.getKey().removeBuyerParticipation(entry.getValue());
         }
 
         // Update economy indices of all traders and remove trader from list.
@@ -295,38 +295,6 @@ public final class Economy {
             }
         }
         checkArgument(traders_.remove(traderToRemove));
-
-        return this;
-    }
-
-    /**
-     * Moves one buyer participation of a buyer to a new supplier, causing customer and supplier
-     * lists to be updated.
-     *
-     * <p>
-     *  It can be used to first position a buyer participation buying from no-one (like the one of a
-     *  newly created trader) to its first supplier, or to make a buyer participation seize buying
-     *  from anyone.
-     * </p>
-     *
-     * @param participationToMove The buyer participation that should change supplier.
-     * @param newSupplier The new supplier of participationToMove.
-     * @return {@code this}
-     */
-    // TODO: if newSupplier does not really sell the required basket, should it be counted as a
-    // customer?
-    @Deterministic
-    public @NonNull Economy moveTrader(@NonNull BuyerParticipation participationToMove, Trader newSupplier) {
-        // Update old supplier to exclude participationToMove from its customers.
-        if (participationToMove.getSupplier() != null) {
-            ((TraderWithSettings)participationToMove.getSupplier()).getCustomers().remove(participationToMove);
-        }
-
-        // Update new supplier to include participationToMove to its customers.
-        if (newSupplier != null) {
-            ((TraderWithSettings)newSupplier).getCustomers().add(participationToMove);
-        }
-        participationToMove.setSupplier(newSupplier);
 
         return this;
     }
@@ -477,7 +445,7 @@ public final class Economy {
     public @NonNull @ReadOnly Basket removeBasketBought(@NonNull BuyerParticipation participation) {
         @NonNull Market market = getMarket(participation);
 
-        market.removeBuyerParticipation(this, participation);
+        market.removeBuyerParticipation(participation);
 
         return market.getBasket();
     }

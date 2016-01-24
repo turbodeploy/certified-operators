@@ -172,9 +172,9 @@ public final class Market {
      *                              {@code this} market. It should be in the market.
      * @return {@code this}
      */
-    @NonNull Market removeBuyerParticipation(@NonNull Economy economy, @NonNull BuyerParticipation participationToRemove) {
+    @NonNull Market removeBuyerParticipation(@NonNull BuyerParticipation participationToRemove) {
         checkArgument(buyers_.remove(participationToRemove));
-        economy.moveTrader(participationToRemove, null);
+        participationToRemove.move(null);
         ((TraderWithSettings)participationToRemove.getBuyer()).getMarketsAsBuyer().remove(this, participationToRemove);
 
         return this;
