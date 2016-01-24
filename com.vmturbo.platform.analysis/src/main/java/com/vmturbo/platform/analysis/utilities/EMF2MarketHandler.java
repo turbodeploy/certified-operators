@@ -46,7 +46,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
 	 * When true - replace DSPM and Datastore commodities with biclique commodities.
 	 * Used mostly for testing.
 	 */
-    private static boolean doBicliques = true;
+    private static final boolean doBicliques = true;
 
     private static final List<String> COMM_REFS =
             Arrays.asList("Commodities", "CommoditiesBought");
@@ -63,43 +63,49 @@ final public class EMF2MarketHandler extends DefaultHandler {
 
     private static final String DSPMAccess = "Abstraction:DSPMAccessCommodity";
     private static final String DatastoreCommodity = "Abstraction:DatastoreCommodity";
-    private static String ACCESSES = "Accesses";
+    private static final String ACCESSES = "Accesses";
 
-    private Logger logger;
+    private final Logger logger;
     private LegacyTopology topology; // the legacy topology that will be populated.
 
     // Stacks (using the Deque implementation) are used to keep track of the parent of an xml element
-    private Deque<Attributes> attributesStack;
+    private final Deque<Attributes> attributesStack = new ArrayDeque<>();
 
+    /* Use LinkedHashMap when the order of iteration matters,
+     * HashMap otherwise.
+     * It matters if we want to get exactly the same results
+     * when loading the same file in different runs or on
+     * different machines.
+     */
     // The loaded entities. In all these maps the key is the object UUID
     // Traders and commodities are kept as Attributes, which are key/value pairs
-    private Map<String, Attributes> traders;
-    private Map<String, Attributes> commodities;
-    private Map<String, Attributes> commoditySold2trader;
-    private Map<String, List<Attributes>> trader2commoditiesBought;
+    private final Map<String, Attributes> traders = new LinkedHashMap<>();
+    private final Map<String, Attributes> commodities = new LinkedHashMap<>();
+    private final Map<String, Attributes> commoditySold2trader = new LinkedHashMap<>();
+    private final Map<String, List<Attributes>> trader2commoditiesBought = new LinkedHashMap<>();
     // Basket is a set of commodity type strings
-    private Map<String, Set<String>> trader2basketSold;
+    private final Map<String, Set<String>> trader2basketSold = new LinkedHashMap<>();
     // Used to log commodities bought that consume more than one commodity sold
-    private Map<String, String> multipleConsumes;
-    // Commodities sold which "SoldBy" reference points to the UUID of a trader not persent in the file
-    private List<Attributes> noSeller;
+    private final Map<String, String> multipleConsumes = new HashMap<>();
+    // Commodities sold which "SoldBy" reference points to the UUID of a trader not present in the file
+    private final List<Attributes> noSeller = new ArrayList<>();
     // Commodities bought which "Consumes" reference points to the UUID of a commodity not present in the file
-    private List<Attributes> noConsumes;
+    private final List<Attributes> noConsumes = new ArrayList<>();
     // This map is used for logging.
     // First key is the types of buyer and seller that are skipped, separated with " buying from ",
     // for example "PhysicalMachine buying from Storage"
     // The entries in the set are UUIDs of pairs of skipped traders, separated with a forward slash.
-    private Map<String, Set<String>> skippedBaskets;
+    private final Map<String, Set<String>> skippedBaskets = Maps.newHashMap();
 
     // Maps related to bicliques
     // A map from storage uuid to all the host uuids connected to it
-    private Map<String, Set<String>> dspm = new TreeMap<>();
+    private final Map<String, Set<String>> dspm = new TreeMap<>();
     // The key and value in each entry are two sets of nodes that form one biclique
-    private Map<Set<String>, Set<String>> bicliques = new LinkedHashMap<>();
+    private final Map<Set<String>, Set<String>> bicliques = new LinkedHashMap<>();
     // map(uuid1, uuid2) is the biclique number of the biclique that contains the edge between uuid1 and uuid2
-    private Map<String, Map<String, Integer>> traderUuids2bcNumber = new HashMap<>();
+    private final Map<String, Map<String, Integer>> traderUuids2bcNumber = new HashMap<>();
     // Map from trader uuid to the set of all biclique commodity keys that the trader sells
-    private Map<String, Set<String>> traderUuid2bcCommodityKeys = new HashMap<>();
+    private final Map<String, Set<String>> traderUuid2bcCommodityKeys = new HashMap<>();
 
     private long startTime;
     private long elementCount;
@@ -221,22 +227,18 @@ final public class EMF2MarketHandler extends DefaultHandler {
     @Override
     public void startDocument() throws SAXException {
         topology = new LegacyTopology();
-        attributesStack = new ArrayDeque<Attributes>();
-        /* Use LinkedHashMap when the order of iteration matters,
-         * HashMap otherwise.
-         * It matters if we want to get exactly the same results
-         * when loading the same file in different runs or on
-         * different machines.
-         */
-        traders = new LinkedHashMap<String, Attributes>();
-        commodities = new LinkedHashMap<String, Attributes>();
-        trader2commoditiesBought = new LinkedHashMap<String, List<Attributes>>();
-        trader2basketSold = new LinkedHashMap<String, Set<String>>();
-        commoditySold2trader = new LinkedHashMap<String, Attributes>();
-        multipleConsumes = new HashMap<String, String>();
-        noSeller = new ArrayList<Attributes>();
-        noConsumes = new ArrayList<Attributes>();
-        skippedBaskets = Maps.newHashMap();
+
+        // Clear all maps before starting to parse a new file.
+        attributesStack.clear();
+        traders.clear();
+        commodities.clear();
+        trader2commoditiesBought.clear();
+        trader2basketSold.clear();
+        commoditySold2trader.clear();
+        multipleConsumes.clear();
+        noSeller.clear();
+        noConsumes.clear();
+        skippedBaskets.clear();
 
         startTime = System.currentTimeMillis();
         elementCount = 0;
@@ -335,10 +337,10 @@ final public class EMF2MarketHandler extends DefaultHandler {
                 // if key doesn't exist then create one, otherwise return the existing value,
                 // then add the entry to the list
                 sellerAttr2commsSoldAttr
-                    .compute(sellerAttr, (key, val) -> val == null ? new ArrayList<Attributes>() : val)
+                    .compute(sellerAttr, (key, val) -> val == null ? new ArrayList<>() : val)
                         .add(commSoldAttr);
                 sellerAttr2commsBoughtAttr
-                    .compute(sellerAttr, (key, val) -> val == null ? new ArrayList<Attributes>() : val)
+                    .compute(sellerAttr, (key, val) -> val == null ? new ArrayList<>() : val)
                         .add(commBoughtAttr);
             }
             printAttributes("", traderAttr, Level.DEBUG);
@@ -641,18 +643,14 @@ final public class EMF2MarketHandler extends DefaultHandler {
      * A representation of an XML element from the file as a key-value map.
      */
     static class Attributes {
-
-        org.xml.sax.Attributes saxAttributes;
-        String xsiType;
-        List<String> keyset = new ArrayList<String>();
+        final org.xml.sax.Attributes saxAttributes;
+        final String xsiType;
+        final List<String> keyset = new ArrayList<>();
 
         Attributes(@NonNull String qName, org.xml.sax.Attributes attributes) {
             saxAttributes = new AttributesImpl(attributes);
-            xsiType = attributes.getValue(XSITYPE);
-            if (xsiType == null) {
-                // SE that is a child of the document root
-                xsiType = qName;
-            }
+            // xsiType can be null if SE is a child of the document root
+            xsiType = attributes.getValue(XSITYPE) == null ? qName : attributes.getValue(XSITYPE);
         }
 
         public Collection<String> keySet() {
