@@ -218,7 +218,6 @@ final public class EMF2MarketHandler extends DefaultHandler {
             traders.put(uuid, trader);
             trader2commoditiesBought.put(uuid, new ArrayList<Attributes>());
             trader2basketSold.put(uuid, new HashSet<String>());
-            traderTypes.allocate(trader.xsitype());
         }
     }
 
@@ -231,9 +230,6 @@ final public class EMF2MarketHandler extends DefaultHandler {
         String uuid = comm.uuid();
         if (!commodities.containsKey(uuid)) {
             commodities.put(uuid, comm);
-            if (!isDspmAccess(comm) && !isDatastoreCommodity(comm)) {
-                commoditySpecs.allocate(comm.commoditySpecString());
-            }
         }
     }
 
@@ -292,7 +288,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
             Basket basketSold = keysToBasket(keysSold, commoditySpecs);
 
             allBasketsSold.add(basketSold);
-            int traderType = traderTypes.getId(traderAttr.xsitype());
+            int traderType = traderTypes.allocate(traderAttr.xsitype());
             Trader aSeller = economy.addTrader(traderType, TraderState.ACTIVE, basketSold);
             if (VIRTUAL_MACHINE.equals(traderAttr.xsitype())) // TODO: also check for containers
                 aSeller.getSettings().setMovable(true);
@@ -516,8 +512,6 @@ final public class EMF2MarketHandler extends DefaultHandler {
         // The rest of this method is helper maps and logging
         int cliqueNum = 0;
         for (Entry<Set<String>, Set<String>> clique : bicliques.entrySet()) {
-            commoditySpecs.allocate(BCPM_PREFIX + cliqueNum);
-            commoditySpecs.allocate(BCDS_PREFIX + cliqueNum);
             for (String uuid1 : clique.getKey()) {
                 traderUuid2bcCommodityKeys.compute(uuid1, (key, val) -> val == null ? new HashSet<>() : val).add(BCPM_PREFIX + cliqueNum);
                 traderUuids2bcNumber.putIfAbsent(uuid1, new HashMap<>());
@@ -617,9 +611,9 @@ final public class EMF2MarketHandler extends DefaultHandler {
      * @param allocator an allocation of commodity specification numbers to commodity type strings
      * @return a Basket
      */
-    Basket keysToBasket(Set<String> keys, UnmodifiableNumericIDAllocator allocator) {
+    Basket keysToBasket(Set<String> keys, NumericIDAllocator allocator) {
         List<CommoditySpecification> list = Lists.newArrayList();
-        keys.stream().mapToInt(key -> allocator.getId(key))
+        keys.stream().mapToInt(key -> allocator.allocate(key))
             .forEach(i -> list.add(new CommoditySpecification(i)));
         // TODO: Reuse baskets?
         return new Basket(list);

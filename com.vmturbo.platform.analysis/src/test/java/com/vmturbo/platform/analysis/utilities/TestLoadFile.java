@@ -126,11 +126,11 @@ public class TestLoadFile {
         // StorageAmount
         assertEquals(0, markets[0].getBasket().get(0).getType());
         // BC-DS-0
-        assertEquals(3, markets[0].getBasket().get(1).getType());
+        assertEquals(1, markets[0].getBasket().get(1).getType());
         // CPU
-        assertEquals(1, markets[1].getBasket().get(0).getType());
+        assertEquals(2, markets[1].getBasket().get(0).getType());
         // BC-PM-0
-        assertEquals(2, markets[1].getBasket().get(1).getType());
+        assertEquals(3, markets[1].getBasket().get(1).getType());
     }
 
     /**
@@ -206,7 +206,7 @@ public class TestLoadFile {
         UnmodifiableEconomy economy = topoMap.getTopology().getEconomy();
         Trader ds = economy.getTraders().get(0);
         // StorageAmount
-        CommoditySold storageAmount = ds.getCommoditiesSold().get(0);
+        CommoditySold storageAmount = ds.getCommoditiesSold().get(4);
         assertEquals(673442.4, storageAmount.getCapacity(), 1e-9);
         assertEquals(96092.0, storageAmount.getQuantity(), 1e-9);
         assertEquals(0.0, storageAmount.getPeakQuantity(), 1e-9);
