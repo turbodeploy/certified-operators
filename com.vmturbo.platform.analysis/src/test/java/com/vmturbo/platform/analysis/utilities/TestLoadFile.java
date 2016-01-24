@@ -240,7 +240,6 @@ public class TestLoadFile {
          * application app-733 not supposed to buy from vm-733 although the commodities are in the files
          *
          */
-        inspect(topoMap);
         UnmodifiableEconomy economy = topoMap.getTopology().getEconomy();
         List<@NonNull @ReadOnly Trader> traders = economy.getTraders();
         // 6 traders - one in each file
@@ -285,43 +284,6 @@ public class TestLoadFile {
 
     private TopologyMapping loadString(String xml, Logger logger) {
         return M2Utils.loadStream(new ByteArrayInputStream(xml.getBytes()), logger);
-    }
-
-    private void inspect(TopologyMapping tmap) {
-        UnmodifiableEconomy economy = tmap.getTopology().getEconomy();
-        @NonNull @ReadOnly Collection<@NonNull @ReadOnly Market> markets = economy.getMarkets();
-        System.out.println("Traders:");
-        for (Trader trader : economy.getTraders()) {
-            int traderIndex = economy.getIndex(trader);
-            System.out.println("#" + traderIndex + ". (type " + trader.getType() + ") "+ tmap.getTraderName(traderIndex));
-        }
-        System.out.println(markets.size() + " markets");
-        for (@NonNull @ReadOnly Market market : markets) {
-            System.out.println(market.getBasket());
-            System.out.println("    Sellers:");
-            @NonNull @ReadOnly List<@NonNull Trader> sellers = market.getSellers();
-            for (Trader seller : sellers) {
-                System.out.println("        " + traderName(seller, tmap));
-            }
-            System.out.println("    Participations:");
-            @NonNull @ReadOnly List<@NonNull BuyerParticipation> participations = market.getBuyers();
-            Set<Trader> buyers = new HashSet<>();
-            for (BuyerParticipation participation : participations) {
-                Trader buyer = participation.getBuyer();
-                buyers.add(buyer);
-                System.out.println("        " + traderName(buyer, tmap));
-            }
-        }
-    }
-
-    /*
-     * Currently a buyer can have only one participation per market
-     * TODO: create multiple participations when valid (and test it)
-     */
-
-    // TODO: Is there a way to get from the Trader to the Economy?
-    private String traderName(Trader trader, TopologyMapping topoMap) {
-        return topoMap.getTraderName(topoMap.getTopology().getEconomy().getIndex(trader));
     }
 
     private static String fileToString(String fileName) {
