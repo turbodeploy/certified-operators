@@ -1,6 +1,9 @@
 package com.vmturbo.platform.analysis.drivers;
 
 import java.io.FileNotFoundException;
+import java.util.function.Function;
+import java.util.function.IntFunction;
+
 import org.apache.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -10,6 +13,7 @@ import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 import com.vmturbo.platform.analysis.ede.Ede;
+import com.vmturbo.platform.analysis.topology.LegacyTopology;
 import com.vmturbo.platform.analysis.utilities.M2Utils;
 
 /**
@@ -38,32 +42,41 @@ public final class ExportForVisualisation {
         }
 
         try {
-            Economy economy = (Economy)M2Utils.loadFile(args[0]).getEconomy(); // TODO: remove cast
+            LegacyTopology topology = M2Utils.loadFile(args[0]);
 
-            System.out.println("Economy\tTrader Index\tTrader Type\tCommodity Index\tCommodity Type\t"
-                + "Utilization\tPeak Utilization\tQuantity\tPeak Quantity\tCapacity\tEffective Capacity");
-            printEconomy(economy, "Original");
+            System.out.println("Economy\tTrader Index\tTrader UUID\tTrader Name\tTrader Type\t"
+                + "Commodity Index\tCommodity Type\tUtilization\tPeak Utilization\tQuantity\t"
+                + "Peak Quantity\tCapacity\tEffective Capacity");
+            printEconomy(topology.getEconomy(), "Original",topology.getUuids()::get,topology.getNames()::get,
+                         topology.getCommodityTypes()::getName,topology.getTraderTypes()::getName);
 
             Ede ede = new Ede();
-            ede.createRecommendations(economy);
-            printEconomy(economy, "Optimized");
+            ede.createRecommendations((Economy)topology.getEconomy()); // TODO: remove cast
+            printEconomy(topology.getEconomy(), "Optimized",topology.getUuids()::get,topology.getNames()::get,
+                         topology.getCommodityTypes()::getName,topology.getTraderTypes()::getName);
         } catch (FileNotFoundException e) {
             logger.error(e.toString());
             System.exit(0);
         }
     }
 
-    private static void printEconomy(@NonNull UnmodifiableEconomy economy, @NonNull String name) {
-        final String tabSeparatedFieldsLine = Strings.repeat("%s\t", 10) + "%s\n";
+    private static void printEconomy(@NonNull UnmodifiableEconomy economy, @NonNull String economyName,
+                                     @NonNull Function<@NonNull Trader, @NonNull String> traderUuid,
+                                     @NonNull Function<@NonNull Trader, @NonNull String> traderName,
+                                     @NonNull IntFunction<@NonNull String> commodityType,
+                                     @NonNull IntFunction<@NonNull String> traderType) {
+        final String tabSeparatedFieldsLine = Strings.repeat("%s\t", 12) + "%s\n";
 
         for (@NonNull @ReadOnly Trader trader : economy.getTraders()) {
             for (int i = 0 ; i < trader.getBasketSold().size() ; ++i) {
                 System.out.printf(tabSeparatedFieldsLine,
-                    name,
+                    economyName,
                     economy.getIndex(trader),
-                    trader.getType(),
+                    traderUuid.apply(trader),
+                    traderName.apply(trader),
+                    traderType.apply(trader.getType()),
                     i,
-                    trader.getBasketSold().get(i).getType(),
+                    commodityType.apply(trader.getBasketSold().get(i).getType()),
                     trader.getCommoditiesSold().get(i).getUtilization(),
                     trader.getCommoditiesSold().get(i).getPeakUtilization(),
                     trader.getCommoditiesSold().get(i).getQuantity(),
