@@ -7,15 +7,14 @@ import java.util.List;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
-import com.vmturbo.platform.analysis.economy.Basket;
+import com.vmturbo.platform.analysis.actions.Action;
+import com.vmturbo.platform.analysis.actions.Move;
+import com.vmturbo.platform.analysis.actions.Reconfigure;
 import com.vmturbo.platform.analysis.economy.BuyerParticipation;
-import com.vmturbo.platform.analysis.economy.CommoditySold;
-import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ede.EdeCommon.QuoteMinimizer;
-import com.vmturbo.platform.analysis.recommendations.RecommendationItem;
 
 public class Placement {
 
@@ -32,10 +31,10 @@ public class Placement {
      * @param timeMiliSec - time in Mili Seconds the placement decision algorithm is invoked
      *                      (typically since Jan. 1, 1970)
      */
-    public static @NonNull List<@NonNull RecommendationItem> placementDecisions(@NonNull Economy economy,
+    public static @NonNull List<@NonNull Action> placementDecisions(@NonNull Economy economy,
                     @NonNull List<@NonNull StateItem> state, long timeMiliSec) {
 
-        @NonNull List<RecommendationItem> recommendations = new ArrayList<>();
+        @NonNull List<Action> actions = new ArrayList<>();
 
         // iterate over all markets, i.e., all sets of providers selling a specific basket
         for (Market market : economy.getMarkets()) {
@@ -49,7 +48,8 @@ public class Placement {
                 if (!buyer.getSettings().isMovable())
                     continue;
                 if (sellers.isEmpty()) {
-                    recommendations.add(new RecommendationItem(buyer, null, null, market));
+                    actions.add(new Reconfigure(economy, buyerParticipation));
+                    actions.get(actions.size()-1).take();
                     continue;
                 }
                 final @Nullable Trader currentSupplier = buyerParticipation.getSupplier();
@@ -80,10 +80,9 @@ public class Placement {
                 if (currentQuote > cheapestQuote) { // + market.getBasket().size() * 2.0) {
                     //TODO (Apostolos): use economy.getSettings().getQuoteFactor() above
                     // create recommendation and add it to the result list
-                    recommendations.add(new RecommendationItem(buyer, currentSupplier, cheapestSeller, market));
+                    actions.add(new Move(economy,buyerParticipation,cheapestSeller));
                     // update the economy to reflect the decision
-                    moveTraderAndUpdateQuantitiesSold(buyerParticipation, cheapestSeller,
-                                    market.getBasket(), economy);
+                    actions.get(actions.size()-1).take();
                     // update the state
                     int newSellerIndex = economy.getIndex(cheapestSeller);
                     // TODO (Apostolos): use economy.getSettings().getPlacementInterval() below
@@ -93,77 +92,7 @@ public class Placement {
                 }
             }
         }
-        return recommendations;
+        return actions;
     }
 
-    /**
-     * Change a buyer to become a customer of a newSupplier, and update the quantities sold by
-     * the new and the current supplier.
-     *
-     * <p>
-     *  The method assumes that the new supplier can satisfy the basket bought by the buyer
-     *  participation, and is not checking for it. No such assumption is made for the current
-     *  supplier.
-     *  </p>
-     *
-     * <p>
-     *  Quantities are updated on a "best guess" basis: there is no guarantee that when the move is
-     *  actually executed in the real environment, the quantities will change in that way.
-     * </p>
-     *
-     * @param buyerParticipation - the buyer participation to be moved to the new supplier
-     * @param newSupplier - the new supplier of the buyer participation
-     * @param basket - the basket bought by the buyer participation
-     * @param economy - the economy where the buyer and the suppliers belong
-     */
-    static void moveTraderAndUpdateQuantitiesSold(BuyerParticipation buyerParticipation,
-            @NonNull Trader newSupplier, Basket basket, Economy economy) {
-
-        // Go over all commodities in the basket and update quantities in old and new Supplier
-        int currCommSoldIndex = 0;
-        int newCommSoldIndex = 0;
-        final double[] quantities = buyerParticipation.getQuantities();
-        final double[] peakQuantities = buyerParticipation.getPeakQuantities();
-        final @Nullable Trader currSupplier = buyerParticipation.getSupplier();
-        for (int index = 0; index < basket.size(); index++) {
-            CommoditySpecification basketCommSpec = basket.get(index);
-
-            // Update current supplier
-            if (currSupplier != null) {
-                // Find the corresponding commodity sold in the current supplier.
-                int startIndex = currCommSoldIndex; // keep the start index for misconfigured current supplier
-                while (currCommSoldIndex < currSupplier.getBasketSold().size()
-                        && !basketCommSpec.isSatisfiedBy(currSupplier.getBasketSold().get(currCommSoldIndex))) {
-                    currCommSoldIndex++;
-                }
-                // handle a misconfigured current supplier that is not selling the commodity
-                if (currCommSoldIndex == currSupplier.getBasketSold().size()) {
-                    currCommSoldIndex = startIndex;
-                } else {
-                    final CommoditySold currCommSold = currSupplier.getCommoditiesSold().get(currCommSoldIndex);
-
-                    // adjust quantities at current supplier
-                    // TODO: the following is problematic for commodities such as latency, peaks, etc.
-                    // TODO: this is the reason for the Math.max, but it is not a good solution
-                    currCommSold.setQuantity(Math.max(0.0, currCommSold.getQuantity() - quantities[index]));
-                    currCommSold.setPeakQuantity(Math.max(0.0, currCommSold.getPeakQuantity() - peakQuantities[index]));
-                }
-            }
-
-            // Update new supplier
-            // Find the corresponding commodity sold in the new supplier.
-            while (!basketCommSpec.isSatisfiedBy(newSupplier.getBasketSold().get(newCommSoldIndex))) {
-                newCommSoldIndex++;
-            }
-            final CommoditySold newCommSold = newSupplier.getCommoditiesSold().get(newCommSoldIndex);
-
-            // adjust quantities at new supplier
-            newCommSold.setQuantity(newCommSold.getQuantity() + quantities[index]);
-            newCommSold.setPeakQuantity(newCommSold.getPeakQuantity() + peakQuantities[index]);
-        }
-
-        // Add the buyer to the customers of newSupplier, and remove it from the customers of
-        // currentSupplier
-        buyerParticipation.move(newSupplier);
-    }
 }

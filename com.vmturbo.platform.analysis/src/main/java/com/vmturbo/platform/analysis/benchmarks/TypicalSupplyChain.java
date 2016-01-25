@@ -5,6 +5,7 @@ import java.util.List;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
 
+import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.BuyerParticipation;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
@@ -12,7 +13,6 @@ import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.ede.Ede;
-import com.vmturbo.platform.analysis.recommendations.RecommendationItem;
 
 /**
  * A benchmark to determine the performance of the 'market algorithms' on Economies of varying
@@ -59,9 +59,9 @@ public class TypicalSupplyChain {
         System.out.print("Producing Actions:    ");
         final @NonNull Ede ede = new Ede();
         start = System.nanoTime();
-        List<RecommendationItem> recommendations = ede.createRecommendations(economy);
+        List<Action> actions = ede.generateActions(economy);
         System.out.printf("%,20dns\n", System.nanoTime()-start);
-        System.out.printf("Number of actions: %,8d\n", recommendations.size());
+        System.out.printf("Number of actions: %,8d\n", actions.size());
         System.out.println("Done!");
     }
 

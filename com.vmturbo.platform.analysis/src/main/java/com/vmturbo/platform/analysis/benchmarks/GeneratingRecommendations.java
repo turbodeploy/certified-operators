@@ -5,6 +5,7 @@ import java.util.List;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
+import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommodityBought;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
@@ -13,7 +14,6 @@ import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.ede.Ede;
-import com.vmturbo.platform.analysis.recommendations.RecommendationItem;
 
 /**
  * A benchmark to determine the performance of the 'market algorithms' on Economies of varying sizes
@@ -76,7 +76,7 @@ public final class GeneratingRecommendations {
         final @NonNull Ede ede = new Ede();
         System.out.println("Warming up:");
         long start = System.nanoTime();
-        List<RecommendationItem> recommendations = ede.createRecommendations(economies[nOrdersOfMagnitude-1]);
+        List<Action> actions = ede.generateActions(economies[nOrdersOfMagnitude-1]);
         System.out.println(System.nanoTime()-start);
 
 
@@ -84,7 +84,7 @@ public final class GeneratingRecommendations {
         for (int i = 0 ; i < nOrdersOfMagnitude ; ++i) {
             for (int j = 0 ; j < nIterations ; ++j) {
                 start = System.nanoTime();
-                recommendations = ede.createRecommendations(economies[i]);
+                actions = ede.generateActions(economies[i]);
                 System.out.print(System.nanoTime()-start + "\t");
             }
             System.out.println();

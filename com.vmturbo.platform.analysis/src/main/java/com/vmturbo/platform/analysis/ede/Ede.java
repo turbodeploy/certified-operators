@@ -6,10 +6,10 @@ import java.util.List;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
 
+import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
-import com.vmturbo.platform.analysis.recommendations.RecommendationItem;
 
 /**
  *
@@ -35,13 +35,12 @@ public final class Ede {
     // Methods
 
     /**
-     * Create a new set of recommendations for a snapshot of the economy.
+     * Create a new set of actions for a snapshot of the economy.
      *
      * @param economy - the snapshot of the economy which we analyze and take decisions
-     * @return A list of recommendations suggested by the economic decisions engine
+     * @return A list of actions suggested by the economic decisions engine
      */
-    public @NonNull List<@NonNull RecommendationItem> createRecommendations(@NonNull Economy economy) {
-
+    public @NonNull List<@NonNull Action> generateActions(@NonNull Economy economy) {
         // update the state: add/remove state items for traders added/removed since last invocation
         updateState(economy);
 

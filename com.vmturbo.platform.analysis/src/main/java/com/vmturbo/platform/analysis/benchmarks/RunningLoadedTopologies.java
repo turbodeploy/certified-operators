@@ -65,7 +65,7 @@ public final class RunningLoadedTopologies {
             for (int i = 0 ; i < 3 ; ++i) {
                 Ede ede = new Ede();
                 long start = System.nanoTime();
-                ede.createRecommendations(economy);
+                ede.generateActions(economy);
                 System.out.print(System.nanoTime()-start + "\t");
             }
             System.out.println();

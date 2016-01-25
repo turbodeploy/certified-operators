@@ -1,25 +1,24 @@
-package com.vmturbo.platform.analysis.ede;
+package com.vmturbo.platform.analysis.actions;
 
 import static org.junit.Assert.*;
 
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.BuyerParticipation;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
-
 import junitparams.JUnitParamsRunner;
 
 /**
- * A test case for the {@link Placement} class.
+ * A test case for the {@link Move} class.
  */
 @RunWith(JUnitParamsRunner.class)
-public final class PlacementTest {
+public final class MoveTest {
     // Fields
     private static final CommoditySpecification CPU = new CommoditySpecification(0);
     private static final CommoditySpecification DRS = new CommoditySpecification(1);
@@ -31,15 +30,9 @@ public final class PlacementTest {
 
     // Methods
 
-    @Test
-    @Ignore
-    public final void testPlacementDecisions() {
-        fail("Not yet implemented"); // TODO
-    }
-
     // TODO: refactor as parameterized test
     @Test // No current supplier case
-    public final void testMoveTraderAndUpdateQuantitiesSold_NoSupplier() {
+    public final void testMoveTake_NoSupplier() {
         Economy economy = new Economy();
         Trader vm = economy.addTrader(0, TraderState.ACTIVE, EMPTY);
         Trader pm1 = economy.addTrader(0, TraderState.ACTIVE, PM);
@@ -50,7 +43,7 @@ public final class PlacementTest {
         pm1.getCommoditySold(CPU).setQuantity(3);
         pm1.getCommoditySold(MEM).setQuantity(6);
 
-        Placement.moveTraderAndUpdateQuantitiesSold(participation, pm1, PM, economy);
+        new Move(economy,participation,pm1).take();
 
         assertEquals(10, participation.getQuantities()[0], 0f);
         assertEquals(20, participation.getQuantities()[1], 0f);
@@ -59,7 +52,7 @@ public final class PlacementTest {
     }
 
     @Test // Case where the supplier sells the exact basket requested
-    public final void testMoveTraderAndUpdateQuantitiesSold_ExactBasket() {
+    public final void testMoveTake_ExactBasket() {
         Economy economy = new Economy();
         Trader vm = economy.addTrader(0, TraderState.ACTIVE, EMPTY);
         Trader pm1 = economy.addTrader(0, TraderState.ACTIVE, PM);
@@ -75,7 +68,7 @@ public final class PlacementTest {
 
         participation.move(pm1);
 
-        Placement.moveTraderAndUpdateQuantitiesSold(participation, pm2, PM, economy);
+        new Move(economy,participation,pm2).take();
 
         assertEquals(10, participation.getQuantities()[0], 0f);
         assertEquals(20, participation.getQuantities()[1], 0f);
@@ -86,7 +79,7 @@ public final class PlacementTest {
     }
 
     @Test // Case where the current supplier sells a subset or requested basket
-    public final void testMoveTraderAndUpdateQuantitiesSold_SubsetBasket() {
+    public final void testMoveTake_SubsetBasket() {
         Economy economy = new Economy();
         Trader vm = economy.addTrader(0, TraderState.ACTIVE, EMPTY);
         Trader pm1 = economy.addTrader(0, TraderState.ACTIVE, PM);
@@ -104,7 +97,7 @@ public final class PlacementTest {
 
         participation.move(pm1);
 
-        Placement.moveTraderAndUpdateQuantitiesSold(participation, pm2, PM_EXT, economy);
+        new Move(economy,participation,pm2).take();
 
         assertEquals(10, participation.getQuantities()[0], 0f);
         assertEquals(20, participation.getQuantities()[1], 0f);
@@ -117,7 +110,7 @@ public final class PlacementTest {
     }
 
     @Test // Case where the current supplier sells a superset of requested basket
-    public final void testMoveTraderAndUpdateQuantitiesSold_SupersetBasket() {
+    public final void testMoveTake_SupersetBasket() {
         Economy economy = new Economy();
         Trader vm = economy.addTrader(0, TraderState.ACTIVE, EMPTY);
         Trader pm1 = economy.addTrader(0, TraderState.ACTIVE, PM_EXT);
@@ -135,7 +128,7 @@ public final class PlacementTest {
 
         participation.move(pm1);
 
-        Placement.moveTraderAndUpdateQuantitiesSold(participation, pm2, PM, economy);
+        new Move(economy,participation,pm2).take();
 
         assertEquals(10, participation.getQuantities()[0], 0f);
         assertEquals(30, participation.getQuantities()[1], 0f);
@@ -147,4 +140,4 @@ public final class PlacementTest {
         assertEquals(39, pm2.getCommoditySold(MEM).getQuantity(), 0f);
     }
 
-} // end PlacementTest class
+} // end MoveTest class
