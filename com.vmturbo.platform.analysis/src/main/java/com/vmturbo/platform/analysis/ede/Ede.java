@@ -23,7 +23,7 @@ public final class Ede {
 
     // The state reflecting the decisions the economic decisions engine takes for Traders
     // Each StateItem refers to a particular trader. Different StateItems refer to different traders.
-    private final @NonNull List<@NonNull StateItem> eseState = new ArrayList<>();
+    private final @NonNull List<@NonNull StateItem> edeState = new ArrayList<>();
 
     // Constructor
 
@@ -46,7 +46,7 @@ public final class Ede {
 
         // return  a new set of recommendations - currently only placement
         long timeMiliSec = new Date().getTime(); // number of milliseconds since Jan. 1, 1970
-        return Placement.placementDecisions(economy, eseState, timeMiliSec);
+        return Placement.placementDecisions(economy, edeState, timeMiliSec);
     }
 
     /**
@@ -62,18 +62,18 @@ public final class Ede {
         int ecoIndex = 0;
         int stateIndex = 0;
         // remove state items for traders that are no longer there
-        while (ecoIndex < economy.getTraders().size() && stateIndex < eseState.size()) {
-            while (stateIndex < eseState.size()
-                            && eseState.get(stateIndex).getTrader() != economy.getTraders().get(ecoIndex)) {
+        while (ecoIndex < economy.getTraders().size() && stateIndex < edeState.size()) {
+            while (stateIndex < edeState.size()
+                            && edeState.get(stateIndex).getTrader() != economy.getTraders().get(ecoIndex)) {
                 // TODO: remove has a linear cost. Change it to pay the linear cost once for all removes
-                eseState.remove(stateIndex);
+                edeState.remove(stateIndex);
             }
             ecoIndex++;
             stateIndex++;
         }
         // add state items for new traders since last invocation
-        for (ecoIndex = eseState.size(); ecoIndex < economy.getTraders().size(); ecoIndex++) {
-            eseState.add(new StateItem(economy.getTraders().get(ecoIndex)));
+        for (ecoIndex = edeState.size(); ecoIndex < economy.getTraders().size(); ecoIndex++) {
+            edeState.add(new StateItem(economy.getTraders().get(ecoIndex)));
         }
     }
 }
