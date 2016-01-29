@@ -2,8 +2,11 @@ package com.vmturbo.platform.analysis.topology;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.checkerframework.checker.javari.qual.PolyRead;
@@ -64,6 +67,36 @@ public final class LegacyTopology {
      * @param name The human-readable name of the new trader.
      * @param type The human-readable type of the new trader.
      * @param state The state of the new trader.
+     * @param commodityTypesSold A map which keys are human-readable commodity type strings from which
+     *                           the basket sold of the trader will be created, and values are the
+     *                           functions used to calculate the quantity sold by a commodity of
+     *                           this type (or null, if the quantity sold is additive.) The keys are
+     *                           allocated to numerical IDs in the order they are returned by the
+     *                           collecion's iterator.
+     * @return The new trader.
+     *
+     * @see Economy#addTrader(int, TraderState, Basket, Basket...)
+     */
+    public @NonNull Trader addTrader(@NonNull String uuid, @NonNull String name, @NonNull String type,
+            @NonNull TraderState state,
+            @NonNull Map<@NonNull String, Function<List<Double>, Double>> commodityTypesSoldMap) {
+        @NonNull Basket basketSold = new Basket(commodityTypesSoldMap.entrySet().stream()
+            .map(e -> new CommoditySpecification(commodityTypes_.allocate(e.getKey()), e.getValue()))
+            .collect(Collectors.toList()));
+        @NonNull Trader trader = economy_.addTrader(traderTypes_.allocate(type), state, basketSold);
+        uuids_.put(trader, uuid);
+        names_.put(trader, name);
+
+        return trader;
+    }
+
+    /**
+     * Adds a new trader with additive commodities to the legacy topology.
+     *
+     * @param uuid The UUID of the new trader.
+     * @param name The human-readable name of the new trader.
+     * @param type The human-readable type of the new trader.
+     * @param state The state of the new trader.
      * @param commodityTypesSold A collection of human-readable commodity type strings from which
      *                           the basket sold of the trader will be created. They will be
      *                           allocated to numerical IDs in the order they are returned by the
@@ -74,14 +107,10 @@ public final class LegacyTopology {
      */
     public @NonNull Trader addTrader(@NonNull String uuid, @NonNull String name, @NonNull String type,
             @NonNull TraderState state, @NonNull Collection<@NonNull String> commodityTypesSold) {
-        @NonNull Basket basketSold = new Basket(commodityTypesSold.stream()
-            .map(typeSold -> new CommoditySpecification(commodityTypes_.allocate(typeSold)))
-            .collect(Collectors.toList()));
-        @NonNull Trader trader = economy_.addTrader(traderTypes_.allocate(type), state, basketSold);
-        uuids_.put(trader, uuid);
-        names_.put(trader, name);
 
-        return trader;
+        Map<@NonNull String, Function<List<Double>, Double>> commodityTypesSoldMap = new HashMap<>();
+        commodityTypesSold.forEach(key -> commodityTypesSoldMap.put(key,  null));
+        return addTrader(uuid, name, type, state, commodityTypesSoldMap);
     }
 
     /**
