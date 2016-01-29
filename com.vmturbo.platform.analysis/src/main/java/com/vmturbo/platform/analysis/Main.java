@@ -34,15 +34,21 @@ public final class Main {
 
         try {
             LegacyTopology topology = M2Utils.loadFile(args[0]);
-            Ede ede = new Ede();
-            List<Action> actions = ede.generateActions((Economy)topology.getEconomy()); // TODO: remove cast to Economy!
-            logger.info(actions.size() + " actions");
-            for (Action action : actions) {
-                logger.info("What: " + action.debugDescription(topology.getUuids()::get, topology.getNames()::get,
-                    topology.getTraderTypes()::getName, topology.getCommodityTypes()::getName));
-                logger.info("Why: " + action.debugReason(topology.getUuids()::get, topology.getNames()::get,
-                    topology.getTraderTypes()::getName, topology.getCommodityTypes()::getName));
-                logger.info("");
+            boolean keepRunning = true;
+            int i = 0;
+            while (keepRunning) {
+                logger.info("Cycle " + (++i));
+                Ede ede = new Ede();
+                List<Action> actions = ede.generateActions((Economy)topology.getEconomy()); // TODO: remove cast to Economy!
+                logger.info(actions.size() + " actions");
+                for (Action action : actions) {
+                    logger.info("What: " + action.debugDescription(topology.getUuids()::get, topology.getNames()::get,
+                        topology.getTraderTypes()::getName, topology.getCommodityTypes()::getName));
+                    logger.info("Why: " + action.debugReason(topology.getUuids()::get, topology.getNames()::get,
+                        topology.getTraderTypes()::getName, topology.getCommodityTypes()::getName));
+                    logger.info("");
+                }
+                keepRunning = !actions.isEmpty();
             }
         } catch (FileNotFoundException e) {
             logger.error(e.toString());
