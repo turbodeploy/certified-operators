@@ -106,7 +106,6 @@ final class TraderWithSettings implements Trader, TraderSettings {
      * @param state the new value for the field.
      * @return {@code this}
      */
-    // TODO: add a corresponding method to economy.
     @Deterministic
     @NonNull Trader setState(@NonNull @ReadOnly TraderState state) {
         state_ = state;
@@ -226,6 +225,12 @@ final class TraderWithSettings implements Trader, TraderSettings {
     @Pure
     public @NonNull TraderState getState(@ReadOnly TraderWithSettings this) {
         return state_;
+    }
+
+    @Override
+    @Deterministic
+    public @NonNull TraderState changeState(@NonNull TraderState newState) {
+        return Market.changeTraderState(this, newState);
     }
 
     // Methods for TraderSettings

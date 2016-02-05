@@ -5,7 +5,9 @@ import static com.google.common.base.Preconditions.checkArgument;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map.Entry;
 
+import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Deterministic;
@@ -18,6 +20,13 @@ import org.checkerframework.dataflow.qual.Pure;
  *  A {@code Market} is associated with a {@link Basket} and comprises a list of buyers and sellers
  *  trading that particular basket.
  * </p>
+ *
+ * <p>
+ *  Market is responsible for keeping the contained lists as well as the
+ *  {@link TraderWithSettings#getMarketsAsBuyer() markets-as-buyer} and
+ *  {@link TraderWithSettings#getMarketsAsSeller() markets-as-seller} lists of the participating
+ *  traders in sync.
+ * </p>
  */
 public final class Market {
     // Fields
@@ -25,14 +34,17 @@ public final class Market {
     private final @NonNull Basket basket_; // see #getBasket()
     private final @NonNull List<@NonNull BuyerParticipation> buyers_ = new ArrayList<>(); // see #getBuyers()
     // TODO (Vaptistis): consider making sellers_ a Set.
-    private final @NonNull List<@NonNull Trader> sellers_ = new ArrayList<>(); // see #getSellers()
+    private final @NonNull List<@NonNull Trader> activeSellers_ = new ArrayList<>(); // see #getActiveSellers()
+    private final @NonNull List<@NonNull Trader> inactiveSellers_ = new ArrayList<>(); // see #getInactiveSellers()
 
     // Cached data
 
     // Cached unmodifiable view of the buyers_ list.
     private final @NonNull List<@NonNull BuyerParticipation> unmodifiableBuyers_ = Collections.unmodifiableList(buyers_);
-    // Cached unmodifiable view of the sellers_ list.
-    private final @NonNull List<@NonNull Trader> unmodifiableSellers_ = Collections.unmodifiableList(sellers_);
+    // Cached unmodifiable view of the activeSellers_ list.
+    private final @NonNull List<@NonNull Trader> unmodifiableActiveSellers_ = Collections.unmodifiableList(activeSellers_);
+    // Cached unmodifiable view of the inactiveSellers_ list.
+    private final @NonNull List<@NonNull Trader> unmodifiableInactiveSellers_ = Collections.unmodifiableList(inactiveSellers_);
 
     // Constructors
 
@@ -61,7 +73,7 @@ public final class Market {
     }
 
     /**
-     * Returns an unmodifiable list of sellers participating in {@code this} {@code Market}.
+     * Returns an unmodifiable list of active sellers participating in {@code this} {@code Market}.
      *
      * <p>
      *  A {@link Trader} participates in the market as a seller iff he is active and the basket he
@@ -69,8 +81,22 @@ public final class Market {
      * </p>
      */
     @Pure
-    public @NonNull @ReadOnly List<@NonNull Trader> getSellers(@ReadOnly Market this) {
-        return unmodifiableSellers_;
+    public @NonNull @ReadOnly List<@NonNull Trader> getActiveSellers(@ReadOnly Market this) {
+        return unmodifiableActiveSellers_;
+    }
+
+    /**
+     * Returns an unmodifiable list of inactive sellers in {@code this} {@code Market}.
+     *
+     * <p>
+     *  An inactive {@link Trader} selling a basket that satisfies the one associated with
+     *  {@code this} market is still kept in the market, but in a separate list, so that it's easy
+     *  to consider inactive traders for reactivation when generating actions to add resources.
+     * </p>
+     */
+    @Pure
+    public @NonNull @ReadOnly List<@NonNull Trader> getInactiveSellers(@ReadOnly Market this) {
+        return unmodifiableInactiveSellers_;
     }
 
     /**
@@ -89,9 +115,13 @@ public final class Market {
     @Deterministic
     @NonNull Market addSeller(@NonNull TraderWithSettings newSeller) {
         checkArgument(getBasket().isSatisfiedBy(newSeller.getBasketSold()));
-        checkArgument(newSeller.getState().isActive());
 
-        sellers_.add(newSeller);
+        if (newSeller.getState().isActive()) {
+            activeSellers_.add(newSeller);
+        } else {
+            inactiveSellers_.add(newSeller);
+        }
+
         newSeller.getMarketsAsSeller().add(this);
 
         return this;
@@ -118,7 +148,11 @@ public final class Market {
      */
     @Deterministic
     @NonNull Market removeSeller(@NonNull TraderWithSettings sellerToRemove) {
-        checkArgument(sellers_.remove(sellerToRemove));
+        if (sellerToRemove.getState().isActive()) {
+            checkArgument(activeSellers_.remove(sellerToRemove));
+        } else {
+            checkArgument(inactiveSellers_.remove(sellerToRemove));
+        }
         sellerToRemove.getMarketsAsSeller().remove(this);
 
         return this;
@@ -151,12 +185,12 @@ public final class Market {
      *                 If his economy index is incorrect, the results are undefined.
      * @return The buyer participation that was created for the buyer.
      */
-    // TODO: consider adding an extra argument for supplier
     @NonNull BuyerParticipation addBuyer(@NonNull TraderWithSettings newBuyer) {
-        checkArgument(newBuyer.getState().isActive());
-
         BuyerParticipation newParticipation = new BuyerParticipation(newBuyer, basket_.size());
-        buyers_.add(newParticipation);
+
+        if (newBuyer.getState().isActive()) {
+            buyers_.add(newParticipation);
+        }
         newBuyer.getMarketsAsBuyer().put(newParticipation, this);
 
         return newParticipation;
@@ -173,11 +207,48 @@ public final class Market {
      * @return {@code this}
      */
     @NonNull Market removeBuyerParticipation(@NonNull BuyerParticipation participationToRemove) {
-        checkArgument(buyers_.remove(participationToRemove));
+        if (participationToRemove.getBuyer().getState().isActive()) {
+            checkArgument(buyers_.remove(participationToRemove));
+        }
         participationToRemove.move(null);
-        ((TraderWithSettings)participationToRemove.getBuyer()).getMarketsAsBuyer().remove(participationToRemove, this);
+        checkArgument(((TraderWithSettings)participationToRemove.getBuyer()).getMarketsAsBuyer().remove(participationToRemove, this));
 
         return this;
+    }
+
+    /**
+     * Changes the state of a trader, updating the corresponding markets he participates in as a
+     * buyer or seller to reflect the change.
+     *
+     * @param trader The trader whose state should be changed.
+     * @param newState The new state for the trader.
+     * @return The old state of trader.
+     */
+    static @NonNull TraderState changeTraderState(@NonNull TraderWithSettings trader, @NonNull TraderState newState) {
+        @NonNull TraderState oldState = trader.getState();
+
+        if (oldState.isActive() != newState.isActive()) { // if there was a change.
+            if (newState.isActive()) { // activate
+                for (Entry<@NonNull BuyerParticipation, @NonNull Market> entry : trader.getMarketsAsBuyer().entrySet()) {
+                    entry.getValue().buyers_.add(entry.getKey());
+                }
+                for (@NonNull @PolyRead Market market : trader.getMarketsAsSeller()) {
+                    checkArgument(market.inactiveSellers_.remove(trader));
+                    market.activeSellers_.add(trader);
+                }
+            } else { // deactivate
+                for (Entry<@NonNull BuyerParticipation, @NonNull Market> entry : trader.getMarketsAsBuyer().entrySet()) {
+                    checkArgument(entry.getValue().buyers_.remove(entry.getKey()));
+                }
+                for (@NonNull @PolyRead Market market : trader.getMarketsAsSeller()) {
+                    checkArgument(market.activeSellers_.remove(trader));
+                    market.inactiveSellers_.add(trader);
+                }
+            }
+        }
+
+        trader.setState(newState);
+        return oldState;
     }
 
 } // end Market class

@@ -105,4 +105,14 @@ public interface Trader {
     @Pure
     @NonNull TraderState getState();
 
+    /**
+     * Changes the state of {@code this} trader, updating the corresponding markets he participates
+     * in as a buyer or seller to reflect the change.
+     *
+     * @param newState The new state for the trader.
+     * @return The old state of trader.
+     */
+    @Deterministic
+    @NonNull TraderState changeState(@NonNull TraderState newState);
+
 } // end interface Trader

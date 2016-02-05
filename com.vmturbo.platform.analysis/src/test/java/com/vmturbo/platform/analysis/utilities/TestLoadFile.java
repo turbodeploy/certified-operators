@@ -114,7 +114,7 @@ public class TestLoadFile {
             // 2 commodity types in each basket
             assertEquals(2, market.getBasket().size());
             // 3 sellers (the 3 PMs or 3 DSs)
-            assertEquals(3, market.getSellers().size());
+            assertEquals(3, market.getActiveSellers().size());
             // one buyer (the VM)
             assertEquals(1, market.getBuyers().size());
         }

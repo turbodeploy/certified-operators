@@ -43,7 +43,7 @@ public class Placement {
             for (@NonNull BuyerParticipation buyerParticipation : market.getBuyers()) {
 
                 // if there are no sellers in the market, the buyer is misconfigured
-                final @NonNull List<@NonNull Trader> sellers = market.getSellers();
+                final @NonNull List<@NonNull Trader> sellers = market.getActiveSellers();
                 final @NonNull Trader buyer = buyerParticipation.getBuyer();
                 if (!buyer.getSettings().isMovable())
                     continue;

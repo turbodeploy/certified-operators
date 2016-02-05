@@ -68,7 +68,7 @@ public class EconomyTest {
         new CommoditySpecification(5));// DSPM access commodity with key A
 
     private static final int[] types = {0,1};
-    private static final TraderState[] states = {TraderState.ACTIVE/*,TraderState.INACTIVE*/};
+    private static final TraderState[] states = {TraderState.ACTIVE,TraderState.INACTIVE};
     private static final Basket[] basketsSold = {EMPTY,PM_SELL};
     private static final Basket[][] basketsBoughtLists = {{},{EMPTY},{EMPTY,PM_4CORE}};
     private static final Market independentMarket = new Market(EMPTY);
@@ -97,36 +97,42 @@ public class EconomyTest {
             output.add(new Object[]{economy,new Basket[]{},new Trader[]{}});
 
             // 1 node, 0 edges
-            economy = new Economy();
-            traders[0] = economy.addTrader(0, TraderState.ACTIVE, EMPTY);
-            output.add(new Object[]{economy,new Basket[]{},Arrays.copyOf(traders, 1)});
+            for (TraderState state : states) {
+                economy = new Economy();
+                traders[0] = economy.addTrader(0, state, EMPTY);
+                output.add(new Object[]{economy,new Basket[]{},Arrays.copyOf(traders, 1)});
+            }
 
             // 1 node, 1 edge (2 placements x 2 baskets sold x 2 baskets bought)
-            for (Basket basketSold : baskets) {
-                for (Basket basketBought1 : baskets) {
-                    for (int dst1 = 0 ; dst1 < 2 ; ++dst1) {
-                        economy = new Economy();
-                        traders[0] = economy.addTrader(0, TraderState.ACTIVE, basketSold);
-                        economy.addBasketBought(traders[0], basketBought1).move(traders[dst1]);
+            for (TraderState state : states) {
+                for (Basket basketSold : baskets) {
+                    for (Basket basketBought1 : baskets) {
+                        for (int dst1 = 0 ; dst1 < 2 ; ++dst1) {
+                            economy = new Economy();
+                            traders[0] = economy.addTrader(0, state, basketSold);
+                            economy.addBasketBought(traders[0], basketBought1).move(traders[dst1]);
 
-                        output.add(new Object[]{economy,new Basket[]{basketBought1},Arrays.copyOf(traders, 1)});
+                            output.add(new Object[]{economy,new Basket[]{basketBought1},Arrays.copyOf(traders, 1)});
+                        }
                     }
                 }
             }
 
             // 1 node, 2 edges (2x2 placements x 2 baskets sold x 2x2 baskets bought)
-            for (Basket basketSold : baskets) {
-                for (Basket basketBought1 : baskets) {
-                    for (Basket basketBought2 : baskets) {
-                        for (int dst1 = 0 ; dst1 < 2 ; ++dst1) {
-                            for (int dst2 = 0 ; dst2 < 2 ; ++dst2) {
-                                economy = new Economy();
-                                traders[0] = economy.addTrader(0, TraderState.ACTIVE, basketSold);
-                                economy.addBasketBought(traders[0], basketBought1).move(traders[dst1]);
-                                economy.addBasketBought(traders[0], basketBought2).move(traders[dst2]);
+            for (TraderState state : states) {
+                for (Basket basketSold : baskets) {
+                    for (Basket basketBought1 : baskets) {
+                        for (Basket basketBought2 : baskets) {
+                            for (int dst1 = 0 ; dst1 < 2 ; ++dst1) {
+                                for (int dst2 = 0 ; dst2 < 2 ; ++dst2) {
+                                    economy = new Economy();
+                                    traders[0] = economy.addTrader(0, state, basketSold);
+                                    economy.addBasketBought(traders[0], basketBought1).move(traders[dst1]);
+                                    economy.addBasketBought(traders[0], basketBought2).move(traders[dst2]);
 
-                                output.add(new Object[]{economy, basketBought1 == basketBought2
-                                                ? new Basket[]{basketBought1} : baskets, Arrays.copyOf(traders, 1)});
+                                    output.add(new Object[]{economy, basketBought1 == basketBought2
+                                                    ? new Basket[]{basketBought1} : baskets, Arrays.copyOf(traders, 1)});
+                                }
                             }
                         }
                     }
@@ -134,24 +140,28 @@ public class EconomyTest {
             }
 
             // 2 nodes, 0 edges (x2 baskets sold)
-            for (Basket basketSold : baskets) {
-                economy = new Economy();
-                traders[0] = economy.addTrader(0, TraderState.ACTIVE, EMPTY);
-                traders[1] = economy.addTrader(0, TraderState.ACTIVE, basketSold);
-                output.add(new Object[]{economy,new Basket[]{}, Arrays.copyOf(traders, 2)});
+            for (TraderState state : states) {
+                for (Basket basketSold : baskets) {
+                    economy = new Economy();
+                    traders[0] = economy.addTrader(0, state, EMPTY);
+                    traders[1] = economy.addTrader(0, TraderState.ACTIVE, basketSold);
+                    output.add(new Object[]{economy,new Basket[]{}, Arrays.copyOf(traders, 2)});
+                }
             }
 
             // 2 nodes, 1 edge (6 placements x 2 baskets bought x 2 baskets sold)
-            for (Basket basketSold : baskets) {
-                for (Basket basketBought1 : baskets) {
-                    for (int src1 = 0 ; src1 < 2 ; ++src1) {
-                        for (int dst1 = 0 ; dst1 < 3 ; ++dst1) {
-                            economy = new Economy();
-                            traders[0] = economy.addTrader(0, TraderState.ACTIVE, EMPTY);
-                            traders[1] = economy.addTrader(0, TraderState.ACTIVE, basketSold);
-                            economy.addBasketBought(traders[src1], basketBought1).move(traders[dst1]);
+            for (TraderState state : states) {
+                for (Basket basketSold : baskets) {
+                    for (Basket basketBought1 : baskets) {
+                        for (int src1 = 0 ; src1 < 2 ; ++src1) {
+                            for (int dst1 = 0 ; dst1 < 3 ; ++dst1) {
+                                economy = new Economy();
+                                traders[0] = economy.addTrader(0, state, EMPTY);
+                                traders[1] = economy.addTrader(0, TraderState.ACTIVE, basketSold);
+                                economy.addBasketBought(traders[src1], basketBought1).move(traders[dst1]);
 
-                            output.add(new Object[]{economy,new Basket[]{basketBought1}, Arrays.copyOf(traders, 2)});
+                                output.add(new Object[]{economy,new Basket[]{basketBought1}, Arrays.copyOf(traders, 2)});
+                            }
                         }
                     }
                 }
@@ -418,7 +428,7 @@ public class EconomyTest {
                 assertSame(economy, economy.removeTrader(trader));
                 assertFalse(economy.getTraders().contains(trader));
                 for (@NonNull @ReadOnly Market market : economy.getMarkets()) {
-                    assertFalse(market.getSellers().contains(trader));
+                    assertFalse(market.getActiveSellers().contains(trader));
                     assertEquals(0, market.getBuyers().stream().filter(p->p.getBuyer() == trader).count());
                 }
             }
@@ -438,7 +448,8 @@ public class EconomyTest {
                     BuyerParticipation participation = economy.addBasketBought(trader, basket);
                     assertSame(trader, participation.getBuyer());
                     assertNull(participation.getSupplier());
-                    assertTrue(economy.getMarket(participation).getBuyers().contains(participation));
+                    assertEquals(participation.getBuyer().getState().isActive(),
+                                 economy.getMarket(participation).getBuyers().contains(participation));
                 }
             }
         }
