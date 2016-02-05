@@ -4,7 +4,6 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -16,13 +15,11 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.apache.log4j.Logger;
 import org.apache.log4j.Level;
 import org.checkerframework.checker.nullness.qual.NonNull;
-import org.checkerframework.checker.nullness.qual.Nullable;
 import org.xml.sax.SAXException;
 import org.xml.sax.helpers.AttributesImpl;
 import org.xml.sax.helpers.DefaultHandler;
@@ -45,10 +42,10 @@ import com.vmturbo.platform.analysis.topology.LegacyTopology;
  */
 final public class EMF2MarketHandler extends DefaultHandler {
 
-    /**
-     * When true - replace DSPM and Datastore commodities with biclique commodities.
-     * Used mostly for testing.
-     */
+	/**
+	 * When true - replace DSPM and Datastore commodities with biclique commodities.
+	 * Used mostly for testing.
+	 */
     private static final boolean doBicliques = true;
 
     private static final List<String> COMM_REFS =
@@ -66,11 +63,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
 
     private static final String DSPMAccess = "Abstraction:DSPMAccessCommodity";
     private static final String DatastoreCommodity = "Abstraction:DatastoreCommodity";
-    private static final String StorageLatency = "Abstraction:StorageLatency";
     private static final String ACCESSES = "Accesses";
-
-    private static final Function<List<Double>, Double> MAX_DOUBLE_LIST =
-            quantities -> quantities.isEmpty() ? 0.0 : Collections.max(quantities);
 
     private final Logger logger;
     private LegacyTopology topology; // the legacy topology that will be populated.
@@ -274,17 +267,15 @@ final public class EMF2MarketHandler extends DefaultHandler {
             Set<String> keysSold = trader2basketSold.get(traderUuid)
                     .stream()
                     .filter(k -> !doBicliques || (!k.startsWith(DSPMAccess) && !k.startsWith(DatastoreCommodity)))
-                    .collect(Collectors.toSet());
+                    .collect(Collectors.toSet());;
             Set<String> bcKeys = traderUuid2bcCommodityKeys.get(traderUuid);
             if (bcKeys != null) {
                 keysSold.addAll(bcKeys);
             }
 
             logger.trace("Keys sold : " + keysSold);
-            Map<String, Function<List<Double>, Double>> keysSoldMap = new HashMap<>();
-            keysSold.stream().forEach(key -> keysSoldMap.put(key, key.equals(StorageLatency) ? MAX_DOUBLE_LIST : null));
             final @NonNull Trader aSeller = topology.addTrader(traderUuid, traderAttr.get("displayName"),
-                                                traderAttr.xsitype(), TraderState.ACTIVE, keysSoldMap);
+                                                traderAttr.xsitype(), TraderState.ACTIVE, keysSold);
             if (VIRTUAL_MACHINE.equals(traderAttr.xsitype())) // TODO: also check for containers
                 aSeller.getSettings().setMovable(true);
             allBasketsSold.add(aSeller.getBasketSold());
@@ -407,8 +398,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
             double peakUtil = commSoldAttr.value("peakUtilization");
             double utilThreshold = commSoldAttr.value("utilThreshold", 1.0);
             CommoditySpecification specification = new CommoditySpecification(
-                topology.getCommodityTypes().getId(commSoldAttr.commoditySpecString()),
-                commSoldAttr.quantityFunction());
+                topology.getCommodityTypes().getId(commSoldAttr.commoditySpecString()));
             Trader trader = topology.getUuids().inverse().get(entry.getValue().uuid());
             CommoditySold commSold = trader.getCommoditySold(specification);
             // The only known way to get a negative capacity is bug OM-3669 which is fixed, but we
@@ -723,16 +713,6 @@ final public class EMF2MarketHandler extends DefaultHandler {
          */
         private String xsitype() {
             return xsiType;
-        }
-
-        /**
-         * Applies only to attributes representing commodities.
-         * @return {@link #MAX_DOUBLE_LIST} if this is a StorageLatency, null otherwise
-         */
-        private @Nullable Function<List<Double>, Double> quantityFunction() {
-            return StorageLatency.equals(xsitype())
-                ? MAX_DOUBLE_LIST
-                        : null;
         }
     }
 }
