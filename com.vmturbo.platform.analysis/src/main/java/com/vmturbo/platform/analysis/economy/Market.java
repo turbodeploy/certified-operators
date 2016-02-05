@@ -157,7 +157,7 @@ public final class Market {
 
         BuyerParticipation newParticipation = new BuyerParticipation(newBuyer, basket_.size());
         buyers_.add(newParticipation);
-        newBuyer.getMarketsAsBuyer().put(this, newParticipation);
+        newBuyer.getMarketsAsBuyer().put(newParticipation, this);
 
         return newParticipation;
     }
@@ -175,7 +175,7 @@ public final class Market {
     @NonNull Market removeBuyerParticipation(@NonNull BuyerParticipation participationToRemove) {
         checkArgument(buyers_.remove(participationToRemove));
         participationToRemove.move(null);
-        ((TraderWithSettings)participationToRemove.getBuyer()).getMarketsAsBuyer().remove(this, participationToRemove);
+        ((TraderWithSettings)participationToRemove.getBuyer()).getMarketsAsBuyer().remove(participationToRemove, this);
 
         return this;
     }

@@ -218,14 +218,14 @@ public class MarketTest {
         assertEquals(tradersToAdd.length, market.getBuyers().size());
         for (int i = 0 ; i < tradersToAdd.length ; ++i) {
             assertTrue(market.getBuyers().contains(participations[i]));
-            assertTrue(tradersToAdd[i].getMarketsAsBuyer().containsEntry(market, participations[i]));
+            assertSame(market, tradersToAdd[i].getMarketsAsBuyer().get(participations[i]));
         }
 
         for (int i = 0 ; i < participations.length ; ++i) {
             market.removeBuyerParticipation(participations[i]);
             assertEquals(tradersToAdd.length-i-1, market.getBuyers().size());
             assertFalse(market.getBuyers().contains(participations[i]));
-            assertFalse(tradersToAdd[i].getMarketsAsBuyer().containsEntry(market, participations[i]));
+            assertNull(tradersToAdd[i].getMarketsAsBuyer().get(participations[i]));
         }
     }
 

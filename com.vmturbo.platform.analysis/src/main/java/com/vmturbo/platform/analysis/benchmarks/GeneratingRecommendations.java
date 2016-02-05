@@ -53,7 +53,7 @@ public final class GeneratingRecommendations {
                 Trader trader = economies[i].addTrader(1, TraderState.ACTIVE, emptyBasket, tradedBasket);
 
                 for (CommodityBought commodityBought : economies[i].getCommoditiesBought(
-                        economies[i].getMarketsAsBuyer(trader).values().iterator().next())) {
+                        economies[i].getMarketsAsBuyer(trader).keySet().iterator().next())) {
                     commodityBought.setQuantity(10);
                     commodityBought.setPeakQuantity(15);
                 }

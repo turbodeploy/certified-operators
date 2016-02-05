@@ -4,7 +4,9 @@ import static com.google.common.base.Preconditions.checkArgument;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
@@ -12,13 +14,10 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Deterministic;
 import org.checkerframework.dataflow.qual.Pure;
 
-import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.ListMultimap;
-
 final class TraderWithSettings implements Trader, TraderSettings {
     // Internal fields
     private int economyIndex_;
-    private final @NonNull ListMultimap<@NonNull Market, @NonNull BuyerParticipation> marketsAsBuyer_ = ArrayListMultimap.create();
+    private final @NonNull Map<@NonNull BuyerParticipation,@NonNull Market> marketsAsBuyer_ = new LinkedHashMap<>();
     private final @NonNull List<Market> marketsAsSeller_ = new ArrayList<>();
     private final @NonNull ArrayList<@NonNull BuyerParticipation> customers_ = new ArrayList<>();
 
@@ -115,8 +114,8 @@ final class TraderWithSettings implements Trader, TraderSettings {
     }
 
     /**
-     * Returns a modifiable {@link ListMultimap} with the mapping from the markets {@code this}
-     * buyer participates in to the buyer participations it has in those markets.
+     * Returns a modifiable {@link Map} with the mapping from buyer participations of {@code this}
+     * buyer to the markets he participates in with these participations.
      *
      * <p>
      *  A trader does not know how to modify this map, so it just returns it for the economy to
@@ -124,8 +123,7 @@ final class TraderWithSettings implements Trader, TraderSettings {
      * </p>
      */
     @Pure
-    @NonNull @PolyRead ListMultimap<@NonNull @ReadOnly Market, @NonNull @PolyRead BuyerParticipation>
-            getMarketsAsBuyer(@PolyRead TraderWithSettings this) {
+    @NonNull @PolyRead Map<@NonNull BuyerParticipation, @NonNull Market> getMarketsAsBuyer(@PolyRead TraderWithSettings this) {
         return marketsAsBuyer_;
     }
 

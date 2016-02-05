@@ -9,7 +9,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import com.vmturbo.platform.analysis.utility.MultimapTests;
+import com.vmturbo.platform.analysis.utility.MapTests;
 
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
@@ -137,10 +137,10 @@ public final class TraderWithSettingsTest {
         return invalidIndices;
     }
 
-    @Test // That the returned multimap indeed implements all operations.
+    @Test // That the returned map indeed implements all operations.
     public final void testGetMarketsAsBuyer() {
-        MultimapTests.verifyModifiable(fixture_.getMarketsAsBuyer(), new Market(new Basket()),
-                                                            new BuyerParticipation(fixture_,0));
+        MapTests.verifyModifiable(fixture_.getMarketsAsBuyer(), new BuyerParticipation(fixture_,0),
+                                  new Market(new Basket()));
     }
 
     @Test

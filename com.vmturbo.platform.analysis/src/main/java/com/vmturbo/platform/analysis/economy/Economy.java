@@ -7,6 +7,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.TreeMap;
 import org.checkerframework.checker.javari.qual.PolyRead;
@@ -15,10 +16,6 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Deterministic;
 import org.checkerframework.dataflow.qual.Pure;
 import org.checkerframework.dataflow.qual.SideEffectFree;
-
-import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.ListMultimap;
-import com.google.common.collect.Multimaps;
 
 /**
  * A set of related markets and the traders participating in them.
@@ -71,8 +68,7 @@ public final class Economy implements UnmodifiableEconomy {
     @Override
     @Pure
     public @NonNull @ReadOnly Market getMarket(@ReadOnly Economy this, @NonNull @ReadOnly BuyerParticipation participation) {
-        return Multimaps.invertFrom(((TraderWithSettings)participation.getBuyer()).getMarketsAsBuyer(),
-            ArrayListMultimap.create()).get(participation).get(0); // only one market in inverse view
+        return ((TraderWithSettings)participation.getBuyer()).getMarketsAsBuyer().get(participation);
     }
 
     @Override
@@ -191,8 +187,9 @@ public final class Economy implements UnmodifiableEconomy {
         }
 
         // Remove the trader from all markets it participated as buyer
-        for (Map.Entry<Market,BuyerParticipation> entry : new ArrayList<>(castTraderToRemove.getMarketsAsBuyer().entries())) {
-            entry.getKey().removeBuyerParticipation(entry.getValue());
+        for (Entry<@NonNull BuyerParticipation, @NonNull Market> entry
+                : new ArrayList<>(castTraderToRemove.getMarketsAsBuyer().entrySet())) {
+            entry.getValue().removeBuyerParticipation(entry.getKey());
         }
 
         // Update economy indices of all traders and remove trader from list.
@@ -232,7 +229,7 @@ public final class Economy implements UnmodifiableEconomy {
                                                                            @NonNull @ReadOnly Trader trader) {
         @NonNull List<@NonNull @ReadOnly Trader> suppliers = new ArrayList<>();
 
-        for (BuyerParticipation participation : getMarketsAsBuyer(trader).values()) {
+        for (BuyerParticipation participation : getMarketsAsBuyer(trader).keySet()) {
             if (participation.getSupplier() != null) {
                 suppliers.add(participation.getSupplier());
             }
@@ -243,9 +240,9 @@ public final class Economy implements UnmodifiableEconomy {
 
     @Override
     @Pure
-    public @NonNull @ReadOnly ListMultimap<@NonNull Market, @NonNull BuyerParticipation>
+    public @NonNull @ReadOnly Map<@NonNull BuyerParticipation, @NonNull Market>
             getMarketsAsBuyer(@ReadOnly Economy this, @NonNull @ReadOnly Trader trader) {
-        return Multimaps.unmodifiableListMultimap(((TraderWithSettings)trader).getMarketsAsBuyer());
+        return Collections.unmodifiableMap(((TraderWithSettings)trader).getMarketsAsBuyer());
     }
 
     @Override

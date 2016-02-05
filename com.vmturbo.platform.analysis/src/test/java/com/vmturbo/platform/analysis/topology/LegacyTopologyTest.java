@@ -104,7 +104,7 @@ public class LegacyTopologyTest {
 
             assertEquals(1, topology.getEconomy().getTraders().size());
             assertEquals(nMarkets[i], topology.getEconomy().getMarkets().size());
-            assertEquals(nMarkets[i], topology.getEconomy().getMarketsAsBuyer(trader).keySet().size());
+            assertEquals(nMarkets[i], topology.getEconomy().getMarketsAsBuyer(trader).values().stream().distinct().count());
             assertEquals(i+1, topology.getEconomy().getMarketsAsBuyer(trader).size());
             assertEquals(1, topology.getTraderTypes().size());
             assertEquals(cTypeSizes[i], topology.getCommodityTypes().size());

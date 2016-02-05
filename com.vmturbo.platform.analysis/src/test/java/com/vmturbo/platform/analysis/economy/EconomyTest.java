@@ -18,7 +18,7 @@ import org.junit.runners.Parameterized.Parameters;
 
 import com.vmturbo.platform.analysis.utility.CollectionTests;
 import com.vmturbo.platform.analysis.utility.ListTests;
-import com.vmturbo.platform.analysis.utility.MultimapTests;
+import com.vmturbo.platform.analysis.utility.MapTests;
 
 /**
  * A test case for the {@link Economy} class.
@@ -189,11 +189,12 @@ public class EconomyTest {
             Trader pm = economy.addTrader(1, TraderState.ACTIVE, PMtoVM);
             Trader st1 = economy.addTrader(2, TraderState.ACTIVE, STtoVM);
             Trader st2 = economy.addTrader(2, TraderState.ACTIVE, STtoVM);
-            economy.getMarketsAsBuyer(vm).get(economy.getMarket(PMtoVM)).get(0).move(pm);
-            economy.getMarketsAsBuyer(vm).get(economy.getMarket(STtoVM)).get(0).move(st1);
-            economy.getMarketsAsBuyer(vm).get(economy.getMarket(STtoVM)).get(1).move(st2);
+            BuyerParticipation[] participations = economy.getMarketsAsBuyer(vm).keySet().toArray(new BuyerParticipation[3]);
+            participations[0].move(pm);
+            participations[1].move(st1);
+            participations[2].move(st2);
             pm.getCommoditySold(CPU).setCapacity(100);
-            economy.getCommodityBought(economy.getMarketsAsBuyer(vm).get(economy.getMarket(PMtoVM)).get(0),CPU).setQuantity(42);
+            economy.getCommodityBought(participations[0],CPU).setQuantity(42);
             output.add(new Object[]{economy,new Basket[]{PMtoVM,STtoVM},new Trader[]{vm,pm,st1,st2}});
 
             // Economy 2
@@ -363,10 +364,10 @@ public class EconomyTest {
         @Test
         public final void testGetMarketsAsBuyer_Trader() {
             for (Trader trader : traders) {
-                MultimapTests.verifyUnmodifiableValidOperations(economy.getMarketsAsBuyer(trader),
-                                                                independentMarket,independentParticipation);
-                MultimapTests.verifyUnmodifiableInvalidOperations(economy.getMarketsAsBuyer(trader),
-                                                                  independentMarket,independentParticipation);
+                MapTests.verifyUnmodifiableValidOperations(economy.getMarketsAsBuyer(trader),
+                                                           independentParticipation,independentMarket);
+                MapTests.verifyUnmodifiableInvalidOperations(economy.getMarketsAsBuyer(trader),
+                                                             independentParticipation,independentMarket);
             }
         }
 
@@ -394,11 +395,8 @@ public class EconomyTest {
                             assertEquals(basketSold.size(), trader.getCommoditiesSold().size());
 
                             assertEquals(basketsBought.length, economy.getMarketsAsBuyer(trader).size());
-                            // TODO (Vaptistis): this may not catch cases where the wrong basket appears
-                            // twice. ({1,1,2} vs {1,2,2})
-                            for (@NonNull Market market : economy.getMarketsAsBuyer(trader).keys()) {
-                                assertTrue(Arrays.asList(basketsBought).indexOf(market.getBasket()) != -1);
-                            }
+                            assertArrayEquals(basketsBought, economy.getMarketsAsBuyer(trader).values()
+                                .stream().map(Market::getBasket).toArray());
                         }
                     }
                 }

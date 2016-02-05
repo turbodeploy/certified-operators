@@ -25,7 +25,9 @@ import org.xml.sax.helpers.AttributesImpl;
 import org.xml.sax.helpers.DefaultHandler;
 
 import com.google.common.base.Strings;
+import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Multimaps;
 import com.google.common.collect.Sets;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.BuyerParticipation;
@@ -377,7 +379,8 @@ final public class EMF2MarketHandler extends DefaultHandler {
                 logger.debug("Created trader " + traderAttr.xsitype() + " (type " + aSeller.getType() + ")");
                 logger.debug("    Sells " + aSeller.getBasketSold());
                 for (Entry<@NonNull Market, Collection<@NonNull BuyerParticipation>> entry
-                        : topology.getEconomy().getMarketsAsBuyer(aSeller).asMap().entrySet()) {
+                        : Multimaps.invertFrom(Multimaps.forMap(topology.getEconomy().getMarketsAsBuyer(aSeller)),
+                                               ArrayListMultimap.create()).asMap().entrySet()) {
                     logger.debug("    Buys " + entry.getKey().getBasket() + " " + entry.getValue().size() + " time(s)");
                 }
             }
@@ -579,11 +582,11 @@ final public class EMF2MarketHandler extends DefaultHandler {
             logger.trace(topology.getEconomy().getMarketsAsBuyer(trader).size() + " participations ");
             // Print "P" x number of participations (e.g. PPPPP for 5 participations). Makes search easier.
             logger.trace(Strings.repeat("P", topology.getEconomy().getMarketsAsBuyer(trader).size()));
-            for (@NonNull Entry<@NonNull Market, @NonNull BuyerParticipation> entry
-                            : topology.getEconomy().getMarketsAsBuyer(trader).entries()) {
-                BuyerParticipation participation = entry.getValue();
+            for (@NonNull Entry<@NonNull BuyerParticipation, @NonNull Market> entry
+                            : topology.getEconomy().getMarketsAsBuyer(trader).entrySet()) {
+                BuyerParticipation participation = entry.getKey();
                 logger.trace("    -- participation @" + participation.hashCode());
-                logger.trace("         basket: " + basketAsStrings(entry.getKey().getBasket()));
+                logger.trace("         basket: " + basketAsStrings(entry.getValue().getBasket()));
                 logger.trace("         quantities: " + Arrays.toString(participation.getQuantities()));
                 logger.trace("         peaks     : " + Arrays.toString(participation.getPeakQuantities()));
             }

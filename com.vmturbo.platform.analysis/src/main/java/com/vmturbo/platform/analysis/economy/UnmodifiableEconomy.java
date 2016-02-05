@@ -2,6 +2,7 @@ package com.vmturbo.platform.analysis.economy;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.checkerframework.checker.javari.qual.PolyRead;
@@ -9,8 +10,6 @@ import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
 import org.checkerframework.dataflow.qual.SideEffectFree;
-
-import com.google.common.collect.ListMultimap;
 
 /**
  * An unmodifiable view of an {@link Economy}.
@@ -196,14 +195,15 @@ public interface UnmodifiableEconomy {
                                                                     @NonNull @ReadOnly Trader trader);
 
     /**
-     * Returns an unmodifiable multimap of the markets the given trader participates in as a buyer.
+     * Returns an unmodifiable map of the markets the given trader participates in as a buyer.
      *
      * <p>
-     *  It maps each market to the list of buyer participations the given trader has in the market.
+     *  It maps buyer participations to the markets the trader participates in with these
+     *  participations.
      * </p>
      */
     @Pure
-    @NonNull @ReadOnly ListMultimap<@NonNull Market, @NonNull BuyerParticipation> getMarketsAsBuyer(
+    @NonNull @ReadOnly Map<@NonNull BuyerParticipation, @NonNull Market> getMarketsAsBuyer(
         @ReadOnly UnmodifiableEconomy this, @NonNull @ReadOnly Trader trader);
 
     /**
