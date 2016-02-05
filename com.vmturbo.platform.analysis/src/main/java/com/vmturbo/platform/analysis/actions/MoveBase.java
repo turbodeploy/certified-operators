@@ -7,7 +7,6 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Pure;
 
-import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.BuyerParticipation;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -15,7 +14,6 @@ import com.vmturbo.platform.analysis.economy.Trader;
 public abstract class MoveBase implements Action {
     // Fields
     private final @NonNull Economy economy_;
-    private final @NonNull Basket basket_;
     private final @NonNull BuyerParticipation target_;
     private final @Nullable Trader source_;
 
@@ -23,7 +21,6 @@ public abstract class MoveBase implements Action {
 
     public MoveBase(@NonNull Economy economy, @NonNull BuyerParticipation target) {
         economy_ = economy;
-        basket_ = economy.getMarket(target).getBasket();
         target_ = target;
         source_ = target.getSupplier();
     }
@@ -37,15 +34,6 @@ public abstract class MoveBase implements Action {
     @Pure
     public @NonNull Economy getEconomy(@ReadOnly MoveBase this) {
         return economy_;
-    }
-
-    /**
-     * Returns the basket of {@code this} move. i.e. the basket corresponding to the market target
-     * buyer participation belongs to.
-     */
-    @Pure
-    public @NonNull Basket getBasket(@ReadOnly MoveBase this) {
-        return basket_;
     }
 
     /**

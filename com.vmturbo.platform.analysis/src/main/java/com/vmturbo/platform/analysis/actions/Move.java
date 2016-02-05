@@ -59,16 +59,16 @@ public class Move extends MoveBase { // inheritance for code reuse
 
     @Override
     public void take() {
-        updateQuantities(getBasket(), getTarget(), getSource(), (sold, bought)->Math.max(0, sold - bought));
-        updateQuantities(getBasket(), getTarget(), destination_, (sold, bought)->sold + bought);
+        updateQuantities(getEconomy(), getTarget(), getSource(), (sold, bought)->Math.max(0, sold - bought));
+        updateQuantities(getEconomy(), getTarget(), destination_, (sold, bought)->sold + bought);
         getTarget().move(destination_);
     }
 
 
     @Override
     public void rollback() {
-        updateQuantities(getBasket(), getTarget(), destination_, (sold, bought)->Math.max(0, sold - bought));
-        updateQuantities(getBasket(), getTarget(), getSource(), (sold, bought)->sold + bought);
+        updateQuantities(getEconomy(), getTarget(), destination_, (sold, bought)->Math.max(0, sold - bought));
+        updateQuantities(getEconomy(), getTarget(), getSource(), (sold, bought)->sold + bought);
         getTarget().move(destination_);
     }
 
@@ -157,8 +157,10 @@ public class Move extends MoveBase { // inheritance for code reuse
      * @param traderToUpdate The seller whose commodities sold will be updated.
      * @param operator A binary operator (old quantity sold, quantity bought) -> new quantity sold.
      */
-    static void updateQuantities(@NonNull Basket basketBought, @NonNull BuyerParticipation participation,
+    static void updateQuantities(@NonNull Economy economy, @NonNull BuyerParticipation participation,
                                  @Nullable Trader traderToUpdate, @NonNull DoubleBinaryOperator operator) {
+        @NonNull Basket basketBought = economy.getMarket(participation).getBasket();
+
         if (traderToUpdate != null) {
             final @NonNull @ReadOnly Basket basketSold = traderToUpdate.getBasketSold();
 
