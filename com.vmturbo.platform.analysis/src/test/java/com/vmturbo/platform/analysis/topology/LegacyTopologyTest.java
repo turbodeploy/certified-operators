@@ -3,16 +3,19 @@ package com.vmturbo.platform.analysis.topology;
 import static org.junit.Assert.*;
 
 import java.util.Arrays;
-import java.util.Map.Entry;
-import java.util.Set;
-
+import java.util.Map;
+import org.checkerframework.checker.javari.qual.PolyRead;
+import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import com.google.common.collect.BiMap;
+import com.vmturbo.platform.analysis.economy.Basket;
+import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
-import com.vmturbo.platform.analysis.utility.CollectionTests;
+import com.vmturbo.platform.analysis.utility.MapTests;
 
 import junitparams.JUnitParamsRunner;
 
@@ -122,34 +125,26 @@ public class LegacyTopologyTest {
 
     @Test
     public final void testGetUuids() {
-        @NonNull Set<Entry<@NonNull Trader, @NonNull String>> entries = new LegacyTopology().getUuids().entrySet();
-        Entry<@NonNull Trader, @NonNull String> entry = new Entry<Trader, String>() {
-            @Override public Trader getKey() {return null;}
-            @Override public String getValue() {return null;}
-            @Override public String setValue(String value) {return null;}};
+        @NonNull @ReadOnly BiMap<@NonNull Trader, @NonNull String> uuids = new LegacyTopology().getUuids();
+        @NonNull Trader trader = new Economy().addTrader(0, TraderState.ACTIVE, new Basket());
+        @NonNull String uuid = "uuid";
 
-            CollectionTests.verifyUnmodifiableValidOperations(entries, entry); // TODO: test bimap operations instead
-            CollectionTests.verifyUnmodifiableInvalidOperations(entries, entry);
-        @NonNull Set<Entry<@NonNull String, @NonNull Trader>> invEntries = new LegacyTopology().getUuids().inverse().entrySet();
-        Entry<@NonNull String, @NonNull Trader> invEntry = new Entry<String, Trader>() {
-            @Override public String getKey() {return null;}
-            @Override public Trader getValue() {return null;}
-            @Override public Trader setValue(Trader value) {return null;}};
+        MapTests.verifyUnmodifiableValidOperations(uuids, trader, uuid); // TODO: test bimap operations instead
+        MapTests.verifyUnmodifiableInvalidOperations(uuids, trader, uuid);
+        @NonNull BiMap<@NonNull String, @NonNull Trader> invUuids = new LegacyTopology().getUuids().inverse();
 
-            CollectionTests.verifyUnmodifiableValidOperations(invEntries, invEntry); // TODO: test bimap operations instead
-            CollectionTests.verifyUnmodifiableInvalidOperations(invEntries, invEntry);
+        MapTests.verifyUnmodifiableValidOperations(invUuids, uuid, trader); // TODO: test bimap operations instead
+        MapTests.verifyUnmodifiableInvalidOperations(invUuids, uuid, trader);
     }
 
     @Test
     public final void testGetNames() {
-        @NonNull Set<Entry<@NonNull Trader, @NonNull String>> entries = new LegacyTopology().getNames().entrySet();
-        Entry<@NonNull Trader, @NonNull String> entry = new Entry<Trader, String>() {
-            @Override public Trader getKey() {return null;}
-            @Override public String getValue() {return null;}
-            @Override public String setValue(String value) {return null;}};
+        @NonNull @PolyRead Map<@NonNull Trader, @NonNull String> names = new LegacyTopology().getNames();
+        @NonNull Trader trader = new Economy().addTrader(0, TraderState.ACTIVE, new Basket());
+        @NonNull String name = "name";
 
-        CollectionTests.verifyUnmodifiableValidOperations(entries, entry); // TODO: test map operations instead
-        CollectionTests.verifyUnmodifiableInvalidOperations(entries, entry);
+        MapTests.verifyUnmodifiableValidOperations(names, trader, name);
+        MapTests.verifyUnmodifiableInvalidOperations(names, trader, name);
     }
 
     @Test
