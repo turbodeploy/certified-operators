@@ -11,14 +11,24 @@ import com.vmturbo.platform.analysis.economy.BuyerParticipation;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 
-public abstract class MoveBase implements Action {
+/**
+ * A number of factored-out getters and fields needed by both {@link Move} and {@link Reconfigure}.
+ */
+public class MoveBase {
     // Fields
-    private final @NonNull Economy economy_;
+    private final @NonNull Economy economy_; // whether we can avoid this field is under investigation.
     private final @NonNull BuyerParticipation target_;
     private final @Nullable Trader source_;
 
     // Constructors
 
+    /**
+     * Constructs a new MoveBase object. It's not intended to be used independently, but rather as
+     * the base object of {@link Move} and {@link Reconfigure}.
+     *
+     * @param economy The economy of {@code this} move or reconfiguration
+     * @param target The target of {@code this} move or reconfiguration.
+     */
     public MoveBase(@NonNull Economy economy, @NonNull BuyerParticipation target) {
         economy_ = economy;
         target_ = target;
@@ -28,8 +38,8 @@ public abstract class MoveBase implements Action {
     // Methods
 
     /**
-     * Returns the economy of {@code this} move. i.e. the economy containing the target, source and
-     * destination.
+     * Returns the economy of {@code this} move or reconfiguration. i.e. the economy containing
+     * target and source.
      */
     @Pure
     public @NonNull Economy getEconomy(@ReadOnly MoveBase this) {
@@ -37,7 +47,8 @@ public abstract class MoveBase implements Action {
     }
 
     /**
-     * Returns the target of {@code this} move. i.e. the buyer participation that will move.
+     * Returns the target of {@code this} move or reconfiguration. i.e. the buyer participation that
+     * will be moved or reconfigured.
      */
     @Pure
     public @NonNull BuyerParticipation getTarget(@ReadOnly MoveBase this) {
@@ -45,7 +56,8 @@ public abstract class MoveBase implements Action {
     }
 
     /**
-     * Returns the source of {@code this} move. i.e. the trader, target will move from.
+     * Returns the source of {@code this} move or reconfiguration. i.e. the trader, target is
+     * currently placed on.
      */
     @Pure
     public @Nullable Trader getSource(@ReadOnly MoveBase this) {

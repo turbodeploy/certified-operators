@@ -11,7 +11,7 @@ import com.vmturbo.platform.analysis.economy.Trader;
 /**
  * An action to reconfigure a {@link BuyerParticipation buyer participation}.
  */
-public class Reconfigure extends MoveBase {
+public class Reconfigure extends MoveBase implements Action { // inheritance for code reuse
     // Fields
 
     // Constructors

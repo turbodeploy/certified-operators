@@ -18,7 +18,7 @@ import com.vmturbo.platform.analysis.economy.Trader;
 /**
  * An action to move a {@link BuyerParticipation buyer participation} from one supplier to another.
  */
-public class Move extends MoveBase { // inheritance for code reuse
+public class Move extends MoveBase implements Action { // inheritance for code reuse
     // Fields
     private final @Nullable Trader destination_;
 

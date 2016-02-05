@@ -7,19 +7,22 @@ import org.checkerframework.dataflow.qual.Pure;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.Trader;
 
-public abstract class StateChangeBase implements Action {
+/**
+ * A number of factored-out getters and fields needed by both {@link Activate} and {@link Deactivate}.
+ */
+public class StateChangeBase {
     // Fields
     private final @NonNull Trader target_;
-    private final @NonNull Market sourceMarket_;
+    private final @NonNull Market sourceMarket_; // only needed for debugDescription/debugReason.
 
     // Constructors
 
     /**
-     * Constructs a new StateChangeBase action with the specified target and source market.
+     * Constructs a new StateChangeBase object. It's not intended to be used independently, but
+     * rather as the base object of {@link Activate} and {@link Deactivate}.
      *
-     * @param target The trader that will be activated/deactivated as a result of taking
-     *               {@code this} action.
-     * @param sourceMarket The market where the action originated from.
+     * @param target The target of {@code this} activation or deactivation.
+     * @param sourceMarket The source market of {@code this} activation or deactivation.
      */
     public StateChangeBase(@NonNull Trader target, @NonNull Market sourceMarket) {
         target_ = target;
@@ -29,7 +32,8 @@ public abstract class StateChangeBase implements Action {
     // Methods
 
     /**
-     * Returns the target of this action. i.e. the one that will be activated or deactivated.
+     * Returns the target of {@code this} activation or deactivation. i.e. the one that will be
+     * activated or deactivated.
      */
     @Pure
     public @NonNull Trader getTarget(@ReadOnly StateChangeBase this) {
@@ -37,8 +41,8 @@ public abstract class StateChangeBase implements Action {
     }
 
     /**
-     * Returns the source market of this action. i.e. the market the algorithms were examining when
-     * the action was generated.
+     * Returns the source market of {@code this} activation or deactivation. i.e. the market the
+     * algorithms were examining when the action was generated.
      */
     @Pure
     public @NonNull Market getSourceMarket(@ReadOnly StateChangeBase this) {

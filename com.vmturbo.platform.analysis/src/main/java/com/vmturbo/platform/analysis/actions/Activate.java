@@ -11,7 +11,7 @@ import com.vmturbo.platform.analysis.economy.TraderState;
 /**
  * An action to activate a deactivated {@link Trader trader}.
  */
-public class Activate extends StateChangeBase {
+public class Activate extends StateChangeBase implements Action { // inheritance for code reuse
 
     // Constructors
 
