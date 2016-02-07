@@ -4,6 +4,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -33,6 +34,7 @@ import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.BuyerParticipation;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
+import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
@@ -44,10 +46,10 @@ import com.vmturbo.platform.analysis.topology.LegacyTopology;
  */
 final public class EMF2MarketHandler extends DefaultHandler {
 
-	/**
-	 * When true - replace DSPM and Datastore commodities with biclique commodities.
-	 * Used mostly for testing.
-	 */
+    /**
+     * When true - replace DSPM and Datastore commodities with biclique commodities.
+     * Used mostly for testing.
+     */
     private static final boolean doBicliques = true;
 
     private static final List<String> COMM_REFS =
@@ -65,6 +67,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
 
     private static final String DSPMAccess = "Abstraction:DSPMAccessCommodity";
     private static final String DatastoreCommodity = "Abstraction:DatastoreCommodity";
+    private static final String StorageLatency = "Abstraction:StorageLatency";
     private static final String ACCESSES = "Accesses";
 
     private final Logger logger;
@@ -427,6 +430,8 @@ final public class EMF2MarketHandler extends DefaultHandler {
             commSold.getSettings().setPriceFunction(pf);
          }
 
+        nonAdditiveCommoditySpecifications();
+
         logger.info("Processing placement");
         for (Entry<BuyerParticipation, String> entry : placement.entrySet()) {
             entry.getKey().move(topology.getUuids().inverse().get(entry.getValue()));
@@ -467,6 +472,20 @@ final public class EMF2MarketHandler extends DefaultHandler {
         if (logger.isDebugEnabled()) bicliques.forEach((k, v) -> logger.debug(names(k) + " = " + names(v)));
         if (logger.isTraceEnabled()) topology.getCommodityTypes().entrySet().stream().forEach(logger::trace);
         logger.info((System.currentTimeMillis() - startTime) / 1000.0 + " seconds");
+    }
+
+    /**
+     * Insert quantity functions for non-additive commodity specs
+     */
+    private void nonAdditiveCommoditySpecifications() {
+        try {
+            int latency = topology.getCommodityTypes().getId(StorageLatency);
+            Economy economy = (Economy) topology.getEconomy();
+            economy.getQuantityFunctions().put(new CommoditySpecification(latency),
+                    quantities -> quantities.isEmpty() ? 0.0 : Collections.max(quantities));
+        } catch (NullPointerException npe) {
+            logger.warn("No StorageLatency in the topology");
+        }
     }
 
     /**

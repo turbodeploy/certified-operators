@@ -3,7 +3,9 @@ package com.vmturbo.platform.analysis.topology;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.function.ToDoubleFunction;
 import java.util.stream.Collectors;
 
 import org.checkerframework.checker.javari.qual.PolyRead;
@@ -99,6 +101,17 @@ public final class LegacyTopology {
         return economy_.addBasketBought(buyer, new Basket(commodityTypesBought.stream()
             .map(typeBought -> new CommoditySpecification(commodityTypes_.allocate(typeBought)))
             .collect(Collectors.toList())));
+    }
+
+    /**
+     * Add a function that will be used to calculate the quantity sold by a {@link Commodity} of type
+     *  {@code commSpec}
+     * @param commSpec
+     * @param function a function that takes a list of Doubles as arguments and returns a Double.
+     * The list of Doubles is the quantities bought.
+     */
+    public void addQuantityFunction(CommoditySpecification commSpec, ToDoubleFunction<List<Double>> function) {
+        economy_.getQuantityFunctions().put(commSpec, function);
     }
 
     /**

@@ -1,5 +1,7 @@
 package com.vmturbo.platform.analysis.actions;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.DoubleBinaryOperator;
 import java.util.function.Function;
 import java.util.function.IntFunction;
@@ -12,6 +14,7 @@ import org.checkerframework.dataflow.qual.Pure;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.BuyerParticipation;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
+import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 
@@ -59,17 +62,16 @@ public class Move extends MoveBase implements Action { // inheritance for code r
 
     @Override
     public void take() {
-        updateQuantities(getEconomy(), getTarget(), getSource(), (sold, bought)->Math.max(0, sold - bought));
-        updateQuantities(getEconomy(), getTarget(), destination_, (sold, bought)->sold + bought);
         getTarget().move(destination_);
+        updateQuantities(getEconomy(), getTarget(), getSource(), (sold, bought) -> Math.max(0, sold - bought));
+        updateQuantities(getEconomy(), getTarget(), destination_, (sold, bought) -> sold + bought);
     }
-
 
     @Override
     public void rollback() {
-        updateQuantities(getEconomy(), getTarget(), destination_, (sold, bought)->Math.max(0, sold - bought));
-        updateQuantities(getEconomy(), getTarget(), getSource(), (sold, bought)->sold + bought);
-        getTarget().move(destination_);
+        getTarget().move(getSource());
+        updateQuantities(getEconomy(), getTarget(), destination_, (sold, bought) -> Math.max(0, sold - bought));
+        updateQuantities(getEconomy(), getTarget(), getSource(), (sold, bought) -> sold + bought);
     }
 
     @Override
@@ -155,10 +157,10 @@ public class Move extends MoveBase implements Action { // inheritance for code r
      * @param basketBought The basket bought by the buyer. It must match participation.
      * @param participation The buyer participation that will be moved. It must match basketBought.
      * @param traderToUpdate The seller whose commodities sold will be updated.
-     * @param operator A binary operator (old quantity sold, quantity bought) -> new quantity sold.
+     * @param binaryOperator A binary operator (old quantity sold, quantity bought) -> new quantity sold.
      */
     static void updateQuantities(@NonNull Economy economy, @NonNull BuyerParticipation participation,
-                                 @Nullable Trader traderToUpdate, @NonNull DoubleBinaryOperator operator) {
+                                 @Nullable Trader traderToUpdate, @NonNull DoubleBinaryOperator binaryOperator) {
         @NonNull Basket basketBought = economy.getMarket(participation).getBasket();
 
         if (traderToUpdate != null) {
@@ -175,10 +177,38 @@ public class Move extends MoveBase implements Action { // inheritance for code r
                     soldIndex = soldIndexBackUp;
                 } else {
                     final @NonNull CommoditySold commodity = traderToUpdate.getCommoditiesSold().get(soldIndex);
-                    commodity.setQuantity(operator.applyAsDouble(commodity.getQuantity(),
-                                                                 participation.getQuantity(boughtIndex)));
-                    commodity.setPeakQuantity(operator.applyAsDouble(commodity.getPeakQuantity(),
-                                                                     participation.getPeakQuantity(boughtIndex)));
+                    CommoditySpecification soldSpec = basketSold.get(soldIndex);
+
+                    if (economy.isAdditive(soldSpec)) {
+                        commodity.setQuantity(binaryOperator.applyAsDouble(commodity.getQuantity(),
+                                participation.getQuantity(boughtIndex)));
+                        commodity.setPeakQuantity(binaryOperator.applyAsDouble(commodity.getPeakQuantity(),
+                                participation.getPeakQuantity(boughtIndex)));
+                    } else {
+                        // for each commodity spec in the basket, find the quantities bought by all participations
+                        // and calculate the quantity sold
+                        List<@NonNull BuyerParticipation> participations = economy.getCustomerParticipations(traderToUpdate);
+                        int[] lastIndex = new int[participations.size()]; // array of int is initialized to zeros
+                        List<Double> quantityList = new ArrayList<>();
+                        List<Double> peakQuantityList = new ArrayList<>();
+                        for (int pIndex = 0; pIndex < participations.size(); pIndex++) {
+                            BuyerParticipation part = participations.get(pIndex);
+                            Basket basket = economy.getMarket(part).getBasket();
+                            // find the index of the commodity that satisfies the commodity sold
+                            for (int i = lastIndex[pIndex]; i < basket.size(); i++) {
+                                if (basket.get(i).isSatisfiedBy(soldSpec)) {
+                                    lastIndex[pIndex] = i; // next time start searching here
+                                    quantityList.add(part.getQuantities()[i]);
+                                    peakQuantityList.add(part.getPeakQuantities()[i]);
+                                    break;
+                                }
+                            }
+                        }
+                        commodity.setQuantity(economy.getQuantityFunctions()
+                                .get(soldSpec).applyAsDouble(quantityList));
+                        commodity.setPeakQuantity(economy.getQuantityFunctions()
+                                .get(soldSpec).applyAsDouble(peakQuantityList));
+                    }
                     ++soldIndex;
                 }
             }

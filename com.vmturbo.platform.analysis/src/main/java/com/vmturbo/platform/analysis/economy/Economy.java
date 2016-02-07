@@ -4,12 +4,15 @@ import static com.google.common.base.Preconditions.checkArgument;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.ToDoubleFunction;
+
 import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -32,6 +35,9 @@ public final class Economy implements UnmodifiableEconomy {
     private final @NonNull Map<@NonNull @ReadOnly Basket,@NonNull Market> markets_ = new TreeMap<>();
     // The list of all Traders participating in the Economy.
     private final @NonNull List<@NonNull TraderWithSettings> traders_ = new ArrayList<>();
+    // Map of quantity calculation functions by (sold) commodity specification.
+    private final @NonNull Map<@NonNull CommoditySpecification, @NonNull ToDoubleFunction<List<Double>>>
+                quantityFunctions_ = new HashMap<>();
 
     // Cached data
 
@@ -52,6 +58,25 @@ public final class Economy implements UnmodifiableEconomy {
     public Economy() {}
 
     // Methods
+
+    /**
+     * @return
+     * A modifiable map of quantity calculation functions per (sold) {@link CommoditySpecification}.
+     * If a commodity specification is not in the map then its quantity calculation is additive.
+     */
+    public Map<CommoditySpecification, ToDoubleFunction<List<Double>>> getQuantityFunctions() {
+        return quantityFunctions_;
+    }
+
+    /**
+     * Check whether this commodity specification uses the default (additive) quantity update or
+     * it has its own function.
+     * @return true when the commodity specification is additive, false when it uses its own function
+     */
+    @Pure
+    public boolean isAdditive(CommoditySpecification commSpec) {
+        return !quantityFunctions_.containsKey(commSpec);
+    }
 
     @Override
     @Pure

@@ -2,6 +2,10 @@ package com.vmturbo.platform.analysis.actions;
 
 import static org.junit.Assert.*;
 
+import java.util.Collections;
+import java.util.List;
+import java.util.function.ToDoubleFunction;
+
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -20,13 +24,17 @@ import junitparams.JUnitParamsRunner;
 @RunWith(JUnitParamsRunner.class)
 public final class MoveTest {
     // Fields
+    private static final ToDoubleFunction<List<Double>> MAX_DOUBLE_LIST =
+            quantities -> quantities.isEmpty() ? 0.0 : Collections.max(quantities);
     private static final CommoditySpecification CPU = new CommoditySpecification(0);
     private static final CommoditySpecification DRS = new CommoditySpecification(1);
     private static final CommoditySpecification MEM = new CommoditySpecification(2);
+    private static final CommoditySpecification LAT = new CommoditySpecification(3);
 
     private static final Basket EMPTY = new Basket();
-    private static final Basket PM = new Basket(CPU,MEM);
-    private static final Basket PM_EXT = new Basket(CPU,DRS,MEM);
+    private static final Basket PM = new Basket(CPU, MEM);
+    private static final Basket PM_EXT = new Basket(CPU, DRS, MEM);
+    private static final Basket PM_ALL = new Basket(CPU, DRS, LAT, MEM);
 
     // Methods
 
@@ -140,4 +148,39 @@ public final class MoveTest {
         assertEquals(39, pm2.getCommoditySold(MEM).getQuantity(), 0f);
     }
 
+    @Test // Case where the one of the commodities is non-additive
+    public final void testMoveTake_NonAdditive() {
+        Economy economy = new Economy();
+        economy.getQuantityFunctions().put(LAT, MAX_DOUBLE_LIST);
+        Trader vm1 = economy.addTrader(0, TraderState.ACTIVE, EMPTY);
+        Trader vm2 = economy.addTrader(0, TraderState.ACTIVE, EMPTY);
+        Trader vm3 = economy.addTrader(0, TraderState.ACTIVE, EMPTY);
+        Trader pm1 = economy.addTrader(0, TraderState.ACTIVE, PM_ALL);
+        Trader pm2 = economy.addTrader(0, TraderState.ACTIVE, PM_ALL);
+
+        BuyerParticipation part1 = economy.addBasketBought(vm1, PM_ALL);
+        BuyerParticipation part2 = economy.addBasketBought(vm2, PM_ALL);
+        BuyerParticipation part3 = economy.addBasketBought(vm3, PM_ALL);
+
+        part1.setQuantity(3, 10);
+        part2.setQuantity(3, 30);
+        part3.setQuantity(3, 20);
+        pm1.getCommoditySold(LAT).setQuantity(12);
+        pm2.getCommoditySold(LAT).setQuantity(3);
+
+        // Initial placement - all VMs on pm1
+        part1.move(pm1);
+        part2.move(pm1);
+        part3.move(pm1);
+
+        Action moveToPm2 = new Move(economy, part2, pm2);
+
+        moveToPm2.take();
+        assertEquals(20, pm1.getCommoditySold(LAT).getQuantity(), 0f);
+        assertEquals(30, pm2.getCommoditySold(LAT).getQuantity(), 0f);
+
+        moveToPm2.rollback();
+        assertEquals(30, pm1.getCommoditySold(LAT).getQuantity(), 0f);
+        assertEquals(0, pm2.getCommoditySold(LAT).getQuantity(), 0f);
+    }
 } // end MoveTest class
