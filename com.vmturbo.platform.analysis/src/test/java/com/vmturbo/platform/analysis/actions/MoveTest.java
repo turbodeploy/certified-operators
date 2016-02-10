@@ -28,13 +28,17 @@ public final class MoveTest {
             quantities -> quantities.isEmpty() ? 0.0 : Collections.max(quantities);
     private static final CommoditySpecification CPU = new CommoditySpecification(0);
     private static final CommoditySpecification DRS = new CommoditySpecification(1);
-    private static final CommoditySpecification MEM = new CommoditySpecification(2);
-    private static final CommoditySpecification LAT = new CommoditySpecification(3);
+    private static final CommoditySpecification LAT1 = new CommoditySpecification(2);
+    private static final CommoditySpecification MEM = new CommoditySpecification(3);
+    private static final CommoditySpecification LAT2 = new CommoditySpecification(4);
 
     private static final Basket EMPTY = new Basket();
     private static final Basket PM = new Basket(CPU, MEM);
     private static final Basket PM_EXT = new Basket(CPU, DRS, MEM);
-    private static final Basket PM_ALL = new Basket(CPU, DRS, LAT, MEM);
+    private static final Basket PM_ALL = new Basket(CPU, DRS, LAT1, MEM, LAT2);
+
+    private static final Basket BASKET1 = new Basket(CPU, LAT1, MEM, LAT2);
+    private static final Basket BASKET2 = new Basket(CPU, DRS, LAT1, MEM);
 
     // Methods
 
@@ -148,39 +152,58 @@ public final class MoveTest {
         assertEquals(39, pm2.getCommoditySold(MEM).getQuantity(), 0f);
     }
 
-    @Test // Case where the one of the commodities is non-additive
+    @Test // non-additive commodities
     public final void testMoveTake_NonAdditive() {
         Economy economy = new Economy();
-        economy.getQuantityFunctions().put(LAT, MAX_DOUBLE_LIST);
+        economy.getQuantityFunctions().put(LAT1, MAX_DOUBLE_LIST);
+        economy.getQuantityFunctions().put(LAT2, MAX_DOUBLE_LIST);
         Trader vm1 = economy.addTrader(0, TraderState.ACTIVE, EMPTY);
         Trader vm2 = economy.addTrader(0, TraderState.ACTIVE, EMPTY);
         Trader vm3 = economy.addTrader(0, TraderState.ACTIVE, EMPTY);
         Trader pm1 = economy.addTrader(0, TraderState.ACTIVE, PM_ALL);
         Trader pm2 = economy.addTrader(0, TraderState.ACTIVE, PM_ALL);
 
-        BuyerParticipation part1 = economy.addBasketBought(vm1, PM_ALL);
-        BuyerParticipation part2 = economy.addBasketBought(vm2, PM_ALL);
-        BuyerParticipation part3 = economy.addBasketBought(vm3, PM_ALL);
+        BuyerParticipation part1 = economy.addBasketBought(vm1, BASKET1);
+        BuyerParticipation part2 = economy.addBasketBought(vm2, BASKET1);
+        BuyerParticipation part3 = economy.addBasketBought(vm3, BASKET1);
+        BuyerParticipation part4 = economy.addBasketBought(vm3, BASKET2);
+        BuyerParticipation part5 = economy.addBasketBought(vm3, PM_EXT);
 
-        part1.setQuantity(3, 10);
-        part2.setQuantity(3, 30);
-        part3.setQuantity(3, 20);
-        pm1.getCommoditySold(LAT).setQuantity(12);
-        pm2.getCommoditySold(LAT).setQuantity(3);
+        // LAT1
+        int lat1InBasket1 = BASKET1.indexOf(LAT1);
+        int lat1InBasket2 = BASKET2.indexOf(LAT1);
+        part1.setQuantity(lat1InBasket1, 10);
+        part2.setQuantity(lat1InBasket1, 30);
+        part3.setQuantity(lat1InBasket1, 20);
+        part4.setQuantity(lat1InBasket2, 15);
+        // LAT2
+        int lat2InBasket1 = BASKET1.indexOf(LAT2);
+        part1.setQuantity(lat2InBasket1, 150);
+        part2.setQuantity(lat2InBasket1, 100);
+        part3.setQuantity(lat2InBasket1, 120);
 
-        // Initial placement - all VMs on pm1
+        pm1.getCommoditySold(LAT1).setQuantity(12);
+        pm2.getCommoditySold(LAT1).setQuantity(3);
+
+        // Initial placement
         part1.move(pm1);
         part2.move(pm1);
         part3.move(pm1);
+        part4.move(pm2);
+        part5.move(pm2);
 
         Action moveToPm2 = new Move(economy, part2, pm2);
 
         moveToPm2.take();
-        assertEquals(20, pm1.getCommoditySold(LAT).getQuantity(), 0f);
-        assertEquals(30, pm2.getCommoditySold(LAT).getQuantity(), 0f);
+        assertEquals(20, pm1.getCommoditySold(LAT1).getQuantity(), 0f);
+        assertEquals(30, pm2.getCommoditySold(LAT1).getQuantity(), 0f);
+        assertEquals(150, pm1.getCommoditySold(LAT2).getQuantity(), 0f);
+        assertEquals(100, pm2.getCommoditySold(LAT2).getQuantity(), 0f);
 
         moveToPm2.rollback();
-        assertEquals(30, pm1.getCommoditySold(LAT).getQuantity(), 0f);
-        assertEquals(0, pm2.getCommoditySold(LAT).getQuantity(), 0f);
+        assertEquals(30, pm1.getCommoditySold(LAT1).getQuantity(), 0f);
+        assertEquals(15, pm2.getCommoditySold(LAT1).getQuantity(), 0f);
+        assertEquals(150, pm1.getCommoditySold(LAT2).getQuantity(), 0f);
+        assertEquals(0, pm2.getCommoditySold(LAT2).getQuantity(), 0f);
     }
 } // end MoveTest class

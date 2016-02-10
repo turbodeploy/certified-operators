@@ -165,7 +165,7 @@ public class Move extends MoveBase implements Action { // inheritance for code r
 
         if (traderToUpdate != null) {
             final @NonNull @ReadOnly Basket basketSold = traderToUpdate.getBasketSold();
-
+            List<@NonNull BuyerParticipation> participations = null;
             for (int boughtIndex = 0, soldIndex = 0 ; boughtIndex < basketBought.size() ; ++boughtIndex) {
                 final int soldIndexBackUp = soldIndex;
                 while (soldIndex < basketSold.size()
@@ -185,29 +185,26 @@ public class Move extends MoveBase implements Action { // inheritance for code r
                         commodity.setPeakQuantity(binaryOperator.applyAsDouble(commodity.getPeakQuantity(),
                                 participation.getPeakQuantity(boughtIndex)));
                     } else {
+                        if (participations == null) {
+                            participations = economy.getCustomerParticipations(traderToUpdate);
+                        }
                         // for each commodity spec in the basket, find the quantities bought by all participations
                         // and calculate the quantity sold
-                        List<@NonNull BuyerParticipation> participations = economy.getCustomerParticipations(traderToUpdate);
-                        int[] lastIndex = new int[participations.size()]; // array of int is initialized to zeros
-                        List<Double> quantityList = new ArrayList<>();
-                        List<Double> peakQuantityList = new ArrayList<>();
+                        List<Double> quantitiesBought = new ArrayList<>();
+                        List<Double> peakQuantitiesBought = new ArrayList<>();
                         for (int pIndex = 0; pIndex < participations.size(); pIndex++) {
-                            BuyerParticipation part = participations.get(pIndex);
-                            Basket basket = economy.getMarket(part).getBasket();
-                            // find the index of the commodity that satisfies the commodity sold
-                            for (int i = lastIndex[pIndex]; i < basket.size(); i++) {
-                                if (basket.get(i).isSatisfiedBy(soldSpec)) {
-                                    lastIndex[pIndex] = i; // next time start searching here
-                                    quantityList.add(part.getQuantities()[i]);
-                                    peakQuantityList.add(part.getPeakQuantities()[i]);
-                                    break;
-                                }
+                            BuyerParticipation aParticipation = participations.get(pIndex);
+                            Basket basket = economy.getMarket(aParticipation).getBasket();
+                            int specIndex = basket.indexOf(soldSpec);
+                            if (specIndex >= 0) {
+                                quantitiesBought.add(aParticipation.getQuantities()[specIndex]);
+                                peakQuantitiesBought.add(aParticipation.getPeakQuantities()[specIndex]);
                             }
                         }
                         commodity.setQuantity(economy.getQuantityFunctions()
-                                .get(soldSpec).applyAsDouble(quantityList));
+                                .get(soldSpec).applyAsDouble(quantitiesBought));
                         commodity.setPeakQuantity(economy.getQuantityFunctions()
-                                .get(soldSpec).applyAsDouble(peakQuantityList));
+                                .get(soldSpec).applyAsDouble(peakQuantitiesBought));
                     }
                     ++soldIndex;
                 }

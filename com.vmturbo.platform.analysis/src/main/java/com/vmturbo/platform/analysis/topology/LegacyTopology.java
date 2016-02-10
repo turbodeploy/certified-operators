@@ -105,13 +105,15 @@ public final class LegacyTopology {
 
     /**
      * Add a function that will be used to calculate the quantity sold by a {@link Commodity} of type
-     *  {@code commSpec}
-     * @param commSpec
+     * {@code commodityType}
+     * @param commodityType The String type of the commodity
      * @param function a function that takes a list of Doubles as arguments and returns a Double.
      * The list of Doubles is the quantities bought.
      */
-    public void addQuantityFunction(CommoditySpecification commSpec, ToDoubleFunction<List<Double>> function) {
-        economy_.getQuantityFunctions().put(commSpec, function);
+    public void addQuantityFunction(String commodityType, ToDoubleFunction<List<Double>> function) {
+        int commodityId = commodityTypes_.allocate(commodityType);
+        economy_.getQuantityFunctions().put(
+                new CommoditySpecification(commodityId), function);
     }
 
     /**

@@ -34,7 +34,6 @@ import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.BuyerParticipation;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
-import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
@@ -430,7 +429,8 @@ final public class EMF2MarketHandler extends DefaultHandler {
             commSold.getSettings().setPriceFunction(pf);
          }
 
-        nonAdditiveCommoditySpecifications();
+        topology.addQuantityFunction(StorageLatency,
+                quantities -> quantities.isEmpty() ? 0.0 : Collections.max(quantities));
 
         logger.info("Processing placement");
         for (Entry<BuyerParticipation, String> entry : placement.entrySet()) {
@@ -472,20 +472,6 @@ final public class EMF2MarketHandler extends DefaultHandler {
         if (logger.isDebugEnabled()) bicliques.forEach((k, v) -> logger.debug(names(k) + " = " + names(v)));
         if (logger.isTraceEnabled()) topology.getCommodityTypes().entrySet().stream().forEach(logger::trace);
         logger.info((System.currentTimeMillis() - startTime) / 1000.0 + " seconds");
-    }
-
-    /**
-     * Insert quantity functions for non-additive commodity specs
-     */
-    private void nonAdditiveCommoditySpecifications() {
-        try {
-            int latency = topology.getCommodityTypes().getId(StorageLatency);
-            Economy economy = (Economy) topology.getEconomy();
-            economy.getQuantityFunctions().put(new CommoditySpecification(latency),
-                    quantities -> quantities.isEmpty() ? 0.0 : Collections.max(quantities));
-        } catch (NullPointerException npe) {
-            logger.warn("No StorageLatency in the topology");
-        }
     }
 
     /**
