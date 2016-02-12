@@ -1,7 +1,5 @@
 package com.vmturbo.platform.analysis.actions;
 
-import java.util.function.Function;
-
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -62,23 +60,6 @@ public class MoveBase {
     @Pure
     public @Nullable Trader getSource(@ReadOnly MoveBase this) {
         return source_;
-    }
-
-    /**
-     * Appends a human-readable string identifying a trader to a string builder in the form
-     * "name [oid] (#index)".
-     *
-     * @param builder The {@link StringBuilder} to which the string should be appended.
-     * @param economy The {@link Economy} containing the trader to be appended.
-     * @param trader The {@link Trader} for which to append the identifying string.
-     * @param oid A function from {@link Trader} to trader OID.
-     * @param name A function from {@link Trader} to human-readable trader name.
-     */
-    protected static void appendTrader(@NonNull StringBuilder builder, @NonNull Economy economy,
-            @NonNull Trader trader, @NonNull Function<@NonNull Trader, @NonNull String> oid,
-                                    @NonNull Function<@NonNull Trader, @NonNull String> name) {
-        builder.append(name.apply(trader)).append(" [").append(oid.apply(trader)).append("] (#")
-               .append(trader.getEconomyIndex()).append(")");
     }
 
 } // end TargetedAction class

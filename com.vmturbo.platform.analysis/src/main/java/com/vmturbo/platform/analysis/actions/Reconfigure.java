@@ -8,6 +8,8 @@ import com.vmturbo.platform.analysis.economy.BuyerParticipation;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 
+import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
+
 /**
  * An action to reconfigure a {@link BuyerParticipation buyer participation}.
  */
@@ -58,7 +60,7 @@ public class Reconfigure extends MoveBase implements Action { // inheritance for
         final @NonNull StringBuilder sb = new StringBuilder();
 
         sb.append("Change constraints of ");
-        appendTrader(sb, getEconomy(), getTarget().getBuyer(), uuid, name);
+        appendTrader(sb, getTarget().getBuyer(), uuid, name);
         sb.append(" or ");
 
         if (getSource() != null) {
@@ -81,12 +83,12 @@ public class Reconfigure extends MoveBase implements Action { // inheritance for
 
         if (getSource() != null) { // No current provider
             sb.append("Unable to start ");
-            appendTrader(sb, getEconomy(), getSource(), uuid, name);
+            appendTrader(sb, getSource(), uuid, name);
             sb.append(" because no [need supply chain to fill in correct trader type] can ");
             sb.append("satisfy the following combination of constraints: ");
             sb.append(getEconomy().getMarket(getTarget()).getBasket()); // TODO: add more cases and substitute commodity types.
         } else {
-            appendTrader(sb, getEconomy(), getSource(), uuid, name);
+            appendTrader(sb, getSource(), uuid, name);
             sb.append(" is currently placed on a ").append(traderType.apply(getSource().getType()));
             sb.append("that does not satisfy the ");
             sb.append(getEconomy().getMarket(getTarget()).getBasket()); // TODO: substitute commodity types.

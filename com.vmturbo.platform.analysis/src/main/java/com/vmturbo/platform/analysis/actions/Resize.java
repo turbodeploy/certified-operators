@@ -12,6 +12,8 @@ import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Trader;
 
+import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
+
 /**
  * An action to resize a {@link CommoditySold commodity sold} of a {@link Trader trader}.
  */
@@ -99,13 +101,14 @@ public class Resize implements Action {
                                             @NonNull Function<@NonNull Trader, @NonNull String> name,
                                             @NonNull IntFunction<@NonNull String> commodityType,
                                             @NonNull IntFunction<@NonNull String> traderType) {
-        return new StringBuilder()
-            .append("Resize ").append(commodityType.apply(getResizedCommodity().getType()))
-            .append(" of ").append(name.apply(getSellingTrader()))
-            .append(" (").append(uuid.apply(getSellingTrader())).append(") ")
-            .append(getNewCapacity() > getOldCapacity() ? "up" : "down")
-            .append(" from ").append(getOldCapacity()).append(" to ").append(getNewCapacity())
-            .append(".").toString();
+        final @NonNull StringBuilder sb = new StringBuilder();
+
+        sb.append("Resize ").append(commodityType.apply(getResizedCommodity().getType())).append(" of ");
+        appendTrader(sb, getSellingTrader(), uuid, name);
+        sb.append(getNewCapacity() > getOldCapacity() ? " up" : " down");
+        sb.append(" from ").append(getOldCapacity()).append(" to ").append(getNewCapacity()).append(".");
+
+        return sb.toString();
     }
 
     @Override

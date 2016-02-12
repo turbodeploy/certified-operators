@@ -18,6 +18,8 @@ import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 
+import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
+
 /**
  * An action to move a {@link BuyerParticipation buyer participation} from one supplier to another.
  */
@@ -84,25 +86,25 @@ public class Move extends MoveBase implements Action { // inheritance for code r
         if (getSource() != null) {
             if (destination_ != null) { // Move
                 sb.append("Move ");
-                appendTrader(sb, getEconomy(), getTarget().getBuyer(), uuid, name);
+                appendTrader(sb, getTarget().getBuyer(), uuid, name);
                 sb.append(" from ");
-                appendTrader(sb, getEconomy(), getSource(), uuid, name);
+                appendTrader(sb, getSource(), uuid, name);
                 sb.append(" to ");
-                appendTrader(sb, getEconomy(), getDestination(), uuid, name);
+                appendTrader(sb, getDestination(), uuid, name);
                 sb.append(".");
             } else {// Unplace
                 sb.append("Unplace ");
-                appendTrader(sb, getEconomy(), getTarget().getBuyer(), uuid, name);
+                appendTrader(sb, getTarget().getBuyer(), uuid, name);
                 sb.append(" from ");
-                appendTrader(sb, getEconomy(), getSource(), uuid, name);
+                appendTrader(sb, getSource(), uuid, name);
                 sb.append(".");
             }
         } else {
             if (destination_ != null) { // Start
                 sb.append("Start ");
-                appendTrader(sb, getEconomy(), getTarget().getBuyer(), uuid, name);
+                appendTrader(sb, getTarget().getBuyer(), uuid, name);
                 sb.append(" on ");
-                appendTrader(sb, getEconomy(), getDestination(), uuid, name);
+                appendTrader(sb, getDestination(), uuid, name);
                 sb.append(".");
             } else {
                 return "Error in post-processing actions! This action should have been removed!";
@@ -124,13 +126,13 @@ public class Move extends MoveBase implements Action { // inheritance for code r
                 return "To provide a better placement."; // TODO: cover move conditions here!
             } else { // Unplace
                 sb.append("To suspend ");
-                appendTrader(sb, getEconomy(), getSource(), uuid, name);
+                appendTrader(sb, getSource(), uuid, name);
                 sb.append(".");
             }
         } else {
             if (destination_ != null) { // Start
                 sb.append("Because ");
-                appendTrader(sb, getEconomy(), getTarget().getBuyer(), uuid, name);
+                appendTrader(sb, getTarget().getBuyer(), uuid, name);
                 sb.append(" was previously unplaced");
             } else {
                 return "Error in post-processing actions! This action should have been removed!";

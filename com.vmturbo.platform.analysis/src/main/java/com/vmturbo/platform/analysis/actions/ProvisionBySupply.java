@@ -13,6 +13,8 @@ import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 
+import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
+
 /**
  * An action to provision a new {@link Trader seller} using another {@link Trader seller} as the
  * template.
@@ -116,10 +118,13 @@ public class ProvisionBySupply implements Action {
                                             @NonNull Function<@NonNull Trader, @NonNull String> name,
                                             @NonNull IntFunction<@NonNull String> commodityType,
                                             @NonNull IntFunction<@NonNull String> traderType) {
-        return new StringBuilder()
-            .append("Provision a new ").append(traderType.apply(getModelSeller().getType()))
-            .append(" similar to ").append(name.apply(getModelSeller()))
-            .append(" (").append(uuid.apply(getModelSeller())).append(").").toString();
+        final @NonNull StringBuilder sb = new StringBuilder();
+
+        sb.append("Provision a new ").append(traderType.apply(getModelSeller().getType())).append(" similar to ");
+        appendTrader(sb, getModelSeller(), uuid, name);
+        sb.append(".");
+
+        return sb.toString();
     }
 
     @Override

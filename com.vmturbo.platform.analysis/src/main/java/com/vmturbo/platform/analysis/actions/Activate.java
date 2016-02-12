@@ -4,9 +4,12 @@ import java.util.function.Function;
 import java.util.function.IntFunction;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
+
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
+
+import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
 
 /**
  * An action to activate a deactivated {@link Trader trader}.
@@ -51,9 +54,13 @@ public class Activate extends StateChangeBase implements Action { // inheritance
                                             @NonNull Function<@NonNull Trader, @NonNull String> name,
                                             @NonNull IntFunction<@NonNull String> commodityType,
                                             @NonNull IntFunction<@NonNull String> traderType) {
-        return new StringBuilder()
-            .append("Activate ").append(name.apply(getTarget()))
-            .append(" (").append(uuid.apply(getTarget())).append(").").toString();
+        final @NonNull StringBuilder sb = new StringBuilder();
+
+        sb.append("Activate ");
+        appendTrader(sb, getTarget(), uuid, name);
+        sb.append(".");
+
+        return sb.toString();
     }
 
     @Override

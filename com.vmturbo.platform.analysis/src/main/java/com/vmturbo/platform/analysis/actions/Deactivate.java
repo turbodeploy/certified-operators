@@ -1,5 +1,7 @@
 package com.vmturbo.platform.analysis.actions;
 
+import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
+
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
@@ -52,9 +54,13 @@ public class Deactivate extends StateChangeBase implements Action { // inheritan
                                             @NonNull Function<@NonNull Trader, @NonNull String> name,
                                             @NonNull IntFunction<@NonNull String> commodityType,
                                             @NonNull IntFunction<@NonNull String> traderType) {
-        return new StringBuilder()
-            .append("Deactivate ").append(name.apply(getTarget()))
-            .append(" (").append(uuid.apply(getTarget())).append(").").toString();
+        final @NonNull StringBuilder sb = new StringBuilder();
+
+        sb.append("Deactivate ");
+        appendTrader(sb, getTarget(), uuid, name);
+        sb.append(".");
+
+        return sb.toString();
     }
 
     @Override
