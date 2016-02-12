@@ -8,9 +8,13 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Pure;
 
+import com.vmturbo.platform.analysis.economy.Basket;
+import com.vmturbo.platform.analysis.economy.BuyerParticipation;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
+
+import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
 
 /**
  * An action to provision a new {@link Trader seller} using another {@link Trader buyer} as the
@@ -19,7 +23,7 @@ import com.vmturbo.platform.analysis.economy.TraderState;
 public class ProvisionByDemand implements Action {
     // Fields
     private final @NonNull Economy economy_;
-    private final @NonNull Trader modelBuyer_; // TODO: also add source market? Desired state?
+    private final @NonNull BuyerParticipation modelBuyer_; // TODO: also add source market? Desired state?
     private @Nullable Trader provisionedSeller_;
 
     // Constructors
@@ -28,9 +32,9 @@ public class ProvisionByDemand implements Action {
      * Constructs a new ProvisionByDemand action with the specified attributes.
      *
      * @param economy The economy in which the seller will be provisioned.
-     * @param modelBuyer The buyer that should be satisfied by the new seller.
+     * @param modelBuyer The buyer participation that should be satisfied by the new seller.
      */
-    public ProvisionByDemand(@NonNull Economy economy, @NonNull Trader modelBuyer) {
+    public ProvisionByDemand(@NonNull Economy economy, @NonNull BuyerParticipation modelBuyer) {
         economy_ = economy;
         modelBuyer_ = modelBuyer;
     }
@@ -49,7 +53,7 @@ public class ProvisionByDemand implements Action {
      * Returns the model buyer that should be satisfied by the new seller.
      */
     @Pure
-    public @NonNull Trader getModelBuyer(@ReadOnly ProvisionByDemand this) {
+    public @NonNull BuyerParticipation getModelBuyer(@ReadOnly ProvisionByDemand this) {
         return modelBuyer_;
     }
 
@@ -68,14 +72,21 @@ public class ProvisionByDemand implements Action {
     @Override
     public @NonNull String serialize(@NonNull Function<@NonNull Trader, @NonNull String> oid) {
         return new StringBuilder().append("<action type=\"provisionByDemand\" modelBuyer=\"")
-            .append(oid.apply(getModelBuyer())).append("\" />").toString();
+            .append(oid.apply(getModelBuyer().getBuyer())).append("\" />").toString();
+        // TODO: should I send the buyer participation and basket bought instead?
     }
 
     @Override
     public void take() {
+        @NonNull Basket basketSold = getEconomy().getMarket(getModelBuyer()).getBasket();
         provisionedSeller_ = getEconomy().addTrader(0 /* what type should it have? */,
-            TraderState.ACTIVE, null /* basket to sell */ /*, what should it buy? */);
-        // TODO: update commodities
+            TraderState.ACTIVE, basketSold /*, what should it buy? */);
+
+        for (int i = 0 ; i < basketSold.size() ; ++i) {
+            getProvisionedSeller().getCommoditiesSold().get(i).setCapacity(
+                Math.max(getModelBuyer().getQuantity(i), getModelBuyer().getPeakQuantity(i)));
+            // TODO (Vaptistis): use desired state once we have EconomySettings
+        }
     }
 
     @Override
@@ -90,7 +101,7 @@ public class ProvisionByDemand implements Action {
                                             @NonNull IntFunction<@NonNull String> commodityType,
                                             @NonNull IntFunction<@NonNull String> traderType) {
         return new StringBuilder()
-            .append("Provision a new ").append(traderType.apply(getModelBuyer().getType()/* Substitute correct type */))
+            .append("Provision a new ").append(traderType.apply(getModelBuyer().getBuyer().getType()/* Substitute correct type */))
             .append(" with the following characteristics: ").toString(); // TODO: print characteristics
     }
 
@@ -99,10 +110,15 @@ public class ProvisionByDemand implements Action {
                                        @NonNull Function<@NonNull Trader, @NonNull String> name,
                                        @NonNull IntFunction<@NonNull String> commodityType,
                                        @NonNull IntFunction<@NonNull String> traderType) {
-        return new StringBuilder()
-            .append("No ").append(traderType.apply(getModelBuyer().getType()/* Substitute correct type */))
-            .append(" has enough capacity for [buyer].").toString();
+        final @NonNull StringBuilder sb = new StringBuilder();
+        sb.append("No ").append(traderType.apply(getModelBuyer().getBuyer().getType()/* Substitute correct type */))
+          .append(" has enough capacity for ");
+        appendTrader(sb, getModelBuyer().getBuyer(), uuid, name);
+        sb.append(".");
         // TODO: update when we create the recommendation matrix for provisioning and possibly
         // create additional classes for provisioning actions.
+
+        return sb.toString();
     }
+
 } // end ProvisionByDemand class

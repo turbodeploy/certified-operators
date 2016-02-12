@@ -101,7 +101,7 @@ public class DeactivateTest {
     public final void testDebugDescription(@NonNull Deactivate deactivation, @NonNull LegacyTopology topology,
                                            @NonNull String description) {
         assertEquals(description, deactivation.debugDescription(topology.getUuids()::get,
-            topology.getNames()::get, topology.getTraderTypes()::getName, topology.getCommodityTypes()::getName));
+            topology.getNames()::get, topology.getCommodityTypes()::getName, topology.getTraderTypes()::getName));
     }
 
     @SuppressWarnings("unused") // it is used reflectively
@@ -125,7 +125,7 @@ public class DeactivateTest {
     public final void testDebugReason(@NonNull Deactivate deactivation, @NonNull LegacyTopology topology,
                                       @NonNull String reason) {
         assertEquals(reason, deactivation.debugReason(topology.getUuids()::get,
-            topology.getNames()::get, topology.getTraderTypes()::getName, topology.getCommodityTypes()::getName));
+            topology.getNames()::get, topology.getCommodityTypes()::getName, topology.getTraderTypes()::getName));
     }
 
     @SuppressWarnings("unused") // it is used reflectively
