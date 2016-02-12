@@ -24,6 +24,7 @@ public class ProvisionBySupply implements Action {
     private final @NonNull Economy economy_;
     private final @NonNull Trader modelSeller_;
     private @Nullable Trader provisionedSeller_;
+    // TODO: may need to add a 'triggering buyer' for debugReason...
 
     // Constructors
 
@@ -82,6 +83,7 @@ public class ProvisionBySupply implements Action {
         for (@NonNull Market market : getEconomy().getMarketsAsBuyer(getModelSeller()).values()) {
             getEconomy().addBasketBought(getProvisionedSeller(), market.getBasket());
         }
+        // TODO: also copy quantities bought
 
         // Update commodities sold
         for (int i = 0 ; i < getModelSeller().getBasketSold().size() ; ++i) {
