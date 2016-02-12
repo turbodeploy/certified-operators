@@ -88,6 +88,21 @@ public interface Trader {
     @NonNull TraderSettings getSettings();
 
     /**
+     * Returns the <em>economy index</em> of {@code this} trader.
+     *
+     * <p>
+     *  The economy index of a trader is its position in the {@link Economy#getTraders() traders
+     *  list} and it's non-negative and non-increasing. It will be decreased iff a trader with lower
+     *  economy index is removed from the economy.
+     * </p>
+     *
+     * <p>
+     *  This is an O(1) operation.
+     * </p>
+     */
+    int getEconomyIndex(@ReadOnly Trader this);
+
+    /**
      * Returns the type of the trader.
      *
      * <p>

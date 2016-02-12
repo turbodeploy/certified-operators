@@ -71,7 +71,7 @@ public final class ExportForVisualisation {
             for (int i = 0 ; i < trader.getBasketSold().size() ; ++i) {
                 System.out.printf(tabSeparatedFieldsLine,
                     economyName,
-                    economy.getIndex(trader),
+                    trader.getEconomyIndex(),
                     traderUuid.apply(trader),
                     traderName.apply(trader),
                     traderType.apply(trader.getType()),

@@ -526,7 +526,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
             .map(topology.getUuids().inverse()::get)
             // for testing, when a trader may be referenced by "Accesses" but is not part of the topology
             .filter(t -> t != null)
-            .map(topology.getEconomy()::getIndex)
+            .map(Trader::getEconomyIndex)
             .map(topology.getNames()::get)
             .collect(Collectors.toSet());
         return foo;

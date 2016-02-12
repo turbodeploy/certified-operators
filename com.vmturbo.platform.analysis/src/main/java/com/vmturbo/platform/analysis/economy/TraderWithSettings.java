@@ -16,12 +16,12 @@ import org.checkerframework.dataflow.qual.Pure;
 
 final class TraderWithSettings implements Trader, TraderSettings {
     // Internal fields
-    private int economyIndex_;
     private final @NonNull Map<@NonNull BuyerParticipation,@NonNull Market> marketsAsBuyer_ = new LinkedHashMap<>();
     private final @NonNull List<Market> marketsAsSeller_ = new ArrayList<>();
     private final @NonNull ArrayList<@NonNull BuyerParticipation> customers_ = new ArrayList<>();
 
     // Fields for Trader
+    private int economyIndex_;
     private final int type_; // this should never change once the object is created.
     private @NonNull TraderState state_;
     private @NonNull Basket basketSold_;
@@ -63,19 +63,6 @@ final class TraderWithSettings implements Trader, TraderSettings {
     }
 
     // Internal methods
-
-    /**
-     * Returns the economy index of {@code this} trader.
-     *
-     * <p>
-     *  It is the position of {@code this} trader in the list containing all traders in the
-     *  {@link Economy}.
-     * </p>
-     */
-    @Pure
-    int getEconomyIndex(@ReadOnly TraderWithSettings this) {
-        return economyIndex_;
-    }
 
     /**
      * Sets the value of the <b>economy index</b> field.
@@ -213,6 +200,12 @@ final class TraderWithSettings implements Trader, TraderSettings {
     @Pure
     public @NonNull TraderSettings getSettings(@ReadOnly TraderWithSettings this) {
         return this;
+    }
+
+    @Override
+    @Pure
+    public int getEconomyIndex(@ReadOnly TraderWithSettings this) {
+        return economyIndex_;
     }
 
     @Override

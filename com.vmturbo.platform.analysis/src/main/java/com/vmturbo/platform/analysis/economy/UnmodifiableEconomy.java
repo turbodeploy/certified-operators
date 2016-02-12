@@ -64,25 +64,6 @@ public interface UnmodifiableEconomy {
     @NonNull @ReadOnly Market getMarket(@ReadOnly UnmodifiableEconomy this,@NonNull BuyerParticipation participation);
 
     /**
-     * Returns the <em>economy index</em> of the given trader.
-     *
-     * <p>
-     *  The economy index of a trader is its position in the {@link #getTraders() traders list} and
-     *  it's non-increasing. It will be decreased iff a trader with lower economy index is removed
-     *  from the economy.
-     * </p>
-     *
-     * <p>
-     *  This is an O(1) operation.
-     * </p>
-     *
-     * @param trader The trader whose economy index should be returned.
-     * @return The economy index of the given trader. It's non-negative.
-     */
-    @Pure
-    int getIndex(@ReadOnly UnmodifiableEconomy this,@NonNull Trader trader);
-
-    /**
      * Returns an unmodifiable list of the {@link CommodityBought commodities} the given
      * {@link BuyerParticipation buyer participation} is buying in {@code this} economy.
      *

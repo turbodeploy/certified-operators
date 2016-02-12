@@ -278,7 +278,7 @@ public class EconomyTest {
         @Test
         public final void testGetIndex_Trader() {
             for (int i = 0 ; i < economy.getTraders().size() ; ++i) {
-                assertEquals(i, economy.getIndex(economy.getTraders().get(i)));
+                assertEquals(i, economy.getTraders().get(i).getEconomyIndex());
                 // This also implicitly checks that all traders in economy are distinct.
             }
         }

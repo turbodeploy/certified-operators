@@ -119,7 +119,7 @@ public final class EdeCommon {
         public void accept(@NonNull Trader seller) {
             // if we cannot move to this seller and it is not the current supplier, skip it
             if (seller != supplier_
-                && time_ < state_.get(economy_.getIndex(seller)).getMoveToOnlyAfterThisTime()) {
+                && time_ < state_.get(seller.getEconomyIndex()).getMoveToOnlyAfterThisTime()) {
                 return;
             }
 

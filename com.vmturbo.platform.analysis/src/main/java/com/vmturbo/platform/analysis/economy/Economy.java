@@ -97,12 +97,6 @@ public final class Economy implements UnmodifiableEconomy {
     }
 
     @Override
-    @Pure
-    public int getIndex(@ReadOnly Economy this, @NonNull @ReadOnly Trader trader) {
-        return ((TraderWithSettings)trader).getEconomyIndex();
-    }
-
-    @Override
     @SideEffectFree
     public @NonNull @ReadOnly List<@NonNull CommodityBought> getCommoditiesBought(@ReadOnly Economy this,
                                                @NonNull @ReadOnly BuyerParticipation participation) {
@@ -219,7 +213,7 @@ public final class Economy implements UnmodifiableEconomy {
 
         // Update economy indices of all traders and remove trader from list.
         for (TraderWithSettings trader : traders_) {
-            if (trader.getEconomyIndex() > getIndex(traderToRemove)) {
+            if (trader.getEconomyIndex() > traderToRemove.getEconomyIndex()) {
                 trader.setEconomyIndex(trader.getEconomyIndex() - 1);
             }
         }

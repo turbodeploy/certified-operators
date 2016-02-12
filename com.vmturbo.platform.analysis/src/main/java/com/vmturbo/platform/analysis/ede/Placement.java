@@ -53,11 +53,11 @@ public class Placement {
                     continue;
                 }
                 final @Nullable Trader currentSupplier = buyerParticipation.getSupplier();
-                final int buyerIndex = economy.getIndex(buyer);
+                final int buyerIndex = buyer.getEconomyIndex();
                 // check if the buyer cannot move, or cannot move out of current supplier
                 if (timeMiliSec < state.get(buyerIndex).getMoveOnlyAfterThisTime()
                     || (currentSupplier != null
-                        && timeMiliSec < state.get(economy.getIndex(currentSupplier)).getMoveFromOnlyAfterThisTime())) {
+                        && timeMiliSec < state.get(currentSupplier.getEconomyIndex()).getMoveFromOnlyAfterThisTime())) {
                     continue;
                 }
 
@@ -84,7 +84,7 @@ public class Placement {
                     // update the economy to reflect the decision
                     actions.get(actions.size()-1).take();
                     // update the state
-                    int newSellerIndex = economy.getIndex(cheapestSeller);
+                    int newSellerIndex = cheapestSeller.getEconomyIndex();
                     // TODO (Apostolos): use economy.getSettings().getPlacementInterval() below
                     long newTime = timeMiliSec + 1200000; // wait two 10 min intervals
                     state.get(newSellerIndex).setSuspendOnlyAfterThisTime(newTime);

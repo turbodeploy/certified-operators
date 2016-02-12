@@ -78,7 +78,7 @@ public class MoveBase {
             @NonNull Trader trader, @NonNull Function<@NonNull Trader, @NonNull String> oid,
                                     @NonNull Function<@NonNull Trader, @NonNull String> name) {
         builder.append(name.apply(trader)).append(" [").append(oid.apply(trader)).append("] (#")
-               .append(economy.getIndex(trader)).append(")");
+               .append(trader.getEconomyIndex()).append(")");
     }
 
 } // end TargetedAction class
