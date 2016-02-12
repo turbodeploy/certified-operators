@@ -69,7 +69,7 @@ public class Deactivate extends StateChangeBase implements Action { // inheritan
                                        @NonNull IntFunction<@NonNull String> commodityType,
                                        @NonNull IntFunction<@NonNull String> traderType) {
         return new StringBuilder()
-            .append("Because of insufficiend demand for ").append(getSourceMarket().getBasket())
+            .append("Because of insufficient demand for ").append(getSourceMarket().getBasket())
             .append(".").toString(); // TODO: print basket in human-readable form.
     }
 } // end Deactivate class
