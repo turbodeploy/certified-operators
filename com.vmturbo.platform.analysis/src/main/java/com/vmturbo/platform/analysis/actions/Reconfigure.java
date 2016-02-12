@@ -33,6 +33,7 @@ public class Reconfigure extends MoveBase implements Action { // inheritance for
     public @NonNull String serialize(@NonNull Function<@NonNull Trader, @NonNull String> oid) {
         return new StringBuilder()
             // TODO: is it enough to send the buyer or is the basket needed as well?
+            // TODO: How do we serialize null sources?
             .append("<action type=\"reconfigure\" target=\"").append(oid.apply(getTarget().getBuyer()))
             .append("\" source=\"").append(oid.apply(getSource()))
             .append("\" />")
