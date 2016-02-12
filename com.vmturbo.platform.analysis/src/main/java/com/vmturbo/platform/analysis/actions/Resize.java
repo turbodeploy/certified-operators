@@ -95,21 +95,21 @@ public class Resize implements Action {
     }
 
     @Override
-    public @NonNull String debugDescription(@NonNull Function<@NonNull Trader, @NonNull String> oid,
+    public @NonNull String debugDescription(@NonNull Function<@NonNull Trader, @NonNull String> uuid,
                                             @NonNull Function<@NonNull Trader, @NonNull String> name,
                                             @NonNull IntFunction<@NonNull String> commodityType,
                                             @NonNull IntFunction<@NonNull String> traderType) {
         return new StringBuilder()
             .append("Resize ").append(commodityType.apply(getResizedCommodity().getType()))
             .append(" of ").append(name.apply(getSellingTrader()))
-            .append(" (").append(oid.apply(getSellingTrader())).append(") ")
+            .append(" (").append(uuid.apply(getSellingTrader())).append(") ")
             .append(getNewCapacity() > getOldCapacity() ? "up" : "down")
             .append(" from ").append(getOldCapacity()).append(" to ").append(getNewCapacity())
             .append(".").toString();
     }
 
     @Override
-    public @NonNull String debugReason(@NonNull Function<@NonNull Trader, @NonNull String> oid,
+    public @NonNull String debugReason(@NonNull Function<@NonNull Trader, @NonNull String> uuid,
                                        @NonNull Function<@NonNull Trader, @NonNull String> name,
                                        @NonNull IntFunction<@NonNull String> commodityType,
                                        @NonNull IntFunction<@NonNull String> traderType) {

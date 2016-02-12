@@ -57,14 +57,14 @@ public interface Action {
      *  The returned message may or may not be similar to what the user will see.
      * <p>
      *
-     * @param oid A function from trader to its object ID.
+     * @param uuid A function from trader to its UUID.
      * @param name A function from trader to its human-readable name.
      * @param commodityType A function from numeric to human-readable commodity type.
      * @param traderType A function from numeric to human-readable trader type.
      * @return A human-readable description of {@code this} action.
      */
     @Pure
-    @NonNull String debugDescription(@NonNull Function<@NonNull Trader, @NonNull String> oid,
+    @NonNull String debugDescription(@NonNull Function<@NonNull Trader, @NonNull String> uuid,
                                      @NonNull Function<@NonNull Trader, @NonNull String> name,
                                      @NonNull IntFunction<@NonNull String> commodityType,
                                      @NonNull IntFunction<@NonNull String> traderType);
@@ -75,14 +75,14 @@ public interface Action {
      *  The returned message may or may not be similar to what the user will see.
      * <p>
      *
-     * @param oid A function from trader to its object ID.
+     * @param uuid A function from trader to its UUID.
      * @param name A function from trader to its human-readable name.
      * @param commodityType A function from numeric to human-readable commodity type.
      * @param traderType A function from numeric to human-readable trader type.
      * @return A human-readable reason for {@code this} action.
      */
     @Pure
-    @NonNull String debugReason(@NonNull Function<@NonNull Trader, @NonNull String> oid,
+    @NonNull String debugReason(@NonNull Function<@NonNull Trader, @NonNull String> uuid,
                                 @NonNull Function<@NonNull Trader, @NonNull String> name,
                                 @NonNull IntFunction<@NonNull String> commodityType,
                                 @NonNull IntFunction<@NonNull String> traderType);

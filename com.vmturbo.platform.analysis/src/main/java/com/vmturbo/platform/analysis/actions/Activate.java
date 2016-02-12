@@ -47,17 +47,17 @@ public class Activate extends StateChangeBase implements Action { // inheritance
 
     // TODO: update description and reason when we create the corresponding matrix.
     @Override
-    public @NonNull String debugDescription(@NonNull Function<@NonNull Trader, @NonNull String> oid,
+    public @NonNull String debugDescription(@NonNull Function<@NonNull Trader, @NonNull String> uuid,
                                             @NonNull Function<@NonNull Trader, @NonNull String> name,
                                             @NonNull IntFunction<@NonNull String> commodityType,
                                             @NonNull IntFunction<@NonNull String> traderType) {
         return new StringBuilder()
             .append("Activate ").append(name.apply(getTarget()))
-            .append(" (").append(oid.apply(getTarget())).append(").").toString();
+            .append(" (").append(uuid.apply(getTarget())).append(").").toString();
     }
 
     @Override
-    public @NonNull String debugReason(@NonNull Function<@NonNull Trader, @NonNull String> oid,
+    public @NonNull String debugReason(@NonNull Function<@NonNull Trader, @NonNull String> uuid,
                                        @NonNull Function<@NonNull Trader, @NonNull String> name,
                                        @NonNull IntFunction<@NonNull String> commodityType,
                                        @NonNull IntFunction<@NonNull String> traderType) {

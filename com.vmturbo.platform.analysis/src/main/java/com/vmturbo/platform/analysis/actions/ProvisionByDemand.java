@@ -85,7 +85,7 @@ public class ProvisionByDemand implements Action {
     }
 
     @Override
-    public @NonNull String debugDescription(@NonNull Function<@NonNull Trader, @NonNull String> oid,
+    public @NonNull String debugDescription(@NonNull Function<@NonNull Trader, @NonNull String> uuid,
                                             @NonNull Function<@NonNull Trader, @NonNull String> name,
                                             @NonNull IntFunction<@NonNull String> commodityType,
                                             @NonNull IntFunction<@NonNull String> traderType) {
@@ -95,7 +95,7 @@ public class ProvisionByDemand implements Action {
     }
 
     @Override
-    public @NonNull String debugReason(@NonNull Function<@NonNull Trader, @NonNull String> oid,
+    public @NonNull String debugReason(@NonNull Function<@NonNull Trader, @NonNull String> uuid,
                                        @NonNull Function<@NonNull Trader, @NonNull String> name,
                                        @NonNull IntFunction<@NonNull String> commodityType,
                                        @NonNull IntFunction<@NonNull String> traderType) {

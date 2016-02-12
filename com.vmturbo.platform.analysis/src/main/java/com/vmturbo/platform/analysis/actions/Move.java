@@ -75,7 +75,7 @@ public class Move extends MoveBase implements Action { // inheritance for code r
     }
 
     @Override
-    public @NonNull String debugDescription(@NonNull Function<@NonNull Trader, @NonNull String> oid,
+    public @NonNull String debugDescription(@NonNull Function<@NonNull Trader, @NonNull String> uuid,
                                             @NonNull Function<@NonNull Trader, @NonNull String> name,
                                             @NonNull IntFunction<@NonNull String> commodityType,
                                             @NonNull IntFunction<@NonNull String> traderType) {
@@ -84,25 +84,25 @@ public class Move extends MoveBase implements Action { // inheritance for code r
         if (getSource() != null) {
             if (destination_ != null) { // Move
                 sb.append("Move ");
-                appendTrader(sb, getEconomy(), getTarget().getBuyer(), oid, name);
+                appendTrader(sb, getEconomy(), getTarget().getBuyer(), uuid, name);
                 sb.append(" from ");
-                appendTrader(sb, getEconomy(), getSource(), oid, name);
+                appendTrader(sb, getEconomy(), getSource(), uuid, name);
                 sb.append(" to ");
-                appendTrader(sb, getEconomy(), getDestination(), oid, name);
+                appendTrader(sb, getEconomy(), getDestination(), uuid, name);
                 sb.append(".");
             } else {// Unplace
                 sb.append("Unplace ");
-                appendTrader(sb, getEconomy(), getTarget().getBuyer(), oid, name);
+                appendTrader(sb, getEconomy(), getTarget().getBuyer(), uuid, name);
                 sb.append(" from ");
-                appendTrader(sb, getEconomy(), getSource(), oid, name);
+                appendTrader(sb, getEconomy(), getSource(), uuid, name);
                 sb.append(".");
             }
         } else {
             if (destination_ != null) { // Start
                 sb.append("Start ");
-                appendTrader(sb, getEconomy(), getTarget().getBuyer(), oid, name);
+                appendTrader(sb, getEconomy(), getTarget().getBuyer(), uuid, name);
                 sb.append(" on ");
-                appendTrader(sb, getEconomy(), getDestination(), oid, name);
+                appendTrader(sb, getEconomy(), getDestination(), uuid, name);
                 sb.append(".");
             } else {
                 return "Error in post-processing actions! This action should have been removed!";
@@ -113,7 +113,7 @@ public class Move extends MoveBase implements Action { // inheritance for code r
     }
 
     @Override
-    public @NonNull String debugReason(@NonNull Function<@NonNull Trader, @NonNull String> oid,
+    public @NonNull String debugReason(@NonNull Function<@NonNull Trader, @NonNull String> uuid,
                                        @NonNull Function<@NonNull Trader, @NonNull String> name,
                                        @NonNull IntFunction<@NonNull String> commodityType,
                                        @NonNull IntFunction<@NonNull String> traderType) {
@@ -124,13 +124,13 @@ public class Move extends MoveBase implements Action { // inheritance for code r
                 return "To provide a better placement."; // TODO: cover move conditions here!
             } else { // Unplace
                 sb.append("To suspend ");
-                appendTrader(sb, getEconomy(), getSource(), oid, name);
+                appendTrader(sb, getEconomy(), getSource(), uuid, name);
                 sb.append(".");
             }
         } else {
             if (destination_ != null) { // Start
                 sb.append("Because ");
-                appendTrader(sb, getEconomy(), getTarget().getBuyer(), oid, name);
+                appendTrader(sb, getEconomy(), getTarget().getBuyer(), uuid, name);
                 sb.append(" was previously unplaced");
             } else {
                 return "Error in post-processing actions! This action should have been removed!";
@@ -159,6 +159,7 @@ public class Move extends MoveBase implements Action { // inheritance for code r
      * @param traderToUpdate The seller whose commodities sold will be updated.
      * @param binaryOperator A binary operator (old quantity sold, quantity bought) -> new quantity sold.
      */
+    // TODO: should we cover moves of inactive traders?
     static void updateQuantities(@NonNull Economy economy, @NonNull BuyerParticipation participation,
                                  @Nullable Trader traderToUpdate, @NonNull DoubleBinaryOperator binaryOperator) {
         @NonNull Basket basketBought = economy.getMarket(participation).getBasket();

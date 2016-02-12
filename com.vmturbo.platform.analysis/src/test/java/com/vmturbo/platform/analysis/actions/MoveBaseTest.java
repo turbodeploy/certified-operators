@@ -21,6 +21,9 @@ import junitparams.naming.TestCaseName;
  */
 @RunWith(JUnitParamsRunner.class)
 public class MoveBaseTest {
+    // Fields
+    private static final Basket EMPTY = new Basket();
+
     // Methods
 
     @Test
@@ -37,11 +40,11 @@ public class MoveBaseTest {
     @SuppressWarnings("unused") // it is used reflectively
     private static Object[] parametersForTestMoveBase() {
         Economy e1 = new Economy();
-        BuyerParticipation p1 = e1.addBasketBought(e1.addTrader(0, TraderState.ACTIVE, new Basket()), new Basket());
+        BuyerParticipation p1 = e1.addBasketBought(e1.addTrader(0, TraderState.ACTIVE, EMPTY), EMPTY);
 
         Economy e2 = new Economy();
-        BuyerParticipation p2 = e2.addBasketBought(e2.addTrader(0, TraderState.ACTIVE, new Basket()), new Basket());
-        p2.move(e2.addTrader(1, TraderState.ACTIVE, new Basket()));
+        BuyerParticipation p2 = e2.addBasketBought(e2.addTrader(0, TraderState.ACTIVE, EMPTY), EMPTY);
+        p2.move(e2.addTrader(1, TraderState.ACTIVE, EMPTY));
 
         return new Object[][]{{e1,p1},{e2,p2}};
     }

@@ -112,18 +112,18 @@ public class ProvisionBySupply implements Action {
     }
 
     @Override
-    public @NonNull String debugDescription(@NonNull Function<@NonNull Trader, @NonNull String> oid,
+    public @NonNull String debugDescription(@NonNull Function<@NonNull Trader, @NonNull String> uuid,
                                             @NonNull Function<@NonNull Trader, @NonNull String> name,
                                             @NonNull IntFunction<@NonNull String> commodityType,
                                             @NonNull IntFunction<@NonNull String> traderType) {
         return new StringBuilder()
             .append("Provision a new ").append(traderType.apply(getModelSeller().getType()))
             .append(" similar to ").append(name.apply(getModelSeller()))
-            .append(" (").append(oid.apply(getModelSeller())).append(").").toString();
+            .append(" (").append(uuid.apply(getModelSeller())).append(").").toString();
     }
 
     @Override
-    public @NonNull String debugReason(@NonNull Function<@NonNull Trader, @NonNull String> oid,
+    public @NonNull String debugReason(@NonNull Function<@NonNull Trader, @NonNull String> uuid,
                                        @NonNull Function<@NonNull Trader, @NonNull String> name,
                                        @NonNull IntFunction<@NonNull String> commodityType,
                                        @NonNull IntFunction<@NonNull String> traderType) {
