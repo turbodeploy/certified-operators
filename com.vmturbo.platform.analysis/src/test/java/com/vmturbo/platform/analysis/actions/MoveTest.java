@@ -3,9 +3,15 @@ package com.vmturbo.platform.analysis.actions;
 import static org.junit.Assert.*;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 import java.util.function.ToDoubleFunction;
 
+import org.checkerframework.checker.nullness.qual.NonNull;
+import org.checkerframework.checker.nullness.qual.Nullable;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -17,6 +23,8 @@ import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import junitparams.JUnitParamsRunner;
+import junitparams.Parameters;
+import junitparams.naming.TestCaseName;
 
 /**
  * A test case for the {@link Move} class.
@@ -41,6 +49,74 @@ public final class MoveTest {
     private static final Basket BASKET2 = new Basket(CPU, DRS, LAT1, MEM);
 
     // Methods
+
+    @Test
+    @Parameters
+    @TestCaseName("Test #{index}: new Move({0},{1},{2})")
+    public final void testMove(@NonNull Economy economy, @NonNull BuyerParticipation target, @Nullable Trader destination) {
+        Move move = new Move(economy,target,destination);
+
+        assertSame(economy, move.getEconomy());
+        assertSame(target, move.getTarget());
+        assertSame(target.getSupplier(), move.getSource());
+        assertSame(destination, move.getDestination());
+    }
+
+    @SuppressWarnings("unused") // it is used reflectively
+    private static Object[] parametersForTestMove() {
+        Economy e1 = new Economy();
+        BuyerParticipation p1 = e1.addBasketBought(e1.addTrader(0, TraderState.ACTIVE, EMPTY), EMPTY);
+
+        Economy e2 = new Economy();
+        BuyerParticipation p2 = e2.addBasketBought(e2.addTrader(0, TraderState.ACTIVE, EMPTY), EMPTY);
+        p2.move(e2.addTrader(1, TraderState.ACTIVE, EMPTY));
+
+        Economy e3 = new Economy();
+        BuyerParticipation p3 = e3.addBasketBought(e3.addTrader(0, TraderState.ACTIVE, EMPTY), EMPTY);
+        Trader t3 = e3.addTrader(0, TraderState.ACTIVE, EMPTY);
+
+        Economy e4 = new Economy();
+        BuyerParticipation p4 = e4.addBasketBought(e4.addTrader(0, TraderState.ACTIVE, EMPTY), EMPTY);
+        p4.move(e4.addTrader(0, TraderState.ACTIVE, EMPTY));
+        Trader t4 = e4.addTrader(0, TraderState.ACTIVE, EMPTY);
+
+        return new Object[][]{{e1,p1,null},{e2,p2,null},{e3,p3,t3},{e4,p4,t4}};
+    }
+
+    @Test
+    @Parameters
+    @TestCaseName("Test #{index}: {0}.serialize({1}) == {2}")
+    public final void testSerialize(@NonNull Move move,
+            @NonNull Function<@NonNull Trader, @NonNull String> oid, @NonNull String serialized) {
+        assertEquals(move.serialize(oid), serialized);
+    }
+
+    // TODO (Vaptistis): add more tests once semantics are clear.
+    @SuppressWarnings("unused") // it is used reflectively
+    private static Object[] parametersForTestSerialize() {
+        @NonNull Map<@NonNull Trader, @NonNull String> oids = new HashMap<>();
+        @NonNull Function<@NonNull Trader, @NonNull String> oid = oids::get;
+
+        Economy e1 = new Economy();
+        Trader t11 = e1.addTrader(0, TraderState.ACTIVE, EMPTY);
+        BuyerParticipation bp1 = e1.addBasketBought(t11, EMPTY);
+        Trader t12 = e1.addTrader(0, TraderState.ACTIVE, EMPTY);
+        bp1.move(t12);
+        Trader t21 = e1.addTrader(0, TraderState.INACTIVE, EMPTY);
+        BuyerParticipation bp2 = e1.addBasketBought(t21, EMPTY);
+        Trader t22 = e1.addTrader(0, TraderState.INACTIVE, EMPTY);
+        bp2.move(t22);
+
+        oids.put(t11, "id1");
+        oids.put(t12, "id2");
+        oids.put(t21, "id3");
+        oids.put(t22, "id4");
+
+        return new Object[][]{
+            {new Move(e1,bp1,t21),oid,"<action type=\"move\" target=\"id1\" source=\"id2\" destination=\"id3\" />"},
+            {new Move(e1,bp2,t11),oid,"<action type=\"move\" target=\"id3\" source=\"id4\" destination=\"id1\" />"},
+        };
+    }
 
     // TODO: refactor as parameterized test
     @Test // No current supplier case
@@ -206,4 +282,17 @@ public final class MoveTest {
         assertEquals(150, pm1.getCommoditySold(LAT2).getQuantity(), 0f);
         assertEquals(0, pm2.getCommoditySold(LAT2).getQuantity(), 0f);
     }
+
+    @Test
+    @Ignore
+    public final void testDebugDescription() {
+        fail("Not yet implemented"); // TODO
+    }
+
+    @Test
+    @Ignore
+    public final void testDebugReason() {
+        fail("Not yet implemented"); // TODO
+    }
+
 } // end MoveTest class
