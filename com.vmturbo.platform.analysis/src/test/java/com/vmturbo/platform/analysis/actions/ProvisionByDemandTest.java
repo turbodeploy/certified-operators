@@ -97,7 +97,7 @@ public class ProvisionByDemandTest {
         final int oldSize = economy.getTraders().size();
         @NonNull ProvisionByDemand provision = new ProvisionByDemand(economy, modelBuyer);
 
-        provision.take();
+        assertSame(provision, provision.take());
         assertNotNull(provision.getProvisionedSeller());
         assertTrue(provision.getProvisionedSeller().getState().isActive());
         assertTrue(economy.getTraders().contains(provision.getProvisionedSeller()));
@@ -105,7 +105,7 @@ public class ProvisionByDemandTest {
         assertTrue(EdeCommon.quote(modelBuyer, economy.getMarket(modelBuyer).getBasket(),
             null, provision.getProvisionedSeller()) < Double.POSITIVE_INFINITY); // assert that it can fit.
 
-        provision.rollback();
+        assertSame(provision, provision.rollback());
         assertNull(provision.getProvisionedSeller());
         assertFalse(economy.getTraders().contains(provision.getProvisionedSeller()));
         assertEquals(oldSize, economy.getTraders().size());

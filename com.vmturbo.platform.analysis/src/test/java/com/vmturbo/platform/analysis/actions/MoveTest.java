@@ -194,13 +194,13 @@ public final class MoveTest {
 
         Action moveToPm2 = new Move(economy, part2, pm2);
 
-        moveToPm2.take();
+        assertSame(moveToPm2, moveToPm2.take());
         assertEquals(20, pm1.getCommoditySold(LAT1).getQuantity(), 0f);
         assertEquals(30, pm2.getCommoditySold(LAT1).getQuantity(), 0f);
         assertEquals(150, pm1.getCommoditySold(LAT2).getQuantity(), 0f);
         assertEquals(100, pm2.getCommoditySold(LAT2).getQuantity(), 0f);
 
-        moveToPm2.rollback();
+        assertSame(moveToPm2, moveToPm2.rollback());
         assertEquals(30, pm1.getCommoditySold(LAT1).getQuantity(), 0f);
         assertEquals(15, pm2.getCommoditySold(LAT1).getQuantity(), 0f);
         assertEquals(150, pm1.getCommoditySold(LAT2).getQuantity(), 0f);

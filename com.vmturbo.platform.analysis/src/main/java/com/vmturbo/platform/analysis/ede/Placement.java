@@ -48,8 +48,7 @@ public class Placement {
                 if (!buyer.getSettings().isMovable())
                     continue;
                 if (sellers.isEmpty()) {
-                    actions.add(new Reconfigure(economy, buyerParticipation));
-                    actions.get(actions.size()-1).take();
+                    actions.add(new Reconfigure(economy, buyerParticipation).take());
                     continue;
                 }
                 final @Nullable Trader currentSupplier = buyerParticipation.getSupplier();
@@ -79,10 +78,9 @@ public class Placement {
                 // TODO: decide how much cheaper the new supplier should be to decide to move
                 if (currentQuote > cheapestQuote) { // + market.getBasket().size() * 2.0) {
                     //TODO (Apostolos): use economy.getSettings().getQuoteFactor() above
-                    // create recommendation and add it to the result list
-                    actions.add(new Move(economy,buyerParticipation,cheapestSeller));
-                    // update the economy to reflect the decision
-                    actions.get(actions.size()-1).take();
+                    // create recommendation, add it to the result list and  update the economy to
+                    // reflect the decision
+                    actions.add(new Move(economy,buyerParticipation,cheapestSeller).take());
                     // update the state
                     int newSellerIndex = cheapestSeller.getEconomyIndex();
                     // TODO (Apostolos): use economy.getSettings().getPlacementInterval() below

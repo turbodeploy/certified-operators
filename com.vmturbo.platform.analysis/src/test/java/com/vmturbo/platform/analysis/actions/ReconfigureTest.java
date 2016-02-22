@@ -83,9 +83,10 @@ public class ReconfigureTest {
     @TestCaseName("Test #{index}: new Reconfigure({0},{1}).take()")
     public final void testTake(@NonNull Economy economy, @NonNull BuyerParticipation target) {
         Trader oldSupplier = target.getSupplier();
+        @NonNull Reconfigure reconfiguration = new Reconfigure(economy, target);
         // TODO: take a copy of the economy and assert it remained unchanged when copying gets
         // implemented
-        new Reconfigure(economy, target).take();
+        assertSame(reconfiguration, reconfiguration.take());
         assertSame(oldSupplier, target.getSupplier());
     }
 
@@ -94,9 +95,10 @@ public class ReconfigureTest {
     @TestCaseName("Test #{index}: new Reconfigure({0},{1}).rollback()")
     public final void testRollback(@NonNull Economy economy, @NonNull BuyerParticipation target) {
         Trader oldSupplier = target.getSupplier();
+        @NonNull Reconfigure reconfiguration = new Reconfigure(economy, target);
         // TODO: take a copy of the economy and assert it remained unchanged when copying gets
         // implemented
-        new Reconfigure(economy, target).rollback();
+        assertSame(reconfiguration, reconfiguration.rollback());
         assertSame(oldSupplier, target.getSupplier());
     }
 

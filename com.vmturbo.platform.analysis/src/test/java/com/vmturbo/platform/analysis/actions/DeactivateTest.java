@@ -82,7 +82,9 @@ public class DeactivateTest {
     @Parameters(method = "parametersForTestDeactivate")
     @TestCaseName("Test #{index}: new Deactivate({0},{1}).take()")
     public final void testTake(@NonNull Trader target, @NonNull Market sourceMarket) {
-        new Deactivate(target,sourceMarket).take();
+        @NonNull Deactivate deactivation = new Deactivate(target,sourceMarket);
+
+        assertSame(deactivation, deactivation.take());
         assertFalse(target.getState().isActive());
     }
 
@@ -90,8 +92,9 @@ public class DeactivateTest {
     @Parameters(method = "parametersForTestDeactivate")
     @TestCaseName("Test #{index}: new Deactivate({0},{1}).rollback()")
     public final void testRollback(@NonNull Trader target, @NonNull Market sourceMarket) {
+        @NonNull Deactivate deactivation = new Deactivate(target,sourceMarket);
         // TODO: normally, we should take the action before rolling back...
-        new Deactivate(target,sourceMarket).rollback();
+        assertSame(deactivation, deactivation.rollback());
         assertTrue(target.getState().isActive());
     }
 

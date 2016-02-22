@@ -39,13 +39,15 @@ public class Activate extends StateChangeBase implements Action { // inheritance
     }
 
     @Override
-    public void take() {
+    public @NonNull Activate take() {
         getTarget().changeState(TraderState.ACTIVE);
+        return this;
     }
 
     @Override
-    public void rollback() {
+    public @NonNull Activate rollback() {
         getTarget().changeState(TraderState.INACTIVE);
+        return this;
     }
 
     // TODO: update description and reason when we create the corresponding matrix.

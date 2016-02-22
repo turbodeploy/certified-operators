@@ -77,7 +77,7 @@ public class ProvisionByDemand implements Action {
     }
 
     @Override
-    public void take() {
+    public @NonNull Action take() {
         @NonNull Basket basketSold = getEconomy().getMarket(getModelBuyer()).getBasket();
         provisionedSeller_ = getEconomy().addTrader(0 /* what type should it have? */,
             TraderState.ACTIVE, basketSold /*, what should it buy? */);
@@ -87,12 +87,16 @@ public class ProvisionByDemand implements Action {
                 Math.max(getModelBuyer().getQuantity(i), getModelBuyer().getPeakQuantity(i)));
             // TODO (Vaptistis): use desired state once we have EconomySettings
         }
+
+        return this;
     }
 
     @Override
-    public void rollback() {
+    public @NonNull Action rollback() {
         getEconomy().removeTrader(provisionedSeller_);
         provisionedSeller_ = null;
+
+        return this;
     }
 
     @Override

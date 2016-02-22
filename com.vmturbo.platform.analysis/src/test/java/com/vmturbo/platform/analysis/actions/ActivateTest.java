@@ -82,7 +82,9 @@ public class ActivateTest {
     @Parameters(method = "parametersForTestActivate")
     @TestCaseName("Test #{index}: new Activate({0},{1}).take()")
     public final void testTake(@NonNull Trader target, @NonNull Market sourceMarket) {
-        new Activate(target,sourceMarket).take();
+        @NonNull Activate activation = new Activate(target,sourceMarket);
+
+        assertSame(activation, activation.take());
         assertTrue(target.getState().isActive());
     }
 
@@ -90,8 +92,9 @@ public class ActivateTest {
     @Parameters(method = "parametersForTestActivate")
     @TestCaseName("Test #{index}: new Activate({0},{1}).rollback()")
     public final void testRollback(@NonNull Trader target, @NonNull Market sourceMarket) {
+        @NonNull Activate activation = new Activate(target,sourceMarket);
         // TODO: normally, we should take the action before rolling back...
-        new Activate(target,sourceMarket).rollback();
+        assertSame(activation, activation.rollback());
         assertFalse(target.getState().isActive());
     }
 

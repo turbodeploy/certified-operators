@@ -75,7 +75,7 @@ public class ProvisionBySupply implements Action {
     }
 
     @Override
-    public void take() {
+    public @NonNull Action take() {
         provisionedSeller_ = getEconomy().addTrader(getModelSeller().getType(), TraderState.ACTIVE,
             getModelSeller().getBasketSold());
 
@@ -107,12 +107,16 @@ public class ProvisionBySupply implements Action {
             getProvisionedSeller().getCommoditiesSold().get(i).getSettings().setPriceFunction(
                 getModelSeller().getCommoditiesSold().get(i).getSettings().getPriceFunction());
         }
+
+        return this;
     }
 
     @Override
-    public void rollback() {
+    public @NonNull Action rollback() {
         getEconomy().removeTrader(provisionedSeller_);
         provisionedSeller_ = null;
+
+        return this;
     }
 
     @Override

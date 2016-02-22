@@ -38,8 +38,10 @@ public interface Action {
      *  An action can be taken only once, unless it is rolled back in which case it can be taken
      *  again.
      * </p>
+     *
+     * @return {@code this}
      */
-    void take();
+    @NonNull Action take();
 
     /**
      * Rolls back {@code this} action on a specified {@link Economy}.
@@ -47,8 +49,10 @@ public interface Action {
      * <p>
      *  An action can only be rolled back after it is taken and only once for each time it is taken.
      * </p>
+     *
+     * @return {@code this}
      */
-    void rollback();
+    @NonNull Action rollback();
 
     /**
      * Returns a human-readable description of {@code this} action for debugging purposes.

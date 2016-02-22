@@ -109,7 +109,7 @@ public class ProvisionBySupplyTest {
         final int oldSize = economy.getTraders().size();
         @NonNull ProvisionBySupply provision = new ProvisionBySupply(economy, modelSeller);
 
-        provision.take();
+        assertSame(provision, provision.take());
         assertNotNull(provision.getProvisionedSeller());
         assertTrue(provision.getProvisionedSeller().getState().isActive());
         assertTrue(economy.getTraders().contains(provision.getProvisionedSeller()));
@@ -117,7 +117,7 @@ public class ProvisionBySupplyTest {
         // TODO: test that provisioned seller is indeed identical to the model one when Trader
         // equality testing is implemented.
 
-        provision.rollback();
+        assertSame(provision, provision.rollback());
         assertNull(provision.getProvisionedSeller());
         assertFalse(economy.getTraders().contains(provision.getProvisionedSeller()));
         assertEquals(oldSize, economy.getTraders().size());

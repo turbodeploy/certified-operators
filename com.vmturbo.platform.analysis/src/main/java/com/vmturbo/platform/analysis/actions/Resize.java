@@ -87,13 +87,15 @@ public class Resize implements Action {
     }
 
     @Override
-    public void take() {
+    public @NonNull Resize take() {
         getSellingTrader().getCommoditySold(getResizedCommodity()).setCapacity(getNewCapacity());
+        return this;
     }
 
     @Override
-    public void rollback() {
+    public @NonNull Resize rollback() {
         getSellingTrader().getCommoditySold(getResizedCommodity()).setCapacity(getOldCapacity());
+        return this;
     }
 
     @Override
