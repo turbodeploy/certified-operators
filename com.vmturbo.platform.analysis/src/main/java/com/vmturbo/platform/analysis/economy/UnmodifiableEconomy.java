@@ -3,8 +3,6 @@ package com.vmturbo.platform.analysis.economy;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-
 import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -123,40 +121,6 @@ public interface UnmodifiableEconomy {
      */
     @Pure
     @NonNull @ReadOnly List<@NonNull @ReadOnly Trader> getTraders(@ReadOnly UnmodifiableEconomy this);
-
-    /**
-     * Returns an unmodifiable set of the given trader's customers.
-     *
-     * <p>
-     *  A trader is a customer of another trader iff the former currently buys any subset of the
-     *  commodities the latter is selling.
-     * </p>
-     *
-     * @see #getCustomerParticipations(Trader)
-     */
-    @Pure
-    @NonNull @ReadOnly Set<@NonNull @ReadOnly Trader> getCustomers(@ReadOnly UnmodifiableEconomy this,
-                                                                   @NonNull @ReadOnly Trader trader);
-
-    /**
-     * Returns an unmodifiable list of the given trader's customer participations as a list.
-     *
-     * <p>
-     *  A customer participation of a trader, is a buyer participation that has the trader as its
-     *  supplier.
-     * </p>
-     *
-     * <p>
-     *  This is similar to {@link #getCustomers(Trader)}, except that if a buyer buys multiple times
-     *  from the same seller, he will appear only once as a customer, but will have both of his
-     *  buyer participations appear as customer participations.
-     * </p>
-     *
-     * @see #getCustomers(Trader)
-     */
-    @Pure
-    @NonNull @ReadOnly List<@NonNull BuyerParticipation> getCustomerParticipations(@ReadOnly UnmodifiableEconomy this,
-                                                                                   @NonNull @ReadOnly Trader trader);
 
     /**
      * Returns an unmodifiable list of the given trader's suppliers.

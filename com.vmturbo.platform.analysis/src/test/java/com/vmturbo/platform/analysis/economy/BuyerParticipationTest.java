@@ -234,12 +234,12 @@ public class BuyerParticipationTest {
                 if (i > 0) {
                     TraderWithSettings oldSupplier = new TraderWithSettings(0, 0, TraderState.ACTIVE, EMPTY);
                     participation.setSupplier(oldSupplier);
-                    oldSupplier.getCustomers().add(participation);
+                    oldSupplier.getModifiableCustomers().add(participation);
 
                     if (i > 1) {
                         BuyerParticipation auxiliary = new BuyerParticipation(trader1, 1);
                         auxiliary.setSupplier(oldSupplier);
-                        oldSupplier.getCustomers().add(i == 2 ? 0 : 1, auxiliary);
+                        oldSupplier.getModifiableCustomers().add(i == 2 ? 0 : 1, auxiliary);
                     }
                 }
 
@@ -248,7 +248,7 @@ public class BuyerParticipationTest {
                 for (int k = 1 ; k < j ; ++k) {
                     BuyerParticipation auxiliary = new BuyerParticipation(trader1, 1);
                     auxiliary.setSupplier(newSupplier);
-                    newSupplier.getCustomers().add(auxiliary);
+                    newSupplier.getModifiableCustomers().add(auxiliary);
                 }
 
                 parameters.add(new Object[]{participation,newSupplier});

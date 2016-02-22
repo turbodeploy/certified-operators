@@ -17,7 +17,6 @@ final class TraderWithSettings extends Trader implements TraderSettings {
     // Internal fields
     private final @NonNull Map<@NonNull BuyerParticipation,@NonNull Market> marketsAsBuyer_ = new LinkedHashMap<>();
     private final @NonNull List<Market> marketsAsSeller_ = new ArrayList<>();
-    private final @NonNull ArrayList<@NonNull BuyerParticipation> customers_ = new ArrayList<>();
 
     // Fields for TraderSettings
     private boolean suspendable_ = false;
@@ -67,25 +66,6 @@ final class TraderWithSettings extends Trader implements TraderSettings {
     @Pure
     @NonNull @PolyRead List<@NonNull @PolyRead Market> getMarketsAsSeller(@PolyRead TraderWithSettings this) {
         return marketsAsSeller_;
-    }
-
-    /**
-     * Returns a list of {@code this} trader's customers.
-     *
-     * <p>
-     *  A trader is a customer of another trader, iff the former is currently buying at least one
-     *  commodity the latter is selling.
-     * </p>
-     *
-     * <p>
-     *  This method really returns buyer participations instead of discrete traders, so if a trader
-     *  buys the same commodity specification more than once, the list will contain more than one
-     *  buyer participation belonging to the same trader.
-     * </p>
-     */
-    @Pure
-    @NonNull @PolyRead List<@NonNull @PolyRead BuyerParticipation> getCustomers(@PolyRead TraderWithSettings this) {
-        return customers_;
     }
 
     // Methods for Trader

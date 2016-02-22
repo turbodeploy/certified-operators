@@ -259,18 +259,18 @@ public class TestLoadFile {
         assertTrue(economy.getSuppliers(vm_733).contains(pm_9));
         assertTrue(economy.getSuppliers(vm_733).contains(ds_902));
         // same as last two checks - but tests a different method
-        assertTrue(economy.getCustomers(pm_9).contains(vm_733));
-        assertTrue(economy.getCustomers(ds_902).contains(vm_733));
+        assertTrue(pm_9.getUniqueCustomers().contains(vm_733));
+        assertTrue(ds_902.getUniqueCustomers().contains(vm_733));
         // vm-1544 not selling and not buying in any market
         assertTrue(economy.getSuppliers(vm_1544).isEmpty());
-        assertTrue(economy.getCustomers(vm_1544).isEmpty());
+        assertTrue(vm_1544.getUniqueCustomers().isEmpty());
         // host-9 buying from datacenter-2
         assertTrue(economy.getSuppliers(pm_9).contains(dc_2));
 
         // PM does not buy from Storage
-        assertFalse(economy.getCustomers(ds_902).contains(pm_9));
+        assertFalse(ds_902.getUniqueCustomers().contains(pm_9));
         // VM not buying from App
-        assertFalse(economy.getCustomers(vm_733).contains(app_733));
+        assertFalse(vm_733.getUniqueCustomers().contains(app_733));
 
         // TODO: add tests about specific commodities
     }

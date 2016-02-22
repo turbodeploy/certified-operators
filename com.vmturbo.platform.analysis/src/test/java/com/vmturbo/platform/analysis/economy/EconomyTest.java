@@ -346,21 +346,6 @@ public class EconomyTest {
             for (@NonNull @ReadOnly Trader trader : economy.getTraders()) {
                 assertSame(traders[i++], trader);
             }
-
-            // Test Economy.getCustomers(Trader)
-            for (Trader trader : traders) {
-                // TODO (Vaptistis): replace with test tailored for Sets creating corresponding class.
-                CollectionTests.verifyUnmodifiableValidOperations(economy.getCustomers(trader),independentTrader);
-                CollectionTests.verifyUnmodifiableInvalidOperations(economy.getCustomers(trader),independentTrader);
-            }
-
-            // Test Economy.getCustomerParticipations(Trader)
-            for (Trader trader : traders) {
-                ListTests.verifyUnmodifiableValidOperations(economy.getCustomerParticipations(trader),
-                                                            independentParticipation);
-                ListTests.verifyUnmodifiableInvalidOperations(economy.getCustomerParticipations(trader),
-                                                              independentParticipation);
-            }
         }
 
         @Test

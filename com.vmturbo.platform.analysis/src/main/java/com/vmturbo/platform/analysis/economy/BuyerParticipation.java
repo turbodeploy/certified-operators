@@ -195,12 +195,12 @@ public final class BuyerParticipation {
     public @NonNull BuyerParticipation move(Trader newSupplier) {
         // Update old supplier to exclude this from its customers.
         if (getSupplier() != null) {
-            checkArgument(((TraderWithSettings)getSupplier()).getCustomers().remove(this));
+            checkArgument(getSupplier().getModifiableCustomers().remove(this));
         }
 
         // Update new supplier to include this to its customers.
         if (newSupplier != null) {
-            ((TraderWithSettings)newSupplier).getCustomers().add(this);
+            newSupplier.getModifiableCustomers().add(this);
         }
         setSupplier(newSupplier);
 

@@ -4,7 +4,9 @@ import static com.google.common.base.Preconditions.checkArgument;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
@@ -31,11 +33,14 @@ public abstract class Trader {
     private @NonNull TraderState state_;
     private @NonNull Basket basketSold_;
     private final @NonNull List<@NonNull CommoditySold> commoditiesSold_ = new ArrayList<>();
+    private final @NonNull ArrayList<@NonNull BuyerParticipation> customers_ = new ArrayList<>();
 
     // Cached data
 
     // Cached unmodifiable view of the commoditiesSold_ list.
     private final @NonNull List<@NonNull CommoditySold> unmodifiableCommoditiesSold_ = Collections.unmodifiableList(commoditiesSold_);
+    // Cached unmodifiable view of the customers_ list.
+    private final @NonNull List<@NonNull BuyerParticipation> unmodifiableCustomers_ = Collections.unmodifiableList(customers_);
 
     // Constructors
 
@@ -146,6 +151,69 @@ public abstract class Trader {
 
             return removed;
         }
+    }
+
+    /**
+     * Returns an unmodifiable list of {@code this} trader's customers.
+     *
+     * <p>
+     *  A trader is a customer of another trader, iff the former is active and currently buying at
+     *  least one commodity the latter is selling.
+     * </p>
+     *
+     * <p>
+     *  This method really returns buyer participations instead of discrete traders, so if a trader
+     *  buys the same commodity specification more than once, the list will contain more than one
+     *  buyer participation belonging to the same trader. For a method returning a list of unique
+     *  traders that are customers of {@code this} trader, see {@link #getUniqueCustomers()}.
+     * </p>
+     *
+     * @see #getUniqueCustomers()
+     */
+    @Pure
+    public @NonNull @ReadOnly List<@NonNull BuyerParticipation> getCustomers(@ReadOnly Trader this) {
+        return unmodifiableCustomers_;
+    }
+
+    /**
+     * Returns a modifiable list of {@code this} trader's customers.
+     *
+     * <p>
+     *  This is a modifiable version of the list returned by {@link #getCustomers()}.
+     * </p>
+     *
+     * @see #getCustomers()
+     * @see #getUniqueCustomers()
+     */
+    @Pure
+    @NonNull @PolyRead List<@NonNull @PolyRead BuyerParticipation> getModifiableCustomers(@PolyRead Trader this) {
+        return customers_;
+    }
+
+    /**
+     * Returns an unmodifiable set of {@code this} trader's customers.
+     *
+     * <p>
+     *  A trader is a customer of another trader iff the former is active and currently buys any
+     *  subset of the commodities the latter is selling.
+     * </p>
+     *
+     * <p>
+     *  This method returns a set of unique traders. For a list of all the buyer participations
+     *  buying from {@code this} trader, see {@link #getCustomers()}.
+     * </p>
+     *
+     * @see #getCustomers()
+     */
+    @Pure
+    public @NonNull @ReadOnly Set<@NonNull @ReadOnly Trader> getUniqueCustomers(@ReadOnly Trader this) {
+        @NonNull Set<@NonNull @ReadOnly Trader> customers = new HashSet<>();
+
+        for (@NonNull BuyerParticipation participation : getCustomers()) {
+            customers.add(participation.getBuyer());
+        }
+
+        return Collections.unmodifiableSet(customers);
     }
 
     // May need to add some reference to the associated reservation later...

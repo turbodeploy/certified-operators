@@ -191,7 +191,7 @@ public class Move extends MoveBase implements Action { // inheritance for code r
                                 participation.getPeakQuantity(boughtIndex)));
                     } else {
                         if (participations == null) {
-                            participations = economy.getCustomerParticipations(traderToUpdate);
+                            participations = traderToUpdate.getCustomers();
                         }
                         // for each commodity spec in the basket, find the quantities bought by all participations
                         // and calculate the quantity sold

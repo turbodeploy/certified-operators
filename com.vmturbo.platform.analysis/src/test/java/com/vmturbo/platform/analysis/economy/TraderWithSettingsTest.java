@@ -1,7 +1,6 @@
 package com.vmturbo.platform.analysis.economy;
 
 import static org.junit.Assert.*;
-import static com.vmturbo.platform.analysis.utility.ListTests.*;
 
 import java.util.HashSet;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -9,6 +8,8 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import com.vmturbo.platform.analysis.utility.CollectionTests;
+import com.vmturbo.platform.analysis.utility.ListTests;
 import com.vmturbo.platform.analysis.utility.MapTests;
 
 import junitparams.JUnitParamsRunner;
@@ -120,24 +121,19 @@ public final class TraderWithSettingsTest {
 
     @Test
     public final void testGetMarketsAsSeller() {
-        verifyModifiable(fixture_.getMarketsAsSeller(), new Market(new Basket()));
-    }
-
-    @Test
-    public final void testGetCustomers() {
-        verifyModifiable(fixture_.getCustomers(), new BuyerParticipation(fixture_,0));
+        ListTests.verifyModifiable(fixture_.getMarketsAsSeller(), new Market(new Basket()));
     }
 
     // Tests for Trader methods
 
     @Test
     public final void testGetCommoditiesSold_ValidOperations() {
-        verifyUnmodifiableValidOperations(fixture_.getCommoditiesSold(), new CommoditySoldWithSettings());
+        ListTests.verifyUnmodifiableValidOperations(fixture_.getCommoditiesSold(), new CommoditySoldWithSettings());
     }
 
     @Test
     public final void testGetCommoditiesSold_InvalidOperations() {
-        verifyUnmodifiableInvalidOperations(fixture_.getCommoditiesSold(), new CommoditySoldWithSettings());
+        ListTests.verifyUnmodifiableInvalidOperations(fixture_.getCommoditiesSold(), new CommoditySoldWithSettings());
     }
 
     @Test
@@ -233,6 +229,23 @@ public final class TraderWithSettingsTest {
             {new Basket(A,B,C),C,2},
             {new Basket(A,B,C),new CommoditySpecification(0),3},
         };
+    }
+
+    @Test
+    public final void testGetCustomers() {
+        ListTests.verifyUnmodifiableValidOperations(fixture_.getCustomers(), new BuyerParticipation(fixture_,0));
+        ListTests.verifyUnmodifiableInvalidOperations(fixture_.getCustomers(), new BuyerParticipation(fixture_,0));
+    }
+
+    @Test
+    public final void testGetModifiableCustomers() {
+        ListTests.verifyModifiable(fixture_.getModifiableCustomers(), new BuyerParticipation(fixture_,0));
+    }
+
+    @Test
+    public final void testGetUniqueCustomers() {
+        CollectionTests.verifyUnmodifiableValidOperations(fixture_.getUniqueCustomers(), fixture_);
+        CollectionTests.verifyUnmodifiableInvalidOperations(fixture_.getUniqueCustomers(), fixture_);
     }
 
     @Test

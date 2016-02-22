@@ -5,11 +5,9 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.ToDoubleFunction;
 
@@ -220,26 +218,6 @@ public final class Economy implements UnmodifiableEconomy {
         checkArgument(traders_.remove(traderToRemove));
 
         return this;
-    }
-
-    @Override
-    @Pure
-    public @NonNull @ReadOnly Set<@NonNull @ReadOnly Trader> getCustomers(@ReadOnly Economy this,
-                                                                          @NonNull @ReadOnly Trader trader) {
-        @NonNull Set<@NonNull @ReadOnly Trader> customers = new HashSet<>();
-
-        for (@NonNull BuyerParticipation participation : getCustomerParticipations(trader)) {
-            customers.add(participation.getBuyer());
-        }
-
-        return Collections.unmodifiableSet(customers);
-    }
-
-    @Override
-    @Pure
-    public @NonNull @ReadOnly List<@NonNull BuyerParticipation> getCustomerParticipations(@ReadOnly Economy this,
-                                                                              @NonNull @ReadOnly Trader trader) {
-        return Collections.unmodifiableList(((TraderWithSettings)trader).getCustomers());
     }
 
     @Override
