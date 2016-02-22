@@ -1,5 +1,9 @@
 package com.vmturbo.platform.analysis.economy;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import org.checkerframework.checker.javari.qual.PolyRead;
@@ -20,18 +24,59 @@ import org.checkerframework.dataflow.qual.Pure;
  *  enforced initially.
  * </p>
  */
-public interface Trader {
+public abstract class Trader {
+    // Fields
+    private int economyIndex_;
+    private final int type_; // this should never change once the object is created.
+    private @NonNull TraderState state_;
+    private @NonNull Basket basketSold_;
+    private final @NonNull List<@NonNull CommoditySold> commoditiesSold_ = new ArrayList<>();
+
+    // Cached data
+
+    // Cached unmodifiable view of the commoditiesSold_ list.
+    private final @NonNull List<@NonNull CommoditySold> unmodifiableCommoditiesSold_ = Collections.unmodifiableList(commoditiesSold_);
+
+    // Constructors
+
+    /**
+     * Constructs a new TraderWithSettings instance with the specified attributes.
+     *
+     * @param economyIndex see {@link #setEconomyIndex(int)}.
+     * @param type see {@link #getType()}.
+     * @param state see {@link #setState(TraderState)}.
+     * @param basketSold see {@link #getBasketSold()}.
+     */
+    public Trader(int economyIndex, int type, @NonNull TraderState state, @NonNull Basket basketSold) {
+        checkArgument(type >= 0);
+
+        type_ = type;
+        state_ = state;
+        basketSold_ = basketSold;
+        setEconomyIndex(economyIndex);
+
+        for(int i = 0 ; i < basketSold.size() ; ++i) {
+            commoditiesSold_.add(new CommoditySoldWithSettings());
+        }
+    }
+
+    // Methods
+
     /**
      * Returns the basket sold by {@code this} seller.
      */
     @Pure
-    @NonNull @ReadOnly Basket getBasketSold(@ReadOnly Trader this);
+    public @NonNull @ReadOnly Basket getBasketSold(@ReadOnly Trader this) {
+        return basketSold_;
+    }
 
     /**
      * Returns an unmodifiable list of the commodities {@code this} trader is selling.
      */
     @Pure
-    @NonNull @ReadOnly List<@NonNull @ReadOnly CommoditySold> getCommoditiesSold(@ReadOnly Trader this);
+    public @NonNull @ReadOnly List<@NonNull @ReadOnly CommoditySold> getCommoditiesSold(@ReadOnly Trader this) {
+        return unmodifiableCommoditiesSold_;
+    }
 
     /**
      * Returns the commodity sold by {@code this} trader that corresponds to the given
@@ -44,7 +89,11 @@ public interface Trader {
      *         {@link Basket#contains(CommoditySpecification) contains(specification)}
      */
     @Pure
-    @PolyRead CommoditySold getCommoditySold(@PolyRead Trader this, @NonNull @ReadOnly CommoditySpecification specification);
+    public @PolyRead CommoditySold getCommoditySold(@PolyRead Trader this, @NonNull @ReadOnly CommoditySpecification specification) {
+        int index = getBasketSold().indexOf(specification);
+
+        return index != -1 ? commoditiesSold_.get(index) : null;
+    }
 
     // TODO: consider making addCommoditySold and removeCommoditySold throw in cases they now return
     // null. Same for the corresponding Basket methods.
@@ -57,7 +106,18 @@ public interface Trader {
      * @return The new commodity that was created and added, or {@code null} if it already existed.
      */
     @Deterministic
-    CommoditySold addCommoditySold(@NonNull @ReadOnly CommoditySpecification newSpecification);
+    public CommoditySold addCommoditySold(@NonNull @ReadOnly CommoditySpecification newSpecification) {
+        basketSold_ = basketSold_.add(newSpecification);
+
+        if (commoditiesSold_.size() < basketSold_.size()) {
+            CommoditySoldWithSettings newCommoditySold = new CommoditySoldWithSettings();
+            commoditiesSold_.add(basketSold_.indexOf(newSpecification), newCommoditySold);
+
+            return newCommoditySold;
+        }
+
+        return null;
+    }
 
     /**
      * Removes an existing commodity from the list of commodities sold by {@code this} seller.
@@ -75,9 +135,18 @@ public interface Trader {
     @Deterministic // in the sense that for the same referents of this and typeToRemove the result will
     // be the same. Calling this two times on the same topology will produce different results
     // because the topology is modified.
-    CommoditySold removeCommoditySold(@NonNull @ReadOnly CommoditySpecification specificationToRemove);
+    public CommoditySold removeCommoditySold(@NonNull @ReadOnly CommoditySpecification specificationToRemove) {
+        int index = basketSold_.indexOf(specificationToRemove);
 
-   // May need to add methods to add/remove baskets bought later...
+        if (index == -1) {
+            return null;
+        } else {
+            CommoditySold removed = commoditiesSold_.remove(index);
+            basketSold_ = basketSold_.remove(specificationToRemove);
+
+            return removed;
+        }
+    }
 
     // May need to add some reference to the associated reservation later...
 
@@ -85,7 +154,7 @@ public interface Trader {
      * The {@link TraderSettings settings} controlling {@code this} trader's behavior.
      */
     @Pure
-    @NonNull TraderSettings getSettings();
+    public abstract @NonNull TraderSettings getSettings();
 
     /**
      * Returns the <em>economy index</em> of {@code this} trader.
@@ -100,7 +169,29 @@ public interface Trader {
      *  This is an O(1) operation.
      * </p>
      */
-    int getEconomyIndex(@ReadOnly Trader this);
+    @Pure
+    public int getEconomyIndex(@ReadOnly Trader this) {
+        return economyIndex_;
+    }
+
+    /**
+     * Sets the value of the <b>economy index</b> field.
+     *
+     * <p>
+     *  Has no observable side-effects except setting the above field.
+     * </p>
+     *
+     * @param economyIndex the new value for the field. Must be non-negative.
+     * @return {@code this}
+     *
+     * @see #getEconomyIndex()
+     */
+    @Deterministic
+    @NonNull Trader setEconomyIndex(int economyIndex) {
+        checkArgument(economyIndex >= 0);
+        economyIndex_ = economyIndex;
+        return this;
+    }
 
     /**
      * Returns the type of the trader.
@@ -112,13 +203,33 @@ public interface Trader {
      * </p>
      */
     @Pure
-    int getType();
+    public int getType(@ReadOnly Trader this) {
+        return type_;
+    }
 
     /**
      * Returns the current {@link TraderState state} of {@code this} trader.
      */
     @Pure
-    @NonNull TraderState getState();
+    public @NonNull TraderState getState(@ReadOnly Trader this) {
+        return state_;
+    }
+
+    /**
+     * Sets the value of the <b>state</b> field.
+     *
+     * <p>
+     *  Has no observable side-effects except setting the above field.
+     * </p>
+     *
+     * @param state the new value for the field.
+     * @return {@code this}
+     */
+    @Deterministic
+    @NonNull Trader setState(@NonNull @ReadOnly TraderState state) {
+        state_ = state;
+        return this;
+    }
 
     /**
      * Changes the state of {@code this} trader, updating the corresponding markets he participates
@@ -128,6 +239,6 @@ public interface Trader {
      * @return The old state of trader.
      */
     @Deterministic
-    @NonNull TraderState changeState(@NonNull TraderState newState);
+    public abstract @NonNull TraderState changeState(@NonNull TraderState newState);
 
 } // end interface Trader

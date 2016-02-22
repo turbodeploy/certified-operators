@@ -3,7 +3,6 @@ package com.vmturbo.platform.analysis.economy;
 import static com.google.common.base.Preconditions.checkArgument;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -14,18 +13,11 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Deterministic;
 import org.checkerframework.dataflow.qual.Pure;
 
-final class TraderWithSettings implements Trader, TraderSettings {
+final class TraderWithSettings extends Trader implements TraderSettings {
     // Internal fields
     private final @NonNull Map<@NonNull BuyerParticipation,@NonNull Market> marketsAsBuyer_ = new LinkedHashMap<>();
     private final @NonNull List<Market> marketsAsSeller_ = new ArrayList<>();
     private final @NonNull ArrayList<@NonNull BuyerParticipation> customers_ = new ArrayList<>();
-
-    // Fields for Trader
-    private int economyIndex_;
-    private final int type_; // this should never change once the object is created.
-    private @NonNull TraderState state_;
-    private @NonNull Basket basketSold_;
-    private final @NonNull List<@NonNull CommoditySold> commoditiesSold_ = new ArrayList<>();
 
     // Fields for TraderSettings
     private boolean suspendable_ = false;
@@ -33,11 +25,6 @@ final class TraderWithSettings implements Trader, TraderSettings {
     private boolean movable_ = false;
     private double maxDesiredUtilization_ = 1.0;
     private double minDesiredUtilization_ = 0.0;
-
-    // Cached data
-
-    // Cached unmodifiable view of the commoditiesSold_ list.
-    private final @NonNull List<@NonNull CommoditySold> unmodifiableCommoditiesSold_ = Collections.unmodifiableList(commoditiesSold_);
 
     // Constructors
 
@@ -50,54 +37,10 @@ final class TraderWithSettings implements Trader, TraderSettings {
      * @param basketSold see {@link #getBasketSold()}.
      */
     public TraderWithSettings(int economyIndex, int type, @NonNull TraderState state, @NonNull Basket basketSold) {
-        checkArgument(type >= 0);
-
-        type_ = type;
-        state_ = state;
-        basketSold_ = basketSold;
-        setEconomyIndex(economyIndex);
-
-        for(int i = 0 ; i < basketSold.size() ; ++i) {
-            commoditiesSold_.add(new CommoditySoldWithSettings());
-        }
+        super(economyIndex,type,state,basketSold);
     }
 
     // Internal methods
-
-    /**
-     * Sets the value of the <b>economy index</b> field.
-     *
-     * <p>
-     *  Has no observable side-effects except setting the above field.
-     * </p>
-     *
-     * @param economyIndex the new value for the field. Must be non-negative.
-     * @return {@code this}
-     *
-     * @see #getEconomyIndex()
-     */
-    @Deterministic
-    @NonNull TraderWithSettings setEconomyIndex(int economyIndex) {
-        checkArgument(economyIndex >= 0);
-        economyIndex_ = economyIndex;
-        return this;
-    }
-
-    /**
-     * Sets the value of the <b>state</b> field.
-     *
-     * <p>
-     *  Has no observable side-effects except setting the above field.
-     * </p>
-     *
-     * @param state the new value for the field.
-     * @return {@code this}
-     */
-    @Deterministic
-    @NonNull Trader setState(@NonNull @ReadOnly TraderState state) {
-        state_ = state;
-        return this;
-    }
 
     /**
      * Returns a modifiable {@link Map} with the mapping from buyer participations of {@code this}
@@ -149,75 +92,8 @@ final class TraderWithSettings implements Trader, TraderSettings {
 
     @Override
     @Pure
-    public @NonNull @ReadOnly Basket getBasketSold(@ReadOnly TraderWithSettings this) {
-        return basketSold_;
-    }
-
-    @Override
-    @Pure
-    public @NonNull List<@NonNull @ReadOnly CommoditySold> getCommoditiesSold(@ReadOnly TraderWithSettings this) {
-        return unmodifiableCommoditiesSold_;
-    }
-
-    @Override
-    @Pure
-    public @PolyRead CommoditySold getCommoditySold(@PolyRead TraderWithSettings this,
-                                                    @NonNull @ReadOnly CommoditySpecification specification) {
-        int index = getBasketSold().indexOf(specification);
-
-        return index != -1 ? commoditiesSold_.get(index) : null;
-    }
-
-    @Override
-    public CommoditySold addCommoditySold(@NonNull @ReadOnly CommoditySpecification newSpecification) {
-        basketSold_ = basketSold_.add(newSpecification);
-
-        if (commoditiesSold_.size() < basketSold_.size()) {
-            CommoditySoldWithSettings newCommoditySold = new CommoditySoldWithSettings();
-            commoditiesSold_.add(basketSold_.indexOf(newSpecification), newCommoditySold);
-
-            return newCommoditySold;
-        }
-
-        return null;
-    }
-
-    @Override
-    public CommoditySold removeCommoditySold(@NonNull @ReadOnly CommoditySpecification specificationToRemove) {
-        int index = basketSold_.indexOf(specificationToRemove);
-
-        if (index == -1) {
-            return null;
-        } else {
-            CommoditySold removed = commoditiesSold_.remove(index);
-            basketSold_ = basketSold_.remove(specificationToRemove);
-
-            return removed;
-        }
-    }
-
-    @Override
-    @Pure
     public @NonNull TraderSettings getSettings(@ReadOnly TraderWithSettings this) {
         return this;
-    }
-
-    @Override
-    @Pure
-    public int getEconomyIndex(@ReadOnly TraderWithSettings this) {
-        return economyIndex_;
-    }
-
-    @Override
-    @Pure
-    public int getType(@ReadOnly TraderWithSettings this) {
-        return type_;
-    }
-
-    @Override
-    @Pure
-    public @NonNull TraderState getState(@ReadOnly TraderWithSettings this) {
-        return state_;
     }
 
     @Override

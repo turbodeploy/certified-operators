@@ -1,5 +1,7 @@
 package com.vmturbo.platform.analysis.economy;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
 import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -13,12 +15,20 @@ import org.checkerframework.dataflow.qual.Pure;
  *  A CommoditySold instance should be sold by exactly one Trader instance.
  * </p>
  */
-public interface CommoditySold {
+public abstract class CommoditySold {
+    // Fields
+    private double quantity_ = 0.0;
+    private double peakQuantity_ = 0.0;
+    private double capacity_ = Double.MAX_VALUE;
+    private boolean thin_ = false;
+
+    // Methods
+
     /**
      * The {@link CommoditySoldSettings settings} controlling {@code this} commodity's behavior.
      */
     @Pure
-    @NonNull @PolyRead CommoditySoldSettings getSettings(@PolyRead CommoditySold this);
+    public abstract @NonNull @PolyRead CommoditySoldSettings getSettings(@PolyRead CommoditySold this);
 
     /**
      * Returns the <b>utilization</b> of {@code this} commodity.
@@ -26,7 +36,9 @@ public interface CommoditySold {
      * @return {@link #getQuantity()}/{@link #getCapacity()}.
      */
     @Pure
-    double getUtilization(@ReadOnly CommoditySold this);
+    public double getUtilization(@ReadOnly CommoditySold this) {
+        return getQuantity()/getCapacity();
+    }
 
     /**
      * Returns the <b>peak utilization</b> of {@code this} commodity.
@@ -34,7 +46,9 @@ public interface CommoditySold {
      * @return {@link #getPeakQuantity()}/{@link #getCapacity()}.
      */
     @Pure
-    double getPeakUtilization(@ReadOnly CommoditySold this);
+    public double getPeakUtilization(@ReadOnly CommoditySold this) {
+        return getPeakQuantity()/getCapacity();
+    }
 
     /**
      * Returns the <b>quantity</b> of {@code this} commodity.
@@ -48,7 +62,9 @@ public interface CommoditySold {
      * </p>
      */
     @Pure
-    double getQuantity(@ReadOnly CommoditySold this);
+    public double getQuantity(@ReadOnly CommoditySold this) {
+        return quantity_;
+    }
 
     /**
      * Returns the <b>peak quantity</b> of {@code this} commodity.
@@ -61,13 +77,17 @@ public interface CommoditySold {
      * </p>
      */
     @Pure
-    double getPeakQuantity(@ReadOnly CommoditySold this);
+    public double getPeakQuantity(@ReadOnly CommoditySold this) {
+        return peakQuantity_;
+    }
 
     /**
      * Returns the <b>capacity</b> of {@code this} commodity.
      */
     @Pure
-    double getCapacity(@ReadOnly CommoditySold this);
+    public double getCapacity(@ReadOnly CommoditySold this) {
+        return capacity_;
+    }
 
     /**
      * Returns the <b>effective capacity</b> of {@code this} commodity.
@@ -78,7 +98,7 @@ public interface CommoditySold {
      * @see #getCapacity()
      */
     @Pure
-    double getEffectiveCapacity(@ReadOnly CommoditySold this);
+    public abstract double getEffectiveCapacity(@ReadOnly CommoditySold this);
 
     /**
      * Returns whether {@code this} commodity is <b>thin</b> provisioned.
@@ -88,7 +108,9 @@ public interface CommoditySold {
      * </p>
      */
     @Pure
-    boolean isThin(@ReadOnly CommoditySold this);
+    public boolean isThin(@ReadOnly CommoditySold this) {
+        return thin_;
+    }
 
     /**
      * Sets the value of the <b>quantity</b> field.
@@ -105,7 +127,11 @@ public interface CommoditySold {
      * @see #getQuantity()
      */
     @Deterministic
-    @NonNull CommoditySold setQuantity(double quantity);
+    public @NonNull CommoditySold setQuantity(double quantity) {
+        checkArgument(0 <= quantity && quantity <= getCapacity());
+        quantity_ = quantity;
+        return this;
+    }
 
     /**
      * Sets the value of the <b>peak quantity</b> field.
@@ -122,7 +148,11 @@ public interface CommoditySold {
      * @see #getPeakQuantity()
      */
     @Deterministic
-    @NonNull CommoditySold setPeakQuantity(double peakQuantity);
+    public @NonNull CommoditySold setPeakQuantity(double peakQuantity) {
+        checkArgument(0 <= peakQuantity && peakQuantity <= getCapacity());
+        peakQuantity_ = peakQuantity;
+        return this;
+    }
 
     /**
      * Sets the value of the <b>capacity</b> field.
@@ -137,7 +167,11 @@ public interface CommoditySold {
      * @see #getCapacity()
      */
     @Deterministic
-    @NonNull CommoditySold setCapacity(double capacity);
+    public @NonNull CommoditySold setCapacity(double capacity) {
+        checkArgument(0 <= capacity); // should we check that this is >= max(quantity,peakQuantity)?
+        capacity_ = capacity;
+        return this;
+    }
 
     /**
      * Sets the value of the <b>thin</b> field.
@@ -152,6 +186,9 @@ public interface CommoditySold {
      * @see #isThin()
      */
     @Deterministic
-    @NonNull CommoditySold setThin(boolean thin);
+    public @NonNull CommoditySold setThin(boolean thin) {
+        thin_ = thin;
+        return this;
+    }
 
 } // end CommoditySold interface

@@ -10,14 +10,7 @@ import org.checkerframework.dataflow.qual.Pure;
 
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 
-final class CommoditySoldWithSettings implements CommoditySold, CommoditySoldSettings {
-
-    // Fields for CommoditySold
-    private double quantity_ = 0.0;
-    private double peakQuantity_ = 0.0;
-    private double capacity_ = Double.MAX_VALUE;
-    private boolean thin_ = false;
-
+final class CommoditySoldWithSettings extends CommoditySold implements CommoditySoldSettings {
     // Fields for CommoditySoldSettings
     private boolean resizable_ = true;
     private double capacityLowerBound_ = 0.0;
@@ -44,75 +37,8 @@ final class CommoditySoldWithSettings implements CommoditySold, CommoditySoldSet
 
     @Override
     @Pure
-    public double getUtilization(@ReadOnly CommoditySoldWithSettings this) {
-        return getQuantity()/getCapacity();
-    }
-
-    @Override
-    @Pure
-    public double getPeakUtilization(@ReadOnly CommoditySoldWithSettings this) {
-        return getPeakQuantity()/getCapacity();
-    }
-
-    @Override
-    @Pure
-    public double getQuantity(@ReadOnly CommoditySoldWithSettings this) {
-        return quantity_;
-    }
-
-    @Override
-    @Pure
-    public double getPeakQuantity(@ReadOnly CommoditySoldWithSettings this) {
-        return peakQuantity_;
-    }
-
-    @Override
-    @Pure
-    public double getCapacity(@ReadOnly CommoditySoldWithSettings this) {
-        return capacity_;
-    }
-
-    @Override
-    @Pure
     public double getEffectiveCapacity(@ReadOnly CommoditySoldWithSettings this) {
         return getUtilizationUpperBound()*getCapacity();
-    }
-
-    @Override
-    @Pure
-    public boolean isThin(@ReadOnly CommoditySoldWithSettings this) {
-        return thin_;
-    }
-
-    @Override
-    @Deterministic
-    public @NonNull CommoditySold setQuantity(double quantity) {
-        checkArgument(0 <= quantity && quantity <= getCapacity());
-        quantity_ = quantity;
-        return this;
-    }
-
-    @Override
-    @Deterministic
-    public @NonNull CommoditySold setPeakQuantity(double peakQuantity) {
-        checkArgument(0 <= peakQuantity && peakQuantity <= getCapacity());
-        peakQuantity_ = peakQuantity;
-        return this;
-    }
-
-    @Override
-    @Deterministic
-    public @NonNull CommoditySold setCapacity(double capacity) {
-        checkArgument(0 <= capacity); // should we check that this is >= max(quantity,peakQuantity)?
-        capacity_ = capacity;
-        return this;
-    }
-
-    @Override
-    @Deterministic
-    public @NonNull CommoditySold setThin(boolean thin) {
-        thin_ = thin;
-        return this;
     }
 
     // Methods for CommoditySoldSettings

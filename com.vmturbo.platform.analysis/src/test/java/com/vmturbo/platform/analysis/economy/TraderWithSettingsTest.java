@@ -112,31 +112,6 @@ public final class TraderWithSettingsTest {
         return output;
     }
 
-    @Test
-    @Parameters
-    @TestCaseName("Test #{index}: (set|get)EconomyIndex({0})")
-    public final void testGetSetEconomyIndex_NormalInput(int index) {
-        fixture_.setEconomyIndex(index);
-        assertEquals(index, fixture_.getEconomyIndex());
-    }
-
-    @SuppressWarnings("unused") // it is used reflectively
-    private static Object[] parametersForTestGetSetEconomyIndex_NormalInput() {
-        return validIndices;
-    }
-
-    @Test(expected = IllegalArgumentException.class)
-    @Parameters
-    @TestCaseName("Test #{index}: (set|get)EconomyIndex({0})")
-    public final void testGetSetEconomyIndex_InvalidInput(int index) {
-        fixture_.setEconomyIndex(index);
-    }
-
-    @SuppressWarnings("unused") // it is used reflectively
-    private static Object[] parametersForTestGetSetEconomyIndex_InvalidInput() {
-        return invalidIndices;
-    }
-
     @Test // That the returned map indeed implements all operations.
     public final void testGetMarketsAsBuyer() {
         MapTests.verifyModifiable(fixture_.getMarketsAsBuyer(), new BuyerParticipation(fixture_,0),
@@ -263,6 +238,31 @@ public final class TraderWithSettingsTest {
     @Test
     public final void testGetSettings() {
         assertSame(fixture_, fixture_.getSettings());
+    }
+
+    @Test
+    @Parameters
+    @TestCaseName("Test #{index}: (set|get)EconomyIndex({0})")
+    public final void testGetSetEconomyIndex_NormalInput(int index) {
+        fixture_.setEconomyIndex(index);
+        assertEquals(index, fixture_.getEconomyIndex());
+    }
+
+    @SuppressWarnings("unused") // it is used reflectively
+    private static Object[] parametersForTestGetSetEconomyIndex_NormalInput() {
+        return validIndices;
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    @Parameters
+    @TestCaseName("Test #{index}: (set|get)EconomyIndex({0})")
+    public final void testGetSetEconomyIndex_InvalidInput(int index) {
+        fixture_.setEconomyIndex(index);
+    }
+
+    @SuppressWarnings("unused") // it is used reflectively
+    private static Object[] parametersForTestGetSetEconomyIndex_InvalidInput() {
+        return invalidIndices;
     }
 
     @Test
