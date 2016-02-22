@@ -36,6 +36,8 @@ public final class Economy implements UnmodifiableEconomy {
     // Map of quantity calculation functions by (sold) commodity specification.
     private final @NonNull Map<@NonNull CommoditySpecification, @NonNull ToDoubleFunction<List<Double>>>
                 quantityFunctions_ = new HashMap<>();
+    // An aggregate of all the parameters configuring this economy's behavior.
+    private final @NonNull EconomySettings settings_ = new EconomySettings();
 
     // Cached data
 
@@ -74,6 +76,11 @@ public final class Economy implements UnmodifiableEconomy {
     @Pure
     public boolean isAdditive(CommoditySpecification commSpec) {
         return !quantityFunctions_.containsKey(commSpec);
+    }
+
+    @Override
+    public @NonNull @PolyRead EconomySettings getSettings(@PolyRead Economy this) {
+        return settings_;
     }
 
     @Override

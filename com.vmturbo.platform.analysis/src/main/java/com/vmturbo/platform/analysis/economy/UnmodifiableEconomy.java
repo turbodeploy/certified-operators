@@ -19,6 +19,12 @@ import org.checkerframework.dataflow.qual.SideEffectFree;
 public interface UnmodifiableEconomy {
 
     /**
+     * The {@link EconomySettings settings} parameterizing {@code this} economy's behavior.
+     */
+    @Pure
+    @NonNull @PolyRead EconomySettings getSettings(@PolyRead UnmodifiableEconomy this);
+
+    /**
      * Returns an unmodifiable list of the {@link Market markets} currently present in the economy.
      *
      * <p>

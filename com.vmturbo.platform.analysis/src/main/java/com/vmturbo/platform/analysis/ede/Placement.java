@@ -62,12 +62,10 @@ public class Placement {
 
                 // get cheapest quote
                 final EdeCommon.QuoteMinimizer minimizer =
-                    // TODO (Vaptistis): use economy.getSettings().parallelismThreshold().
-                    // '256' was selected after finding the time-as-a-function-of-size curves for
-                    // parallel and sequential execution and finding their intersection.
-                    (sellers.size() < 256 ? sellers.stream() : sellers.parallelStream()).collect(
-                        ()->new QuoteMinimizer(economy,state,timeMiliSec,buyerParticipation,
-                                               market.getBasket(), currentSupplier),
+                    (sellers.size() < economy.getSettings().getMinSellersForParallelism()
+                        ? sellers.stream() : sellers.parallelStream())
+                    .collect(()->new QuoteMinimizer(economy,state,timeMiliSec,buyerParticipation,
+                                                    market.getBasket(), currentSupplier),
                         QuoteMinimizer::accept, QuoteMinimizer::combine);
 
                 final double cheapestQuote = minimizer.bestQuote();

@@ -231,14 +231,8 @@ public class EconomyTest {
             UnmodifiableEconomy economy = new Economy();
             assertTrue(economy.getMarkets().isEmpty());
             assertTrue(economy.getTraders().isEmpty());
+            assertNotNull(economy.getSettings());
         }
-
-        @Test
-        @Ignore
-        public final void testMoveTrader() {
-            fail("Not yet implemented");// TODO
-        }
-
     } // end TestEconomy class
 
     @RunWith(Parameterized.class)

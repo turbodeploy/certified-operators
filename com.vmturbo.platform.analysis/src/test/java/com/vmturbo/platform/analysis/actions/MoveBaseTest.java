@@ -3,7 +3,6 @@ package com.vmturbo.platform.analysis.actions;
 import static org.junit.Assert.*;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -47,12 +46,6 @@ public class MoveBaseTest {
         p2.move(e2.addTrader(1, TraderState.ACTIVE, EMPTY));
 
         return new Object[][]{{e1,p1},{e2,p2}};
-    }
-
-    @Test
-    @Ignore
-    public final void testAppendTrader() {
-        fail("Not yet implemented"); // TODO
     }
 
 } // end MoveBaseTest class
