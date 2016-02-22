@@ -12,6 +12,7 @@ import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Trader;
 
+import static com.google.common.base.Preconditions.checkArgument;
 import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
 
 /**
@@ -27,15 +28,34 @@ public class Resize implements Action {
     // Constructors
 
     /**
+     * Constructs a new resize action with the specified attributes and an inferred old capacity.
+     *
+     * @param sellingTrader The trader that sells the commodity that will be resized.
+     * @param resizedCommodity The commodity specification of the commodity that will be resized.
+     * @param newCapacity The capacity of the commodity after the resize action is taken.
+     */
+    public Resize(@NonNull Trader sellingTrader, @NonNull CommoditySpecification resizedCommodity,
+                  double newCapacity) {
+        this(sellingTrader,resizedCommodity,sellingTrader.getCommoditySold(resizedCommodity).getCapacity(),newCapacity);
+    }
+
+    /**
      * Constructs a new resize action with the specified attributes.
      *
      * @param sellingTrader The trader that sells the commodity that will be resized.
      * @param resizedCommodity The commodity specification of the commodity that will be resized.
      * @param oldCapacity The capacity of the commodity before the resize action is taken.
+     *                    Note that this argument is mostly needed when combining actions.
+     *                    Another version of the constructor infers it from <b>sellingTrader</b> and
+     *                    <b>resizedCommodity</b>.
      * @param newCapacity The capacity of the commodity after the resize action is taken.
      */
     public Resize(@NonNull Trader sellingTrader, @NonNull CommoditySpecification resizedCommodity,
                   double oldCapacity, double newCapacity) {
+        checkArgument(sellingTrader.getBasketSold().indexOf(resizedCommodity) >= 0);
+        checkArgument(oldCapacity >= 0);
+        checkArgument(newCapacity >= 0);
+
         sellingTrader_ = sellingTrader;
         resizedCommodity_ = resizedCommodity;
         oldCapacity_ = oldCapacity;
@@ -80,7 +100,7 @@ public class Resize implements Action {
     @Override
     public @NonNull String serialize(@NonNull Function<@NonNull Trader, @NonNull String> oid) {
         return new StringBuilder()
-            .append("<action type=\"resize\" trader=\"").append(oid.apply(getSellingTrader()))
+            .append("<action type=\"resize\" sellingTrader=\"").append(oid.apply(getSellingTrader()))
             .append("\" commoditySpecification=\"").append(getResizedCommodity())
             .append("\" oldCapacity=\"").append(getOldCapacity())
             .append("\" newCapacity=\"").append(getNewCapacity()).append("\" />").toString();
