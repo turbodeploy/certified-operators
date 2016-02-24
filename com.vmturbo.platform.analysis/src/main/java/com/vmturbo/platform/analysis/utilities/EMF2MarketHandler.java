@@ -53,6 +53,8 @@ final public class EMF2MarketHandler extends DefaultHandler {
 
     private static final List<String> COMM_REFS =
             Arrays.asList("Commodities", "CommoditiesBought");
+    private static final String MARKET = "Analysis:Market";
+    private static final String S_TRUE = "true";
 
     private static final String XSITYPE = "xsi:type";
 
@@ -113,6 +115,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
 
     private long startTime;
     private long elementCount;
+    private boolean mainMarket = true;
 
     /**
      * A constructor that allows the client to specify which logger to use
@@ -145,15 +148,21 @@ final public class EMF2MarketHandler extends DefaultHandler {
         Attributes attributes = new Attributes(qName, attr);
         Attributes parent = attributesStack.peek();
         attributesStack.push(attributes);
+        if (MARKET.equals(qName)) {
+            mainMarket = S_TRUE.equals(attributes.get("mainMarket"));
+            logger.debug(mainMarket ? "Main market" : "Market : " + attributes.get("name"));
+        }
+        // ignore entities not in the main market
+        if (!mainMarket) return;
         // Ignore shadow entities
         String name = attributes.get("name");
         if (name != null && name.endsWith("_shadow")) return;
         // Ignore templates
-        if ("true".equals(attributes.get("isTemplate"))) return;
+        if (S_TRUE.equals(attributes.get("isTemplate"))) return;
         if (parent != null
                 && (parent.xsitype() == null
                 || parent.xsitype().equals("Analysis:ServiceEntityTemplate")
-                || "true".equals(parent.get("isTemplate"))
+                || S_TRUE.equals(parent.get("isTemplate"))
             )
         ) {
             return;
@@ -179,6 +188,9 @@ final public class EMF2MarketHandler extends DefaultHandler {
 
     @Override
     public void endElement(String uri, String localName, String qName) throws SAXException {
+        if (MARKET.equals(qName)) {
+            mainMarket = true; // handle entities in between markets
+        }
         attributesStack.pop();
         // TODO: Create the trader here. We have the basket sold.
     }
