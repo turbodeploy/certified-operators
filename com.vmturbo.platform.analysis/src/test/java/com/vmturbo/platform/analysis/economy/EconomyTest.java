@@ -6,6 +6,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.function.ToDoubleFunction;
+
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Ignore;
@@ -74,6 +76,7 @@ public class EconomyTest {
     private static final Market independentMarket = new Market(EMPTY);
     private static final TraderWithSettings independentTrader = new TraderWithSettings(0, 0, TraderState.ACTIVE, EMPTY);
     private static final BuyerParticipation independentParticipation = new BuyerParticipation(independentTrader, 0);
+    private static final @NonNull ToDoubleFunction<List<Double>> DUMMY_FUNCTION = l -> 0.0;
 
     // TODO (Vaptistis): Eventually, all parameterized tests that share the same parameters can be
     // refactored in a single parameterized test, but until we implement copying of Economies the
@@ -231,9 +234,58 @@ public class EconomyTest {
             UnmodifiableEconomy economy = new Economy();
             assertTrue(economy.getMarkets().isEmpty());
             assertTrue(economy.getTraders().isEmpty());
+            assertTrue(economy.getQuantityFunctions().isEmpty());
             assertNotNull(economy.getSettings());
         }
+
+        @Test
+        public final void testGetModifiableQuantityFunctions() {
+            Economy economy = new Economy();
+            MapTests.verifyModifiable(economy.getModifiableQuantityFunctions(), CPU, DUMMY_FUNCTION);
+        }
+
+        @Test
+        public final void testGetQuantityFunctions() {
+            UnmodifiableEconomy economy = new Economy();
+            MapTests.verifyUnmodifiableValidOperations(economy.getQuantityFunctions(), CPU, DUMMY_FUNCTION);
+            MapTests.verifyUnmodifiableInvalidOperations(economy.getQuantityFunctions(), CPU, DUMMY_FUNCTION);
+        }
     } // end TestEconomy class
+
+    @RunWith(Parameterized.class)
+    public static class IsAdditive {
+        // Fields needed by parameterized runner
+        @Parameter(value = 0) public @NonNull Economy economy;
+        @Parameter(value = 1) public @NonNull CommoditySpecification specification;
+        @Parameter(value = 2) public boolean isAdditive;
+
+        // Static fields
+        private static final @NonNull CommoditySpecification[] specifications = {CPU,MEM,CPU_4,CPU_1to8};
+
+        @Parameters(name = "Test #{index}")
+        public static Collection<Object[]> generateEconomies() {
+            final List<@NonNull Object @NonNull []> output = new ArrayList<>();
+
+            for (int i = 0 ; i < specifications.length ; ++i) {
+                Economy economy = new Economy();
+
+                for (int j = 0 ; j < i ; ++j) {
+                    economy.getModifiableQuantityFunctions().put(specifications[j], DUMMY_FUNCTION);
+                }
+
+                for (int j = 0 ; j < specifications.length ; ++j) {
+                    output.add(new Object[]{economy, specifications[j], j >= i});
+                }
+            }
+
+            return output;
+        }
+
+        @Test
+        public final void testIsAdditive() {
+            assertEquals(isAdditive, economy.isAdditive(specification));
+        }
+    } // end IsAdditive class
 
     @RunWith(Parameterized.class)
     public static class EconomyReadOnlyMethods extends CommonMembersOfParameterizedTests{

@@ -231,8 +231,8 @@ public final class MoveTest {
     @Test // non-additive commodities
     public final void testMoveTake_NonAdditive() {
         Economy economy = new Economy();
-        economy.getQuantityFunctions().put(LAT1, MAX_DOUBLE_LIST);
-        economy.getQuantityFunctions().put(LAT2, MAX_DOUBLE_LIST);
+        economy.getModifiableQuantityFunctions().put(LAT1, MAX_DOUBLE_LIST);
+        economy.getModifiableQuantityFunctions().put(LAT2, MAX_DOUBLE_LIST);
         Trader vm1 = economy.addTrader(0, TraderState.ACTIVE, EMPTY);
         Trader vm2 = economy.addTrader(0, TraderState.ACTIVE, EMPTY);
         Trader vm3 = economy.addTrader(0, TraderState.ACTIVE, EMPTY);

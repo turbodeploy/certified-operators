@@ -32,9 +32,10 @@ public final class Economy implements UnmodifiableEconomy {
     private final @NonNull Map<@NonNull @ReadOnly Basket,@NonNull Market> markets_ = new TreeMap<>();
     // The list of all Traders participating in the Economy.
     private final @NonNull List<@NonNull TraderWithSettings> traders_ = new ArrayList<>();
-    // Map of quantity calculation functions by (sold) commodity specification.
+    // Map of quantity calculation functions by (sold) commodity specification. If an entry is
+    // missing, the corresponding commodity specification is 'additive'.
     private final @NonNull Map<@NonNull CommoditySpecification, @NonNull ToDoubleFunction<List<Double>>>
-                quantityFunctions_ = new TreeMap<>();
+        quantityFunctions_ = new TreeMap<>();
     // An aggregate of all the parameters configuring this economy's behavior.
     private final @NonNull EconomySettings settings_ = new EconomySettings();
 
@@ -44,6 +45,9 @@ public final class Economy implements UnmodifiableEconomy {
     private final @NonNull Collection<@NonNull Market> unmodifiableMarkets_ = Collections.unmodifiableCollection(markets_.values());
     // Cached unmodifiable view of the traders_ list.
     private final @NonNull List<@NonNull Trader> unmodifiableTraders_ = Collections.unmodifiableList(traders_);
+    // Cached unmodifiable view of the quantityFunctions_ map.
+    private final @NonNull Map<@NonNull CommoditySpecification, @NonNull ToDoubleFunction<List<Double>>>
+        unmodifiableQuantityFunctions_ = Collections.unmodifiableMap(quantityFunctions_);
 
     // Constructors
 
@@ -58,26 +62,33 @@ public final class Economy implements UnmodifiableEconomy {
 
     // Methods
 
-    /**
-     * @return
-     * A modifiable map of quantity calculation functions per (sold) {@link CommoditySpecification}.
-     * If a commodity specification is not in the map then its quantity calculation is additive.
-     */
-    public Map<CommoditySpecification, ToDoubleFunction<List<Double>>> getQuantityFunctions() {
-        return quantityFunctions_;
-    }
-
-    /**
-     * Check whether this commodity specification uses the default (additive) quantity update or
-     * it has its own function.
-     * @return true when the commodity specification is additive, false when it uses its own function
-     */
+    @Override
     @Pure
-    public boolean isAdditive(CommoditySpecification commSpec) {
-        return !quantityFunctions_.containsKey(commSpec);
+    public boolean isAdditive(@ReadOnly Economy this, @NonNull CommoditySpecification specification) {
+        return !quantityFunctions_.containsKey(specification);
     }
 
     @Override
+    @Pure
+    public @ReadOnly @NonNull Map<@NonNull CommoditySpecification, @NonNull ToDoubleFunction<List<Double>>>
+            getQuantityFunctions(@ReadOnly Economy this) {
+        return unmodifiableQuantityFunctions_;
+    }
+
+    /**
+     * Returns a modifiable map from {@link CommoditySpecification} to the corresponding quantity
+     * updating function, if there is one.
+     *
+     * @see UnmodifiableEconomy#getQuantityFunctions()
+     */
+    @Pure
+    public @PolyRead @NonNull Map<@NonNull CommoditySpecification, @NonNull ToDoubleFunction<List<Double>>>
+            getModifiableQuantityFunctions(@PolyRead Economy this) {
+        return quantityFunctions_;
+    }
+
+    @Override
+    @Pure
     public @NonNull @PolyRead EconomySettings getSettings(@PolyRead Economy this) {
         return settings_;
     }

@@ -17,6 +17,7 @@ import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
+import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 
 import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
 
@@ -164,7 +165,7 @@ public class Move extends MoveBase implements Action { // inheritance for code r
      * @param binaryOperator A binary operator (old quantity sold, quantity bought) -> new quantity sold.
      */
     // TODO: should we cover moves of inactive traders?
-    static void updateQuantities(@NonNull Economy economy, @NonNull BuyerParticipation participation,
+    static void updateQuantities(@NonNull UnmodifiableEconomy economy, @NonNull BuyerParticipation participation,
                                  @Nullable Trader traderToUpdate, @NonNull DoubleBinaryOperator binaryOperator) {
         @NonNull Basket basketBought = economy.getMarket(participation).getBasket();
 

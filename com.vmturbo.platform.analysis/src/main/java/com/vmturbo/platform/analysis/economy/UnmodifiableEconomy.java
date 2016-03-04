@@ -3,6 +3,8 @@ package com.vmturbo.platform.analysis.economy;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.function.ToDoubleFunction;
+
 import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -17,6 +19,31 @@ import org.checkerframework.dataflow.qual.SideEffectFree;
  * </p>
  */
 public interface UnmodifiableEconomy {
+
+    /**
+     * Checks whether the supplied commodity specification uses the default (additive) quantity
+     * update function or it has its own.
+     *
+     * @param specification The commodity specification for which to check additivity.
+     * @return {@code true} if the commodity specification is additive, {@code false} if it uses
+     *         its own function
+     */
+    @Pure
+    boolean isAdditive(@ReadOnly UnmodifiableEconomy this, @NonNull CommoditySpecification specification);
+
+    /**
+     * Returns an unmodifiable map from {@link CommoditySpecification} to the corresponding quantity
+     * updating function, if there is one.
+     *
+     * <p>
+     *  Those functions are used to compute the quantity and peak quantity of a commodity sold by a
+     *  {@link Trader seller} as a function of the quantities and peak quantities bought by the
+     *  customers of that seller respectively.
+     * </p>
+     */
+    @Pure
+    public @ReadOnly @NonNull Map<@NonNull CommoditySpecification, @NonNull ToDoubleFunction<List<Double>>>
+        getQuantityFunctions(@ReadOnly UnmodifiableEconomy this);
 
     /**
      * The {@link EconomySettings settings} parameterizing {@code this} economy's behavior.
