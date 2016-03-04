@@ -3,8 +3,7 @@ package com.vmturbo.platform.analysis.economy;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.function.ToDoubleFunction;
-
+import java.util.function.DoubleBinaryOperator;
 import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -42,7 +41,7 @@ public interface UnmodifiableEconomy {
      * </p>
      */
     @Pure
-    public @ReadOnly @NonNull Map<@NonNull CommoditySpecification, @NonNull ToDoubleFunction<List<Double>>>
+    public @ReadOnly @NonNull Map<@NonNull CommoditySpecification, @NonNull DoubleBinaryOperator>
         getQuantityFunctions(@ReadOnly UnmodifiableEconomy this);
 
     /**

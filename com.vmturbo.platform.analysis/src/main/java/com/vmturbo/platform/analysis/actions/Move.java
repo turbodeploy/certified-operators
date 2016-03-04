@@ -1,12 +1,8 @@
 package com.vmturbo.platform.analysis.actions;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.function.DoubleBinaryOperator;
 import java.util.function.Function;
 import java.util.function.IntFunction;
-import java.util.function.ToDoubleFunction;
-
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -198,34 +194,32 @@ public class Move extends MoveBase implements Action { // inheritance for code r
     public static double[] updatedQuantities(@NonNull UnmodifiableEconomy economy, @NonNull DoubleBinaryOperator defaultCombinator,
             double quantityBought, double peakQuantityBought, @NonNull Trader traderToUpdate, int soldIndex,
             boolean incomming) {
-        final CommoditySpecification commoditySold = traderToUpdate.getBasketSold().get(soldIndex);
+        final CommoditySpecification specificationSold = traderToUpdate.getBasketSold().get(soldIndex);
 
-        if (economy.isAdditive(commoditySold)) {
-            final CommoditySold commodity = traderToUpdate.getCommoditiesSold().get(soldIndex);
+        if (economy.isAdditive(specificationSold)) {
+            final CommoditySold commoditySold = traderToUpdate.getCommoditiesSold().get(soldIndex);
 
-            return new double[]{defaultCombinator.applyAsDouble(commodity.getQuantity(), quantityBought),
-                                defaultCombinator.applyAsDouble(commodity.getPeakQuantity(), peakQuantityBought)};
+            return new double[]{defaultCombinator.applyAsDouble(commoditySold.getQuantity(), quantityBought),
+                                defaultCombinator.applyAsDouble(commoditySold.getPeakQuantity(), peakQuantityBought)};
         } else {
             // Find the quantities bought by all buyer participations and calculate the quantity sold.
-            List<Double> quantitiesBought = new ArrayList<>();
-            List<Double> peakQuantitiesBought = new ArrayList<>();
+            DoubleBinaryOperator explicitCombinator = economy.getQuantityFunctions().get(specificationSold);
+
+            double combinedQuantity = incomming ? quantityBought : 0.0; // TODO: generalize default value
+            double combinedPeakQuantity = incomming ? peakQuantityBought : 0.0; // if/when needed.
             for (BuyerParticipation customer : traderToUpdate.getCustomers()) {
                 // TODO: this needs to be changed to something that takes matching but unequal
                 // commodities into account.
-                int specIndex = economy.getMarket(customer).getBasket().indexOf(commoditySold);
+                int specIndex = economy.getMarket(customer).getBasket().indexOf(specificationSold);
                 if (specIndex >= 0) {
-                    quantitiesBought.add(customer.getQuantity(specIndex));
-                    peakQuantitiesBought.add(customer.getPeakQuantity(specIndex));
+                    combinedQuantity = explicitCombinator.applyAsDouble(combinedQuantity,
+                                                                        customer.getQuantity(specIndex));
+                    combinedPeakQuantity = explicitCombinator.applyAsDouble(combinedPeakQuantity,
+                                                                            customer.getPeakQuantity(specIndex));
                 }
             }
-            if (incomming) {
-                quantitiesBought.add(quantityBought);
-                peakQuantitiesBought.add(peakQuantityBought);
-            }
 
-            ToDoubleFunction<List<Double>> aggregateQuantity = economy.getQuantityFunctions().get(commoditySold);
-            return new double[]{aggregateQuantity.applyAsDouble(quantitiesBought),
-                                aggregateQuantity.applyAsDouble(peakQuantitiesBought)};
+            return new double[]{combinedQuantity,combinedPeakQuantity};
         }
     }
 

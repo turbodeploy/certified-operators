@@ -8,8 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.TreeMap;
-import java.util.function.ToDoubleFunction;
-
+import java.util.function.DoubleBinaryOperator;
 import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -34,7 +33,7 @@ public final class Economy implements UnmodifiableEconomy {
     private final @NonNull List<@NonNull TraderWithSettings> traders_ = new ArrayList<>();
     // Map of quantity calculation functions by (sold) commodity specification. If an entry is
     // missing, the corresponding commodity specification is 'additive'.
-    private final @NonNull Map<@NonNull CommoditySpecification, @NonNull ToDoubleFunction<List<Double>>>
+    private final @NonNull Map<@NonNull CommoditySpecification, @NonNull DoubleBinaryOperator>
         quantityFunctions_ = new TreeMap<>();
     // An aggregate of all the parameters configuring this economy's behavior.
     private final @NonNull EconomySettings settings_ = new EconomySettings();
@@ -46,7 +45,7 @@ public final class Economy implements UnmodifiableEconomy {
     // Cached unmodifiable view of the traders_ list.
     private final @NonNull List<@NonNull Trader> unmodifiableTraders_ = Collections.unmodifiableList(traders_);
     // Cached unmodifiable view of the quantityFunctions_ map.
-    private final @NonNull Map<@NonNull CommoditySpecification, @NonNull ToDoubleFunction<List<Double>>>
+    private final @NonNull Map<@NonNull CommoditySpecification, @NonNull DoubleBinaryOperator>
         unmodifiableQuantityFunctions_ = Collections.unmodifiableMap(quantityFunctions_);
 
     // Constructors
@@ -70,7 +69,7 @@ public final class Economy implements UnmodifiableEconomy {
 
     @Override
     @Pure
-    public @ReadOnly @NonNull Map<@NonNull CommoditySpecification, @NonNull ToDoubleFunction<List<Double>>>
+    public @ReadOnly @NonNull Map<@NonNull CommoditySpecification, @NonNull DoubleBinaryOperator>
             getQuantityFunctions(@ReadOnly Economy this) {
         return unmodifiableQuantityFunctions_;
     }
@@ -82,7 +81,7 @@ public final class Economy implements UnmodifiableEconomy {
      * @see UnmodifiableEconomy#getQuantityFunctions()
      */
     @Pure
-    public @PolyRead @NonNull Map<@NonNull CommoditySpecification, @NonNull ToDoubleFunction<List<Double>>>
+    public @PolyRead @NonNull Map<@NonNull CommoditySpecification, @NonNull DoubleBinaryOperator>
             getModifiableQuantityFunctions(@PolyRead Economy this) {
         return quantityFunctions_;
     }

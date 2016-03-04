@@ -3,9 +3,8 @@ package com.vmturbo.platform.analysis.topology;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.function.ToDoubleFunction;
+import java.util.function.DoubleBinaryOperator;
 import java.util.stream.Collectors;
 
 import org.checkerframework.checker.javari.qual.PolyRead;
@@ -111,7 +110,7 @@ public final class LegacyTopology {
      * @param function a function that takes a list of Doubles as arguments and returns a Double.
      * The list of Doubles is the quantities bought.
      */
-    public void addQuantityFunction(String commodityType, ToDoubleFunction<List<Double>> function) {
+    public void addQuantityFunction(String commodityType, DoubleBinaryOperator function) {
         int commodityId = commodityTypes_.allocate(commodityType);
         economy_.getModifiableQuantityFunctions().put(new CommoditySpecification(commodityId), function);
     }

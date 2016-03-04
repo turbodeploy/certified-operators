@@ -2,13 +2,10 @@ package com.vmturbo.platform.analysis.actions;
 
 import static org.junit.Assert.*;
 
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
+import java.util.function.DoubleBinaryOperator;
 import java.util.function.Function;
-import java.util.function.ToDoubleFunction;
-
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.junit.Ignore;
@@ -32,8 +29,7 @@ import junitparams.naming.TestCaseName;
 @RunWith(JUnitParamsRunner.class)
 public final class MoveTest {
     // Fields
-    private static final ToDoubleFunction<List<Double>> MAX_DOUBLE_LIST =
-            quantities -> quantities.isEmpty() ? 0.0 : Collections.max(quantities);
+    private static final DoubleBinaryOperator MAX_DOUBLE = Math::max;
     private static final CommoditySpecification CPU = new CommoditySpecification(0);
     private static final CommoditySpecification DRS = new CommoditySpecification(1);
     private static final CommoditySpecification LAT1 = new CommoditySpecification(2);
@@ -231,8 +227,8 @@ public final class MoveTest {
     @Test // non-additive commodities
     public final void testMoveTake_NonAdditive() {
         Economy economy = new Economy();
-        economy.getModifiableQuantityFunctions().put(LAT1, MAX_DOUBLE_LIST);
-        economy.getModifiableQuantityFunctions().put(LAT2, MAX_DOUBLE_LIST);
+        economy.getModifiableQuantityFunctions().put(LAT1, MAX_DOUBLE);
+        economy.getModifiableQuantityFunctions().put(LAT2, MAX_DOUBLE);
         Trader vm1 = economy.addTrader(0, TraderState.ACTIVE, EMPTY);
         Trader vm2 = economy.addTrader(0, TraderState.ACTIVE, EMPTY);
         Trader vm3 = economy.addTrader(0, TraderState.ACTIVE, EMPTY);

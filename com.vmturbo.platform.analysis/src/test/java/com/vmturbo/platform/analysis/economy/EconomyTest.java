@@ -6,8 +6,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.function.ToDoubleFunction;
-
+import java.util.function.DoubleBinaryOperator;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Ignore;
@@ -76,7 +75,7 @@ public class EconomyTest {
     private static final Market independentMarket = new Market(EMPTY);
     private static final TraderWithSettings independentTrader = new TraderWithSettings(0, 0, TraderState.ACTIVE, EMPTY);
     private static final BuyerParticipation independentParticipation = new BuyerParticipation(independentTrader, 0);
-    private static final @NonNull ToDoubleFunction<List<Double>> DUMMY_FUNCTION = l -> 0.0;
+    private static final @NonNull DoubleBinaryOperator DUMMY_FUNCTION = Math::max;
 
     // TODO (Vaptistis): Eventually, all parameterized tests that share the same parameters can be
     // refactored in a single parameterized test, but until we implement copying of Economies the

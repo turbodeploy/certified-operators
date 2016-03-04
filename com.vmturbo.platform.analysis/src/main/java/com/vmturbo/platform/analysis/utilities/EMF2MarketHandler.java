@@ -4,7 +4,6 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -459,8 +458,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
             commSold.getSettings().setPriceFunction(pf);
          }
 
-        topology.addQuantityFunction(StorageLatency,
-                quantities -> quantities.isEmpty() ? 0.0 : Collections.max(quantities));
+        topology.addQuantityFunction(StorageLatency, Math::max);
 
         logger.info("Processing placement");
         for (Entry<BuyerParticipation, String> entry : placement.entrySet()) {
