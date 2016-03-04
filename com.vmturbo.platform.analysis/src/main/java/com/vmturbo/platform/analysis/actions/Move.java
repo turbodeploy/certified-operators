@@ -63,16 +63,16 @@ public class Move extends MoveBase implements Action { // inheritance for code r
     @Override
     public @NonNull Move take() {
         getTarget().move(destination_);
-        updateQuantities(getEconomy(), getTarget(), getSource(), false);
-        updateQuantities(getEconomy(), getTarget(), destination_, true);
+        updateQuantities(getEconomy(), getTarget(), getSource(), (sold, bought) -> Math.max(0, sold - bought));
+        updateQuantities(getEconomy(), getTarget(), destination_, (sold, bought) -> sold + bought);
         return this;
     }
 
     @Override
     public @NonNull Move rollback() {
         getTarget().move(getSource());
-        updateQuantities(getEconomy(), getTarget(), destination_, false);
-        updateQuantities(getEconomy(), getTarget(), getSource(), true);
+        updateQuantities(getEconomy(), getTarget(), destination_, (sold, bought) -> Math.max(0, sold - bought));
+        updateQuantities(getEconomy(), getTarget(), getSource(), (sold, bought) -> sold + bought);
         return this;
     }
 
@@ -163,7 +163,7 @@ public class Move extends MoveBase implements Action { // inheritance for code r
      */
     // TODO: should we cover moves of inactive traders?
     static void updateQuantities(@NonNull UnmodifiableEconomy economy, @NonNull BuyerParticipation participation,
-            @Nullable Trader traderToUpdate, boolean incomming) {
+            @Nullable Trader traderToUpdate, @NonNull DoubleBinaryOperator defaultCombinator) {
         @NonNull Basket basketBought = economy.getMarket(participation).getBasket();
 
         if (traderToUpdate != null) {
@@ -179,8 +179,9 @@ public class Move extends MoveBase implements Action { // inheritance for code r
                     soldIndex = soldIndexBackUp;
                 } else {
                     final @NonNull CommoditySold commodity = traderToUpdate.getCommoditiesSold().get(soldIndex);
-                    final double[] quantities = updatedQuantities(economy, participation.getQuantity(boughtIndex),
-                        participation.getPeakQuantity(boughtIndex), traderToUpdate, soldIndex, incomming);
+                    final double[] quantities = updatedQuantities(economy, defaultCombinator,
+                        participation.getQuantity(boughtIndex), participation.getPeakQuantity(boughtIndex),
+                        traderToUpdate, soldIndex, false);
                     commodity.setQuantity(quantities[0]);
                     commodity.setPeakQuantity(quantities[1]);
                     ++soldIndex;
@@ -190,16 +191,15 @@ public class Move extends MoveBase implements Action { // inheritance for code r
     }
 
     @Pure // The contents of the array are deterministic but the address of the array isn't...
-    public static double[] updatedQuantities(@NonNull UnmodifiableEconomy economy, double quantityBought,
-            double peakQuantityBought, @NonNull Trader traderToUpdate, int soldIndex, boolean incomming) {
+    public static double[] updatedQuantities(@NonNull UnmodifiableEconomy economy, @NonNull DoubleBinaryOperator defaultCombinator,
+            double quantityBought, double peakQuantityBought, @NonNull Trader traderToUpdate, int soldIndex,
+            boolean incomming) {
         final CommoditySpecification specificationSold = traderToUpdate.getBasketSold().get(soldIndex);
         final CommoditySold commoditySold = traderToUpdate.getCommoditiesSold().get(soldIndex);
 
         if (economy.isAdditive(specificationSold)) {
-            return new double[]{incomming ? commoditySold.getQuantity() + quantityBought
-                              : Math.max(0, commoditySold.getQuantity() - quantityBought),
-                                incomming ? commoditySold.getPeakQuantity() + peakQuantityBought
-                              : Math.max(0, commoditySold.getPeakQuantity() - peakQuantityBought)};
+            return new double[]{defaultCombinator.applyAsDouble(commoditySold.getQuantity(), quantityBought),
+                                defaultCombinator.applyAsDouble(commoditySold.getPeakQuantity(), peakQuantityBought)};
         } else {
             // Find the quantities bought by all buyer participations and calculate the quantity sold.
             DoubleBinaryOperator explicitCombinator = economy.getQuantityFunctions().get(specificationSold);

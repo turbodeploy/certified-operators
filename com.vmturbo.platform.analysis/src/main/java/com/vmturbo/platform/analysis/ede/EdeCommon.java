@@ -1,6 +1,8 @@
 package com.vmturbo.platform.analysis.ede;
 
 import java.util.List;
+import java.util.function.DoubleBinaryOperator;
+
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
@@ -49,10 +51,11 @@ public final class EdeCommon {
                 soldIndex++;
             }
             final CommoditySold commSold = seller.getCommoditiesSold().get(soldIndex);
+            final DoubleBinaryOperator addition = (sold, bought) -> sold + bought;
 
             // add quantities bought by buyer, to quantities already used at seller
             final double effectiveCapacity = commSold.getEffectiveCapacity();
-            final double[] newQuantities = Move.updatedQuantities(economy, quantities[boughtIndex],
+            final double[] newQuantities = Move.updatedQuantities(economy, addition, quantities[boughtIndex],
                 peakQuantities[boughtIndex], seller, soldIndex, true);
             final double newQuantity = isCurrentSupplier ? commSold.getQuantity() : newQuantities[0];
             final double newPeakQuantity = isCurrentSupplier ? commSold.getPeakQuantity() : newQuantities[1];
