@@ -1,5 +1,6 @@
 package com.vmturbo.platform.analysis.actions;
 
+import java.util.Map.Entry;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
@@ -8,6 +9,7 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Pure;
 
+import com.vmturbo.platform.analysis.economy.BuyerParticipation;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -79,14 +81,34 @@ public class ProvisionBySupply implements Action {
         provisionedSeller_ = getEconomy().addTrader(getModelSeller().getType(), TraderState.ACTIVE,
             getModelSeller().getBasketSold());
 
-        // Add basket bought
-        for (@NonNull Market market : getEconomy().getMarketsAsBuyer(getModelSeller()).values()) {
-            getEconomy().addBasketBought(getProvisionedSeller(), market.getBasket());
+        // Copy trader settings
+        provisionedSeller_.getSettings().setMovable(getModelSeller().getSettings().isMovable());
+        provisionedSeller_.getSettings().setCloneable(getModelSeller().getSettings().isCloneable());
+        provisionedSeller_.getSettings().setSuspendable(getModelSeller().getSettings().isSuspendable());
+        provisionedSeller_.getSettings().setMinDesiredUtil(getModelSeller().getSettings().getMinDesiredUtil());
+        provisionedSeller_.getSettings().setMaxDesiredUtil(getModelSeller().getSettings().getMaxDesiredUtil());
+
+        // Add basket(s) bought
+        for (@NonNull Entry<@NonNull BuyerParticipation, @NonNull Market> entry
+                : getEconomy().getMarketsAsBuyer(getModelSeller()).entrySet()) {
+            BuyerParticipation participation = getEconomy().addBasketBought(getProvisionedSeller(),
+                                                                            entry.getValue().getBasket());
+            if (!provisionedSeller_.getSettings().isMovable()) {
+                participation.move(entry.getKey().getSupplier());
+                // TODO: also update quantities sold by supplier
+            }
+
+            // Copy quantities bought
+            for (int i = 0 ; i < entry.getValue().getBasket().size() ; ++i) {
+                participation.setQuantity(i, entry.getKey().getQuantity(i));
+                participation.setPeakQuantity(i, entry.getKey().getPeakQuantity(i));
+            }
         }
-        // TODO: also copy quantities bought
 
         // Update commodities sold
         for (int i = 0 ; i < getModelSeller().getBasketSold().size() ; ++i) {
+            // TODO: also copy overhead
+
             // Copy commodity sold attributes
             getProvisionedSeller().getCommoditiesSold().get(i).setCapacity(
                 getModelSeller().getCommoditiesSold().get(i).getCapacity());
