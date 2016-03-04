@@ -5,7 +5,6 @@ import java.util.List;
 import java.util.function.DoubleBinaryOperator;
 import java.util.function.Function;
 import java.util.function.IntFunction;
-
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -160,22 +159,21 @@ public class Move extends MoveBase implements Action { // inheritance for code r
      * </p>
      *
      * @param basketBought The basket bought by the buyer. It must match participation.
-     * @param participation The buyer participation that will be moved. It must match basketBought.
+     * @param participation The buyer participation that will be moved.
      * @param traderToUpdate The seller whose commodities sold will be updated.
-     * @param binaryOperator A binary operator (old quantity sold, quantity bought) -> new quantity sold.
+     * @param defaultCombinator A binary operator (old quantity sold, quantity bought) -> new quantity sold.
      */
     // TODO: should we cover moves of inactive traders?
     static void updateQuantities(@NonNull UnmodifiableEconomy economy, @NonNull BuyerParticipation participation,
-                                 @Nullable Trader traderToUpdate, @NonNull DoubleBinaryOperator binaryOperator) {
+            @Nullable Trader traderToUpdate, @NonNull DoubleBinaryOperator defaultCombinator) {
         @NonNull Basket basketBought = economy.getMarket(participation).getBasket();
 
         if (traderToUpdate != null) {
             final @NonNull @ReadOnly Basket basketSold = traderToUpdate.getBasketSold();
-            List<@NonNull BuyerParticipation> participations = null;
             for (int boughtIndex = 0, soldIndex = 0 ; boughtIndex < basketBought.size() ; ++boughtIndex) {
                 final int soldIndexBackUp = soldIndex;
                 while (soldIndex < basketSold.size()
-                                && !basketBought.get(boughtIndex).isSatisfiedBy(basketSold.get(soldIndex))) {
+                        && !basketBought.get(boughtIndex).isSatisfiedBy(basketSold.get(soldIndex))) {
                     ++soldIndex;
                 }
 
@@ -186,31 +184,28 @@ public class Move extends MoveBase implements Action { // inheritance for code r
                     CommoditySpecification soldSpec = basketSold.get(soldIndex);
 
                     if (economy.isAdditive(soldSpec)) {
-                        commodity.setQuantity(binaryOperator.applyAsDouble(commodity.getQuantity(),
+                        commodity.setQuantity(defaultCombinator.applyAsDouble(commodity.getQuantity(),
                                 participation.getQuantity(boughtIndex)));
-                        commodity.setPeakQuantity(binaryOperator.applyAsDouble(commodity.getPeakQuantity(),
+                        commodity.setPeakQuantity(defaultCombinator.applyAsDouble(commodity.getPeakQuantity(),
                                 participation.getPeakQuantity(boughtIndex)));
                     } else {
-                        if (participations == null) {
-                            participations = traderToUpdate.getCustomers();
-                        }
-                        // for each commodity spec in the basket, find the quantities bought by all participations
-                        // and calculate the quantity sold
-                        List<Double> quantitiesBought = new ArrayList<>();
-                        List<Double> peakQuantitiesBought = new ArrayList<>();
-                        for (int pIndex = 0; pIndex < participations.size(); pIndex++) {
-                            BuyerParticipation aParticipation = participations.get(pIndex);
-                            Basket basket = economy.getMarket(aParticipation).getBasket();
-                            int specIndex = basket.indexOf(soldSpec);
+                        // Find the quantities bought by all customers and calculate the quantity sold.
+                        final List<Double> quantitiesBought = new ArrayList<>();
+                        final List<Double> peakQuantitiesBought = new ArrayList<>();
+                        for (BuyerParticipation customer : traderToUpdate.getCustomers()) {
+                            // TODO: this needs to be changed to something that takes matching but
+                            // unequal commodities into account.
+                            int specIndex = economy.getMarket(customer).getBasket().indexOf(soldSpec);
                             if (specIndex >= 0) {
-                                quantitiesBought.add(aParticipation.getQuantities()[specIndex]);
-                                peakQuantitiesBought.add(aParticipation.getPeakQuantities()[specIndex]);
+                                quantitiesBought.add(customer.getQuantity(specIndex));
+                                peakQuantitiesBought.add(customer.getPeakQuantity(specIndex));
                             }
                         }
+
                         commodity.setQuantity(economy.getQuantityFunctions()
-                                .get(soldSpec).applyAsDouble(quantitiesBought));
+                            .get(soldSpec).applyAsDouble(quantitiesBought));
                         commodity.setPeakQuantity(economy.getQuantityFunctions()
-                                .get(soldSpec).applyAsDouble(peakQuantitiesBought));
+                            .get(soldSpec).applyAsDouble(peakQuantitiesBought));
                     }
                     ++soldIndex;
                 }
