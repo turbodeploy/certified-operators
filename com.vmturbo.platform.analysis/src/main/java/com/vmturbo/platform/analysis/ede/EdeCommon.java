@@ -1,11 +1,13 @@
 package com.vmturbo.platform.analysis.ede;
 
 import java.util.List;
+import java.util.function.DoubleBinaryOperator;
 
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
 
+import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.BuyerParticipation;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
@@ -29,8 +31,8 @@ public final class EdeCommon {
      * @param seller - the seller that will give the quote
      */
     @Pure
-    public static double quote(@NonNull BuyerParticipation buyerParticipation, @NonNull Basket basket,
-                    Trader currentSupplier, @NonNull Trader seller) {
+    public static double quote(@NonNull UnmodifiableEconomy economy, @NonNull BuyerParticipation buyerParticipation,
+            @NonNull Basket basket, Trader currentSupplier, @NonNull Trader seller) {
         //TODO (Apostolos): we have not dealt with equivalent commodities
         double quote = 0.0;
         boolean isCurrentSupplier = seller == currentSupplier;
@@ -48,14 +50,17 @@ public final class EdeCommon {
             while (!basketCommSpec.isSatisfiedBy(seller.getBasketSold().get(soldIndex))) {
                 soldIndex++;
             }
-            CommoditySold commSold = seller.getCommoditiesSold().get(soldIndex);
+            final CommoditySold commSold = seller.getCommoditiesSold().get(soldIndex);
+            final DoubleBinaryOperator addition = (sold, bought) -> sold + bought;
 
             // add quantities bought by buyer, to quantities already used at seller
             final double effectiveCapacity = commSold.getEffectiveCapacity();
             final double newQuantity = isCurrentSupplier ? commSold.getQuantity()
-                                     : quantities[boughtIndex] + commSold.getQuantity();
+                : Move.updatedQuantity(economy, addition, quantities[boughtIndex], seller, soldIndex,
+                    CommoditySold::getQuantity, BuyerParticipation::getQuantities, true);
             final double newPeakQuantity = isCurrentSupplier ? commSold.getPeakQuantity()
-                                         : peakQuantities[boughtIndex] + commSold.getPeakQuantity();
+                : Move.updatedQuantity(economy, addition, peakQuantities[boughtIndex], seller, soldIndex,
+                    CommoditySold::getPeakQuantity, BuyerParticipation::getPeakQuantities, true);
             final double utilUpperBound = commSold.getSettings().getUtilizationUpperBound();
             final double excessQuantity = peakQuantities[boughtIndex] - quantities[boughtIndex];
 
@@ -123,7 +128,7 @@ public final class EdeCommon {
                 return;
             }
 
-            final double quote = EdeCommon.quote(participation_, basket_, supplier_, seller);
+            final double quote = EdeCommon.quote(economy_, participation_, basket_, supplier_, seller);
 
             if (seller == supplier_) {
                 currentQuote_ = quote;

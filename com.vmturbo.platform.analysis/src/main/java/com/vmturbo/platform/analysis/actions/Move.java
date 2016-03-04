@@ -5,6 +5,8 @@ import java.util.List;
 import java.util.function.DoubleBinaryOperator;
 import java.util.function.Function;
 import java.util.function.IntFunction;
+import java.util.function.ToDoubleFunction;
+
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -181,35 +183,41 @@ public class Move extends MoveBase implements Action { // inheritance for code r
                     soldIndex = soldIndexBackUp;
                 } else {
                     final @NonNull CommoditySold commodity = traderToUpdate.getCommoditiesSold().get(soldIndex);
-                    CommoditySpecification soldSpec = basketSold.get(soldIndex);
 
-                    if (economy.isAdditive(soldSpec)) {
-                        commodity.setQuantity(defaultCombinator.applyAsDouble(commodity.getQuantity(),
-                                participation.getQuantity(boughtIndex)));
-                        commodity.setPeakQuantity(defaultCombinator.applyAsDouble(commodity.getPeakQuantity(),
-                                participation.getPeakQuantity(boughtIndex)));
-                    } else {
-                        // Find the quantities bought by all customers and calculate the quantity sold.
-                        final List<Double> quantitiesBought = new ArrayList<>();
-                        final List<Double> peakQuantitiesBought = new ArrayList<>();
-                        for (BuyerParticipation customer : traderToUpdate.getCustomers()) {
-                            // TODO: this needs to be changed to something that takes matching but
-                            // unequal commodities into account.
-                            int specIndex = economy.getMarket(customer).getBasket().indexOf(soldSpec);
-                            if (specIndex >= 0) {
-                                quantitiesBought.add(customer.getQuantity(specIndex));
-                                peakQuantitiesBought.add(customer.getPeakQuantity(specIndex));
-                            }
-                        }
-
-                        commodity.setQuantity(economy.getQuantityFunctions()
-                            .get(soldSpec).applyAsDouble(quantitiesBought));
-                        commodity.setPeakQuantity(economy.getQuantityFunctions()
-                            .get(soldSpec).applyAsDouble(peakQuantitiesBought));
-                    }
+                    commodity.setQuantity(updatedQuantity(economy, defaultCombinator, participation.getQuantity(boughtIndex),
+                        traderToUpdate, soldIndex, CommoditySold::getQuantity, BuyerParticipation::getQuantities, false));
+                    commodity.setPeakQuantity(updatedQuantity(economy, defaultCombinator, participation.getPeakQuantity(boughtIndex),
+                        traderToUpdate, soldIndex, CommoditySold::getPeakQuantity, BuyerParticipation::getPeakQuantities, false));
                     ++soldIndex;
                 }
             }
+        }
+    }
+
+    public static double updatedQuantity(@NonNull UnmodifiableEconomy economy, @NonNull DoubleBinaryOperator defaultCombinator,
+            double quantityBought, @NonNull Trader traderToUpdate, int soldIndex,
+            @NonNull ToDoubleFunction<@NonNull CommoditySold> getQuantitySold,
+            @NonNull Function<@NonNull BuyerParticipation, @NonNull double[]> getQuantitiesBought, boolean incomming) {
+        final CommoditySpecification commoditySold = traderToUpdate.getBasketSold().get(soldIndex);
+
+        if (economy.isAdditive(commoditySold)) {
+            return defaultCombinator.applyAsDouble(getQuantitySold.applyAsDouble(
+                traderToUpdate.getCommoditiesSold().get(soldIndex)), quantityBought);
+        } else {
+            // Find the quantities bought by all buyer participations and calculate the quantity sold.
+            List<Double> quantitiesBought = new ArrayList<>();
+            for (BuyerParticipation customer : traderToUpdate.getCustomers()) {
+                // TODO: this needs to be changed to something that takes matching but unequal
+                // commodities into account.
+                int specIndex = economy.getMarket(customer).getBasket().indexOf(commoditySold);
+                if (specIndex >= 0) {
+                    quantitiesBought.add(getQuantitiesBought.apply(customer)[specIndex]);
+                }
+            }
+            if (incomming) {
+                quantitiesBought.add(quantityBought);
+            }
+            return economy.getQuantityFunctions().get(commoditySold).applyAsDouble(quantitiesBought);
         }
     }
 
