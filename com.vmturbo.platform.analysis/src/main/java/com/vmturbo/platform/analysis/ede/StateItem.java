@@ -18,7 +18,6 @@ public class StateItem {
     private long suspendOnlyAfterThisTime_;
     private long moveFromOnlyAfterThisTime_;
     private long moveToOnlyAfterThisTime_;
-    private long moveOnlyAfterThisTime_;
 
     // Constructors
 
@@ -73,12 +72,4 @@ public class StateItem {
         return this;
     }
 
-    public long getMoveOnlyAfterThisTime() {
-        return moveOnlyAfterThisTime_;
-    }
-
-    public StateItem setMoveOnlyAfterThisTime(long time) {
-        moveOnlyAfterThisTime_ = time;
-        return this;
-    }
 }
