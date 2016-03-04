@@ -183,41 +183,49 @@ public class Move extends MoveBase implements Action { // inheritance for code r
                     soldIndex = soldIndexBackUp;
                 } else {
                     final @NonNull CommoditySold commodity = traderToUpdate.getCommoditiesSold().get(soldIndex);
-
-                    commodity.setQuantity(updatedQuantity(economy, defaultCombinator, participation.getQuantity(boughtIndex),
-                        traderToUpdate, soldIndex, CommoditySold::getQuantity, BuyerParticipation::getQuantities, false));
-                    commodity.setPeakQuantity(updatedQuantity(economy, defaultCombinator, participation.getPeakQuantity(boughtIndex),
-                        traderToUpdate, soldIndex, CommoditySold::getPeakQuantity, BuyerParticipation::getPeakQuantities, false));
+                    final double[] quantities = updatedQuantities(economy, defaultCombinator,
+                        participation.getQuantity(boughtIndex), participation.getPeakQuantity(boughtIndex),
+                        traderToUpdate, soldIndex, false);
+                    commodity.setQuantity(quantities[0]);
+                    commodity.setPeakQuantity(quantities[1]);
                     ++soldIndex;
                 }
             }
         }
     }
 
-    public static double updatedQuantity(@NonNull UnmodifiableEconomy economy, @NonNull DoubleBinaryOperator defaultCombinator,
-            double quantityBought, @NonNull Trader traderToUpdate, int soldIndex,
-            @NonNull ToDoubleFunction<@NonNull CommoditySold> getQuantitySold,
-            @NonNull Function<@NonNull BuyerParticipation, @NonNull double[]> getQuantitiesBought, boolean incomming) {
+    @Pure // The contents of the array are deterministic but the address of the array isn't...
+    public static double[] updatedQuantities(@NonNull UnmodifiableEconomy economy, @NonNull DoubleBinaryOperator defaultCombinator,
+            double quantityBought, double peakQuantityBought, @NonNull Trader traderToUpdate, int soldIndex,
+            boolean incomming) {
         final CommoditySpecification commoditySold = traderToUpdate.getBasketSold().get(soldIndex);
 
         if (economy.isAdditive(commoditySold)) {
-            return defaultCombinator.applyAsDouble(getQuantitySold.applyAsDouble(
-                traderToUpdate.getCommoditiesSold().get(soldIndex)), quantityBought);
+            final CommoditySold commodity = traderToUpdate.getCommoditiesSold().get(soldIndex);
+
+            return new double[]{defaultCombinator.applyAsDouble(commodity.getQuantity(), quantityBought),
+                                defaultCombinator.applyAsDouble(commodity.getPeakQuantity(), peakQuantityBought)};
         } else {
             // Find the quantities bought by all buyer participations and calculate the quantity sold.
             List<Double> quantitiesBought = new ArrayList<>();
+            List<Double> peakQuantitiesBought = new ArrayList<>();
             for (BuyerParticipation customer : traderToUpdate.getCustomers()) {
                 // TODO: this needs to be changed to something that takes matching but unequal
                 // commodities into account.
                 int specIndex = economy.getMarket(customer).getBasket().indexOf(commoditySold);
                 if (specIndex >= 0) {
-                    quantitiesBought.add(getQuantitiesBought.apply(customer)[specIndex]);
+                    quantitiesBought.add(customer.getQuantity(specIndex));
+                    peakQuantitiesBought.add(customer.getPeakQuantity(specIndex));
                 }
             }
             if (incomming) {
                 quantitiesBought.add(quantityBought);
+                peakQuantitiesBought.add(peakQuantityBought);
             }
-            return economy.getQuantityFunctions().get(commoditySold).applyAsDouble(quantitiesBought);
+
+            ToDoubleFunction<List<Double>> aggregateQuantity = economy.getQuantityFunctions().get(commoditySold);
+            return new double[]{aggregateQuantity.applyAsDouble(quantitiesBought),
+                                aggregateQuantity.applyAsDouble(peakQuantitiesBought)};
         }
     }
 

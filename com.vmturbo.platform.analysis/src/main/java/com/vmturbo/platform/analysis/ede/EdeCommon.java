@@ -55,12 +55,10 @@ public final class EdeCommon {
 
             // add quantities bought by buyer, to quantities already used at seller
             final double effectiveCapacity = commSold.getEffectiveCapacity();
-            final double newQuantity = isCurrentSupplier ? commSold.getQuantity()
-                : Move.updatedQuantity(economy, addition, quantities[boughtIndex], seller, soldIndex,
-                    CommoditySold::getQuantity, BuyerParticipation::getQuantities, true);
-            final double newPeakQuantity = isCurrentSupplier ? commSold.getPeakQuantity()
-                : Move.updatedQuantity(economy, addition, peakQuantities[boughtIndex], seller, soldIndex,
-                    CommoditySold::getPeakQuantity, BuyerParticipation::getPeakQuantities, true);
+            final double[] newQuantities = Move.updatedQuantities(economy, addition, quantities[boughtIndex],
+                peakQuantities[boughtIndex], seller, soldIndex, true);
+            final double newQuantity = isCurrentSupplier ? commSold.getQuantity() : newQuantities[0];
+            final double newPeakQuantity = isCurrentSupplier ? commSold.getPeakQuantity() : newQuantities[1];
             final double utilUpperBound = commSold.getSettings().getUtilizationUpperBound();
             final double excessQuantity = peakQuantities[boughtIndex] - quantities[boughtIndex];
 
