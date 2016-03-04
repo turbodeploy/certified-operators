@@ -39,6 +39,10 @@ public interface UnmodifiableEconomy {
      *  {@link Trader seller} as a function of the quantities and peak quantities bought by the
      *  customers of that seller respectively.
      * </p>
+     *
+     * <p>
+     *  They must be associative and commutative.
+     * </p>
      */
     @Pure
     public @ReadOnly @NonNull Map<@NonNull CommoditySpecification, @NonNull DoubleBinaryOperator>

@@ -195,18 +195,21 @@ public class Move extends MoveBase implements Action { // inheritance for code r
             double quantityBought, double peakQuantityBought, @NonNull Trader traderToUpdate, int soldIndex,
             boolean incomming) {
         final CommoditySpecification specificationSold = traderToUpdate.getBasketSold().get(soldIndex);
+        final CommoditySold commoditySold = traderToUpdate.getCommoditiesSold().get(soldIndex);
 
         if (economy.isAdditive(specificationSold)) {
-            final CommoditySold commoditySold = traderToUpdate.getCommoditiesSold().get(soldIndex);
-
             return new double[]{defaultCombinator.applyAsDouble(commoditySold.getQuantity(), quantityBought),
                                 defaultCombinator.applyAsDouble(commoditySold.getPeakQuantity(), peakQuantityBought)};
         } else {
             // Find the quantities bought by all buyer participations and calculate the quantity sold.
             DoubleBinaryOperator explicitCombinator = economy.getQuantityFunctions().get(specificationSold);
+            if (incomming) {
+                return new double[]{explicitCombinator.applyAsDouble(commoditySold.getQuantity(), quantityBought),
+                                    explicitCombinator.applyAsDouble(commoditySold.getPeakQuantity(), peakQuantityBought)};
+            }
 
-            double combinedQuantity = incomming ? quantityBought : 0.0; // TODO: generalize default value
-            double combinedPeakQuantity = incomming ? peakQuantityBought : 0.0; // if/when needed.
+            double combinedQuantity = 0.0; // TODO: generalize default value
+            double combinedPeakQuantity = 0.0; // if/when needed.
             for (BuyerParticipation customer : traderToUpdate.getCustomers()) {
                 // TODO: this needs to be changed to something that takes matching but unequal
                 // commodities into account.
