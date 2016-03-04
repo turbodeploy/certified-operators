@@ -1,4 +1,4 @@
-package com.vmturbo.platform.analysis;
+package com.vmturbo.platform.analysis.drivers;
 
 import java.io.FileNotFoundException;
 import java.util.List;
@@ -10,19 +10,14 @@ import com.vmturbo.platform.analysis.topology.LegacyTopology;
 import com.vmturbo.platform.analysis.utilities.M2Utils;
 
 /**
- * The Main class for the application.
- *
- * <p>
- *  Currently it only serves to test that the project is build correctly,
- *  but later it will serve as the entry point for the application that
- *  will run alongside OperationsManager to test the Market 2 prototype
- *  on select customers.
- * </p>
+ * An application that takes the path to a legacy topology file as an argument, runs the loaded
+ * Economy as a plan and lists the resulting actions to the standard output.
  */
-public final class Main {
+public final class RunPlan {
+    // Fields
+    private static final Logger logger = Logger.getLogger(RunPlan.class);
 
-    private static final Logger logger = Logger.getLogger(Main.class);
-
+    // Methods
     public static void main(String[] args) {
         if (args.length < 1) {
             logger.error("Correct usage: java Main \"topology-to-analyse\"");
@@ -43,9 +38,9 @@ public final class Main {
                 logger.info(actions.size() + " actions");
                 for (Action action : actions) {
                     logger.info("What: " + action.debugDescription(topology.getUuids()::get, topology.getNames()::get,
-                        topology.getTraderTypes()::getName, topology.getCommodityTypes()::getName));
+                        topology.getCommodityTypes()::getName, topology.getTraderTypes()::getName));
                     logger.info("Why: " + action.debugReason(topology.getUuids()::get, topology.getNames()::get,
-                        topology.getTraderTypes()::getName, topology.getCommodityTypes()::getName));
+                        topology.getCommodityTypes()::getName, topology.getTraderTypes()::getName));
                     logger.info("");
                 }
                 keepRunning = !actions.isEmpty();
@@ -56,4 +51,4 @@ public final class Main {
         }
     }
 
-} // end Main class
+} // end RunPlan class

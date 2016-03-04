@@ -4,7 +4,6 @@ import static com.google.common.base.Preconditions.checkArgument;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -35,7 +34,7 @@ public final class Economy implements UnmodifiableEconomy {
     private final @NonNull List<@NonNull TraderWithSettings> traders_ = new ArrayList<>();
     // Map of quantity calculation functions by (sold) commodity specification.
     private final @NonNull Map<@NonNull CommoditySpecification, @NonNull ToDoubleFunction<List<Double>>>
-                quantityFunctions_ = new HashMap<>();
+                quantityFunctions_ = new TreeMap<>();
     // An aggregate of all the parameters configuring this economy's behavior.
     private final @NonNull EconomySettings settings_ = new EconomySettings();
 

@@ -4,6 +4,7 @@ import org.checkerframework.dataflow.qual.Pure;
 
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 
+@FunctionalInterface
 public interface PriceFunction {
     // Methods
 
