@@ -32,6 +32,7 @@ import com.google.common.collect.Multimaps;
 import com.google.common.collect.Sets;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.BuyerParticipation;
+import com.vmturbo.platform.analysis.economy.CommodityBought;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Market;
@@ -154,6 +155,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
         }
         // ignore entities not in the main market
         if (!mainMarket) return;
+
         // Ignore shadow entities
         String name = attributes.get("name");
         if (name != null && name.endsWith("_shadow")) return;
@@ -189,7 +191,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
     @Override
     public void endElement(String uri, String localName, String qName) throws SAXException {
         if (MARKET.equals(qName)) {
-            mainMarket = true; // handle entities in between markets
+            mainMarket = false; // don't handle entities in between markets
         }
         attributesStack.pop();
         // TODO: Create the trader here. We have the basket sold.
@@ -377,10 +379,26 @@ final public class EMF2MarketHandler extends DefaultHandler {
                 Basket basketBought = topology.getEconomy().getMarket(participation).getBasket();
 
                 for (Attributes commBought : sellerAttr2commsBoughtAttr.get(sellerAttrs)) {
-                    CommoditySpecification specification = new CommoditySpecification(
-                        topology.getCommodityTypes().getId(commBought.commoditySpecString()));
+                    double capacity = commBought.value("capacity", "startCapacity");
+                    if (capacity < 0) {
+                        printAttributes("capacity bought < 0 ", commBought, Level.WARN);
+                        capacity = 0.0;
+                    }
                     double used = commBought.value("used");
-                    topology.getEconomy().getCommodityBought(participation, specification).setQuantity(used);
+                    if (used > capacity) {
+                        printAttributes("used bought > capacity bought", commBought, Level.WARN);
+                        used = capacity;
+                    }
+                    double peak = commBought.value("peak", "startPeak");
+                    if (peak > capacity) {
+                        printAttributes("peak bought > capacity bought", commBought, Level.WARN);
+                        peak = capacity;
+                    }
+
+                    CommodityBought commodity = topology.getEconomy().getCommodityBought(participation,
+                        new CommoditySpecification(topology.getCommodityTypes().getId(commBought.commoditySpecString())));
+                    commodity.setQuantity(used);
+                    commodity.setPeakQuantity(peak);
                 }
 
                 placement.put(participation, entry.getKey().uuid());
@@ -422,11 +440,11 @@ final public class EMF2MarketHandler extends DefaultHandler {
             // check and recover from this error with only a warning, so that we have some tolerance
             // in case we have to work with servers that don't have the fix and/or have other bugs.
             if (capacity < 0) {
-                printAttributes("capacity < 0 ", commSoldAttr, Level.WARN);
+                printAttributes("capacity sold < 0 ", commSoldAttr, Level.WARN);
                 capacity = 0.0;
             }
             if (used > capacity) {
-                printAttributes("used > capacity ", commSoldAttr, Level.WARN);
+                printAttributes("used sold > capacity sold", commSoldAttr, Level.WARN);
                 used = capacity;
             }
             if (peakUtil > 1.0) {
