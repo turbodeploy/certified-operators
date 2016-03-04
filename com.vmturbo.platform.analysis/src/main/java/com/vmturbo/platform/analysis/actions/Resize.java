@@ -52,9 +52,10 @@ public class Resize implements Action {
      */
     public Resize(@NonNull Trader sellingTrader, @NonNull CommoditySpecification resizedCommodity,
                   double oldCapacity, double newCapacity) {
-        checkArgument(sellingTrader.getBasketSold().indexOf(resizedCommodity) >= 0);
-        checkArgument(oldCapacity >= 0);
-        checkArgument(newCapacity >= 0);
+        checkArgument(sellingTrader.getBasketSold().indexOf(resizedCommodity) >= 0,
+                      "resizedCommodity =  " + resizedCommodity);
+        checkArgument(oldCapacity >= 0, "oldCapacity = " + oldCapacity);
+        checkArgument(newCapacity >= 0, "newCapacity = " + newCapacity);
 
         sellingTrader_ = sellingTrader;
         resizedCommodity_ = resizedCommodity;

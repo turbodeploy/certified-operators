@@ -114,7 +114,8 @@ public final class Market {
      */
     @Deterministic
     @NonNull Market addSeller(@NonNull TraderWithSettings newSeller) {
-        checkArgument(getBasket().isSatisfiedBy(newSeller.getBasketSold()));
+        checkArgument(getBasket().isSatisfiedBy(newSeller.getBasketSold()),
+            "getBasket() = " + getBasket() + " newSeller = " + newSeller);
 
         if (newSeller.getState().isActive()) {
             activeSellers_.add(newSeller);
@@ -149,9 +150,9 @@ public final class Market {
     @Deterministic
     @NonNull Market removeSeller(@NonNull TraderWithSettings sellerToRemove) {
         if (sellerToRemove.getState().isActive()) {
-            checkArgument(activeSellers_.remove(sellerToRemove));
+            checkArgument(activeSellers_.remove(sellerToRemove), "sellerToRemove = " + sellerToRemove);
         } else {
-            checkArgument(inactiveSellers_.remove(sellerToRemove));
+            checkArgument(inactiveSellers_.remove(sellerToRemove), "sellerToRemove = " + sellerToRemove);
         }
         sellerToRemove.getMarketsAsSeller().remove(this);
 
@@ -208,10 +209,11 @@ public final class Market {
      */
     @NonNull Market removeBuyerParticipation(@NonNull BuyerParticipation participationToRemove) {
         if (participationToRemove.getBuyer().getState().isActive()) {
-            checkArgument(buyers_.remove(participationToRemove));
+            checkArgument(buyers_.remove(participationToRemove), "participationToRemove = " + participationToRemove);
         }
         participationToRemove.move(null);
-        checkArgument(((TraderWithSettings)participationToRemove.getBuyer()).getMarketsAsBuyer().remove(participationToRemove, this));
+        checkArgument(((TraderWithSettings)participationToRemove.getBuyer()).getMarketsAsBuyer().remove(participationToRemove, this),
+                      "participationToRemove = " + participationToRemove + " this = " + this);
 
         return this;
     }
@@ -233,15 +235,15 @@ public final class Market {
                     entry.getValue().buyers_.add(entry.getKey());
                 }
                 for (@NonNull @PolyRead Market market : trader.getMarketsAsSeller()) {
-                    checkArgument(market.inactiveSellers_.remove(trader));
+                    checkArgument(market.inactiveSellers_.remove(trader), "trader = " + trader);
                     market.activeSellers_.add(trader);
                 }
             } else { // deactivate
                 for (Entry<@NonNull BuyerParticipation, @NonNull Market> entry : trader.getMarketsAsBuyer().entrySet()) {
-                    checkArgument(entry.getValue().buyers_.remove(entry.getKey()));
+                    checkArgument(entry.getValue().buyers_.remove(entry.getKey()), "entry.getKey() = " + entry.getKey());
                 }
                 for (@NonNull @PolyRead Market market : trader.getMarketsAsSeller()) {
-                    checkArgument(market.activeSellers_.remove(trader));
+                    checkArgument(market.activeSellers_.remove(trader), "trader = " + trader);
                     market.inactiveSellers_.add(trader);
                 }
             }

@@ -46,7 +46,7 @@ public final class CommoditySpecification implements Comparable<CommoditySpecifi
      *             It must be non-negative.
      */
     public CommoditySpecification(int type) {
-        checkArgument(type >= 0);
+        checkArgument(type >= 0, "type = " + type);
 
         type_ = type;
         qualityLowerBound_ = 0;
@@ -65,9 +65,10 @@ public final class CommoditySpecification implements Comparable<CommoditySpecifi
      *             provide. It must be non-negative and greater than or equal to qualityUpperBound.
      */
     public CommoditySpecification(int type, int qualityLowerBound, int qualityUpperBound) {
-        checkArgument(type >= 0);
-        checkArgument(0 <= qualityLowerBound);
-        checkArgument(qualityLowerBound <= qualityUpperBound);
+        checkArgument(type >= 0, "type = " + type);
+        checkArgument(0 <= qualityLowerBound, "qualityLowerBound = " + qualityLowerBound);
+        checkArgument(qualityLowerBound <= qualityUpperBound,
+            "qualityLowerBound = " + qualityLowerBound + ", qualityUpperBound = " + qualityUpperBound);
 
         type_ = type;
         qualityLowerBound_ = qualityLowerBound;

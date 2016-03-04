@@ -153,7 +153,7 @@ public final class BuyerParticipation {
      */
     @Deterministic
     public @NonNull BuyerParticipation setQuantity(int index, double newQuantity) {
-        checkArgument(newQuantity >= 0);
+        checkArgument(newQuantity >= 0, "newQuantity = " + newQuantity);
         quantities_[index] = newQuantity;
         return this;
     }
@@ -173,7 +173,7 @@ public final class BuyerParticipation {
      */
     @Deterministic
     public @NonNull BuyerParticipation setPeakQuantity(int index, double newPeakQuantity) {
-        checkArgument(newPeakQuantity >= 0);
+        checkArgument(newPeakQuantity >= 0, "newPeakQuantity = " + newPeakQuantity);
         peakQuantities_[index] = newPeakQuantity;
         return this;
     }
@@ -195,7 +195,7 @@ public final class BuyerParticipation {
     public @NonNull BuyerParticipation move(Trader newSupplier) {
         // Update old supplier to exclude this from its customers.
         if (getSupplier() != null) {
-            checkArgument(getSupplier().getModifiableCustomers().remove(this));
+            checkArgument(getSupplier().getModifiableCustomers().remove(this), "this = " + this);
         }
 
         // Update new supplier to include this to its customers.

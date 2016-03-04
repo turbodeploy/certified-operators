@@ -128,7 +128,7 @@ public abstract class CommoditySold {
      */
     @Deterministic
     public @NonNull CommoditySold setQuantity(double quantity) {
-        checkArgument(0 <= quantity && quantity <= getCapacity());
+        checkArgument(0 <= quantity && quantity <= getCapacity(), "quantity = " + quantity);
         quantity_ = quantity;
         return this;
     }
@@ -149,7 +149,7 @@ public abstract class CommoditySold {
      */
     @Deterministic
     public @NonNull CommoditySold setPeakQuantity(double peakQuantity) {
-        checkArgument(0 <= peakQuantity && peakQuantity <= getCapacity());
+        checkArgument(0 <= peakQuantity && peakQuantity <= getCapacity(), "peakQuantity = " + peakQuantity);
         peakQuantity_ = peakQuantity;
         return this;
     }
@@ -168,7 +168,7 @@ public abstract class CommoditySold {
      */
     @Deterministic
     public @NonNull CommoditySold setCapacity(double capacity) {
-        checkArgument(0 <= capacity); // should we check that this is >= max(quantity,peakQuantity)?
+        checkArgument(0 <= capacity, "capacity = " + capacity); // should we check that this is >= max(quantity,peakQuantity)?
         capacity_ = capacity;
         return this;
     }

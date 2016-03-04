@@ -89,7 +89,7 @@ final class CommoditySoldWithSettings extends CommoditySold implements Commodity
     @Override
     @Deterministic
     public @NonNull CommoditySoldSettings setCapacityUpperBound(double capacityUpperBound) {
-        checkArgument(getCapacityLowerBound() <= capacityUpperBound);
+        checkArgument(getCapacityLowerBound() <= capacityUpperBound, "capacityUpperBound = " + capacityUpperBound);
         capacityUpperBound_ = capacityUpperBound;
         return this;
     }
@@ -97,7 +97,7 @@ final class CommoditySoldWithSettings extends CommoditySold implements Commodity
     @Override
     @Deterministic
     public @NonNull CommoditySoldSettings setCapacityLowerBound(double capacityLowerBound) {
-        checkArgument(0 <= capacityLowerBound);
+        checkArgument(0 <= capacityLowerBound, "capacityLowerBound = " + capacityLowerBound);
         checkArgument(capacityLowerBound <= getCapacityUpperBound());
         capacityLowerBound_ = capacityLowerBound;
         return this;
@@ -106,7 +106,7 @@ final class CommoditySoldWithSettings extends CommoditySold implements Commodity
     @Override
     @Deterministic
     public @NonNull CommoditySoldSettings setCapacityIncrement(double capacityIncrement) {
-        checkArgument(0 <= capacityIncrement);
+        checkArgument(0 <= capacityIncrement, "capacityIncrement = " + capacityIncrement);
         capacityIncrement_ = capacityIncrement;
         return this;
     }
@@ -114,7 +114,8 @@ final class CommoditySoldWithSettings extends CommoditySold implements Commodity
     @Override
     @Deterministic
     public @NonNull CommoditySoldSettings setUtilizationUpperBound(double utilizationUpperBound) {
-        checkArgument(0.0 <= utilizationUpperBound && utilizationUpperBound <= 1.0);
+        checkArgument(0.0 <= utilizationUpperBound && utilizationUpperBound <= 1.0,
+                      "utilizationUpperBound = " + utilizationUpperBound);
         utilizationUpperBound_ = utilizationUpperBound;
         return this;
     }

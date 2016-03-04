@@ -53,7 +53,7 @@ public final class EconomySettings {
      */
     @Deterministic
     public EconomySettings setMinSellersForParallelism(int minSellersForParallelism) {
-        checkArgument(minSellersForParallelism >= 0);
+        checkArgument(minSellersForParallelism >= 0, "minSellersForParallelism = " + minSellersForParallelism);
         minSellersForParallelism_ = minSellersForParallelism;
         return this;
     }

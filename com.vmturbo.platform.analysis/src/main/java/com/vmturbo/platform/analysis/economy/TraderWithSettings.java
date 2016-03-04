@@ -138,8 +138,9 @@ final class TraderWithSettings extends Trader implements TraderSettings {
     @Override
     @Deterministic
     public @NonNull TraderWithSettings setMaxDesiredUtil(double maxDesiredUtilization) {
-        checkArgument(maxDesiredUtilization <= 1.0);
-        checkArgument(minDesiredUtilization_ <= maxDesiredUtilization);
+        checkArgument(maxDesiredUtilization <= 1.0, "maxDesiredUtilization = " + maxDesiredUtilization);
+        checkArgument(minDesiredUtilization_ <= maxDesiredUtilization,
+            "minDesiredUtilization_ = " + minDesiredUtilization_ + " maxDesiredUtilization = " + maxDesiredUtilization);
         maxDesiredUtilization_ = maxDesiredUtilization;
         return this;
     }
@@ -147,8 +148,9 @@ final class TraderWithSettings extends Trader implements TraderSettings {
     @Override
     @Deterministic
     public @NonNull TraderWithSettings setMinDesiredUtil(double minDesiredUtilization) {
-        checkArgument(0.0 <= minDesiredUtilization);
-        checkArgument(minDesiredUtilization <= maxDesiredUtilization_);
+        checkArgument(0.0 <= minDesiredUtilization, "minDesiredUtilization = " + minDesiredUtilization);
+        checkArgument(minDesiredUtilization <= maxDesiredUtilization_,
+            "minDesiredUtilization = " + minDesiredUtilization + " maxDesiredUtilization_ = " + maxDesiredUtilization_);
         minDesiredUtilization_ = minDesiredUtilization;
         return this;
     }

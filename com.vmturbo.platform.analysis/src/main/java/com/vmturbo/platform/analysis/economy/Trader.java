@@ -53,7 +53,7 @@ public abstract class Trader {
      * @param basketSold see {@link #getBasketSold()}.
      */
     public Trader(int economyIndex, int type, @NonNull TraderState state, @NonNull Basket basketSold) {
-        checkArgument(type >= 0);
+        checkArgument(type >= 0, "type = " + type);
 
         type_ = type;
         state_ = state;
@@ -256,7 +256,7 @@ public abstract class Trader {
      */
     @Deterministic
     @NonNull Trader setEconomyIndex(int economyIndex) {
-        checkArgument(economyIndex >= 0);
+        checkArgument(economyIndex >= 0, "economyIndex = " + economyIndex);
         economyIndex_ = economyIndex;
         return this;
     }

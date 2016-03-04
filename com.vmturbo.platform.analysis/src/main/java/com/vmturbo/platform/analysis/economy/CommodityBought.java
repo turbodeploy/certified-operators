@@ -43,7 +43,8 @@ public final class CommodityBought {
      */
     // TODO: are they invalidated in other cases? what about addCommodityBought?
     CommodityBought(@NonNull BuyerParticipation participation, int commodityIndex) {
-        checkArgument(0 <= commodityIndex && commodityIndex < participation.getQuantities().length);
+        checkArgument(0 <= commodityIndex && commodityIndex < participation.getQuantities().length,
+                      "commodityIndex = " + commodityIndex);
 
         participation_ = participation;
         commodityIndex_ = commodityIndex;
@@ -90,7 +91,7 @@ public final class CommodityBought {
      */
     @Deterministic
     public CommodityBought setQuantity(double newQuantity) {
-        checkArgument(0 <= newQuantity);
+        checkArgument(0 <= newQuantity, "newQuantity = " + newQuantity);
         // TODO: should we check anything else about newQuantity like comparing it with capacity?
         participation_.setQuantity(commodityIndex_,newQuantity);
         return this;
@@ -110,7 +111,7 @@ public final class CommodityBought {
      */
     @Deterministic
     public CommodityBought setPeakQuantity(double newPeakQuantity) {
-        checkArgument(0 <= newPeakQuantity);
+        checkArgument(0 <= newPeakQuantity, "newPeakQuantity = " + newPeakQuantity);
         // TODO: should we check anything else about newPeakQuantity like comparing it with capacity?
         participation_.setPeakQuantity(commodityIndex_,newPeakQuantity);
         return this;

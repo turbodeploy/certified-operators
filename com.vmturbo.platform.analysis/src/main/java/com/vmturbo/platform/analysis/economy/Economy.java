@@ -231,7 +231,7 @@ public final class Economy implements UnmodifiableEconomy {
                 trader.setEconomyIndex(trader.getEconomyIndex() - 1);
             }
         }
-        checkArgument(traders_.remove(traderToRemove));
+        checkArgument(traders_.remove(traderToRemove), "traderToRemove = " + traderToRemove);
 
         return this;
     }
