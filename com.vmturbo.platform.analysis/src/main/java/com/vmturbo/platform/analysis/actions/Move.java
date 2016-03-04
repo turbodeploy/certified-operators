@@ -197,17 +197,15 @@ public class Move extends MoveBase implements Action { // inheritance for code r
         final CommoditySpecification specificationSold = traderToUpdate.getBasketSold().get(soldIndex);
         final CommoditySold commoditySold = traderToUpdate.getCommoditiesSold().get(soldIndex);
 
-        if (economy.isAdditive(specificationSold)) {
+        DoubleBinaryOperator explicitCombinator = economy.getQuantityFunctions().get(specificationSold);
+        if (explicitCombinator == null) { // if there is no explicit combinator, use default one.
             return new double[]{defaultCombinator.applyAsDouble(commoditySold.getQuantity(), quantityBought),
                                 defaultCombinator.applyAsDouble(commoditySold.getPeakQuantity(), peakQuantityBought)};
+        } if (incomming) {
+            return new double[]{explicitCombinator.applyAsDouble(commoditySold.getQuantity(), quantityBought),
+                                explicitCombinator.applyAsDouble(commoditySold.getPeakQuantity(), peakQuantityBought)};
         } else {
             // Find the quantities bought by all buyer participations and calculate the quantity sold.
-            DoubleBinaryOperator explicitCombinator = economy.getQuantityFunctions().get(specificationSold);
-            if (incomming) {
-                return new double[]{explicitCombinator.applyAsDouble(commoditySold.getQuantity(), quantityBought),
-                                    explicitCombinator.applyAsDouble(commoditySold.getPeakQuantity(), peakQuantityBought)};
-            }
-
             double combinedQuantity = 0.0; // TODO: generalize default value
             double combinedPeakQuantity = 0.0; // if/when needed.
             for (BuyerParticipation customer : traderToUpdate.getCustomers()) {

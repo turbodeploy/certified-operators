@@ -252,41 +252,6 @@ public class EconomyTest {
     } // end TestEconomy class
 
     @RunWith(Parameterized.class)
-    public static class IsAdditive {
-        // Fields needed by parameterized runner
-        @Parameter(value = 0) public @NonNull Economy economy;
-        @Parameter(value = 1) public @NonNull CommoditySpecification specification;
-        @Parameter(value = 2) public boolean isAdditive;
-
-        // Static fields
-        private static final @NonNull CommoditySpecification[] specifications = {CPU,MEM,CPU_4,CPU_1to8};
-
-        @Parameters(name = "Test #{index}")
-        public static Collection<Object[]> generateEconomies() {
-            final List<@NonNull Object @NonNull []> output = new ArrayList<>();
-
-            for (int i = 0 ; i < specifications.length ; ++i) {
-                Economy economy = new Economy();
-
-                for (int j = 0 ; j < i ; ++j) {
-                    economy.getModifiableQuantityFunctions().put(specifications[j], DUMMY_FUNCTION);
-                }
-
-                for (int j = 0 ; j < specifications.length ; ++j) {
-                    output.add(new Object[]{economy, specifications[j], j >= i});
-                }
-            }
-
-            return output;
-        }
-
-        @Test
-        public final void testIsAdditive() {
-            assertEquals(isAdditive, economy.isAdditive(specification));
-        }
-    } // end IsAdditive class
-
-    @RunWith(Parameterized.class)
     public static class EconomyReadOnlyMethods extends CommonMembersOfParameterizedTests{
         @Test
         public final void testGetMarkets() {

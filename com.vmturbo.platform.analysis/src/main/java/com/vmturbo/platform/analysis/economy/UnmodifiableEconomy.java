@@ -20,17 +20,6 @@ import org.checkerframework.dataflow.qual.SideEffectFree;
 public interface UnmodifiableEconomy {
 
     /**
-     * Checks whether the supplied commodity specification uses the default (additive) quantity
-     * update function or it has its own.
-     *
-     * @param specification The commodity specification for which to check additivity.
-     * @return {@code true} if the commodity specification is additive, {@code false} if it uses
-     *         its own function
-     */
-    @Pure
-    boolean isAdditive(@ReadOnly UnmodifiableEconomy this, @NonNull CommoditySpecification specification);
-
-    /**
      * Returns an unmodifiable map from {@link CommoditySpecification} to the corresponding quantity
      * updating function, if there is one.
      *

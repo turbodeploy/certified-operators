@@ -63,12 +63,6 @@ public final class Economy implements UnmodifiableEconomy {
 
     @Override
     @Pure
-    public boolean isAdditive(@ReadOnly Economy this, @NonNull CommoditySpecification specification) {
-        return !quantityFunctions_.containsKey(specification);
-    }
-
-    @Override
-    @Pure
     public @ReadOnly @NonNull Map<@NonNull CommoditySpecification, @NonNull DoubleBinaryOperator>
             getQuantityFunctions(@ReadOnly Economy this) {
         return unmodifiableQuantityFunctions_;
