@@ -35,7 +35,22 @@ public class Move extends MoveBase implements Action { // inheritance for code r
      * @param destination The trader, target is going to move to.
      */
     public Move(@NonNull Economy economy, @NonNull BuyerParticipation target, @Nullable Trader destination) {
-        super(economy,target);
+        this(economy,target,target.getSupplier(),destination);
+    }
+
+    /**
+     * Constructs a new move action with the specified target and economy.
+     *
+     * @param economy The economy containing target and destination.
+     * @param target The buyer participation that will move.
+     * @param source The trader, target is going to move from. Note that this argument is mostly
+     *               needed when combining actions. Another version of the constructor infers it
+     *               from <b>target</b>.
+     * @param destination The trader, target is going to move to.
+     */
+    public Move(@NonNull Economy economy, @NonNull BuyerParticipation target,
+                @Nullable Trader source, @Nullable Trader destination) {
+        super(economy,target,source);
         destination_ = destination;
     }
 

@@ -47,14 +47,28 @@ public final class MoveTest {
     // Methods
 
     @Test
-    @Parameters
-    @TestCaseName("Test #{index}: new Move({0},{1},{2})")
-    public final void testMove(@NonNull Economy economy, @NonNull BuyerParticipation target, @Nullable Trader destination) {
+    @Parameters(method = "parametersForTestMove")
+    @TestCaseName("Test #{index}: new Move({0},{1},{3})")
+    public final void testMove_3(@NonNull Economy economy, @NonNull BuyerParticipation target,
+                                 @Nullable Trader source, @Nullable Trader destination) {
         Move move = new Move(economy,target,destination);
 
         assertSame(economy, move.getEconomy());
         assertSame(target, move.getTarget());
         assertSame(target.getSupplier(), move.getSource());
+        assertSame(destination, move.getDestination());
+    }
+
+    @Test
+    @Parameters(method = "parametersForTestMove")
+    @TestCaseName("Test #{index}: new Move({0},{1},{2},{3})")
+    public final void testMove_4(@NonNull Economy economy, @NonNull BuyerParticipation target,
+                                 @Nullable Trader source, @Nullable Trader destination) {
+        Move move = new Move(economy,target,source,destination);
+
+        assertSame(economy, move.getEconomy());
+        assertSame(target, move.getTarget());
+        assertSame(source, move.getSource());
         assertSame(destination, move.getDestination());
     }
 
@@ -65,18 +79,25 @@ public final class MoveTest {
 
         Economy e2 = new Economy();
         BuyerParticipation p2 = e2.addBasketBought(e2.addTrader(0, TraderState.ACTIVE, EMPTY), EMPTY);
-        p2.move(e2.addTrader(1, TraderState.ACTIVE, EMPTY));
+        Trader s2 = e2.addTrader(1, TraderState.ACTIVE, EMPTY);
+        p2.move(s2);
 
         Economy e3 = new Economy();
         BuyerParticipation p3 = e3.addBasketBought(e3.addTrader(0, TraderState.ACTIVE, EMPTY), EMPTY);
-        Trader t3 = e3.addTrader(0, TraderState.ACTIVE, EMPTY);
+        Trader d3 = e3.addTrader(0, TraderState.ACTIVE, EMPTY);
 
         Economy e4 = new Economy();
         BuyerParticipation p4 = e4.addBasketBought(e4.addTrader(0, TraderState.ACTIVE, EMPTY), EMPTY);
-        p4.move(e4.addTrader(0, TraderState.ACTIVE, EMPTY));
-        Trader t4 = e4.addTrader(0, TraderState.ACTIVE, EMPTY);
+        Trader s4 = e4.addTrader(0, TraderState.ACTIVE, EMPTY);
+        p4.move(s4);
+        Trader d4 = e4.addTrader(0, TraderState.ACTIVE, EMPTY);
 
-        return new Object[][]{{e1,p1,null},{e2,p2,null},{e3,p3,t3},{e4,p4,t4}};
+        Economy e5 = new Economy();
+        BuyerParticipation p5 = e5.addBasketBought(e5.addTrader(0, TraderState.ACTIVE, EMPTY), EMPTY);
+        Trader s5 = e4.addTrader(0, TraderState.ACTIVE, EMPTY);
+        Trader d5 = e4.addTrader(0, TraderState.ACTIVE, EMPTY);
+
+        return new Object[][]{{e1,p1,null,null},{e2,p2,s2,null},{e3,p3,null,d3},{e4,p4,s4,d4},{e5,p5,s5,d5}};
     }
 
     @Test

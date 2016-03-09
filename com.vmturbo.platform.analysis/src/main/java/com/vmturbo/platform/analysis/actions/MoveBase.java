@@ -26,11 +26,13 @@ class MoveBase {
      *
      * @param economy The economy of {@code this} move or reconfiguration
      * @param target The target of {@code this} move or reconfiguration.
+     * @param source The source of {@code this} move or reconfiguration. i.e. the supplier, target
+     *               is supposed to be buying from just before the action is taken.
      */
-    public MoveBase(@NonNull Economy economy, @NonNull BuyerParticipation target) {
+    public MoveBase(@NonNull Economy economy, @NonNull BuyerParticipation target, @Nullable Trader source) {
         economy_ = economy;
         target_ = target;
-        source_ = target.getSupplier();
+        source_ = source;
     }
 
     // Methods

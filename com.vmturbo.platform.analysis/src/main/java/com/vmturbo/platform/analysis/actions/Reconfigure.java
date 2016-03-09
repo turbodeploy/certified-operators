@@ -25,7 +25,7 @@ public class Reconfigure extends MoveBase implements Action { // inheritance for
      * @param target The buyer participation of the trader that needs reconfiguration.
      */
     public Reconfigure(@NonNull Economy economy, @NonNull BuyerParticipation target) {
-        super(economy,target);
+        super(economy,target,target.getSupplier());
     }
 
 
@@ -83,14 +83,14 @@ public class Reconfigure extends MoveBase implements Action { // inheritance for
                                        @NonNull IntFunction<@NonNull String> traderType) {
         final @NonNull StringBuilder sb = new StringBuilder();
 
-        if (getSource() != null) { // No current provider
+        if (getSource() == null) { // No current provider
             sb.append("Unable to start ");
-            appendTrader(sb, getSource(), uuid, name);
+            appendTrader(sb, getTarget().getBuyer(), uuid, name);
             sb.append(" because no [need supply chain to fill in correct trader type] can ");
             sb.append("satisfy the following combination of constraints: ");
             sb.append(getEconomy().getMarket(getTarget()).getBasket()); // TODO: add more cases and substitute commodity types.
         } else {
-            appendTrader(sb, getSource(), uuid, name);
+            appendTrader(sb, getTarget().getBuyer(), uuid, name);
             sb.append(" is currently placed on a ").append(traderType.apply(getSource().getType()));
             sb.append("that does not satisfy the ");
             sb.append(getEconomy().getMarket(getTarget()).getBasket()); // TODO: substitute commodity types.

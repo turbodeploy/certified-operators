@@ -3,12 +3,14 @@ package com.vmturbo.platform.analysis.actions;
 import static org.junit.Assert.*;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
+import org.checkerframework.checker.nullness.qual.Nullable;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.BuyerParticipation;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 
 import junitparams.JUnitParamsRunner;
@@ -28,12 +30,13 @@ public class MoveBaseTest {
     @Test
     @Parameters
     @TestCaseName("Test #{index}: new MoveBase({0},{1})")
-    public final void testMoveBase(@NonNull Economy economy, @NonNull BuyerParticipation participation) {
-        MoveBase mb = new MoveBase(economy,participation);
+    public final void testMoveBase(@NonNull Economy economy, @NonNull BuyerParticipation participation,
+                                   @Nullable Trader source) {
+        MoveBase mb = new MoveBase(economy,participation,source);
 
         assertSame(economy, mb.getEconomy());
         assertSame(participation, mb.getTarget());
-        assertSame(participation.getSupplier(), mb.getSource());
+        assertSame(source, mb.getSource());
     }
 
     @SuppressWarnings("unused") // it is used reflectively
@@ -43,9 +46,10 @@ public class MoveBaseTest {
 
         Economy e2 = new Economy();
         BuyerParticipation p2 = e2.addBasketBought(e2.addTrader(0, TraderState.ACTIVE, EMPTY), EMPTY);
-        p2.move(e2.addTrader(1, TraderState.ACTIVE, EMPTY));
+        Trader s2 = e2.addTrader(1, TraderState.ACTIVE, EMPTY);
+        p2.move(s2);
 
-        return new Object[][]{{e1,p1},{e2,p2}};
+        return new Object[][]{{e1,p1,null},{e2,p2,s2},{e2,p2,null}};
     }
 
 } // end MoveBaseTest class
