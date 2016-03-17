@@ -1,11 +1,15 @@
 package com.vmturbo.platform.analysis.actions;
 
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
 
+import com.google.common.collect.Lists;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.topology.OID;
@@ -91,4 +95,53 @@ public interface Action {
                                 @NonNull IntFunction<@NonNull String> commodityType,
                                 @NonNull IntFunction<@NonNull String> traderType);
 
+    /**
+     * A key to look up "combinable" actions - actions that can be {@link #combine}d
+     * @return the key identifying actions that can be combined
+     */
+    default @NonNull Object getCombineKey() {
+        return this;
+    }
+
+    /**
+     * Computes an {@link Action} that, when {@link #take}n, achieves the same result as
+     * taking {@code this} action and then the argument action. The default behavior is
+     * to return {@code action}, i.e. the next action cancels the previous one.
+     * @param action an {@link Action} to combine with {@code this}
+     * @return the combined {@link Action}. Null means the actions cancel each other.
+     * @see {@link #collapse}
+     */
+    default Action combine(Action action) {
+        return action;
+    }
+
+    /**
+     * Collapses a list of {@link Action}s by combining "combinable" actions.
+     * Two actions are said to be combinable if they can be replaced by one action that,
+     * when {@link #take}n, achieves the same result as taking the pair of actions in order.
+     * @param actions a list of actions to collapse. Assume the list is consistent, e.g. a Move
+     * TO trader A cannot be followed by a Move FROM a different trader B.
+     * @return a list of actions that represents the same outcome as the argument list.
+     * @see {@link #combine}
+     */
+    public static List<Action> collapse(List<Action> actions) {
+        Map<Object, Action> combined = new LinkedHashMap<Object, @NonNull Action>();
+        // Insert to map, combine actions
+        for (Action action : actions) {
+            Object key = action.getCombineKey();
+            Action previousAction = combined.get(key);
+            if (previousAction == null) {
+                combined.put(key, action);
+            } else {
+                Action collapsedAction = previousAction.combine(action);
+                if (collapsedAction == null) {
+                    // The actions cancel each other
+                    combined.remove(key);
+                } else {
+                    combined.put(key, collapsedAction);
+                }
+            }
+        }
+        return Lists.newArrayList(combined.values());
+    }
 } // end Action interface

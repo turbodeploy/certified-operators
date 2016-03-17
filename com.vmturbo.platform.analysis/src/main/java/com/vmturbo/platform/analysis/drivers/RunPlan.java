@@ -1,6 +1,7 @@
 package com.vmturbo.platform.analysis.drivers;
 
 import java.io.FileNotFoundException;
+import java.util.ArrayList;
 import java.util.List;
 import org.apache.log4j.Logger;
 import com.vmturbo.platform.analysis.actions.Action;
@@ -29,6 +30,7 @@ public final class RunPlan {
 
         try {
             LegacyTopology topology = M2Utils.loadFile(args[0]);
+            List<Action> allActions = new ArrayList<>();
             boolean keepRunning = true;
             int i = 0;
             while (keepRunning) {
@@ -44,7 +46,11 @@ public final class RunPlan {
                     logger.info("");
                 }
                 keepRunning = !actions.isEmpty();
+                allActions.addAll(actions);
             }
+            logger.info("Before collapse : " + allActions.size());
+            List<Action> collapsedActions = Action.collapse(allActions);
+            logger.info("After collapse : " + collapsedActions.size());
         } catch (FileNotFoundException e) {
             logger.error(e.toString());
             System.exit(0);
