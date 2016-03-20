@@ -53,6 +53,20 @@ public class CollapseTest {
         collapsed = Action.collapse(actions);
         assertTrue(collapsed.isEmpty());
 
+        // Move from s1 to s2 to s3 collapsed to move from s1 to s3
+        actions = new ArrayList<>();
+        actions.add(new Move(EC, p1, s1, s2));
+        actions.add(new Move(EC, p1, s2, s3));
+        collapsed = Action.collapse(actions);
+        // TODO: Add equals to Move
+        //List<Action> expectedCollapsed = Lists.newArrayList(new Move(EC, p1, s1, s3));
+        //assertEquals(expectedCollapsed, collapsed);
+        Move move = (Move) collapsed.get(0);
+        assertEquals(1, collapsed.size());
+        assertSame(s1, move.getSource());
+        assertSame(s3, move.getDestination());
+        assertSame(p1, move.getTarget());
+
         // Move from S1 to S2 to S3 to S1 collapsed to no action
         actions = new ArrayList<>();
         actions.add(new Move(EC, p1, s1, s2));
@@ -73,7 +87,7 @@ public class CollapseTest {
         // Move one buyer participation back. It should cancel the other move for the same participation.
         actions.add(new Move(EC, p1, s2, s1));
         collapsed = Action.collapse(actions);
-        assertSame(collapsed.toArray()[0], actions.get(1));
+        assertSame(collapsed.get(0), actions.get(1));
 
         // Move the other buyer participations back. Collapsed list should be empty.
         actions.add(new Move(EC, p2, s3, s1));
