@@ -9,6 +9,7 @@ import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Pure;
+import static com.google.common.base.Preconditions.checkArgument;
 
 import com.google.common.collect.Lists;
 import com.vmturbo.platform.analysis.economy.Basket;
@@ -244,14 +245,17 @@ public class Move extends MoveBase implements Action { // inheritance for code r
         }
     }
 
-    public Object getCombineKey() {
+    @Override
+    public @Pure @NonNull @ReadOnly Object getCombineKey() {
         return Lists.newArrayList(Move.class, getTarget());
     }
 
-    public Action combine(Action action) {
+    @Override
+    public @Pure @Nullable @ReadOnly Action combine(Action action) {
         // Assume the argument is a Move of the same target, otherwise we are not supposed to get here.
         // Also assume a consistent sequence of actions, i.e. this.getDestination() == action.getSource().
         Move move = (Move) action;
+        checkArgument(getTarget().equals(move.getTarget()));
         if (logger.isTraceEnabled()) {
             logger.trace("1. " + this.serialize(ECONOMY_INDEX));
             logger.trace("2. " + move.serialize(ECONOMY_INDEX));

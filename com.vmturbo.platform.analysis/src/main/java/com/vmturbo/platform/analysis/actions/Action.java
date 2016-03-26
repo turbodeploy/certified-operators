@@ -6,8 +6,11 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
+import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
+import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Pure;
+import static com.google.common.base.Preconditions.checkArgument;
 
 import com.google.common.collect.Lists;
 import com.vmturbo.platform.analysis.economy.Economy;
@@ -99,7 +102,7 @@ public interface Action {
      * A key to look up "combinable" actions - actions that can be {@link #combine}d
      * @return the key identifying actions that can be combined
      */
-    default @NonNull Object getCombineKey() {
+    default @NonNull @Pure Object getCombineKey() {
         return this;
     }
 
@@ -111,7 +114,8 @@ public interface Action {
      * @return the combined {@link Action}. Null means the actions cancel each other.
      * @see {@link #collapse}
      */
-    default Action combine(Action action) {
+    default @Nullable @Pure Action combine(@NonNull @ReadOnly Action action) {
+        checkArgument(getCombineKey().equals(action.getCombineKey()));
         return action;
     }
 
@@ -124,8 +128,8 @@ public interface Action {
      * @return a list of actions that represents the same outcome as the argument list.
      * @see {@link #combine}
      */
-    public static List<Action> collapse(List<Action> actions) {
-        Map<Object, Action> combined = new LinkedHashMap<Object, @NonNull Action>();
+    public static @Pure @NonNull List<@NonNull Action> collapsed(@NonNull @ReadOnly List<@NonNull @ReadOnly Action> actions) {
+        Map<Object, @NonNull Action> combined = new LinkedHashMap<>();
         // Insert to map, combine actions
         for (Action action : actions) {
             Object key = action.getCombineKey();

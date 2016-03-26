@@ -49,7 +49,7 @@ public final class RunPlan {
                 allActions.addAll(actions);
             }
             logger.info("Before collapse : " + allActions.size());
-            List<Action> collapsedActions = Action.collapse(allActions);
+            List<Action> collapsedActions = Action.collapsed(allActions);
             logger.info("After collapse : " + collapsedActions.size());
         } catch (FileNotFoundException e) {
             logger.error(e.toString());

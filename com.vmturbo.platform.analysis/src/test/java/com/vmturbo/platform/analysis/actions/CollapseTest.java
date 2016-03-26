@@ -3,6 +3,7 @@ package com.vmturbo.platform.analysis.actions;
 import static org.junit.Assert.*;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import org.junit.Test;
@@ -15,8 +16,6 @@ import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 
-import junitparams.naming.TestCaseName;
-
 public class CollapseTest {
 
     private static final Basket EMPTY = new Basket();
@@ -26,7 +25,6 @@ public class CollapseTest {
     private static final int TYPE_VM = 1;
 
     @Test
-    @TestCaseName("Test collapse Move")
     public final void testCollapseMove() {
         // Sellers
         Trader s1 = EC.addTrader(TYPE_PM, TraderState.ACTIVE, BASKET);
@@ -40,24 +38,26 @@ public class CollapseTest {
 
         List<Action> actions = new ArrayList<>();
         // An empty list is collapsed to an empty list
-        List<Action> collapsed = Action.collapse(actions);
+        List<Action> collapsed = Action.collapsed(actions);
         assertTrue(collapsed.isEmpty());
 
         // List with one Move is collapsed to the same list
         actions.add(new Move(EC, p1, s1, s2));
-        collapsed = Action.collapse(actions);
+        collapsed = Action.collapsed(actions);
         assertEquals(collapsed, actions);
 
         // Move from S2 to S1 cancels Move from S1 to S2
         actions.add(new Move(EC, p1, s2, s1));
-        collapsed = Action.collapse(actions);
+        // First verify the 'combine keys' of Move actions with the same participation are the same
+        assertEquals(actions.get(0).getCombineKey(), actions.get(1).getCombineKey());
+        // Now verify the actions are collapsed properly
+        collapsed = Action.collapsed(actions);
         assertTrue(collapsed.isEmpty());
-
         // Move from s1 to s2 to s3 collapsed to move from s1 to s3
         actions = new ArrayList<>();
         actions.add(new Move(EC, p1, s1, s2));
         actions.add(new Move(EC, p1, s2, s3));
-        collapsed = Action.collapse(actions);
+        collapsed = Action.collapsed(actions);
         // TODO: Add equals to Move
         //List<Action> expectedCollapsed = Lists.newArrayList(new Move(EC, p1, s1, s3));
         //assertEquals(expectedCollapsed, collapsed);
@@ -72,7 +72,7 @@ public class CollapseTest {
         actions.add(new Move(EC, p1, s1, s2));
         actions.add(new Move(EC, p1, s2, s3));
         actions.add(new Move(EC, p1, s3, s1));
-        collapsed = Action.collapse(actions);
+        collapsed = Action.collapsed(actions);
         assertTrue(collapsed.isEmpty());
 
         // More buyer participations
@@ -80,23 +80,25 @@ public class CollapseTest {
         actions.add(new Move(EC, p1, s1, s2));
         actions.add(new Move(EC, p2, s1, s3));
 
+        // First verify the 'combine keys' are different
+        assertNotEquals(actions.get(0).getCombineKey(), actions.get(1).getCombineKey());
+
         // Collapsing two moves of different buyer participations returns the same list
-        collapsed = Action.collapse(actions);
+        collapsed = Action.collapsed(actions);
         assertEquals(collapsed, actions);
 
         // Move one buyer participation back. It should cancel the other move for the same participation.
         actions.add(new Move(EC, p1, s2, s1));
-        collapsed = Action.collapse(actions);
+        collapsed = Action.collapsed(actions);
         assertSame(collapsed.get(0), actions.get(1));
 
         // Move the other buyer participations back. Collapsed list should be empty.
         actions.add(new Move(EC, p2, s3, s1));
-        collapsed = Action.collapse(actions);
+        collapsed = Action.collapsed(actions);
         assertTrue(collapsed.isEmpty());
     }
 
     @Test // Create 10 non-combinable moves, collapse and verify we get the same list in the same order
-    @TestCaseName("Test collapse maintains order")
     public final void testCollapseMaintainsOrder() {
         List<Action> actions = Lists.newArrayList();
         Trader b = EC.addTrader(TYPE_VM, TraderState.ACTIVE, EMPTY);
@@ -106,7 +108,10 @@ public class CollapseTest {
             BuyerParticipation p = EC.addBasketBought(b, BASKET);
             actions.add(new Move(EC, p, s1, s2));
         }
-        List<Action> collapsed = Action.collapse(actions);
+        // This also tests that the argument list is not modified.
+        // An attempt to modify it (in collapsed) will throw UnsupportedOperationException
+        actions = Collections.unmodifiableList(actions);
+        List<Action> collapsed = Action.collapsed(actions);
         assertEquals(collapsed, actions);
     }
 }
