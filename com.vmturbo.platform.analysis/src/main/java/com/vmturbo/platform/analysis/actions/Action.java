@@ -112,7 +112,7 @@ public interface Action {
      * to return {@code action}, i.e. the next action cancels the previous one.
      * @param action an {@link Action} to combine with {@code this}
      * @return the combined {@link Action}. Null means the actions cancel each other.
-     * @see {@link #collapse}
+     * @see #collapsed
      */
     default @Nullable @Pure Action combine(@NonNull @ReadOnly Action action) {
         checkArgument(getCombineKey().equals(action.getCombineKey()));
@@ -126,7 +126,7 @@ public interface Action {
      * @param actions a list of actions to collapse. Assume the list is consistent, e.g. a Move
      * TO trader A cannot be followed by a Move FROM a different trader B.
      * @return a list of actions that represents the same outcome as the argument list.
-     * @see {@link #combine}
+     * @see #combine
      */
     public static @Pure @NonNull List<@NonNull Action> collapsed(@NonNull @ReadOnly List<@NonNull @ReadOnly Action> actions) {
         Map<Object, @NonNull Action> combined = new LinkedHashMap<>();
