@@ -49,4 +49,7 @@ class StateChangeBase {
         return sourceMarket_;
     }
 
+    public @NonNull Trader getActionTarget() {
+        return getTarget();
+    }
 } // end StateChangeBase

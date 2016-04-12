@@ -1,11 +1,13 @@
 package com.vmturbo.platform.analysis.actions;
 
 import java.util.LinkedHashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
+import org.apache.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -23,7 +25,10 @@ import com.vmturbo.platform.analysis.topology.OID;
 // TODO (Vaptistis): Do we need actions to be applicable to other economies than those used to
 // generate them?
 public interface Action {
-    // Methods
+
+    static final Logger logger = Logger.getLogger(Action.class);
+    static final Function<Trader, String> ECONOMY_INDEX = t -> String.valueOf(t.getEconomyIndex());
+   // Methods
 
     /**
      * Returns a String representation of {@code this} action suitable for transmission to the
@@ -37,6 +42,14 @@ public interface Action {
     // if the format is JSON or XML e.g..
     @Pure
     @NonNull String serialize(@NonNull Function<@NonNull Trader, @NonNull String> oid);
+
+    /**
+     * Returns the {@link Trader} that this action operates on. If the action has a getTrader
+     * method then usually it will return the value of that method.
+     * @return the {@link Trader} that this action operates on
+     */
+    @Pure
+    @NonNull Trader getActionTarget();
 
     /**
      * Takes {@code this} action on a specified {@link Economy}.
@@ -102,7 +115,8 @@ public interface Action {
      * A key to look up "combinable" actions - actions that can be {@link #combine}d
      * @return the key identifying actions that can be combined
      */
-    default @NonNull @Pure Object getCombineKey() {
+    @Pure
+    default @NonNull Object getCombineKey() {
         return this;
     }
 
@@ -114,7 +128,8 @@ public interface Action {
      * @return the combined {@link Action}. Null means the actions cancel each other.
      * @see #collapsed
      */
-    default @Nullable @Pure Action combine(@NonNull @ReadOnly Action action) {
+    @Pure
+    default @Nullable Action combine(@NonNull @ReadOnly Action action) {
         checkArgument(getCombineKey().equals(action.getCombineKey()));
         return action;
     }
@@ -128,24 +143,69 @@ public interface Action {
      * @return a list of actions that represents the same outcome as the argument list.
      * @see #combine
      */
-    public static @Pure @NonNull List<@NonNull Action> collapsed(@NonNull @ReadOnly List<@NonNull @ReadOnly Action> actions) {
+    @Pure
+    static @NonNull List<@NonNull Action> collapsed(@NonNull @ReadOnly List<@NonNull @ReadOnly Action> actions) {
         Map<Object, @NonNull Action> combined = new LinkedHashMap<>();
+        Map<Trader, List<Action>> perTargetMap = new LinkedHashMap<>();
         // Insert to map, combine actions
         for (Action action : actions) {
+            Trader target = action.getActionTarget();
+            // get or create list entry
+            List<Action> perTargetList = perTargetMap.compute(target, (t, l) -> l == null ? new LinkedList<>() : l);
+            int perTargetLastIndex = perTargetList.size() - 1;
+            if (action instanceof Activate) {
+                Action lastAction = perTargetList.isEmpty() ? null : perTargetList.get(perTargetLastIndex);
+                if (lastAction instanceof Deactivate) {
+                    // Activate after Deactivate cancels it
+                    perTargetList.remove(perTargetLastIndex);
+                    combined.remove(lastAction);
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("Remove Deactivate/Activate for trader " + target.getEconomyIndex());
+                    }
+                    continue;
+                }
+            }
             Object key = action.getCombineKey();
             Action previousAction = combined.get(key);
             if (previousAction == null) {
                 combined.put(key, action);
+                perTargetList.add(action);
             } else {
+                if (logger.isTraceEnabled()) {
+                    logger.trace("1. " + previousAction.serialize(ECONOMY_INDEX));
+                    logger.trace("2. " + action.serialize(ECONOMY_INDEX));
+                }
                 Action collapsedAction = previousAction.combine(action);
                 if (collapsedAction == null) {
                     // The actions cancel each other
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("    Cancel each other");
+                    }
                     combined.remove(key);
+                    perTargetList.remove(previousAction);
                 } else {
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("   Merged to " + collapsedAction.serialize(ECONOMY_INDEX));
+                    }
                     combined.put(key, collapsedAction);
+                    perTargetList.remove(previousAction);
+                    perTargetList.add(collapsedAction);
                 }
             }
         }
-        return Lists.newArrayList(combined.values());
+        List<Action> result = Lists.newArrayList(combined.values());
+        for (List<Action> list : perTargetMap.values()) {
+            // If the list ends with a Deactivate then
+            if (!list.isEmpty() && list.get(list.size() -1 ) instanceof Deactivate) {
+                List<Action> remove = list.get(0) instanceof Activate
+                        // If the list starts with an Activate remove all the actions, including the Activate and the Deactivate
+                        ? Lists.newArrayList(list)
+                        // If the list doesn't start with an Activate then remove everything but keep the Deactivate
+                        : Lists.newArrayList(list.subList(0, list.size() - 1));
+                result.removeAll(remove);
+                list.removeAll(remove);
+            }
+        }
+        return result;
     }
 } // end Action interface

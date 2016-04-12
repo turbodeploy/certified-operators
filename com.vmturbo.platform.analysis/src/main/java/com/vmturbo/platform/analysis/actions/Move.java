@@ -4,7 +4,6 @@ import java.util.function.DoubleBinaryOperator;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
-import org.apache.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -28,8 +27,6 @@ import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
 public class Move extends MoveBase implements Action { // inheritance for code reuse
     // Fields
     private final @Nullable Trader destination_;
-    private static final Logger logger = Logger.getLogger(Move.class);
-    private static final Function<Trader, String> ECONOMY_INDEX = t -> String.valueOf(t.getEconomyIndex());
 
     // Constructors
 
@@ -246,33 +243,28 @@ public class Move extends MoveBase implements Action { // inheritance for code r
     }
 
     @Override
-    public @Pure @NonNull @ReadOnly Object getCombineKey() {
+    @Pure
+    public @NonNull @ReadOnly Object getCombineKey() {
         return Lists.newArrayList(Move.class, getTarget());
     }
 
     @Override
-    public @Pure @Nullable @ReadOnly Action combine(Action action) {
+    @Pure
+    public @Nullable @ReadOnly Action combine(@NonNull Action action) {
         // Assume the argument is a Move of the same target, otherwise we are not supposed to get here.
         // Also assume a consistent sequence of actions, i.e. this.getDestination() == action.getSource().
         Move move = (Move) action;
         checkArgument(getTarget().equals(move.getTarget()));
-        if (logger.isTraceEnabled()) {
-            logger.trace("1. " + this.serialize(ECONOMY_INDEX));
-            logger.trace("2. " + move.serialize(ECONOMY_INDEX));
-        }
         if (move.getDestination() == getSource()) { // Moves cancel each other
-            if (logger.isTraceEnabled()) {
-                logger.trace("    Cancel each other");
-            }
             return null;
         } else {
             Move newMove = new Move(getEconomy(), getTarget(), getSource(), move.getDestination());
-            if (logger.isTraceEnabled()) {
-                logger.trace("   Merged to " + newMove.serialize(ECONOMY_INDEX));
-                //String.format(LOG_MOVE, getTarget().getBuyer().getEconomyIndex(), getSource().getEconomyIndex(), move.getDestination().getEconomyIndex()));
-            }
             return newMove;
         }
     }
 
+    @Override
+    public @NonNull Trader getActionTarget() {
+        return getTarget().getBuyer();
+    }
 } // end Move class

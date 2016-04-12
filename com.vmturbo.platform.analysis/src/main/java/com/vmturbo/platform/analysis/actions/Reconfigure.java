@@ -103,4 +103,8 @@ public class Reconfigure extends MoveBase implements Action { // inheritance for
         return sb.toString();
     }
 
+    @Override
+    public @NonNull Trader getActionTarget() {
+        return getTarget().getBuyer();
+    }
 } // end Reconfigure class

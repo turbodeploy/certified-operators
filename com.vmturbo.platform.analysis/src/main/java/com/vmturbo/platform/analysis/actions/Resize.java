@@ -146,4 +146,8 @@ public class Resize implements Action {
             return "To improve efficiency.";
     }
 
+    @Override
+    public @NonNull Trader getActionTarget() {
+        return getSellingTrader();
+    }
 } // end Resize class

@@ -125,4 +125,8 @@ public class ProvisionByDemand implements Action {
         return sb.toString();
     }
 
+    @Override
+    public @NonNull Trader getActionTarget() {
+        return getModelBuyer().getBuyer();
+    }
 } // end ProvisionByDemand class

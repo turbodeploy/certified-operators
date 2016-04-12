@@ -166,4 +166,9 @@ public class ProvisionBySupply implements Action {
         // TODO: update when we create the recommendation matrix for provisioning and possibly
         // create additional classes for provisioning actions.
     }
+
+    @Override
+    public @NonNull Trader getActionTarget() {
+        return getModelSeller();
+    }
 } // end ProvisionBySupply class
