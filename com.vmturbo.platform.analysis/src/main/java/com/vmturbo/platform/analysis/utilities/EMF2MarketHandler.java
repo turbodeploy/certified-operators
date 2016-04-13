@@ -13,7 +13,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
@@ -50,6 +49,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
      * Used mostly for testing.
      */
     private static final boolean doBicliques = true;
+    BiCliquer bicliquer;
 
     private static final List<String> COMM_REFS =
             Arrays.asList("Commodities", "CommoditiesBought");
@@ -102,16 +102,6 @@ final public class EMF2MarketHandler extends DefaultHandler {
     // for example "PhysicalMachine buying from Storage"
     // The entries in the set are UUIDs of pairs of skipped traders, separated with a forward slash.
     private final Map<String, Set<String>> skippedBaskets = Maps.newHashMap();
-
-    // Maps related to bicliques
-    // A map from storage uuid to all the host uuids connected to it
-    private final Map<String, Set<String>> dspm = new TreeMap<>();
-    // The key and value in each entry are two sets of nodes that form one biclique
-    private final Map<Set<String>, Set<String>> bicliques = new LinkedHashMap<>();
-    // map(uuid1, uuid2) is the biclique number of the biclique that contains the edge between uuid1 and uuid2
-    private final Map<String, Map<String, Integer>> traderUuids2bcNumber = new HashMap<>();
-    // Map from trader uuid to the set of all biclique commodity keys that the trader sells
-    private final Map<String, Set<String>> traderUuid2bcCommodityKeys = new HashMap<>();
 
     private long startTime;
     private long elementCount;
@@ -181,7 +171,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
                 if (doBicliques && attributes.xsitype().equals(DSPMAccess)) {
                     String uuid1 = parent.uuid();
                     String uuid2 = attributes.get(ACCESSES);
-                    biCliqueEdge(uuid1, uuid2);
+                    bicliquer.edge(uuid1, uuid2);
                 }
             }
         }
@@ -261,6 +251,9 @@ final public class EMF2MarketHandler extends DefaultHandler {
         elementCount = 0;
 
         logger.debug("Biclique mode is " + (doBicliques ? "on" : "off"));
+        if (doBicliques) {
+            bicliquer = new BiCliquer(BCDS_PREFIX, BCPM_PREFIX);
+        }
         logger.info("Start reading file");
     }
 
@@ -268,7 +261,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
     public void endDocument() throws SAXException {
         logger.info("Done reading file in " + (System.currentTimeMillis() - startTime)/1000 + " sec");
 
-        if (doBicliques) constructBicliques();
+        if (doBicliques) bicliquer.compute();
         // Just for counting purposes
         Set<Basket> allBasketsBought = new TreeSet<>();
         Set<Basket> allBasketsSold = new TreeSet<>();
@@ -285,7 +278,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
                     .stream()
                     .filter(k -> !doBicliques || (!k.startsWith(DSPMAccess) && !k.startsWith(DatastoreCommodity)))
                     .collect(Collectors.toSet());;
-            Set<String> bcKeys = traderUuid2bcCommodityKeys.get(traderUuid);
+            Set<String> bcKeys = bicliquer.getBcKeys(traderUuid);
             if (bcKeys != null) {
                 keysSold.addAll(bcKeys);
             }
@@ -496,8 +489,8 @@ final public class EMF2MarketHandler extends DefaultHandler {
         logger.info(topology.getTraderTypes().size() + " trader types");
         if (logger.isTraceEnabled()) topology.getTraderTypes().entrySet().stream().forEach(logger::trace);
         logger.info(topology.getCommodityTypes().size() + " commodity types");
-        logger.info(bicliques.size() + " bicliques");
-        if (logger.isDebugEnabled()) bicliques.forEach((k, v) -> logger.debug(names(k) + " = " + names(v)));
+        logger.info(bicliquer.size() + " bicliques");
+        if (logger.isDebugEnabled()) bicliquer.getBicliques().forEach((k, v) -> logger.debug(names(k) + " = " + names(v)));
         if (logger.isTraceEnabled()) topology.getCommodityTypes().entrySet().stream().forEach(logger::trace);
         logger.info((System.currentTimeMillis() - startTime) / 1000.0 + " seconds");
     }
@@ -513,35 +506,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
         Attributes sellerAttr = commoditySold2trader.get(commSoldAttr.uuid());
         String uuid1 = sellerAttr.uuid();
         String uuid2 = commSoldAttr.get(ACCESSES);
-        Map<String, Integer> map = traderUuids2bcNumber.get(uuid1);
-        if (map != null) {
-            return map.get(uuid2);
-        } else {
-            map = traderUuids2bcNumber.get(uuid2);
-            if (map != null) {
-                return map.get(uuid1);
-            }
-        }
-        // This can happen in testing, when a trader is referenced by "Accesses" but is not partof the topology
-        return -1;
-    }
-
-    private void constructBicliques() {
-        // This is where the bicliques are constructed
-        dspm.forEach((ds, pms) -> bicliques.compute(pms, (key, val) -> val == null ? new TreeSet<>() : val).add(ds));
-        // The rest of this method is helper maps and logging
-        int cliqueNum = 0;
-        for (Entry<Set<String>, Set<String>> clique : bicliques.entrySet()) {
-            for (String uuid1 : clique.getKey()) {
-                traderUuid2bcCommodityKeys.compute(uuid1, (key, val) -> val == null ? new HashSet<>() : val).add(BCPM_PREFIX + cliqueNum);
-                traderUuids2bcNumber.putIfAbsent(uuid1, new HashMap<>());
-                for (String uuid2 : clique.getValue()) {
-                    traderUuid2bcCommodityKeys.compute(uuid2, (key, val) -> val == null ? new HashSet<>() : val).add(BCDS_PREFIX + cliqueNum);
-                    traderUuids2bcNumber.get(uuid1).putIfAbsent(uuid2, cliqueNum);
-                }
-            }
-            cliqueNum++;
-        }
+        return bicliquer.getBcID(uuid1, uuid2);
     }
 
     /**
@@ -572,16 +537,6 @@ final public class EMF2MarketHandler extends DefaultHandler {
      */
     private boolean isDatastoreCommodity(Attributes commodity) {
         return doBicliques && commodity.xsitype().equals(DatastoreCommodity);
-    }
-
-    /**
-     * Create an edge in the graph between the nodes represented by the given uuids.
-     * This graph is later used to construct a biclique cover.
-     * @param node1
-     * @param node2
-     */
-    private void biCliqueEdge(String node1, String node2) {
-        dspm.compute(node1, (node, set) -> set == null ? new LinkedHashSet<>() : set).add(node2);
     }
 
     Level warning(boolean warning) {
