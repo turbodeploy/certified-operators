@@ -11,7 +11,7 @@
     <artifactId>analysis-parent</artifactId>
     <name>Analysis Parent</name>
     <description>New Market-2 parent pom</description>
-    <version>1.0.0</version>
+    <version>1.0.1-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <properties>
