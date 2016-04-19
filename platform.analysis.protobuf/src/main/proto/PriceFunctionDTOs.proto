@@ -1,0 +1,23 @@
+package com.vmturbo.platform.analysis.protobuf;
+
+message PriceFunctionTO {
+    message StandardWeighted {
+        optional double weight = 1 [default = 1.0];
+    }
+    
+    message Constant {
+        optional double value = 1;
+    }
+
+    message Step {
+        optional double step_at = 1;
+        optional double price_before = 2;
+        optional double price_after = 3 [default = 1.0];
+    }
+
+    oneof price_function_specialization {
+        StandardWeighted standard_weighted = 1;
+        Constant constant = 2;
+        Step step = 3;
+    }
+}

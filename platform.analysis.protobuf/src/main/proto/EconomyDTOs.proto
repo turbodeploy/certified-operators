@@ -1,0 +1,74 @@
+package com.vmturbo.platform.analysis.protobuf;
+
+import "PriceFunctionDTOs.proto";
+
+message CommoditySpecificationTO {
+    required int32 type = 1; // The type of the commodity provided or requested. e.g. CPU or Memory.
+                            // Using an int32 instead of an enum keeps us agnostic and lets us
+                           // support all types that may be added in the future.
+    optional int32 quality_lower_bound = 2; // The lower bound on the quality provided or requested.
+    optional int32 quality_upper_bound = 3 [default = 2147483647]; // The upper bound on the quality
+                        // provided or requested. The default is intended to be Integer.MAX_VALUE.
+}
+
+message CommodityBoughtTO {
+    required CommoditySpecificationTO specification = 1; // Defines the type and quality that needs to be bought.
+    optional double quantity = 2; // The quantity that needs to be bought.
+    optional double peak_quantity = 3; // The peak quantity that needs to be bought.
+}
+
+message CommoditySoldSettingsTO {
+    optional bool resizable = 1 [default = false];
+    optional double capacity_lower_bound = 2 [default = 0.0];
+    optional double capacity_upper_bound = 3 [default = 1.7976931348623157e+308]; // The default is
+                                                                // intended to be Double.MAX_VALUE.
+    optional double capacity_increment = 4 [default = 1.0];
+    optional double utilization_upper_bound = 5 [default = 1.0];
+    optional PriceFunctionTO price_function = 6;
+}
+
+message CommoditySoldTO {
+    optional CommoditySpecificationTO specification = 1;
+    optional double quantity = 2 [default = 0.0];
+    optional double peak_quantity = 3 [default = 0.0];
+    optional double capacity = 4 [default = 1.7976931348623157e+308]; // The default is intended
+                                                                     // to be Double.MAX_VALUE.
+    optional bool thin = 5 [default = false];
+    optional CommoditySoldSettingsTO settings = 6;
+}
+
+// A list of commodities that must be bought from the same provider, with some additional information.
+message ShoppingListTO {
+    required int64 oid = 1; // The unique identifier of this shopping list. Used to control individual volumes.
+    optional int64 supplier = 2; // The current supplier for this shopping list. Assumed null if missing.
+    optional bool movable = 3 [default = false]; // Whether the analysis engine can move this.
+                                // Intended to be true only for VM and Container shopping lists.
+    repeated CommodityBoughtTO commodities_bought = 4;
+}
+
+// A group of parameters effecting how a trader will be treated by the analysis engine.
+message TraderSettingsTO {
+    optional bool clonable = 1 [default = false]; // Whether the analysis engine can use this as a
+                                                 // template to create new traders.
+    optional bool suspendable = 2 [default = false]; // Whether the analysis engine can deactivate
+                                                    // this trader.
+    optional double min_desired_utilization = 3 [default = 0.0]; // Together with the next, defines
+    optional double max_desired_utilization = 4 [default = 1.0]; // the desired zone for this trader.
+}
+
+// The different states a trader can be in.
+enum TraderStateTO { // Analysis doesn't care about specifics. ACTIVE and INACTIVE seem to be enough.
+    ACTIVE = 1;
+    INACTIVE = 2;
+}
+
+// An entity that trades goods in a market. Can buy and sell goods simultaneously.
+// Virtual machines, data centers and applications are examples of entities that can be modeled as
+// a trader.
+message TraderTO {
+    required int64 oid = 1; // The unique identifier of this trader. Used to send actions for it.
+    optional int32 type = 2; // We are currently not using this field, but may start in the future.
+    optional TraderStateTO state = 3;
+    repeated CommoditySoldTO commodities_sold = 4;
+    optional TraderSettingsTO settings = 5;
+}

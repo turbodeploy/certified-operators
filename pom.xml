@@ -23,6 +23,7 @@
             <id>analysis</id>
             <modules>
                 <module>platform.analysis</module>
+                <module>platform.analysis.protobuf</module>
             </modules>
             <activation>
                 <activeByDefault>true</activeByDefault>

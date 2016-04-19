@@ -1,0 +1,58 @@
+package com.vmturbo.platform.analysis.protobuf;
+
+import "EconomyDTOs.proto";
+
+// More information may be added to any or all the messages below to facilitate construction of
+// reason and/or description messages.
+
+message MoveTO {
+    required int64 target = 1; // The OID of a shopping list to move.
+    optional int64 source = 2; // The OID of a trader to move from. Assumed null if missing.
+    optional int64 destination = 3; // The OID of a trader to move to. Assumed null if missing.
+}
+
+message ReconfigureTO {
+    required int64 target = 1; // The OID of a shopping list to reconfigure.
+    optional int64 source = 2; // The OID of the current supplier. Assumed null if missing.
+}
+
+message ActivateTO {
+    required int64 target = 1; // The OID of the trader to activate.
+    // may also add subset of sold goods that triggered the activation to include in messages.
+}
+
+message DeactivateTO {
+    required int64 target = 1; // The OID of the trader to deactivate.
+    // may also add subset of sold goods that triggered the deactivation to include in messages.
+}
+
+// Action to provision a trader unlike any other in the system based on the demand of a specific
+// buyer.
+message ProvisionByDemandTO {
+    required int64 model_buyer = 1; // The OID of a shopping list that can't be satisfied otherwise.
+    // may also need a model_seller to get desired state
+}
+
+// Action to provision a trader like another that already exists in the system.
+message ProvisionBySupplyTO {
+    required int64 model_seller = 1; // The OID of a trader to clone.
+}
+
+message ResizeTO {
+    optional int64 selling_trader = 1; // The OID of the trader that sells the commodity to resize.
+    optional CommoditySpecificationTO specification = 2; // Which commodity sold should be resized.
+    optional double old_capacity = 3; // The capacity before resizing. Used in human-readable messages.
+    optional double new_capacity = 4; // The capacity to resize to.
+}
+
+message ActionTO {
+    oneof action_specialization {
+        MoveTO move = 1;
+        ReconfigureTO reconfigure = 2;
+        ActivateTO activate = 3;
+        DeactivateTO deactivate = 4;
+        ProvisionByDemandTO provision_by_demand = 5;
+        ProvisionBySupplyTO provision_by_supply = 6;
+        ResizeTO resize = 7;
+    }
+}
