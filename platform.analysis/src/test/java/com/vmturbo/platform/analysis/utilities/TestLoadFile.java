@@ -3,9 +3,14 @@ package com.vmturbo.platform.analysis.utilities;
 import static org.junit.Assert.*;
 
 import java.io.ByteArrayInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.text.ParseException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.List;
+
+import javax.xml.parsers.ParserConfigurationException;
+
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
@@ -13,7 +18,6 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySoldSettings;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
@@ -63,14 +67,14 @@ public class TestLoadFile {
     public void testLoadFullFile() {
         try {
             M2Utils.loadFile(REPOS_PATH + "small.repos.topology");
-        } catch (FileNotFoundException e) {
+        } catch (IOException | ParseException | ParserConfigurationException e) {
             // Have to catch this because the method throws it. Other exceptions will implicitly fail the test.
             fail("File not found : " + e);
         }
     }
 
     @Test
-    public void testLoadEmpty() {
+    public void testLoadEmpty() throws ParseException, IOException, ParserConfigurationException {
         LegacyTopology topology = loadString(XML_TOP + XML_BOTTOM);
         assertEquals(0, topology.getEconomy().getTraders().size());
         assertEquals(0, topology.getEconomy().getMarkets().size());
@@ -87,7 +91,7 @@ public class TestLoadFile {
      */
 
     @Test
-    public void testEdgeCases() {
+    public void testEdgeCases() throws ParseException, IOException, ParserConfigurationException {
         LegacyTopology topology = loadString(XML_TOP + EDGE + XML_BOTTOM, loggerTrace);
         assertEquals(1, topology.getEconomy().getTraders().size());
         assertEquals(0, topology.getEconomy().getMarkets().size());
@@ -98,7 +102,7 @@ public class TestLoadFile {
      * BC-PM commodities.
      */
     @Test
-    public void testBicliques() {
+    public void testBicliques() throws ParseException, IOException, ParserConfigurationException {
         /*
          * The file contains 8 commodity types: 1 CPU, 1 StorageAmount, DSPMAccessCommodity
          * with 3 different keys, and DatastoreCommodity with 3 different keys.
@@ -135,7 +139,7 @@ public class TestLoadFile {
     @Parameters
     @TestCaseName("Test #{index}: Load {0}")
     @Test
-    public void testLoadOne(String name, String entity) {
+    public void testLoadOne(String name, String entity) throws ParseException, IOException, ParserConfigurationException {
         LegacyTopology topology = loadString(XML_TOP + entity + XML_BOTTOM);
         assertEquals(1, topology.getEconomy().getTraders().size());
         assertEquals(0, topology.getEconomy().getMarkets().size());
@@ -157,7 +161,8 @@ public class TestLoadFile {
     @Parameters
     @TestCaseName("Test #{index}: Load {0}")
     @Test
-    public void testLoadSellerAndBuyer(String name, String seller, String buyer) {
+    public void testLoadSellerAndBuyer(String name, String seller, String buyer)
+            throws ParseException, IOException, ParserConfigurationException {
         // This test is run with loggerTrace to include logging in code coverage
         LegacyTopology topology1 = loadString(XML_TOP + seller + buyer + XML_BOTTOM, loggerTrace);
         assertEquals(2, topology1.getEconomy().getTraders().size());
@@ -181,7 +186,8 @@ public class TestLoadFile {
     @Parameters
     @TestCaseName("Test #{index}: Load {0}")
     @Test
-    public void testLoadDisconnectedTraders(String name, String trader1, String trader2) {
+    public void testLoadDisconnectedTraders(String name, String trader1, String trader2)
+            throws ParseException, IOException, ParserConfigurationException {
         LegacyTopology topology = loadString(XML_TOP + trader1 + trader2 + XML_BOTTOM);
         assertEquals(2, topology.getEconomy().getTraders().size());
         assertEquals(0, topology.getEconomy().getMarkets().size());
@@ -197,7 +203,7 @@ public class TestLoadFile {
     }
 
     @Test
-    public void testCommodityValues() {
+    public void testCommodityValues() throws ParseException, IOException, ParserConfigurationException {
         LegacyTopology topology = loadString(XML_TOP + DS_902 + XML_BOTTOM);
         UnmodifiableEconomy economy = topology.getEconomy();
         Trader ds = economy.getTraders().get(0);
@@ -219,7 +225,7 @@ public class TestLoadFile {
     }
 
     @Test
-    public void testTopology() {
+    public void testTopology() throws ParseException, IOException, ParserConfigurationException {
         LegacyTopology topology = loadString(
                 XML_TOP + VM_1277 + VM_733 + PM_9 + DS_902 + APP_733 + VM_1544 + DC_2 + XML_BOTTOM
             );
@@ -275,21 +281,19 @@ public class TestLoadFile {
         // TODO: add tests about specific commodities
     }
 
-    private LegacyTopology loadString(String xml) {
+    private LegacyTopology loadString(String xml)
+            throws ParseException, IOException, ParserConfigurationException {
         return loadString(xml, loggerOff);
     }
 
-    private LegacyTopology loadString(String xml, Logger logger) {
+    private LegacyTopology loadString(String xml, Logger logger)
+            throws ParseException, IOException, ParserConfigurationException {
         return M2Utils.loadStream(new ByteArrayInputStream(xml.getBytes()), logger);
     }
 
     private static String fileToString(String fileName) {
         try {
-            return new String(
-                    java.nio.file.Files.readAllBytes(
-                        java.nio.file.Paths.get(fileName)
-                    )
-                );
+            return new String(Files.readAllBytes(Paths.get(fileName)));
         } catch (IOException ioe) {
             ioe.printStackTrace();
             fail("Exception trying to load file : " + ioe);

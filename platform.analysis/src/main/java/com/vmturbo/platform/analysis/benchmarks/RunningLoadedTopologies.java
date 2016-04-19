@@ -1,12 +1,14 @@
 package com.vmturbo.platform.analysis.benchmarks;
 
-import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.List;
 
+import javax.xml.parsers.ParserConfigurationException;
+
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
-
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.ede.Ede;
 import com.vmturbo.platform.analysis.utilities.M2Utils;
@@ -55,7 +57,7 @@ public final class RunningLoadedTopologies {
                 economies.add(economy);
                 System.out.printf("%,17dns %7s\n", System.nanoTime()-start, economy.getTraders().size());
             }
-            catch (FileNotFoundException e) {
+            catch (IOException | ParseException | ParserConfigurationException e) {
                 System.out.println(); // to finish the line we were printing when the exception was
                                       // thrown and allow the error to be printed in a new one.
                 logger.error(e);

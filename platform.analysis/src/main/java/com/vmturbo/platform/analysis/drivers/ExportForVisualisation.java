@@ -1,13 +1,15 @@
 package com.vmturbo.platform.analysis.drivers;
 
-import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.text.ParseException;
 import java.util.function.Function;
 import java.util.function.IntFunction;
+
+import javax.xml.parsers.ParserConfigurationException;
 
 import org.apache.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
-
 import com.google.common.base.Strings;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -54,7 +56,7 @@ public final class ExportForVisualisation {
             ede.generateActions((Economy)topology.getEconomy()); // TODO: remove cast
             printEconomy(topology.getEconomy(), "Optimized",topology.getUuids()::get,topology.getNames()::get,
                          topology.getCommodityTypes()::getName,topology.getTraderTypes()::getName);
-        } catch (FileNotFoundException e) {
+        } catch (IOException | ParseException | ParserConfigurationException e) {
             logger.error(e.toString());
             System.exit(0);
         }

@@ -1,15 +1,16 @@
 package com.vmturbo.platform.analysis.utilities;
 
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.text.ParseException;
+
 import javax.xml.parsers.ParserConfigurationException;
-import javax.xml.parsers.SAXParser;
 import javax.xml.parsers.SAXParserFactory;
 
 import org.apache.log4j.Logger;
 import org.xml.sax.SAXException;
+import org.xml.sax.SAXParseException;
 
 import com.vmturbo.platform.analysis.topology.LegacyTopology;
 
@@ -17,7 +18,7 @@ public class M2Utils {
     public static void main(String... args) {
         try {
             loadFile(args[0]);
-        } catch (FileNotFoundException e) {
+        } catch (IOException | ParseException | ParserConfigurationException e) {
             // TODO Auto-generated catch block
             e.printStackTrace();
         }
@@ -29,8 +30,11 @@ public class M2Utils {
      * @param fileName the name of the file to load
      * @return a {@link LegacyTopology} that contains a market2 representation of the entities in the file
      */
-    public static LegacyTopology loadFile(String fileName) throws FileNotFoundException {
-        return loadStream(new FileInputStream(fileName));
+    public static LegacyTopology loadFile(String fileName)
+            throws IOException, ParserConfigurationException, ParseException {
+        try (FileInputStream input = new FileInputStream(fileName)) {
+            return loadStream(input);
+        }
     }
 
     /**
@@ -40,8 +44,11 @@ public class M2Utils {
      * SAX handler.
      * @return a {@link LegacyTopology} that contains a market2 representation of the entities in the file
      */
-    public static LegacyTopology loadFile(String fileName, Logger logger) throws FileNotFoundException {
-        return loadStream(new FileInputStream(fileName), logger);
+    public static LegacyTopology loadFile(String fileName, Logger logger)
+            throws IOException, ParserConfigurationException, ParseException {
+        try (FileInputStream input = new FileInputStream(fileName)) {
+            return loadStream(input, logger);
+        }
     }
 
     /**
@@ -50,7 +57,8 @@ public class M2Utils {
      * @param stream the InputStream to load
      * @return a {@link LegacyTopology} that contains a market2 representation of the entities in the file
      */
-    public static LegacyTopology loadStream(InputStream stream) {
+    public static LegacyTopology loadStream(InputStream stream)
+            throws IOException, ParserConfigurationException, ParseException {
         return loadStream(stream, Logger.getLogger(EMF2MarketHandler.class));
     }
 
@@ -61,17 +69,21 @@ public class M2Utils {
      * SAX handler.
      * @return a {@link LegacyTopology} that contains a market2 representation of the entities in the stream
      */
-    public static LegacyTopology loadStream(InputStream stream, Logger logger) {
-        SAXParserFactory factory = SAXParserFactory.newInstance();
+    public static LegacyTopology loadStream(InputStream stream, Logger logger)
+            throws IOException, ParserConfigurationException, ParseException {
+        EMF2MarketHandler handler = new EMF2MarketHandler(logger);
         try {
-            SAXParser parser = factory.newSAXParser();
-            EMF2MarketHandler handler = new EMF2MarketHandler(logger);
-            parser.parse(stream, handler);
-            return handler.getTopology();
-        } catch (ParserConfigurationException | SAXException | IOException e) {
-            e.printStackTrace();
-            return null;
+            SAXParserFactory.newInstance().newSAXParser().parse(stream, handler);
         }
+        catch (SAXException e) {
+            // Wrap the SAX specific exception in a standard library one so we can change our choice
+            // of parser in the future without changing the method signature.
+            throw (ParseException)new ParseException("The internal XML parser signaled an error!",
+                // TODO: not sure how to get the offset argument needed by ParseException, using the
+                // line number should be enough for now and arguably more useful!
+                e instanceof SAXParseException ? ((SAXParseException)e).getLineNumber() : 0).initCause(e);
+        }
+        return handler.getTopology();
     }
 
 }

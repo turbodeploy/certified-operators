@@ -1,15 +1,17 @@
 package com.vmturbo.platform.analysis.demos;
 
-import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import javax.xml.parsers.ParserConfigurationException;
+
 import org.apache.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
-
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
 import com.vmturbo.platform.analysis.economy.Economy;
@@ -107,7 +109,7 @@ public final class AddSupplyAndDemandThroughActions {
                     logger.info("");
                 }
             } while(!actions.isEmpty());
-        } catch (FileNotFoundException e) {
+        } catch (IOException | ParseException | ParserConfigurationException e) {
             logger.error(e.toString());
             System.exit(0);
         }

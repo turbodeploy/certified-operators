@@ -1,8 +1,12 @@
 package com.vmturbo.platform.analysis.drivers;
 
-import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.List;
+
+import javax.xml.parsers.ParserConfigurationException;
+
 import org.apache.log4j.Logger;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.economy.Economy;
@@ -51,7 +55,7 @@ public final class RunPlan {
             logger.info("Before collapse : " + allActions.size());
             List<Action> collapsedActions = Action.collapsed(allActions);
             logger.info("After collapse : " + collapsedActions.size());
-        } catch (FileNotFoundException e) {
+        } catch (IOException | ParseException | ParserConfigurationException e) {
             logger.error(e.toString());
             System.exit(0);
         }
