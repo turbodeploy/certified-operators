@@ -15,6 +15,8 @@ public class BicliquerTest {
         bicliquer.compute();
         assertEquals(Sets.newHashSet("BC-T1-0"), bicliquer.getBcKeys("A"));
         assertEquals(Sets.newHashSet("BC-T2-0"), bicliquer.getBcKeys("B"));
+        assertEquals("BC-T1-0", bicliquer.getBcKey("A", "B"));
+        assertEquals("BC-T2-0", bicliquer.getBcKey("B", "A"));
     }
 
     @Test
@@ -27,8 +29,10 @@ public class BicliquerTest {
         assertEquals(1, bicliquer.size());
         assertEquals(Sets.newHashSet("A-0"), bicliquer.getBcKeys("A1"));
         assertEquals(Sets.newHashSet(0), bicliquer.getBcIDs("A1"));
+        assertEquals("A-0", bicliquer.getBcKey("A1", "B1"));
         assertEquals(Sets.newHashSet("B-0"), bicliquer.getBcKeys("B1"));
         assertEquals(Sets.newHashSet(0), bicliquer.getBcIDs("B1"));
+        assertEquals("B-0", bicliquer.getBcKey("B1", "A1"));
     }
 
     @Test
@@ -44,8 +48,10 @@ public class BicliquerTest {
         assertEquals(1, bicliquer.size());
         assertEquals(Sets.newHashSet("A-0"), bicliquer.getBcKeys("A1"));
         assertEquals(Sets.newHashSet(0), bicliquer.getBcIDs("A1"));
+        assertEquals("A-0", bicliquer.getBcKey("A1", "B1"));
         assertEquals(Sets.newHashSet("B-0"), bicliquer.getBcKeys("B1"));
         assertEquals(Sets.newHashSet(0), bicliquer.getBcIDs("B1"));
+        assertEquals("B-0", bicliquer.getBcKey("B1", "A1"));
     }
 
     @Test
@@ -69,10 +75,16 @@ public class BicliquerTest {
         assertEquals(0, bicliquer.getBcID("A2", "B1"));
         assertEquals(0, bicliquer.getBcID("A2", "B2"));
         assertEquals(1, bicliquer.getBcID("A3", "B1"));
+        assertEquals("A-0", bicliquer.getBcKey("A1", "B1"));
+        assertEquals("A-1", bicliquer.getBcKey("A3", "B1"));
         // TYPE2, TYPE1
         assertEquals(0, bicliquer.getBcID("B1", "A1"));
+        assertEquals("B-0", bicliquer.getBcKey("B1", "A1"));
+        assertEquals(1, bicliquer.getBcID("B1", "A3"));
+        assertEquals("B-1", bicliquer.getBcKey("B1", "A3"));
         // Non existing edge
         assertEquals(-1, bicliquer.getBcID("A3", "B2"));
+        assertNull(bicliquer.getBcKey("A3", "B2"));
     }
 
     @Test(expected=IllegalStateException.class)

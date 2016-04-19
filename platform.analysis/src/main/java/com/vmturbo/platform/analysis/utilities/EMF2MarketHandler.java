@@ -331,18 +331,12 @@ final public class EMF2MarketHandler extends DefaultHandler {
                     continue;
                 }
 
-                if (isDspmAccess(commBoughtAttr)) {
-                    int bcNumber = bcNumber(commSoldAttr);
-                    if (bcNumber >= 0) {
-                        traderUuid2bcKeysBought.put(sellerAttr.uuid(), BCDS_PREFIX + bcNumber);
+                if (isDspmAccess(commBoughtAttr) || isDatastoreCommodity(commBoughtAttr)) {
+                    String bcKey = bcKey(commSoldAttr);
+                    if (bcKey != null) {
+                        traderUuid2bcKeysBought.put(sellerAttr.uuid(), bcKey);
+                        continue;
                     }
-                    continue;
-                } else if (isDatastoreCommodity(commBoughtAttr)) {
-                    int bcNumber = bcNumber(commSoldAttr);
-                    if (bcNumber >= 0) {
-                        traderUuid2bcKeysBought.put(sellerAttr.uuid(), BCPM_PREFIX + bcNumber);
-                    }
-                    continue;
                 }
                 // if key doesn't exist then create one, otherwise return the existing value,
                 // then add the entry to the list
@@ -507,6 +501,20 @@ final public class EMF2MarketHandler extends DefaultHandler {
         String uuid1 = sellerAttr.uuid();
         String uuid2 = commSoldAttr.get(ACCESSES);
         return bicliquer.getBcID(uuid1, uuid2);
+    }
+
+    /**
+     * The commodity key of the biclique commodity sold by {@code commSoldAttr}.
+     * @param commSoldAttr the {@link Attributes} representing the sold commodity
+     * @return the key of the biclique commodity sold by {@code commSoldAttr},
+     * or null if there is no such biclique.
+     */
+    private String bcKey(Attributes commSoldAttr) {
+        // These two uuids belong to two traders that are connected with an edge in the biclique
+        Attributes sellerAttr = commoditySold2trader.get(commSoldAttr.uuid());
+        String uuid1 = sellerAttr.uuid();
+        String uuid2 = commSoldAttr.get(ACCESSES);
+        return bicliquer.getBcKey(uuid1, uuid2);
     }
 
     /**

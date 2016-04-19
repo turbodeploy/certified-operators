@@ -119,6 +119,34 @@ public class BiCliquer {
     }
 
     /**
+     * The key of the biclique that covers the edge between the nodes {@code nid1} and {@code nid2}.
+     * The key is a prefix prepended by the biclique ID for the two nodes. The prefix is either type1
+     * prefix or type2 prefix, depending on whether the first argument is a type1 or type2 node.
+     * @param nid1 ID of one node (either TYPE1 or TYPE2)
+     * @param nid2 ID of the other node (either TYPE2 or TYPE1)
+     * @return a biclique key, which is the correct prefix prepended by biclique ID
+     * (only expected if the two nodes are not connected in the underlying graph)..
+     * @throws IllegalStateException when invoked before the biclqiues were computed
+     * @see #getBcID(String, String)
+     */
+    public String getBcKey(String nid1, String nid2) {
+        Integer bcNumber = -1;
+        String bcPrefix = null;
+        Map<String, Integer> map = nids2bcNumber.get(nid1);
+        if (map != null) {
+            bcNumber = map.get(nid2);
+            bcPrefix = type2Prefix;
+        } else {
+            map = nids2bcNumber.get(nid2);
+            if (map != null) {
+                bcNumber = map.get(nid1);
+                bcPrefix = type1Prefix;
+            }
+        }
+        return bcNumber == null || bcNumber == -1 ? null : bcPrefix + bcNumber;
+    }
+
+    /**
      * Get the biclique IDs that the node is associated with.
      * A node is associated with a biclique if the biclique covers an edge
      * that is connected to the node.
