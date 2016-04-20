@@ -2,10 +2,16 @@ package com.vmturbo.platform.analysis.protobuf;
 
 import "PriceFunctionDTOs.proto";
 
+// A detailed, exact statement of particulars about a commodity a buyer needs to buy (but may not be
+// currently buying) or a seller is able to sell (but may not be currently selling).
 message CommoditySpecificationTO {
     required int32 type = 1; // The type of the commodity provided or requested. e.g. CPU or Memory.
                             // Using an int32 instead of an enum keeps us agnostic and lets us
                            // support all types that may be added in the future.
+    // Two commodities (one bought and one sold) will match iff their types are the same and their
+    // quality ranges overlap. This may be used e.g. to match a VM that needs 4 cores with a host 
+    // that sells 1-8 cores, for storage tiers, or to encode keys if the ranges only contain one 
+    // element.
     optional int32 quality_lower_bound = 2; // The lower bound on the quality provided or requested.
     optional int32 quality_upper_bound = 3 [default = 2147483647]; // The upper bound on the quality
                         // provided or requested. The default is intended to be Integer.MAX_VALUE.
@@ -70,5 +76,6 @@ message TraderTO {
     optional int32 type = 2; // We are currently not using this field, but may start in the future.
     optional TraderStateTO state = 3;
     repeated CommoditySoldTO commodities_sold = 4;
-    optional TraderSettingsTO settings = 5;
+    repeated ShoppingListTO shopping_lists = 5;
+    optional TraderSettingsTO settings = 6;
 }

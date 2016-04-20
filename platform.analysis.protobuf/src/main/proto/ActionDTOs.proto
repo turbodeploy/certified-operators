@@ -6,13 +6,13 @@ import "EconomyDTOs.proto";
 // reason and/or description messages.
 
 message MoveTO {
-    required int64 target = 1; // The OID of a shopping list to move.
+    required int64 shopping_list = 1; // The OID of a shopping list to move.
     optional int64 source = 2; // The OID of a trader to move from. Assumed null if missing.
     optional int64 destination = 3; // The OID of a trader to move to. Assumed null if missing.
 }
 
 message ReconfigureTO {
-    required int64 target = 1; // The OID of a shopping list to reconfigure.
+    required int64 shopping_list = 1; // The OID of a shopping list to reconfigure.
     optional int64 source = 2; // The OID of the current supplier. Assumed null if missing.
 }
 

@@ -1,6 +1,7 @@
 package com.vmturbo.platform.analysis.protobuf;
 
 import "ActionDTOs.proto";
+import "EconomyDTOs.proto";
 
 // Market 2.0 isn't concerned with segments, groups, etc. because it's enough to know about
 // commodities. Thus we need a limited number of messages.
@@ -20,6 +21,14 @@ message StartDiscoveredTopology {
 message EndDiscoveredTopology {
     // TODO: add the map from commodity specifications to generalized updating function here.
     // May think of additional data to add in the future.
+}
+
+message AnalysisCommand {
+    oneof command {
+        StartDiscoveredTopology start_discovered_topology = 1;
+        TraderTO discovered_trader = 2;
+        EndDiscoveredTopology end_discovered_topology = 3;
+    }
 }
 
 // It shouldn't matter if the connection is dropped and reestablished in at any point between messages.
