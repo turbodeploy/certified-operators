@@ -10,6 +10,9 @@ import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
 import junitparams.naming.TestCaseName;
 
+/**
+ * A test case for the {@link Cache} class.
+ */
 @RunWith(JUnitParamsRunner.class)
 public class CacheTest {
 

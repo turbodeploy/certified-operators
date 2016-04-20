@@ -7,6 +7,7 @@ import java.util.Collections;
 import java.util.List;
 
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import com.google.common.collect.Lists;
 import com.vmturbo.platform.analysis.economy.Basket;
@@ -16,7 +17,13 @@ import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 
-public class CollapseTest {
+import junitparams.JUnitParamsRunner;
+
+/**
+ * A test case for the {@link Action} interface.
+ */
+@RunWith(JUnitParamsRunner.class)
+public class ActionTest {
 
     private static final Basket EMPTY = new Basket();
     private static final Basket BASKET = new Basket(new CommoditySpecification(0));
@@ -25,7 +32,7 @@ public class CollapseTest {
     private static final int TYPE_VM = 1;
 
     @Test
-    public final void testCollapseMove() {
+    public final void testCollapsed_MovesOnly() {
         // Sellers
         Trader s1 = EC.addTrader(TYPE_PM, TraderState.ACTIVE, BASKET);
         Trader s2 = EC.addTrader(TYPE_PM, TraderState.ACTIVE, BASKET);
@@ -99,7 +106,7 @@ public class CollapseTest {
     }
 
     @Test // Create 10 non-combinable moves, collapse and verify we get the same list in the same order
-    public final void testCollapseMaintainsOrder() {
+    public final void testCollapsed_MaintainsOrderOfMoves() {
         List<Action> actions = Lists.newArrayList();
         Trader b = EC.addTrader(TYPE_VM, TraderState.ACTIVE, EMPTY);
         for (int i = 0; i < 10; i++) {

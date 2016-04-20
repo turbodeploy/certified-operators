@@ -30,8 +30,11 @@ import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
 import junitparams.naming.TestCaseName;
 
+/**
+ * A test case for the {@link M2Utils} class.
+ */
 @RunWith(JUnitParamsRunner.class)
-public class TestLoadFile {
+public class M2UtilsTest {
 
     /*
      * verify that sellers and buyers are in the basket/market where they are expected to be
