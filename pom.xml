@@ -9,27 +9,19 @@
     </parent>
 
     <artifactId>analysis-parent</artifactId>
-    <name>Analysis Parent</name>
-    <description>New Market-2 parent pom</description>
-    <version>1.0.1-SNAPSHOT</version>
+    <name>All Analysis Modules</name>
+    <description>A parent pom to host common configuration and build all Analysis (Market 2) modules.</description>
+    <version>2.0.0-SNAPSHOT</version> <!-- Since its going to be the 2nd major version of the Market. -->
     <packaging>pom</packaging>
 
     <properties>
         <java.version>1.8</java.version>
     </properties>
 
-    <profiles>
-        <profile>
-            <id>analysis</id>
-            <modules>
-                <module>platform.analysis</module>
-                <module>platform.analysis.protobuf</module>
-            </modules>
-            <activation>
-                <activeByDefault>true</activeByDefault>
-            </activation>
-        </profile>
-    </profiles>
+    <modules>
+        <module>platform.analysis</module>
+        <module>platform.analysis.protobuf</module>
+    </modules>
 
     <build>
         <pluginManagement>

@@ -5,17 +5,16 @@
     <parent>
         <groupId>com.vmturbo</groupId>
         <artifactId>analysis-parent</artifactId>
-        <version>1.0.1-SNAPSHOT</version>
+        <version>2.0.0-SNAPSHOT</version>
     </parent>
 
     <artifactId>platform.analysis.protobuf</artifactId>
     <name>Protobuf Messages</name>
     <description>
         A submodule isolating the Protobuf definitions and the Java code generated from them.
-        This is intended to include only the Protobuf messages used to communicate with the Analysis 
+        This is intended to include only the Protobuf messages used to communicate with the Analysis
         server.
     </description>
-    <version>0.0.1-SNAPSHOT</version>
 
     <properties>
         <protobuf.version>2.6.1</protobuf.version>
