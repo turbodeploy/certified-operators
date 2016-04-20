@@ -13,6 +13,8 @@ import javax.websocket.server.ServerEndpoint;
 import org.apache.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
+import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisCommand;
+
 /**
  * This is intended to be accessed via wss://localhost:9400/analysis/server
  */
@@ -38,14 +40,30 @@ public class AnalysisServer {
         // The following might not need to be logged each time.
         logger.info("Default max session timeout:     " + session.getContainer().getDefaultMaxSessionIdleTimeout() + "ms.");
         logger.info("Default max binary buffer size:  " + session.getContainer().getDefaultMaxSessionIdleTimeout() + "bytes.");
-        logger.info("");;
+        logger.info("");
         // Would be nice to log the remote IP address but I couldn't find a way...
     }
 
     @OnMessage
     public void handleMessage(@NonNull InputStream input) {
         try {
-            // handle messages here
+            logger.info("Start processing message!");
+            AnalysisCommand command = AnalysisCommand.parseFrom(input);
+
+            switch (command.getCommandCase()) {
+                case START_DISCOVERED_TOPOLOGY:
+                    logger.info("Recieved start discovered topology message!");
+                    break;
+                case DISCOVERED_TRADER:
+                    logger.info("Recieved discovered trader message!");
+                    break;
+                case END_DISCOVERED_TOPOLOGY:
+                    logger.info("Recieved end discovered topology message!");
+                    break;
+                case COMMAND_NOT_SET:
+                default:
+                    logger.warn("Unknown command received from remote endpoint with case = \"" + command.getCommandCase());
+            }
         } catch (Throwable error) {
             logger.error(error);
         }
