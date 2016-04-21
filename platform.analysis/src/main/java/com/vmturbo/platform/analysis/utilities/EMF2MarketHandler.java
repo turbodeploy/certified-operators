@@ -286,8 +286,6 @@ final public class EMF2MarketHandler extends DefaultHandler {
             logger.trace("Keys sold : " + keysSold);
             final @NonNull Trader aSeller = topology.addTrader(traderUuid, traderAttr.get("displayName"),
                                                 traderAttr.xsitype(), TraderState.ACTIVE, keysSold);
-            if (VIRTUAL_MACHINE.equals(traderAttr.xsitype())) // TODO: also check for containers
-                aSeller.getSettings().setMovable(true);
             allBasketsSold.add(aSeller.getBasketSold());
 
             // Baskets bought
@@ -363,6 +361,9 @@ final public class EMF2MarketHandler extends DefaultHandler {
                 logger.debug("    Basket : " + keysBought);
                 BuyerParticipation participation = topology.addBasketBought(aSeller, keysBought);
                 Basket basketBought = topology.getEconomy().getMarket(participation).getBasket();
+
+                if (VIRTUAL_MACHINE.equals(traderAttr.xsitype())) // TODO: also check for containers
+                    participation.setMovable(true);
 
                 for (Attributes commBought : sellerAttr2commsBoughtAttr.get(sellerAttrs)) {
                     double capacity = commBought.value("capacity", "startCapacity");
@@ -487,20 +488,6 @@ final public class EMF2MarketHandler extends DefaultHandler {
         if (logger.isDebugEnabled()) bicliquer.getBicliques().forEach((k, v) -> logger.debug(names(k) + " = " + names(v)));
         if (logger.isTraceEnabled()) topology.getCommodityTypes().entrySet().stream().forEach(logger::trace);
         logger.info((System.currentTimeMillis() - startTime) / 1000.0 + " seconds");
-    }
-
-    /**
-     * The biclique number of the biclique that replaces a sold commodity.
-     * @param commSoldAttr the {@link Attributes} representing the sold commodity
-     * @return the biclique number of the biclique that replaces this commodity,
-     * or -1 if there is no such biclique.
-     */
-    private int bcNumber(Attributes commSoldAttr) {
-        // These two uuids belong to two traders that are connected with an edge in the biclique
-        Attributes sellerAttr = commoditySold2trader.get(commSoldAttr.uuid());
-        String uuid1 = sellerAttr.uuid();
-        String uuid2 = commSoldAttr.get(ACCESSES);
-        return bicliquer.getBcID(uuid1, uuid2);
     }
 
     /**

@@ -29,6 +29,8 @@ public final class BuyerParticipation {
     private final double @NonNull [] quantities_; // @see #getQuantities()
     private final double @NonNull [] peakQuantities_; // @see #getPeakQuantities().
                                                      // Must be same size as quantities_.
+    private boolean movable_ = false; // Whether analysis is allowed to move this participation to
+                                     // another supplier.
 
     // Constructors
 
@@ -121,6 +123,20 @@ public final class BuyerParticipation {
     }
 
     /**
+     * Whether {@code this} {@link BuyerParticipation} should be considered for moving.
+     *
+     * <p>
+     *  The placement algorithm should ignore immovable buyer participations.
+     * </p>
+     */
+    @Pure
+    public boolean isMovable(BuyerParticipation this) {
+        return movable_;
+    }
+
+
+
+    /**
      * Sets the value of the <b>supplier</b> field.
      *
      * <p>
@@ -175,6 +191,22 @@ public final class BuyerParticipation {
     public @NonNull BuyerParticipation setPeakQuantity(int index, double newPeakQuantity) {
         checkArgument(newPeakQuantity >= 0, "newPeakQuantity = " + newPeakQuantity);
         peakQuantities_[index] = newPeakQuantity;
+        return this;
+    }
+    
+    /**
+     * Sets the value of the <b>movable</b> field.
+     *
+     * <p>
+     *  Has no observable side-effects except setting the above field.
+     * </p>
+     *
+     * @param movable the new value for the field.
+     * @return {@code this}
+     */
+    @Deterministic
+    public @NonNull BuyerParticipation setMovable(boolean movable) {
+        movable_ = movable;
         return this;
     }
 

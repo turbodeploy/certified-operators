@@ -205,6 +205,14 @@ public class BuyerParticipationTest {
     }
 
     @Test
+    @Parameters({"true","false"})
+    @TestCaseName("Test #{index}: (set|is)Movable({0})")
+    public final void testIsSetMovable(boolean movable) {
+        fixture_.setMovable(movable);
+        assertEquals(movable, fixture_.isMovable());
+    }
+
+    @Test
     @Parameters
     @TestCaseName("Test #{index}: {0}.move({1})")
     public final void testMove(@NonNull BuyerParticipation participation, @Nullable TraderWithSettings newSupplier) {

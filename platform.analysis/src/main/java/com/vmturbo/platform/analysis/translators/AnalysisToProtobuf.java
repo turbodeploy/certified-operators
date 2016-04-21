@@ -87,7 +87,7 @@ public final class AnalysisToProtobuf {
                                                          @NonNull BuyerParticipation participation) {
         ShoppingListTO.Builder builder = ShoppingListTO.newBuilder()
             .setOid(oid)
-            .setMovable(participation.getBuyer().getSettings().isMovable()); // will be supported better soon
+            .setMovable(participation.isMovable());
         if (participation.getSupplier() != null)
             builder.setSupplier(participation.getSupplier().getEconomyIndex()); // only because we
                                                                     // are sending existing economy!

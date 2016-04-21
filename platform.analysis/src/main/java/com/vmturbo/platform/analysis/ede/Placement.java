@@ -44,8 +44,7 @@ public class Placement {
 
                 // if there are no sellers in the market, the buyer is misconfigured
                 final @NonNull List<@NonNull Trader> sellers = market.getActiveSellers();
-                final @NonNull Trader buyer = buyerParticipation.getBuyer();
-                if (!buyer.getSettings().isMovable())
+                if (!buyerParticipation.isMovable())
                     continue;
                 if (sellers.isEmpty()) {
                     actions.add(new Reconfigure(economy, buyerParticipation).take());

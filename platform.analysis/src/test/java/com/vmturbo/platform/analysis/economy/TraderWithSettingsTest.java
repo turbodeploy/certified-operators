@@ -305,14 +305,6 @@ public final class TraderWithSettingsTest {
     }
 
     @Test
-    @Parameters({"true","false"})
-    @TestCaseName("Test #{index}: (set|is)Movable({0})")
-    public final void testIsSetMovable(boolean movable) {
-        fixture_.setMovable(movable);
-        assertEquals(movable, fixture_.isMovable());
-    }
-
-    @Test
     @Parameters({"0.0,0.0","0.0,0.5","0.0,1.0",
                  "0.5,0.5","0.5,1.0",
                  "1.0,1.0"})

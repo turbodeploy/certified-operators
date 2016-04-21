@@ -82,7 +82,6 @@ public class ProvisionBySupply implements Action {
             getModelSeller().getBasketSold());
 
         // Copy trader settings
-        provisionedSeller_.getSettings().setMovable(getModelSeller().getSettings().isMovable());
         provisionedSeller_.getSettings().setCloneable(getModelSeller().getSettings().isCloneable());
         provisionedSeller_.getSettings().setSuspendable(getModelSeller().getSettings().isSuspendable());
         provisionedSeller_.getSettings().setMinDesiredUtil(getModelSeller().getSettings().getMinDesiredUtil());
@@ -93,10 +92,14 @@ public class ProvisionBySupply implements Action {
                 : getEconomy().getMarketsAsBuyer(getModelSeller()).entrySet()) {
             BuyerParticipation participation = getEconomy().addBasketBought(getProvisionedSeller(),
                                                                             entry.getValue().getBasket());
-            if (!provisionedSeller_.getSettings().isMovable()) {
+            if (!entry.getKey().isMovable()) {
                 participation.move(entry.getKey().getSupplier());
                 // TODO: also update quantities sold by supplier
+                // or maybe we should provision first and then place in a separate action...
             }
+
+            // Copy movable attribute
+            participation.setMovable(entry.getKey().isMovable());
 
             // Copy quantities bought
             for (int i = 0 ; i < entry.getValue().getBasket().size() ; ++i) {

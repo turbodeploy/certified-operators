@@ -134,8 +134,6 @@ public class TypicalSupplyChain {
                 final @NonNull Basket APP_VM = new Basket(VCPU, VMEM, VSTORE);
                 final @NonNull Trader vm = economy.addTrader(2, TraderState.ACTIVE, APP_VM);
 
-                vm.getSettings().setMovable(true);
-
                 // Fill-in quantities and capacities sold by the virtual machine
                 final double PMsPerVM = nPMsPerCluster / nVMsPerCluster; // inverse of VMs per PM
                 vm.getCommoditySold(VCPU).setCapacity(PMsPerVM*UTILIZATION*CPU_CAPACITY);
@@ -152,6 +150,8 @@ public class TypicalSupplyChain {
 
                 // Start buying from a physical machine and fill-in quantities bought
                 final @NonNull BuyerParticipation pmParticipation = economy.addBasketBought(vm, VM_PM);
+
+                pmParticipation.setMovable(true);
                 pmParticipation.move(pms.get(i % nPMsPerCluster));
 
                 pmParticipation.setQuantity(VM_PM.indexOf(CPU), PMsPerVM*UTILIZATION*CPU_CAPACITY);
@@ -165,6 +165,8 @@ public class TypicalSupplyChain {
 
                 // Start buying from a storage and fill-in quantities bought
                 final @NonNull BuyerParticipation stParticipation = economy.addBasketBought(vm, VM_ST);
+
+                stParticipation.setMovable(true);
                 stParticipation.move(sts.get(i % nSTsPerCluster));
 
                 stParticipation.setQuantity(VM_ST.indexOf(STORE), STsPerVM*UTILIZATION*STORE_CAPACITY);
