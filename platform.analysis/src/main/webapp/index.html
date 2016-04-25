@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+
+<html>
+    <head>
+        <title>Analysis Client Interface</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width">
+    </head>
+    <body>
+        <div> <!-- Text field for user to input a path -->
+            <input type="text" title="Topology to analyze" id="topology-path" 
+                value="/Users/nomad/VMTurbo/workspace/com.vmturbo.platform.analysis/topologies/small-customer.repos.topology"/>
+        </div>
+        <div> <!-- Button to initiate the process -->
+            <button type="button" onclick="analyze();" >Analyze Topology</button>
+        </div>
+        <!-- Area to output progress and results -->
+        <div id="output"></div>
+        
+        <!-- Scripts to communicate with the server -->
+        <script type="text/javascript">
+            var endpoint;
+            var output = document.getElementById("output");
+            var topologyPath = document.getElementById("topology-path");
+            
+            function analyze() {
+            	// Allow only one connection/analysis at a time
+            	if(endpoint !== undefined && endpoint.readyState !== WebSocket.CLOSED) {
+            		output.innerHTML += "Analysis already in progress. Please wait!<br/>";
+            		return;
+            	}
+            	
+            	output.innerHTML += "Opening WebSocket connection.<br/>";
+            	endpoint = new WebSocket("wss://localhost:9400/analysis/client");
+            	
+            	// Register event handlers
+            	output.innerHTML += "Registering event handlers in client.<br/>";
+            	
+            	endpoint.onopen = function(event) {
+	            	output.innerHTML += "WebSocket connection opened.<br/>";
+	            	// Send the path to primary server
+	                output.innerHTML += "Sending analysis request to the primary server.<br/>";
+	                endpoint.send(topologyPath.value);
+            	}
+            	
+            	endpoint.onmessage = function(event) {
+            		output.innerHTML += "<p>" + event.data + "</p>";
+            		// Close the connection
+	            	output.innerHTML += "Closing WebSocket connection.<br/>";
+	            	endpoint.close();
+            	}
+            	
+            	endpoint.onclose = function(event) {
+            		output.innerHTML += "WebSocket connection closed.<br/>";
+            	}
+            }
+        </script>
+    </body>
+</html>
