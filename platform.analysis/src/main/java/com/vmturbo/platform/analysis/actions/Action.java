@@ -17,7 +17,6 @@ import static com.google.common.base.Preconditions.checkArgument;
 import com.google.common.collect.Lists;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
-import com.vmturbo.platform.analysis.topology.OID;
 
 /**
  * The root of the action hierarchy.
@@ -34,9 +33,9 @@ public interface Action {
      * Returns a String representation of {@code this} action suitable for transmission to the
      * "all-the-rest" server.
      *
-     * @param oid A function that maps {@link Trader traders} to {@link OID OIDs}.
+     * @param oid A function that maps {@link Trader traders} to OIDs.
      * @return A String representation of {@code this} action where all object references have been
-     *         substituted with {@link OID OIDs}.
+     *         substituted with OIDs.
      */
     // TODO: hoist most work for serializing the action here. Subclasses may not even need to know
     // if the format is JSON or XML e.g..
