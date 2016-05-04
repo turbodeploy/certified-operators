@@ -14,7 +14,9 @@ public final class EconomySettings {
 
     // '256' was selected as the default value after finding the time-as-a-function-of-size curves
     // for parallel and sequential execution and finding their intersection.
-    private int minSellersForParallelism_ = 256;
+    public static final int DEFAULT_MIN_SELLERS_FOR_PARALLELISM = 256;
+
+    private int minSellersForParallelism_ = DEFAULT_MIN_SELLERS_FOR_PARALLELISM;
 
     // Constructors
 
@@ -56,6 +58,18 @@ public final class EconomySettings {
         checkArgument(minSellersForParallelism >= 0, "minSellersForParallelism = " + minSellersForParallelism);
         minSellersForParallelism_ = minSellersForParallelism;
         return this;
+    }
+
+    /**
+     * Resets {@code this} {@link EconomySettings} instance to the state it was in just after
+     * construction.
+     *
+     * <p>
+     *  It has no other observable side-effects.
+     * </p>
+     */
+    public void clear() {
+        minSellersForParallelism_ = DEFAULT_MIN_SELLERS_FOR_PARALLELISM;
     }
 
 } // end EconomySettings class

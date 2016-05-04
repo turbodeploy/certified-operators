@@ -537,4 +537,16 @@ public class EconomyTest {
         }
     } // end RemoveCommodityBought class
 
+    @RunWith(Parameterized.class)
+    public static class Clear extends CommonMembersOfParameterizedTests {
+        @Test
+        public final void testClear() {
+            economy.clear();
+            assertTrue(economy.getTraders().isEmpty());
+            assertTrue(economy.getMarkets().isEmpty());
+            assertTrue(economy.getQuantityFunctions().isEmpty());
+            // TODO: compare with newly constructed object when we implement equals.
+        }
+    } // end Clear class
+
 } // end EconomyTest class

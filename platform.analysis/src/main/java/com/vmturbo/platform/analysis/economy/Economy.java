@@ -404,4 +404,18 @@ public final class Economy implements UnmodifiableEconomy {
         return newParticipation;
     }
 
+    /**
+     * Resets {@code this} {@link Economy} to the state it was in just after construction.
+     *
+     * <p>
+     *  It has no other observable side-effects.
+     * </p>
+     */
+    public void clear() {
+        markets_.clear();
+        traders_.clear();
+        quantityFunctions_.clear();
+        settings_.clear();
+    }
+
 } // end class Economy

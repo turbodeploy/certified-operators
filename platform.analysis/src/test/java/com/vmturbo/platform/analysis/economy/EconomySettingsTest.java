@@ -48,4 +48,14 @@ public class EconomySettingsTest {
         fixture_.setMinSellersForParallelism(minSellers);
     }
 
+    @Test
+    @Parameters({"0","1","10","100","1000","2147483647"})
+    @TestCaseName("Test #{index}: clear() with minSellersForParallelism == {0}")
+    public final void testClear(int minSellers) {
+        fixture_.setMinSellersForParallelism(minSellers);
+        fixture_.clear();
+        assertEquals(EconomySettings.DEFAULT_MIN_SELLERS_FOR_PARALLELISM, fixture_.getMinSellersForParallelism());
+        // TODO: compare with newly constructed object when we implement equals.
+    }
+
 } // end EconomySettingsTest class
