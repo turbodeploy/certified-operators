@@ -101,4 +101,12 @@ public class ProtobufToAnalysisTest {
         fail("Not yet implemented"); // TODO
     }
 
+    // Methods for converting CommunicationDTOs.
+
+    @Test
+    @Ignore
+    public final void testPopulateQuantityUpdatingFunctions() {
+        fail("Not yet implemented"); // TODO
+    }
+
 } // end ProtobufToAnalysisTest class

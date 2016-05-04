@@ -26,6 +26,8 @@ import com.vmturbo.platform.analysis.economy.TraderSettings;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
+import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTopology;
+import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTopology.MapEntry;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.CommodityBoughtTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.CommoditySoldSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.CommoditySoldTO;
@@ -293,6 +295,23 @@ public final class ProtobufToAnalysis {
             case ACTIONTYPE_NOT_SET:
             default:
                 throw new IllegalArgumentException("input = " + input);
+        }
+    }
+
+    // Methods for converting CommunicationDTOs.
+
+    /**
+     * Populates the quantity updating functions map of a {@link Topology} from information in an
+     * {@link EndDiscoveredTopology} message.
+     *
+     * @param source The {@link EndDiscoveredTopology} message from which to get the map entries.
+     * @param destination The {@link Topology} to put the entries to.
+     */
+    public static void populateQuantityUpdatingFunctions(@NonNull EndDiscoveredTopology source,
+                                                         @NonNull Topology destination) {
+        for (MapEntry entry : source.getQuantityUpdatingFunctionEntryList()) {
+            destination.getModifiableQuantityFunctions().put(commoditySpecification(entry.getKey()),
+                                                             quantityUpdatingFunction(entry.getValue()));
         }
     }
 

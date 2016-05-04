@@ -95,4 +95,12 @@ public class AnalysisToProtobufTest {
         fail("Not yet implemented"); // TODO
     }
 
+    // Methods for converting CommunicationDTOs.
+
+    @Test
+    @Ignore
+    public final void testAnalysisResults() {
+        fail("Not yet implemented"); // TODO
+    }
+
 } // end AnalysisToProtobufTest class

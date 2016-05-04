@@ -34,6 +34,7 @@ import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionByDemandTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionBySupplyTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ReconfigureTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ResizeTO;
+import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.CommodityBoughtTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.CommoditySoldSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.CommoditySoldTO;
@@ -325,6 +326,31 @@ public final class AnalysisToProtobuf {
         }
 
         return builder.build();
+    }
+
+    // Methods for converting CommunicationDTOs.
+
+    /**
+     * Converts a list of {@link Action}s to an {@link AnalysisResults} message given some
+     * additional context.
+     *
+     * @param actions The list of {@link Action}s to convert.
+     * @param traderOid A function mapping {@link Trader}s to their OIDs.
+     * @param participationOid A function mapping {@link BuyerParticipation}s to their OIDs.
+     * @param timeToAnalyze_ns The amount of time it took to analyze the topology and produce the
+     *        list of actions in nanoseconds.
+     * @return The resulting {@link AnalysisResults} message.
+     */
+    public static @NonNull AnalysisResults analysisResults(@NonNull List<Action> actions,
+            @NonNull ToLongFunction<@NonNull Trader> traderOid,
+            @NonNull ToLongFunction<@NonNull BuyerParticipation> participationOid, long timeToAnalyze_ns) {
+        AnalysisResults.Builder builder = AnalysisResults.newBuilder();
+
+        for (Action action : actions) {
+            builder.addActions(actionTO(action, traderOid, participationOid));
+        }
+
+        return builder.setTimeToAnalyzeNs(timeToAnalyze_ns).build();
     }
 
 } // end AnalysisToProtobuf class
