@@ -1,6 +1,8 @@
 package com.vmturbo.platform.analysis.translators;
 
+import java.util.List;
 import java.util.function.LongFunction;
+import java.util.stream.Collectors;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
 
@@ -11,6 +13,7 @@ import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.actions.ProvisionByDemand;
 import com.vmturbo.platform.analysis.actions.Reconfigure;
 import com.vmturbo.platform.analysis.actions.Resize;
+import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.BuyerParticipation;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
@@ -27,18 +30,24 @@ public final class ProtobufToAnalysis {
         return new CommoditySpecification(input.getType(),input.getQualityLowerBound(),input.getQualityUpperBound());
     }
 
+    public static @NonNull Basket basket(@NonNull List<CommoditySpecificationTO> input) {
+        return new Basket(input.stream().map(ProtobufToAnalysis::commoditySpecification).collect(Collectors.toList()));
+    }
+
     public static @NonNull Action action(@NonNull ActionTO input, @NonNull Economy economy,
             LongFunction<BuyerParticipation> participation, LongFunction<Trader> trader) {
-        switch (input.getActionSpecializationCase()) {
+        switch (input.getActionTypeCase()) {
             case MOVE:
-                return new Move(economy, participation.apply(input.getMove().getShoppingList()),
+                return new Move(economy, participation.apply(input.getMove().getShoppingListToMove()),
                     trader.apply(input.getMove().getSource()), trader.apply(input.getMove().getDestination()));
             case RECONFIGURE:
-                return new Reconfigure(economy, participation.apply(input.getReconfigure().getShoppingList()));
+                return new Reconfigure(economy, participation.apply(input.getReconfigure().getShoppingListToReconfigure()));
             case ACTIVATE:
-                return new Activate(trader.apply(input.getActivate().getTarget()), null/* not supported */);
+                return new Activate(trader.apply(input.getActivate().getTraderToActivate()),
+                                    economy.getMarket(basket(input.getActivate().getTriggeringBasketList())));
             case DEACTIVATE:
-                return new Deactivate(trader.apply(input.getDeactivate().getTarget()), null/* not supported */);
+                return new Deactivate(trader.apply(input.getDeactivate().getTraderToDeactivate()),
+                                      economy.getMarket(basket(input.getDeactivate().getTriggeringBasketList())));
             case PROVISION_BY_DEMAND:
                 return new ProvisionByDemand(economy, participation.apply(input.getProvisionByDemand().getModelBuyer()));
             case PROVISION_BY_SUPPLY:
@@ -47,7 +56,7 @@ public final class ProtobufToAnalysis {
                 return new Resize(trader.apply(input.getResize().getSellingTrader()),
                     commoditySpecification(input.getResize().getSpecification()),
                     input.getResize().getOldCapacity(),input.getResize().getNewCapacity());
-            case ACTIONSPECIALIZATION_NOT_SET:
+            case ACTIONTYPE_NOT_SET:
             default:
                 throw new IllegalArgumentException("input = " + input);
         }

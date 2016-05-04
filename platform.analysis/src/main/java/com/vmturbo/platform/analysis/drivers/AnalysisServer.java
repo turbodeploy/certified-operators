@@ -50,7 +50,7 @@ public class AnalysisServer {
             logger.info("Start processing message!");
             AnalysisCommand command = AnalysisCommand.parseFrom(input);
 
-            switch (command.getCommandCase()) {
+            switch (command.getCommandTypeCase()) {
                 case START_DISCOVERED_TOPOLOGY:
                     logger.info("Recieved start discovered topology message!");
                     break;
@@ -60,9 +60,9 @@ public class AnalysisServer {
                 case END_DISCOVERED_TOPOLOGY:
                     logger.info("Recieved end discovered topology message!");
                     break;
-                case COMMAND_NOT_SET:
+                case COMMANDTYPE_NOT_SET:
                 default:
-                    logger.warn("Unknown command received from remote endpoint with case = \"" + command.getCommandCase());
+                    logger.warn("Unknown command received from remote endpoint with case = \"" + command.getCommandTypeCase());
             }
         } catch (Throwable error) {
             logger.error(error);

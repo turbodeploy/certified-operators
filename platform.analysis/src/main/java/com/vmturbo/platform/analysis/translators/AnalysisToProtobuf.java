@@ -40,8 +40,8 @@ public final class AnalysisToProtobuf {
     public static @NonNull CommodityBoughtTO commodityBoughtTO(double quantity, double peakQuantity,
                                                                @NonNull CommoditySpecification specification) {
         return CommodityBoughtTO.newBuilder()
-            .setQuantity(quantity)
-            .setPeakQuantity(peakQuantity)
+            .setQuantity((float)quantity)
+            .setPeakQuantity((float)peakQuantity)
             .setSpecification(commoditySpecificationTO(specification)).build();
     }
 
@@ -50,13 +50,13 @@ public final class AnalysisToProtobuf {
         PriceFunctionTO.Builder builder = PriceFunctionTO.newBuilder();
 
         if (input == PriceFunction.Cache.createStandardWeightedPriceFunction(1.0)) {
-            builder.setStandardWeighted(StandardWeighted.newBuilder().setWeight(1.0));
+            builder.setStandardWeighted(StandardWeighted.newBuilder().setWeight(1.0f));
         } else if (input == PriceFunction.Cache.createConstantPriceFunction(0.0)){
-            builder.setConstant(Constant.newBuilder().setValue(0.0));
+            builder.setConstant(Constant.newBuilder().setValue(0.0f));
         } else if (input == PriceFunction.Cache.createConstantPriceFunction(27.0)) {
-            builder.setConstant(Constant.newBuilder().setValue(27.0));
+            builder.setConstant(Constant.newBuilder().setValue(27.0f));
         } else if (input == PriceFunction.Cache.createStepPriceFunction(1.0, 0.0, 20000.0)) {
-            builder.setStep(Step.newBuilder().setStepAt(1.0).setPriceBefore(0.0).setPriceAfter(20000.0));
+            builder.setStep(Step.newBuilder().setStepAt(1.0f).setPriceBelow(0.0f).setPriceAbove(20000.0f));
         }
 
         return builder.build();
@@ -65,10 +65,10 @@ public final class AnalysisToProtobuf {
     public static @NonNull CommoditySoldSettingsTO commoditySoldSettingsTO(@NonNull CommoditySoldSettings input) {
         return CommoditySoldSettingsTO.newBuilder()
             .setResizable(input.isResizable())
-            .setCapacityLowerBound(input.getCapacityLowerBound())
-            .setCapacityUpperBound(input.getCapacityUpperBound())
-            .setCapacityIncrement(input.getCapacityIncrement())
-            .setUtilizationUpperBound(input.getUtilizationUpperBound())
+            .setCapacityLowerBound((float)input.getCapacityLowerBound())
+            .setCapacityUpperBound((float)input.getCapacityUpperBound())
+            .setCapacityIncrement((float)input.getCapacityIncrement())
+            .setUtilizationUpperBound((float)input.getUtilizationUpperBound())
             .setPriceFunction(priceFunctionTO(input.getPriceFunction())).build();
     }
 
@@ -76,9 +76,9 @@ public final class AnalysisToProtobuf {
                                                            @NonNull CommoditySpecification specification) {
         return CommoditySoldTO.newBuilder()
             .setSpecification(commoditySpecificationTO(specification))
-            .setQuantity(commodity.getQuantity())
-            .setPeakQuantity(commodity.getPeakQuantity())
-            .setCapacity(commodity.getCapacity())
+            .setQuantity((float)commodity.getQuantity())
+            .setPeakQuantity((float)commodity.getPeakQuantity())
+            .setCapacity((float)commodity.getCapacity())
             .setThin(commodity.isThin())
             .setSettings(commoditySoldSettingsTO(commodity.getSettings())).build();
     }
@@ -104,8 +104,8 @@ public final class AnalysisToProtobuf {
         return TraderSettingsTO.newBuilder()
             .setClonable(input.isCloneable())
             .setSuspendable(input.isSuspendable())
-            .setMinDesiredUtilization(input.getMinDesiredUtil())
-            .setMaxDesiredUtilization(input.getMaxDesiredUtil()).build();
+            .setMinDesiredUtilization((float)input.getMinDesiredUtil())
+            .setMaxDesiredUtilization((float)input.getMaxDesiredUtil()).build();
     }
 
     public static @NonNull TraderStateTO traderStateTO(@NonNull TraderState state) {
