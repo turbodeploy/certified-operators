@@ -8,7 +8,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import com.vmturbo.platform.analysis.economy.Basket;
-import com.vmturbo.platform.analysis.economy.BuyerParticipation;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
@@ -30,22 +30,22 @@ public class MoveBaseTest {
     @Test
     @Parameters
     @TestCaseName("Test #{index}: new MoveBase({0},{1})")
-    public final void testMoveBase(@NonNull Economy economy, @NonNull BuyerParticipation participation,
+    public final void testMoveBase(@NonNull Economy economy, @NonNull ShoppingList shoppingList,
                                    @Nullable Trader source) {
-        MoveBase mb = new MoveBase(economy,participation,source);
+        MoveBase mb = new MoveBase(economy,shoppingList,source);
 
         assertSame(economy, mb.getEconomy());
-        assertSame(participation, mb.getTarget());
+        assertSame(shoppingList, mb.getTarget());
         assertSame(source, mb.getSource());
     }
 
     @SuppressWarnings("unused") // it is used reflectively
     private static Object[] parametersForTestMoveBase() {
         Economy e1 = new Economy();
-        BuyerParticipation p1 = e1.addBasketBought(e1.addTrader(0, TraderState.ACTIVE, EMPTY), EMPTY);
+        ShoppingList p1 = e1.addBasketBought(e1.addTrader(0, TraderState.ACTIVE, EMPTY), EMPTY);
 
         Economy e2 = new Economy();
-        BuyerParticipation p2 = e2.addBasketBought(e2.addTrader(0, TraderState.ACTIVE, EMPTY), EMPTY);
+        ShoppingList p2 = e2.addBasketBought(e2.addTrader(0, TraderState.ACTIVE, EMPTY), EMPTY);
         Trader s2 = e2.addTrader(1, TraderState.ACTIVE, EMPTY);
         p2.move(s2);
 

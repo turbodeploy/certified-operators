@@ -9,7 +9,7 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Pure;
 
-import com.vmturbo.platform.analysis.economy.BuyerParticipation;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -88,23 +88,23 @@ public class ProvisionBySupply implements Action {
         provisionedSeller_.getSettings().setMaxDesiredUtil(getModelSeller().getSettings().getMaxDesiredUtil());
 
         // Add basket(s) bought
-        for (@NonNull Entry<@NonNull BuyerParticipation, @NonNull Market> entry
+        for (@NonNull Entry<@NonNull ShoppingList, @NonNull Market> entry
                 : getEconomy().getMarketsAsBuyer(getModelSeller()).entrySet()) {
-            BuyerParticipation participation = getEconomy().addBasketBought(getProvisionedSeller(),
+            ShoppingList shoppingList = getEconomy().addBasketBought(getProvisionedSeller(),
                                                                             entry.getValue().getBasket());
             if (!entry.getKey().isMovable()) {
-                participation.move(entry.getKey().getSupplier());
+                shoppingList.move(entry.getKey().getSupplier());
                 // TODO: also update quantities sold by supplier
                 // or maybe we should provision first and then place in a separate action...
             }
 
             // Copy movable attribute
-            participation.setMovable(entry.getKey().isMovable());
+            shoppingList.setMovable(entry.getKey().isMovable());
 
             // Copy quantities bought
             for (int i = 0 ; i < entry.getValue().getBasket().size() ; ++i) {
-                participation.setQuantity(i, entry.getKey().getQuantity(i));
-                participation.setPeakQuantity(i, entry.getKey().getPeakQuantity(i));
+                shoppingList.setQuantity(i, entry.getKey().getQuantity(i));
+                shoppingList.setPeakQuantity(i, entry.getKey().getPeakQuantity(i));
             }
         }
 

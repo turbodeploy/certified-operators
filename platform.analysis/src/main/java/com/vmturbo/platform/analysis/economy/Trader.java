@@ -33,14 +33,14 @@ public abstract class Trader {
     private @NonNull TraderState state_;
     private @NonNull Basket basketSold_;
     private final @NonNull List<@NonNull CommoditySold> commoditiesSold_ = new ArrayList<>();
-    private final @NonNull ArrayList<@NonNull BuyerParticipation> customers_ = new ArrayList<>();
+    private final @NonNull ArrayList<@NonNull ShoppingList> customers_ = new ArrayList<>();
 
     // Cached data
 
     // Cached unmodifiable view of the commoditiesSold_ list.
     private final @NonNull List<@NonNull CommoditySold> unmodifiableCommoditiesSold_ = Collections.unmodifiableList(commoditiesSold_);
     // Cached unmodifiable view of the customers_ list.
-    private final @NonNull List<@NonNull BuyerParticipation> unmodifiableCustomers_ = Collections.unmodifiableList(customers_);
+    private final @NonNull List<@NonNull ShoppingList> unmodifiableCustomers_ = Collections.unmodifiableList(customers_);
 
     // Constructors
 
@@ -162,16 +162,16 @@ public abstract class Trader {
      * </p>
      *
      * <p>
-     *  This method really returns buyer participations instead of discrete traders, so if a trader
+     *  This method really returns shopping lists instead of discrete traders, so if a trader
      *  buys the same commodity specification more than once, the list will contain more than one
-     *  buyer participation belonging to the same trader. For a method returning a list of unique
+     *  shopping list belonging to the same trader. For a method returning a list of unique
      *  traders that are customers of {@code this} trader, see {@link #getUniqueCustomers()}.
      * </p>
      *
      * @see #getUniqueCustomers()
      */
     @Pure
-    public @NonNull @ReadOnly List<@NonNull BuyerParticipation> getCustomers(@ReadOnly Trader this) {
+    public @NonNull @ReadOnly List<@NonNull ShoppingList> getCustomers(@ReadOnly Trader this) {
         return unmodifiableCustomers_;
     }
 
@@ -186,7 +186,7 @@ public abstract class Trader {
      * @see #getUniqueCustomers()
      */
     @Pure
-    @NonNull @PolyRead List<@NonNull @PolyRead BuyerParticipation> getModifiableCustomers(@PolyRead Trader this) {
+    @NonNull @PolyRead List<@NonNull @PolyRead ShoppingList> getModifiableCustomers(@PolyRead Trader this) {
         return customers_;
     }
 
@@ -199,7 +199,7 @@ public abstract class Trader {
      * </p>
      *
      * <p>
-     *  This method returns a set of unique traders. For a list of all the buyer participations
+     *  This method returns a set of unique traders. For a list of all the shopping lists
      *  buying from {@code this} trader, see {@link #getCustomers()}.
      * </p>
      *
@@ -209,8 +209,8 @@ public abstract class Trader {
     public @NonNull @ReadOnly Set<@NonNull @ReadOnly Trader> getUniqueCustomers(@ReadOnly Trader this) {
         @NonNull Set<@NonNull @ReadOnly Trader> customers = new HashSet<>();
 
-        for (@NonNull BuyerParticipation participation : getCustomers()) {
-            customers.add(participation.getBuyer());
+        for (@NonNull ShoppingList shoppingList : getCustomers()) {
+            customers.add(shoppingList.getBuyer());
         }
 
         return Collections.unmodifiableSet(customers);

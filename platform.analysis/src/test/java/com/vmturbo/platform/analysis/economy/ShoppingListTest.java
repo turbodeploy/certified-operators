@@ -16,10 +16,10 @@ import junitparams.Parameters;
 import junitparams.naming.TestCaseName;
 
 /**
- * A test case for the {@link BuyerParticipation} class.
+ * A test case for the {@link ShoppingList} class.
  */
 @RunWith(JUnitParamsRunner.class)
-public class BuyerParticipationTest {
+public class ShoppingListTest {
     // Fields
     private static final Basket EMPTY = new Basket();
     private static final Trader trader1 = new TraderWithSettings(0, 0, TraderState.ACTIVE, EMPTY);
@@ -37,27 +37,27 @@ public class BuyerParticipationTest {
     private static final Integer[] invalidIndices = {-1,Integer.MIN_VALUE,10,Integer.MAX_VALUE}; // with respect to fixture
 
 
-    private BuyerParticipation fixture_;
+    private ShoppingList fixture_;
 
     // Methods
     @Before
     public void setUp() {
-        fixture_ = new BuyerParticipation(trader1, 10);
+        fixture_ = new ShoppingList(trader1, 10);
     }
 
     @Test
     @Parameters
-    @TestCaseName("Test #{index}: new BuyerParticipation({0},{1})")
-    public final void testBuyerParticipation_NormalInput(Trader buyer, int nCommodities) {
-        BuyerParticipation participation = new BuyerParticipation(buyer, nCommodities);
-        assertSame(buyer, participation.getBuyer());
-        assertNotSame(participation.getQuantities(), participation.getPeakQuantities());
-        assertEquals(nCommodities, participation.getQuantities().length);
-        assertEquals(nCommodities, participation.getPeakQuantities().length);
+    @TestCaseName("Test #{index}: new ShoppingList({0},{1})")
+    public final void testShoppingList_NormalInput(Trader buyer, int nCommodities) {
+        ShoppingList shoppingList = new ShoppingList(buyer, nCommodities);
+        assertSame(buyer, shoppingList.getBuyer());
+        assertNotSame(shoppingList.getQuantities(), shoppingList.getPeakQuantities());
+        assertEquals(nCommodities, shoppingList.getQuantities().length);
+        assertEquals(nCommodities, shoppingList.getPeakQuantities().length);
     }
 
     @SuppressWarnings("unused") // it is used reflectively
-    private static Object[] parametersForTestBuyerParticipation_NormalInput() {
+    private static Object[] parametersForTestShoppingList_NormalInput() {
         Object[][] output = new Object[validBuyers.length*validSizes.length][];
 
         int c = 0;
@@ -72,13 +72,13 @@ public class BuyerParticipationTest {
 
     @Test(expected = NegativeArraySizeException.class)
     @Parameters
-    @TestCaseName("Test #{index}: new BuyerParticipation({0},{1},{2})")
-    public final void testBuyerParticipation_InvalidSizes(Trader buyer, int nCommodities) {
-        new BuyerParticipation(buyer, nCommodities);
+    @TestCaseName("Test #{index}: new ShoppingList({0},{1},{2})")
+    public final void testShoppingList_InvalidSizes(Trader buyer, int nCommodities) {
+        new ShoppingList(buyer, nCommodities);
     }
 
     @SuppressWarnings("unused") // it is used reflectively
-    private static Object[] parametersForTestBuyerParticipation_InvalidSizes() {
+    private static Object[] parametersForTestShoppingList_InvalidSizes() {
         Object[][] output = new Object[validBuyers.length*invalidSizes.length][];
 
         int c = 0;
@@ -215,15 +215,15 @@ public class BuyerParticipationTest {
     @Test
     @Parameters
     @TestCaseName("Test #{index}: {0}.move({1})")
-    public final void testMove(@NonNull BuyerParticipation participation, @Nullable TraderWithSettings newSupplier) {
-        final @Nullable TraderWithSettings oldSupplier = (TraderWithSettings)participation.getSupplier();
+    public final void testMove(@NonNull ShoppingList shoppingList, @Nullable TraderWithSettings newSupplier) {
+        final @Nullable TraderWithSettings oldSupplier = (TraderWithSettings)shoppingList.getSupplier();
         final int oldSupplierSize = oldSupplier == null ? 0 : oldSupplier.getCustomers().size();
         final int newSupplierSize = newSupplier == null ? 0 : newSupplier.getCustomers().size();
 
-        assertSame(participation, participation.move(newSupplier));
-        assertSame(newSupplier, participation.getSupplier());
-        assertTrue(oldSupplier == null || !oldSupplier.getCustomers().contains(participation));
-        assertTrue(newSupplier == null || newSupplier.getCustomers().contains(participation));
+        assertSame(shoppingList, shoppingList.move(newSupplier));
+        assertSame(newSupplier, shoppingList.getSupplier());
+        assertTrue(oldSupplier == null || !oldSupplier.getCustomers().contains(shoppingList));
+        assertTrue(newSupplier == null || newSupplier.getCustomers().contains(shoppingList));
 
         if (oldSupplier != null)
             assertEquals(oldSupplierSize-1, oldSupplier.getCustomers().size());
@@ -237,15 +237,15 @@ public class BuyerParticipationTest {
 
         for (int i = 0 ; i < 4 ; ++i) {
             for (int j = 0 ; j < 4 ; ++j) {
-                BuyerParticipation participation = new BuyerParticipation(trader1, 1);
+                ShoppingList shoppingList = new ShoppingList(trader1, 1);
 
                 if (i > 0) {
                     TraderWithSettings oldSupplier = new TraderWithSettings(0, 0, TraderState.ACTIVE, EMPTY);
-                    participation.setSupplier(oldSupplier);
-                    oldSupplier.getModifiableCustomers().add(participation);
+                    shoppingList.setSupplier(oldSupplier);
+                    oldSupplier.getModifiableCustomers().add(shoppingList);
 
                     if (i > 1) {
-                        BuyerParticipation auxiliary = new BuyerParticipation(trader1, 1);
+                        ShoppingList auxiliary = new ShoppingList(trader1, 1);
                         auxiliary.setSupplier(oldSupplier);
                         oldSupplier.getModifiableCustomers().add(i == 2 ? 0 : 1, auxiliary);
                     }
@@ -254,16 +254,16 @@ public class BuyerParticipationTest {
                 TraderWithSettings newSupplier = j == 0 ? null : new TraderWithSettings(0, 0, TraderState.ACTIVE, EMPTY);
 
                 for (int k = 1 ; k < j ; ++k) {
-                    BuyerParticipation auxiliary = new BuyerParticipation(trader1, 1);
+                    ShoppingList auxiliary = new ShoppingList(trader1, 1);
                     auxiliary.setSupplier(newSupplier);
                     newSupplier.getModifiableCustomers().add(auxiliary);
                 }
 
-                parameters.add(new Object[]{participation,newSupplier});
+                parameters.add(new Object[]{shoppingList,newSupplier});
             }
         }
 
         return parameters.toArray();
     }
 
-} // end BuyerParticipationTest class
+} // end ShoppingListTest class

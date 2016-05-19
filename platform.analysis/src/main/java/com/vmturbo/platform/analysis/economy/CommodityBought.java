@@ -9,44 +9,44 @@ import org.checkerframework.dataflow.qual.Deterministic;
 import org.checkerframework.dataflow.qual.Pure;
 
 /**
- * Represents a commodity bought by a specific buyer participation in a specific market.
+ * Represents a commodity bought by a specific shopping list in a specific market.
  *
  * <p>
  *  E.g. a buyer buying the same basket two times from two different sellers will have two
- *  participations in the corresponding market and two CommodityBought instances of a given type,
+ *  shopping lists in the corresponding market and two CommodityBought instances of a given type,
  *  one for each seller.
  * </p>
  */
 public final class CommodityBought {
     // Fields
-    private final @NonNull BuyerParticipation participation_; // the buyer participation backing the view.
+    private final @NonNull ShoppingList shoppingList_; // the shopping list backing the view.
     private final int commodityIndex_; // the index into the quantity and peak quantity vectors.
 
     // Constructors
 
     /**
      * Constructs a new modifiable CommodityBought view of the (quantity, peak quantity) pair
-     * corresponding to the given buyer participation, and index into the quantity and peak quantity
+     * corresponding to the given shopping list, and index into the quantity and peak quantity
      * vectors.
      *
      * <p>
      *  CommodityBought objects themselves are immutable, but they present a modifiable view of the
      *  (quantity, peak quantity) pairs they refer to. They are never invalidated, but using them
-     *  after the supplied buyer participation has been removed from the respective market, makes
+     *  after the supplied shopping list has been removed from the respective market, makes
      *  little sense.
      * </p>
      *
-     * @param participation The buyer participation for which the view will be created.
+     * @param shoppingList The shopping list for which the view will be created.
      * @param commodityIndex The index of the pair for which the view should be created.
      *                       Must be non-negative and less than the common length of the quantity
      *                       and peak vectors.
      */
     // TODO: are they invalidated in other cases? what about addCommodityBought?
-    CommodityBought(@NonNull BuyerParticipation participation, int commodityIndex) {
-        checkArgument(0 <= commodityIndex && commodityIndex < participation.getQuantities().length,
+    CommodityBought(@NonNull ShoppingList shoppingList, int commodityIndex) {
+        checkArgument(0 <= commodityIndex && commodityIndex < shoppingList.getQuantities().length,
                       "commodityIndex = " + commodityIndex);
 
-        participation_ = participation;
+        shoppingList_ = shoppingList;
         commodityIndex_ = commodityIndex;
     }
 
@@ -54,12 +54,12 @@ public final class CommodityBought {
      * Returns the <b>quantity</b> of {@code this} commodity bought.
      *
      * <p>
-     *  This is the quantity one buyer participation is buying or intends to buy from a given type.
+     *  This is the quantity one shopping list is buying or intends to buy from a given type.
      * </p>
      */
     @Pure
     public double getQuantity(@ReadOnly CommodityBought this) {
-        return participation_.getQuantity(commodityIndex_);
+        return shoppingList_.getQuantity(commodityIndex_);
     }
 
     /**
@@ -74,7 +74,7 @@ public final class CommodityBought {
      */
     @Pure
     public double getPeakQuantity(@ReadOnly CommodityBought this) {
-        return participation_.getPeakQuantity(commodityIndex_);
+        return shoppingList_.getPeakQuantity(commodityIndex_);
     }
 
     /**
@@ -93,7 +93,7 @@ public final class CommodityBought {
     public CommodityBought setQuantity(double newQuantity) {
         checkArgument(0 <= newQuantity, "newQuantity = " + newQuantity);
         // TODO: should we check anything else about newQuantity like comparing it with capacity?
-        participation_.setQuantity(commodityIndex_,newQuantity);
+        shoppingList_.setQuantity(commodityIndex_,newQuantity);
         return this;
     }
 
@@ -113,7 +113,7 @@ public final class CommodityBought {
     public CommodityBought setPeakQuantity(double newPeakQuantity) {
         checkArgument(0 <= newPeakQuantity, "newPeakQuantity = " + newPeakQuantity);
         // TODO: should we check anything else about newPeakQuantity like comparing it with capacity?
-        participation_.setPeakQuantity(commodityIndex_,newPeakQuantity);
+        shoppingList_.setPeakQuantity(commodityIndex_,newPeakQuantity);
         return this;
     }
 

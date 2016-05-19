@@ -16,7 +16,7 @@ import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
 import com.vmturbo.platform.analysis.actions.Reconfigure;
 import com.vmturbo.platform.analysis.actions.Resize;
 import com.vmturbo.platform.analysis.economy.Basket;
-import com.vmturbo.platform.analysis.economy.BuyerParticipation;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySoldSettings;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
@@ -167,25 +167,25 @@ public final class AnalysisToProtobuf {
     }
 
     /**
-     * Converts a {@link BuyerParticipation} to a {@link ShoppingListTO} given some additional context.
+     * Converts a {@link ShoppingList} to a {@link ShoppingListTO} given some additional context.
      *
-     * @param oid The OID used to refer to this {@link BuyerParticipation} across process boundaries.
-     * @param economy The {@link Economy} containing <b>participation</b>.
-     * @param participation The {@link BuyerParticipation} to convert.
+     * @param oid The OID used to refer to this {@link ShoppingList} across process boundaries.
+     * @param economy The {@link Economy} containing <b>shopping list</b>.
+     * @param shoppingList The {@link ShoppingList} to convert.
      * @return The resulting {@link ShoppingListTO}.
      */
     public static @NonNull ShoppingListTO shoppingListTO(long oid, @NonNull UnmodifiableEconomy economy,
-                                                         @NonNull BuyerParticipation participation) {
+                                                         @NonNull ShoppingList shoppingList) {
         ShoppingListTO.Builder builder = ShoppingListTO.newBuilder()
             .setOid(oid)
-            .setMovable(participation.isMovable());
-        if (participation.getSupplier() != null)
-            builder.setSupplier(participation.getSupplier().getEconomyIndex()); // only because we
+            .setMovable(shoppingList.isMovable());
+        if (shoppingList.getSupplier() != null)
+            builder.setSupplier(shoppingList.getSupplier().getEconomyIndex()); // only because we
                                                                     // are sending existing economy!
-        Basket basketBought = economy.getMarket(participation).getBasket();
+        Basket basketBought = economy.getMarket(shoppingList).getBasket();
         for (int i = 0; i < basketBought.size() ; ++i) {
-            builder.addCommoditiesBought(commodityBoughtTO(participation.getQuantity(i),
-                                                           participation.getPeakQuantity(i), basketBought.get(i)));
+            builder.addCommoditiesBought(commodityBoughtTO(shoppingList.getQuantity(i),
+                                                           shoppingList.getPeakQuantity(i), basketBought.get(i)));
         }
 
         return builder.build();
@@ -241,8 +241,8 @@ public final class AnalysisToProtobuf {
         }
 
         int i = 0; // Warning: the computation of shopping list oid is just a hack. Need to replace!
-        for (@NonNull BuyerParticipation participation : economy.getMarketsAsBuyer(trader).keySet()) {
-            builder.addShoppingLists(shoppingListTO((trader.getEconomyIndex() << 10) + i++, economy, participation));
+        for (@NonNull ShoppingList shoppingList : economy.getMarketsAsBuyer(trader).keySet()) {
+            builder.addShoppingLists(shoppingListTO((trader.getEconomyIndex() << 10) + i++, economy, shoppingList));
         }
 
         return builder.build();
@@ -272,18 +272,18 @@ public final class AnalysisToProtobuf {
      *
      * @param input The {@link Action} to convert.
      * @param traderOid A function mapping {@link Trader}s to their OIDs.
-     * @param participationOid A function mapping {@link BuyerParticipation}s to their OIDs.
+     * @param shoppingListOid A function mapping {@link ShoppingList}s to their OIDs.
      * @return The resulting {@link ActionTO}.
      */
     public static @NonNull ActionTO actionTO(@NonNull Action input, @NonNull ToLongFunction<@NonNull Trader> traderOid,
-                                             @NonNull ToLongFunction<@NonNull BuyerParticipation> participationOid) {
+                                             @NonNull ToLongFunction<@NonNull ShoppingList> shoppingListOid) {
         ActionTO.Builder builder = ActionTO.newBuilder();
 
         if (input instanceof Move) {
             Move move = (Move)input;
             MoveTO.Builder moveTO = MoveTO.newBuilder();
 
-            moveTO.setShoppingListToMove(participationOid.applyAsLong(move.getTarget()));
+            moveTO.setShoppingListToMove(shoppingListOid.applyAsLong(move.getTarget()));
             if (move.getSource() != null) {
                 moveTO.setSource(traderOid.applyAsLong(move.getSource()));
             }
@@ -295,7 +295,7 @@ public final class AnalysisToProtobuf {
             Reconfigure reconfigure = (Reconfigure)input;
             ReconfigureTO.Builder reconfigureTO = ReconfigureTO.newBuilder();
 
-            reconfigureTO.setShoppingListToReconfigure(participationOid.applyAsLong(reconfigure.getTarget()));
+            reconfigureTO.setShoppingListToReconfigure(shoppingListOid.applyAsLong(reconfigure.getTarget()));
             if (reconfigure.getSource() != null) {
                 reconfigureTO.setSource(traderOid.applyAsLong(reconfigure.getSource()));
             }
@@ -312,7 +312,7 @@ public final class AnalysisToProtobuf {
                 .addAllTriggeringBasket(specificationTOs(deactivate.getSourceMarket().getBasket())));
         } else if (input instanceof ProvisionByDemand) {
             builder.setProvisionByDemand(ProvisionByDemandTO.newBuilder()
-                .setModelBuyer(participationOid.applyAsLong(((ProvisionByDemand)input).getModelBuyer())));
+                .setModelBuyer(shoppingListOid.applyAsLong(((ProvisionByDemand)input).getModelBuyer())));
         } else if (input instanceof ProvisionBySupply) {
             builder.setProvisionBySupply(ProvisionBySupplyTO.newBuilder()
                 .setModelSeller(traderOid.applyAsLong(((ProvisionBySupply)input).getModelSeller())));
@@ -336,18 +336,18 @@ public final class AnalysisToProtobuf {
      *
      * @param actions The list of {@link Action}s to convert.
      * @param traderOid A function mapping {@link Trader}s to their OIDs.
-     * @param participationOid A function mapping {@link BuyerParticipation}s to their OIDs.
+     * @param shoppingListOid A function mapping {@link ShoppingList}s to their OIDs.
      * @param timeToAnalyze_ns The amount of time it took to analyze the topology and produce the
      *        list of actions in nanoseconds.
      * @return The resulting {@link AnalysisResults} message.
      */
     public static @NonNull AnalysisResults analysisResults(@NonNull List<Action> actions,
             @NonNull ToLongFunction<@NonNull Trader> traderOid,
-            @NonNull ToLongFunction<@NonNull BuyerParticipation> participationOid, long timeToAnalyze_ns) {
+            @NonNull ToLongFunction<@NonNull ShoppingList> shoppingListOid, long timeToAnalyze_ns) {
         AnalysisResults.Builder builder = AnalysisResults.newBuilder();
 
         for (Action action : actions) {
-            builder.addActions(actionTO(action, traderOid, participationOid));
+            builder.addActions(actionTO(action, traderOid, shoppingListOid));
         }
 
         return builder.setTimeToAnalyzeNs(timeToAnalyze_ns).build();

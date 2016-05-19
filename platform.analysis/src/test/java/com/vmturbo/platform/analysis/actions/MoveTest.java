@@ -14,7 +14,7 @@ import org.junit.runner.RunWith;
 
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.economy.Basket;
-import com.vmturbo.platform.analysis.economy.BuyerParticipation;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -49,7 +49,7 @@ public final class MoveTest {
     @Test
     @Parameters(method = "parametersForTestMove")
     @TestCaseName("Test #{index}: new Move({0},{1},{3})")
-    public final void testMove_3(@NonNull Economy economy, @NonNull BuyerParticipation target,
+    public final void testMove_3(@NonNull Economy economy, @NonNull ShoppingList target,
                                  @Nullable Trader source, @Nullable Trader destination) {
         Move move = new Move(economy,target,destination);
 
@@ -62,7 +62,7 @@ public final class MoveTest {
     @Test
     @Parameters(method = "parametersForTestMove")
     @TestCaseName("Test #{index}: new Move({0},{1},{2},{3})")
-    public final void testMove_4(@NonNull Economy economy, @NonNull BuyerParticipation target,
+    public final void testMove_4(@NonNull Economy economy, @NonNull ShoppingList target,
                                  @Nullable Trader source, @Nullable Trader destination) {
         Move move = new Move(economy,target,source,destination);
 
@@ -75,25 +75,25 @@ public final class MoveTest {
     @SuppressWarnings("unused") // it is used reflectively
     private static Object[] parametersForTestMove() {
         Economy e1 = new Economy();
-        BuyerParticipation p1 = e1.addBasketBought(e1.addTrader(0, TraderState.ACTIVE, EMPTY), EMPTY);
+        ShoppingList p1 = e1.addBasketBought(e1.addTrader(0, TraderState.ACTIVE, EMPTY), EMPTY);
 
         Economy e2 = new Economy();
-        BuyerParticipation p2 = e2.addBasketBought(e2.addTrader(0, TraderState.ACTIVE, EMPTY), EMPTY);
+        ShoppingList p2 = e2.addBasketBought(e2.addTrader(0, TraderState.ACTIVE, EMPTY), EMPTY);
         Trader s2 = e2.addTrader(1, TraderState.ACTIVE, EMPTY);
         p2.move(s2);
 
         Economy e3 = new Economy();
-        BuyerParticipation p3 = e3.addBasketBought(e3.addTrader(0, TraderState.ACTIVE, EMPTY), EMPTY);
+        ShoppingList p3 = e3.addBasketBought(e3.addTrader(0, TraderState.ACTIVE, EMPTY), EMPTY);
         Trader d3 = e3.addTrader(0, TraderState.ACTIVE, EMPTY);
 
         Economy e4 = new Economy();
-        BuyerParticipation p4 = e4.addBasketBought(e4.addTrader(0, TraderState.ACTIVE, EMPTY), EMPTY);
+        ShoppingList p4 = e4.addBasketBought(e4.addTrader(0, TraderState.ACTIVE, EMPTY), EMPTY);
         Trader s4 = e4.addTrader(0, TraderState.ACTIVE, EMPTY);
         p4.move(s4);
         Trader d4 = e4.addTrader(0, TraderState.ACTIVE, EMPTY);
 
         Economy e5 = new Economy();
-        BuyerParticipation p5 = e5.addBasketBought(e5.addTrader(0, TraderState.ACTIVE, EMPTY), EMPTY);
+        ShoppingList p5 = e5.addBasketBought(e5.addTrader(0, TraderState.ACTIVE, EMPTY), EMPTY);
         Trader s5 = e4.addTrader(0, TraderState.ACTIVE, EMPTY);
         Trader d5 = e4.addTrader(0, TraderState.ACTIVE, EMPTY);
 
@@ -116,11 +116,11 @@ public final class MoveTest {
 
         Economy e1 = new Economy();
         Trader t11 = e1.addTrader(0, TraderState.ACTIVE, EMPTY);
-        BuyerParticipation bp1 = e1.addBasketBought(t11, EMPTY);
+        ShoppingList bp1 = e1.addBasketBought(t11, EMPTY);
         Trader t12 = e1.addTrader(0, TraderState.ACTIVE, EMPTY);
         bp1.move(t12);
         Trader t21 = e1.addTrader(0, TraderState.INACTIVE, EMPTY);
-        BuyerParticipation bp2 = e1.addBasketBought(t21, EMPTY);
+        ShoppingList bp2 = e1.addBasketBought(t21, EMPTY);
         Trader t22 = e1.addTrader(0, TraderState.INACTIVE, EMPTY);
         bp2.move(t22);
 
@@ -142,16 +142,16 @@ public final class MoveTest {
         Trader vm = economy.addTrader(0, TraderState.ACTIVE, EMPTY);
         Trader pm1 = economy.addTrader(0, TraderState.ACTIVE, PM);
 
-        BuyerParticipation participation = economy.addBasketBought(vm, PM);
-        participation.setQuantity(0, 10);
-        participation.setQuantity(1, 20);
+        ShoppingList shoppingList = economy.addBasketBought(vm, PM);
+        shoppingList.setQuantity(0, 10);
+        shoppingList.setQuantity(1, 20);
         pm1.getCommoditySold(CPU).setQuantity(3);
         pm1.getCommoditySold(MEM).setQuantity(6);
 
-        new Move(economy,participation,pm1).take();
+        new Move(economy,shoppingList,pm1).take();
 
-        assertEquals(10, participation.getQuantities()[0], 0f);
-        assertEquals(20, participation.getQuantities()[1], 0f);
+        assertEquals(10, shoppingList.getQuantities()[0], 0f);
+        assertEquals(20, shoppingList.getQuantities()[1], 0f);
         assertEquals(13, pm1.getCommoditySold(CPU).getQuantity(), 0f);
         assertEquals(26, pm1.getCommoditySold(MEM).getQuantity(), 0f);
     }
@@ -163,20 +163,20 @@ public final class MoveTest {
         Trader pm1 = economy.addTrader(0, TraderState.ACTIVE, PM);
         Trader pm2 = economy.addTrader(0, TraderState.ACTIVE, PM);
 
-        BuyerParticipation participation = economy.addBasketBought(vm, PM);
-        participation.setQuantity(0, 10);
-        participation.setQuantity(1, 20);
+        ShoppingList shoppingList = economy.addBasketBought(vm, PM);
+        shoppingList.setQuantity(0, 10);
+        shoppingList.setQuantity(1, 20);
         pm1.getCommoditySold(CPU).setQuantity(12);
         pm1.getCommoditySold(MEM).setQuantity(25);
         pm2.getCommoditySold(CPU).setQuantity(3);
         pm2.getCommoditySold(MEM).setQuantity(6);
 
-        participation.move(pm1);
+        shoppingList.move(pm1);
 
-        new Move(economy,participation,pm2).take();
+        new Move(economy,shoppingList,pm2).take();
 
-        assertEquals(10, participation.getQuantities()[0], 0f);
-        assertEquals(20, participation.getQuantities()[1], 0f);
+        assertEquals(10, shoppingList.getQuantities()[0], 0f);
+        assertEquals(20, shoppingList.getQuantities()[1], 0f);
         assertEquals(2, pm1.getCommoditySold(CPU).getQuantity(), 0f);
         assertEquals(5, pm1.getCommoditySold(MEM).getQuantity(), 0f);
         assertEquals(13, pm2.getCommoditySold(CPU).getQuantity(), 0f);
@@ -190,23 +190,23 @@ public final class MoveTest {
         Trader pm1 = economy.addTrader(0, TraderState.ACTIVE, PM);
         Trader pm2 = economy.addTrader(0, TraderState.ACTIVE, PM_EXT);
 
-        BuyerParticipation participation = economy.addBasketBought(vm, PM_EXT);
-        participation.setQuantity(0, 10);
-        participation.setQuantity(1, 20);
-        participation.setQuantity(2, 30);
+        ShoppingList shoppingList = economy.addBasketBought(vm, PM_EXT);
+        shoppingList.setQuantity(0, 10);
+        shoppingList.setQuantity(1, 20);
+        shoppingList.setQuantity(2, 30);
         pm1.getCommoditySold(CPU).setQuantity(12);
         pm1.getCommoditySold(MEM).setQuantity(37);
         pm2.getCommoditySold(CPU).setQuantity(3);
         pm2.getCommoditySold(DRS).setQuantity(6);
         pm2.getCommoditySold(MEM).setQuantity(9);
 
-        participation.move(pm1);
+        shoppingList.move(pm1);
 
-        new Move(economy,participation,pm2).take();
+        new Move(economy,shoppingList,pm2).take();
 
-        assertEquals(10, participation.getQuantities()[0], 0f);
-        assertEquals(20, participation.getQuantities()[1], 0f);
-        assertEquals(30, participation.getQuantities()[2], 0f);
+        assertEquals(10, shoppingList.getQuantities()[0], 0f);
+        assertEquals(20, shoppingList.getQuantities()[1], 0f);
+        assertEquals(30, shoppingList.getQuantities()[2], 0f);
         assertEquals(2, pm1.getCommoditySold(CPU).getQuantity(), 0f);
         assertEquals(7, pm1.getCommoditySold(MEM).getQuantity(), 0f);
         assertEquals(13, pm2.getCommoditySold(CPU).getQuantity(), 0f);
@@ -221,9 +221,9 @@ public final class MoveTest {
         Trader pm1 = economy.addTrader(0, TraderState.ACTIVE, PM_EXT);
         Trader pm2 = economy.addTrader(0, TraderState.ACTIVE, PM_EXT);
 
-        BuyerParticipation participation = economy.addBasketBought(vm, PM);
-        participation.setQuantity(0, 10);
-        participation.setQuantity(1, 30);
+        ShoppingList shoppingList = economy.addBasketBought(vm, PM);
+        shoppingList.setQuantity(0, 10);
+        shoppingList.setQuantity(1, 30);
         pm1.getCommoditySold(CPU).setQuantity(12);
         pm1.getCommoditySold(DRS).setQuantity(25);
         pm1.getCommoditySold(MEM).setQuantity(37);
@@ -231,12 +231,12 @@ public final class MoveTest {
         pm2.getCommoditySold(DRS).setQuantity(6);
         pm2.getCommoditySold(MEM).setQuantity(9);
 
-        participation.move(pm1);
+        shoppingList.move(pm1);
 
-        new Move(economy,participation,pm2).take();
+        new Move(economy,shoppingList,pm2).take();
 
-        assertEquals(10, participation.getQuantities()[0], 0f);
-        assertEquals(30, participation.getQuantities()[1], 0f);
+        assertEquals(10, shoppingList.getQuantities()[0], 0f);
+        assertEquals(30, shoppingList.getQuantities()[1], 0f);
         assertEquals(2, pm1.getCommoditySold(CPU).getQuantity(), 0f);
         assertEquals(25, pm1.getCommoditySold(DRS).getQuantity(), 0f);
         assertEquals(7, pm1.getCommoditySold(MEM).getQuantity(), 0f);
@@ -256,11 +256,11 @@ public final class MoveTest {
         Trader pm1 = economy.addTrader(0, TraderState.ACTIVE, PM_ALL);
         Trader pm2 = economy.addTrader(0, TraderState.ACTIVE, PM_ALL);
 
-        BuyerParticipation part1 = economy.addBasketBought(vm1, BASKET1);
-        BuyerParticipation part2 = economy.addBasketBought(vm2, BASKET1);
-        BuyerParticipation part3 = economy.addBasketBought(vm3, BASKET1);
-        BuyerParticipation part4 = economy.addBasketBought(vm3, BASKET2);
-        BuyerParticipation part5 = economy.addBasketBought(vm3, PM_EXT);
+        ShoppingList part1 = economy.addBasketBought(vm1, BASKET1);
+        ShoppingList part2 = economy.addBasketBought(vm2, BASKET1);
+        ShoppingList part3 = economy.addBasketBought(vm3, BASKET1);
+        ShoppingList part4 = economy.addBasketBought(vm3, BASKET2);
+        ShoppingList part5 = economy.addBasketBought(vm3, PM_EXT);
 
         // LAT1
         int lat1InBasket1 = BASKET1.indexOf(LAT1);

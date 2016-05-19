@@ -12,7 +12,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import com.vmturbo.platform.analysis.economy.Basket;
-import com.vmturbo.platform.analysis.economy.BuyerParticipation;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
@@ -33,7 +33,7 @@ public class ReconfigureTest {
     @Test
     @Parameters
     @TestCaseName("Test #{index}: new Reconfigure({0},{1})")
-    public final void testReconfigure(@NonNull Economy economy, @NonNull BuyerParticipation target) {
+    public final void testReconfigure(@NonNull Economy economy, @NonNull ShoppingList target) {
         Reconfigure reconfiguration = new Reconfigure(economy,target);
 
         assertSame(economy, reconfiguration.getEconomy());
@@ -44,10 +44,10 @@ public class ReconfigureTest {
     @SuppressWarnings("unused") // it is used reflectively
     private static Object[] parametersForTestReconfigure() {
         Economy e1 = new Economy();
-        BuyerParticipation p1 = e1.addBasketBought(e1.addTrader(0, TraderState.ACTIVE, EMPTY), EMPTY);
+        ShoppingList p1 = e1.addBasketBought(e1.addTrader(0, TraderState.ACTIVE, EMPTY), EMPTY);
 
         Economy e2 = new Economy();
-        BuyerParticipation p2 = e2.addBasketBought(e2.addTrader(0, TraderState.ACTIVE, EMPTY), EMPTY);
+        ShoppingList p2 = e2.addBasketBought(e2.addTrader(0, TraderState.ACTIVE, EMPTY), EMPTY);
         p2.move(e2.addTrader(1, TraderState.ACTIVE, EMPTY));
 
         return new Object[][]{{e1,p1},{e2,p2}};
@@ -69,7 +69,7 @@ public class ReconfigureTest {
 
         Economy e1 = new Economy();
         Trader t1 = e1.addTrader(0, TraderState.ACTIVE, EMPTY);
-        BuyerParticipation p1 = e1.addBasketBought(t1, EMPTY);
+        ShoppingList p1 = e1.addBasketBought(t1, EMPTY);
         Trader s1 = e1.addTrader(0, TraderState.ACTIVE, EMPTY);
         p1.move(s1);
         oids.put(t1, "id1");
@@ -81,7 +81,7 @@ public class ReconfigureTest {
     @Test
     @Parameters(method = "parametersForTestReconfigure")
     @TestCaseName("Test #{index}: new Reconfigure({0},{1}).take()")
-    public final void testTake(@NonNull Economy economy, @NonNull BuyerParticipation target) {
+    public final void testTake(@NonNull Economy economy, @NonNull ShoppingList target) {
         Trader oldSupplier = target.getSupplier();
         @NonNull Reconfigure reconfiguration = new Reconfigure(economy, target);
         // TODO: take a copy of the economy and assert it remained unchanged when copying gets
@@ -93,7 +93,7 @@ public class ReconfigureTest {
     @Test
     @Parameters(method = "parametersForTestReconfigure")
     @TestCaseName("Test #{index}: new Reconfigure({0},{1}).rollback()")
-    public final void testRollback(@NonNull Economy economy, @NonNull BuyerParticipation target) {
+    public final void testRollback(@NonNull Economy economy, @NonNull ShoppingList target) {
         Trader oldSupplier = target.getSupplier();
         @NonNull Reconfigure reconfiguration = new Reconfigure(economy, target);
         // TODO: take a copy of the economy and assert it remained unchanged when copying gets

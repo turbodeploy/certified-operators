@@ -12,7 +12,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import com.vmturbo.platform.analysis.economy.Basket;
-import com.vmturbo.platform.analysis.economy.BuyerParticipation;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -43,8 +43,8 @@ public class TopologyTest {
         assertTrue(topology.getEconomy().getMarkets().isEmpty());
         assertTrue(topology.getModifiableQuantityFunctions().isEmpty());
         assertTrue(topology.getTraderOids().isEmpty());
-        assertTrue(topology.getParticipationOids().isEmpty());
-        assertTrue(topology.getDanglingBuyerParticipations().isEmpty());
+        assertTrue(topology.getShoppingListOids().isEmpty());
+        assertTrue(topology.getDanglingShoppingLists().isEmpty());
     }
 
     @Test
@@ -88,23 +88,23 @@ public class TopologyTest {
     }
 
     @Test
-    public final void testGetParticipationOids() {
+    public final void testGetShoppingListOids() {
         @NonNull Economy unrelatedEconomy = new Economy();
-        @NonNull BuyerParticipation participation = unrelatedEconomy.addBasketBought(
+        @NonNull ShoppingList shoppingList = unrelatedEconomy.addBasketBought(
             unrelatedEconomy.addTrader(0, TraderState.ACTIVE, new Basket()), new Basket());
 
-        MapTests.verifyUnmodifiableValidOperations(fixture_.getParticipationOids(), participation, 0L); // TODO: test bimap operations instead
-        MapTests.verifyUnmodifiableInvalidOperations(fixture_.getParticipationOids(), participation, 0L);
-        MapTests.verifyUnmodifiableValidOperations(fixture_.getParticipationOids().inverse(), 0L, participation); // TODO: test bimap operations instead
-        MapTests.verifyUnmodifiableInvalidOperations(fixture_.getParticipationOids().inverse(), 0L, participation);
+        MapTests.verifyUnmodifiableValidOperations(fixture_.getShoppingListOids(), shoppingList, 0L); // TODO: test bimap operations instead
+        MapTests.verifyUnmodifiableInvalidOperations(fixture_.getShoppingListOids(), shoppingList, 0L);
+        MapTests.verifyUnmodifiableValidOperations(fixture_.getShoppingListOids().inverse(), 0L, shoppingList); // TODO: test bimap operations instead
+        MapTests.verifyUnmodifiableInvalidOperations(fixture_.getShoppingListOids().inverse(), 0L, shoppingList);
     }
 
     @Test
-    public final void testGetDanglingBuyerParticipations() {
-        @NonNull List<BuyerParticipation> list = new ArrayList<>();
+    public final void testGetDanglingShoppingLists() {
+        @NonNull List<ShoppingList> list = new ArrayList<>();
 
-        MapTests.verifyUnmodifiableValidOperations(fixture_.getDanglingBuyerParticipations(), 0L, list);
-        MapTests.verifyUnmodifiableInvalidOperations(fixture_.getDanglingBuyerParticipations(), 0L, list);
+        MapTests.verifyUnmodifiableValidOperations(fixture_.getDanglingShoppingLists(), 0L, list);
+        MapTests.verifyUnmodifiableInvalidOperations(fixture_.getDanglingShoppingLists(), 0L, list);
     }
 
     @Test

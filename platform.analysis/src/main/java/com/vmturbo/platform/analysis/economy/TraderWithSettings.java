@@ -15,7 +15,7 @@ import org.checkerframework.dataflow.qual.Pure;
 
 final class TraderWithSettings extends Trader implements TraderSettings {
     // Internal fields
-    private final @NonNull Map<@NonNull BuyerParticipation,@NonNull Market> marketsAsBuyer_ = new LinkedHashMap<>();
+    private final @NonNull Map<@NonNull ShoppingList,@NonNull Market> marketsAsBuyer_ = new LinkedHashMap<>();
     private final @NonNull List<Market> marketsAsSeller_ = new ArrayList<>();
 
     // Fields for TraderSettings
@@ -41,8 +41,8 @@ final class TraderWithSettings extends Trader implements TraderSettings {
     // Internal methods
 
     /**
-     * Returns a modifiable {@link Map} with the mapping from buyer participations of {@code this}
-     * buyer to the markets he participates in with these participations.
+     * Returns a modifiable {@link Map} with the mapping from shopping lists of {@code this}
+     * buyer to the markets he participates in with these shopping lists.
      *
      * <p>
      *  A trader does not know how to modify this map, so it just returns it for the economy to
@@ -50,7 +50,7 @@ final class TraderWithSettings extends Trader implements TraderSettings {
      * </p>
      */
     @Pure
-    @NonNull @PolyRead Map<@NonNull BuyerParticipation, @NonNull Market> getMarketsAsBuyer(@PolyRead TraderWithSettings this) {
+    @NonNull @PolyRead Map<@NonNull ShoppingList, @NonNull Market> getMarketsAsBuyer(@PolyRead TraderWithSettings this) {
         return marketsAsBuyer_;
     }
 

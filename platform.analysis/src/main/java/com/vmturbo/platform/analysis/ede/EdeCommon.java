@@ -9,7 +9,7 @@ import org.checkerframework.dataflow.qual.Pure;
 
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.economy.Basket;
-import com.vmturbo.platform.analysis.economy.BuyerParticipation;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -25,21 +25,21 @@ public final class EdeCommon {
     /**
      * Calculate the quote of a seller for a basket bought by a buyer.
      *
-     * @param buyerParticipation - participation buying specific quantities of the basket commodities
-     * @param basket - the basket bought by the buyer participation
-     * @param currentSupplier - the current supplier for the buyerParticipation. Can be null.
+     * @param shoppingList - shopping list containing specific quantities of the basket commodities
+     * @param basket - the basket bought by the shopping list
+     * @param currentSupplier - the current supplier for the shoppingList. Can be null.
      * @param seller - the seller that will give the quote
      */
     @Pure
-    public static double quote(@NonNull UnmodifiableEconomy economy, @NonNull BuyerParticipation buyerParticipation,
+    public static double quote(@NonNull UnmodifiableEconomy economy, @NonNull ShoppingList shoppingList,
             @NonNull Basket basket, Trader currentSupplier, @NonNull Trader seller) {
         //TODO (Apostolos): we have not dealt with equivalent commodities
         double quote = 0.0;
         boolean isCurrentSupplier = seller == currentSupplier;
 
         // get the quantity and peak quantity to buy for each commodity of the basket
-        final double[] quantities = buyerParticipation.getQuantities();
-        final double[] peakQuantities = buyerParticipation.getPeakQuantities();
+        final double[] quantities = shoppingList.getQuantities();
+        final double[] peakQuantities = shoppingList.getPeakQuantities();
 
         // go over all commodities in basket
         for (int boughtIndex = 0, soldIndex = 0; boughtIndex < basket.size(); boughtIndex++, soldIndex++) {
@@ -84,7 +84,7 @@ public final class EdeCommon {
         private final @NonNull UnmodifiableEconomy economy_;
         private final @NonNull List<StateItem> state_;
         private final long time_;
-        private final @NonNull BuyerParticipation participation_;
+        private final @NonNull ShoppingList shoppingList_;
         private final @NonNull Basket basket_;
         private final Trader supplier_;
 
@@ -93,11 +93,11 @@ public final class EdeCommon {
         private double currentQuote_ = Double.POSITIVE_INFINITY;
 
         public QuoteMinimizer(@NonNull UnmodifiableEconomy economy, @NonNull List<StateItem> state, long time,
-                @NonNull BuyerParticipation participation, @NonNull Basket basket, Trader supplier) {
+                @NonNull ShoppingList shoppingList, @NonNull Basket basket, Trader supplier) {
             economy_ = economy;
             state_ = state;
             time_ = time;
-            participation_ = participation;
+            shoppingList_ = shoppingList;
             basket_ = basket;
             supplier_ = supplier;
 
@@ -126,7 +126,7 @@ public final class EdeCommon {
                 return;
             }
 
-            final double quote = EdeCommon.quote(economy_, participation_, basket_, supplier_, seller);
+            final double quote = EdeCommon.quote(economy_, shoppingList_, basket_, supplier_, seller);
 
             if (seller == supplier_) {
                 currentQuote_ = quote;

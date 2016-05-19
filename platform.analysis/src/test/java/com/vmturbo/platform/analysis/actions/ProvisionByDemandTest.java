@@ -12,7 +12,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import com.vmturbo.platform.analysis.economy.Basket;
-import com.vmturbo.platform.analysis.economy.BuyerParticipation;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -37,7 +37,7 @@ public class ProvisionByDemandTest {
     @Test
     @Parameters
     @TestCaseName("Test #{index}: new ProvisionByDemand({0},{1})")
-    public final void testProvisionByDemand(@NonNull Economy economy, @NonNull BuyerParticipation modelBuyer) {
+    public final void testProvisionByDemand(@NonNull Economy economy, @NonNull ShoppingList modelBuyer) {
         @NonNull ProvisionByDemand provision = new ProvisionByDemand(economy, modelBuyer);
 
         assertSame(economy, provision.getEconomy());
@@ -49,13 +49,13 @@ public class ProvisionByDemandTest {
     private static Object[] parametersForTestProvisionByDemand() {
         Economy e1 = new Economy();
 
-        BuyerParticipation b1 = e1.addBasketBought(e1.addTrader(0, TraderState.ACTIVE, EMPTY), EMPTY);
-        BuyerParticipation b2 = e1.addBasketBought(e1.addTrader(0, TraderState.INACTIVE, EMPTY), EMPTY);
-        BuyerParticipation b3 = e1.addBasketBought(e1.addTrader(0, TraderState.ACTIVE, EMPTY),
+        ShoppingList b1 = e1.addBasketBought(e1.addTrader(0, TraderState.ACTIVE, EMPTY), EMPTY);
+        ShoppingList b2 = e1.addBasketBought(e1.addTrader(0, TraderState.INACTIVE, EMPTY), EMPTY);
+        ShoppingList b3 = e1.addBasketBought(e1.addTrader(0, TraderState.ACTIVE, EMPTY),
             new Basket(new CommoditySpecification(0)));
         b3.setQuantity(0, 5).setPeakQuantity(0, 6.5);
 
-        BuyerParticipation b4 = e1.addBasketBought(e1.addTrader(0, TraderState.ACTIVE, EMPTY),
+        ShoppingList b4 = e1.addBasketBought(e1.addTrader(0, TraderState.ACTIVE, EMPTY),
             new Basket(new CommoditySpecification(0),new CommoditySpecification(1)));
         b4.setQuantity(0, 2.2).setPeakQuantity(0, 6.5);
         b4.setQuantity(1, 100).setPeakQuantity(1, 101.3);
@@ -78,8 +78,8 @@ public class ProvisionByDemandTest {
         @NonNull Function<@NonNull Trader, @NonNull String> oid = oids::get;
 
         Economy e1 = new Economy();
-        BuyerParticipation b1 = e1.addBasketBought(e1.addTrader(0, TraderState.ACTIVE, EMPTY), EMPTY);
-        BuyerParticipation b2 = e1.addBasketBought(e1.addTrader(0, TraderState.INACTIVE, EMPTY), EMPTY);
+        ShoppingList b1 = e1.addBasketBought(e1.addTrader(0, TraderState.ACTIVE, EMPTY), EMPTY);
+        ShoppingList b2 = e1.addBasketBought(e1.addTrader(0, TraderState.INACTIVE, EMPTY), EMPTY);
 
         oids.put(b1.getBuyer(), "id1");
         oids.put(b2.getBuyer(), "id2");
@@ -93,7 +93,7 @@ public class ProvisionByDemandTest {
     @Test
     @Parameters(method = "parametersForTestProvisionByDemand")
     @TestCaseName("Test #{index}: new ProvisionByDemand({0},{1}).take().rollback()")
-    public final void testTakeRollback(@NonNull Economy economy, @NonNull BuyerParticipation modelBuyer) {
+    public final void testTakeRollback(@NonNull Economy economy, @NonNull ShoppingList modelBuyer) {
         final int oldSize = economy.getTraders().size();
         @NonNull ProvisionByDemand provision = new ProvisionByDemand(economy, modelBuyer);
 
@@ -127,9 +127,9 @@ public class ProvisionByDemandTest {
         @NonNull LegacyTopology topology1 = new LegacyTopology();
 
         Trader t1 = topology1.addTrader("id1","name1","VM",TraderState.ACTIVE, Arrays.asList());
-        BuyerParticipation b1 = topology1.addBasketBought(t1, Arrays.asList());
+        ShoppingList b1 = topology1.addBasketBought(t1, Arrays.asList());
         Trader t2 = topology1.addTrader("id2","name2","Container",TraderState.INACTIVE, Arrays.asList());
-        BuyerParticipation b2 = topology1.addBasketBought(t2, Arrays.asList("CPU"));
+        ShoppingList b2 = topology1.addBasketBought(t2, Arrays.asList("CPU"));
 
         return new Object[][]{
             {new ProvisionByDemand((Economy)topology1.getEconomy(), b1),topology1,
@@ -154,9 +154,9 @@ public class ProvisionByDemandTest {
         @NonNull LegacyTopology topology1 = new LegacyTopology();
 
         Trader t1 = topology1.addTrader("id1","VM1","VM",TraderState.ACTIVE, Arrays.asList());
-        BuyerParticipation b1 = topology1.addBasketBought(t1, Arrays.asList());
+        ShoppingList b1 = topology1.addBasketBought(t1, Arrays.asList());
         Trader t2 = topology1.addTrader("id2","Container1","Container",TraderState.INACTIVE, Arrays.asList());
-        BuyerParticipation b2 = topology1.addBasketBought(t2, Arrays.asList("CPU"));
+        ShoppingList b2 = topology1.addBasketBought(t2, Arrays.asList("CPU"));
 
         return new Object[][]{
             {new ProvisionByDemand((Economy)topology1.getEconomy(), b1),topology1,

@@ -32,7 +32,7 @@ public final class Market {
     // Fields
 
     private final @NonNull Basket basket_; // see #getBasket()
-    private final @NonNull List<@NonNull BuyerParticipation> buyers_ = new ArrayList<>(); // see #getBuyers()
+    private final @NonNull List<@NonNull ShoppingList> buyers_ = new ArrayList<>(); // see #getBuyers()
     // TODO (Vaptistis): consider making sellers_ a Set.
     private final @NonNull List<@NonNull Trader> activeSellers_ = new ArrayList<>(); // see #getActiveSellers()
     private final @NonNull List<@NonNull Trader> inactiveSellers_ = new ArrayList<>(); // see #getInactiveSellers()
@@ -40,7 +40,7 @@ public final class Market {
     // Cached data
 
     // Cached unmodifiable view of the buyers_ list.
-    private final @NonNull List<@NonNull BuyerParticipation> unmodifiableBuyers_ = Collections.unmodifiableList(buyers_);
+    private final @NonNull List<@NonNull ShoppingList> unmodifiableBuyers_ = Collections.unmodifiableList(buyers_);
     // Cached unmodifiable view of the activeSellers_ list.
     private final @NonNull List<@NonNull Trader> unmodifiableActiveSellers_ = Collections.unmodifiableList(activeSellers_);
     // Cached unmodifiable view of the inactiveSellers_ list.
@@ -138,7 +138,7 @@ public final class Market {
      * </p>
      *
      * <p>
-     *  Note that if there are buyer participations in the market buying from sellerToRemove, they
+     *  Note that if there are shopping lists in the market buying from sellerToRemove, they
      *  are left unchanged. That's because it's legal from a buyer to temporarily buy from a seller
      *  in another market if e.g. an access commodity has been removed, but the recommendation to
      *  move the buyer hasn't been taken yet.
@@ -169,7 +169,7 @@ public final class Market {
      * </p>
      */
     @Pure
-    public @NonNull @ReadOnly List<@NonNull BuyerParticipation> getBuyers(@ReadOnly Market this) {
+    public @NonNull @ReadOnly List<@NonNull ShoppingList> getBuyers(@ReadOnly Market this) {
         return unmodifiableBuyers_;
     }
 
@@ -184,36 +184,36 @@ public final class Market {
      *
      * @param newBuyer The new trader to add to the market as a buyer. He must be active.
      *                 If his economy index is incorrect, the results are undefined.
-     * @return The buyer participation that was created for the buyer.
+     * @return The shopping list that was created for the buyer.
      */
-    @NonNull BuyerParticipation addBuyer(@NonNull TraderWithSettings newBuyer) {
-        BuyerParticipation newParticipation = new BuyerParticipation(newBuyer, basket_.size());
+    @NonNull ShoppingList addBuyer(@NonNull TraderWithSettings newBuyer) {
+        ShoppingList newShoppingList = new ShoppingList(newBuyer, basket_.size());
 
         if (newBuyer.getState().isActive()) {
-            buyers_.add(newParticipation);
+            buyers_.add(newShoppingList);
         }
-        newBuyer.getMarketsAsBuyer().put(newParticipation, this);
+        newBuyer.getMarketsAsBuyer().put(newShoppingList, this);
 
-        return newParticipation;
+        return newShoppingList;
     }
 
     /**
-     * Removes an existing buyer participation from {@code this} market. If it was not in
+     * Removes an existing shopping list from {@code this} market. If it was not in
      * {@code this} market in the first place, the results are undefined.
      * The trader's own {@link TraderWithSettings#getMarketsAsBuyer() markets as seller} map is
      * updated.
      *
-     * @param participationToRemove The existing buyer participation that should be removed from
+     * @param shoppingListToRemove The existing shopping list that should be removed from
      *                              {@code this} market. It should be in the market.
      * @return {@code this}
      */
-    @NonNull Market removeBuyerParticipation(@NonNull BuyerParticipation participationToRemove) {
-        if (participationToRemove.getBuyer().getState().isActive()) {
-            checkArgument(buyers_.remove(participationToRemove), "participationToRemove = " + participationToRemove);
+    @NonNull Market removeShoppingList(@NonNull ShoppingList shoppingListToRemove) {
+        if (shoppingListToRemove.getBuyer().getState().isActive()) {
+            checkArgument(buyers_.remove(shoppingListToRemove), "shoppingListToRemove = " + shoppingListToRemove);
         }
-        participationToRemove.move(null);
-        checkArgument(((TraderWithSettings)participationToRemove.getBuyer()).getMarketsAsBuyer().remove(participationToRemove, this),
-                      "participationToRemove = " + participationToRemove + " this = " + this);
+        shoppingListToRemove.move(null);
+        checkArgument(((TraderWithSettings)shoppingListToRemove.getBuyer()).getMarketsAsBuyer().remove(shoppingListToRemove, this),
+                      "shoppingListToRemove = " + shoppingListToRemove + " this = " + this);
 
         return this;
     }
@@ -231,7 +231,7 @@ public final class Market {
 
         if (oldState.isActive() != newState.isActive()) { // if there was a change.
             if (newState.isActive()) { // activate
-                for (Entry<@NonNull BuyerParticipation, @NonNull Market> entry : trader.getMarketsAsBuyer().entrySet()) {
+                for (Entry<@NonNull ShoppingList, @NonNull Market> entry : trader.getMarketsAsBuyer().entrySet()) {
                     entry.getValue().buyers_.add(entry.getKey());
                 }
                 for (@NonNull @PolyRead Market market : trader.getMarketsAsSeller()) {
@@ -239,7 +239,7 @@ public final class Market {
                     market.activeSellers_.add(trader);
                 }
             } else { // deactivate
-                for (Entry<@NonNull BuyerParticipation, @NonNull Market> entry : trader.getMarketsAsBuyer().entrySet()) {
+                for (Entry<@NonNull ShoppingList, @NonNull Market> entry : trader.getMarketsAsBuyer().entrySet()) {
                     checkArgument(entry.getValue().buyers_.remove(entry.getKey()), "entry.getKey() = " + entry.getKey());
                 }
                 for (@NonNull @PolyRead Market market : trader.getMarketsAsSeller()) {

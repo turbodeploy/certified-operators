@@ -12,7 +12,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 
 import com.google.common.collect.Lists;
 import com.vmturbo.platform.analysis.economy.Basket;
-import com.vmturbo.platform.analysis.economy.BuyerParticipation;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
@@ -22,7 +22,7 @@ import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
 
 /**
- * An action to move a {@link BuyerParticipation buyer participation} from one supplier to another.
+ * An action to move a {@link ShoppingList} from one supplier to another.
  */
 public class Move extends MoveBase implements Action { // inheritance for code reuse
     // Fields
@@ -34,10 +34,10 @@ public class Move extends MoveBase implements Action { // inheritance for code r
      * Constructs a new move action with the specified target and economy.
      *
      * @param economy The economy containing target and destination.
-     * @param target The buyer participation that will move.
+     * @param target The shopping list that will move.
      * @param destination The trader, target is going to move to.
      */
-    public Move(@NonNull Economy economy, @NonNull BuyerParticipation target, @Nullable Trader destination) {
+    public Move(@NonNull Economy economy, @NonNull ShoppingList target, @Nullable Trader destination) {
         this(economy,target,target.getSupplier(),destination);
     }
 
@@ -45,13 +45,13 @@ public class Move extends MoveBase implements Action { // inheritance for code r
      * Constructs a new move action with the specified target and economy.
      *
      * @param economy The economy containing target and destination.
-     * @param target The buyer participation that will move.
+     * @param target The shopping list that will move.
      * @param source The trader, target is going to move from. Note that this argument is mostly
      *               needed when combining actions. Another version of the constructor infers it
      *               from <b>target</b>.
      * @param destination The trader, target is going to move to.
      */
-    public Move(@NonNull Economy economy, @NonNull BuyerParticipation target,
+    public Move(@NonNull Economy economy, @NonNull ShoppingList target,
                 @Nullable Trader source, @Nullable Trader destination) {
         super(economy,target,source);
         destination_ = destination;
@@ -174,15 +174,15 @@ public class Move extends MoveBase implements Action { // inheritance for code r
      *  actually executed in the real environment, the quantities will change in that way.
      * </p>
      *
-     * @param basketBought The basket bought by the buyer. It must match participation.
-     * @param participation The buyer participation that will be moved.
+     * @param basketBought The basket bought by the buyer. It must match shopping list.
+     * @param shoppingList The shopping list that will be moved.
      * @param traderToUpdate The seller whose commodities sold will be updated.
      * @param defaultCombinator A binary operator (old quantity sold, quantity bought) -> new quantity sold.
      */
     // TODO: should we cover moves of inactive traders?
-    static void updateQuantities(@NonNull UnmodifiableEconomy economy, @NonNull BuyerParticipation participation,
+    static void updateQuantities(@NonNull UnmodifiableEconomy economy, @NonNull ShoppingList shoppingList,
             @Nullable Trader traderToUpdate, @NonNull DoubleBinaryOperator defaultCombinator) {
-        @NonNull Basket basketBought = economy.getMarket(participation).getBasket();
+        @NonNull Basket basketBought = economy.getMarket(shoppingList).getBasket();
 
         if (traderToUpdate != null) {
             final @NonNull @ReadOnly Basket basketSold = traderToUpdate.getBasketSold();
@@ -198,7 +198,7 @@ public class Move extends MoveBase implements Action { // inheritance for code r
                 } else {
                     final @NonNull CommoditySold commodity = traderToUpdate.getCommoditiesSold().get(soldIndex);
                     final double[] quantities = updatedQuantities(economy, defaultCombinator,
-                        participation.getQuantity(boughtIndex), participation.getPeakQuantity(boughtIndex),
+                        shoppingList.getQuantity(boughtIndex), shoppingList.getPeakQuantity(boughtIndex),
                         traderToUpdate, soldIndex, false);
                     commodity.setQuantity(quantities[0]);
                     commodity.setPeakQuantity(quantities[1]);
@@ -223,10 +223,10 @@ public class Move extends MoveBase implements Action { // inheritance for code r
             return new double[]{explicitCombinator.applyAsDouble(commoditySold.getQuantity(), quantityBought),
                                 explicitCombinator.applyAsDouble(commoditySold.getPeakQuantity(), peakQuantityBought)};
         } else {
-            // Find the quantities bought by all buyer participations and calculate the quantity sold.
+            // Find the quantities bought by all shopping lists and calculate the quantity sold.
             double combinedQuantity = 0.0; // TODO: generalize default value
             double combinedPeakQuantity = 0.0; // if/when needed.
-            for (BuyerParticipation customer : traderToUpdate.getCustomers()) {
+            for (ShoppingList customer : traderToUpdate.getCustomers()) {
                 // TODO: this needs to be changed to something that takes matching but unequal
                 // commodities into account.
                 int specIndex = economy.getMarket(customer).getBasket().indexOf(specificationSold);

@@ -14,7 +14,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import com.vmturbo.platform.analysis.economy.Basket;
-import com.vmturbo.platform.analysis.economy.BuyerParticipation;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -139,9 +139,9 @@ public class ProvisionBySupplyTest {
         @NonNull LegacyTopology topology1 = new LegacyTopology();
 
         Trader t1 = topology1.addTrader("id1","VM1","VM",TraderState.ACTIVE, Arrays.asList());
-        BuyerParticipation b1 = topology1.addBasketBought(t1, Arrays.asList());
+        ShoppingList b1 = topology1.addBasketBought(t1, Arrays.asList());
         Trader t2 = topology1.addTrader("id2","Container2","Container",TraderState.INACTIVE, Arrays.asList());
-        BuyerParticipation b2 = topology1.addBasketBought(t2, Arrays.asList("CPU"));
+        ShoppingList b2 = topology1.addBasketBought(t2, Arrays.asList("CPU"));
 
         return new Object[][]{
             {new ProvisionBySupply((Economy)topology1.getEconomy(), t1),topology1,
@@ -166,9 +166,9 @@ public class ProvisionBySupplyTest {
         @NonNull LegacyTopology topology1 = new LegacyTopology();
 
         Trader t1 = topology1.addTrader("id1","VM1","VM",TraderState.ACTIVE, Arrays.asList());
-        BuyerParticipation b1 = topology1.addBasketBought(t1, Arrays.asList());
+        ShoppingList b1 = topology1.addBasketBought(t1, Arrays.asList());
         Trader t2 = topology1.addTrader("id2","Container1","Container",TraderState.INACTIVE, Arrays.asList());
-        BuyerParticipation b2 = topology1.addBasketBought(t2, Arrays.asList("CPU"));
+        ShoppingList b2 = topology1.addBasketBought(t2, Arrays.asList("CPU"));
 
         return new Object[][]{
             {new ProvisionBySupply((Economy)topology1.getEconomy(), t1),topology1,

@@ -9,7 +9,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Pure;
 
 import com.vmturbo.platform.analysis.economy.Basket;
-import com.vmturbo.platform.analysis.economy.BuyerParticipation;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
@@ -23,7 +23,7 @@ import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
 public class ProvisionByDemand implements Action {
     // Fields
     private final @NonNull Economy economy_;
-    private final @NonNull BuyerParticipation modelBuyer_; // TODO: also add source market? Desired state?
+    private final @NonNull ShoppingList modelBuyer_; // TODO: also add source market? Desired state?
     private @Nullable Trader provisionedSeller_;
 
     // Constructors
@@ -32,9 +32,9 @@ public class ProvisionByDemand implements Action {
      * Constructs a new ProvisionByDemand action with the specified attributes.
      *
      * @param economy The economy in which the seller will be provisioned.
-     * @param modelBuyer The buyer participation that should be satisfied by the new seller.
+     * @param modelBuyer The shopping list that should be satisfied by the new seller.
      */
-    public ProvisionByDemand(@NonNull Economy economy, @NonNull BuyerParticipation modelBuyer) {
+    public ProvisionByDemand(@NonNull Economy economy, @NonNull ShoppingList modelBuyer) {
         economy_ = economy;
         modelBuyer_ = modelBuyer;
     }
@@ -53,7 +53,7 @@ public class ProvisionByDemand implements Action {
      * Returns the model buyer that should be satisfied by the new seller.
      */
     @Pure
-    public @NonNull BuyerParticipation getModelBuyer(@ReadOnly ProvisionByDemand this) {
+    public @NonNull ShoppingList getModelBuyer(@ReadOnly ProvisionByDemand this) {
         return modelBuyer_;
     }
 
@@ -73,7 +73,7 @@ public class ProvisionByDemand implements Action {
     public @NonNull String serialize(@NonNull Function<@NonNull Trader, @NonNull String> oid) {
         return new StringBuilder().append("<action type=\"provisionByDemand\" modelBuyer=\"")
             .append(oid.apply(getModelBuyer().getBuyer())).append("\" />").toString();
-        // TODO: should I send the buyer participation and basket bought instead?
+        // TODO: should I send the shopping list and basket bought instead?
     }
 
     @Override

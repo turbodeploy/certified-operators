@@ -5,7 +5,7 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Pure;
 
-import com.vmturbo.platform.analysis.economy.BuyerParticipation;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 
@@ -15,7 +15,7 @@ import com.vmturbo.platform.analysis.economy.Trader;
 class MoveBase {
     // Fields
     private final @NonNull Economy economy_; // whether we can avoid this field is under investigation.
-    private final @NonNull BuyerParticipation target_;
+    private final @NonNull ShoppingList target_;
     private final @Nullable Trader source_;
 
     // Constructors
@@ -29,7 +29,7 @@ class MoveBase {
      * @param source The source of {@code this} move or reconfiguration. i.e. the supplier, target
      *               is supposed to be buying from just before the action is taken.
      */
-    public MoveBase(@NonNull Economy economy, @NonNull BuyerParticipation target, @Nullable Trader source) {
+    public MoveBase(@NonNull Economy economy, @NonNull ShoppingList target, @Nullable Trader source) {
         economy_ = economy;
         target_ = target;
         source_ = source;
@@ -47,11 +47,11 @@ class MoveBase {
     }
 
     /**
-     * Returns the target of {@code this} move or reconfiguration. i.e. the buyer participation that
+     * Returns the target of {@code this} move or reconfiguration. i.e. the shopping list that
      * will be moved or reconfigured.
      */
     @Pure
-    public @NonNull BuyerParticipation getTarget(@ReadOnly MoveBase this) {
+    public @NonNull ShoppingList getTarget(@ReadOnly MoveBase this) {
         return target_;
     }
 

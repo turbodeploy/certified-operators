@@ -115,7 +115,7 @@ public final class TraderWithSettingsTest {
 
     @Test // That the returned map indeed implements all operations.
     public final void testGetMarketsAsBuyer() {
-        MapTests.verifyModifiable(fixture_.getMarketsAsBuyer(), new BuyerParticipation(fixture_,0),
+        MapTests.verifyModifiable(fixture_.getMarketsAsBuyer(), new ShoppingList(fixture_,0),
                                   new Market(new Basket()));
     }
 
@@ -233,13 +233,13 @@ public final class TraderWithSettingsTest {
 
     @Test
     public final void testGetCustomers() {
-        ListTests.verifyUnmodifiableValidOperations(fixture_.getCustomers(), new BuyerParticipation(fixture_,0));
-        ListTests.verifyUnmodifiableInvalidOperations(fixture_.getCustomers(), new BuyerParticipation(fixture_,0));
+        ListTests.verifyUnmodifiableValidOperations(fixture_.getCustomers(), new ShoppingList(fixture_,0));
+        ListTests.verifyUnmodifiableInvalidOperations(fixture_.getCustomers(), new ShoppingList(fixture_,0));
     }
 
     @Test
     public final void testGetModifiableCustomers() {
-        ListTests.verifyModifiable(fixture_.getModifiableCustomers(), new BuyerParticipation(fixture_,0));
+        ListTests.verifyModifiable(fixture_.getModifiableCustomers(), new ShoppingList(fixture_,0));
     }
 
     @Test

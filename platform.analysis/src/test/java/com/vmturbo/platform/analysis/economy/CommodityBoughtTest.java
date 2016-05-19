@@ -22,7 +22,7 @@ public class CommodityBoughtTest {
 
     @Before
     public void setUp() {
-        fixture_ = new CommodityBought(new BuyerParticipation(
+        fixture_ = new CommodityBought(new ShoppingList(
                       new TraderWithSettings(0, 0, TraderState.ACTIVE, new Basket()), 1), 0);
     }
 
@@ -30,9 +30,9 @@ public class CommodityBoughtTest {
     @Parameters({"1,0",
                  "2,0","2,1",
                  "100,0","100,50","100,99"})
-    @TestCaseName("Test #{index}: new CommodityBought(new BuyerParticipation(?,?,{0}),{1}")
+    @TestCaseName("Test #{index}: new CommodityBought(new ShoppingList(?,?,{0}),{1}")
     public final void testCommodityBought_NormalInput(int size, int index) {
-        CommodityBought commodity = new CommodityBought(new BuyerParticipation(
+        CommodityBought commodity = new CommodityBought(new ShoppingList(
             new TraderWithSettings(0, 0, TraderState.ACTIVE, new Basket()), size), index);
         // Sanity check: make sure initial values are valid and that no exceptions are thrown.
         commodity.setQuantity(commodity.getQuantity());
@@ -43,9 +43,9 @@ public class CommodityBoughtTest {
     @Parameters({"1,-1","1,1",
                  "2,-1","2,-100","2,2","2,100",
                  "100,-1","100,-100","100,100","100,1000"})
-    @TestCaseName("Test #{index}: new CommodityBought(new BuyerParticipation(?,?,{0}),{1}")
+    @TestCaseName("Test #{index}: new CommodityBought(new ShoppingList(?,?,{0}),{1}")
     public final void testCommodityBought_InvalidInput(int size, int index) {
-        new CommodityBought(new BuyerParticipation(
+        new CommodityBought(new ShoppingList(
                new TraderWithSettings(0, 0, TraderState.ACTIVE, new Basket()), size), index);
     }
 

@@ -4,14 +4,14 @@ import java.util.function.Function;
 import java.util.function.IntFunction;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
-import com.vmturbo.platform.analysis.economy.BuyerParticipation;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 
 import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
 
 /**
- * An action to reconfigure a {@link BuyerParticipation buyer participation}.
+ * An action to reconfigure a {@link ShoppingList}.
  */
 public class Reconfigure extends MoveBase implements Action { // inheritance for code reuse
     // Fields
@@ -22,9 +22,9 @@ public class Reconfigure extends MoveBase implements Action { // inheritance for
      * Constructs a new reconfigure action with the specified target and economy.
      *
      * @param economy The economy containing target.
-     * @param target The buyer participation of the trader that needs reconfiguration.
+     * @param target The shopping list of the trader that needs reconfiguration.
      */
-    public Reconfigure(@NonNull Economy economy, @NonNull BuyerParticipation target) {
+    public Reconfigure(@NonNull Economy economy, @NonNull ShoppingList target) {
         super(economy,target,target.getSupplier());
     }
 

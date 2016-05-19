@@ -71,27 +71,27 @@ public interface UnmodifiableEconomy {
     @NonNull @ReadOnly Market getMarket(@ReadOnly UnmodifiableEconomy this,@NonNull Basket basket);
 
     /**
-     * Returns the {@link Market market} that created and owns the given {@link BuyerParticipation
-     * buyer participation}.
+     * Returns the {@link Market market} that created and owns the given {@link ShoppingList
+     * shopping list}.
      *
      * <p>
-     *  If given buyer participation has been invalidated, the results are undefined. The latter
+     *  If given shopping list has been invalidated, the results are undefined. The latter
      *  can happen for example if the associated buyer is removed from the economy or the market
-     *  that owned the participation.
+     *  that owned the shopping list.
      * </p>
      *
-     * @param participation The valid buyer participation for which the market should be returned.
-     * @return The market that created and owns participation.
+     * @param shoppingList The valid shopping list for which the market should be returned.
+     * @return The market that created and owns the shopping list.
      */
     @Pure
-    @NonNull @ReadOnly Market getMarket(@ReadOnly UnmodifiableEconomy this,@NonNull BuyerParticipation participation);
+    @NonNull @ReadOnly Market getMarket(@ReadOnly UnmodifiableEconomy this,@NonNull ShoppingList shoppingList);
 
     /**
      * Returns an unmodifiable list of the {@link CommodityBought commodities} the given
-     * {@link BuyerParticipation buyer participation} is buying in {@code this} economy.
+     * {@link ShoppingList shopping list} is buying in {@code this} economy.
      *
      * <p>
-     *  If the given buyer participation is not currently buying these commodities from anyone, then
+     *  If the given shopping list is not currently buying these commodities from anyone, then
      *  they just represent the quantities and peak quantities the buyer intends to buy.
      * </p>
      *
@@ -102,33 +102,33 @@ public interface UnmodifiableEconomy {
      * </p>
      *
      * <p>
-     *  The returned commodities remains valid for as long as the buyer participation remains valid.
+     *  The returned commodities remains valid for as long as the shopping list remains valid.
      *  After this point the results of using them are undefined.
      * </p>
      */
     @SideEffectFree
     @NonNull @ReadOnly List<@NonNull CommodityBought> getCommoditiesBought(@ReadOnly UnmodifiableEconomy this,
-                                                            @NonNull BuyerParticipation participation);
+                                                            @NonNull ShoppingList shoppingList);
 
     /**
-     * Returns the {@link CommodityBought commodity} bought by the given {@link BuyerParticipation
-     * buyer participation} and specified by the given {@link CommoditySpecification commodity
+     * Returns the {@link CommodityBought commodity} bought by the given {@link ShoppingList
+     * shopping list} and specified by the given {@link CommoditySpecification commodity
      * specification}.
      *
      * <p>
-     *  It remains valid for as long as the buyer participation remains valid. After this point the
+     *  It remains valid for as long as the shopping list remains valid. After this point the
      *  results of using it are undefined.
      * </p>
      *
-     * @param participation The buyer participation buying the returned commodity.
+     * @param shoppingList The shopping list buying the returned commodity.
      * @param specification The specification specifying the returned commodity. It must be in the
-     *                      basket bought by participation.
-     * @return The commodity bought by the given buyer participation and specified by the given
+     *                      basket bought by shopping list.
+     * @return The commodity bought by the given shopping list and specified by the given
      *         commodity specification.
      */
     @SideEffectFree
     @NonNull @PolyRead CommodityBought getCommodityBought(@PolyRead UnmodifiableEconomy this,
-        @NonNull @PolyRead BuyerParticipation participation, @NonNull @ReadOnly CommoditySpecification specification);
+        @NonNull @PolyRead ShoppingList shoppingList, @NonNull @ReadOnly CommoditySpecification specification);
 
     /**
      * Returns an unmodifiable list of all the {@link Trader traders} currently participating in the
@@ -151,7 +151,7 @@ public interface UnmodifiableEconomy {
      * Returns an unmodifiable list of the given trader's suppliers.
      *
      * <p>
-     *  It may contain the same supplier multiple times, one for each buyer participation of the
+     *  It may contain the same supplier multiple times, one for each shopping list of the
      *  trader that has the same supplier.
      * </p>
      *
@@ -168,12 +168,12 @@ public interface UnmodifiableEconomy {
      * Returns an unmodifiable map of the markets the given trader participates in as a buyer.
      *
      * <p>
-     *  It maps buyer participations to the markets the trader participates in with these
-     *  participations.
+     *  It maps shopping lists to the markets the trader participates in with these
+     *  shopping lists.
      * </p>
      */
     @Pure
-    @NonNull @ReadOnly Map<@NonNull BuyerParticipation, @NonNull Market> getMarketsAsBuyer(
+    @NonNull @ReadOnly Map<@NonNull ShoppingList, @NonNull Market> getMarketsAsBuyer(
         @ReadOnly UnmodifiableEconomy this, @NonNull @ReadOnly Trader trader);
 
     /**

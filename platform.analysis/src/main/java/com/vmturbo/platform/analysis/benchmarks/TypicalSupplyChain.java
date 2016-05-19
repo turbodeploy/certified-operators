@@ -7,7 +7,7 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.economy.Basket;
-import com.vmturbo.platform.analysis.economy.BuyerParticipation;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -149,43 +149,43 @@ public class TypicalSupplyChain {
                 vm.getCommoditySold(VSTORE).setPeakQuantity(STsPerVM*UTILIZATION*UTILIZATION*STORE_CAPACITY);
 
                 // Start buying from a physical machine and fill-in quantities bought
-                final @NonNull BuyerParticipation pmParticipation = economy.addBasketBought(vm, VM_PM);
+                final @NonNull ShoppingList pmShoppingList = economy.addBasketBought(vm, VM_PM);
 
-                pmParticipation.setMovable(true);
-                pmParticipation.move(pms.get(i % nPMsPerCluster));
+                pmShoppingList.setMovable(true);
+                pmShoppingList.move(pms.get(i % nPMsPerCluster));
 
-                pmParticipation.setQuantity(VM_PM.indexOf(CPU), PMsPerVM*UTILIZATION*CPU_CAPACITY);
-                pmParticipation.setPeakQuantity(VM_PM.indexOf(CPU), PMsPerVM*UTILIZATION*CPU_CAPACITY);
-                pmParticipation.setQuantity(VM_PM.indexOf(CPU_PROVISIONED), PMsPerVM*UTILIZATION*CPU_CAPACITY);
-                pmParticipation.setPeakQuantity(VM_PM.indexOf(CPU_PROVISIONED), PMsPerVM*UTILIZATION*CPU_CAPACITY);
-                pmParticipation.setQuantity(VM_PM.indexOf(MEM), PMsPerVM*UTILIZATION*MEM_CAPACITY);
-                pmParticipation.setPeakQuantity(VM_PM.indexOf(MEM), PMsPerVM*UTILIZATION*MEM_CAPACITY);
-                pmParticipation.setQuantity(VM_PM.indexOf(MEM_PROVISIONED), PMsPerVM*UTILIZATION*MEM_CAPACITY);
-                pmParticipation.setPeakQuantity(VM_PM.indexOf(MEM_PROVISIONED), PMsPerVM*UTILIZATION*MEM_CAPACITY);
+                pmShoppingList.setQuantity(VM_PM.indexOf(CPU), PMsPerVM*UTILIZATION*CPU_CAPACITY);
+                pmShoppingList.setPeakQuantity(VM_PM.indexOf(CPU), PMsPerVM*UTILIZATION*CPU_CAPACITY);
+                pmShoppingList.setQuantity(VM_PM.indexOf(CPU_PROVISIONED), PMsPerVM*UTILIZATION*CPU_CAPACITY);
+                pmShoppingList.setPeakQuantity(VM_PM.indexOf(CPU_PROVISIONED), PMsPerVM*UTILIZATION*CPU_CAPACITY);
+                pmShoppingList.setQuantity(VM_PM.indexOf(MEM), PMsPerVM*UTILIZATION*MEM_CAPACITY);
+                pmShoppingList.setPeakQuantity(VM_PM.indexOf(MEM), PMsPerVM*UTILIZATION*MEM_CAPACITY);
+                pmShoppingList.setQuantity(VM_PM.indexOf(MEM_PROVISIONED), PMsPerVM*UTILIZATION*MEM_CAPACITY);
+                pmShoppingList.setPeakQuantity(VM_PM.indexOf(MEM_PROVISIONED), PMsPerVM*UTILIZATION*MEM_CAPACITY);
 
                 // Start buying from a storage and fill-in quantities bought
-                final @NonNull BuyerParticipation stParticipation = economy.addBasketBought(vm, VM_ST);
+                final @NonNull ShoppingList stShoppingList = economy.addBasketBought(vm, VM_ST);
 
-                stParticipation.setMovable(true);
-                stParticipation.move(sts.get(i % nSTsPerCluster));
+                stShoppingList.setMovable(true);
+                stShoppingList.move(sts.get(i % nSTsPerCluster));
 
-                stParticipation.setQuantity(VM_ST.indexOf(STORE), STsPerVM*UTILIZATION*STORE_CAPACITY);
-                stParticipation.setPeakQuantity(VM_ST.indexOf(STORE), STsPerVM*UTILIZATION*STORE_CAPACITY);
-                stParticipation.setQuantity(VM_ST.indexOf(STORE_PROVISIONED), STsPerVM*UTILIZATION*STORE_CAPACITY);
-                stParticipation.setPeakQuantity(VM_ST.indexOf(STORE_PROVISIONED), STsPerVM*UTILIZATION*STORE_CAPACITY);
+                stShoppingList.setQuantity(VM_ST.indexOf(STORE), STsPerVM*UTILIZATION*STORE_CAPACITY);
+                stShoppingList.setPeakQuantity(VM_ST.indexOf(STORE), STsPerVM*UTILIZATION*STORE_CAPACITY);
+                stShoppingList.setQuantity(VM_ST.indexOf(STORE_PROVISIONED), STsPerVM*UTILIZATION*STORE_CAPACITY);
+                stShoppingList.setPeakQuantity(VM_ST.indexOf(STORE_PROVISIONED), STsPerVM*UTILIZATION*STORE_CAPACITY);
 
                 // Add an application and tie it to the virtual machine.
                 final @NonNull Trader app = economy.addTrader(3, TraderState.ACTIVE, EMPTY);
-                final @NonNull BuyerParticipation vmParticipation = economy.addBasketBought(app, APP_VM);
-                vmParticipation.move(vm);
+                final @NonNull ShoppingList vmShoppingList = economy.addBasketBought(app, APP_VM);
+                vmShoppingList.move(vm);
 
                 // Fill-in quantities bought by the application
-                vmParticipation.setQuantity(APP_VM.indexOf(VCPU), PMsPerVM*UTILIZATION*UTILIZATION*CPU_CAPACITY);
-                vmParticipation.setPeakQuantity(APP_VM.indexOf(VCPU), PMsPerVM*UTILIZATION*UTILIZATION*CPU_CAPACITY);
-                vmParticipation.setQuantity(APP_VM.indexOf(VMEM), PMsPerVM*UTILIZATION*UTILIZATION*MEM_CAPACITY);
-                vmParticipation.setPeakQuantity(APP_VM.indexOf(VMEM), PMsPerVM*UTILIZATION*UTILIZATION*MEM_CAPACITY);
-                vmParticipation.setQuantity(APP_VM.indexOf(VSTORE), STsPerVM*UTILIZATION*UTILIZATION*STORE_CAPACITY);
-                vmParticipation.setPeakQuantity(APP_VM.indexOf(VSTORE), STsPerVM*UTILIZATION*UTILIZATION*STORE_CAPACITY);
+                vmShoppingList.setQuantity(APP_VM.indexOf(VCPU), PMsPerVM*UTILIZATION*UTILIZATION*CPU_CAPACITY);
+                vmShoppingList.setPeakQuantity(APP_VM.indexOf(VCPU), PMsPerVM*UTILIZATION*UTILIZATION*CPU_CAPACITY);
+                vmShoppingList.setQuantity(APP_VM.indexOf(VMEM), PMsPerVM*UTILIZATION*UTILIZATION*MEM_CAPACITY);
+                vmShoppingList.setPeakQuantity(APP_VM.indexOf(VMEM), PMsPerVM*UTILIZATION*UTILIZATION*MEM_CAPACITY);
+                vmShoppingList.setQuantity(APP_VM.indexOf(VSTORE), STsPerVM*UTILIZATION*UTILIZATION*STORE_CAPACITY);
+                vmShoppingList.setPeakQuantity(APP_VM.indexOf(VSTORE), STsPerVM*UTILIZATION*UTILIZATION*STORE_CAPACITY);
             }
         }
 

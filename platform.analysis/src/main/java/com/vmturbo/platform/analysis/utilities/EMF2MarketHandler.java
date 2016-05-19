@@ -29,7 +29,7 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Multimaps;
 import com.google.common.collect.Sets;
 import com.vmturbo.platform.analysis.economy.Basket;
-import com.vmturbo.platform.analysis.economy.BuyerParticipation;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.CommodityBought;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
@@ -265,10 +265,10 @@ final public class EMF2MarketHandler extends DefaultHandler {
         // Just for counting purposes
         Set<Basket> allBasketsBought = new TreeSet<>();
         Set<Basket> allBasketsSold = new TreeSet<>();
-        int nBuyerParticipations = 0;
+        int nShoppingLists = 0;
 
         // From basket bought to trader uuid
-        Map<BuyerParticipation, String> placement = Maps.newLinkedHashMap();
+        Map<ShoppingList, String> placement = Maps.newLinkedHashMap();
 
         logger.info("Start creating traders");
         for (String traderUuid : traders.keySet()) {
@@ -359,11 +359,11 @@ final public class EMF2MarketHandler extends DefaultHandler {
                     keysBought.add(bcKeysBought);
                 }
                 logger.debug("    Basket : " + keysBought);
-                BuyerParticipation participation = topology.addBasketBought(aSeller, keysBought);
-                Basket basketBought = topology.getEconomy().getMarket(participation).getBasket();
+                ShoppingList shoppingList = topology.addBasketBought(aSeller, keysBought);
+                Basket basketBought = topology.getEconomy().getMarket(shoppingList).getBasket();
 
                 if (VIRTUAL_MACHINE.equals(traderAttr.xsitype())) // TODO: also check for containers
-                    participation.setMovable(true);
+                    shoppingList.setMovable(true);
 
                 for (Attributes commBought : sellerAttr2commsBoughtAttr.get(sellerAttrs)) {
                     double capacity = commBought.value("capacity", "startCapacity");
@@ -382,22 +382,22 @@ final public class EMF2MarketHandler extends DefaultHandler {
                         peak = capacity;
                     }
 
-                    CommodityBought commodity = topology.getEconomy().getCommodityBought(participation,
+                    CommodityBought commodity = topology.getEconomy().getCommodityBought(shoppingList,
                         new CommoditySpecification(topology.getCommodityTypes().getId(commBought.commoditySpecString())));
                     commodity.setQuantity(used);
                     commodity.setPeakQuantity(peak);
                 }
 
-                placement.put(participation, entry.getKey().uuid());
+                placement.put(shoppingList, entry.getKey().uuid());
 
                 allBasketsBought.add(basketBought);
-                ++nBuyerParticipations;
+                ++nShoppingLists;
             }
 
             if (logger.isDebugEnabled()) {
                 logger.debug("Created trader " + traderAttr.xsitype() + " (type " + aSeller.getType() + ")");
                 logger.debug("    Sells " + aSeller.getBasketSold());
-                for (Entry<@NonNull Market, Collection<@NonNull BuyerParticipation>> entry
+                for (Entry<@NonNull Market, Collection<@NonNull ShoppingList>> entry
                         : Multimaps.invertFrom(Multimaps.forMap(topology.getEconomy().getMarketsAsBuyer(aSeller)),
                                                ArrayListMultimap.create()).asMap().entrySet()) {
                     logger.debug("    Buys " + entry.getKey().getBasket() + " " + entry.getValue().size() + " time(s)");
@@ -449,7 +449,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
         topology.addQuantityFunction(StorageLatency, Math::max);
 
         logger.info("Processing placement");
-        for (Entry<BuyerParticipation, String> entry : placement.entrySet()) {
+        for (Entry<ShoppingList, String> entry : placement.entrySet()) {
             entry.getKey().move(topology.getUuids().inverse().get(entry.getValue()));
         }
 
@@ -480,7 +480,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
         logger.info(commodities.size() + " commodities (bought and sold)");
         logger.info(allBasketsBought.size() + " unique baskets bought");
         logger.info(allBasketsSold.size() + " unique baskets sold");
-        logger.info(nBuyerParticipations + " buyer participations");
+        logger.info(nShoppingLists + " shopping lists");
         logger.info(topology.getTraderTypes().size() + " trader types");
         if (logger.isTraceEnabled()) topology.getTraderTypes().entrySet().stream().forEach(logger::trace);
         logger.info(topology.getCommodityTypes().size() + " commodity types");
@@ -562,16 +562,16 @@ final public class EMF2MarketHandler extends DefaultHandler {
                     .stream().map(Trader::getType)
                     .map(topology.getTraderTypes()::getName)
                     .collect(Collectors.toList()));
-            logger.trace(topology.getEconomy().getMarketsAsBuyer(trader).size() + " participations ");
-            // Print "P" x number of participations (e.g. PPPPP for 5 participations). Makes search easier.
+            logger.trace(topology.getEconomy().getMarketsAsBuyer(trader).size() + " shopping lists ");
+            // Print "P" x number of shopping lists (e.g. PPPPP for 5 shopping lists). Makes search easier.
             logger.trace(Strings.repeat("P", topology.getEconomy().getMarketsAsBuyer(trader).size()));
-            for (@NonNull Entry<@NonNull BuyerParticipation, @NonNull Market> entry
+            for (@NonNull Entry<@NonNull ShoppingList, @NonNull Market> entry
                             : topology.getEconomy().getMarketsAsBuyer(trader).entrySet()) {
-                BuyerParticipation participation = entry.getKey();
-                logger.trace("    -- participation @" + participation.hashCode());
+                ShoppingList shoppingList = entry.getKey();
+                logger.trace("    -- shopping lists @" + shoppingList.hashCode());
                 logger.trace("         basket: " + basketAsStrings(entry.getValue().getBasket()));
-                logger.trace("         quantities: " + Arrays.toString(participation.getQuantities()));
-                logger.trace("         peaks     : " + Arrays.toString(participation.getPeakQuantities()));
+                logger.trace("         quantities: " + Arrays.toString(shoppingList.getQuantities()));
+                logger.trace("         peaks     : " + Arrays.toString(shoppingList.getPeakQuantities()));
             }
         }
     }

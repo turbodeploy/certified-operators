@@ -15,7 +15,7 @@ import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 import com.google.common.collect.Maps;
 import com.vmturbo.platform.analysis.economy.Basket;
-import com.vmturbo.platform.analysis.economy.BuyerParticipation;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -91,11 +91,11 @@ public final class LegacyTopology {
      * @param buyer The buyer who should start buying the new basket.
      * @param commodityTypesBought A collection of human-readable commodity type strings from which
      *                             the basket bought of the buyer will be created.
-     * @return The new buyer participation of buyer in the market corresponding to basket bought.
+     * @return The new shopping list of buyer in the market corresponding to basket bought.
      *
      * @see Economy#addBasketBought(Trader, Basket)
      */
-    public @NonNull BuyerParticipation addBasketBought(@NonNull Trader buyer,
+    public @NonNull ShoppingList addBasketBought(@NonNull Trader buyer,
                                        @NonNull Collection<@NonNull String> commodityTypesBought) {
         return economy_.addBasketBought(buyer, new Basket(commodityTypesBought.stream()
             .map(typeBought -> new CommoditySpecification(commodityTypes_.allocate(typeBought)))

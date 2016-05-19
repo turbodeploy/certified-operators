@@ -14,7 +14,7 @@ import com.google.common.collect.HashBiMap;
 import com.google.common.collect.Maps;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.economy.Basket;
-import com.vmturbo.platform.analysis.economy.BuyerParticipation;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -27,7 +27,7 @@ import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
  * from a file.
  *
  * <p>
- *  It maintains the relationship between {@link Trader}s and {@link BuyerParticipation}s and their
+ *  It maintains the relationship between {@link Trader}s and {@link ShoppingList}s and their
  *  corresponding OIDs so that this information can be used to send back {@link Action}s that need
  *  to refer to them across process boundaries.
  * </p>
@@ -40,10 +40,10 @@ public final class Topology {
     // Fields
     private final @NonNull Economy economy_ = new Economy(); // The managed economy.
     private final @NonNull BiMap<@NonNull Trader, @NonNull Long> traderOids_ = HashBiMap.create();
-    private final @NonNull BiMap<@NonNull BuyerParticipation, @NonNull Long> participationOids_ = HashBiMap.create();
-    // A map from OIDs of traders we haven't seen yet to buyer participations that need to be
+    private final @NonNull BiMap<@NonNull ShoppingList, @NonNull Long> shoppingListOids_ = HashBiMap.create();
+    // A map from OIDs of traders we haven't seen yet to shopping lists that need to be
     // placed on them. It is needed if we can receive a customer before its supplier.
-    private final @NonNull Map<@NonNull Long, @NonNull List<@NonNull BuyerParticipation>> danglingBuyerParticipations_ = new HashMap<>();
+    private final @NonNull Map<@NonNull Long, @NonNull List<@NonNull ShoppingList>> danglingShoppingLists_ = new HashMap<>();
 
     // Cached data
 
@@ -51,11 +51,11 @@ public final class Topology {
     private final @NonNull BiMap<@NonNull Trader, @NonNull Long>
         unmodifiableTraderOids_ = Maps.unmodifiableBiMap(traderOids_);
     // Cached unmodifiable view of the traderOids_ BiMap.
-    private final @NonNull BiMap<@NonNull BuyerParticipation, @NonNull Long>
-        unmodifiableParticipationOids_ = Maps.unmodifiableBiMap(participationOids_);
-    // Cached unmodifiable view of the danglingBuyerParticipations_ Map.
-    private final @NonNull Map<@NonNull Long, @NonNull List<@NonNull BuyerParticipation>>
-        unmodifiableDanglingBuyerParticipations_ = Collections.unmodifiableMap(danglingBuyerParticipations_);
+    private final @NonNull BiMap<@NonNull ShoppingList, @NonNull Long>
+        unmodifiableShoppingListOids_ = Maps.unmodifiableBiMap(shoppingListOids_);
+    // Cached unmodifiable view of the danglingShoppingLists_ Map.
+    private final @NonNull Map<@NonNull Long, @NonNull List<@NonNull ShoppingList>>
+        unmodifiableDanglingShoppingLists_ = Collections.unmodifiableMap(danglingShoppingLists_);
 
     // Constructors
 
@@ -83,15 +83,15 @@ public final class Topology {
         @NonNull Trader trader = economy_.addTrader(type, state, basketSold);
         traderOids_.put(trader, oid);
 
-        // Check if the topology already contains buyer participations that refer to this trader...
-        List<@NonNull BuyerParticipation> participations = danglingBuyerParticipations_.get(oid);
-        if (participations != null) {
-            for (BuyerParticipation participation : participations) {
+        // Check if the topology already contains shopping lists that refer to this trader...
+        List<@NonNull ShoppingList> shoppingLists = danglingShoppingLists_.get(oid);
+        if (shoppingLists != null) {
+            for (ShoppingList shoppingList : shoppingLists) {
                 // ...and place them on this trader.
-                participation.move(trader);
+                shoppingList.move(trader);
             }
 
-            danglingBuyerParticipations_.remove(oid);
+            danglingShoppingLists_.remove(oid);
         }
 
         return trader;
@@ -100,20 +100,20 @@ public final class Topology {
     /**
      * Adds a new basket bought to the specified buyer.
      *
-     * @param oid The oid that should be associated with the new buyer participation that will be
+     * @param oid The oid that should be associated with the new shopping list that will be
      *            created for the basket bought.
      * @param buyer The buyer that should start buying the new basket.
      * @param basketBought The basket that <b>buyer</b> should start buying.
-     * @return The newly created buyer participation of <b>buyer</b> in the market corresponding to
+     * @return The newly created shopping list of <b>buyer</b> in the market corresponding to
      *         basket bought.
      *
      * @see Economy#addBasketBought(Trader, Basket)
      */
-    public @NonNull BuyerParticipation addBasketBought(long oid, @NonNull Trader buyer, @NonNull Basket basketBought) {
-        @NonNull BuyerParticipation participation = economy_.addBasketBought(buyer, basketBought);
-        participationOids_.put(participation, oid);
+    public @NonNull ShoppingList addBasketBought(long oid, @NonNull Trader buyer, @NonNull Basket basketBought) {
+        @NonNull ShoppingList shoppingList = economy_.addBasketBought(buyer, basketBought);
+        shoppingListOids_.put(shoppingList, oid);
 
-        return participation;
+        return shoppingList;
     }
 
     /**
@@ -130,32 +130,32 @@ public final class Topology {
      * @param buyer Same as for {@link #addBasketBought(long, Trader, Basket)}
      * @param basketBought Same as for {@link #addBasketBought(long, Trader, Basket)}
      * @param supplierOid The OID of the trader that should become the supplier of the buyer
-     *                    participation that will be created for the new basket bought.
+     *                    shopping list that will be created for the new basket bought.
      * @return Same as for {@link #addBasketBought(long, Trader, Basket)}
      *
      * @see Economy#addBasketBought(Trader, Basket)
      * @see #addBasketBought(long, Trader, Basket)
      */
-    public @NonNull BuyerParticipation addBasketBought(long oid, @NonNull Trader buyer,
+    public @NonNull ShoppingList addBasketBought(long oid, @NonNull Trader buyer,
                                                        @NonNull Basket basketBought, long supplierOid) {
-        @NonNull BuyerParticipation participation = addBasketBought(oid, buyer, basketBought);
+        @NonNull ShoppingList shoppingList = addBasketBought(oid, buyer, basketBought);
 
         // Check whether the supplier has been added to the topology...
         @NonNull Trader supplier = traderOids_.inverse().get(supplierOid);
         if (supplier != null) {
-            participation.move(supplier);
+            shoppingList.move(supplier);
         } else {
             // ...and if not, make a note of the fact so that we can update the buyer participation
             // when it's added.
-            @NonNull List<@NonNull BuyerParticipation> participations = danglingBuyerParticipations_.get(supplierOid);
-            if (participations == null) {
-                participations = new ArrayList<>();
-                danglingBuyerParticipations_.put(supplierOid, participations);
+            @NonNull List<@NonNull ShoppingList> shoppingLists = danglingShoppingLists_.get(supplierOid);
+            if (shoppingLists == null) {
+                shoppingLists = new ArrayList<>();
+                danglingShoppingLists_.put(supplierOid, shoppingLists);
             }
-            participations.add(participation);
+            shoppingLists.add(shoppingList);
         }
 
-        return participation;
+        return shoppingList;
     }
 
     /**
@@ -184,27 +184,27 @@ public final class Topology {
     }
 
     /**
-     * Returns an unmodifiable BiMap mapping {@link BuyerParticipation}s to their OIDs.
+     * Returns an unmodifiable BiMap mapping {@link ShoppingList}s to their OIDs.
      */
-    public @ReadOnly @NonNull BiMap<@NonNull BuyerParticipation, @NonNull Long>
-            getParticipationOids(@ReadOnly Topology this) {
-        return unmodifiableParticipationOids_;
+    public @ReadOnly @NonNull BiMap<@NonNull ShoppingList, @NonNull Long>
+            getShoppingListOids(@ReadOnly Topology this) {
+        return unmodifiableShoppingListOids_;
     }
 
     /**
      * Returns an unmodifiable Map mapping OIDs of traders that haven't been added to {@code this}
-     * topology yet to lists of buyer participations that should be placed on those traders.
+     * topology yet to lists of shopping lists that should be placed on those traders.
      *
      * <p>
-     *  We called those buyer participations 'dangling' by analogy to the 'dangling' pointers which
+     *  We called those shopping lists 'dangling' by analogy to the 'dangling' pointers which
      *  point to something that doesn't exist. (although dangling pointers point to something that
-     *  used to exist, while dangling buyer participations point to something that will exist in the
+     *  used to exist, while dangling shopping lists point to something that will exist in the
      *  future)
      * </p>
      */
-    public @ReadOnly @NonNull Map<@NonNull Long, @NonNull List<@NonNull BuyerParticipation>>
-            getDanglingBuyerParticipations(@ReadOnly Topology this) {
-        return unmodifiableDanglingBuyerParticipations_;
+    public @ReadOnly @NonNull Map<@NonNull Long, @NonNull List<@NonNull ShoppingList>>
+            getDanglingShoppingLists(@ReadOnly Topology this) {
+        return unmodifiableDanglingShoppingLists_;
     }
 
     /**
@@ -217,8 +217,8 @@ public final class Topology {
     public void clear() {
         economy_.clear();
         traderOids_.clear();
-        participationOids_.clear();
-        danglingBuyerParticipations_.clear();
+        shoppingListOids_.clear();
+        danglingShoppingLists_.clear();
     }
 
 } // end Topology class

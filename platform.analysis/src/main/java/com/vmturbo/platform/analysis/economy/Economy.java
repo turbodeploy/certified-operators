@@ -100,19 +100,19 @@ public final class Economy implements UnmodifiableEconomy {
 
     @Override
     @Pure
-    public @NonNull @ReadOnly Market getMarket(@ReadOnly Economy this, @NonNull @ReadOnly BuyerParticipation participation) {
-        return ((TraderWithSettings)participation.getBuyer()).getMarketsAsBuyer().get(participation);
+    public @NonNull @ReadOnly Market getMarket(@ReadOnly Economy this, @NonNull @ReadOnly ShoppingList shoppingList) {
+        return ((TraderWithSettings)shoppingList.getBuyer()).getMarketsAsBuyer().get(shoppingList);
     }
 
     @Override
     @SideEffectFree
     public @NonNull @ReadOnly List<@NonNull CommodityBought> getCommoditiesBought(@ReadOnly Economy this,
-                                               @NonNull @ReadOnly BuyerParticipation participation) {
-        final int basketSize = getMarket(participation).getBasket().size();
+                                               @NonNull @ReadOnly ShoppingList shoppingList) {
+        final int basketSize = getMarket(shoppingList).getBasket().size();
         final @NonNull List<@NonNull CommodityBought> result = new ArrayList<>(basketSize);
 
-        for (int i = 0; i < basketSize; ++i) { // should be same size as participation
-            result.add(new CommodityBought(participation, i));
+        for (int i = 0; i < basketSize; ++i) { // should be same size as the shopping list
+            result.add(new CommodityBought(shoppingList, i));
         }
 
         return result;
@@ -121,9 +121,9 @@ public final class Economy implements UnmodifiableEconomy {
     @Override
     @SideEffectFree
     public @NonNull @PolyRead CommodityBought getCommodityBought(@PolyRead Economy this,
-                                         @NonNull @PolyRead BuyerParticipation participation,
+                                         @NonNull @PolyRead ShoppingList shoppingList,
                                          @NonNull @ReadOnly CommoditySpecification specification) {
-        return new CommodityBought(participation,getMarket(participation).getBasket().indexOf(specification));
+        return new CommodityBought(shoppingList,getMarket(shoppingList).getBasket().indexOf(specification));
     }
 
     @Override
@@ -185,12 +185,12 @@ public final class Economy implements UnmodifiableEconomy {
      *
      * <p>
      *  It is an O(T) operation, where T is the number of traders in the economy.
-     *  Buyer participations of the trader are invalidated, as are the commodities bought by these
-     *  participations.
+     *  Shopping lists of the trader are invalidated, as are the commodities bought by these
+     *  shopping lists.
      * </p>
      *
      * <p>
-     *  Any buyer participations of traderToRemove and corresponding commodities bought, will become
+     *  Any shopping lists of traderToRemove and corresponding commodities bought, will become
      *  invalid.
      * </p>
      *
@@ -204,8 +204,8 @@ public final class Economy implements UnmodifiableEconomy {
         final TraderWithSettings castTraderToRemove = (TraderWithSettings)traderToRemove;
 
         // Stop everyone from buying from the trader.
-        for (@NonNull BuyerParticipation participation : new ArrayList<>(castTraderToRemove.getCustomers())) {
-            participation.move(null); // this is not the cheapest way, but the safest...
+        for (@NonNull ShoppingList shoppingList : new ArrayList<>(castTraderToRemove.getCustomers())) {
+            shoppingList.move(null); // this is not the cheapest way, but the safest...
         }
 
         // Remove the trader from all markets it participated as seller
@@ -214,9 +214,9 @@ public final class Economy implements UnmodifiableEconomy {
         }
 
         // Remove the trader from all markets it participated as buyer
-        for (Entry<@NonNull BuyerParticipation, @NonNull Market> entry
+        for (Entry<@NonNull ShoppingList, @NonNull Market> entry
                 : new ArrayList<>(castTraderToRemove.getMarketsAsBuyer().entrySet())) {
-            entry.getValue().removeBuyerParticipation(entry.getKey());
+            entry.getValue().removeShoppingList(entry.getKey());
         }
 
         // Update economy indices of all traders and remove trader from list.
@@ -236,9 +236,9 @@ public final class Economy implements UnmodifiableEconomy {
                                                                            @NonNull @ReadOnly Trader trader) {
         @NonNull List<@NonNull @ReadOnly Trader> suppliers = new ArrayList<>();
 
-        for (BuyerParticipation participation : getMarketsAsBuyer(trader).keySet()) {
-            if (participation.getSupplier() != null) {
-                suppliers.add(participation.getSupplier());
+        for (ShoppingList shoppingList : getMarketsAsBuyer(trader).keySet()) {
+            if (shoppingList.getSupplier() != null) {
+                suppliers.add(shoppingList.getSupplier());
             }
         }
 
@@ -247,7 +247,7 @@ public final class Economy implements UnmodifiableEconomy {
 
     @Override
     @Pure
-    public @NonNull @ReadOnly Map<@NonNull BuyerParticipation, @NonNull Market>
+    public @NonNull @ReadOnly Map<@NonNull ShoppingList, @NonNull Market>
             getMarketsAsBuyer(@ReadOnly Economy this, @NonNull @ReadOnly Trader trader) {
         return Collections.unmodifiableMap(((TraderWithSettings)trader).getMarketsAsBuyer());
     }
@@ -270,10 +270,10 @@ public final class Economy implements UnmodifiableEconomy {
      *
      * @param buyer The trader that should start buying the new basket.
      * @param basketBought The basket that the buyer should start buying.
-     * @return The new buyer participation of the buyer in the market corresponding to the
+     * @return The new shopping list of the buyer in the market corresponding to the
      *         basketBought.
      */
-    public @NonNull BuyerParticipation addBasketBought(@NonNull Trader buyer, @NonNull @ReadOnly Basket basketBought) {
+    public @NonNull ShoppingList addBasketBought(@NonNull Trader buyer, @NonNull @ReadOnly Basket basketBought) {
         // create a market if it doesn't already exist.
         if (!markets_.containsKey(basketBought)) {
             Market newMarket = new Market(basketBought);
@@ -294,114 +294,114 @@ public final class Economy implements UnmodifiableEconomy {
 
     /**
      * Makes a {@link Trader buyer} stop buying a specific instance of a {@link Basket basket},
-     * designated by a {@link BuyerParticipation buyer participation}.
+     * designated by a {@link ShoppingList shopping list}.
      *
      * <p>
      *  Normally you would supply the basket to be removed. But when a buyer buys the same basket
      *  multiple times, the question arises: which instance of the basket should be removed? The
-     *  solution is to distinguish the baskets using the buyer participations that are unique. Then
+     *  solution is to distinguish the baskets using the shopping lists that are unique. Then
      *  only one of the multiple instances will be removed.
      * </p>
      *
-     * @param participation The buyer participation uniquely identifying the basket instance that
+     * @param shoppingList The shopping list uniquely identifying the basket instance that
      *                      should be removed.
      * @return The basket that was removed.
      */
     // TODO: consider removing markets that no longer have buyers. (may keep them in case they
     // acquire again, to avoid recalculation of sellers)
-    public @NonNull @ReadOnly Basket removeBasketBought(@NonNull BuyerParticipation participation) {
-        @NonNull Market market = getMarket(participation);
+    public @NonNull @ReadOnly Basket removeBasketBought(@NonNull ShoppingList shoppingList) {
+        @NonNull Market market = getMarket(shoppingList);
 
-        market.removeBuyerParticipation(participation);
+        market.removeShoppingList(shoppingList);
 
         return market.getBasket();
     }
 
     /**
      * Adds a new commodity specification and corresponding commodity bought to a given buyer
-     * participation, updating markets and baskets as needed.
+     * shopping list, updating markets and baskets as needed.
      *
      * <p>
      *  Normally a commodity specification is added to a basket. But when a buyer buys the same
      *  basket multiple times, the question arises: which instance of the basket should the
      *  specification be added to? The solution is to distinguish the baskets using the buyer
-     *  participations that are unique. Then only one of the multiple instances will be updated.
+     *  shopping lists that are unique. Then only one of the multiple instances will be updated.
      * </p>
      *
-     * @param participation The buyer participation that should be changed. It will be invalidated.
+     * @param shoppingList The shopping list that should be changed. It will be invalidated.
      * @param commoditySpecificationToAdd The commodity specification of the commodity that will be
-     *                                    added to the buyer participation.
-     * @return The buyer participation that will replace the one that was changed.
+     *                                    added to the shopping list.
+     * @return The shopping list that will replace the one that was changed.
      */
     @Deterministic
-    public @NonNull BuyerParticipation addCommodityBought(@NonNull BuyerParticipation participation,
+    public @NonNull ShoppingList addCommodityBought(@NonNull ShoppingList shoppingList,
                               @NonNull @ReadOnly CommoditySpecification commoditySpecificationToAdd) {
-        @NonNull TraderWithSettings trader = (TraderWithSettings)participation.getBuyer();
+        @NonNull TraderWithSettings trader = (TraderWithSettings)shoppingList.getBuyer();
 
-        // remove the participation from the old market
-        Basket newBasketBought = removeBasketBought(participation).add(commoditySpecificationToAdd);
+        // remove the shopping list from the old market
+        Basket newBasketBought = removeBasketBought(shoppingList).add(commoditySpecificationToAdd);
 
         // add the trader to the new market.
-        BuyerParticipation newParticipation = addBasketBought(trader, newBasketBought);
+        ShoppingList newShoppingList = addBasketBought(trader, newBasketBought);
 
-        // copy quantity and peak quantity values from old participation.
+        // copy quantity and peak quantity values from old shopping list.
         int specificationIndex = newBasketBought.indexOf(commoditySpecificationToAdd);
         for (int i = 0 ; i < specificationIndex ; ++i) {
-            newParticipation.setQuantity(i, participation.getQuantity(i));
-            newParticipation.setPeakQuantity(i, participation.getPeakQuantity(i));
+            newShoppingList.setQuantity(i, shoppingList.getQuantity(i));
+            newShoppingList.setPeakQuantity(i, shoppingList.getPeakQuantity(i));
         }
         for (int i = specificationIndex + 1 ; i < newBasketBought.size() ; ++i) {
-            newParticipation.setQuantity(i, participation.getQuantity(i-1));
-            newParticipation.setPeakQuantity(i, participation.getPeakQuantity(i-1));
+            newShoppingList.setQuantity(i, shoppingList.getQuantity(i-1));
+            newShoppingList.setPeakQuantity(i, shoppingList.getPeakQuantity(i-1));
         }
 
-        return newParticipation;
+        return newShoppingList;
     }
 
     /**
      * Removes an existing commodity specification and corresponding commodity bought from a given
-     * buyer participation, updating markets and baskets as needed.
+     * shopping list, updating markets and baskets as needed.
      *
      * <p>
      *  Normally a commodity specification is removed from a basket. But when a buyer buys the same
      *  basket multiple times, the question arises: which instance of the basket should the
      *  specification be removed from? The solution is to distinguish the baskets using the buyer
-     *  participations that are unique. Then only one of the multiple instances will be updated.
+     *  shopping lists that are unique. Then only one of the multiple instances will be updated.
      * </p>
      *
-     * @param participation The buyer participation that should be changed. It will be invalidated.
+     * @param shoppingList The shopping list that should be changed. It will be invalidated.
      * @param commoditySpecificationToRemove The commodity specification of the commodity that will
-     *            be removed from the buyer participation. If this commodity isn't in the buyer
-     *            participation, the call will just replace the buyer participation with a new one.
-     * @return The buyer participation that will replace the one that was changed.
+     *            be removed from the shopping list. If this commodity isn't in the buyer
+     *            shopping list, the call will just replace the shopping list with a new one.
+     * @return The shopping list that will replace the one that was changed.
      */
     @Deterministic
-    public @NonNull BuyerParticipation removeCommodityBought(@NonNull BuyerParticipation participation,
+    public @NonNull ShoppingList removeCommodityBought(@NonNull ShoppingList shoppingList,
                               @NonNull @ReadOnly CommoditySpecification commoditySpecificationToRemove) {
-        @NonNull TraderWithSettings trader = (TraderWithSettings)participation.getBuyer();
+        @NonNull TraderWithSettings trader = (TraderWithSettings)shoppingList.getBuyer();
 
-        // remove the participation from the old market
-        @NonNull Basket oldBasket = removeBasketBought(participation);
+        // remove the shopping list from the old market
+        @NonNull Basket oldBasket = removeBasketBought(shoppingList);
 
         Basket newBasketBought = oldBasket.remove(commoditySpecificationToRemove);
 
         // add the trader to the new market.
-        BuyerParticipation newParticipation = addBasketBought(trader, newBasketBought);
+        ShoppingList newShoppingList = addBasketBought(trader, newBasketBought);
 
-        // copy quantity and peak quantity values from old participation.
+        // copy quantity and peak quantity values from old shopping list.
         int specificationIndex = oldBasket.indexOf(commoditySpecificationToRemove);
         if (specificationIndex == -1) {
             specificationIndex = newBasketBought.size();
         }
         for (int i = 0 ; i < specificationIndex ; ++i) {
-            newParticipation.setQuantity(i, participation.getQuantity(i));
-            newParticipation.setPeakQuantity(i, participation.getPeakQuantity(i));
+            newShoppingList.setQuantity(i, shoppingList.getQuantity(i));
+            newShoppingList.setPeakQuantity(i, shoppingList.getPeakQuantity(i));
         }
         for (int i = specificationIndex ; i < newBasketBought.size() ; ++i) {
-            newParticipation.setQuantity(i, participation.getQuantity(i+1));
-            newParticipation.setPeakQuantity(i, participation.getPeakQuantity(i+1));
+            newShoppingList.setQuantity(i, shoppingList.getQuantity(i+1));
+            newShoppingList.setPeakQuantity(i, shoppingList.getPeakQuantity(i+1));
         }
-        return newParticipation;
+        return newShoppingList;
     }
 
     /**

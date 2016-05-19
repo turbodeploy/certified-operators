@@ -16,7 +16,7 @@ import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
 import com.vmturbo.platform.analysis.actions.Reconfigure;
 import com.vmturbo.platform.analysis.actions.Resize;
 import com.vmturbo.platform.analysis.economy.Basket;
-import com.vmturbo.platform.analysis.economy.BuyerParticipation;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySoldSettings;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
@@ -144,30 +144,30 @@ public final class ProtobufToAnalysis {
     }
 
     /**
-     * Adds a new {@link BuyerParticipation} to a {@link Trader} that is already in a
+     * Adds a new {@link ShoppingList} to a {@link Trader} that is already in a
      * {@link Topology} given a {@link ShoppingListTO}.
      *
      * @param topology The {@link Topology} which contains the {@link Trader}.
-     * @param buyer The {@link Trader} to add the {@link BuyerParticipation} to.
-     * @param shoppingList The {@link ShoppingListTO} describing the {@link BuyerParticipation}.
-     * @return The resulting {@link BuyerParticipation}.
+     * @param buyer The {@link Trader} to add the {@link ShoppingList} to.
+     * @param input The {@link ShoppingListTO} describing the {@link ShoppingList}.
+     * @return The resulting {@link ShoppingList}.
      */
-    public static @NonNull BuyerParticipation addShoppingList(@NonNull Topology topology, @NonNull Trader buyer,
-                                                  @NonNull ShoppingListTO shoppingList) {
-        @NonNull Basket basketBought = basket(shoppingList);
-        @NonNull BuyerParticipation participation = shoppingList.hasSupplier()
-            ? topology.addBasketBought(shoppingList.getOid(), buyer, basketBought, shoppingList.getSupplier())
-            : topology.addBasketBought(shoppingList.getOid(), buyer, basketBought);
+    public static @NonNull ShoppingList addShoppingList(@NonNull Topology topology, @NonNull Trader buyer,
+                                                  @NonNull ShoppingListTO input) {
+        @NonNull Basket basketBought = basket(input);
+        @NonNull ShoppingList shoppingList = input.hasSupplier()
+            ? topology.addBasketBought(input.getOid(), buyer, basketBought, input.getSupplier())
+            : topology.addBasketBought(input.getOid(), buyer, basketBought);
 
-        participation.setMovable(shoppingList.getMovable());
+        shoppingList.setMovable(input.getMovable());
 
-        for (CommodityBoughtTO commodityBought : shoppingList.getCommoditiesBoughtList()) {
+        for (CommodityBoughtTO commodityBought : input.getCommoditiesBoughtList()) {
             int index = basketBought.indexOf(commoditySpecification(commodityBought.getSpecification()));
-            participation.setQuantity(index, commodityBought.getQuantity());
-            participation.setPeakQuantity(index, commodityBought.getPeakQuantity());
+            shoppingList.setQuantity(index, commodityBought.getQuantity());
+            shoppingList.setPeakQuantity(index, commodityBought.getPeakQuantity());
         }
 
-        return participation;
+        return shoppingList;
     }
 
     /**
@@ -265,19 +265,19 @@ public final class ProtobufToAnalysis {
      *
      * @param input The {@link ActionTO} to convert.
      * @param economy The {@link Economy} containing the acted on objects.
-     * @param participation A function mapping OIDs to {@link BuyerParticipation}s in <b>economy</b>.
+     * @param shoppingList A function mapping OIDs to {@link ShoppingList}s in <b>economy</b>.
      * @param trader A function mapping OIDs to {@link Trader}s in <b>economy</b>.
      * @return The resulting {@link Action}.
      */
     public static @NonNull Action action(@NonNull ActionTO input, @NonNull Economy economy,
-            LongFunction<BuyerParticipation> participation, LongFunction<Trader> trader) {
+            LongFunction<ShoppingList> shoppingList, LongFunction<Trader> trader) {
         switch (input.getActionTypeCase()) {
             case MOVE:
-                return new Move(economy, participation.apply(input.getMove().getShoppingListToMove()),
+                return new Move(economy, shoppingList.apply(input.getMove().getShoppingListToMove()),
                     input.getMove().hasSource() ? trader.apply(input.getMove().getSource()) : null,
                     input.getMove().hasDestination() ? trader.apply(input.getMove().getDestination()) : null);
             case RECONFIGURE:
-                return new Reconfigure(economy, participation.apply(input.getReconfigure().getShoppingListToReconfigure()));
+                return new Reconfigure(economy, shoppingList.apply(input.getReconfigure().getShoppingListToReconfigure()));
             case ACTIVATE:
                 return new Activate(trader.apply(input.getActivate().getTraderToActivate()),
                                     economy.getMarket(basket(input.getActivate().getTriggeringBasketList())));
@@ -285,7 +285,7 @@ public final class ProtobufToAnalysis {
                 return new Deactivate(trader.apply(input.getDeactivate().getTraderToDeactivate()),
                                       economy.getMarket(basket(input.getDeactivate().getTriggeringBasketList())));
             case PROVISION_BY_DEMAND:
-                return new ProvisionByDemand(economy, participation.apply(input.getProvisionByDemand().getModelBuyer()));
+                return new ProvisionByDemand(economy, shoppingList.apply(input.getProvisionByDemand().getModelBuyer()));
             case PROVISION_BY_SUPPLY:
                 return new ProvisionBySupply(economy, trader.apply(input.getProvisionBySupply().getModelSeller()));
             case RESIZE:

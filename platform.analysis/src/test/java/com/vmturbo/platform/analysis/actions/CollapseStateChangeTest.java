@@ -10,7 +10,7 @@ import org.junit.runner.RunWith;
 
 import com.google.common.collect.Lists;
 import com.vmturbo.platform.analysis.economy.Basket;
-import com.vmturbo.platform.analysis.economy.BuyerParticipation;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -30,7 +30,7 @@ public class CollapseStateChangeTest {
     private static final int TYPE_VM = 1;
 
     private static final Trader vm = EC.addTrader(TYPE_VM, TraderState.ACTIVE, EMPTY);
-    private static final BuyerParticipation bp0 = EC.addBasketBought(vm, BASKET);
+    private static final ShoppingList bp0 = EC.addBasketBought(vm, BASKET);
     private static final Trader pm1 = EC.addTrader(TYPE_PM, TraderState.ACTIVE, BASKET);
     private static final Trader pm2 = EC.addTrader(TYPE_PM, TraderState.ACTIVE, BASKET);
 
@@ -39,7 +39,7 @@ public class CollapseStateChangeTest {
     /**
      * Use a String representation of a list of {@link #Action}s where A stands for {@link Activate},
      * D for {@link Deactivate} and M for {@link Move}.
-     * All actions operate on {@link #vm} and the Moves are for different buyer participations,
+     * All actions operate on {@link #vm} and the Moves are for different shopping lists,
      * so they don't get collapsed.
      * @param actionsString a String representation of the list of actions to collapse
      * @param expectedCollapsedString a String representation of the expected collapsed list of
@@ -121,7 +121,7 @@ public class CollapseStateChangeTest {
     /**
      * Use a String representation of a list of {@link #Action}s where A stands for {@link Activate},
      * D for {@link Deactivate} and M for {@link Move}.
-     * All actions operate on {@link #vm}. The {@link Move}s are for the same buyer participation,
+     * All actions operate on {@link #vm}. The {@link Move}s are for the same shopping list,
      * so they do get collapsed. It is expected to have one {@link Move} in the collapsed list, from {@link #pm1}
      * to the destination of the last move in the original list of actions.
      * @param actionsString a String representation of the list of actions to collapse
@@ -209,7 +209,7 @@ public class CollapseStateChangeTest {
 
     /**
      * Convert a String representation of a list of actions into a list of {@link Action}s.
-     * {@link Move} actions in the resulted list operate on different instances of {@link BuyerParticipation},
+     * {@link Move} actions in the resulted list operate on different instances of {@link ShoppingList},
      * therefore they are not collapsed.
      * For example, "AMD" will be converted to the list [Activate, Move, Deactivate]
      * @param actionsString a String representation of a list of actions
@@ -230,7 +230,7 @@ public class CollapseStateChangeTest {
         case 'A':
             return new Activate(vm, EC.getMarket(EMPTY));
         case 'M':
-            BuyerParticipation bp = EC.addBasketBought(vm, BASKET);
+            ShoppingList bp = EC.addBasketBought(vm, BASKET);
             return new Move(EC, bp, pm1, pm2);
         case 'D':
             return new Deactivate(vm, EC.getMarket(EMPTY));
@@ -260,7 +260,7 @@ public class CollapseStateChangeTest {
 
     /**
      * Convert a String representation of a list of actions into a list of {@link Action}s.
-     * {@link Move} actions in the resulted list operate on the same instance of {@link BuyerParticipation},
+     * {@link Move} actions in the resulted list operate on the same instance of {@link ShoppingList},
      * therefore they get collapsed.
      * For example, "AMD" will be converted to the list [Activate, Move, Deactivate]
      * @param actionsString a String representation of a list of actions
@@ -290,13 +290,13 @@ public class CollapseStateChangeTest {
     @Test
     public final void testCollapseMultipleTraders() {
         Trader vm1 = EC.addTrader(TYPE_VM, TraderState.ACTIVE, EMPTY);
-        BuyerParticipation bp1_1 = EC.addBasketBought(vm1, BASKET);
-        BuyerParticipation bp1_2 = EC.addBasketBought(vm1, BASKET);
+        ShoppingList bp1_1 = EC.addBasketBought(vm1, BASKET);
+        ShoppingList bp1_2 = EC.addBasketBought(vm1, BASKET);
         Trader vm2 = EC.addTrader(TYPE_VM, TraderState.ACTIVE, EMPTY);
-        BuyerParticipation bp2_1 = EC.addBasketBought(vm2, BASKET);
+        ShoppingList bp2_1 = EC.addBasketBought(vm2, BASKET);
         Trader vm3 = EC.addTrader(TYPE_VM, TraderState.ACTIVE, EMPTY);
-        BuyerParticipation bp3_1 = EC.addBasketBought(vm3, BASKET);
-        BuyerParticipation bp3_2 = EC.addBasketBought(vm3, BASKET);
+        ShoppingList bp3_1 = EC.addBasketBought(vm3, BASKET);
+        ShoppingList bp3_2 = EC.addBasketBought(vm3, BASKET);
         Trader pm1 = EC.addTrader(TYPE_PM, TraderState.ACTIVE, BASKET);
         Trader pm2 = EC.addTrader(TYPE_PM, TraderState.ACTIVE, BASKET);
         Trader pm3 = EC.addTrader(TYPE_PM, TraderState.ACTIVE, BASKET);

@@ -10,7 +10,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.actions.Reconfigure;
-import com.vmturbo.platform.analysis.economy.BuyerParticipation;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -40,17 +40,17 @@ public class Placement {
         for (Market market : economy.getMarkets()) {
 
             // iterate over all buyers in this market
-            for (@NonNull BuyerParticipation buyerParticipation : market.getBuyers()) {
+            for (@NonNull ShoppingList shoppingList : market.getBuyers()) {
 
                 // if there are no sellers in the market, the buyer is misconfigured
                 final @NonNull List<@NonNull Trader> sellers = market.getActiveSellers();
-                if (!buyerParticipation.isMovable())
+                if (!shoppingList.isMovable())
                     continue;
                 if (sellers.isEmpty()) {
-                    actions.add(new Reconfigure(economy, buyerParticipation).take());
+                    actions.add(new Reconfigure(economy, shoppingList).take());
                     continue;
                 }
-                final @Nullable Trader currentSupplier = buyerParticipation.getSupplier();
+                final @Nullable Trader currentSupplier = shoppingList.getSupplier();
                 // check if the buyer cannot move, or cannot move out of current supplier
                 if (currentSupplier != null
                         && timeMiliSec < state.get(currentSupplier.getEconomyIndex()).getMoveFromOnlyAfterThisTime()) {
@@ -61,7 +61,7 @@ public class Placement {
                 final EdeCommon.QuoteMinimizer minimizer =
                     (sellers.size() < economy.getSettings().getMinSellersForParallelism()
                         ? sellers.stream() : sellers.parallelStream())
-                    .collect(()->new QuoteMinimizer(economy,state,timeMiliSec,buyerParticipation,
+                    .collect(()->new QuoteMinimizer(economy,state,timeMiliSec,shoppingList,
                                                     market.getBasket(), currentSupplier),
                         QuoteMinimizer::accept, QuoteMinimizer::combine);
 
@@ -75,7 +75,7 @@ public class Placement {
                     //TODO (Apostolos): use economy.getSettings().getQuoteFactor() above
                     // create recommendation, add it to the result list and  update the economy to
                     // reflect the decision
-                    actions.add(new Move(economy,buyerParticipation,cheapestSeller).take());
+                    actions.add(new Move(economy,shoppingList,cheapestSeller).take());
                     // update the state
                     // TODO (Apostolos): use economy.getSettings().getPlacementInterval() below
                     long newTime = timeMiliSec + 1200000; // wait two 10 min intervals

@@ -9,19 +9,19 @@ import org.checkerframework.dataflow.qual.Deterministic;
 import org.checkerframework.dataflow.qual.Pure;
 
 /**
- * One of the participations of a given trader in a given market.
+ * One of the shopping lists of a given trader in a given market.
  *
  * <p>
  *  A given trader can participate multiple times as a buyer in a single market. (e.g. if it buys
- *  form multiple storages) We call each of those participations a BuyerParticipation.
+ *  form multiple storages) We call each of those participations a ShoppingList.
  * </p>
  *
  * <p>
- *  If a buyer stops participating in the market, the corresponding buyer participation is
+ *  If a buyer stops participating in the market, the corresponding shopping list is
  *  invalidated.
  * </p>
  */
-public final class BuyerParticipation {
+public final class ShoppingList {
     // Fields
     private final @NonNull Trader buyer_; // @see #getBuyer().
     private @Nullable Trader supplier_; // @see #setSupplier(Trader).
@@ -29,20 +29,20 @@ public final class BuyerParticipation {
     private final double @NonNull [] quantities_; // @see #getQuantities()
     private final double @NonNull [] peakQuantities_; // @see #getPeakQuantities().
                                                      // Must be same size as quantities_.
-    private boolean movable_ = false; // Whether analysis is allowed to move this participation to
+    private boolean movable_ = false; // Whether analysis is allowed to move this shopping list to
                                      // another supplier.
 
     // Constructors
 
     /**
-     * Constructs a new BuyerParticipation instance with the specified properties.
+     * Constructs a new ShoppingList instance with the specified properties.
      *
      * @param buyer see {@link #getBuyer()}
      * @param numberOfCommodities The number of commodities bought that should be associated with
-     *         the new BuyerParticipation instance. It should be equal to the basket size of the
-     *         market this participation belongs to.
+     *         the new ShoppingList instance. It should be equal to the basket size of the
+     *         market this shopping list belongs to.
      */
-    BuyerParticipation(@NonNull Trader buyer, int numberOfCommodities) {
+    ShoppingList(@NonNull Trader buyer, int numberOfCommodities) {
         buyer_ = buyer;
         supplier_ = null;
         quantities_ = new double[numberOfCommodities];
@@ -52,53 +52,53 @@ public final class BuyerParticipation {
     // Methods
 
     /**
-     * Returns the {@link Trader buyer} {@code this} buyer participation belongs to.
+     * Returns the {@link Trader buyer} {@code this} shopping list belongs to.
      */
     @Pure
-    public @NonNull Trader getBuyer(@ReadOnly BuyerParticipation this) {
+    public @NonNull Trader getBuyer(@ReadOnly ShoppingList this) {
         return buyer_;
     }
 
     /**
-     * Returns the (current) {@link Trader supplier} of {@code this} buyer participation, or
-     * {@code null} if the buyer participation is not currently buying from anyone.
+     * Returns the (current) {@link Trader supplier} of {@code this} shopping list, or
+     * {@code null} if the shopping list is not currently buying from anyone.
      *
      * @see #setSupplier(Trader)
      */
     @Pure
-    public @Nullable Trader getSupplier(@ReadOnly BuyerParticipation this) {
+    public @Nullable Trader getSupplier(@ReadOnly ShoppingList this) {
         return supplier_;
     }
 
     /**
-     * Returns the quantity vector of the commodities bought by {@code this} participation of the
+     * Returns the quantity vector of the commodities bought by {@code this} shopping list of the
      * buyer.
      *
      * <p>
      *  This array contains one quantity entry for each commodity specification in the basket of the
-     *  market {@code this} buyer participation belongs to, in the same order.
+     *  market {@code this} shopping list belongs to, in the same order.
      * </p>
      *
      * @see #setQuantity(int, double)
      */
     @Pure
-    public @PolyRead double @NonNull [] getQuantities(@PolyRead BuyerParticipation this) {
+    public @PolyRead double @NonNull [] getQuantities(@PolyRead ShoppingList this) {
         return quantities_;
     }
 
     /**
-     * Returns the peak quantity vector of the commodities bought by {@code this} participation of
+     * Returns the peak quantity vector of the commodities bought by {@code this} shopping list of
      * the buyer.
      *
      * <p>
      *  This array contains one peak quantity entry for each commodity specification in the basket
-     *  of the market {@code this} buyer participation belongs to, in the same order.
+     *  of the market {@code this} shopping list belongs to, in the same order.
      * </p>
      *
      * @see #setPeakQuantity(int, double)
      */
     @Pure
-    public @PolyRead double @NonNull [] getPeakQuantities(@PolyRead BuyerParticipation this) {
+    public @PolyRead double @NonNull [] getPeakQuantities(@PolyRead ShoppingList this) {
         return peakQuantities_;
     }
 
@@ -108,7 +108,7 @@ public final class BuyerParticipation {
      * @see #getQuantities()
      */
     @Pure
-    public double getQuantity(@ReadOnly BuyerParticipation this, int index) {
+    public double getQuantity(@ReadOnly ShoppingList this, int index) {
         return quantities_[index];
     }
 
@@ -118,19 +118,19 @@ public final class BuyerParticipation {
      * @see #getPeakQuantities()
      */
     @Pure
-    public double getPeakQuantity(@ReadOnly BuyerParticipation this, int index) {
+    public double getPeakQuantity(@ReadOnly ShoppingList this, int index) {
         return peakQuantities_[index];
     }
 
     /**
-     * Whether {@code this} {@link BuyerParticipation} should be considered for moving.
+     * Whether {@code this} {@link ShoppingList} should be considered for moving.
      *
      * <p>
-     *  The placement algorithm should ignore immovable buyer participations.
+     *  The placement algorithm should ignore immovable shopping lists.
      * </p>
      */
     @Pure
-    public boolean isMovable(BuyerParticipation this) {
+    public boolean isMovable(ShoppingList this) {
         return movable_;
     }
 
@@ -149,7 +149,7 @@ public final class BuyerParticipation {
      * @see #getSupplier()
      */
     @Deterministic
-    @NonNull BuyerParticipation setSupplier(@Nullable Trader newSupplier) {
+    @NonNull ShoppingList setSupplier(@Nullable Trader newSupplier) {
         supplier_ = newSupplier;
         return this;
     }
@@ -168,7 +168,7 @@ public final class BuyerParticipation {
      * @see #getQuantity(int)
      */
     @Deterministic
-    public @NonNull BuyerParticipation setQuantity(int index, double newQuantity) {
+    public @NonNull ShoppingList setQuantity(int index, double newQuantity) {
         checkArgument(newQuantity >= 0, "newQuantity = " + newQuantity);
         quantities_[index] = newQuantity;
         return this;
@@ -188,7 +188,7 @@ public final class BuyerParticipation {
      * @see #getPeakQuantity(int)
      */
     @Deterministic
-    public @NonNull BuyerParticipation setPeakQuantity(int index, double newPeakQuantity) {
+    public @NonNull ShoppingList setPeakQuantity(int index, double newPeakQuantity) {
         checkArgument(newPeakQuantity >= 0, "newPeakQuantity = " + newPeakQuantity);
         peakQuantities_[index] = newPeakQuantity;
         return this;
@@ -205,18 +205,18 @@ public final class BuyerParticipation {
      * @return {@code this}
      */
     @Deterministic
-    public @NonNull BuyerParticipation setMovable(boolean movable) {
+    public @NonNull ShoppingList setMovable(boolean movable) {
         movable_ = movable;
         return this;
     }
 
     /**
-     * Moves {@code this} buyer participation of a buyer to a new supplier, causing the customer
+     * Moves {@code this} shopping list of a buyer to a new supplier, causing the customer
      * lists of former and future supplier to be updated.
      *
      * <p>
-     *  It can be used to first position a buyer participation buying from no-one (like the one of a
-     *  newly created trader) to its first supplier, or to make a buyer participation seize buying
+     *  It can be used to first position a shopping list buying from no-one (like the one of a
+     *  newly created trader) to its first supplier, or to make a shopping list seize buying
      *  from anyone.
      * </p>
      *
@@ -224,7 +224,7 @@ public final class BuyerParticipation {
      * @return {@code this}
      */
     @Deterministic
-    public @NonNull BuyerParticipation move(Trader newSupplier) {
+    public @NonNull ShoppingList move(Trader newSupplier) {
         // Update old supplier to exclude this from its customers.
         if (getSupplier() != null) {
             checkArgument(getSupplier().getModifiableCustomers().remove(this), "this = " + this);
@@ -239,4 +239,4 @@ public final class BuyerParticipation {
         return this;
     }
 
-} // end BuyerParticipation class
+} // end ShoppingList class

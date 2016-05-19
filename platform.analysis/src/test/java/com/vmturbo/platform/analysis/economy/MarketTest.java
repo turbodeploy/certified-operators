@@ -49,10 +49,10 @@ public class MarketTest {
     private static final TraderWithSettings IT0A = new TraderWithSettings(0, 0, TraderState.INACTIVE, new Basket(A));
     private static final TraderWithSettings IT1B = new TraderWithSettings(1, 0, TraderState.INACTIVE, new Basket(B));
 
-    private static final BuyerParticipation PT0_0 = new BuyerParticipation(T0, 0);
-    private static final BuyerParticipation PT0A_0 = new BuyerParticipation(T0A, 0);
-    private static final BuyerParticipation PIT0_0 = new BuyerParticipation(IT0, 0);
-    private static final BuyerParticipation PIT0A_0 = new BuyerParticipation(IT0A, 0);
+    private static final ShoppingList PT0_0 = new ShoppingList(T0, 0);
+    private static final ShoppingList PT0A_0 = new ShoppingList(T0A, 0);
+    private static final ShoppingList PIT0_0 = new ShoppingList(IT0, 0);
+    private static final ShoppingList PIT0A_0 = new ShoppingList(IT0A, 0);
 
     private Market fixture_;
 
@@ -222,12 +222,12 @@ public class MarketTest {
 
     @Test
     public final void testGetBuyers_ValidOperations() {
-        verifyUnmodifiableValidOperations(fixture_.getBuyers(), new BuyerParticipation(T0, 0));
+        verifyUnmodifiableValidOperations(fixture_.getBuyers(), new ShoppingList(T0, 0));
     }
 
     @Test
     public final void testGetBuyers_InvalidOperations() {
-        verifyUnmodifiableInvalidOperations(fixture_.getBuyers(), new BuyerParticipation(T0, 0));
+        verifyUnmodifiableInvalidOperations(fixture_.getBuyers(), new ShoppingList(T0, 0));
     }
 
     @Test
@@ -237,31 +237,31 @@ public class MarketTest {
     // May also need to check more complex sequences that include arbitrary interleaving.
     public final void testAddRemoveBuyer_NormalInput(@NonNull Basket basket, TraderWithSettings[] tradersToAdd) {
         final Market market = new Market(basket);
-        final BuyerParticipation[] participations = new BuyerParticipation[tradersToAdd.length];
+        final ShoppingList[] shoppingLists = new ShoppingList[tradersToAdd.length];
 
         for (int i = 0 ; i < tradersToAdd.length ; ++i) {
-            participations[i] = market.addBuyer(tradersToAdd[i]);
-            assertSame(tradersToAdd[i], participations[i].getBuyer());
+            shoppingLists[i] = market.addBuyer(tradersToAdd[i]);
+            assertSame(tradersToAdd[i], shoppingLists[i].getBuyer());
         }
 
         int nActive = 0;
         for (int i = 0 ; i < tradersToAdd.length ; ++i) {
-            if (participations[i].getBuyer().getState().isActive()) {
-                assertSame(participations[i], market.getBuyers().get(nActive));
+            if (shoppingLists[i].getBuyer().getState().isActive()) {
+                assertSame(shoppingLists[i], market.getBuyers().get(nActive));
                 ++nActive;
             }
-            assertSame(market, tradersToAdd[i].getMarketsAsBuyer().get(participations[i]));
+            assertSame(market, tradersToAdd[i].getMarketsAsBuyer().get(shoppingLists[i]));
         }
         assertEquals(nActive, market.getBuyers().size());
 
-        for (int i = 0 ; i < participations.length ; ++i) {
-            assertSame(market, market.removeBuyerParticipation(participations[i]));
-            if (participations[i].getBuyer().getState().isActive()) {
+        for (int i = 0 ; i < shoppingLists.length ; ++i) {
+            assertSame(market, market.removeShoppingList(shoppingLists[i]));
+            if (shoppingLists[i].getBuyer().getState().isActive()) {
                 --nActive;
             }
             assertEquals(nActive, market.getBuyers().size());
-            assertFalse(market.getBuyers().contains(participations[i]));
-            assertNull(tradersToAdd[i].getMarketsAsBuyer().get(participations[i]));
+            assertFalse(market.getBuyers().contains(shoppingLists[i]));
+            assertNull(tradersToAdd[i].getMarketsAsBuyer().get(shoppingLists[i]));
         }
     }
 
@@ -293,26 +293,26 @@ public class MarketTest {
     @Parameters
     @TestCaseName("Test #{index}: new Market({0}).(add|remove)Buyer(...) sequence")
     public final void testAddRemoveBuyer_InvalidInput(@NonNull Basket basket, TraderWithSettings[] tradersToAdd,
-                                                      BuyerParticipation[] participationsToRemove) {
+                                                      ShoppingList[] shoppingListsToRemove) {
         final Market market = new Market(basket);
 
         for (TraderWithSettings trader : tradersToAdd) {
             market.addBuyer(trader);
         }
 
-        for (BuyerParticipation participation : participationsToRemove) {
-            market.removeBuyerParticipation(participation);
+        for (ShoppingList shoppingList : shoppingListsToRemove) {
+            market.removeShoppingList(shoppingList);
         }
     }
 
     @SuppressWarnings("unused") // it is used reflectively
     private static Object[] parametersForTestAddRemoveBuyer_InvalidInput() {
         return new Object[][] {
-            {EMPTY, new TraderWithSettings[]{}, new BuyerParticipation[]{PT0_0}},
-            {EMPTY, new TraderWithSettings[]{T0}, new BuyerParticipation[]{PT0_0}},
-            {EMPTY, new TraderWithSettings[]{T0,T0A}, new BuyerParticipation[]{PT0A_0}},
-            {EMPTY, new TraderWithSettings[]{IT0}, new BuyerParticipation[]{PIT0_0}},
-            {EMPTY, new TraderWithSettings[]{IT0,IT0A}, new BuyerParticipation[]{PIT0A_0}},
+            {EMPTY, new TraderWithSettings[]{}, new ShoppingList[]{PT0_0}},
+            {EMPTY, new TraderWithSettings[]{T0}, new ShoppingList[]{PT0_0}},
+            {EMPTY, new TraderWithSettings[]{T0,T0A}, new ShoppingList[]{PT0A_0}},
+            {EMPTY, new TraderWithSettings[]{IT0}, new ShoppingList[]{PIT0_0}},
+            {EMPTY, new TraderWithSettings[]{IT0,IT0A}, new ShoppingList[]{PIT0A_0}},
         };
     }
 
@@ -335,7 +335,7 @@ public class MarketTest {
 
             assertEquals(buyerMarkets.length, trader.getMarketsAsBuyer().size());
             j = 0;
-            for (Entry<@NonNull BuyerParticipation, @NonNull Market> entry : trader.getMarketsAsBuyer().entrySet()) {
+            for (Entry<@NonNull ShoppingList, @NonNull Market> entry : trader.getMarketsAsBuyer().entrySet()) {
                 assertSame(buyerMarkets[j++], entry.getValue());
                 assertTrue(entry.getValue().getBuyers().contains(entry.getKey()));
             }
@@ -355,7 +355,7 @@ public class MarketTest {
 
             assertEquals(buyerMarkets.length, trader.getMarketsAsBuyer().size());
             j = 0;
-            for (Entry<@NonNull BuyerParticipation, @NonNull Market> entry : trader.getMarketsAsBuyer().entrySet()) {
+            for (Entry<@NonNull ShoppingList, @NonNull Market> entry : trader.getMarketsAsBuyer().entrySet()) {
                 assertSame(buyerMarkets[j++], entry.getValue());
                 assertFalse(entry.getValue().getBuyers().contains(entry.getKey()));
             }

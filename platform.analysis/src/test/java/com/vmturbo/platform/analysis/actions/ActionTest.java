@@ -11,7 +11,7 @@ import org.junit.runner.RunWith;
 
 import com.google.common.collect.Lists;
 import com.vmturbo.platform.analysis.economy.Basket;
-import com.vmturbo.platform.analysis.economy.BuyerParticipation;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -39,9 +39,9 @@ public class ActionTest {
         Trader s3 = EC.addTrader(TYPE_PM, TraderState.ACTIVE, BASKET);
         // Buyers
         Trader b1 = EC.addTrader(TYPE_VM, TraderState.ACTIVE, EMPTY);
-        // Buyer participations
-        BuyerParticipation p1 = EC.addBasketBought(b1, BASKET);
-        BuyerParticipation p2 = EC.addBasketBought(b1, BASKET);
+        // Shopping lists
+        ShoppingList p1 = EC.addBasketBought(b1, BASKET);
+        ShoppingList p2 = EC.addBasketBought(b1, BASKET);
 
         List<Action> actions = new ArrayList<>();
         // An empty list is collapsed to an empty list
@@ -55,7 +55,7 @@ public class ActionTest {
 
         // Move from S2 to S1 cancels Move from S1 to S2
         actions.add(new Move(EC, p1, s2, s1));
-        // First verify the 'combine keys' of Move actions with the same participation are the same
+        // First verify the 'combine keys' of Move actions with the same shopping list are the same
         assertEquals(actions.get(0).getCombineKey(), actions.get(1).getCombineKey());
         // Now verify the actions are collapsed properly
         collapsed = Action.collapsed(actions);
@@ -82,7 +82,7 @@ public class ActionTest {
         collapsed = Action.collapsed(actions);
         assertTrue(collapsed.isEmpty());
 
-        // More buyer participations
+        // More shopping lists
         actions = new ArrayList<>();
         actions.add(new Move(EC, p1, s1, s2));
         actions.add(new Move(EC, p2, s1, s3));
@@ -90,16 +90,16 @@ public class ActionTest {
         // First verify the 'combine keys' are different
         assertNotEquals(actions.get(0).getCombineKey(), actions.get(1).getCombineKey());
 
-        // Collapsing two moves of different buyer participations returns the same list
+        // Collapsing two moves of different shopping lists returns the same list
         collapsed = Action.collapsed(actions);
         assertEquals(collapsed, actions);
 
-        // Move one buyer participation back. It should cancel the other move for the same participation.
+        // Move one shopping list back. It should cancel the other move for the same shopping list.
         actions.add(new Move(EC, p1, s2, s1));
         collapsed = Action.collapsed(actions);
         assertSame(collapsed.get(0), actions.get(1));
 
-        // Move the other buyer participations back. Collapsed list should be empty.
+        // Move the other shopping lists back. Collapsed list should be empty.
         actions.add(new Move(EC, p2, s3, s1));
         collapsed = Action.collapsed(actions);
         assertTrue(collapsed.isEmpty());
@@ -112,7 +112,7 @@ public class ActionTest {
         for (int i = 0; i < 10; i++) {
             Trader s1 = EC.addTrader(TYPE_PM, TraderState.ACTIVE, BASKET);
             Trader s2 = EC.addTrader(TYPE_PM, TraderState.ACTIVE, BASKET);
-            BuyerParticipation p = EC.addBasketBought(b, BASKET);
+            ShoppingList p = EC.addBasketBought(b, BASKET);
             actions.add(new Move(EC, p, s1, s2));
         }
         // This also tests that the argument list is not modified.
