@@ -9,6 +9,7 @@ import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 
+import static com.google.common.base.Preconditions.checkArgument;
 import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
 
 /**
@@ -40,12 +41,14 @@ public class Activate extends StateChangeBase implements Action { // inheritance
 
     @Override
     public @NonNull Activate take() {
+        checkArgument(!getTarget().getState().isActive());
         getTarget().changeState(TraderState.ACTIVE);
         return this;
     }
 
     @Override
     public @NonNull Activate rollback() {
+        checkArgument(getTarget().getState().isActive());
         getTarget().changeState(TraderState.INACTIVE);
         return this;
     }

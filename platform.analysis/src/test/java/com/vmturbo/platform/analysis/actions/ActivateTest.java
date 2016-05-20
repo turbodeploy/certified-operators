@@ -34,8 +34,8 @@ public class ActivateTest {
 
     @Test
     @Parameters
-    @TestCaseName("Test #{index}: new Activate({0},{1})")
-    public final void testActivate(@NonNull Trader target, @NonNull Market sourceMarket) {
+    @TestCaseName("Test #{index}: new Activate({0},{1},{2})")
+    public final void testActivate(@NonNull Trader target, @NonNull Market sourceMarket, boolean unusedFlag) {
         @NonNull Activate activation = new Activate(target, sourceMarket);
 
         assertSame(target, activation.getTarget());
@@ -48,7 +48,7 @@ public class ActivateTest {
         Trader t1 = e1.addTrader(0, TraderState.ACTIVE, EMPTY, EMPTY);
         Trader t2 = e1.addTrader(0, TraderState.INACTIVE, EMPTY, EMPTY);
 
-        return new Object[][]{{t1,e1.getMarket(EMPTY)},{t2,e1.getMarket(EMPTY)}};
+        return new Object[][]{{t1,e1.getMarket(EMPTY),false},{t2,e1.getMarket(EMPTY),true}};
     }
 
     @Test
@@ -80,21 +80,31 @@ public class ActivateTest {
 
     @Test
     @Parameters(method = "parametersForTestActivate")
-    @TestCaseName("Test #{index}: new Activate({0},{1}).take()")
-    public final void testTake(@NonNull Trader target, @NonNull Market sourceMarket) {
+    @TestCaseName("Test #{index}: new Activate({0},{1}).take() throw == {3}")
+    public final void testTake(@NonNull Trader target, @NonNull Market sourceMarket, boolean valid) {
         @NonNull Activate activation = new Activate(target,sourceMarket);
 
-        assertSame(activation, activation.take());
+        try {
+            activation.take();
+            assertTrue(valid);
+        } catch (IllegalArgumentException e){
+            assertFalse(valid);
+        }
         assertTrue(target.getState().isActive());
     }
 
     @Test
     @Parameters(method = "parametersForTestActivate")
-    @TestCaseName("Test #{index}: new Activate({0},{1}).rollback()")
-    public final void testRollback(@NonNull Trader target, @NonNull Market sourceMarket) {
+    @TestCaseName("Test #{index}: new Activate({0},{1}).rollback() throw == {3}")
+    public final void testRollback(@NonNull Trader target, @NonNull Market sourceMarket, boolean invalid) {
         @NonNull Activate activation = new Activate(target,sourceMarket);
         // TODO: normally, we should take the action before rolling back...
-        assertSame(activation, activation.rollback());
+        try {
+            activation.rollback();
+            assertFalse(invalid);
+        } catch (IllegalArgumentException e){
+            assertTrue(invalid);
+        }
         assertFalse(target.getState().isActive());
     }
 

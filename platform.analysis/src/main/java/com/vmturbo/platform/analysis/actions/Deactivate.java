@@ -1,5 +1,6 @@
 package com.vmturbo.platform.analysis.actions;
 
+import static com.google.common.base.Preconditions.checkArgument;
 import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
 
 import java.util.function.Function;
@@ -40,12 +41,14 @@ public class Deactivate extends StateChangeBase implements Action { // inheritan
 
     @Override
     public @NonNull Deactivate take() {
+        checkArgument(getTarget().getState().isActive());
         getTarget().changeState(TraderState.INACTIVE);
         return this;
     }
 
     @Override
     public @NonNull Deactivate rollback() {
+        checkArgument(!getTarget().getState().isActive());
         getTarget().changeState(TraderState.ACTIVE);
         return this;
     }
