@@ -47,8 +47,9 @@ import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.Constant;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.StandardWeighted;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.Step;
-import com.vmturbo.platform.analysis.protobuf.QuantityUpdatingFunctionDTOs.QuantityUpdatingFunctionTO;
-import com.vmturbo.platform.analysis.protobuf.QuantityUpdatingFunctionDTOs.QuantityUpdatingFunctionTO.Max;
+import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO;
+import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO.Max;
+import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO.Min;
 
 /**
  * A class containing methods to convert java classes used by analysis to Protobuf messages.
@@ -92,10 +93,12 @@ public final class AnalysisToProtobuf {
      * @param input The {@link DoubleBinaryOperator quantity updating function} to convert.
      * @return The resulting {@link QuantityUpdatingFunctionTO}.
      */
-    public static @NonNull QuantityUpdatingFunctionTO quantityUpdatingFunctionTO(@NonNull DoubleBinaryOperator input) {
-        // Warning: converting quantity updating functions to TOs is not properly supported!
+    public static @NonNull UpdatingFunctionTO updatingFunctionTO(@NonNull DoubleBinaryOperator input) {
+        // Warning: converting updating functions to TOs is not properly supported!
         if (input == (DoubleBinaryOperator)Math::max) {
-            return QuantityUpdatingFunctionTO.newBuilder().setMax(Max.newBuilder()).build();
+            return UpdatingFunctionTO.newBuilder().setMax(Max.newBuilder()).build();
+        }  else if (input == (DoubleBinaryOperator)Math::min) {
+            return UpdatingFunctionTO.newBuilder().setMin(Min.newBuilder()).build();
         } else {
             throw new IllegalArgumentException("input = " + input);
         }

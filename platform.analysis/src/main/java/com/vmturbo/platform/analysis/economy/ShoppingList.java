@@ -31,7 +31,7 @@ public final class ShoppingList {
                                                      // Must be same size as quantities_.
     private boolean movable_ = false; // Whether analysis is allowed to move this shopping list to
                                      // another supplier.
-    private @NonNull Basket basket_; // The basket for this shopping list
+    private final @NonNull Basket basket_; // The basket for this shopping list
 
     // Constructors
 

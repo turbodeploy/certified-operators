@@ -9,13 +9,21 @@ package com.vmturbo.platform.analysis.protobuf;
 // needs to be added.
 
 // Since we currently use this only for latency in practice, the message is more complex than needed.
-message QuantityUpdatingFunctionTO {
+message UpdatingFunctionTO {
     // The 'max' bivariate function.
     message Max {
     }
 
+    message Min {
+    }
+
+    message ProjectSecond {
+    }
+
     // Which one of the available functions this message contains.
-    oneof quantity_updating_function_type {
+    oneof updating_function_type {
         Max max = 1;
+        Min min = 2;
+        ProjectSecond project_second = 3;
     }
 }

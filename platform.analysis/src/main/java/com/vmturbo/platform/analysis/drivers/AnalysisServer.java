@@ -95,7 +95,7 @@ public final class AnalysisServer {
                     break;
                 case END_DISCOVERED_TOPOLOGY:
                     // Finish topology
-                    ProtobufToAnalysis.populateQuantityUpdatingFunctions(command.getEndDiscoveredTopology(),
+                    ProtobufToAnalysis.populateUpdatingFunctions(command.getEndDiscoveredTopology(),
                                                                          currentPartial_);
 
                     // Swap topologies

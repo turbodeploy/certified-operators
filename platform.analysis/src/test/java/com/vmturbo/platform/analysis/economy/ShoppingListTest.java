@@ -31,7 +31,6 @@ public class ShoppingListTest {
     private static final Trader[] validBuyers = {trader1, trader2, trader3, trader4};
     private static final Trader[] validSuppliers = {null,trader1, trader2, trader3, trader4};
     private static final Integer[] validSizes = {0,1,100};
-    private static final Integer[] invalidSizes = {-1,Integer.MIN_VALUE};
     private static final Double[] validQuantities = {0.0,1.0,100.0};
     private static final Double[] invalidQuantities = {-0.1,-1.0,-100.0};
     private static final Integer[] validIndices = {0,1,9}; // with respect to fixture

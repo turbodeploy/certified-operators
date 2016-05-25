@@ -37,7 +37,7 @@ import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderStateTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO;
-import com.vmturbo.platform.analysis.protobuf.QuantityUpdatingFunctionDTOs.QuantityUpdatingFunctionTO;
+import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO;
 import com.vmturbo.platform.analysis.topology.Topology;
 
 /**
@@ -80,11 +80,15 @@ public final class ProtobufToAnalysis {
      * @param input The {@link QuantityUpdatingFunctionTO} to convert.
      * @return The resulting {@link DoubleBinaryOperator quantity updating function}.
      */
-    public static @NonNull DoubleBinaryOperator quantityUpdatingFunction(@NonNull QuantityUpdatingFunctionTO input) {
-        switch (input.getQuantityUpdatingFunctionTypeCase()) {
+    public static @NonNull DoubleBinaryOperator updatingFunction(@NonNull UpdatingFunctionTO input) {
+        switch (input.getUpdatingFunctionTypeCase()) {
             case MAX:
                 return Math::max;
-            case QUANTITYUPDATINGFUNCTIONTYPE_NOT_SET:
+            case MIN:
+                return Math::min;
+            case PROJECT_SECOND:
+                return (a, b) -> b;
+            case UPDATINGFUNCTIONTYPE_NOT_SET:
             default:
                 throw new IllegalArgumentException("input = " + input);
         }
@@ -307,11 +311,11 @@ public final class ProtobufToAnalysis {
      * @param source The {@link EndDiscoveredTopology} message from which to get the map entries.
      * @param destination The {@link Topology} to put the entries to.
      */
-    public static void populateQuantityUpdatingFunctions(@NonNull EndDiscoveredTopology source,
+    public static void populateUpdatingFunctions(@NonNull EndDiscoveredTopology source,
                                                          @NonNull Topology destination) {
-        for (MapEntry entry : source.getQuantityUpdatingFunctionEntryList()) {
+        for (MapEntry entry : source.getUpdatingFunctionEntryList()) {
             destination.getModifiableQuantityFunctions().put(commoditySpecification(entry.getKey()),
-                                                             quantityUpdatingFunction(entry.getValue()));
+                                                             updatingFunction(entry.getValue()));
         }
     }
 
