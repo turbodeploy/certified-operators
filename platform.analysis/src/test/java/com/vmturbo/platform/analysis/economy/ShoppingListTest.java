@@ -4,6 +4,7 @@ import static org.junit.Assert.*;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.IntStream;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -42,14 +43,20 @@ public class ShoppingListTest {
     // Methods
     @Before
     public void setUp() {
-        fixture_ = new ShoppingList(trader1, 10);
+        CommoditySpecification[] commodities = IntStream.range(0, 10).mapToObj(CommoditySpecification::new)
+                .toArray(CommoditySpecification[]::new);
+        Basket basket = new Basket(commodities);
+        fixture_ = new ShoppingList(trader1, basket);
     }
 
     @Test
     @Parameters
     @TestCaseName("Test #{index}: new ShoppingList({0},{1})")
     public final void testShoppingList_NormalInput(Trader buyer, int nCommodities) {
-        ShoppingList shoppingList = new ShoppingList(buyer, nCommodities);
+        CommoditySpecification[] commodities = IntStream.range(0, nCommodities).mapToObj(CommoditySpecification::new)
+                .toArray(CommoditySpecification[]::new);
+        Basket basket = new Basket(commodities);
+        ShoppingList shoppingList = new ShoppingList(buyer, basket);
         assertSame(buyer, shoppingList.getBuyer());
         assertNotSame(shoppingList.getQuantities(), shoppingList.getPeakQuantities());
         assertEquals(nCommodities, shoppingList.getQuantities().length);
@@ -63,27 +70,6 @@ public class ShoppingListTest {
         int c = 0;
         for(Trader buyer : validBuyers) {
             for(int size : validSizes) {
-                output[c++] = new Object[]{buyer,size};
-            }
-        }
-
-        return output;
-    }
-
-    @Test(expected = NegativeArraySizeException.class)
-    @Parameters
-    @TestCaseName("Test #{index}: new ShoppingList({0},{1},{2})")
-    public final void testShoppingList_InvalidSizes(Trader buyer, int nCommodities) {
-        new ShoppingList(buyer, nCommodities);
-    }
-
-    @SuppressWarnings("unused") // it is used reflectively
-    private static Object[] parametersForTestShoppingList_InvalidSizes() {
-        Object[][] output = new Object[validBuyers.length*invalidSizes.length][];
-
-        int c = 0;
-        for(Trader buyer : validBuyers) {
-            for(int size : invalidSizes) {
                 output[c++] = new Object[]{buyer,size};
             }
         }
@@ -234,10 +220,11 @@ public class ShoppingListTest {
     @SuppressWarnings("unused") // it is used reflectively
     private static Object[] parametersForTestMove() { // TODO: refactor to make more readable.
         List<Object[]> parameters = new ArrayList<>();
+        Basket basket = new Basket(new CommoditySpecification(0));
 
         for (int i = 0 ; i < 4 ; ++i) {
             for (int j = 0 ; j < 4 ; ++j) {
-                ShoppingList shoppingList = new ShoppingList(trader1, 1);
+                ShoppingList shoppingList = new ShoppingList(trader1, basket);
 
                 if (i > 0) {
                     TraderWithSettings oldSupplier = new TraderWithSettings(0, 0, TraderState.ACTIVE, EMPTY);
@@ -245,7 +232,7 @@ public class ShoppingListTest {
                     oldSupplier.getModifiableCustomers().add(shoppingList);
 
                     if (i > 1) {
-                        ShoppingList auxiliary = new ShoppingList(trader1, 1);
+                        ShoppingList auxiliary = new ShoppingList(trader1, basket);
                         auxiliary.setSupplier(oldSupplier);
                         oldSupplier.getModifiableCustomers().add(i == 2 ? 0 : 1, auxiliary);
                     }
@@ -254,7 +241,7 @@ public class ShoppingListTest {
                 TraderWithSettings newSupplier = j == 0 ? null : new TraderWithSettings(0, 0, TraderState.ACTIVE, EMPTY);
 
                 for (int k = 1 ; k < j ; ++k) {
-                    ShoppingList auxiliary = new ShoppingList(trader1, 1);
+                    ShoppingList auxiliary = new ShoppingList(trader1, basket);
                     auxiliary.setSupplier(newSupplier);
                     newSupplier.getModifiableCustomers().add(auxiliary);
                 }

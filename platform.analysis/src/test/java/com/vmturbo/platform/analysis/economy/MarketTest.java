@@ -49,10 +49,10 @@ public class MarketTest {
     private static final TraderWithSettings IT0A = new TraderWithSettings(0, 0, TraderState.INACTIVE, new Basket(A));
     private static final TraderWithSettings IT1B = new TraderWithSettings(1, 0, TraderState.INACTIVE, new Basket(B));
 
-    private static final ShoppingList PT0_0 = new ShoppingList(T0, 0);
-    private static final ShoppingList PT0A_0 = new ShoppingList(T0A, 0);
-    private static final ShoppingList PIT0_0 = new ShoppingList(IT0, 0);
-    private static final ShoppingList PIT0A_0 = new ShoppingList(IT0A, 0);
+    private static final ShoppingList PT0_0 = new ShoppingList(T0, EMPTY);
+    private static final ShoppingList PT0A_0 = new ShoppingList(T0A, EMPTY);
+    private static final ShoppingList PIT0_0 = new ShoppingList(IT0, EMPTY);
+    private static final ShoppingList PIT0A_0 = new ShoppingList(IT0A, EMPTY);
 
     private Market fixture_;
 
@@ -222,12 +222,12 @@ public class MarketTest {
 
     @Test
     public final void testGetBuyers_ValidOperations() {
-        verifyUnmodifiableValidOperations(fixture_.getBuyers(), new ShoppingList(T0, 0));
+        verifyUnmodifiableValidOperations(fixture_.getBuyers(), new ShoppingList(T0, EMPTY));
     }
 
     @Test
     public final void testGetBuyers_InvalidOperations() {
-        verifyUnmodifiableInvalidOperations(fixture_.getBuyers(), new ShoppingList(T0, 0));
+        verifyUnmodifiableInvalidOperations(fixture_.getBuyers(), new ShoppingList(T0, EMPTY));
     }
 
     @Test

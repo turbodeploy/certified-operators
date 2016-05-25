@@ -2,6 +2,8 @@ package com.vmturbo.platform.analysis.economy;
 
 import static org.junit.Assert.*;
 
+import java.util.stream.IntStream;
+
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -22,8 +24,10 @@ public class CommodityBoughtTest {
 
     @Before
     public void setUp() {
+        Basket basketBought = new Basket(new CommoditySpecification(0));
+        Basket basketSold = new Basket(new CommoditySpecification(1));
         fixture_ = new CommodityBought(new ShoppingList(
-                      new TraderWithSettings(0, 0, TraderState.ACTIVE, new Basket()), 1), 0);
+                      new TraderWithSettings(0, 0, TraderState.ACTIVE, basketSold), basketBought), 0);
     }
 
     @Test
@@ -32,8 +36,11 @@ public class CommodityBoughtTest {
                  "100,0","100,50","100,99"})
     @TestCaseName("Test #{index}: new CommodityBought(new ShoppingList(?,?,{0}),{1}")
     public final void testCommodityBought_NormalInput(int size, int index) {
+        CommoditySpecification[] commodities = IntStream.range(0, size).mapToObj(CommoditySpecification::new)
+                                                        .toArray(CommoditySpecification[]::new);
+        Basket basket = new Basket(commodities);
         CommodityBought commodity = new CommodityBought(new ShoppingList(
-            new TraderWithSettings(0, 0, TraderState.ACTIVE, new Basket()), size), index);
+            new TraderWithSettings(0, 0, TraderState.ACTIVE, new Basket()), basket), index);
         // Sanity check: make sure initial values are valid and that no exceptions are thrown.
         commodity.setQuantity(commodity.getQuantity());
         commodity.setPeakQuantity(commodity.getPeakQuantity());
@@ -45,8 +52,11 @@ public class CommodityBoughtTest {
                  "100,-1","100,-100","100,100","100,1000"})
     @TestCaseName("Test #{index}: new CommodityBought(new ShoppingList(?,?,{0}),{1}")
     public final void testCommodityBought_InvalidInput(int size, int index) {
+        CommoditySpecification[] commodities = IntStream.range(0, size).mapToObj(CommoditySpecification::new)
+                                                        .toArray(CommoditySpecification[]::new);
+        Basket basket = new Basket(commodities);
         new CommodityBought(new ShoppingList(
-               new TraderWithSettings(0, 0, TraderState.ACTIVE, new Basket()), size), index);
+               new TraderWithSettings(0, 0, TraderState.ACTIVE, new Basket()), basket), index);
     }
 
     @Test

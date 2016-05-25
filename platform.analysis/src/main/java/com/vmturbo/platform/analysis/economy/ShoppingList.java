@@ -31,6 +31,7 @@ public final class ShoppingList {
                                                      // Must be same size as quantities_.
     private boolean movable_ = false; // Whether analysis is allowed to move this shopping list to
                                      // another supplier.
+    private @NonNull Basket basket_; // The basket for this shopping list
 
     // Constructors
 
@@ -38,15 +39,15 @@ public final class ShoppingList {
      * Constructs a new ShoppingList instance with the specified properties.
      *
      * @param buyer see {@link #getBuyer()}
-     * @param numberOfCommodities The number of commodities bought that should be associated with
-     *         the new ShoppingList instance. It should be equal to the basket size of the
-     *         market this shopping list belongs to.
+     * @param basket The basket this shopping list corresponds to. It should
+     * be equal to the one belonging to the Market this shopping list participates in.
      */
-    ShoppingList(@NonNull Trader buyer, int numberOfCommodities) {
+    ShoppingList(@NonNull Trader buyer, @NonNull Basket basket) {
         buyer_ = buyer;
         supplier_ = null;
-        quantities_ = new double[numberOfCommodities];
-        peakQuantities_ = new double[numberOfCommodities];
+        basket_ = basket;
+        quantities_ = new double[basket.size()];
+        peakQuantities_ = new double[basket.size()];
     }
 
     // Methods
@@ -57,6 +58,14 @@ public final class ShoppingList {
     @Pure
     public @NonNull Trader getBuyer(@ReadOnly ShoppingList this) {
         return buyer_;
+    }
+
+    /**
+     * Returns the {@link Basket basket} that belongs to {@code this} shopping list.
+     */
+    @Pure
+    public @NonNull Basket getBasket(@ReadOnly ShoppingList this) {
+        return basket_;
     }
 
     /**

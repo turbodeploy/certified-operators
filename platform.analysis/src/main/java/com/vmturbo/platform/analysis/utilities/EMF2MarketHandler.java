@@ -360,7 +360,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
                 }
                 logger.debug("    Basket : " + keysBought);
                 ShoppingList shoppingList = topology.addBasketBought(aSeller, keysBought);
-                Basket basketBought = topology.getEconomy().getMarket(shoppingList).getBasket();
+                Basket basketBought = shoppingList.getBasket();
 
                 if (VIRTUAL_MACHINE.equals(traderAttr.xsitype())) // TODO: also check for containers
                     shoppingList.setMovable(true);

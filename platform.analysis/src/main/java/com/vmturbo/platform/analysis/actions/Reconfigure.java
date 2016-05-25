@@ -88,12 +88,12 @@ public class Reconfigure extends MoveBase implements Action { // inheritance for
             appendTrader(sb, getTarget().getBuyer(), uuid, name);
             sb.append(" because no [need supply chain to fill in correct trader type] can ");
             sb.append("satisfy the following combination of constraints: ");
-            sb.append(getEconomy().getMarket(getTarget()).getBasket()); // TODO: add more cases and substitute commodity types.
+            sb.append(getTarget().getBasket()); // TODO: add more cases and substitute commodity types.
         } else {
             appendTrader(sb, getTarget().getBuyer(), uuid, name);
             sb.append(" is currently placed on a ").append(traderType.apply(getSource().getType()));
             sb.append("that does not satisfy the ");
-            sb.append(getEconomy().getMarket(getTarget()).getBasket()); // TODO: substitute commodity types.
+            sb.append(getTarget().getBasket()); // TODO: substitute commodity types.
             sb.append("constraint(s)");
             // TODO: add text in case of a violated utilization upper bound.
             sb.append(" and there is currently no ").append(traderType.apply(getSource().getType()));

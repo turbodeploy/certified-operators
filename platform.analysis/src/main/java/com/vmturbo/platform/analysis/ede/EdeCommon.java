@@ -26,16 +26,16 @@ public final class EdeCommon {
      * Calculate the quote of a seller for a basket bought by a buyer.
      *
      * @param shoppingList - shopping list containing specific quantities of the basket commodities
-     * @param basket - the basket bought by the shopping list
      * @param currentSupplier - the current supplier for the shoppingList. Can be null.
      * @param seller - the seller that will give the quote
      */
     @Pure
     public static double quote(@NonNull UnmodifiableEconomy economy, @NonNull ShoppingList shoppingList,
-            @NonNull Basket basket, Trader currentSupplier, @NonNull Trader seller) {
+            Trader currentSupplier, @NonNull Trader seller) {
         //TODO (Apostolos): we have not dealt with equivalent commodities
         double quote = 0.0;
         boolean isCurrentSupplier = seller == currentSupplier;
+        Basket basket = shoppingList.getBasket();
 
         // get the quantity and peak quantity to buy for each commodity of the basket
         final double[] quantities = shoppingList.getQuantities();
@@ -126,7 +126,7 @@ public final class EdeCommon {
                 return;
             }
 
-            final double quote = EdeCommon.quote(economy_, shoppingList_, basket_, supplier_, seller);
+            final double quote = EdeCommon.quote(economy_, shoppingList_, supplier_, seller);
 
             if (seller == supplier_) {
                 currentQuote_ = quote;

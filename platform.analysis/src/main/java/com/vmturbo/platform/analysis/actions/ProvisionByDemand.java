@@ -78,7 +78,7 @@ public class ProvisionByDemand implements Action {
 
     @Override
     public @NonNull Action take() {
-        @NonNull Basket basketSold = getEconomy().getMarket(getModelBuyer()).getBasket();
+        @NonNull Basket basketSold = getModelBuyer().getBasket();
         provisionedSeller_ = getEconomy().addTrader(0 /* what type should it have? */,
             TraderState.ACTIVE, basketSold /*, what should it buy? */);
 

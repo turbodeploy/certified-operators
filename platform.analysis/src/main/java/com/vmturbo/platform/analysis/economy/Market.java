@@ -187,7 +187,7 @@ public final class Market {
      * @return The shopping list that was created for the buyer.
      */
     @NonNull ShoppingList addBuyer(@NonNull TraderWithSettings newBuyer) {
-        ShoppingList newShoppingList = new ShoppingList(newBuyer, basket_.size());
+        ShoppingList newShoppingList = new ShoppingList(newBuyer, basket_);
 
         if (newBuyer.getState().isActive()) {
             buyers_.add(newShoppingList);

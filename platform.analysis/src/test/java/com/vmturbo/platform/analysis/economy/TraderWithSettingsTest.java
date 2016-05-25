@@ -35,8 +35,9 @@ public final class TraderWithSettingsTest {
     private static final Integer[] validTypes = validIndices; // just happens to be the same.
     private static final Integer[] invalidTypes = invalidIndices; // just happens to be the same.
     private static final TraderState[] validStates = TraderState.values();
+    private static final Basket EMPTY = new Basket();
     private static final Basket[] validBaskets = {
-        new Basket(),
+        EMPTY,
         new Basket(A),
         new Basket(B),
         new Basket(A,B),
@@ -115,13 +116,13 @@ public final class TraderWithSettingsTest {
 
     @Test // That the returned map indeed implements all operations.
     public final void testGetMarketsAsBuyer() {
-        MapTests.verifyModifiable(fixture_.getMarketsAsBuyer(), new ShoppingList(fixture_,0),
-                                  new Market(new Basket()));
+        MapTests.verifyModifiable(fixture_.getMarketsAsBuyer(), new ShoppingList(fixture_,EMPTY),
+                                  new Market(EMPTY));
     }
 
     @Test
     public final void testGetMarketsAsSeller() {
-        ListTests.verifyModifiable(fixture_.getMarketsAsSeller(), new Market(new Basket()));
+        ListTests.verifyModifiable(fixture_.getMarketsAsSeller(), new Market(EMPTY));
     }
 
     // Tests for Trader methods
@@ -233,13 +234,13 @@ public final class TraderWithSettingsTest {
 
     @Test
     public final void testGetCustomers() {
-        ListTests.verifyUnmodifiableValidOperations(fixture_.getCustomers(), new ShoppingList(fixture_,0));
-        ListTests.verifyUnmodifiableInvalidOperations(fixture_.getCustomers(), new ShoppingList(fixture_,0));
+        ListTests.verifyUnmodifiableValidOperations(fixture_.getCustomers(), new ShoppingList(fixture_,EMPTY));
+        ListTests.verifyUnmodifiableInvalidOperations(fixture_.getCustomers(), new ShoppingList(fixture_,EMPTY));
     }
 
     @Test
     public final void testGetModifiableCustomers() {
-        ListTests.verifyModifiable(fixture_.getModifiableCustomers(), new ShoppingList(fixture_,0));
+        ListTests.verifyModifiable(fixture_.getModifiableCustomers(), new ShoppingList(fixture_,EMPTY));
     }
 
     @Test
