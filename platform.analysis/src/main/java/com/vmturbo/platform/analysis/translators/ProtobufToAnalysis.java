@@ -71,13 +71,13 @@ public final class ProtobufToAnalysis {
         }
     }
 
-    // Methods for converting QuantityUpdatingFunctionDTOs.
+    // Methods for converting UpdatingFunctionDTOs.
 
     /**
-     * Converts a {@link QuantityUpdatingFunctionTO} to a {@link DoubleBinaryOperator quantity
+     * Converts a {@link UpdatingFunctionTO} to a {@link DoubleBinaryOperator quantity
      * updating function}.
      *
-     * @param input The {@link QuantityUpdatingFunctionTO} to convert.
+     * @param input The {@link UpdatingFunctionTO} to convert.
      * @return The resulting {@link DoubleBinaryOperator quantity updating function}.
      */
     public static @NonNull DoubleBinaryOperator updatingFunction(@NonNull UpdatingFunctionTO input) {

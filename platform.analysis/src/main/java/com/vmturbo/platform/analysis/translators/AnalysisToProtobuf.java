@@ -84,14 +84,14 @@ public final class AnalysisToProtobuf {
         return builder.build();
     }
 
-    // Methods for converting QuantityUpdatingFunctionDTOs.
+    // Methods for converting UpdatingFunctionDTOs.
 
     /**
      * Converts a {@link DoubleBinaryOperator quantity updating function} to a
-     * {@link QuantityUpdatingFunctionTO}.
+     * {@link UpdatingFunctionTO}.
      *
      * @param input The {@link DoubleBinaryOperator quantity updating function} to convert.
-     * @return The resulting {@link QuantityUpdatingFunctionTO}.
+     * @return The resulting {@link UpdatingFunctionTO}.
      */
     public static @NonNull UpdatingFunctionTO updatingFunctionTO(@NonNull DoubleBinaryOperator input) {
         // Warning: converting updating functions to TOs is not properly supported!

@@ -32,11 +32,11 @@ public class ProtobufToAnalysisTest {
         fail("Not yet implemented"); // TODO
     }
 
-    // Methods for converting QuantityUpdatingFunctionDTOs.
+    // Methods for converting UpdatingFunctionDTOs.
 
     @Test
     @Ignore
-    public final void testQuantityUpdatingFunction() {
+    public final void testUpdatingFunction() {
         fail("Not yet implemented"); // TODO
     }
 
@@ -114,7 +114,7 @@ public class ProtobufToAnalysisTest {
 
     @Test
     @Ignore
-    public final void testPopulateQuantityUpdatingFunctions() {
+    public final void testPopulateUpdatingFunctions() {
         fail("Not yet implemented"); // TODO
     }
 
