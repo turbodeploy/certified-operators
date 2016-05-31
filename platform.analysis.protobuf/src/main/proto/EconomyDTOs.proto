@@ -115,6 +115,8 @@ message TraderSettingsTO {
     // Whether the trader should consume the clone of provider
     optional bool guaranteed_buyer = 5;
 
+	// Whether the trader can accept consumer move in or out
+    optional bool can_Accept_New_Customer = 6;
 }
 
 // The different states a trader can be in. The intention is to make this a boolean once we confirm
