@@ -51,7 +51,6 @@ public final class Economy implements UnmodifiableEconomy {
     // Cached unmodifiable view of the quantityFunctions_ map.
     private final @NonNull Map<@NonNull CommoditySpecification, @NonNull DoubleBinaryOperator>
         unmodifiableQuantityFunctions_ = Collections.unmodifiableMap(quantityFunctions_);
-    // Cached unmodifiable view of the rawMaterialOf_ map.
 
     // Constructors
 
