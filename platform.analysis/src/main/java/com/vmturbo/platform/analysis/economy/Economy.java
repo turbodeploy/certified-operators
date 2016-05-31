@@ -4,6 +4,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -38,6 +39,9 @@ public final class Economy implements UnmodifiableEconomy {
     // An aggregate of all the parameters configuring this economy's behavior.
     private final @NonNull EconomySettings settings_ = new EconomySettings();
 
+    // map containing rawCommodity->processedCommodity relations between commodities
+    private final @NonNull Map<@NonNull Integer, @NonNull Integer> rawMaterialOf_ = new HashMap<>();
+
     // Cached data
 
     // Cached unmodifiable view of the markets_.values() collection.
@@ -47,6 +51,7 @@ public final class Economy implements UnmodifiableEconomy {
     // Cached unmodifiable view of the quantityFunctions_ map.
     private final @NonNull Map<@NonNull CommoditySpecification, @NonNull DoubleBinaryOperator>
         unmodifiableQuantityFunctions_ = Collections.unmodifiableMap(quantityFunctions_);
+    // Cached unmodifiable view of the rawMaterialOf_ map.
 
     // Constructors
 
@@ -130,6 +135,17 @@ public final class Economy implements UnmodifiableEconomy {
     @Pure
     public @NonNull @ReadOnly List<@NonNull @ReadOnly Trader> getTraders(@ReadOnly Economy this) {
         return unmodifiableTraders_;
+    }
+
+    @Override
+    @Pure
+    public @NonNull @ReadOnly int getRawMaterialOf(@ReadOnly Economy this, int rawMaterialType) {
+        return rawMaterialOf_.get(rawMaterialType);
+    }
+
+    @NonNull
+    public Map<Integer, Integer> getModifiableRawCommodityMap() {
+        return rawMaterialOf_;
     }
 
     /**

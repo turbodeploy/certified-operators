@@ -183,4 +183,9 @@ public interface UnmodifiableEconomy {
     @NonNull @ReadOnly List<@NonNull @ReadOnly Market> getMarketsAsSeller(@ReadOnly UnmodifiableEconomy this,
                                                                           @NonNull @ReadOnly Trader trader);
 
+    /**
+     * Returns an unmodifiable commodityType that uses rawMaterials of a particular type
+     */
+    @NonNull @ReadOnly int getRawMaterialOf(int rawMaterialType);
+
 } // end UnmodifiableEconomy interface
