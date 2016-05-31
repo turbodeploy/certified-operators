@@ -85,7 +85,7 @@ public class DeactivateTest {
         @NonNull Deactivate deactivation = new Deactivate(target,sourceMarket);
 
         try {
-            deactivation.take();
+            assertSame(deactivation, deactivation.take());
             assertTrue(valid);
         } catch (IllegalArgumentException e){
             assertFalse(valid);
@@ -100,7 +100,7 @@ public class DeactivateTest {
         @NonNull Deactivate deactivation = new Deactivate(target,sourceMarket);
         // TODO: normally, we should take the action before rolling back...
         try {
-            deactivation.rollback();
+            assertSame(deactivation, deactivation.rollback());
             assertFalse(invalid);
         } catch (IllegalArgumentException e){
             assertTrue(invalid);

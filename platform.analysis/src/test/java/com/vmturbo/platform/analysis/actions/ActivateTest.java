@@ -85,7 +85,7 @@ public class ActivateTest {
         @NonNull Activate activation = new Activate(target,sourceMarket);
 
         try {
-            activation.take();
+            assertSame(activation, activation.take());
             assertTrue(valid);
         } catch (IllegalArgumentException e){
             assertFalse(valid);
@@ -100,7 +100,7 @@ public class ActivateTest {
         @NonNull Activate activation = new Activate(target,sourceMarket);
         // TODO: normally, we should take the action before rolling back...
         try {
-            activation.rollback();
+            assertSame(activation, activation.rollback());
             assertFalse(invalid);
         } catch (IllegalArgumentException e){
             assertTrue(invalid);
