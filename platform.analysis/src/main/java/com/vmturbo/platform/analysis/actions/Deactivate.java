@@ -3,12 +3,18 @@ package com.vmturbo.platform.analysis.actions;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
+import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
+import org.checkerframework.dataflow.qual.Pure;
 
+import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 
@@ -19,46 +25,76 @@ public class Deactivate extends StateChangeBase implements Action { // inheritan
 
     // Constructors
 
+    private final @NonNull List<@NonNull ShoppingList> shoppingListForGuaranteedBuyers = new ArrayList<>();
+    private final @NonNull Economy economy_;
+
     /**
      * Constructs a new Deactivate action with the specified target.
      *
      * @param target The trader that will be deactivated as a result of taking {@code this} action.
      * @param sourceMarket The market that benefits from deactivating target.
      */
-    public Deactivate(@NonNull Trader target, @NonNull Market sourceMarket) {
+    public Deactivate(@NonNull Economy economy, @NonNull Trader target, @NonNull Market sourceMarket) {
         super(target,sourceMarket);
+        shoppingListForGuaranteedBuyers.addAll(Utility.findShoppingListForGuaranteedBuyer(economy, target));
+        economy_ = economy;
+
     }
 
     // Methods
 
+    /**
+     * Returns the economy in which the new seller will be added.
+     */
+    @Pure
+    public @NonNull Economy getEconomy(@ReadOnly Deactivate this) {
+        return economy_;
+    }
+
     @Override
     public @NonNull String serialize(@NonNull Function<@NonNull Trader, @NonNull String> oid) {
         return new StringBuilder()
-            // TODO (Vaptistis): do I also need to send the market or basket?
-            .append("<action type=\"deactivate\" target=\"").append(oid.apply(getTarget()))
-            .append("\" />").toString();
+                        // TODO (Vaptistis): do I also need to send the market or basket?
+                        .append("<action type=\"deactivate\" target=\"")
+                        .append(oid.apply(getTarget())).append("\" />").toString();
     }
 
+    /**
+     * Takes a deactivate action to change the state of a trader from active to inactive.
+     */
     @Override
     public @NonNull Deactivate take() {
         checkArgument(getTarget().getState().isActive());
+        TraderState oldState = getTarget().getState();
         getTarget().changeState(TraderState.INACTIVE);
+        // when deactivate an activate trader, remove the shoppingList associated with its guaranteed buyers
+        if (oldState == TraderState.ACTIVE) {
+            Utility.removeShoppingListForGuaranteedBuyers(getEconomy(), shoppingListForGuaranteedBuyers, getTarget());
+        }
         return this;
     }
 
+    /**
+     * Rolls back a deactivate action to change the state of a trader from active to inactive.
+     */
     @Override
     public @NonNull Deactivate rollback() {
         checkArgument(!getTarget().getState().isActive());
+        TraderState oldState = getTarget().getState();
         getTarget().changeState(TraderState.ACTIVE);
+        // when roll back a deactivate action, adds back shoppingList for the target and its guaranteed buyers
+        if (oldState == TraderState.INACTIVE) {
+            Utility.addShoppingListForGuaranteedBuyers(getEconomy(), shoppingListForGuaranteedBuyers, getTarget());
+        }
         return this;
     }
 
     // TODO: update description and reason when we create the corresponding matrix.
     @Override
     public @NonNull String debugDescription(@NonNull Function<@NonNull Trader, @NonNull String> uuid,
-                                            @NonNull Function<@NonNull Trader, @NonNull String> name,
-                                            @NonNull IntFunction<@NonNull String> commodityType,
-                                            @NonNull IntFunction<@NonNull String> traderType) {
+                    @NonNull Function<@NonNull Trader, @NonNull String> name,
+                    @NonNull IntFunction<@NonNull String> commodityType,
+                    @NonNull IntFunction<@NonNull String> traderType) {
         final @NonNull StringBuilder sb = new StringBuilder();
 
         sb.append("Deactivate ");
@@ -70,11 +106,11 @@ public class Deactivate extends StateChangeBase implements Action { // inheritan
 
     @Override
     public @NonNull String debugReason(@NonNull Function<@NonNull Trader, @NonNull String> uuid,
-                                       @NonNull Function<@NonNull Trader, @NonNull String> name,
-                                       @NonNull IntFunction<@NonNull String> commodityType,
-                                       @NonNull IntFunction<@NonNull String> traderType) {
+                    @NonNull Function<@NonNull Trader, @NonNull String> name,
+                    @NonNull IntFunction<@NonNull String> commodityType,
+                    @NonNull IntFunction<@NonNull String> traderType) {
         return new StringBuilder()
-            .append("Because of insufficient demand for ").append(getSourceMarket().getBasket())
-            .append(".").toString(); // TODO: print basket in human-readable form.
+                        .append("Because of insufficient demand for ")
+                        .append(getSourceMarket().getBasket()).append(".").toString(); // TODO: print basket in human-readable form.
     }
 } // end Deactivate class

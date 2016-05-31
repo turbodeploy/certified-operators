@@ -205,7 +205,8 @@ public final class AnalysisToProtobuf {
             .setClonable(input.isCloneable())
             .setSuspendable(input.isSuspendable())
             .setMinDesiredUtilization((float)input.getMinDesiredUtil())
-            .setMaxDesiredUtilization((float)input.getMaxDesiredUtil()).build();
+            .setMaxDesiredUtilization((float)input.getMaxDesiredUtil())
+            .setGuaranteedBuyer(input.isGuaranteedBuyer()).build();
     }
 
     /**

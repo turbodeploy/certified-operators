@@ -86,6 +86,7 @@ public class ProvisionBySupply implements Action {
         provisionedSeller_.getSettings().setSuspendable(getModelSeller().getSettings().isSuspendable());
         provisionedSeller_.getSettings().setMinDesiredUtil(getModelSeller().getSettings().getMinDesiredUtil());
         provisionedSeller_.getSettings().setMaxDesiredUtil(getModelSeller().getSettings().getMaxDesiredUtil());
+        provisionedSeller_.getSettings().setGuaranteedBuyer(getModelSeller().getSettings().isGuaranteedBuyer());
 
         // Add basket(s) bought
         for (@NonNull Entry<@NonNull ShoppingList, @NonNull Market> entry
@@ -133,6 +134,9 @@ public class ProvisionBySupply implements Action {
                 getModelSeller().getCommoditiesSold().get(i).getSettings().getPriceFunction());
         }
 
+        // if the trader being cloned is a provider for a gauranteedBuyer, then the clone should be a provider for that guranteedBuyer as well
+        Utility.addShoppingListForGuaranteedBuyers(getEconomy(),
+                        Utility.findShoppingListForGuaranteedBuyer(getEconomy(), getModelSeller()), getProvisionedSeller());
         return this;
     }
 
@@ -174,4 +178,5 @@ public class ProvisionBySupply implements Action {
     public @NonNull Trader getActionTarget() {
         return getModelSeller();
     }
+
 } // end ProvisionBySupply class

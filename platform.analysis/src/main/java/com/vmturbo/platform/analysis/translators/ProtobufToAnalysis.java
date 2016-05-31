@@ -219,6 +219,7 @@ public final class ProtobufToAnalysis {
         destination.setSuspendable(source.getSuspendable());
         destination.setMinDesiredUtil(source.getMinDesiredUtilization());
         destination.setMaxDesiredUtil(source.getMaxDesiredUtilization());
+        destination.setGuaranteedBuyer(source.getGuaranteedBuyer());
     }
 
     /**
@@ -283,10 +284,10 @@ public final class ProtobufToAnalysis {
             case RECONFIGURE:
                 return new Reconfigure(economy, shoppingList.apply(input.getReconfigure().getShoppingListToReconfigure()));
             case ACTIVATE:
-                return new Activate(trader.apply(input.getActivate().getTraderToActivate()),
-                                    economy.getMarket(basket(input.getActivate().getTriggeringBasketList())));
+                return new Activate(economy, trader.apply(input.getActivate().getTraderToActivate()),
+                                    economy.getMarket(basket(input.getActivate().getTriggeringBasketList())), trader.apply(input.getActivate().getModelSeller()));
             case DEACTIVATE:
-                return new Deactivate(trader.apply(input.getDeactivate().getTraderToDeactivate()),
+                return new Deactivate(economy, trader.apply(input.getDeactivate().getTraderToDeactivate()),
                                       economy.getMarket(basket(input.getDeactivate().getTriggeringBasketList())));
             case PROVISION_BY_DEMAND:
                 return new ProvisionByDemand(economy, shoppingList.apply(input.getProvisionByDemand().getModelBuyer()));

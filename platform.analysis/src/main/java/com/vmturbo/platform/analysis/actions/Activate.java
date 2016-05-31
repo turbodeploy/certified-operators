@@ -3,8 +3,11 @@ package com.vmturbo.platform.analysis.actions;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
+import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
+import org.checkerframework.dataflow.qual.Pure;
 
+import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
@@ -17,6 +20,8 @@ import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
  */
 public class Activate extends StateChangeBase implements Action { // inheritance for code reuse
 
+    private final @NonNull Trader modelSeller_;
+    private final @NonNull Economy economy_;
     // Constructors
 
     /**
@@ -24,12 +29,31 @@ public class Activate extends StateChangeBase implements Action { // inheritance
      *
      * @param target The trader that will be activated as a result of taking {@code this} action.
      * @param sourceMarket The market that benefits from activating target.
+     * @param modelSeller the trader which will be used  the shopping
      */
-    public Activate(@NonNull Trader target, @NonNull Market sourceMarket) {
+    public Activate(@NonNull Economy economy, @NonNull Trader target, @NonNull Market sourceMarket, @NonNull Trader modelSeller) {
         super(target,sourceMarket);
+        modelSeller_ = modelSeller;
+        economy_ = economy;
     }
 
     // Methods
+
+    /**
+    * Returns the model seller that should be used to serve as the template for creation of guaranteed buyers, if any
+    */
+   @Pure
+   public @NonNull Trader getModelSeller(@ReadOnly Activate this) {
+       return modelSeller_;
+   }
+
+    /**
+    * Returns the economy in which the trader will be added.
+    */
+   @Pure
+   public @NonNull Economy getEconomy(@ReadOnly Activate this) {
+       return economy_;
+   }
 
     @Override
     public @NonNull String serialize(@NonNull Function<@NonNull Trader, @NonNull String> oid) {
@@ -39,17 +63,29 @@ public class Activate extends StateChangeBase implements Action { // inheritance
             .append("\" />").toString();
     }
 
+    /**
+     * Takes an activate action to change the state of a trader from inactive to active.
+     */
     @Override
     public @NonNull Activate take() {
         checkArgument(!getTarget().getState().isActive());
         getTarget().changeState(TraderState.ACTIVE);
+        // when activate an inactive trader, update its relation with guaranteed buyers if any
+        Utility.addShoppingListForGuaranteedBuyers(getEconomy(),
+                        Utility.findShoppingListForGuaranteedBuyer(getEconomy(), getModelSeller()), getTarget());
         return this;
     }
 
+    /**
+     * Rolls back an activate action to change the state of a trader from active back to inactive.
+     */
     @Override
     public @NonNull Activate rollback() {
         checkArgument(getTarget().getState().isActive());
         getTarget().changeState(TraderState.INACTIVE);
+        // when roll back an activate action, remove the shoppingList for the target and its guaranteed buyers
+        Utility.removeShoppingListForGuaranteedBuyers(getEconomy(),
+                        Utility.findShoppingListForGuaranteedBuyer(getEconomy(), getTarget()), getTarget());
         return this;
     }
 

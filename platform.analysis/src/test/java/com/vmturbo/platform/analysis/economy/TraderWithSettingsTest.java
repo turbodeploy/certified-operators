@@ -306,6 +306,14 @@ public final class TraderWithSettingsTest {
     }
 
     @Test
+    @Parameters({"true","false"})
+    @TestCaseName("Test #{index}: (set|is)GuranteedBuyer({0})")
+    public final void testIsSetGuranteedBuyer(boolean guranteedBuyer) {
+        fixture_.setGuaranteedBuyer(guranteedBuyer);
+        assertEquals(guranteedBuyer, fixture_.isGuaranteedBuyer());
+    }
+
+    @Test
     @Parameters({"0.0,0.0","0.0,0.5","0.0,1.0",
                  "0.5,0.5","0.5,1.0",
                  "1.0,1.0"})

@@ -12,8 +12,10 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import com.vmturbo.platform.analysis.economy.Basket;
+import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.topology.LegacyTopology;
@@ -34,9 +36,9 @@ public class DeactivateTest {
 
     @Test
     @Parameters
-    @TestCaseName("Test #{index}: new Deactivate({0},{1},{3})")
-    public final void testDeactivate(@NonNull Trader target, @NonNull Market sourceMarket, boolean unusedFlag) {
-        @NonNull Deactivate deactivation = new Deactivate(target, sourceMarket);
+    @TestCaseName("Test #{index}: new Deactivate({0},{1},{2})")
+    public final void testDeactivate(@NonNull Economy economy, @NonNull Trader target, @NonNull Market sourceMarket, boolean unusedFlag) {
+        @NonNull Deactivate deactivation = new Deactivate(economy, target, sourceMarket);
 
         assertSame(target, deactivation.getTarget());
         assertSame(sourceMarket, deactivation.getSourceMarket());
@@ -48,7 +50,22 @@ public class DeactivateTest {
         Trader t1 = e1.addTrader(0, TraderState.ACTIVE, EMPTY, EMPTY);
         Trader t2 = e1.addTrader(0, TraderState.INACTIVE, EMPTY, EMPTY);
 
-        return new Object[][]{{t1,e1.getMarket(EMPTY),true},{t2,e1.getMarket(EMPTY),false}};
+        return new Object[][]{{e1,t1,e1.getMarket(EMPTY), true},{e1,t2,e1.getMarket(EMPTY), false}};
+    }
+
+    @SuppressWarnings("unused") // it is used reflectively
+    private static Object[] parametersForTestWithGuaranteedBuyer() {
+        Economy e1 = new Economy();
+        Basket basket = new Basket(new CommoditySpecification(0));
+        Trader t1 = e1.addTrader(0, TraderState.ACTIVE, basket, EMPTY);
+        Trader t2 = e1.addTrader(0, TraderState.INACTIVE, basket, EMPTY);
+
+        Trader b1 = e1.addTrader(1, TraderState.ACTIVE, EMPTY, basket);
+        b1.getSettings().setGuaranteedBuyer(true);
+        ShoppingList s1 = e1.addBasketBought(b1, basket);
+        s1.move(t1);
+
+        return new Object[][]{{e1,t1,e1.getMarket(EMPTY),true},{e1,t2,e1.getMarket(EMPTY),false}};
     }
 
     @Test
@@ -73,16 +90,16 @@ public class DeactivateTest {
         oids.put(t2, "id2");
 
         return new Object[][]{
-            {new Deactivate(t1, e1.getMarket(EMPTY)),oid,"<action type=\"deactivate\" target=\"id1\" />"},
-            {new Deactivate(t2, e1.getMarket(EMPTY)),oid,"<action type=\"deactivate\" target=\"id2\" />"}
+            {new Deactivate(e1, t1, e1.getMarket(EMPTY)),oid,"<action type=\"deactivate\" target=\"id1\" />"},
+            {new Deactivate(e1, t2, e1.getMarket(EMPTY)),oid,"<action type=\"deactivate\" target=\"id2\" />"}
         };
     }
 
     @Test
     @Parameters(method = "parametersForTestDeactivate")
-    @TestCaseName("Test #{index}: new Deactivate({0},{1}).take() throw == {3}")
-    public final void testTake(@NonNull Trader target, @NonNull Market sourceMarket, boolean valid) {
-        @NonNull Deactivate deactivation = new Deactivate(target,sourceMarket);
+    @TestCaseName("Test #{index}: new Deactivate({0},{1},{2}).take() throw == {3}")
+    public final void testTake(@NonNull Economy economy, @NonNull Trader target, @NonNull Market sourceMarket, boolean valid) {
+        @NonNull Deactivate deactivation = new Deactivate(economy, target, sourceMarket);
 
         try {
             assertSame(deactivation, deactivation.take());
@@ -95,9 +112,9 @@ public class DeactivateTest {
 
     @Test
     @Parameters(method = "parametersForTestDeactivate")
-    @TestCaseName("Test #{index}: new Deactivate({0},{1}).rollback() throw == {3}")
-    public final void testRollback(@NonNull Trader target, @NonNull Market sourceMarket, boolean invalid) {
-        @NonNull Deactivate deactivation = new Deactivate(target,sourceMarket);
+    @TestCaseName("Test #{index}: new Deactivate({0},{1},{2}).rollback()  throw == {3}")
+    public final void testRollback(@NonNull Economy economy, @NonNull Trader target, @NonNull Market sourceMarket, boolean invalid) {
+        @NonNull Deactivate deactivation = new Deactivate(economy, target,sourceMarket);
         // TODO: normally, we should take the action before rolling back...
         try {
             assertSame(deactivation, deactivation.rollback());
@@ -121,14 +138,15 @@ public class DeactivateTest {
     private static Object[] parametersForTestDebugDescription() {
         @NonNull LegacyTopology topology1 = new LegacyTopology();
 
+        Economy e1 = new Economy();
         Trader t1 = topology1.addTrader("id1","name1","type1",TraderState.ACTIVE, Arrays.asList());
         topology1.addBasketBought(t1, Arrays.asList());
         Trader t2 = topology1.addTrader("id2","name2","type2",TraderState.INACTIVE, Arrays.asList());
         topology1.addBasketBought(t2, Arrays.asList("a"));
 
         return new Object[][]{
-            {new Deactivate(t1, topology1.getEconomy().getMarket(EMPTY)),topology1,"Deactivate name1 [id1] (#0)."},
-            {new Deactivate(t2, topology1.getEconomy().getMarket(EMPTY)),topology1,"Deactivate name2 [id2] (#1)."},
+            {new Deactivate(e1, t1, topology1.getEconomy().getMarket(EMPTY)),topology1,"Deactivate name1 [id1] (#0)."},
+            {new Deactivate(e1, t2, topology1.getEconomy().getMarket(EMPTY)),topology1,"Deactivate name2 [id2] (#1)."},
         };
     }
 
@@ -145,15 +163,51 @@ public class DeactivateTest {
     private static Object[] parametersForTestDebugReason() {
         @NonNull LegacyTopology topology1 = new LegacyTopology();
 
+        Economy e1 = new Economy();
         Trader t1 = topology1.addTrader("id1","name1","type1",TraderState.ACTIVE, Arrays.asList());
         topology1.addBasketBought(t1, Arrays.asList());
         Trader t2 = topology1.addTrader("id2","name2","type2",TraderState.INACTIVE, Arrays.asList());
         topology1.addBasketBought(t2, Arrays.asList("a"));
 
         return new Object[][]{
-            {new Deactivate(t1, topology1.getEconomy().getMarket(EMPTY)),topology1,"Because of insufficient demand for []."},
-            {new Deactivate(t2, topology1.getEconomy().getMarket(EMPTY)),topology1,"Because of insufficient demand for []."},
+            {new Deactivate(e1, t1, topology1.getEconomy().getMarket(EMPTY)),topology1,"Because of insufficient demand for []."},
+            {new Deactivate(e1, t2, topology1.getEconomy().getMarket(EMPTY)),topology1,"Because of insufficient demand for []."},
         };
+    }
+
+    @Test
+    @Parameters(method = "parametersForTestWithGuaranteedBuyer")
+    @TestCaseName("Test #{index}: new Deactivate({0},{1},{2}).take() throw == {3}")
+    public final void testTakeWithGuaranteedBuyer(@NonNull Economy economy, @NonNull Trader target, @NonNull Market sourceMarket, boolean valid) {
+        @NonNull Deactivate deactivation = new Deactivate(economy, target,sourceMarket);
+        try {
+            assertSame(deactivation, deactivation.take());
+            assertTrue(valid);
+        } catch (IllegalArgumentException e) {
+            assertFalse(valid);
+        }
+        assertFalse(target.getState().isActive());
+
+        // check for buyer-seller relation for guaranteedBuyer and trader to deactivate
+        assertEquals(0, target.getCustomers().size());
+    }
+
+    // TODO: we need the implementation for ShoppingList.getBasketBought before this test can be enabled
+    @Test
+    @Parameters(method = "parametersForTestWithGuaranteedBuyer")
+    @TestCaseName("Test #{index}: new Deactivate({0},{1},{2}).rollback() throw == {3}")
+    public final void testRollbackWithGuaranteedBuyer(@NonNull Economy economy, @NonNull Trader target, @NonNull Market sourceMarket, boolean invalid) {
+        @NonNull Deactivate deactivation = new Deactivate(economy, target, sourceMarket);
+        try {
+            assertSame(deactivation, deactivation.rollback());
+            assertFalse(invalid);
+        } catch (IllegalArgumentException e) {
+            assertTrue(invalid);
+        }
+        assertTrue(target.getState().isActive());
+
+        // check the buyer-seller relation is being cancelled
+        assertEquals(invalid ? 1 : 0, target.getCustomers().size());
     }
 
 } // end DeactivateTest class

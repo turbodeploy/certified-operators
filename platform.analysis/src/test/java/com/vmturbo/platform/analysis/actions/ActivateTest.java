@@ -12,8 +12,10 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import com.vmturbo.platform.analysis.economy.Basket;
+import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.topology.LegacyTopology;
@@ -34,9 +36,9 @@ public class ActivateTest {
 
     @Test
     @Parameters
-    @TestCaseName("Test #{index}: new Activate({0},{1},{2})")
-    public final void testActivate(@NonNull Trader target, @NonNull Market sourceMarket, boolean unusedFlag) {
-        @NonNull Activate activation = new Activate(target, sourceMarket);
+    @TestCaseName("Test #{index}: new Activate({0},{1},{2},{3})")
+    public final void testActivate(@NonNull Economy economy, @NonNull Trader target, @NonNull Market sourceMarket, @NonNull Trader modelSeller, boolean unusedFlag) {
+        @NonNull Activate activation = new Activate(economy, target, sourceMarket, modelSeller);
 
         assertSame(target, activation.getTarget());
         assertSame(sourceMarket, activation.getSourceMarket());
@@ -47,8 +49,31 @@ public class ActivateTest {
         Economy e1 = new Economy();
         Trader t1 = e1.addTrader(0, TraderState.ACTIVE, EMPTY, EMPTY);
         Trader t2 = e1.addTrader(0, TraderState.INACTIVE, EMPTY, EMPTY);
+        Trader t3 = e1.addTrader(0, TraderState.ACTIVE, EMPTY, EMPTY);
+        Trader t4 = e1.addTrader(0, TraderState.INACTIVE, EMPTY, EMPTY);
 
-        return new Object[][]{{t1,e1.getMarket(EMPTY),false},{t2,e1.getMarket(EMPTY),true}};
+        return new Object[][]{{e1,t1,e1.getMarket(EMPTY),t3, false},{e1,t2,e1.getMarket(EMPTY),t4, true}};
+    }
+
+    @SuppressWarnings("unused") // it is used reflectively
+    private static Object[] parametersForTestWithGuaranteedBuyer() {
+        Economy e1 = new Economy();
+        Basket basket = new Basket(new CommoditySpecification(0));
+        Trader t1 = e1.addTrader(0, TraderState.INACTIVE, basket, EMPTY);
+        Trader t2 = e1.addTrader(0, TraderState.ACTIVE, basket, EMPTY);
+
+        //t3 is the model seller
+        Trader t3 = e1.addTrader(0, TraderState.ACTIVE, basket, EMPTY);
+
+        Trader b1 = e1.addTrader(0, TraderState.ACTIVE, EMPTY, basket);
+        b1.getSettings().setGuaranteedBuyer(true);
+        //b1 is a guaranteedBuyer for t2 and t3
+        ShoppingList s2 = e1.addBasketBought(b1, basket);
+        s2.move(t2);
+        ShoppingList s3 = e1.addBasketBought(b1, basket);
+        s3.move(t3);
+
+        return new Object[][]{{e1,t1,e1.getMarket(EMPTY),t3, b1, true}, {e1,t2,e1.getMarket(EMPTY),t3, b1, false}};
     }
 
     @Test
@@ -68,21 +93,23 @@ public class ActivateTest {
         Economy e1 = new Economy();
         Trader t1 = e1.addTrader(0, TraderState.ACTIVE, EMPTY, EMPTY);
         Trader t2 = e1.addTrader(0, TraderState.INACTIVE, EMPTY, EMPTY);
+        Trader t3 = e1.addTrader(0, TraderState.ACTIVE, EMPTY, EMPTY);
+        Trader t4 = e1.addTrader(0, TraderState.INACTIVE, EMPTY, EMPTY);
 
         oids.put(t1, "id1");
         oids.put(t2, "id2");
 
         return new Object[][]{
-            {new Activate(t1, e1.getMarket(EMPTY)),oid,"<action type=\"activate\" target=\"id1\" />"},
-            {new Activate(t2, e1.getMarket(EMPTY)),oid,"<action type=\"activate\" target=\"id2\" />"}
+            {new Activate(e1, t1, e1.getMarket(EMPTY), t3),oid,"<action type=\"activate\" target=\"id1\" />"},
+            {new Activate(e1, t2, e1.getMarket(EMPTY), t4),oid,"<action type=\"activate\" target=\"id2\" />"}
         };
     }
 
     @Test
     @Parameters(method = "parametersForTestActivate")
-    @TestCaseName("Test #{index}: new Activate({0},{1}).take() throw == {3}")
-    public final void testTake(@NonNull Trader target, @NonNull Market sourceMarket, boolean valid) {
-        @NonNull Activate activation = new Activate(target,sourceMarket);
+    @TestCaseName("Test #{index}: new Activate({0},{1},{2},{3}).take()  throw == {4}")
+    public final void testTake(@NonNull Economy economy, @NonNull Trader target, @NonNull Market sourceMarket, @NonNull Trader modelSeller, boolean valid) {
+        @NonNull Activate activation = new Activate(economy, target,sourceMarket, modelSeller);
 
         try {
             assertSame(activation, activation.take());
@@ -95,9 +122,9 @@ public class ActivateTest {
 
     @Test
     @Parameters(method = "parametersForTestActivate")
-    @TestCaseName("Test #{index}: new Activate({0},{1}).rollback() throw == {3}")
-    public final void testRollback(@NonNull Trader target, @NonNull Market sourceMarket, boolean invalid) {
-        @NonNull Activate activation = new Activate(target,sourceMarket);
+    @TestCaseName("Test #{index}: new Activate({0},{1},{2},{3}).rollback()  throw == {4}")
+    public final void testRollback(@NonNull Economy economy, @NonNull Trader target, @NonNull Market sourceMarket, @NonNull Trader modelSeller, boolean invalid) {
+        @NonNull Activate activation = new Activate(economy, target,sourceMarket, modelSeller);
         // TODO: normally, we should take the action before rolling back...
         try {
             assertSame(activation, activation.rollback());
@@ -121,14 +148,19 @@ public class ActivateTest {
     private static Object[] parametersForTestDebugDescription() {
         @NonNull LegacyTopology topology1 = new LegacyTopology();
 
+        Economy e1 = new Economy();
         Trader t1 = topology1.addTrader("id1","name1","type1",TraderState.ACTIVE, Arrays.asList());
         topology1.addBasketBought(t1, Arrays.asList());
         Trader t2 = topology1.addTrader("id2","name2","type2",TraderState.INACTIVE, Arrays.asList());
         topology1.addBasketBought(t2, Arrays.asList("a"));
+        Trader t3 = topology1.addTrader("id3","name3","type3",TraderState.ACTIVE, Arrays.asList());
+        topology1.addBasketBought(t3, Arrays.asList());
+        Trader t4 = topology1.addTrader("id4","name4","type4",TraderState.INACTIVE, Arrays.asList());
+        topology1.addBasketBought(t4, Arrays.asList("b"));
 
         return new Object[][]{
-            {new Activate(t1, topology1.getEconomy().getMarket(EMPTY)),topology1,"Activate name1 [id1] (#0)."},
-            {new Activate(t2, topology1.getEconomy().getMarket(EMPTY)),topology1,"Activate name2 [id2] (#1)."},
+            {new Activate(e1, t1, topology1.getEconomy().getMarket(EMPTY), t3),topology1,"Activate name1 [id1] (#0)."},
+            {new Activate(e1, t2, topology1.getEconomy().getMarket(EMPTY), t4),topology1,"Activate name2 [id2] (#1)."},
         };
     }
 
@@ -145,15 +177,56 @@ public class ActivateTest {
     private static Object[] parametersForTestDebugReason() {
         @NonNull LegacyTopology topology1 = new LegacyTopology();
 
+        Economy e1 = new Economy();
         Trader t1 = topology1.addTrader("id1","name1","type1",TraderState.ACTIVE, Arrays.asList());
         topology1.addBasketBought(t1, Arrays.asList());
         Trader t2 = topology1.addTrader("id2","name2","type2",TraderState.INACTIVE, Arrays.asList());
         topology1.addBasketBought(t2, Arrays.asList("a"));
+        Trader t3 = topology1.addTrader("id3","name3","type3",TraderState.ACTIVE, Arrays.asList());
+        topology1.addBasketBought(t3, Arrays.asList());
+        Trader t4 = topology1.addTrader("id4","name4","type4",TraderState.INACTIVE, Arrays.asList());
+        topology1.addBasketBought(t4, Arrays.asList("b"));
 
         return new Object[][]{
-            {new Activate(t1, topology1.getEconomy().getMarket(EMPTY)),topology1,"To satisfy increased demand for []."},
-            {new Activate(t2, topology1.getEconomy().getMarket(EMPTY)),topology1,"To satisfy increased demand for []."},
+            {new Activate(e1, t1, topology1.getEconomy().getMarket(EMPTY), t3),topology1,"To satisfy increased demand for []."},
+            {new Activate(e1, t2, topology1.getEconomy().getMarket(EMPTY), t4),topology1,"To satisfy increased demand for []."},
         };
+    }
+
+    @Test
+    @Parameters(method = "parametersForTestWithGuaranteedBuyer")
+    @TestCaseName("Test #{index}: new Activate({0}, {1}, {2}, {3}).take() throw == {5}")
+    public final void testTakeWithGuaranteedBuyer(@NonNull Economy economy, @NonNull Trader target, @NonNull Market sourceMarket, @NonNull Trader modelSeller, @NonNull Trader expectedBuyer, boolean valid) {
+        @NonNull Activate activation = new Activate(economy, target, sourceMarket, modelSeller);
+
+        try {
+            assertSame(activation, activation.take());
+            assertTrue(valid);
+        } catch (IllegalArgumentException e) {
+            assertFalse(valid);
+        }
+        assertTrue(target.getState().isActive());
+
+        // check for shoppingList for guaranteedBuyer and trader to activate
+        assertEquals(1, target.getCustomers().size());
+        // check the buyer-seller relation is being set for guaranteed buyer and newly activated trader
+        assertEquals(expectedBuyer, target.getCustomers().get(0).getBuyer());
+    }
+
+    @Test
+    @Parameters(method = "parametersForTestWithGuaranteedBuyer")
+    @TestCaseName("Test #{index}: new Activate({0},{1},{2},{3}).rollback() throw == {5}")
+    public final void testRollbackWithGuaranteedBuyer(@NonNull Economy economy, @NonNull Trader target, @NonNull Market sourceMarket, @NonNull Trader modelSeller, @ NonNull Trader expectedBuyer, boolean invalid) {
+        @NonNull Activate activation = new Activate(economy, target,sourceMarket, modelSeller);
+        try {
+            assertSame(activation, activation.rollback());
+            assertFalse(invalid);
+        } catch (IllegalArgumentException e) {
+            assertTrue(invalid);
+        }
+        assertFalse(target.getState().isActive());
+        // check the buyer-seller relation is being cancelled
+        assertEquals(0, target.getCustomers().size());
     }
 
 } // end ActivateTest class

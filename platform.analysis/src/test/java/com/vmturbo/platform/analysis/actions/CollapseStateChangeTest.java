@@ -29,8 +29,9 @@ public class CollapseStateChangeTest {
     private static final int TYPE_PM = 0;
     private static final int TYPE_VM = 1;
 
-    private static final Trader vm = EC.addTrader(TYPE_VM, TraderState.ACTIVE, EMPTY);
-    private static final ShoppingList bp0 = EC.addBasketBought(vm, BASKET);
+    private static final Trader vm1 = EC.addTrader(TYPE_VM, TraderState.ACTIVE, EMPTY);
+    private static final Trader vm2 = EC.addTrader(TYPE_VM, TraderState.ACTIVE, EMPTY);
+    private static final ShoppingList bp0 = EC.addBasketBought(vm1, BASKET);
     private static final Trader pm1 = EC.addTrader(TYPE_PM, TraderState.ACTIVE, BASKET);
     private static final Trader pm2 = EC.addTrader(TYPE_PM, TraderState.ACTIVE, BASKET);
 
@@ -144,7 +145,7 @@ public class CollapseStateChangeTest {
         int collapsedMoveIndex = expectedCollapsedString.indexOf("M");
         if (collapsedMoveIndex >= 0) {
             Move collapsedMove = (Move) collapsed.get(collapsedMoveIndex);
-            assertSame(vm, collapsedMove.getActionTarget());
+            assertSame(vm1, collapsedMove.getActionTarget());
             assertSame(bp0, collapsedMove.getTarget());
             assertSame(pm1, collapsedMove.getSource());
             Move lastMove = (Move) actions.get(actionsString.lastIndexOf("M"));
@@ -228,12 +229,12 @@ public class CollapseStateChangeTest {
     private Action actionDifferentBP(int c) {
         switch (c) {
         case 'A':
-            return new Activate(vm, EC.getMarket(EMPTY));
+            return new Activate(EC, vm1, EC.getMarket(EMPTY), vm2);
         case 'M':
-            ShoppingList bp = EC.addBasketBought(vm, BASKET);
+            ShoppingList bp = EC.addBasketBought(vm1, BASKET);
             return new Move(EC, bp, pm1, pm2);
         case 'D':
-            return new Deactivate(vm, EC.getMarket(EMPTY));
+            return new Deactivate(EC, vm1, EC.getMarket(EMPTY));
         default:
             throw new IllegalArgumentException("Action " + c);
         }
@@ -269,7 +270,7 @@ public class CollapseStateChangeTest {
     private Action actionSameBP(int c) {
         switch (c) {
         case 'A':
-            return new Activate(vm, EC.getMarket(EMPTY));
+            return new Activate(EC, vm1, EC.getMarket(EMPTY), vm2);
         case 'M':
             Trader moveFrom = lastMoveTo == null ? pm1 : lastMoveTo;
             Trader newMoveTo = EC.addTrader(TYPE_PM, TraderState.ACTIVE, BASKET);
@@ -277,7 +278,7 @@ public class CollapseStateChangeTest {
             lastMoveTo = newMoveTo;
             return move;
         case 'D':
-            return new Deactivate(vm, EC.getMarket(EMPTY));
+            return new Deactivate(EC, vm1, EC.getMarket(EMPTY));
         default:
             throw new IllegalArgumentException("Action " + c);
         }
@@ -302,24 +303,24 @@ public class CollapseStateChangeTest {
         Trader pm3 = EC.addTrader(TYPE_PM, TraderState.ACTIVE, BASKET);
 
         // Trader 1 : AMDAM -> AMM (two BPs)
-        Action A1_1 = new Activate(vm1, EC.getMarket(EMPTY));
+        Action A1_1 = new Activate(EC, vm1, EC.getMarket(EMPTY), vm2);
         Action A1_2 = new Move(EC, bp1_1, pm1, pm2);
-        Action A1_3 = new Deactivate(vm1, EC.getMarket(EMPTY));
-        Action A1_4 = new Activate(vm1, EC.getMarket(EMPTY));
+        Action A1_3 = new Deactivate(EC, vm1, EC.getMarket(EMPTY));
+        Action A1_4 = new Activate(EC, vm1, EC.getMarket(EMPTY), vm2);
         Action A1_5 = new Move(EC, bp1_2, pm1, pm2);
 
         // Trader 2 : MMDA -> [] (one BP moves from pm1 to pm2 and back to to pm1)
         Action A2_1 = new Move(EC, bp2_1, pm1, pm2);
         Action A2_2 = new Move(EC, bp2_1, pm2, pm1);
-        Action A2_3 = new Deactivate(vm2, EC.getMarket(EMPTY));
-        Action A2_4 = new Activate(vm2, EC.getMarket(EMPTY));
+        Action A2_3 = new Deactivate(EC, vm2, EC.getMarket(EMPTY));
+        Action A2_4 = new Activate(EC, vm2, EC.getMarket(EMPTY), vm1);
 
         // Trader 3 : MDAMD -> D (two BPs)
         Action A3_1 = new Move(EC, bp3_1, pm1, pm2);
-        Action A3_2 = new Deactivate(vm3, EC.getMarket(EMPTY));
-        Action A3_3 = new Activate(vm3, EC.getMarket(EMPTY));
+        Action A3_2 = new Deactivate(EC, vm3, EC.getMarket(EMPTY));
+        Action A3_3 = new Activate(EC, vm3, EC.getMarket(EMPTY), vm1);
         Action A3_4 = new Move(EC, bp3_2, pm2, pm3);
-        Action A3_5 = new Deactivate(vm3, EC.getMarket(EMPTY));
+        Action A3_5 = new Deactivate(EC, vm3, EC.getMarket(EMPTY));
 
         // Test 1 : Sequential concatenation
         List<Action> actionsSequential = Lists.newArrayList(
@@ -351,10 +352,11 @@ public class CollapseStateChangeTest {
     public final void testCollapse() {
         List<Action> actions = Lists.newArrayList();
         actions.add(new Move(EC, bp0, pm1, pm2));
-        actions.add(new Deactivate(vm, EC.getMarket(EMPTY)));
-        actions.add(new Activate(vm, EC.getMarket(EMPTY)));
+        actions.add(new Deactivate(EC, vm1, EC.getMarket(EMPTY)));
+        actions.add(new Activate(EC, vm1, EC.getMarket(EMPTY), vm2));
         actions.add(new Move(EC, bp0, pm2, pm1));
         List<Action> collapsed = Action.collapsed(actions);
         assertTrue(collapsed.isEmpty());
     }
+
 }

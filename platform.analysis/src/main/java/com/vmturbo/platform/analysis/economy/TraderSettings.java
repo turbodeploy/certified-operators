@@ -88,7 +88,23 @@ public interface TraderSettings {
      * @return {@code this}
      */
     @NonNull TraderSettings setMinDesiredUtil(double minDesiredUtilization);
+    
+    /**
+     * Whether the associated {@link Trader} should consume the clone of provider.
+     * @return
+     */
+    boolean isGuaranteedBuyer();
 
-    // May need to add shopTogether here, but may also store it implicitly as well...
-
+    /**
+     * Sets the value of the <b>guranteedBuyer</b> field.
+     *
+     * <p>
+     *  Has no observable side-effects except setting the above field.
+     * </p>
+     *
+     * @param guranteedBuyer the new value for the field.
+     * @return {@code this}
+     */
+    @NonNull TraderSettings setGuaranteedBuyer(boolean guaranteedBuyer);
+ // May need to add shopTogether here, but may also store it implicitly as well...
 } // end TraderSettings interface

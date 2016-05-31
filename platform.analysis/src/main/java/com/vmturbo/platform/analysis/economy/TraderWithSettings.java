@@ -21,6 +21,7 @@ final class TraderWithSettings extends Trader implements TraderSettings {
     // Fields for TraderSettings
     private boolean suspendable_ = false;
     private boolean cloneable_ = false;
+    private boolean guaranteedBuyer_ = false;
     private double maxDesiredUtilization_ = 1.0;
     private double minDesiredUtilization_ = 0.0;
 
@@ -138,6 +139,19 @@ final class TraderWithSettings extends Trader implements TraderSettings {
         checkArgument(minDesiredUtilization <= maxDesiredUtilization_,
             "minDesiredUtilization = " + minDesiredUtilization + " maxDesiredUtilization_ = " + maxDesiredUtilization_);
         minDesiredUtilization_ = minDesiredUtilization;
+        return this;
+    }
+
+    @Override
+    @Pure
+    public boolean isGuaranteedBuyer(@ReadOnly TraderWithSettings this) {
+        return guaranteedBuyer_;
+    }
+
+    @Override
+    @Deterministic
+    public @NonNull TraderSettings setGuaranteedBuyer(boolean guaranteedBuyer) {
+        guaranteedBuyer_ = guaranteedBuyer;
         return this;
     }
 

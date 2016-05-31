@@ -17,6 +17,7 @@ import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.topology.LegacyTopology;
@@ -73,6 +74,18 @@ public class ProvisionBySupplyTest {
         }
 
         return testCases.toArray();
+    }
+
+    @SuppressWarnings("unused") // it is used reflectively
+    private static Object[] parametersForTestWithGuaranteedBuyer() {
+        Economy e1 = new Economy();
+
+        Trader modelSeller = e1.addTrader(0, TraderState.ACTIVE, basketsSold[1], basketsBought[0]);
+        Trader b1 = e1.addTrader(1, TraderState.ACTIVE, basketsSold[1], basketsSold[1]);
+        b1.getSettings().setGuaranteedBuyer(true);
+        ShoppingList s1 = e1.addBasketBought(b1, basketsSold[1]);
+        s1.move(modelSeller);
+        return new Object[]{e1, modelSeller};
     }
 
     @Test
@@ -178,5 +191,33 @@ public class ProvisionBySupplyTest {
             // TODO: update test when we figure out how to get correct type!
         };
     }
+
+    @Test
+    @Parameters(method = "parametersForTestWithGuaranteedBuyer")
+    @TestCaseName("Test #{index}: new ProvisionBySupply({0},{1}).take().rollback()")
+    public final void testTakeRollbackWithGuranteedBuyer(@NonNull Economy economy, @NonNull Trader modelSeller) {
+        @NonNull ProvisionBySupply provision = new ProvisionBySupply(economy, modelSeller);
+        provision.take();
+        Trader provisionedSeller = provision.getProvisionedSeller();
+
+        List<Trader> guranteedBuyer = new ArrayList<Trader>();
+        for (ShoppingList shoppingList : modelSeller.getCustomers()) {
+            if (shoppingList.getBuyer().getSettings().isGuaranteedBuyer()) {
+                guranteedBuyer.add(shoppingList.getBuyer());
+                Market m = economy.getMarketsAsBuyer(shoppingList.getBuyer()).get(shoppingList);
+                assertTrue(m.getActiveSellers().contains(provisionedSeller));
+            }
+        }
+
+        provision.rollback();
+
+        assertNull(provision.getProvisionedSeller());
+        for (Trader buyer : guranteedBuyer) {
+            assertTrue(!economy.getSuppliers(buyer).contains(provisionedSeller));
+        }
+
+
+    }
+
 
 } // end ProvisionBySupplyTest class
