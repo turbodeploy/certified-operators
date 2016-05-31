@@ -314,6 +314,14 @@ public final class TraderWithSettingsTest {
     }
 
     @Test
+    @Parameters({"true", "false"})
+    @TestCaseName("Test #{index}: (set|is)CanCustomerMove({0})")
+    public final void testIsSetCanAcceptNewCustomer(boolean canAcceptNewCustomer) {
+        fixture_.setCanAcceptNewCustomer(canAcceptNewCustomer);
+        assertEquals(canAcceptNewCustomer, fixture_.canAcceptNewCustomer());
+    }
+
+    @Test
     @Parameters({"0.0,0.0","0.0,0.5","0.0,1.0",
                  "0.5,0.5","0.5,1.0",
                  "1.0,1.0"})

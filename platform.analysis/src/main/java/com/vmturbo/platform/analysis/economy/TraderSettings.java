@@ -88,7 +88,7 @@ public interface TraderSettings {
      * @return {@code this}
      */
     @NonNull TraderSettings setMinDesiredUtil(double minDesiredUtilization);
-    
+
     /**
      * Whether the associated {@link Trader} should consume the clone of provider.
      * @return
@@ -106,5 +106,24 @@ public interface TraderSettings {
      * @return {@code this}
      */
     @NonNull TraderSettings setGuaranteedBuyer(boolean guaranteedBuyer);
+
+    /**
+     * Whether the associated {@link Trader} can accept a {@link ShoppingList} move to or out of itself.
+     * @return
+     */
+    boolean canAcceptNewCustomer();
+
+    /**
+     * Sets the value of the <b>canAcceptNewCustomer</b> field.
+     *
+     * <p>
+     *  Has no observable side-effects except setting the above field.
+     * </p>
+     *
+     * @param canAcceptNewCustomer the new value for the field.
+     * @return {@code this}
+     */
+    @NonNull
+    TraderSettings setCanAcceptNewCustomer(boolean canAcceptNewCustomer);
  // May need to add shopTogether here, but may also store it implicitly as well...
 } // end TraderSettings interface

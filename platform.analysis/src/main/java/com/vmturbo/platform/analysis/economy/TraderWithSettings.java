@@ -22,6 +22,7 @@ final class TraderWithSettings extends Trader implements TraderSettings {
     private boolean suspendable_ = false;
     private boolean cloneable_ = false;
     private boolean guaranteedBuyer_ = false;
+    private boolean canAcceptNewCustomer_ = false;
     private double maxDesiredUtilization_ = 1.0;
     private double minDesiredUtilization_ = 0.0;
 
@@ -152,6 +153,19 @@ final class TraderWithSettings extends Trader implements TraderSettings {
     @Deterministic
     public @NonNull TraderSettings setGuaranteedBuyer(boolean guaranteedBuyer) {
         guaranteedBuyer_ = guaranteedBuyer;
+        return this;
+    }
+
+    @Override
+    @Pure
+    public boolean canAcceptNewCustomer() {
+        return canAcceptNewCustomer_;
+    }
+
+    @Override
+    @Deterministic
+    public @NonNull TraderSettings setCanAcceptNewCustomer(boolean canAcceptNewCustomer) {
+        canAcceptNewCustomer_ = canAcceptNewCustomer;
         return this;
     }
 

@@ -202,11 +202,11 @@ public final class AnalysisToProtobuf {
      */
     public static @NonNull TraderSettingsTO traderSettingsTO(@NonNull TraderSettings input) {
         return TraderSettingsTO.newBuilder()
-            .setClonable(input.isCloneable())
-            .setSuspendable(input.isSuspendable())
-            .setMinDesiredUtilization((float)input.getMinDesiredUtil())
-            .setMaxDesiredUtilization((float)input.getMaxDesiredUtil())
-            .setGuaranteedBuyer(input.isGuaranteedBuyer()).build();
+                        .setClonable(input.isCloneable()).setSuspendable(input.isSuspendable())
+                        .setMinDesiredUtilization((float)input.getMinDesiredUtil())
+                        .setMaxDesiredUtilization((float)input.getMaxDesiredUtil())
+                        .setGuaranteedBuyer(input.isGuaranteedBuyer())
+                        .setCanAcceptNewCustomer(input.canAcceptNewCustomer()).build();
     }
 
     /**
