@@ -39,6 +39,11 @@ message ActivateTO {
     // A high demand for this list of commodity specifications triggered activation of the trader.
     // It will be a subset of the set of commodity specifications sold by the activating trader.
     repeated CommoditySpecificationTO triggering_basket = 2;
+
+    // The OID of the template seller
+    required int64 model_seller = 3;
+	
+    
 }
 
 // An action to deactivate (suspend) an active trader.

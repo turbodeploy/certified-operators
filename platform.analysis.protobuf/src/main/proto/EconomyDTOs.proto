@@ -111,6 +111,10 @@ message TraderSettingsTO {
     // The relationship min_desired_utilization <= max_desired_utilization must hold.
     optional float min_desired_utilization = 3;
     optional float max_desired_utilization = 4 [default = 1.0];
+
+    // Whether the trader should consume the clone of provider
+    optional bool guaranteed_buyer = 5;
+
 }
 
 // The different states a trader can be in. The intention is to make this a boolean once we confirm
