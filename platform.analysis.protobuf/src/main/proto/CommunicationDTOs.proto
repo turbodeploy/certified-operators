@@ -51,6 +51,13 @@ message EndDiscoveredTopology {
         repeated CommodityResizeDependency commodityResizeDependency = 2;
     }
 
+    // An entry in raw to processed commodity map. The raw (bought) commodity
+    // is the key and the processed (sold) commodity is the value.
+    message CommodityRawMaterialEntry {
+        required int64 rawCommodityType = 1;
+        required int64 processedCommodityType = 2;
+    }
+
     // A map from commodity specifications to functions to use when updating the quantities sold
     // of commodities with that specification when a customer moves in or out. No MapEntry.keys
     // should be the same.
@@ -60,6 +67,10 @@ message EndDiscoveredTopology {
     // For the dependent commodity we also need to know if it should be a min of its and the resized value
     // or has to be set to the resized value.
     repeated CommodityResizeDependencyEntry resize_dependency = 2;
+
+    // A map from the raw (bought) commodity to the processed (sold) commodity.
+    // This map links the bought commodity to the sold commodity
+    repeated CommodityRawMaterialEntry raw_material_entry = 3;
 }
 
 // A compound message to encapsulate any one of command messages.
