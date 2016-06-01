@@ -38,9 +38,11 @@ public final class Economy implements UnmodifiableEconomy {
         quantityFunctions_ = new TreeMap<>();
     // An aggregate of all the parameters configuring this economy's behavior.
     private final @NonNull EconomySettings settings_ = new EconomySettings();
-
-    // map containing rawCommodity->processedCommodity relations between commodities
-    private final @NonNull Map<@NonNull Integer, @NonNull Integer> rawMaterialOf_ = new HashMap<>();
+    // Map of commodity resize dependency calculation by commodity type.
+    private final @NonNull Map<@NonNull Long, @NonNull List<CommodityResizeSpecification>>
+        commodityResizeDependency_ = new HashMap<>();
+    // Map from raw commodity to processed commodity
+    private final @NonNull Map<@NonNull Long, @NonNull Long> rawMaterialOf_ = new HashMap<>();
 
     // Cached data
 
@@ -139,12 +141,7 @@ public final class Economy implements UnmodifiableEconomy {
     @Override
     @Pure
     public @NonNull @ReadOnly int getRawMaterialOf(@ReadOnly Economy this, int rawMaterialType) {
-        return rawMaterialOf_.get(rawMaterialType);
-    }
-
-    @NonNull
-    public Map<Integer, Integer> getModifiableRawCommodityMap() {
-        return rawMaterialOf_;
+        return (int) (long) rawMaterialOf_.get(rawMaterialType);
     }
 
     /**
@@ -431,6 +428,17 @@ public final class Economy implements UnmodifiableEconomy {
         traders_.clear();
         quantityFunctions_.clear();
         settings_.clear();
+    }
+
+    @NonNull
+    public Map<Long, List<CommodityResizeSpecification>>
+                                                  getModifiableCommodityResizeDependencyMap() {
+        return commodityResizeDependency_;
+    }
+
+    @NonNull
+    public Map<Long, Long> getModifiableRawCommodityMap() {
+        return rawMaterialOf_;
     }
 
 } // end class Economy

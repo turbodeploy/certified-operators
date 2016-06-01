@@ -14,6 +14,7 @@ import com.google.common.collect.HashBiMap;
 import com.google.common.collect.Maps;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.economy.Basket;
+import com.vmturbo.platform.analysis.economy.CommodityResizeSpecification;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
@@ -219,6 +220,15 @@ public final class Topology {
         traderOids_.clear();
         shoppingListOids_.clear();
         danglingShoppingLists_.clear();
+    }
+
+    public @NonNull Map<Long, List<CommodityResizeSpecification>>
+           getModifiableCommodityResizeDependencyMap() {
+        return economy_.getModifiableCommodityResizeDependencyMap();
+    }
+
+    public @NonNull Map<Long, Long> getModifiableRawCommodityMap() {
+        return economy_.getModifiableRawCommodityMap();
     }
 
 } // end Topology class

@@ -1,6 +1,8 @@
 package com.vmturbo.platform.analysis.translators;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.function.DoubleBinaryOperator;
 import java.util.function.LongFunction;
 import java.util.stream.Collectors;
@@ -16,6 +18,7 @@ import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
 import com.vmturbo.platform.analysis.actions.Reconfigure;
 import com.vmturbo.platform.analysis.actions.Resize;
 import com.vmturbo.platform.analysis.economy.Basket;
+import com.vmturbo.platform.analysis.economy.CommodityResizeSpecification;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySoldSettings;
@@ -28,6 +31,9 @@ import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTopology;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTopology.MapEntry;
+import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTopology.CommodityResizeDependencyEntry;
+import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTopology.CommodityResizeDependency;
+import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTopology.CommodityRawMaterialEntry;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.CommodityBoughtTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.CommoditySoldSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.CommoditySoldTO;
@@ -321,4 +327,48 @@ public final class ProtobufToAnalysis {
         }
     }
 
+    /**
+     * Populates the commodity resize dependency map of a {@link Topology} from information in an
+     * {@link EndDiscoveredTopology} message.
+     *
+     * @param source The {@link EndDiscoveredTopology} message from which to get the map entries.
+     * @param destination destination The {@link Topology} to put the entries to.
+     */
+    public static void populateCommodityResizeDependencyMap(@NonNull EndDiscoveredTopology source,
+                                                 @NonNull Topology destination) {
+        Map<Long, List<CommodityResizeSpecification>> resizeDependencyMap =
+                        destination.getModifiableCommodityResizeDependencyMap();
+        for (CommodityResizeDependencyEntry entry : source.getResizeDependencyList()) {
+            long commodityType = entry.getCommodityType();
+            List<CommodityResizeDependency> dependentCommodities = entry.getCommodityResizeDependencyList();
+            List<CommodityResizeSpecification> resizeSpecs = new ArrayList<>(dependentCommodities.size());
+            for (CommodityResizeDependency dependentCommodity : dependentCommodities) {
+                long dependentCommodityType = dependentCommodity.getDependentCommodityType();
+                UpdatingFunctionTO updateFunctionTO = dependentCommodity.getUpdateFunction();
+                DoubleBinaryOperator binaryOperator = updatingFunction(updateFunctionTO);
+                resizeSpecs.add(new CommodityResizeSpecification(
+                                    new Long(dependentCommodityType), binaryOperator));
+            }
+            resizeDependencyMap.put(new Long(commodityType), resizeSpecs);
+
+        }
+    }
+
+    /**
+     * Populates the raw commodity map of a {@link Topology} from information in an
+     * {@link EndDiscoveredTopology} message.
+     *
+     * @param source The {@link EndDiscoveredTopology} message from which to get the map entries.
+     * @param destination destination The {@link Topology} to put the entries to.
+     */
+    public static void populateRawCommodityMap(@NonNull EndDiscoveredTopology source,
+                                                            @NonNull Topology destination) {
+        Map<Long, Long> rawCommodityMap =
+                        destination.getModifiableRawCommodityMap();
+        for (CommodityRawMaterialEntry entry : source.getRawMaterialEntryList()) {
+            long rawCommodityType = entry.getRawCommodityType();
+            long processedCommodityType = entry.getProcessedCommodityType();
+            rawCommodityMap.put(new Long(rawCommodityType), new Long(processedCommodityType));
+        }
+    }
 } // end ProtobufToAnalysis class

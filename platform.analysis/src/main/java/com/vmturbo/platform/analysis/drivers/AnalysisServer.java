@@ -97,6 +97,10 @@ public final class AnalysisServer {
                     // Finish topology
                     ProtobufToAnalysis.populateUpdatingFunctions(command.getEndDiscoveredTopology(),
                                                                          currentPartial_);
+                    ProtobufToAnalysis.populateCommodityResizeDependencyMap(command.getEndDiscoveredTopology(),
+                                                                            currentPartial_);
+                    ProtobufToAnalysis.populateRawCommodityMap(command.getEndDiscoveredTopology(),
+                                                               currentPartial_);
 
                     // Swap topologies
                     Topology temp = lastComplete_;
