@@ -32,12 +32,14 @@ public class LedgerTest {
     // CommoditySpecifications to use in tests
     private static final CommoditySpecification CPU_ANY = new CommoditySpecification(0, 1, Integer.MAX_VALUE);
     private static final CommoditySpecification MEM = new CommoditySpecification(1);
+    private static final CommoditySpecification V_CPU = new CommoditySpecification(2);
+    private static final CommoditySpecification V_MEM = new CommoditySpecification(3);
     private static final CommoditySpecification CLUSTER_A = new CommoditySpecification(4, 0, 0);
-
 
     // Baskets to use in tests
     private static final Basket PM_ANY = new Basket(CPU_ANY, MEM);
     private static final Basket PM_A = new Basket(CPU_ANY, MEM, CLUSTER_A);
+    private static final Basket VM = new Basket(V_CPU, V_MEM);
 
     // Methods
 
@@ -76,21 +78,25 @@ public class LedgerTest {
 
     }
 
-    @Test
     @Parameters
     @TestCaseName("Test #{index}: Ledger({0}).calculateCommExpensesAndRevenues() == {1}")
     public final void testCalculateExpensesAndRevenues(Basket bought, Basket sold) {
         Economy economy = new Economy();
         Trader supplier = economy.addTrader(0, TraderState.ACTIVE, sold); // u can create a trader only by adding it to the market
 
-        ShoppingList consumerShoppingList = economy.addBasketBought(economy.addTrader(1, TraderState.ACTIVE, bought), bought);
+        ShoppingList consumerShoppingList = economy.addBasketBought(economy.addTrader(1, TraderState.ACTIVE, VM, bought), bought);
         consumerShoppingList.setQuantity(0, 5).setPeakQuantity(0, 7);
         consumerShoppingList.setQuantity(1, 5).setPeakQuantity(1, 7);
 
         Ledger ledger = new Ledger(economy);
         consumerShoppingList.move(supplier);
-        ledger.calculateAllTraderExpensesAndRevenues(economy);
+        // TODO: populate rawMaterialMap
+        economy.getModifiableRawCommodityMap().put(new Long(0), new Long(5));
+        economy.getModifiableRawCommodityMap().put(new Long(1), new Long(5));
+        economy.getModifiableRawCommodityMap().put(new Long(2), new Long(0));
+        economy.getModifiableRawCommodityMap().put(new Long(3), new Long(1));
 
+        ledger.calculateAllTraderExpensesAndRevenues(economy);
         List<IncomeStatement> traderIncomeStmts = ledger.getTraderIncomeStatements();
         assertTrue(traderIncomeStmts.get(0).getRevenues() == traderIncomeStmts.get(1).getExpenses());
 

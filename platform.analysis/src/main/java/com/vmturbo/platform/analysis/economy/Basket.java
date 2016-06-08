@@ -133,6 +133,7 @@ public final class Basket implements Comparable<@NonNull @ReadOnly Basket>, Iter
      */
     @Pure
     public final int indexOf(@ReadOnly Basket this, @NonNull @ReadOnly int type) {
+        // TODO: make indexOf return 2 values min and the maxIndex. All comm's btw these indices will be of this type
         // The elements of contents_ are unique so the first match will be the only match.
         return Math.max(-1,Arrays.binarySearch(contents_,type, (x,y)->((CommoditySpecification)x).getType() - (Integer)y));
     }

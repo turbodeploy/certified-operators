@@ -186,6 +186,6 @@ public interface UnmodifiableEconomy {
     /**
      * Returns an unmodifiable commodityType that uses rawMaterials of a particular type
      */
-    @NonNull @ReadOnly int getRawMaterialOf(int rawMaterialType);
+    @NonNull @ReadOnly Long getRawMaterial(int rawMaterialType);
 
 } // end UnmodifiableEconomy interface

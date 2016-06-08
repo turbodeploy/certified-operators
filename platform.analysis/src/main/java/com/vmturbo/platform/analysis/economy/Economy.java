@@ -41,8 +41,8 @@ public final class Economy implements UnmodifiableEconomy {
     // Map of commodity resize dependency calculation by commodity type.
     private final @NonNull Map<@NonNull Long, @NonNull List<CommodityResizeSpecification>>
         commodityResizeDependency_ = new HashMap<>();
-    // Map from raw commodity to processed commodity
-    private final @NonNull Map<@NonNull Long, @NonNull Long> rawMaterialOf_ = new HashMap<>();
+    // Map from raw processedCommodity -> rawCommodity
+    private final @NonNull Map<@NonNull Long, @NonNull Long> rawMaterial_ = new HashMap<>();
 
     // Cached data
 
@@ -140,8 +140,8 @@ public final class Economy implements UnmodifiableEconomy {
 
     @Override
     @Pure
-    public @NonNull @ReadOnly int getRawMaterialOf(@ReadOnly Economy this, int rawMaterialType) {
-        return (int) (long) rawMaterialOf_.get(rawMaterialType);
+    public @NonNull @ReadOnly Long getRawMaterial(@ReadOnly Economy this, int rawMaterialType) {
+        return rawMaterial_.get((long)rawMaterialType);
     }
 
     /**
@@ -438,7 +438,7 @@ public final class Economy implements UnmodifiableEconomy {
 
     @NonNull
     public Map<Long, Long> getModifiableRawCommodityMap() {
-        return rawMaterialOf_;
+        return rawMaterial_;
     }
 
 } // end class Economy
