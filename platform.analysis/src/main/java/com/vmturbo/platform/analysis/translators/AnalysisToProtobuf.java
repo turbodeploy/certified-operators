@@ -308,6 +308,7 @@ public final class AnalysisToProtobuf {
             Activate activate = (Activate)input;
             builder.setActivate(ActivateTO.newBuilder()
                 .setTraderToActivate(traderOid.applyAsLong(activate.getTarget()))
+                            .setModelSeller(traderOid.applyAsLong(activate.getModelSeller()))
                 .addAllTriggeringBasket(specificationTOs(activate.getSourceMarket().getBasket())));
         } else if (input instanceof Deactivate) {
             Deactivate deactivate = (Deactivate)input;
