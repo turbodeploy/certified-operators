@@ -12,9 +12,9 @@ import org.junit.runner.RunWith;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
-import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
+import com.vmturbo.platform.analysis.ede.Ede;
 import com.vmturbo.platform.analysis.topology.LegacyTopology;
 import com.vmturbo.platform.analysis.utility.ListTests;
 
@@ -78,26 +78,31 @@ public class LedgerTest {
 
     }
 
+    @Test
     @Parameters
     @TestCaseName("Test #{index}: Ledger({0}).calculateCommExpensesAndRevenues() == {1}")
     public final void testCalculateExpensesAndRevenues(Basket bought, Basket sold) {
         Economy economy = new Economy();
-        Trader supplier = economy.addTrader(0, TraderState.ACTIVE, sold); // u can create a trader only by adding it to the market
+        // create supplier(PM)
+        economy.addTrader(0, TraderState.ACTIVE, sold); // u can create a trader only by adding it to the market
 
-        ShoppingList consumerShoppingList = economy.addBasketBought(economy.addTrader(1, TraderState.ACTIVE, VM, bought), bought);
-        consumerShoppingList.setQuantity(0, 5).setPeakQuantity(0, 7);
-        consumerShoppingList.setQuantity(1, 5).setPeakQuantity(1, 7);
+        // create consumer(VM)
+        economy.addBasketBought(economy.addTrader(1, TraderState.ACTIVE, VM), bought)
+                                        .setQuantity(0, 5).setPeakQuantity(0, 7)
+                                        .setQuantity(1, 5).setPeakQuantity(1, 7).setMovable(true);
+
+        // run placement so that the VM is placed on the PM
+        Ede decisionEngine = new Ede();
+        decisionEngine.generateActions(economy);
+
+        // populate rawMaterialMap
+        economy.getModifiableRawCommodityMap().put(new Long(V_CPU.getType()), new Long(CPU_ANY.getType()));
+        economy.getModifiableRawCommodityMap().put(new Long(V_MEM.getType()), new Long(MEM.getType()));
 
         Ledger ledger = new Ledger(economy);
-        consumerShoppingList.move(supplier);
-        // TODO: populate rawMaterialMap
-        economy.getModifiableRawCommodityMap().put(new Long(0), new Long(5));
-        economy.getModifiableRawCommodityMap().put(new Long(1), new Long(5));
-        economy.getModifiableRawCommodityMap().put(new Long(2), new Long(0));
-        economy.getModifiableRawCommodityMap().put(new Long(3), new Long(1));
-
         ledger.calculateAllTraderExpensesAndRevenues(economy);
         List<IncomeStatement> traderIncomeStmts = ledger.getTraderIncomeStatements();
+        // assert if expense of VM == revenue of PM
         assertTrue(traderIncomeStmts.get(0).getRevenues() == traderIncomeStmts.get(1).getExpenses());
 
         economy.getTraders().forEach(trader->{

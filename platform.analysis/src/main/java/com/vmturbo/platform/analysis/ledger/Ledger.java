@@ -188,6 +188,7 @@ public class Ledger {
 
         for (Trader buyer : economy.getTraders()) {
 
+            resetTraderIncomeStatement(buyer);
             List<CommoditySold> commSoldList = buyer.getCommoditiesSold();
             for (CommoditySold cs : commSoldList) {
                 int indexOfCommSold = commSoldList.indexOf(cs);
@@ -203,16 +204,17 @@ public class Ledger {
                 // type of mem from type of vMem for example
                 // TODO: List<Integer> typeOfCommsBought = economy.getRawMaterial(buyer.getBasketSold().get(indexOfCommSold).getType());
 
-                int typeOfCommBought = economy.getRawMaterial(buyer.getBasketSold().get(indexOfCommSold).getType()).intValue();
+                Long typeOfCommBought = economy.getRawMaterial(buyer.getBasketSold().get(indexOfCommSold).getType());
+                if (typeOfCommBought == null)
+                    continue;
                 // reset trader and associated commodity InsomeStatement before we compute the exp and rev of all commodities
-                resetTraderIncomeStatement(buyer);
 
                 for (ShoppingList shoppingList : economy.getMarketsAsBuyer(buyer).keySet()) {
                     Basket basketBought = shoppingList.getBasket();
 
                     // TODO: make indexOf return 2 values minIndex and the maxIndex. All comm's btw these indices will be of this type
                     // (needed when we have 2 comms of same type sold)
-                    int boughtIndex = basketBought.indexOf(typeOfCommBought);
+                    int boughtIndex = basketBought.indexOf(typeOfCommBought.intValue());
 
                     // if the required commodity is not in the shopping list skip shoppingList
                     if (boughtIndex == -1) {
