@@ -16,6 +16,8 @@ import org.junit.runner.RunWith;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.Market;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.topology.LegacyTopology;
@@ -266,4 +268,37 @@ public class ResizeTest {
         };
     }
 
+    @SuppressWarnings("unused")
+    private static Object[] parametersForTestEquals_and_HashCode() {
+        Economy e = new Economy();
+        Basket b1 = new Basket(new CommoditySpecification(100));
+        Basket b2 = new Basket(new CommoditySpecification(200));
+        Basket b3 = new Basket(new CommoditySpecification(300));
+        Trader t1 = e.addTrader(0, TraderState.ACTIVE, b1, b2);
+        Trader t2 = e.addTrader(0, TraderState.ACTIVE, b1, b2);
+        Trader t3 = e.addTrader(0, TraderState.ACTIVE, b2, b3);
+        Trader t4 = e.addTrader(0, TraderState.ACTIVE, b2, b3);
+
+        Market m1 = e.getMarket(b1);
+        Market m2 = e.getMarket(b2);
+
+        ShoppingList shop1 = e.addBasketBought(t1, b2);
+        shop1.move(t3);
+        ShoppingList shop2 = e.addBasketBought(t2, b2);
+        shop2.move(t3);
+
+        Resize resize1 = new Resize(t3, new CommoditySpecification(200), 200);
+        Resize resize2 = new Resize(t3, new CommoditySpecification(200), 200);
+        Resize resize3 = new Resize(t1, new CommoditySpecification(100), 200);
+        return new Object[][] {{resize1, resize2, true}, {resize1, resize3, false}};
+    }
+
+    @Test
+    @Parameters
+    @TestCaseName("Test #{index}: equals and hashCode for {0}, {1} == {2}")
+    public final void testEquals_and_HashCode(@NonNull Resize resize1, @NonNull Resize resize2,
+                    boolean expect) {
+        assertEquals(expect, resize1.equals(resize2));
+        assertEquals(expect, resize1.hashCode() == resize2.hashCode());
+    }
 } // end ResizeTest class

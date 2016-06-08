@@ -12,6 +12,8 @@ import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
 
+import com.google.common.hash.Hashing;
+
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
@@ -112,5 +114,31 @@ public class Deactivate extends StateChangeBase implements Action { // inheritan
         return new StringBuilder()
                         .append("Because of insufficient demand for ")
                         .append(getSourceMarket().getBasket()).append(".").toString(); // TODO: print basket in human-readable form.
+    }
+
+    /**
+     * Tests whether two Deactivate actions are equal field by field.
+     */
+    @Override
+    @Pure
+    public boolean equals(@ReadOnly Deactivate this,@ReadOnly Object other) {
+        if (other == null || !(other instanceof Deactivate)) {
+            return false;
+        }
+        Deactivate otherDeactivate = (Deactivate)other;
+        return otherDeactivate.getEconomy().equals(getEconomy())
+                        && otherDeactivate.getTarget().equals(getTarget())
+                        && otherDeactivate.getSourceMarket().equals(getSourceMarket());
+    }
+
+    /**
+     * Use the hashCode of each field to generate a hash code, consistent with {@link #equals(Object)}.
+     */
+    @Override
+    @Pure
+    public int hashCode() {
+        return Hashing.md5().newHasher().putInt(getEconomy().hashCode())
+                        .putInt(getTarget().hashCode()).putInt(getSourceMarket().hashCode()).hash()
+                        .asInt();
     }
 } // end Deactivate class

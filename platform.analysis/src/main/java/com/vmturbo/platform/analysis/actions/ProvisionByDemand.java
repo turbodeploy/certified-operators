@@ -8,6 +8,8 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Pure;
 
+import com.google.common.hash.Hashing;
+
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Economy;
@@ -128,5 +130,29 @@ public class ProvisionByDemand implements Action {
     @Override
     public @NonNull Trader getActionTarget() {
         return getModelBuyer().getBuyer();
+    }
+
+    /**
+     * Tests whether two ProvisionByDemand actions are equal field by field.
+     */
+    @Override
+    @Pure
+    public boolean equals(@ReadOnly ProvisionByDemand this,@ReadOnly Object other) {
+        if (other == null || !(other instanceof ProvisionByDemand)) {
+            return false;
+        }
+        ProvisionByDemand otherProvisionByDemand = (ProvisionByDemand)other;
+        return otherProvisionByDemand.getEconomy().equals(getEconomy())
+                        && otherProvisionByDemand.getModelBuyer().equals(getModelBuyer());
+    }
+
+    /**
+     * Use the hashCode of each field to generate a hash code, consistent with {@link #equals(Object)}.
+     */
+    @Override
+    @Pure
+    public int hashCode() {
+        return Hashing.md5().newHasher().putInt(getEconomy().hashCode())
+                        .putInt(getModelBuyer().hashCode()).hash().asInt();
     }
 } // end ProvisionByDemand class

@@ -14,6 +14,8 @@ import org.checkerframework.dataflow.qual.SideEffectFree;
 
 import com.google.common.collect.ObjectArrays;
 import com.google.common.collect.Ordering;
+import com.google.common.hash.Hasher;
+import com.google.common.hash.Hashing;
 
 /**
  * A set of commodity specifications specifying the commodities a trader may try to buy or sell.
@@ -243,4 +245,40 @@ public final class Basket implements Comparable<@NonNull @ReadOnly Basket>, Iter
         return Arrays.deepToString(contents_);
     }
 
+    /**
+     * Tests whether two Baskets are equal field by field.
+     */
+    @Override
+    @Pure
+    public boolean equals(@ReadOnly Basket this,@ReadOnly Object other) {
+        if (other == null || !(other instanceof Basket)) {
+            return false;
+        }
+        Basket otherBasket = (Basket)other;
+        // if number of commoditySpecification in the basket does not match, return false immediately
+        if (otherBasket.size() != size()) {
+            return false;
+        }
+        // if any commoditySpecification in the basket does not match, return false immediately
+        for (CommoditySpecification commSpec : otherBasket.contents_) {
+            if (!get(indexOf(commSpec)).equals(commSpec)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Use the hashCode of each field to generate a hash code, consistent with {@link #equals(Object)}.
+     */
+    @Override
+    @Pure
+    public int hashCode() {
+        Hasher hasher = Hashing.md5().newHasher();
+        // use each commoditySpecification's hash code to generate the hash code for basket
+        forEach(commSpec -> {
+            hasher.putInt(commSpec.hashCode());
+        });
+        return hasher.hash().asInt();
+    }
 } // end Basket interface

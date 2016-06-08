@@ -3,8 +3,14 @@ package com.vmturbo.platform.analysis.actions;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
+import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
+import org.checkerframework.dataflow.qual.Pure;
+
 import com.vmturbo.platform.analysis.economy.ShoppingList;
+
+import com.google.common.hash.Hashing;
+
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 
@@ -107,4 +113,30 @@ public class Reconfigure extends MoveBase implements Action { // inheritance for
     public @NonNull Trader getActionTarget() {
         return getTarget().getBuyer();
     }
+
+    /**
+     * Tests whether two Reconfigure actions are equal field by field.
+     */
+    @Override
+    @Pure
+    public boolean equals(@ReadOnly Reconfigure this,@ReadOnly Object other) {
+        if (other == null || !(other instanceof Reconfigure)) {
+            return false;
+        }
+        Reconfigure otherReconfigure = (Reconfigure)other;
+        return otherReconfigure.getEconomy().equals(getEconomy())
+                        && otherReconfigure.getTarget().equals(getTarget());
+    }
+
+    /**
+     * Use the hashCode of each field to generate a hash code, consistent with {@link #equals(Object)}.
+     */
+    @Override
+    @Pure
+    public int hashCode() {
+        return Hashing.md5().newHasher().putInt(getEconomy().hashCode())
+                        .putInt(getTarget().hashCode()).hash()
+                        .asInt();
+    }
+
 } // end Reconfigure class

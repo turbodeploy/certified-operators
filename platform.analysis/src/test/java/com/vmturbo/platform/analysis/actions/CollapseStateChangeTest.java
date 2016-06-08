@@ -32,8 +32,8 @@ public class CollapseStateChangeTest {
     private static final Trader vm1 = EC.addTrader(TYPE_VM, TraderState.ACTIVE, EMPTY);
     private static final Trader vm2 = EC.addTrader(TYPE_VM, TraderState.ACTIVE, EMPTY);
     private static final ShoppingList bp0 = EC.addBasketBought(vm1, BASKET);
-    private static final Trader pm1 = EC.addTrader(TYPE_PM, TraderState.ACTIVE, BASKET);
-    private static final Trader pm2 = EC.addTrader(TYPE_PM, TraderState.ACTIVE, BASKET);
+    private static final Trader pm1 = EC.addTrader(TYPE_PM, TraderState.ACTIVE, BASKET, EMPTY);
+    private static final Trader pm2 = EC.addTrader(TYPE_PM, TraderState.ACTIVE, BASKET, EMPTY);
 
     private static Trader lastMoveTo;
 

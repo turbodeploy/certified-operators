@@ -219,5 +219,39 @@ public class ProvisionBySupplyTest {
 
     }
 
+    @SuppressWarnings("unused")
+    private static Object[] parametersForTestEquals_and_HashCode() {
+        Economy e = new Economy();
+        Basket b1 = new Basket(new CommoditySpecification(100));
+        Basket b2 = new Basket(new CommoditySpecification(200));
+        Basket b3 = new Basket(new CommoditySpecification(300));
+        Trader t1 = e.addTrader(0, TraderState.ACTIVE, b1, b2);
+        Trader t2 = e.addTrader(0, TraderState.ACTIVE, b1, b2);
+        Trader t3 = e.addTrader(0, TraderState.ACTIVE, b2, b3);
+        Trader t4 = e.addTrader(0, TraderState.ACTIVE, b2, b3);
+
+        Market m1 = e.getMarket(b1);
+        Market m2 = e.getMarket(b2);
+
+        ShoppingList shop1 = e.addBasketBought(t1, b2);
+        shop1.move(t3);
+        ShoppingList shop2 = e.addBasketBought(t2, b2);
+        shop2.move(t3);
+
+        ProvisionBySupply provisionByDemand1 = new ProvisionBySupply(e, t2);
+        ProvisionBySupply provisionByDemand2 = new ProvisionBySupply(e, t2);
+        ProvisionBySupply provisionByDemand3 = new ProvisionBySupply(e, t3);
+        return new Object[][] {{provisionByDemand1, provisionByDemand2, true},
+                        {provisionByDemand1, provisionByDemand3, false}};
+    }
+
+    @Test
+    @Parameters
+    @TestCaseName("Test #{index}: equals and hashCode for {0}, {1} == {2}")
+    public final void testEquals_and_HashCode(@NonNull ProvisionBySupply provisionBySupply1,
+                    @NonNull ProvisionBySupply provisionBySupply2, boolean expect) {
+        assertEquals(expect, provisionBySupply1.equals(provisionBySupply2));
+        assertEquals(expect, provisionBySupply1.hashCode() == provisionBySupply2.hashCode());
+    }
 
 } // end ProvisionBySupplyTest class

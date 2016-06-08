@@ -10,6 +10,9 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Pure;
 
 import com.vmturbo.platform.analysis.economy.ShoppingList;
+
+import com.google.common.hash.Hashing;
+
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -179,4 +182,27 @@ public class ProvisionBySupply implements Action {
         return getModelSeller();
     }
 
+    /**
+     * Tests whether two ProvisionBySupply actions are equal field by field.
+     */
+    @Override
+    @Pure
+    public boolean equals(@ReadOnly ProvisionBySupply this,@ReadOnly Object other) {
+        if (other == null || !(other instanceof ProvisionBySupply)) {
+            return false;
+        }
+        ProvisionBySupply otherProvisionBySupply = (ProvisionBySupply)other;
+        return otherProvisionBySupply.getEconomy().equals(getEconomy())
+                        && otherProvisionBySupply.getModelSeller().equals(getModelSeller());
+    }
+
+    /**
+     * Use the hashCode of each field to generate a hash code, consistent with {@link #equals(Object)}.
+     */
+    @Override
+    @Pure
+    public int hashCode() {
+        return Hashing.md5().newHasher().putInt(getEconomy().hashCode())
+                        .putInt(getModelSeller().hashCode()).hash().asInt();
+    }
 } // end ProvisionBySupply class

@@ -229,4 +229,37 @@ public class ActivateTest {
         assertEquals(0, target.getCustomers().size());
     }
 
+    @SuppressWarnings("unused")
+    private static Object[] parametersForTestEquals_and_HashCode() {
+        Economy e = new Economy();
+        Basket b1 = new Basket(new CommoditySpecification(100));
+        Basket b2 = new Basket(new CommoditySpecification(200));
+        Basket b3 = new Basket();
+        // t1 t2 are two different traders with same contents, while t3 is another different
+        // trader with different contents
+        Trader t1 = e.addTrader(0, TraderState.ACTIVE, b1, b2);
+        Trader t2 = e.addTrader(0, TraderState.ACTIVE, b1, b2);
+        Trader t3 = e.addTrader(0, TraderState.INACTIVE, b2, b3);
+        Trader t4 = e.addTrader(0, TraderState.ACTIVE, b2, b3);
+
+        Market m1 = e.getMarket(b2);
+        Market m3 = e.getMarket(b3);
+
+        Activate activate1 = new Activate(e, t3, m1, t4);
+        Activate activate2 = new Activate(e, t3, m1, t4);
+        Activate activate3 = new Activate(e, t4, m1, t3);
+        Activate activate4 = new Activate(e, t4, m1, t4);
+        return new Object[][] {{activate1, activate2, true}, {activate1, activate3, false},
+                        {activate1, activate4, false}};
+    }
+
+    @Test
+    @Parameters
+    @TestCaseName("Test #{index}: equals and hashCode for {0}, {1} == {2}")
+    public final void testEquals_and_HashCode(@NonNull Activate activate1,
+                    @NonNull Activate activate2, boolean expect) {
+        assertEquals(expect, activate1.equals(activate2));
+        assertEquals(expect, activate1.hashCode() == activate2.hashCode());
+    }
+
 } // end ActivateTest class

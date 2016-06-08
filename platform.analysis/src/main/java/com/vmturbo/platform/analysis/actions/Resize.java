@@ -8,6 +8,8 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Pure;
 
+import com.google.common.hash.Hashing;
+
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -149,5 +151,32 @@ public class Resize implements Action {
     @Override
     public @NonNull Trader getActionTarget() {
         return getSellingTrader();
+    }
+
+    /**
+     * Tests whether two Resize actions are equal field by field.
+     */
+    @Override
+    @Pure
+    public boolean equals(@ReadOnly Resize this,@ReadOnly Object other) {
+        if (other == null || !(other instanceof Resize)) {
+            return false;
+        }
+        Resize otherResize = (Resize)other;
+        return otherResize.getSellingTrader().equals(getSellingTrader())
+                        && otherResize.getResizedCommodity().equals(getResizedCommodity())
+                        && otherResize.getOldCapacity() == getOldCapacity()
+                        && otherResize.getNewCapacity() == getNewCapacity();
+    }
+
+    /**
+     * Use the hashCode of each field to generate a hash code, consistent with {@link #equals(Object)}.
+     */
+    @Override
+    @Pure
+    public int hashCode() {
+        return Hashing.md5().newHasher().putInt(getSellingTrader().hashCode())
+                        .putInt(getResizedCommodity().hashCode()).putDouble(getOldCapacity())
+                        .putDouble(getNewCapacity()).hash().asInt();
     }
 } // end Resize class

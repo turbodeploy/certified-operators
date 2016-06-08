@@ -11,6 +11,8 @@ import org.checkerframework.dataflow.qual.Pure;
 import static com.google.common.base.Preconditions.checkArgument;
 
 import com.google.common.collect.Lists;
+import com.google.common.hash.Hashing;
+
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
@@ -267,4 +269,32 @@ public class Move extends MoveBase implements Action { // inheritance for code r
     public @NonNull Trader getActionTarget() {
         return getTarget().getBuyer();
     }
+
+    /**
+     * Tests whether two Move actions are equal field by field.
+     */
+    @Override
+    @Pure
+    public boolean equals(@ReadOnly Move this,@ReadOnly Object other) {
+        if (other == null || !(other instanceof Move)) {
+            return false;
+        }
+        Move otherMove = (Move)other;
+        return otherMove.getEconomy().equals(getEconomy())
+                        && otherMove.getTarget().equals(getTarget())
+                        && otherMove.getSource().equals(getSource())
+                        && otherMove.getDestination().equals(getDestination());
+    }
+
+    /**
+     * Use the hashCode of each field to generate a hash code, consistent with {@link #equals(Object)}.
+     */
+    @Override
+    @Pure
+    public int hashCode() {
+        return Hashing.md5().newHasher().putInt(getEconomy().hashCode())
+                        .putInt(getTarget().hashCode()).putInt(getSource().hashCode())
+                        .putInt(getDestination().hashCode()).hash().asInt();
+    }
+
 } // end Move class

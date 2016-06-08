@@ -15,6 +15,7 @@ import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.ede.EdeCommon;
@@ -167,4 +168,39 @@ public class ProvisionByDemandTest {
         };
     }
 
+    @SuppressWarnings("unused")
+    private static Object[] parametersForTestEquals_and_HashCode() {
+        Economy e = new Economy();
+        Basket b1 = new Basket(new CommoditySpecification(100));
+        Basket b2 = new Basket(new CommoditySpecification(200));
+        Basket b3 = new Basket(new CommoditySpecification(300));
+        Trader t1 = e.addTrader(0, TraderState.ACTIVE, b1, b2);
+        Trader t2 = e.addTrader(0, TraderState.ACTIVE, b1, b2);
+        Trader t3 = e.addTrader(0, TraderState.ACTIVE, b2, b3);
+        Trader t4 = e.addTrader(0, TraderState.ACTIVE, b2, b3);
+
+        Market m1 = e.getMarket(b1);
+        Market m2 = e.getMarket(b2);
+
+        ShoppingList shop1 = e.addBasketBought(t1, b2);
+        shop1.move(t3);
+        ShoppingList shop2 = e.addBasketBought(t2, b2);
+        shop2.move(t3);
+
+        ProvisionByDemand provisionByDemand1 = new ProvisionByDemand(e, shop1);
+        ProvisionByDemand provisionByDemand2 = new ProvisionByDemand(e, shop2);
+        ProvisionByDemand provisionByDemand3 = new ProvisionByDemand(e, shop1);
+        return new Object[][] {{provisionByDemand1, provisionByDemand2, false},
+                        {provisionByDemand1, provisionByDemand3, true}};
+    }
+
+    @Test
+    @Parameters
+    @TestCaseName("Test #{index}: equals and hashCode for {0}, {1} == {2}")
+    public final void testEquals_and_HashCode(@NonNull ProvisionByDemand provisionByDemand1,
+                    @NonNull ProvisionByDemand provisionByDemand2,
+                    boolean expect) {
+        assertEquals(expect, provisionByDemand1.equals(provisionByDemand2));
+        assertEquals(expect, provisionByDemand1.hashCode() == provisionByDemand2.hashCode());
+    }
 } // end ProvisionByDemandTest class

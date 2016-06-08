@@ -192,7 +192,6 @@ public class DeactivateTest {
         assertEquals(0, target.getCustomers().size());
     }
 
-    // TODO: we need the implementation for ShoppingList.getBasketBought before this test can be enabled
     @Test
     @Parameters(method = "parametersForTestWithGuaranteedBuyer")
     @TestCaseName("Test #{index}: new Deactivate({0},{1},{2}).rollback() throw == {3}")
@@ -210,4 +209,30 @@ public class DeactivateTest {
         assertEquals(invalid ? 1 : 0, target.getCustomers().size());
     }
 
+    @SuppressWarnings("unused")
+    private static Object[] parametersForTestEquals_and_HashCode() {
+        Economy e = new Economy();
+        Basket b1 = new Basket(new CommoditySpecification(100));
+        Basket b2 = new Basket(new CommoditySpecification(200));
+        Trader t1 = e.addTrader(0, TraderState.ACTIVE, b1, b1);
+        Trader t2 = e.addTrader(0, TraderState.ACTIVE, b1, b2);
+        Market m1 = e.getMarket(b1);
+        Market m2 = e.getMarket(b2);
+
+        Deactivate deactivate1 = new Deactivate(e, t1, m1);
+        Deactivate deactivate2 = new Deactivate(e, t1, m1);
+        Deactivate deactivate3 = new Deactivate(e, t2, m1);
+        Deactivate deactivate4 = new Deactivate(e, t1, m2);
+        return new Object[][] {{deactivate1, deactivate2, true}, {deactivate1, deactivate3, false},
+                        {deactivate2, deactivate4, false}, {deactivate1, deactivate4, false}};
+    }
+
+    @Test
+    @Parameters
+    @TestCaseName("Test #{index}: equals and hashCode for {0}, {1} == {2}")
+    public final void testEquals_and_HashCode(@NonNull Deactivate deactivate1,
+                    @NonNull Deactivate deactivate2, boolean expect) {
+        assertEquals(expect, deactivate1.equals(deactivate2));
+        assertEquals(expect, deactivate1.hashCode() == deactivate2.hashCode());
+    }
 } // end DeactivateTest class

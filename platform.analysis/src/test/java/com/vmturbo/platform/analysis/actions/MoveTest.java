@@ -17,6 +17,7 @@ import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import junitparams.JUnitParamsRunner;
@@ -312,4 +313,37 @@ public final class MoveTest {
         fail("Not yet implemented"); // TODO
     }
 
+    @SuppressWarnings("unused")
+    private static Object[] parametersForTestEquals_and_HashCode() {
+        Economy e = new Economy();
+        Basket b1 = new Basket(new CommoditySpecification(100));
+        Basket b2 = new Basket(new CommoditySpecification(200));
+        Basket b3 = new Basket(new CommoditySpecification(300));
+        Trader t1 = e.addTrader(0, TraderState.ACTIVE, b1, b2);
+        Trader t2 = e.addTrader(0, TraderState.ACTIVE, b1, b2);
+        Trader t3 = e.addTrader(0, TraderState.ACTIVE, b2, b3);
+        Trader t4 = e.addTrader(0, TraderState.ACTIVE, b2, b3);
+
+        Market m1 = e.getMarket(b1);
+        Market m2 = e.getMarket(b2);
+
+        ShoppingList shop1 = e.addBasketBought(t1, b2);
+        shop1.move(t3);
+        ShoppingList shop2 = e.addBasketBought(t2, b2);
+        shop2.move(t3);
+
+        Move move1 = new Move(e, shop1, t4);
+        Move move2 = new Move(e, shop2, t4);
+        Move move3 = new Move(e, shop1, t4);
+        return new Object[][] {{move1, move2, false}, {move1, move3, true}};
+    }
+
+    @Test
+    @Parameters
+    @TestCaseName("Test #{index}: equals and hashCode for {0}, {1} == {2}")
+    public final void testEquals_and_HashCode(@NonNull Move move1, @NonNull Move move2,
+                    boolean expect) {
+        assertEquals(expect, move1.equals(move2));
+        assertEquals(expect, move1.hashCode() == move2.hashCode());
+    }
 } // end MoveTest class
