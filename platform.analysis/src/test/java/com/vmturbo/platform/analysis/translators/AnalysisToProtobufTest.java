@@ -176,10 +176,11 @@ public class AnalysisToProtobufTest {
                                         .setSource(3l).build())
                         .build();
 
-        Action provisionByDemand = new ProvisionByDemand(e, shop2);
+        Action provisionByDemand = new ProvisionByDemand(e, shop2, pm2);
         ActionTO provisionByDemanTO = ActionTO.newBuilder()
                         .setProvisionByDemand(
                                         ProvisionByDemandTO.newBuilder().setModelBuyer(20l)
+                                                        .setModelSeller(3l)
                                                         .build())
                         .build();
 

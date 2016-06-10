@@ -297,7 +297,9 @@ public final class ProtobufToAnalysis {
                 return new Deactivate(economy, trader.apply(input.getDeactivate().getTraderToDeactivate()),
                                       economy.getMarket(basket(input.getDeactivate().getTriggeringBasketList())));
             case PROVISION_BY_DEMAND:
-                return new ProvisionByDemand(economy, shoppingList.apply(input.getProvisionByDemand().getModelBuyer()));
+                return new ProvisionByDemand(economy,
+                                shoppingList.apply(input.getProvisionByDemand().getModelBuyer()),
+                                trader.apply(input.getProvisionByDemand().getModelSeller()));
             case PROVISION_BY_SUPPLY:
                 return new ProvisionBySupply(economy, trader.apply(input.getProvisionBySupply().getModelSeller()));
             case RESIZE:

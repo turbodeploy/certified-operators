@@ -50,6 +50,7 @@ import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.
 import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO;
 import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO.Max;
 import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO.Min;
+import com.vmturbo.platform.analysis.topology.Topology;
 
 /**
  * A class containing methods to convert java classes used by analysis to Protobuf messages.
@@ -280,7 +281,8 @@ public final class AnalysisToProtobuf {
      * @return The resulting {@link ActionTO}.
      */
     public static @NonNull ActionTO actionTO(@NonNull Action input, @NonNull ToLongFunction<@NonNull Trader> traderOid,
-                                             @NonNull ToLongFunction<@NonNull ShoppingList> shoppingListOid) {
+                    @NonNull ToLongFunction<@NonNull ShoppingList> shoppingListOid,
+                    Topology topology) {
         ActionTO.Builder builder = ActionTO.newBuilder();
 
         if (input instanceof Move) {
@@ -316,11 +318,24 @@ public final class AnalysisToProtobuf {
                 .setTraderToDeactivate(traderOid.applyAsLong(deactivate.getTarget()))
                 .addAllTriggeringBasket(specificationTOs(deactivate.getSourceMarket().getBasket())));
         } else if (input instanceof ProvisionByDemand) {
-            builder.setProvisionByDemand(ProvisionByDemandTO.newBuilder()
-                .setModelBuyer(shoppingListOid.applyAsLong(((ProvisionByDemand)input).getModelBuyer())));
+            ProvisionByDemand provDemand = (ProvisionByDemand)input;
+            ProvisionByDemandTO.Builder provDemandTO = ProvisionByDemandTO.newBuilder()
+                            .setModelBuyer(shoppingListOid.applyAsLong(provDemand.getModelBuyer()))
+                            .setModelSeller(traderOid.applyAsLong(provDemand.getModelSeller()));
+            if (provDemand.getProvisionedSeller() != null) {
+                provDemandTO.setProvisionSeller(
+                                topology.addProvisionedTrader(provDemand.getProvisionedSeller()));
+            }
+            builder.setProvisionByDemand(provDemandTO);
         } else if (input instanceof ProvisionBySupply) {
-            builder.setProvisionBySupply(ProvisionBySupplyTO.newBuilder()
-                .setModelSeller(traderOid.applyAsLong(((ProvisionBySupply)input).getModelSeller())));
+            ProvisionBySupply provSupply = (ProvisionBySupply)input;
+            ProvisionBySupplyTO.Builder provSupplyTO = ProvisionBySupplyTO.newBuilder()
+                            .setModelSeller(traderOid.applyAsLong(provSupply.getModelSeller()));
+            if (provSupply.getProvisionedSeller() != null) {
+                provSupplyTO.setProvisionSeller(
+                                topology.addProvisionedTrader(provSupply.getProvisionedSeller()));
+            }
+            builder.setProvisionBySupply(provSupplyTO);
         } else if (input instanceof Resize) {
             Resize resize = (Resize)input;
             builder.setResize(ResizeTO.newBuilder()
@@ -348,11 +363,12 @@ public final class AnalysisToProtobuf {
      */
     public static @NonNull AnalysisResults analysisResults(@NonNull List<Action> actions,
             @NonNull ToLongFunction<@NonNull Trader> traderOid,
-            @NonNull ToLongFunction<@NonNull ShoppingList> shoppingListOid, long timeToAnalyze_ns) {
+                    @NonNull ToLongFunction<@NonNull ShoppingList> shoppingListOid,
+                    long timeToAnalyze_ns, Topology topology) {
         AnalysisResults.Builder builder = AnalysisResults.newBuilder();
 
         for (Action action : actions) {
-            builder.addActions(actionTO(action, traderOid, shoppingListOid));
+            builder.addActions(actionTO(action, traderOid, shoppingListOid, topology));
         }
 
         return builder.setTimeToAnalyzeNs(timeToAnalyze_ns).build();

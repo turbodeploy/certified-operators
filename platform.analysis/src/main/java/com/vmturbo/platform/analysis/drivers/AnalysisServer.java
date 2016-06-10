@@ -116,7 +116,8 @@ public final class AnalysisServer {
                     // Send back the results
                     try (OutputStream stream = session.getBasicRemote().getSendStream()) {
                         AnalysisToProtobuf.analysisResults(actions, lastComplete_.getTraderOids()::get,
-                            lastComplete_.getShoppingListOids()::get, stop-start).writeTo(stream);
+                                        lastComplete_.getShoppingListOids()::get, stop - start,
+                                        lastComplete_).writeTo(stream);
                     }
                     break;
                 case COMMANDTYPE_NOT_SET:

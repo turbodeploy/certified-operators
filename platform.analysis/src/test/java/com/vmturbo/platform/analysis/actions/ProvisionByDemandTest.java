@@ -37,12 +37,15 @@ public class ProvisionByDemandTest {
 
     @Test
     @Parameters
-    @TestCaseName("Test #{index}: new ProvisionByDemand({0},{1})")
-    public final void testProvisionByDemand(@NonNull Economy economy, @NonNull ShoppingList modelBuyer) {
-        @NonNull ProvisionByDemand provision = new ProvisionByDemand(economy, modelBuyer);
+    @TestCaseName("Test #{index}: new ProvisionByDemand({0},{1}, {2})")
+    public final void testProvisionByDemand(@NonNull Economy economy,
+                    @NonNull ShoppingList modelBuyer, @NonNull Trader modelSeller) {
+        @NonNull
+        ProvisionByDemand provision = new ProvisionByDemand(economy, modelBuyer, modelSeller);
 
         assertSame(economy, provision.getEconomy());
         assertSame(modelBuyer, provision.getModelBuyer());
+        assertSame(modelSeller, provision.getModelSeller());
         assertNull(provision.getProvisionedSeller());
     }
 
@@ -54,6 +57,7 @@ public class ProvisionByDemandTest {
         ShoppingList b2 = e1.addBasketBought(e1.addTrader(0, TraderState.INACTIVE, EMPTY), EMPTY);
         ShoppingList b3 = e1.addBasketBought(e1.addTrader(0, TraderState.ACTIVE, EMPTY),
             new Basket(new CommoditySpecification(0)));
+        Trader model = e1.addTrader(0, TraderState.ACTIVE, EMPTY);
         b3.setQuantity(0, 5).setPeakQuantity(0, 6.5);
 
         ShoppingList b4 = e1.addBasketBought(e1.addTrader(0, TraderState.ACTIVE, EMPTY),
@@ -61,7 +65,7 @@ public class ProvisionByDemandTest {
         b4.setQuantity(0, 2.2).setPeakQuantity(0, 6.5);
         b4.setQuantity(1, 100).setPeakQuantity(1, 101.3);
 
-        return new Object[][]{{e1,b1},{e1,b2},{e1,b3},{e1,b4}};
+        return new Object[][] {{e1, b1, model}, {e1, b2, model}, {e1, b3, model}, {e1, b4, model}};
     }
 
     @Test
@@ -81,23 +85,26 @@ public class ProvisionByDemandTest {
         Economy e1 = new Economy();
         ShoppingList b1 = e1.addBasketBought(e1.addTrader(0, TraderState.ACTIVE, EMPTY), EMPTY);
         ShoppingList b2 = e1.addBasketBought(e1.addTrader(0, TraderState.INACTIVE, EMPTY), EMPTY);
-
+        Trader model = e1.addTrader(0, TraderState.ACTIVE, EMPTY, EMPTY);
         oids.put(b1.getBuyer(), "id1");
         oids.put(b2.getBuyer(), "id2");
 
         return new Object[][]{
-            {new ProvisionByDemand(e1,b1),oid,"<action type=\"provisionByDemand\" modelBuyer=\"id1\" />"},
-            {new ProvisionByDemand(e1,b2),oid,"<action type=\"provisionByDemand\" modelBuyer=\"id2\" />"}
+                        {new ProvisionByDemand(e1, b1, model), oid,
+                                        "<action type=\"provisionByDemand\" modelBuyer=\"id1\" />"},
+                        {new ProvisionByDemand(e1, b2, model), oid,
+                                        "<action type=\"provisionByDemand\" modelBuyer=\"id2\" />"}
         };
     }
 
     @Test
     @Parameters(method = "parametersForTestProvisionByDemand")
-    @TestCaseName("Test #{index}: new ProvisionByDemand({0},{1}).take().rollback()")
-    public final void testTakeRollback(@NonNull Economy economy, @NonNull ShoppingList modelBuyer) {
+    @TestCaseName("Test #{index}: new ProvisionByDemand({0},{1},{2}).take().rollback()")
+    public final void testTakeRollback(@NonNull Economy economy, @NonNull ShoppingList modelBuyer, @NonNull Trader modelSeller) {
         final int oldSize = economy.getTraders().size();
-        @NonNull ProvisionByDemand provision = new ProvisionByDemand(economy, modelBuyer);
+        @NonNull ProvisionByDemand provision = new ProvisionByDemand(economy, modelBuyer, modelSeller);
 
+        assertEquals(modelSeller, provision.getModelSeller());
         assertSame(provision, provision.take());
         assertNotNull(provision.getProvisionedSeller());
         assertTrue(provision.getProvisionedSeller().getState().isActive());
@@ -131,11 +138,14 @@ public class ProvisionByDemandTest {
         ShoppingList b1 = topology1.addBasketBought(t1, Arrays.asList());
         Trader t2 = topology1.addTrader("id2","name2","Container",TraderState.INACTIVE, Arrays.asList());
         ShoppingList b2 = topology1.addBasketBought(t2, Arrays.asList("CPU"));
+        Trader t3 = topology1.addTrader("id3", "name3", "VM", TraderState.ACTIVE, Arrays.asList());
+        Trader t4 = topology1.addTrader("id4", "name4", "Container", TraderState.ACTIVE,
+                        Arrays.asList());
 
         return new Object[][]{
-            {new ProvisionByDemand((Economy)topology1.getEconomy(), b1),topology1,
+                        {new ProvisionByDemand((Economy)topology1.getEconomy(), b1, t3), topology1,
                 "Provision a new VM with the following characteristics: "},
-            {new ProvisionByDemand((Economy)topology1.getEconomy(), b2),topology1,
+                        {new ProvisionByDemand((Economy)topology1.getEconomy(), b2, t4), topology1,
                 "Provision a new Container with the following characteristics: "},
             // TODO: update test when we figure out how to get correct type!
         };
@@ -158,11 +168,13 @@ public class ProvisionByDemandTest {
         ShoppingList b1 = topology1.addBasketBought(t1, Arrays.asList());
         Trader t2 = topology1.addTrader("id2","Container1","Container",TraderState.INACTIVE, Arrays.asList());
         ShoppingList b2 = topology1.addBasketBought(t2, Arrays.asList("CPU"));
-
+        Trader t3 = topology1.addTrader("id3", "VM2", "VM", TraderState.ACTIVE, Arrays.asList());
+        Trader t4 = topology1.addTrader("id4", "Container2", "Container", TraderState.ACTIVE,
+                        Arrays.asList());
         return new Object[][]{
-            {new ProvisionByDemand((Economy)topology1.getEconomy(), b1),topology1,
+                        {new ProvisionByDemand((Economy)topology1.getEconomy(), b1, t3), topology1,
                 "No VM has enough capacity for VM1 [id1] (#0)."},
-            {new ProvisionByDemand((Economy)topology1.getEconomy(), b2),topology1,
+                        {new ProvisionByDemand((Economy)topology1.getEconomy(), b2, t4), topology1,
                 "No Container has enough capacity for Container1 [id2] (#1)."},
             // TODO: update test when we figure out how to get correct type!
         };
@@ -187,9 +199,9 @@ public class ProvisionByDemandTest {
         ShoppingList shop2 = e.addBasketBought(t2, b2);
         shop2.move(t3);
 
-        ProvisionByDemand provisionByDemand1 = new ProvisionByDemand(e, shop1);
-        ProvisionByDemand provisionByDemand2 = new ProvisionByDemand(e, shop2);
-        ProvisionByDemand provisionByDemand3 = new ProvisionByDemand(e, shop1);
+        ProvisionByDemand provisionByDemand1 = new ProvisionByDemand(e, shop1, t4);
+        ProvisionByDemand provisionByDemand2 = new ProvisionByDemand(e, shop2, t4);
+        ProvisionByDemand provisionByDemand3 = new ProvisionByDemand(e, shop1, t4);
         return new Object[][] {{provisionByDemand1, provisionByDemand2, false},
                         {provisionByDemand1, provisionByDemand3, true}};
     }

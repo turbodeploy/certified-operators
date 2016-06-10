@@ -26,6 +26,7 @@ public class ProvisionByDemand implements Action {
     // Fields
     private final @NonNull Economy economy_;
     private final @NonNull ShoppingList modelBuyer_; // TODO: also add source market? Desired state?
+    private final @NonNull Trader modelSeller_;
     private @Nullable Trader provisionedSeller_;
 
     // Constructors
@@ -36,9 +37,11 @@ public class ProvisionByDemand implements Action {
      * @param economy The economy in which the seller will be provisioned.
      * @param modelBuyer The shopping list that should be satisfied by the new seller.
      */
-    public ProvisionByDemand(@NonNull Economy economy, @NonNull ShoppingList modelBuyer) {
+    public ProvisionByDemand(@NonNull Economy economy, @NonNull ShoppingList modelBuyer,
+                    @NonNull Trader modelSeller) {
         economy_ = economy;
         modelBuyer_ = modelBuyer;
+        modelSeller_ = modelSeller;
     }
 
     // Methods
@@ -71,6 +74,14 @@ public class ProvisionByDemand implements Action {
         return provisionedSeller_;
     }
 
+    /**
+     * Returns the seller that is used as a model in taking {@code this} action.
+     */
+    @Pure
+    public @Nullable Trader getModelSeller(@ReadOnly ProvisionByDemand this) {
+        return modelSeller_;
+    }
+
     @Override
     public @NonNull String serialize(@NonNull Function<@NonNull Trader, @NonNull String> oid) {
         return new StringBuilder().append("<action type=\"provisionByDemand\" modelBuyer=\"")
@@ -81,7 +92,7 @@ public class ProvisionByDemand implements Action {
     @Override
     public @NonNull Action take() {
         @NonNull Basket basketSold = getModelBuyer().getBasket();
-        provisionedSeller_ = getEconomy().addTrader(0 /* what type should it have? */,
+        provisionedSeller_ = getEconomy().addTrader(modelSeller_.getType(),
             TraderState.ACTIVE, basketSold /*, what should it buy? */);
 
         for (int i = 0 ; i < basketSold.size() ; ++i) {
@@ -143,7 +154,8 @@ public class ProvisionByDemand implements Action {
         }
         ProvisionByDemand otherProvisionByDemand = (ProvisionByDemand)other;
         return otherProvisionByDemand.getEconomy().equals(getEconomy())
-                        && otherProvisionByDemand.getModelBuyer().equals(getModelBuyer());
+                        && otherProvisionByDemand.getModelBuyer().equals(getModelBuyer())
+                        && otherProvisionByDemand.getModelSeller().equals(getModelSeller());
     }
 
     /**
@@ -153,6 +165,7 @@ public class ProvisionByDemand implements Action {
     @Pure
     public int hashCode() {
         return Hashing.md5().newHasher().putInt(getEconomy().hashCode())
-                        .putInt(getModelBuyer().hashCode()).hash().asInt();
+                        .putInt(getModelBuyer().hashCode()).putInt(getModelSeller().hashCode())
+                        .hash().asInt();
     }
 } // end ProvisionByDemand class
