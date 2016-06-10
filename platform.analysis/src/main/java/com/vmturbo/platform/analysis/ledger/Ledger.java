@@ -184,7 +184,8 @@ public class Ledger {
      *
      * @return The ledger containing the updated list of commodityIncomeStatements
      */
-    @NonNull Ledger calculateAllCommodityExpensesAndRevenues(@NonNull Economy economy) {
+    @NonNull
+    public Ledger calculateAllCommodityExpensesAndRevenues(@NonNull Economy economy) {
 
         for (Trader buyer : economy.getTraders()) {
 
