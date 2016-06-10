@@ -338,20 +338,19 @@ public final class ProtobufToAnalysis {
      */
     public static void populateCommodityResizeDependencyMap(@NonNull EndDiscoveredTopology source,
                                                  @NonNull Topology destination) {
-        Map<Long, List<CommodityResizeSpecification>> resizeDependencyMap =
+        Map<Integer, List<CommodityResizeSpecification>> resizeDependencyMap =
                         destination.getModifiableCommodityResizeDependencyMap();
         for (CommodityResizeDependencyEntry entry : source.getResizeDependencyList()) {
-            long commodityType = entry.getCommodityType();
+            int commodityType = entry.getCommodityType();
             List<CommodityResizeDependency> dependentCommodities = entry.getCommodityResizeDependencyList();
             List<CommodityResizeSpecification> resizeSpecs = new ArrayList<>(dependentCommodities.size());
             for (CommodityResizeDependency dependentCommodity : dependentCommodities) {
-                long dependentCommodityType = dependentCommodity.getDependentCommodityType();
+                int dependentCommodityType = dependentCommodity.getDependentCommodityType();
                 UpdatingFunctionTO updateFunctionTO = dependentCommodity.getUpdateFunction();
                 DoubleBinaryOperator binaryOperator = updatingFunction(updateFunctionTO);
-                resizeSpecs.add(new CommodityResizeSpecification(
-                                    new Long(dependentCommodityType), binaryOperator));
+                resizeSpecs.add(new CommodityResizeSpecification(dependentCommodityType, binaryOperator));
             }
-            resizeDependencyMap.put(new Long(commodityType), resizeSpecs);
+            resizeDependencyMap.put(commodityType, resizeSpecs);
 
         }
     }
@@ -365,12 +364,11 @@ public final class ProtobufToAnalysis {
      */
     public static void populateRawCommodityMap(@NonNull EndDiscoveredTopology source,
                                                             @NonNull Topology destination) {
-        Map<Long, Long> rawCommodityMap =
-                        destination.getModifiableRawCommodityMap();
+        Map<Integer, List<Integer>> rawCommodityMap = destination.getModifiableRawCommodityMap();
         for (CommodityRawMaterialEntry entry : source.getRawMaterialEntryList()) {
-            long rawCommodityType = entry.getRawCommodityType();
-            long processedCommodityType = entry.getProcessedCommodityType();
-            rawCommodityMap.put(new Long(rawCommodityType), new Long(processedCommodityType));
+            int processedCommodityType = entry.getProcessedCommodityType();
+            List<Integer> rawCommodityTypes = entry.getRawCommodityTypeList();
+            rawCommodityMap.put(processedCommodityType, rawCommodityTypes);
         }
     }
 } // end ProtobufToAnalysis class

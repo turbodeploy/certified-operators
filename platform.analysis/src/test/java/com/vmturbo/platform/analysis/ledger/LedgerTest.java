@@ -96,8 +96,8 @@ public class LedgerTest {
         decisionEngine.generateActions(economy);
 
         // populate rawMaterialMap
-        economy.getModifiableRawCommodityMap().put(new Long(V_CPU.getType()), new Long(CPU_ANY.getType()));
-        economy.getModifiableRawCommodityMap().put(new Long(V_MEM.getType()), new Long(MEM.getType()));
+        economy.getModifiableRawCommodityMap().put(V_CPU.getType(), Arrays.asList(CPU_ANY.getType()));
+        economy.getModifiableRawCommodityMap().put(V_MEM.getType(), Arrays.asList(MEM.getType()));
 
         Ledger ledger = new Ledger(economy);
         ledger.calculateAllTraderExpensesAndRevenues(economy);

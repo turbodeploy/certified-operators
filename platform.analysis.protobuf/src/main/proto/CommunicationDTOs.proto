@@ -41,21 +41,21 @@ message EndDiscoveredTopology {
     // If it is to be set to the minimum of its and the resized commodity's value
     // otherwise it is set to the resized commodity value.
     message CommodityResizeDependency {
-        required int64 dependentCommodityType = 1;
+        required int32 dependentCommodityType = 1;
         required UpdatingFunctionTO updateFunction = 2;
     }
 
     // An entry of dependent commodity in map.
     message CommodityResizeDependencyEntry {
-        required int64 commodityType = 1;
+        required int32 commodityType = 1;
         repeated CommodityResizeDependency commodityResizeDependency = 2;
     }
 
     // An entry in raw to processed commodity map. The raw (bought) commodity
     // is the key and the processed (sold) commodity is the value.
     message CommodityRawMaterialEntry {
-        required int64 rawCommodityType = 1;
-        required int64 processedCommodityType = 2;
+        required int32 processedCommodityType = 1;
+        repeated int32 rawCommodityType = 2;
     }
 
     // A map from commodity specifications to functions to use when updating the quantities sold

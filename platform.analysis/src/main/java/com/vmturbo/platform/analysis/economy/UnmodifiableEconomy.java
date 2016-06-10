@@ -184,8 +184,8 @@ public interface UnmodifiableEconomy {
                                                                           @NonNull @ReadOnly Trader trader);
 
     /**
-     * Returns an unmodifiable commodityType that uses rawMaterials of a particular type
+     * Returns an unmodifiable List of commodityType that are rawMaterials of a particular processed type
      */
-    @NonNull @ReadOnly Long getRawMaterial(int rawMaterialType);
+    @NonNull @ReadOnly List<Integer> getRawMaterials(int processedCommodityType);
 
 } // end UnmodifiableEconomy interface

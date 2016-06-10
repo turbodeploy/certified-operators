@@ -172,6 +172,25 @@ public final class Topology {
     }
 
     /**
+     *
+     * @return A modifiable map from commodity sold to the dependent commodities bought
+     *         that have to be changed in case of a resize.
+     */
+    public @NonNull Map<@NonNull Integer, @NonNull List<@NonNull CommodityResizeSpecification>>
+                                           getModifiableCommodityResizeDependencyMap() {
+        return economy_.getModifiableCommodityResizeDependencyMap();
+    }
+
+    /**
+     *
+     * @return A modifiable map from processed commodity to the raw commodities used by it.
+     */
+    public @NonNull Map<@NonNull Integer, @NonNull List<@NonNull Integer>>
+                                            getModifiableRawCommodityMap() {
+        return economy_.getModifiableRawCommodityMap();
+    }
+
+    /**
      * Returns an unmodifiable view of the managed {@link Economy} that can be copied.
      */
     public @NonNull UnmodifiableEconomy getEconomy(@ReadOnly Topology this) {
@@ -221,15 +240,6 @@ public final class Topology {
         traderOids_.clear();
         shoppingListOids_.clear();
         danglingShoppingLists_.clear();
-    }
-
-    public @NonNull Map<Long, List<CommodityResizeSpecification>>
-           getModifiableCommodityResizeDependencyMap() {
-        return economy_.getModifiableCommodityResizeDependencyMap();
-    }
-
-    public @NonNull Map<Long, Long> getModifiableRawCommodityMap() {
-        return economy_.getModifiableRawCommodityMap();
     }
 
     /**
