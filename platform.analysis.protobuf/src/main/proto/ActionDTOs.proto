@@ -62,13 +62,20 @@ message ProvisionByDemandTO {
     // The OID of a shopping list that can't be satisfied otherwise.
     required int64 model_buyer = 1;
 
+    // The OID of a trader that is provisioned, which is negative
+    optional sint64 provision_seller = 2;
+
     // May also need a model_seller to get the desired state for producing the new trader.
+    required int64 model_seller = 3;
 }
 
 // An action to provision a trader like another that already exists in the system.
 message ProvisionBySupplyTO {
     // The OID of a trader to clone.
     required int64 model_seller = 1;
+
+	// The OID of a trader that is provisioned, which is negative
+    optional sint64 provision_seller = 2;
 }
 
 // An action to resize the capacity of a particular commodity sold by a specified trader.
