@@ -33,12 +33,15 @@ public abstract class Trader {
     private @NonNull TraderState state_;
     private @NonNull Basket basketSold_;
     private final @NonNull List<@NonNull CommoditySold> commoditiesSold_ = new ArrayList<>();
-    private final @NonNull ArrayList<@NonNull ShoppingList> customers_ = new ArrayList<>();
+    private final @NonNull List<@NonNull Integer> cliques_ = new ArrayList<>();
+    private final @NonNull List<@NonNull ShoppingList> customers_ = new ArrayList<>();
 
     // Cached data
 
     // Cached unmodifiable view of the commoditiesSold_ list.
     private final @NonNull List<@NonNull CommoditySold> unmodifiableCommoditiesSold_ = Collections.unmodifiableList(commoditiesSold_);
+    // Cached unmodifiable view of the cliques_ list.
+    private final @NonNull List<@NonNull Integer> unmodifiableCliques_ = Collections.unmodifiableList(cliques_);
     // Cached unmodifiable view of the customers_ list.
     private final @NonNull List<@NonNull ShoppingList> unmodifiableCustomers_ = Collections.unmodifiableList(customers_);
 
@@ -151,6 +154,45 @@ public abstract class Trader {
 
             return removed;
         }
+    }
+
+    /**
+     * Returns an unmodifiable list of the k-partite cliques {@code this} trader is a member of.
+     *
+     * <p>
+     *  There are situations when a buyer needs to buy a number of {@link ShoppingList}s from
+     *  different {@link Market}s and that not all combinations of sellers from those markets are
+     *  valid. In these situations the k-partite graph of valid placements is covered by k-partite
+     *  cliques so that any combination of sellers from different parts of the graph and in the same
+     *  k-partite clique are valid. This clique cover is constructed before the topology is sent to
+     *  the analysis engine. Refer to the VMTurbo wiki for more details.
+     * </p>
+     *
+     * <p>
+     *  Each of those cliques is represented as an integer.
+     * </p>
+     *
+     * <p>
+     *  {@link Market}s organize their sellers based on k-partite clique membership.
+     * </p>
+     */
+    @Pure
+    public @NonNull @ReadOnly List<@NonNull Integer> getCliques(@ReadOnly Trader this) {
+        return unmodifiableCliques_;
+    }
+
+    /**
+     * Returns a modifiable list of the k-partite cliques {@code this} trader is a member of.
+     *
+     * <p>
+     *  This is a modifiable version of the list returned by {@link #getCliques()}.
+     * </p>
+     *
+     * @see #getCliques()
+     */
+    @Pure
+    @NonNull @PolyRead List<@NonNull @PolyRead Integer> getModifiableCliques(@PolyRead Trader this) {
+        return cliques_;
     }
 
     /**

@@ -233,6 +233,17 @@ public final class TraderWithSettingsTest {
     }
 
     @Test
+    public final void testGetCliques() {
+        ListTests.verifyUnmodifiableValidOperations(fixture_.getCliques(), 42);
+        ListTests.verifyUnmodifiableInvalidOperations(fixture_.getCliques(), 42);
+    }
+
+    @Test
+    public final void testGetModifiableCliques() {
+        ListTests.verifyModifiable(fixture_.getModifiableCliques(), 42);
+    }
+
+    @Test
     public final void testGetCustomers() {
         ListTests.verifyUnmodifiableValidOperations(fixture_.getCustomers(), new ShoppingList(fixture_,EMPTY));
         ListTests.verifyUnmodifiableInvalidOperations(fixture_.getCustomers(), new ShoppingList(fixture_,EMPTY));
