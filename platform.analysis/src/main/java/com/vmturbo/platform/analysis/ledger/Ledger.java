@@ -17,6 +17,8 @@ import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
+import com.vmturbo.platform.analysis.ede.EdeCommon;
+import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 
 /**
  * A bookkeeper of the expenses and revenues of all the traders and the commodities that are present in the economy
@@ -158,19 +160,22 @@ public class Ledger {
     public @NonNull Ledger calculateAllTraderExpensesAndRevenues (@NonNull Economy economy) {
         List<Trader> traders = economy.getTraders();
 
-        calculateAllCommodityExpensesAndRevenues(economy);
-
         for (Trader trader : traders) {
-            int eIndex = trader.getEconomyIndex();
-            IncomeStatement traderIncomeStmt = traderIncomeStatements_.get(eIndex);
-            double traderExpense = traderIncomeStmt.getExpenses();
-            double traderRevenue = traderIncomeStmt.getRevenues();
-            for (IncomeStatement commIS : commodityIncomeStatements_.get(eIndex)) {
-                traderExpense += commIS.getExpenses();
-                traderRevenue += commIS.getRevenues();
-            }
-            traderIncomeStmt.setExpenses(traderExpense);
-            traderIncomeStmt.setRevenues(traderRevenue);
+            economy.getMarketsAsBuyer(trader).forEach((shoppingList, market) -> {
+                Trader currentSupplier = shoppingList.getSupplier();
+                double[] quote = EdeCommon.quote(economy, shoppingList, currentSupplier, Double.POSITIVE_INFINITY, true);
+                IncomeStatement consumerIncomsStmt = traderIncomeStatements_.get(trader.getEconomyIndex());
+                IncomeStatement providerIncomsStmt = traderIncomeStatements_.get(currentSupplier.getEconomyIndex());
+
+                // updating the expenses and revenues of the provider and consumer respectively
+                consumerIncomsStmt.setExpenses(consumerIncomsStmt.getExpenses() + quote[0]);
+                providerIncomsStmt.setRevenues(providerIncomsStmt.getRevenues() + quote[0]);
+                consumerIncomsStmt.setMinDesiredExpenses(consumerIncomsStmt.getMinDesiredExpenses() + quote[1]);
+                providerIncomsStmt.setMinDesiredRevenues(providerIncomsStmt.getMinDesiredRevenues() + quote[1]);
+                consumerIncomsStmt.setMaxDesiredExpenses(consumerIncomsStmt.getMaxDesiredExpenses() + quote[2]);
+                providerIncomsStmt.setMaxDesiredRevenues(providerIncomsStmt.getMaxDesiredRevenues() + quote[2]);
+            });
+
         }
 
         return this;
@@ -191,54 +196,54 @@ public class Ledger {
 
             resetTraderIncomeStatement(buyer);
             List<CommoditySold> commSoldList = buyer.getCommoditiesSold();
-            for (CommoditySold cs : commSoldList) {
-                int indexOfCommSold = commSoldList.indexOf(cs);
-                IncomeStatement consumerCommIS = commodityIncomeStatements_.get(buyer.getEconomyIndex()).get(indexOfCommSold);
-                // rev of consumer is utilOfCommSold*priceFn(utilOfCommSold)
-                // expense of this consumer is utilOfCommBought*priceFn(utilOfCommBought)
-                double maxDesiredUtil = buyer.getSettings().getMaxDesiredUtil();
-                double minDesiredUtil = buyer.getSettings().getMinDesiredUtil();
+            for (int indexOfCommSold = 0; indexOfCommSold < commSoldList.size(); indexOfCommSold++) {
+                CommoditySold cs = commSoldList.get(indexOfCommSold);
+                // compute rev/exp for resizable commodities
+                if (cs.getSettings().isResizable()) {
+                    IncomeStatement consumerCommIS = commodityIncomeStatements_.get(buyer.getEconomyIndex()).get(indexOfCommSold);
+                    // rev of consumer is utilOfCommSold*priceFn(utilOfCommSold)
+                    // expense of this consumer is utilOfCommBought*priceFn(utilOfCommBought)
+                    double maxDesiredUtil = buyer.getSettings().getMaxDesiredUtil();
+                    double minDesiredUtil = buyer.getSettings().getMinDesiredUtil();
+                    double commSoldUtil = cs.getUtilization();
+                    PriceFunction pf = cs.getSettings().getPriceFunction();
 
-                consumerCommIS.setRevenues(cs.getSettings().getPriceFunction().unitPrice(cs.getUtilization())*cs.getUtilization());
-                consumerCommIS.setMaxDesiredRevenues(cs.getSettings().getPriceFunction().unitPrice(maxDesiredUtil)*cs.getUtilization());
-                consumerCommIS.setMinDesiredRevenues(cs.getSettings().getPriceFunction().unitPrice(minDesiredUtil)*cs.getUtilization());
-                // type of mem from type of vMem for example
-                List<Integer> typeOfCommsBought = economy.getRawMaterials(buyer.getBasketSold().get(indexOfCommSold).getType());
+                    consumerCommIS.setRevenues(pf.unitPrice(commSoldUtil)*commSoldUtil);
+                    consumerCommIS.setMaxDesiredRevenues(pf.unitPrice(maxDesiredUtil)*commSoldUtil);
+                    consumerCommIS.setMinDesiredRevenues(pf.unitPrice(minDesiredUtil)*commSoldUtil);
+                    // type of mem from type of vMem for example
+                    List<Integer> typeOfCommsBought = economy.getRawMaterials(buyer.getBasketSold().get(indexOfCommSold).getType());
 
-                if (typeOfCommsBought == null) {
-                    continue;
-                }
+                    if (typeOfCommsBought == null) {
+                        continue;
+                    }
 
-                // reset trader and associated commodity InsomeStatement before we compute the exp and rev of all commodities
+                    for (ShoppingList shoppingList : economy.getMarketsAsBuyer(buyer).keySet()) {
+                        Basket basketBought = shoppingList.getBasket();
 
-                for (ShoppingList shoppingList : economy.getMarketsAsBuyer(buyer).keySet()) {
-                    Basket basketBought = shoppingList.getBasket();
+                        // TODO: make indexOf return 2 values minIndex and the maxIndex. All comm's btw these indices will be of this type
+                        // (needed when we have 2 comms of same type sold)
+                        for (Integer typeOfCommBought : typeOfCommsBought) {
+                            int boughtIndex = basketBought.indexOf(typeOfCommBought.intValue());
 
-                    // TODO: make indexOf return 2 values minIndex and the maxIndex. All comm's btw these indices will be of this type
-                    // (needed when we have 2 comms of same type sold)
-                    for (Integer typeOfCommBought : typeOfCommsBought) {
-                        int boughtIndex = basketBought.indexOf(typeOfCommBought.intValue());
+                            // if the required commodity is not in the shopping list skip shoppingList
+                            if (boughtIndex == -1) {
+                                continue;
+                            }
 
-                        // if the required commodity is not in the shopping list skip shoppingList
-                        if (boughtIndex == -1) {
-                            continue;
+                            Trader supplier = shoppingList.getSupplier();
+                            CommoditySpecification basketCommSpec = basketBought.get(boughtIndex);
+
+                            // find the right provider comm and use it to compute the expenses
+                            CommoditySold commSoldBySeller = supplier.getCommoditySold(basketCommSpec);
+                            // using capacity to remain consistent with quote
+                            double commBoughtUtil = shoppingList.getQuantity(boughtIndex)/commSoldBySeller.getCapacity();
+                            PriceFunction priceFunction = commSoldBySeller.getSettings().getPriceFunction();
+
+                            consumerCommIS.setExpenses(consumerCommIS.getExpenses() + pf.unitPrice(commSoldBySeller.getQuantity()/commSoldBySeller.getEffectiveCapacity())*commBoughtUtil);
+                            consumerCommIS.setMaxDesiredExpenses(consumerCommIS.getMaxDesiredExpenses() + priceFunction.unitPrice(maxDesiredUtil)*commBoughtUtil);
+                            consumerCommIS.setMinDesiredExpenses(consumerCommIS.getMinDesiredExpenses() + priceFunction.unitPrice(minDesiredUtil)*commBoughtUtil);
                         }
-
-                        Trader supplier = shoppingList.getSupplier();
-                        CommoditySpecification basketCommSpec = basketBought.get(boughtIndex);
-
-                        // find the right provider comm and use it to compute the expenses
-                        int soldIndex = 0;
-                        while (basketCommSpec.getType() != supplier.getBasketSold().get(soldIndex).getType()) {
-                            soldIndex++;
-                        }
-                        CommoditySold commSoldBySeller = supplier.getCommoditiesSold().get(soldIndex);
-                        double commBoughtUtil = shoppingList.getQuantity(boughtIndex)/commSoldBySeller.getEffectiveCapacity();
-                        double price = commSoldBySeller.getSettings().getPriceFunction().unitPrice(commBoughtUtil);
-
-                        consumerCommIS.setExpenses(consumerCommIS.getExpenses() + price*commBoughtUtil);
-                        consumerCommIS.setMaxDesiredExpenses(consumerCommIS.getMaxDesiredExpenses() + price*maxDesiredUtil);
-                        consumerCommIS.setMinDesiredExpenses(consumerCommIS.getMinDesiredExpenses() + price*minDesiredUtil);
                     }
                 }
             }

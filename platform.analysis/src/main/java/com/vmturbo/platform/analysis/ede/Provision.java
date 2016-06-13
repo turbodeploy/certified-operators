@@ -3,6 +3,8 @@ package com.vmturbo.platform.analysis.ede;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import org.apache.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.platform.analysis.actions.Action;
@@ -14,6 +16,8 @@ import com.vmturbo.platform.analysis.ledger.IncomeStatement;
 import com.vmturbo.platform.analysis.ledger.Ledger;
 
 public class Provision {
+
+    static final Logger logger = Logger.getLogger(Provision.class);
 
     /**
      * Return a list of recommendations to optimize the cloning of all eligible traders in the economy.
@@ -27,22 +31,29 @@ public class Provision {
      */
     public static @NonNull List<@NonNull Action> provisionDecisions(@NonNull Economy economy) {
 
-        @NonNull List<Action> actions = new ArrayList<>();
+        @NonNull List<Action> allActions = new ArrayList<>();
 
         for (Market market : economy.getMarkets()) {
+            @NonNull List<Action> actions = new ArrayList<>();
             // if there are no sellers in the market, the buyer is misconfigured
-            List<@NonNull Trader> sellers = market.getActiveSellers();
+            List<@NonNull Trader> sellers = new ArrayList<>();
+            sellers.addAll(market.getActiveSellers());
             if (sellers.isEmpty()) {
                 continue;
             }
 
             Ledger ledger = new Ledger(economy);
             ledger.calculateAllTraderExpensesAndRevenues(economy);
+            // continue if there is no seller that is eligible for cloning in the market
+            if (!checkEngageCriteriaForMarket(ledger, market)) {
+                continue;
+            }
+
             Trader mostProfitableTrader = null;
             double roiOfMostProfitableTrader = 0;
             for (Trader seller : sellers) {
                 // check engagementCriteria on every activeTrader
-                if (seller.getSettings().isCloneable() && checkEngageCriteriaForTrader(ledger, seller)) {
+                if (seller.getSettings().isCloneable()) {
                     if (ledger.getTraderIncomeStatements().get(seller.getEconomyIndex()).getROI() > roiOfMostProfitableTrader) {
                         mostProfitableTrader = seller;
                     }
@@ -53,64 +64,70 @@ public class Provision {
             ProvisionBySupply provisionAction = null;
             if (mostProfitableTrader != null) {
                 provisionAction = new ProvisionBySupply(economy, mostProfitableTrader);
-                actions.add(provisionAction);
+                actions.add(provisionAction.take());
+            } else {
+                continue;
             }
 
             // TODO: check if a market specific placement is beneficial?
-            if (provisionAction == null) {
-                continue;
-            } else {
-                Trader provisionedTrader = provisionAction.getProvisionedSeller();
-                // run placement after adding a new seller to the economy
-                actions.addAll(Placement.placementDecisions(economy));
-                sellers.add(provisionedTrader);
-                Ledger newLedger = new Ledger(economy);
-                // TODO: change re-creation and computation of expRev to just updation of the values
-                newLedger.calculateAllTraderExpensesAndRevenues(economy);
-                List<@NonNull Trader> sellers_ = market.getActiveSellers();
-                for (Trader seller : sellers_) {
-                    if (!checkAcceptanceCriteriaForTrader(newLedger, seller)) {
-                        // remove IncomeStatement from ledger, trader from economy and the provision action
-                        newLedger.getTraderIncomeStatements().remove(provisionedTrader.getEconomyIndex());
-                        economy.removeTrader(provisionedTrader);
-                        actions.remove(provisionAction);
-                        // after removing trader run placements again
-                        actions.addAll(Placement.placementDecisions(economy));
-                        break;
-                    }
-                }
+            Trader provisionedTrader = provisionAction.getProvisionedSeller();
+            // run placement after adding a new seller to the economy
+            actions.addAll(Placement.placementDecisions(economy));
+            sellers.add(provisionedTrader);
+            Ledger newLedger = new Ledger(economy);
+            // TODO: change re-creation and computation of expRev to just updating the ledger
+            newLedger.calculateAllTraderExpensesAndRevenues(economy);
+            if (!checkAcceptanceCriteriaForMarket(newLedger, market)) {
+                // remove IncomeStatement from ledger, trader from economy and the provision action
+                newLedger.getTraderIncomeStatements().remove(provisionedTrader.getEconomyIndex());
+                actions.forEach(axn -> axn.rollback());
+                actions.clear();
+                break;
             }
+            allActions.addAll(actions);
         }
 
-        return actions;
+        return allActions;
     }
 
     /**
      * returns true/false after checking the engagement criteria for a particular trader
      *
      * @param ledger - the ledger that holds the incomeStatement of the trader whose ROI is checked
-     * @param trader - the trader whose ROI is checked to verify profitability that implies eligibility to clone
+     * @param market - the market whose seller ROIs are checked to verify profitability that implies eligibility to clone
      *
-     * @return true - if this trader is profitable and is capable of cloning and false otherwise
+     * @return true - if there is even 1 profitable trader and is capable of cloning and false otherwise
      */
-    public static boolean checkEngageCriteriaForTrader(Ledger ledger, Trader trader) {
+    public static boolean checkEngageCriteriaForMarket(Ledger ledger, Market market) {
 
-        IncomeStatement traderIS = ledger.getTraderIncomeStatements().get(trader.getEconomyIndex());
-        return traderIS.getROI() > traderIS.getMaxDesiredROI();
+        for (Trader seller : market.getActiveSellers()) {
+            IncomeStatement traderIS = ledger.getTraderIncomeStatements().get(seller.getEconomyIndex());
+            // return true if there is even 1 profitable trader
+            if (traderIS.getROI() > traderIS.getMaxDesiredROI()) {
+                return true;
+            }
+        }
+        logger.warn("There is no profitable seller to clone in market " + market.toString());
+        return false;
     }
 
     /**
      * returns true/false after checking the acceptance criteria for a particular trader
      *
      * @param ledger - the ledger that holds the incomeStatement of the trader whose ROI is checked
-     * @param trader - the trader whose ROI is checked to verify profitability after a clone was added to the market
+     * @param market - the market whose seller ROIs are checked to verify profitability after a clone was added to the market
      *
      * @return true - if this trader is not at loss and false otherwise
      */
-    public static boolean checkAcceptanceCriteriaForTrader(Ledger ledger, Trader trader) {
+    public static boolean checkAcceptanceCriteriaForMarket(Ledger ledger, Market market) {
 
-        IncomeStatement traderIS = ledger.getTraderIncomeStatements().get(trader.getEconomyIndex());
-        return traderIS.getROI() >= traderIS.getMinDesiredROI();
+        for (Trader seller : market.getActiveSellers()) {
+            IncomeStatement traderIS = ledger.getTraderIncomeStatements().get(seller.getEconomyIndex());
+            if (traderIS.getROI() < traderIS.getMinDesiredROI()) {
+                return false;
+            }
+        }
+        return true;
     }
 
 }
