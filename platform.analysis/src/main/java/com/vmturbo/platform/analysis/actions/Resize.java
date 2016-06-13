@@ -163,7 +163,7 @@ public class Resize implements Action {
             return false;
         }
         Resize otherResize = (Resize)other;
-        return otherResize.getSellingTrader().equals(getSellingTrader())
+        return otherResize.getSellingTrader() == getSellingTrader()
                         && otherResize.getResizedCommodity().equals(getResizedCommodity())
                         && otherResize.getOldCapacity() == getOldCapacity()
                         && otherResize.getNewCapacity() == getNewCapacity();

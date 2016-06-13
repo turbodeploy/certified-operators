@@ -2,7 +2,11 @@ package com.vmturbo.platform.analysis.economy;
 
 import java.util.function.DoubleBinaryOperator;
 
+import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
+import org.checkerframework.dataflow.qual.Pure;
+
+import com.google.common.hash.Hashing;
 
 /**
  * Holds the values in Commodity Resize Dependency Map that
@@ -55,5 +59,28 @@ public final class CommodityResizeSpecification {
      */
     public DoubleBinaryOperator getLimitFunction() {
         return limitFunction_;
+    }
+
+    /**
+     * Tests whether two CommodityResizeSpecifications are equal field by field.
+     */
+    @Override
+    @Pure
+    public boolean equals(@ReadOnly CommodityResizeSpecification this,@ReadOnly Object other) {
+        if (other == null || !(other instanceof CommodityResizeSpecification))
+            return false;
+        CommodityResizeSpecification otherResizeSpec = (CommodityResizeSpecification)other;
+        return otherResizeSpec.getCommodityType() == dependentCommodityType_
+                        && otherResizeSpec.getLimitFunction() == limitFunction_;
+    }
+
+    /**
+     * Returns a strong hash code, consistent with {@link #equals(Object)}.
+     */
+    @Override
+    @Pure
+    public int hashCode() {
+        return Hashing.md5().newHasher().putInt(dependentCommodityType_)
+                        .putInt(limitFunction_.hashCode()).hash().asInt();
     }
 }

@@ -153,9 +153,9 @@ public class ProvisionByDemand implements Action {
             return false;
         }
         ProvisionByDemand otherProvisionByDemand = (ProvisionByDemand)other;
-        return otherProvisionByDemand.getEconomy().equals(getEconomy())
-                        && otherProvisionByDemand.getModelBuyer().equals(getModelBuyer())
-                        && otherProvisionByDemand.getModelSeller().equals(getModelSeller());
+        return otherProvisionByDemand.getEconomy() == getEconomy()
+                        && otherProvisionByDemand.getModelBuyer() == getModelBuyer()
+                        && otherProvisionByDemand.getModelSeller() == getModelSeller();// maybe modelSeller can be different?
     }
 
     /**

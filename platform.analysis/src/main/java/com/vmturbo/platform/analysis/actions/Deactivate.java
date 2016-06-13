@@ -126,9 +126,9 @@ public class Deactivate extends StateChangeBase implements Action { // inheritan
             return false;
         }
         Deactivate otherDeactivate = (Deactivate)other;
-        return otherDeactivate.getEconomy().equals(getEconomy())
-                        && otherDeactivate.getTarget().equals(getTarget())
-                        && otherDeactivate.getSourceMarket().equals(getSourceMarket());
+        return otherDeactivate.getEconomy() == getEconomy()
+                        && otherDeactivate.getTarget() == getTarget()
+                        && otherDeactivate.getSourceMarket() == getSourceMarket();
     }
 
     /**

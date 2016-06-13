@@ -280,10 +280,9 @@ public class Move extends MoveBase implements Action { // inheritance for code r
             return false;
         }
         Move otherMove = (Move)other;
-        return otherMove.getEconomy().equals(getEconomy())
-                        && otherMove.getTarget().equals(getTarget())
-                        && otherMove.getSource().equals(getSource())
-                        && otherMove.getDestination().equals(getDestination());
+        return otherMove.getEconomy() == getEconomy() && otherMove.getTarget() == getTarget()
+                        && otherMove.getSource() == getSource()
+                        && otherMove.getDestination() == getDestination();
     }
 
     /**
@@ -293,8 +292,10 @@ public class Move extends MoveBase implements Action { // inheritance for code r
     @Pure
     public int hashCode() {
         return Hashing.md5().newHasher().putInt(getEconomy().hashCode())
-                        .putInt(getTarget().hashCode()).putInt(getSource().hashCode())
-                        .putInt(getDestination().hashCode()).hash().asInt();
+                        .putInt(getTarget().hashCode())
+                        .putInt(getSource() == null ? 0 : getSource().hashCode())
+                        .putInt(getDestination() == null ? 0 : getDestination().hashCode()).hash()
+                        .asInt();
     }
 
 } // end Move class

@@ -126,10 +126,10 @@ public class Activate extends StateChangeBase implements Action { // inheritance
             return false;
         }
         Activate otherActivate = (Activate)other;
-        return otherActivate.getEconomy().equals(getEconomy())
-                        && otherActivate.getTarget().equals(getTarget())
-                        && otherActivate.getSourceMarket().equals(getSourceMarket())
-                        && otherActivate.getModelSeller().equals(getModelSeller());
+        return otherActivate.getEconomy() == getEconomy()
+                        && otherActivate.getTarget() == getTarget()
+                        && otherActivate.getSourceMarket() == getSourceMarket()
+                        && otherActivate.getModelSeller() == getModelSeller();
     }
 
     /**

@@ -192,8 +192,8 @@ public class ProvisionBySupply implements Action {
             return false;
         }
         ProvisionBySupply otherProvisionBySupply = (ProvisionBySupply)other;
-        return otherProvisionBySupply.getEconomy().equals(getEconomy())
-                        && otherProvisionBySupply.getModelSeller().equals(getModelSeller());
+        return otherProvisionBySupply.getEconomy() == getEconomy()
+                        && otherProvisionBySupply.getModelSeller() == getModelSeller();
     }
 
     /**

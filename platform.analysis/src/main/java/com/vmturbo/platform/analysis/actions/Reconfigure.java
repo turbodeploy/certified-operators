@@ -124,8 +124,8 @@ public class Reconfigure extends MoveBase implements Action { // inheritance for
             return false;
         }
         Reconfigure otherReconfigure = (Reconfigure)other;
-        return otherReconfigure.getEconomy().equals(getEconomy())
-                        && otherReconfigure.getTarget().equals(getTarget());
+        return otherReconfigure.getEconomy() == getEconomy()
+                        && otherReconfigure.getTarget() == getTarget();
     }
 
     /**
