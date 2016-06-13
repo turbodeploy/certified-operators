@@ -5,8 +5,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
-import org.checkerframework.checker.nullness.qual.Nullable;
-
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.actions.Reconfigure;
@@ -27,12 +25,8 @@ public class Placement {
      * </p>
      *
      * @param economy - the economy whose traders' placement we want to optimize
-     * @param state - the state capturing all previous decisions of the economic decisions engine
-     * @param timeMiliSec - time in Mili Seconds the placement decision algorithm is invoked
-     *                      (typically since Jan. 1, 1970)
      */
-    public static @NonNull List<@NonNull Action> placementDecisions(@NonNull Economy economy,
-                    @NonNull List<@NonNull StateItem> state, long timeMiliSec) {
+    public static @NonNull List<@NonNull Action> placementDecisions(@NonNull Economy economy) {
 
         @NonNull List<Action> actions = new ArrayList<>();
 
@@ -50,18 +44,12 @@ public class Placement {
                     actions.add(new Reconfigure(economy, shoppingList).take());
                     continue;
                 }
-                final @Nullable Trader currentSupplier = shoppingList.getSupplier();
-                // check if the buyer cannot move, or cannot move out of current supplier
-                if (currentSupplier != null
-                        && timeMiliSec < state.get(currentSupplier.getEconomyIndex()).getMoveFromOnlyAfterThisTime()) {
-                    continue;
-                }
 
                 // get cheapest quote
                 final EdeCommon.QuoteMinimizer minimizer =
                     (sellers.size() < economy.getSettings().getMinSellersForParallelism()
                         ? sellers.stream() : sellers.parallelStream())
-                    .collect(()->new QuoteMinimizer(economy,state,timeMiliSec,shoppingList),
+                    .collect(()->new QuoteMinimizer(economy,shoppingList),
                         QuoteMinimizer::accept, QuoteMinimizer::combine);
 
                 final double cheapestQuote = minimizer.bestQuote();
@@ -75,10 +63,6 @@ public class Placement {
                     // create recommendation, add it to the result list and  update the economy to
                     // reflect the decision
                     actions.add(new Move(economy,shoppingList,cheapestSeller).take());
-                    // update the state
-                    // TODO (Apostolos): use economy.getSettings().getPlacementInterval() below
-                    long newTime = timeMiliSec + 1200000; // wait two 10 min intervals
-                    state.get(cheapestSeller.getEconomyIndex()).setSuspendOnlyAfterThisTime(newTime);
                 }
             }
         }

@@ -1,6 +1,5 @@
 package com.vmturbo.platform.analysis.ede;
 
-import java.util.List;
 import java.util.function.DoubleBinaryOperator;
 
 import org.checkerframework.checker.javari.qual.ReadOnly;
@@ -103,19 +102,14 @@ public final class EdeCommon {
 
     static class QuoteMinimizer {
         private final @NonNull UnmodifiableEconomy economy_;
-        private final @NonNull List<StateItem> state_;
-        private final long time_;
         private final @NonNull ShoppingList shoppingList_;
 
         private Trader bestSeller_;
         private double bestQuote_ = Double.POSITIVE_INFINITY;
         private double currentQuote_ = Double.POSITIVE_INFINITY;
 
-        public QuoteMinimizer(@NonNull UnmodifiableEconomy economy, @NonNull List<StateItem> state,
-                long time, @NonNull ShoppingList shoppingList) {
+        public QuoteMinimizer(@NonNull UnmodifiableEconomy economy, @NonNull ShoppingList shoppingList) {
             economy_ = economy;
-            state_ = state;
-            time_ = time;
             shoppingList_ = shoppingList;
 
             bestSeller_ = shoppingList.getSupplier();
@@ -137,12 +131,6 @@ public final class EdeCommon {
         }
 
         public void accept(@NonNull Trader seller) {
-            // if we cannot move to this seller and it is not the current supplier, skip it
-            if (seller != shoppingList_.getSupplier()
-                && time_ < state_.get(seller.getEconomyIndex()).getMoveToOnlyAfterThisTime()) {
-                return;
-            }
-
             final double quote = EdeCommon.quote(economy_, shoppingList_, seller);
 
             if (seller == shoppingList_.getSupplier()) {

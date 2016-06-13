@@ -41,12 +41,8 @@ public class Resize {
      * </p>
      *
      * @param economy - the economy whose commodity we want to resize
-     * @param state - the state capturing all previous decisions of the economic decisions engine
-     * @param timeMiliSec - time in Mili Seconds the placement decision algorithm is invoked
-     *                      (typically since Jan. 1, 1970)
      */
-    public static @NonNull List<@NonNull Action> resizeDecisions(@NonNull Economy economy,
-                    @NonNull List<@NonNull StateItem> state, long timeMiliSec) {
+    public static @NonNull List<@NonNull Action> resizeDecisions(@NonNull Economy economy) {
 
         @NonNull List<Action> actions = new ArrayList<>();
 
@@ -72,13 +68,10 @@ public class Resize {
                     double expenses = incomeStatement.getExpenses();
                     double newRevenue = desiredROI * expenses;
                     double currentRevenue = incomeStatement.getRevenues();
-                    try {
-                        double newCapacity = calculateNewCapacity(commoditySold, currentRevenue, newRevenue);
-                        com.vmturbo.platform.analysis.actions.Resize resizeAction =
-                          new com.vmturbo.platform.analysis.actions.Resize(seller, basketCommSpec, newCapacity);
-                        actions.add(resizeAction);
-                    } catch (Exception e) {
-                    }
+                    double newCapacity = calculateNewCapacity(commoditySold, currentRevenue, newRevenue);
+                    com.vmturbo.platform.analysis.actions.Resize resizeAction =
+                      new com.vmturbo.platform.analysis.actions.Resize(seller, basketCommSpec, newCapacity);
+                    actions.add(resizeAction);
                 }
             }
         }
@@ -120,7 +113,7 @@ public class Resize {
      * @return The new capacity
      * @throws Exception If it cannot find the new capacity.
      */
-    private static double calculateNewCapacity(CommoditySold resizeCommodity, double currentRevenue, double newRevenue) throws Exception {
+    private static double calculateNewCapacity(CommoditySold resizeCommodity, double currentRevenue, double newRevenue) {
         double currentCapacity = resizeCommodity.getEffectiveCapacity();
         double currentQuantity = resizeCommodity.getQuantity();
         PriceFunction priceFunction = resizeCommodity.getSettings().getPriceFunction();

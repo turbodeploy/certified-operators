@@ -24,12 +24,8 @@ public class Provision {
      * </p>
      *
      * @param economy - the economy whose traders' placement we want to optimize
-     * @param state - the state capturing all previous decisions of the economic decisions engine
-     * @param timeMiliSec - time in Mili Seconds the placement decision algorithm is invoked
-     *                      (typically since Jan. 1, 1970)
      */
-    public static @NonNull List<@NonNull Action> provisionDecisions(@NonNull Economy economy,
-                    @NonNull List<@NonNull StateItem> state, long timeMiliSec) {
+    public static @NonNull List<@NonNull Action> provisionDecisions(@NonNull Economy economy) {
 
         @NonNull List<Action> actions = new ArrayList<>();
 
@@ -66,7 +62,7 @@ public class Provision {
             } else {
                 Trader provisionedTrader = provisionAction.getProvisionedSeller();
                 // run placement after adding a new seller to the economy
-                actions.addAll(Placement.placementDecisions(economy, state, timeMiliSec));
+                actions.addAll(Placement.placementDecisions(economy));
                 sellers.add(provisionedTrader);
                 Ledger newLedger = new Ledger(economy);
                 // TODO: change re-creation and computation of expRev to just updation of the values
@@ -79,7 +75,7 @@ public class Provision {
                         economy.removeTrader(provisionedTrader);
                         actions.remove(provisionAction);
                         // after removing trader run placements again
-                        actions.addAll(Placement.placementDecisions(economy, state, timeMiliSec));
+                        actions.addAll(Placement.placementDecisions(economy));
                         break;
                     }
                 }
