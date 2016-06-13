@@ -2,13 +2,8 @@ package com.vmturbo.platform.analysis.translators;
 
 import static org.junit.Assert.*;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
-
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -26,9 +21,7 @@ import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 
-import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO;
 import com.vmturbo.platform.analysis.topology.Topology;
-import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTopology.CommodityResizeDependencyEntry;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.CommodityBoughtTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.CommoditySoldTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.CommoditySpecificationTO;
@@ -39,7 +32,6 @@ import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.Constant;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.StandardWeighted;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.Step;
-import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTopology.CommodityResizeDependency;
 /**
  * A test case for the {@link ProtobufToAnalysis} class.
  */
@@ -207,70 +199,6 @@ public class ProtobufToAnalysisTest {
     @Ignore
     public final void testPopulateUpdatingFunctions() {
         fail("Not yet implemented"); // TODO
-    }
-
-    @Test
-    public final void testCommodityResizeDependencyMap() {
-        CommodityResizeDependencyEntry.Builder entryBuilder = CommodityResizeDependencyEntry.newBuilder();
-        List<CommodityResizeDependency> listValues = new ArrayList<>(2);
-
-        // VMem(0)  <--  Mem(1), MemProvisioned(2)
-        CommodityResizeDependency.Builder memDependencyBuilder = CommodityResizeDependency.newBuilder();
-        memDependencyBuilder.setDependentCommodityType(1);    // Mem
-        UpdatingFunctionTO.Builder minFunctionBuilder = UpdatingFunctionTO.newBuilder();
-        UpdatingFunctionTO.Min.Builder minBuilder = UpdatingFunctionTO.Min.newBuilder();
-        UpdatingFunctionTO.Min minUpdateFunction = minBuilder.build();
-        minFunctionBuilder.setMin(minUpdateFunction);
-        UpdatingFunctionTO minFunction = minFunctionBuilder.build();
-        memDependencyBuilder.setUpdateFunction(minFunction);
-        CommodityResizeDependency dependencyMem = memDependencyBuilder.build();
-        listValues.add(dependencyMem);
-
-        CommodityResizeDependency.Builder memProvDependencyBuilder = CommodityResizeDependency.newBuilder();
-        memProvDependencyBuilder.setDependentCommodityType(2);    // MemProvisioned
-        UpdatingFunctionTO.Builder projectFunctionBuilder = UpdatingFunctionTO.newBuilder();
-        UpdatingFunctionTO.ProjectSecond.Builder projectBuilder = UpdatingFunctionTO.ProjectSecond.newBuilder();
-        UpdatingFunctionTO.ProjectSecond projectUpdateFunction = projectBuilder.build();
-        projectFunctionBuilder.setProjectSecond(projectUpdateFunction);
-        UpdatingFunctionTO projectFunction = projectFunctionBuilder.build();
-        memProvDependencyBuilder.setUpdateFunction(projectFunction);
-        CommodityResizeDependency dependencyMemProvisioned = memProvDependencyBuilder.build();
-        listValues.add(dependencyMemProvisioned);
-
-        entryBuilder.setCommodityType(0); // VMem
-        entryBuilder.addAllCommodityResizeDependency(listValues);
-        CommodityResizeDependencyEntry mapEntry = entryBuilder.build();
-
-        ByteArrayOutputStream byteOutputStream = new ByteArrayOutputStream();
-        try {
-            mapEntry.writeTo(byteOutputStream);
-        } catch (Exception ioe) {
-
-        }
-
-        // read back
-        InputStream inputStream = new ByteArrayInputStream(byteOutputStream.toByteArray());
-        CommodityResizeDependencyEntry.Builder reconstittutedEntryBuilder = CommodityResizeDependencyEntry.newBuilder();
-        try {
-            reconstittutedEntryBuilder.mergeFrom(inputStream);
-        } catch (Exception ioe) {
-
-        }
-
-        CommodityResizeDependencyEntry reconstittutedEntry = reconstittutedEntryBuilder.build();
-        // Resize Dependency List for VMem (0)
-        assertEquals(reconstittutedEntry.getCommodityType(), 0);
-        assertEquals(reconstittutedEntry.getCommodityResizeDependencyCount(), 2);
-        List<CommodityResizeDependency> vMemDependencyList = reconstittutedEntry.getCommodityResizeDependencyList();
-
-        CommodityResizeDependency memDependency = vMemDependencyList.get(0);
-        assertEquals(memDependency.getDependentCommodityType(), 1);
-        assertEquals(memDependency.getUpdateFunction(), minFunction);
-
-        CommodityResizeDependency memProvDependency = vMemDependencyList.get(1);
-        assertEquals(memProvDependency.getDependentCommodityType(), 2);
-        assertEquals(memProvDependency.getUpdateFunction(), projectFunction);
-
     }
 
 } // end ProtobufToAnalysisTest class
