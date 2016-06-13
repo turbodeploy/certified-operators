@@ -2,7 +2,6 @@ package com.vmturbo.platform.analysis.ede;
 
 import java.util.function.DoubleBinaryOperator;
 
-import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
 
@@ -51,7 +50,6 @@ public final class EdeCommon {
         return quote;
     }
 
-
     /**
      * Calculate the cost of a commodity bought by a consumer in a market that sells a particular basket.
      *
@@ -99,61 +97,5 @@ public final class EdeCommon {
                / commSold.getCapacity();
 
     }
-
-    static class QuoteMinimizer {
-        private final @NonNull UnmodifiableEconomy economy_;
-        private final @NonNull ShoppingList shoppingList_;
-
-        private Trader bestSeller_;
-        private double bestQuote_ = Double.POSITIVE_INFINITY;
-        private double currentQuote_ = Double.POSITIVE_INFINITY;
-
-        public QuoteMinimizer(@NonNull UnmodifiableEconomy economy, @NonNull ShoppingList shoppingList) {
-            economy_ = economy;
-            shoppingList_ = shoppingList;
-
-            bestSeller_ = shoppingList.getSupplier();
-        }
-
-        @Pure
-        public double bestQuote(@ReadOnly QuoteMinimizer this) {
-            return bestQuote_;
-        }
-
-        @Pure
-        public Trader bestSeller(@ReadOnly QuoteMinimizer this) {
-            return bestSeller_;
-        }
-
-        @Pure
-        public double currentQuote(@ReadOnly QuoteMinimizer this) {
-            return currentQuote_;
-        }
-
-        public void accept(@NonNull Trader seller) {
-            final double quote = EdeCommon.quote(economy_, shoppingList_, seller);
-
-            if (seller == shoppingList_.getSupplier()) {
-                currentQuote_ = quote;
-            }
-
-            // keep the minimum between quotes
-            if (quote < bestQuote_) {
-                bestQuote_ = quote;
-                bestSeller_ = seller;
-            }
-        }
-
-        public void combine(@NonNull @ReadOnly QuoteMinimizer other) {
-            if (other.bestQuote_ < bestQuote_) {
-                bestQuote_ = other.bestQuote_;
-                bestSeller_ = other.bestSeller_;
-            }
-
-            if (other.currentQuote_ != Double.POSITIVE_INFINITY) {
-                currentQuote_ = other.currentQuote_;
-            }
-        }
-    } // end QuoteMinimizer class
 
 } // end EdeCommon class

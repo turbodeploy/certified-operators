@@ -12,7 +12,6 @@ import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.Trader;
-import com.vmturbo.platform.analysis.ede.EdeCommon.QuoteMinimizer;
 
 public class Placement {
 
@@ -46,15 +45,15 @@ public class Placement {
                 }
 
                 // get cheapest quote
-                final EdeCommon.QuoteMinimizer minimizer =
+                final QuoteMinimizer minimizer =
                     (sellers.size() < economy.getSettings().getMinSellersForParallelism()
                         ? sellers.stream() : sellers.parallelStream())
                     .collect(()->new QuoteMinimizer(economy,shoppingList),
                         QuoteMinimizer::accept, QuoteMinimizer::combine);
 
-                final double cheapestQuote = minimizer.bestQuote();
-                final Trader cheapestSeller = minimizer.bestSeller();
-                final double currentQuote = minimizer.currentQuote();
+                final double cheapestQuote = minimizer.getBestQuote();
+                final Trader cheapestSeller = minimizer.getBestSeller();
+                final double currentQuote = minimizer.getCurrentQuote();
 
                 // move, and update economy and state
                 // TODO: decide how much cheaper the new supplier should be to decide to move
