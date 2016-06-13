@@ -14,6 +14,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import com.vmturbo.platform.analysis.utility.MapTests;
 
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
@@ -89,6 +90,16 @@ public class MarketTest {
     @Test
     public final void testGetActiveSellers_InvalidOperations() {
         verifyUnmodifiableInvalidOperations(fixture_.getActiveSellers(),T0);
+    }
+
+    @Test
+    public final void testGetCliques_ValidOperations() {
+        MapTests.verifyUnmodifiableValidOperations(fixture_.getCliques(),42,Arrays.asList());
+    }
+
+    @Test
+    public final void testGetCliques_InvalidOperations() {
+        MapTests.verifyUnmodifiableInvalidOperations(fixture_.getCliques(),42,Arrays.asList());
     }
 
     @Test

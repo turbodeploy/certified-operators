@@ -5,7 +5,9 @@ import static com.google.common.base.Preconditions.checkArgument;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
+import java.util.TreeMap;
 
 import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
@@ -33,8 +35,11 @@ public final class Market {
 
     private final @NonNull Basket basket_; // see #getBasket()
     private final @NonNull List<@NonNull ShoppingList> buyers_ = new ArrayList<>(); // see #getBuyers()
-    // TODO (Vaptistis): consider making sellers_ a Set.
+    // active sellers, inactive sellers and each of the lists in cliques may be lists, but are
+    // utilized as sets in the sense that they are not supposed to contain duplicate elements. Lists
+    // were selected for fast iteration.
     private final @NonNull List<@NonNull Trader> activeSellers_ = new ArrayList<>(); // see #getActiveSellers()
+    private final @NonNull Map<@NonNull Integer, @NonNull List<@NonNull Trader>> cliques_ = new TreeMap<>(); // see #getCliques
     private final @NonNull List<@NonNull Trader> inactiveSellers_ = new ArrayList<>(); // see #getInactiveSellers()
 
     // Cached data
@@ -43,6 +48,9 @@ public final class Market {
     private final @NonNull List<@NonNull ShoppingList> unmodifiableBuyers_ = Collections.unmodifiableList(buyers_);
     // Cached unmodifiable view of the activeSellers_ list.
     private final @NonNull List<@NonNull Trader> unmodifiableActiveSellers_ = Collections.unmodifiableList(activeSellers_);
+    // Cached unmodifiable view of the cliques_ map.
+    // TODO: find a way to make the contained lists unmodifiable as well.
+    private final @NonNull Map<@NonNull Integer, @NonNull List<@NonNull Trader>> unmodifiableCliques_ = Collections.unmodifiableMap(cliques_);
     // Cached unmodifiable view of the inactiveSellers_ list.
     private final @NonNull List<@NonNull Trader> unmodifiableInactiveSellers_ = Collections.unmodifiableList(inactiveSellers_);
 
@@ -79,10 +87,25 @@ public final class Market {
      *  A {@link Trader} participates in the market as a seller iff he is active and the basket he
      *  is selling satisfies the one associated with the market.
      * </p>
+     *
+     * @see #getInactiveSellers()
      */
     @Pure
     public @NonNull @ReadOnly List<@NonNull Trader> getActiveSellers(@ReadOnly Market this) {
         return unmodifiableActiveSellers_;
+    }
+
+    /**
+     * Returns an unmodifiable map from k-partite clique number to the <em>active</em>
+     * {@link Trader}s in {@code this} market that are members of that clique.
+     *
+     * <p>
+     *  The iteration order in this map is from smallest to largest clique number.
+     * </p>
+     */
+    @Pure
+    public @NonNull Map<@NonNull Integer, @NonNull List<@NonNull Trader>> getCliques(@ReadOnly Market this) {
+        return unmodifiableCliques_;
     }
 
     /**
@@ -93,6 +116,8 @@ public final class Market {
      *  {@code this} market is still kept in the market, but in a separate list, so that it's easy
      *  to consider inactive traders for reactivation when generating actions to add resources.
      * </p>
+     *
+     * @see #getActiveSellers()
      */
     @Pure
     public @NonNull @ReadOnly List<@NonNull Trader> getInactiveSellers(@ReadOnly Market this) {
@@ -117,13 +142,17 @@ public final class Market {
         checkArgument(getBasket().isSatisfiedBy(newSeller.getBasketSold()),
             "getBasket() = " + getBasket() + " newSeller = " + newSeller);
 
-        if (newSeller.getState().isActive()) {
-            activeSellers_.add(newSeller);
-        } else {
-            inactiveSellers_.add(newSeller);
-        }
-
+        (newSeller.getState().isActive() ? activeSellers_ : inactiveSellers_).add(newSeller);
         newSeller.getMarketsAsSeller().add(this);
+
+        // Add seller to corresponding cliques
+        for (@NonNull Integer cliqueNumber : newSeller.getCliques()) {
+            List<@NonNull Trader> cliquePart = cliques_.get(cliqueNumber);
+            if (cliquePart == null) {
+                cliques_.put(cliqueNumber, cliquePart = new ArrayList<>());
+            }
+            cliquePart.add(newSeller);
+        }
 
         return this;
     }
@@ -149,12 +178,15 @@ public final class Market {
      */
     @Deterministic
     @NonNull Market removeSeller(@NonNull TraderWithSettings sellerToRemove) {
-        if (sellerToRemove.getState().isActive()) {
-            checkArgument(activeSellers_.remove(sellerToRemove), "sellerToRemove = " + sellerToRemove);
-        } else {
-            checkArgument(inactiveSellers_.remove(sellerToRemove), "sellerToRemove = " + sellerToRemove);
-        }
+        checkArgument((sellerToRemove.getState().isActive() ? activeSellers_ : inactiveSellers_).remove(sellerToRemove),
+                      "sellerToRemove = " + sellerToRemove);
         sellerToRemove.getMarketsAsSeller().remove(this);
+
+        // Remove seller from corresponding cliques
+        for (@NonNull Integer cliqueNumber : sellerToRemove.getCliques()) {
+            @NonNull List<@NonNull Trader> cliquePart = cliques_.get(cliqueNumber);
+            checkArgument(cliquePart.remove(sellerToRemove), "sellerToRemove = " + sellerToRemove);
+        }
 
         return this;
     }
@@ -231,20 +263,30 @@ public final class Market {
 
         if (oldState.isActive() != newState.isActive()) { // if there was a change.
             if (newState.isActive()) { // activate
+                // As buyer
                 for (Entry<@NonNull ShoppingList, @NonNull Market> entry : trader.getMarketsAsBuyer().entrySet()) {
                     entry.getValue().buyers_.add(entry.getKey());
                 }
+                // As seller
                 for (@NonNull @PolyRead Market market : trader.getMarketsAsSeller()) {
                     checkArgument(market.inactiveSellers_.remove(trader), "trader = " + trader);
                     market.activeSellers_.add(trader);
+                    for (@NonNull Integer cliqueNumber : trader.getCliques()) {
+                        market.cliques_.get(cliqueNumber).add(trader);
+                    }
                 }
             } else { // deactivate
+                // As buyer
                 for (Entry<@NonNull ShoppingList, @NonNull Market> entry : trader.getMarketsAsBuyer().entrySet()) {
                     checkArgument(entry.getValue().buyers_.remove(entry.getKey()), "entry.getKey() = " + entry.getKey());
                 }
+                // As seller
                 for (@NonNull @PolyRead Market market : trader.getMarketsAsSeller()) {
                     checkArgument(market.activeSellers_.remove(trader), "trader = " + trader);
                     market.inactiveSellers_.add(trader);
+                    for (@NonNull Integer cliqueNumber : trader.getCliques()) {
+                        checkArgument(market.cliques_.get(cliqueNumber).remove(trader),"trader = " + trader);
+                    }
                 }
             }
         }

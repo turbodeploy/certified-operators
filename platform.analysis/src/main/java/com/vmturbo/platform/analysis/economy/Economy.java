@@ -17,6 +17,8 @@ import org.checkerframework.dataflow.qual.Deterministic;
 import org.checkerframework.dataflow.qual.Pure;
 import org.checkerframework.dataflow.qual.SideEffectFree;
 
+import com.google.common.primitives.Ints;
+
 /**
  * A set of related markets and the traders participating in them.
  *
@@ -158,37 +160,32 @@ public final class Economy implements UnmodifiableEconomy {
     }
 
     /**
-     * Creates a new {@link Trader trader} with the given characteristics and adds it to the economy.
+     * Creates a new {@link Trader trader} with the given characteristics and adds it to
+     * {@code this} economy.
      *
      * <p>
-     *  It is an O(B*logM + M*SC) operation, where M is the number of markets present in the economy,
-     *  SC is the number of commodities sold by the trader and B is the number of baskets bought, if
-     *  no new markets are created as a result of adding the trader
-     * </p>
-     *
-     * <p>
-     *  If new markets have to be created as a result of adding the trader, then there is an extra
-     *  O(T*BC) cost for each basket bought creating a new market, where T is the number of traders
-     *  in the economy and BC is the number of commodities in the basket creating the market.
+     *  Ignoring cliques, it is an O(M*C) operation, where M is the number of markets present in
+     *  {@code this} economy and C is the number of commodities sold by the trader.
      * </p>
      *
      * <p>
      *  New traders are always added to the end of the {@link #getTraders() traders list}.
      * </p>
      *
+     * @param type The type of the trader (e.g. host or virtual machine) represented as an integer.
+     * @param state The initial state of the new trader.
+     * @param basketSold The basket that will be sold by the new trader.
+     * @param cliques The numbers of the k-partite cliques the new trader should be a member of.
      * @return The newly created trader, so that its properties can be updated.
      */
-    @Deterministic
-    public @NonNull Trader addTrader(int type, @NonNull TraderState state,
-                                      @NonNull Basket basketSold, @NonNull Basket... basketsBought) {
+    public @NonNull Trader addTrader(int type, @NonNull TraderState state, @NonNull Basket basketSold,
+                                     @NonNull Collection<@NonNull Integer> cliques) {
         TraderWithSettings newTrader = new TraderWithSettings(traders_.size(), type, state, basketSold);
 
-        // Add as buyer
-        for (Basket basketBought : basketsBought) {
-            addBasketBought(newTrader, basketBought);
-        }
+        // Populate cliques list before adding to markets
+        newTrader.getModifiableCliques().addAll(cliques);
 
-        // Add as seller
+        // Add as seller (it won't be buying anything yet)
         for(Market market : markets_.values()) {
             if (market.getBasket().isSatisfiedBy(basketSold)) {
                 market.addSeller(newTrader);
@@ -197,6 +194,44 @@ public final class Economy implements UnmodifiableEconomy {
 
         // update traders list
         traders_.add(newTrader);
+        return newTrader;
+    }
+
+    /**
+     * Creates a new {@link Trader trader} with the given characteristics and adds it to
+     * {@code this} economy.
+     *
+     * <p>
+     *  Same as {@link #addTrader(int, TraderState, Basket, Collection)}, but doesn't include the
+     *  new trader in any k-partite cliques and makes it initially buy a number of baskets instead.
+     * </p>
+     *
+     * <p>
+     *  The complexity is as for {@link #addTrader(int, TraderState, Basket, Collection)} plus an
+     *  O(B*logM) term, where M is the number of markets present in {@code this} economy and B is
+     *  the number of baskets bought. That is if no new markets are created as a result of adding
+     *  the trader.
+     * </p>
+     *
+     * <p>
+     *  If new markets have to be created as a result of adding the trader, then there is an extra
+     *  O(T*C) cost for each basket bought creating a new market, where T is the number of traders
+     *  in the economy and C is the number of commodities in the basket creating the market.
+     * </p>
+     *
+     * @param basketsBought The baskets the new trader should buy. {@link ShoppingList}s will be
+     *                      created for each one and will appear in the {@link #getMarketsAsBuyer(Trader)}
+     *                      map in the same order.
+     */
+    public @NonNull Trader addTrader(int type, @NonNull TraderState state, @NonNull Basket basketSold,
+                                     @NonNull Basket... basketsBought) {
+        @NonNull Trader newTrader = addTrader(type, state, basketSold, Ints.asList());
+
+        // Add as buyer
+        for (Basket basketBought : basketsBought) {
+            addBasketBought(newTrader, basketBought);
+        }
+
         return newTrader;
     }
 
