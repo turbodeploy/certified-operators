@@ -112,15 +112,15 @@ final class QuoteMinimizer {
      * @param seller The seller from which to get a quote and update internal state.
      */
     public void accept(@NonNull Trader seller) {
-        final double quote = EdeCommon.quote(economy_, shoppingList_, seller, bestQuote_);
+        final double[] quote = EdeCommon.quote(economy_, shoppingList_, seller, bestQuote_, false);
 
         if (seller == shoppingList_.getSupplier()) {
-            currentQuote_ = quote;
+            currentQuote_ = quote[0];
         }
 
         // keep the minimum between quotes
-        if (quote < bestQuote_) {
-            bestQuote_ = quote;
+        if (quote[0] < bestQuote_) {
+            bestQuote_ = quote[0];
             bestSeller_ = seller;
         }
     }

@@ -7,9 +7,9 @@ import org.checkerframework.dataflow.qual.Pure;
 
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.economy.Basket;
-import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
@@ -28,19 +28,21 @@ public final class EdeCommon {
      * @param seller - the seller that will be queried for a quote.
      * @param bestQuoteSoFar - an optional best quote I may have gotten from other sellers.
      *                         Pass {@link Double#POSITIVE_INFINITY} to get the exact quote.
+     * @param forTraderIncomeStmt - is true when we want to compute the min(max)desiredExp(rev)
      *
-     * @return the quote offered by the seller for the given shopping list, or a part of it greater
-     *         than or equal to bestQuoteSoFar iff the actual quote would exceed that value.
+     * @return an array containing the quote offered by the seller for the given shopping list, or a part of it greater
+     *         than or equal to bestQuoteSoFar iff the actual quote would exceed that value, the minQuote and the maxQuote
      */
     @Pure
-    public static double quote(@NonNull UnmodifiableEconomy economy, @NonNull ShoppingList shoppingList,
-            @NonNull Trader seller, final double bestQuoteSoFar) {
+    public static double[] quote(@NonNull UnmodifiableEconomy economy, @NonNull ShoppingList shoppingList,
+            @NonNull Trader seller, final double bestQuoteSoFar, boolean forTraderIncomeStmt) {
+        // TODO: remove currentSupplier, sine it can be derived from the shoppingList
         //TODO (Apostolos): we have not dealt with equivalent commodities
-        double quote = 0.0;
+        double quote[] = {0.0, 0.0, 0.0};
         Basket basket = shoppingList.getBasket();
         // go over all commodities in basket
         for (int boughtIndex = 0, soldIndex = 0; boughtIndex < basket.size()
-                && quote < bestQuoteSoFar ; boughtIndex++, soldIndex++) {
+                && quote[0] < bestQuoteSoFar ; boughtIndex++, soldIndex++) {
             CommoditySpecification basketCommSpec = basket.get(boughtIndex);
 
             // Find corresponding commodity sold. Commodities sold are ordered the same way as the
@@ -49,7 +51,12 @@ public final class EdeCommon {
                 soldIndex++;
             }
 
-            quote += computeCommodityCost(economy, shoppingList, seller, soldIndex, boughtIndex);
+            double[] tempQuote = computeCommodityCost(economy, shoppingList, seller, soldIndex, boughtIndex, forTraderIncomeStmt);
+            quote[0] += tempQuote[0];
+            if (forTraderIncomeStmt) {
+                quote[1] += tempQuote[1];
+                quote[2] += tempQuote[2];
+            }
         }
         return quote;
     }
@@ -64,9 +71,10 @@ public final class EdeCommon {
      * @param boughtIndex - this is the position of the commodityBought in the list of boughtCommodities
      */
     @Pure
-    public static double computeCommodityCost(@NonNull UnmodifiableEconomy economy, @NonNull ShoppingList shoppingList,
-                                              @NonNull Trader seller, int soldIndex, int boughtIndex) {
+    public static double[] computeCommodityCost(@NonNull UnmodifiableEconomy economy, @NonNull ShoppingList shoppingList,
+                                              @NonNull Trader seller, int soldIndex, int boughtIndex, boolean forTraderIncomeStmt) {
 
+        double[] costCurrentMinMax = {Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY};
         boolean isCurrentSupplier = seller == shoppingList.getSupplier();
 
         // get the quantity and peak quantity to buy for each commodity of the basket
@@ -86,7 +94,7 @@ public final class EdeCommon {
         final double excessQuantity = peakQuantities[boughtIndex] - quantities[boughtIndex];
 
         if (newQuantity > effectiveCapacity || newPeakQuantity > effectiveCapacity) {
-            return Double.POSITIVE_INFINITY;
+            return costCurrentMinMax;
         }
 
         // calculate the price per unit for quantity and peak quantity
@@ -97,8 +105,17 @@ public final class EdeCommon {
 
         // calculate quote
         // TODO: decide what to do if peakQuantity is less than quantity
-        return (quantities[boughtIndex]*priceUsed + (excessQuantity > 0 ? excessQuantity*pricePeak : 0))
-               / commSold.getCapacity();
+        costCurrentMinMax[0] = (quantities[boughtIndex]*priceUsed + (excessQuantity > 0 ? excessQuantity*pricePeak : 0))
+                        / commSold.getCapacity();
+
+        if (forTraderIncomeStmt) {
+            costCurrentMinMax[1] = (pf.unitPrice(seller.getSettings().getMinDesiredUtil())*quantities[boughtIndex]
+                                    + (excessQuantity > 0 ? excessQuantity*pf.unitPrice(0) : 0)) / commSold.getCapacity();
+            costCurrentMinMax[2] = (pf.unitPrice(seller.getSettings().getMaxDesiredUtil())*quantities[boughtIndex]
+                                    + (excessQuantity > 0 ? excessQuantity*pf.unitPrice(0) : 0)) / commSold.getCapacity();
+        }
+
+        return costCurrentMinMax;
 
     }
 
