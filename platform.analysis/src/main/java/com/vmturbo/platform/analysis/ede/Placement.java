@@ -61,8 +61,7 @@ public class Placement {
                 final EdeCommon.QuoteMinimizer minimizer =
                     (sellers.size() < economy.getSettings().getMinSellersForParallelism()
                         ? sellers.stream() : sellers.parallelStream())
-                    .collect(()->new QuoteMinimizer(economy,state,timeMiliSec,shoppingList,
-                                                    market.getBasket(), currentSupplier),
+                    .collect(()->new QuoteMinimizer(economy,state,timeMiliSec,shoppingList),
                         QuoteMinimizer::accept, QuoteMinimizer::combine);
 
                 final double cheapestQuote = minimizer.bestQuote();

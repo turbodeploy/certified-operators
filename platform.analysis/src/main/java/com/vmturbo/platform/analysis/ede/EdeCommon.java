@@ -27,13 +27,11 @@ public final class EdeCommon {
      *
      * @param economy - economy in which the market and traders are a part of.
      * @param shoppingList - shopping list containing specific quantities of the basket commodities
-     * @param currentSupplier - the current supplier for the shoppingList. Can be null.
      * @param seller - the seller that will give the quote
      */
     @Pure
     public static double quote(@NonNull UnmodifiableEconomy economy, @NonNull ShoppingList shoppingList,
-            Trader currentSupplier, @NonNull Trader seller) {
-        // TODO: remove currentSupplier, sine it can be derived from the shoppingList
+            @NonNull Trader seller) {
         //TODO (Apostolos): we have not dealt with equivalent commodities
         double quote = 0.0;
         Basket basket = shoppingList.getBasket();
@@ -108,23 +106,19 @@ public final class EdeCommon {
         private final @NonNull List<StateItem> state_;
         private final long time_;
         private final @NonNull ShoppingList shoppingList_;
-        private final @NonNull Basket basket_;
-        private final Trader supplier_;
 
         private Trader bestSeller_;
         private double bestQuote_ = Double.POSITIVE_INFINITY;
         private double currentQuote_ = Double.POSITIVE_INFINITY;
 
-        public QuoteMinimizer(@NonNull UnmodifiableEconomy economy, @NonNull List<StateItem> state, long time,
-                @NonNull ShoppingList shoppingList, @NonNull Basket basket, Trader supplier) {
+        public QuoteMinimizer(@NonNull UnmodifiableEconomy economy, @NonNull List<StateItem> state,
+                long time, @NonNull ShoppingList shoppingList) {
             economy_ = economy;
             state_ = state;
             time_ = time;
             shoppingList_ = shoppingList;
-            basket_ = basket;
-            supplier_ = supplier;
 
-            bestSeller_ = supplier;
+            bestSeller_ = shoppingList.getSupplier();
         }
 
         @Pure
@@ -144,14 +138,14 @@ public final class EdeCommon {
 
         public void accept(@NonNull Trader seller) {
             // if we cannot move to this seller and it is not the current supplier, skip it
-            if (seller != supplier_
+            if (seller != shoppingList_.getSupplier()
                 && time_ < state_.get(seller.getEconomyIndex()).getMoveToOnlyAfterThisTime()) {
                 return;
             }
 
-            final double quote = EdeCommon.quote(economy_, shoppingList_, supplier_, seller);
+            final double quote = EdeCommon.quote(economy_, shoppingList_, seller);
 
-            if (seller == supplier_) {
+            if (seller == shoppingList_.getSupplier()) {
                 currentQuote_ = quote;
             }
 
