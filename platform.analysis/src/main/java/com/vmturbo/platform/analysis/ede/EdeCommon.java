@@ -21,20 +21,26 @@ import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 public final class EdeCommon {
 
     /**
-     * Calculate the quote of a seller for a basket bought by a buyer.
+     * Returns the quote offered by a seller for a shopping list bought by a buyer.
      *
-     * @param economy - economy in which the market and traders are a part of.
-     * @param shoppingList - shopping list containing specific quantities of the basket commodities
-     * @param seller - the seller that will give the quote
+     * @param economy - economy containing the shopping list and seller. It will not be modified.
+     * @param shoppingList - shopping list containing specific quantities requested.
+     * @param seller - the seller that will be queried for a quote.
+     * @param bestQuoteSoFar - an optional best quote I may have gotten from other sellers.
+     *                         Pass {@link Double#POSITIVE_INFINITY} to get the exact quote.
+     *
+     * @return the quote offered by the seller for the given shopping list, or a part of it greater
+     *         than or equal to bestQuoteSoFar iff the actual quote would exceed that value.
      */
     @Pure
     public static double quote(@NonNull UnmodifiableEconomy economy, @NonNull ShoppingList shoppingList,
-            @NonNull Trader seller) {
+            @NonNull Trader seller, final double bestQuoteSoFar) {
         //TODO (Apostolos): we have not dealt with equivalent commodities
         double quote = 0.0;
         Basket basket = shoppingList.getBasket();
         // go over all commodities in basket
-        for (int boughtIndex = 0, soldIndex = 0; boughtIndex < basket.size(); boughtIndex++, soldIndex++) {
+        for (int boughtIndex = 0, soldIndex = 0; boughtIndex < basket.size()
+                && quote < bestQuoteSoFar ; boughtIndex++, soldIndex++) {
             CommoditySpecification basketCommSpec = basket.get(boughtIndex);
 
             // Find corresponding commodity sold. Commodities sold are ordered the same way as the
@@ -43,8 +49,6 @@ public final class EdeCommon {
                 soldIndex++;
             }
 
-            // calculate quote
-            // TODO: decide what to do if peakQuantity is less than quantity
             quote += computeCommodityCost(economy, shoppingList, seller, soldIndex, boughtIndex);
         }
         return quote;
