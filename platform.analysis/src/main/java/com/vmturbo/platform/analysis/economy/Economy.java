@@ -115,7 +115,10 @@ public final class Economy implements UnmodifiableEconomy {
     @Override
     @Pure
     public @NonNull @ReadOnly Market getMarket(@ReadOnly Economy this, @NonNull @ReadOnly Basket basket) {
-        return markets_.get(basket);
+        Market result = markets_.get(basket);
+        checkArgument(result != null, "basket = " + basket);
+
+        return result;
     }
 
     @Override

@@ -14,7 +14,6 @@ import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
-import com.vmturbo.platform.analysis.ede.Ede;
 import com.vmturbo.platform.analysis.topology.LegacyTopology;
 import com.vmturbo.platform.analysis.utility.ListTests;
 
@@ -84,16 +83,15 @@ public class LedgerTest {
     public final void testCalculateExpensesAndRevenues(Basket bought, Basket sold) {
         Economy economy = new Economy();
         // create supplier(PM)
-        economy.addTrader(0, TraderState.ACTIVE, sold); // u can create a trader only by adding it to the market
+        Trader pm = economy.addTrader(0, TraderState.ACTIVE, sold); // u can create a trader only by adding it to the market
+        pm.getCommoditiesSold().get(0).setQuantity(5).setPeakQuantity(7);
+        pm.getCommoditiesSold().get(1).setQuantity(5).setPeakQuantity(7);
 
         // create consumer(VM)
-        economy.addBasketBought(economy.addTrader(1, TraderState.ACTIVE, VM), bought)
-                                        .setQuantity(0, 5).setPeakQuantity(0, 7)
-                                        .setQuantity(1, 5).setPeakQuantity(1, 7).setMovable(true);
-
-        // run placement so that the VM is placed on the PM
-        Ede decisionEngine = new Ede();
-        decisionEngine.generateActions(economy);
+        Trader vm = economy.addTrader(1, TraderState.ACTIVE, VM);
+        economy.addBasketBought(vm, bought)
+            .setQuantity(0, 5).setPeakQuantity(0, 7)
+            .setQuantity(1, 5).setPeakQuantity(1, 7).setMovable(true).move(pm);
 
         // populate rawMaterialMap
         economy.getModifiableRawCommodityMap().put(V_CPU.getType(), Arrays.asList(CPU_ANY.getType()));

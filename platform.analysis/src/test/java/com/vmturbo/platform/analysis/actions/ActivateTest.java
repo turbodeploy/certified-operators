@@ -243,7 +243,6 @@ public class ActivateTest {
         Trader t4 = e.addTrader(0, TraderState.ACTIVE, b2, b3);
 
         Market m1 = e.getMarket(b2);
-        Market m3 = e.getMarket(b3);
 
         Activate activate1 = new Activate(e, t3, m1, t4);
         Activate activate2 = new Activate(e, t3, m1, t4);

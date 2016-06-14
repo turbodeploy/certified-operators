@@ -200,7 +200,7 @@ public class ProvisionBySupplyTest {
         provision.take();
         Trader provisionedSeller = provision.getProvisionedSeller();
 
-        List<Trader> guranteedBuyer = new ArrayList<Trader>();
+        List<Trader> guranteedBuyer = new ArrayList<>();
         for (ShoppingList shoppingList : modelSeller.getCustomers()) {
             if (shoppingList.getBuyer().getSettings().isGuaranteedBuyer()) {
                 guranteedBuyer.add(shoppingList.getBuyer());
@@ -229,9 +229,6 @@ public class ProvisionBySupplyTest {
         Trader t2 = e.addTrader(0, TraderState.ACTIVE, b1, b2);
         Trader t3 = e.addTrader(0, TraderState.ACTIVE, b2, b3);
         Trader t4 = e.addTrader(0, TraderState.ACTIVE, b2, b3);
-
-        Market m1 = e.getMarket(b1);
-        Market m2 = e.getMarket(b2);
 
         ShoppingList shop1 = e.addBasketBought(t1, b2);
         shop1.move(t3);
