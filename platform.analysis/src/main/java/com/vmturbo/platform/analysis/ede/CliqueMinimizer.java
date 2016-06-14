@@ -6,8 +6,8 @@ import java.util.Map.Entry;
 import java.util.stream.Stream;
 
 import org.checkerframework.checker.javari.qual.ReadOnly;
+import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.NonNull;
-import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Pure;
 
 import com.vmturbo.platform.analysis.economy.ShoppingList;
@@ -32,8 +32,8 @@ final class CliqueMinimizer {
     private final @NonNull @ReadOnly Collection<@NonNull Entry<@NonNull ShoppingList, @NonNull Market>> entries_;
 
     // Accumulator Fields
-    private @Nullable List<@NonNull Trader> bestSellers_ = null; // will hold the best-so-far valid
-                                                // placement. i.e. the one with minimum total quote
+    private @MonotonicNonNull List<@NonNull Trader> bestSellers_ = null; // will hold the best-so-far
+                                            // valid placement. i.e. the one with minimum total quote
     private double bestTotalQuote_ = Double.POSITIVE_INFINITY; // will host the best-so-far total
                                                               // quote. i.e. the minimum one.
     // Could also have included an accumulator for the best k-partite clique, but it wasn't strictly
@@ -107,7 +107,7 @@ final class CliqueMinimizer {
      * </p>
      */
     @Pure
-    public @Nullable List<@NonNull Trader> getBestSellers(@ReadOnly CliqueMinimizer this) {
+    public @MonotonicNonNull List<@NonNull Trader> getBestSellers(@ReadOnly CliqueMinimizer this) {
         return bestSellers_;
     }
 
@@ -124,8 +124,8 @@ final class CliqueMinimizer {
      * @param clique The k-partite clique in which to ask for quotes and update internal state.
      */
     public void accept(int clique) {
-        final @NonNull QuoteSummer summer = entries_.stream().collect(
-            ()->new QuoteSummer(economy_,clique), QuoteSummer::accept, QuoteSummer::combine);
+        final @NonNull QuoteSummer summer = entries_.stream()
+            .collect(()->new QuoteSummer(economy_,clique), QuoteSummer::accept, QuoteSummer::combine);
 
         // keep the minimum between total quotes
         if (summer.getTotalQuote() < bestTotalQuote_) {

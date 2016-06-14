@@ -3,8 +3,8 @@ package com.vmturbo.platform.analysis.ede;
 import java.util.stream.Stream;
 
 import org.checkerframework.checker.javari.qual.ReadOnly;
+import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.NonNull;
-import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Pure;
 
 import com.vmturbo.platform.analysis.economy.Economy;
@@ -25,8 +25,8 @@ final class QuoteMinimizer {
     private final @NonNull ShoppingList shoppingList_; // the shopping list for which to get a quote.
 
     // Accumulator Fields
-    private @Nullable Trader bestSeller_ = null; // will hold the best-so-far seller i.e. the one
-                                                // giving the minimum quote.
+    private @MonotonicNonNull Trader bestSeller_ = null; // will hold the best-so-far seller i.e.
+                                                        // the one giving the minimum quote.
     private double bestQuote_ = Double.POSITIVE_INFINITY; // will hold the best-so-far quote. i.e. the minimum one.
     private double currentQuote_ = Double.POSITIVE_INFINITY; // may hold the quote from the current
                                                             // supplier if it's in the list of sellers.
@@ -86,7 +86,7 @@ final class QuoteMinimizer {
      * </p>
      */
     @Pure
-    public @Nullable Trader getBestSeller(@ReadOnly QuoteMinimizer this) {
+    public @MonotonicNonNull Trader getBestSeller(@ReadOnly QuoteMinimizer this) {
         return bestSeller_;
     }
 
