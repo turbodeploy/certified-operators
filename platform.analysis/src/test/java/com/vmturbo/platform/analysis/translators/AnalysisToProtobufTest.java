@@ -177,18 +177,21 @@ public class AnalysisToProtobufTest {
                         .build();
 
         Action provisionByDemand = new ProvisionByDemand(e, shop2, pm2);
+        provisionByDemand.take(); // we call take to create provisionedSeller
         ActionTO provisionByDemanTO = ActionTO.newBuilder()
                         .setProvisionByDemand(
                                         ProvisionByDemandTO.newBuilder().setModelBuyer(20l)
+                                                        .setProvisionedSeller(-1) // it is the only one trader being provisioned in this test case
                                                         .setModelSeller(3l)
                                                         .build())
                         .build();
 
         Action provisionBySupply = new ProvisionBySupply(e, pm1);
-
+        provisionBySupply.take(); // we call take to create provisionedSeller
         ActionTO provisionBySupplyTO = ActionTO.newBuilder()
                         .setProvisionBySupply(
                                         ProvisionBySupplyTO.newBuilder().setModelSeller(2l)
+                                                        .setProvisionedSeller(-1) // it is the only one trader being provisioned in this test case
                                                         .build())
                         .build();
 

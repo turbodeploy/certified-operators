@@ -278,6 +278,8 @@ public final class AnalysisToProtobuf {
      * @param input The {@link Action} to convert.
      * @param traderOid A function mapping {@link Trader}s to their OIDs.
      * @param shoppingListOid A function mapping {@link ShoppingList}s to their OIDs.
+     * @param topology The topology associates with traders received from legacy market.
+     * It keeps a traderOid map which will be used to populate the oid for traders.
      * @return The resulting {@link ActionTO}.
      */
     public static @NonNull ActionTO actionTO(@NonNull Action input, @NonNull ToLongFunction<@NonNull Trader> traderOid,
@@ -321,20 +323,16 @@ public final class AnalysisToProtobuf {
             ProvisionByDemand provDemand = (ProvisionByDemand)input;
             ProvisionByDemandTO.Builder provDemandTO = ProvisionByDemandTO.newBuilder()
                             .setModelBuyer(shoppingListOid.applyAsLong(provDemand.getModelBuyer()))
-                            .setModelSeller(traderOid.applyAsLong(provDemand.getModelSeller()));
-            if (provDemand.getProvisionedSeller() != null) {
-                provDemandTO.setProvisionSeller(
+                            .setModelSeller(traderOid.applyAsLong(provDemand.getModelSeller()))
+                            .setProvisionedSeller(
                                 topology.addProvisionedTrader(provDemand.getProvisionedSeller()));
-            }
             builder.setProvisionByDemand(provDemandTO);
         } else if (input instanceof ProvisionBySupply) {
             ProvisionBySupply provSupply = (ProvisionBySupply)input;
             ProvisionBySupplyTO.Builder provSupplyTO = ProvisionBySupplyTO.newBuilder()
-                            .setModelSeller(traderOid.applyAsLong(provSupply.getModelSeller()));
-            if (provSupply.getProvisionedSeller() != null) {
-                provSupplyTO.setProvisionSeller(
+                            .setModelSeller(traderOid.applyAsLong(provSupply.getModelSeller()))
+                            .setProvisionedSeller(
                                 topology.addProvisionedTrader(provSupply.getProvisionedSeller()));
-            }
             builder.setProvisionBySupply(provSupplyTO);
         } else if (input instanceof Resize) {
             Resize resize = (Resize)input;
@@ -359,6 +357,8 @@ public final class AnalysisToProtobuf {
      * @param shoppingListOid A function mapping {@link ShoppingList}s to their OIDs.
      * @param timeToAnalyze_ns The amount of time it took to analyze the topology and produce the
      *        list of actions in nanoseconds.
+     * @param topology The topology associates with traders received from legacy market.
+     * It keeps a traderOid map which will be used to populate the oid for traders.
      * @return The resulting {@link AnalysisResults} message.
      */
     public static @NonNull AnalysisResults analysisResults(@NonNull List<Action> actions,
