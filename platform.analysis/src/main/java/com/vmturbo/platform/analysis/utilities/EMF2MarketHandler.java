@@ -16,8 +16,8 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
-import org.apache.log4j.Logger;
 import org.apache.log4j.Level;
+import org.apache.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.xml.sax.SAXException;
 import org.xml.sax.helpers.AttributesImpl;
@@ -29,12 +29,13 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Multimaps;
 import com.google.common.collect.Sets;
 import com.vmturbo.platform.analysis.economy.Basket;
-import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.CommodityBought;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Market;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
+import com.vmturbo.platform.analysis.economy.TraderSettings;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 import com.vmturbo.platform.analysis.topology.LegacyTopology;
@@ -89,6 +90,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
     private final Map<String, Attributes> commodities = new LinkedHashMap<>();
     private final Map<String, Attributes> commoditySold2trader = new LinkedHashMap<>();
     private final Map<String, List<Attributes>> trader2commoditiesBought = new LinkedHashMap<>();
+    private final Map<String, Attributes> traderSettings = new LinkedHashMap<>();
     // Basket is a set of commodity type strings
     private final Map<String, Set<String>> trader2basketSold = new LinkedHashMap<>();
     // Used to log commodities bought that consume more than one commodity sold
@@ -174,6 +176,9 @@ final public class EMF2MarketHandler extends DefaultHandler {
                     bicliquer.edge(uuid1, uuid2);
                 }
             }
+        }
+        if (qName.equals("settings")) {
+            traderSettings.put(parent.uuid(), attributes);
         }
     }
 
@@ -287,6 +292,18 @@ final public class EMF2MarketHandler extends DefaultHandler {
             final @NonNull Trader aSeller = topology.addTrader(traderUuid, traderAttr.get("displayName"),
                                                 traderAttr.xsitype(), TraderState.ACTIVE, keysSold);
             allBasketsSold.add(aSeller.getBasketSold());
+
+            // parse settings
+            Attributes traderSettingsAttr = traderSettings.get(traderUuid);
+            if (traderSettingsAttr != null) {
+                TraderSettings traderSett = aSeller.getSettings();
+                double utilTarget = traderSettingsAttr.value("utilTarget");
+                double targetBand = traderSettingsAttr.value("targetBand");
+                traderSett.setMaxDesiredUtil(utilTarget + targetBand/2);
+                traderSett.setMinDesiredUtil(utilTarget - targetBand/2);
+                traderSett.setCloneable(traderSettingsAttr.get("ENABLE_PROVISION").equals("true"));
+                traderSett.setSuspendable(traderSettingsAttr.get("ENABLE_SUSPEND").equals("true"));
+            }
 
             // Baskets bought
             // Keys are the sellers that this buyer is buying from
