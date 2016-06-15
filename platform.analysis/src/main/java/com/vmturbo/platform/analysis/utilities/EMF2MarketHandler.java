@@ -301,8 +301,8 @@ final public class EMF2MarketHandler extends DefaultHandler {
                 double targetBand = traderSettingsAttr.value("targetBand");
                 traderSett.setMaxDesiredUtil(utilTarget + targetBand/2);
                 traderSett.setMinDesiredUtil(utilTarget - targetBand/2);
-                traderSett.setCloneable(traderSettingsAttr.get("ENABLE_PROVISION").equals("true"));
-                traderSett.setSuspendable(traderSettingsAttr.get("ENABLE_SUSPEND").equals("true"));
+                traderSett.setCloneable(("true").equals(traderSettingsAttr.get("ENABLE_PROVISION")));
+                traderSett.setSuspendable(("true").equals(traderSettingsAttr.get("ENABLE_SUSPEND")));
             }
 
             // Baskets bought
