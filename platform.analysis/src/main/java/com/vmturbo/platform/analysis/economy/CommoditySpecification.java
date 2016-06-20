@@ -35,7 +35,7 @@ public final class CommoditySpecification implements Comparable<CommoditySpecifi
     private final int type_; // must be non-negative.
     private final int qualityLowerBound_; // must be non-negative and less than or equal to qualityUpperBound_.
     private final int qualityUpperBound_; // must be non-negative and greater than or equal to qualityLowerBound_.
-
+    private String debugInfo_; // a field keeps information about the eclass and key of the commodity.
     // Constructors
 
     /**
@@ -211,4 +211,19 @@ public final class CommoditySpecification implements Comparable<CommoditySpecifi
         return b.toString();
     }
 
+    /**
+     * Sets the debugInfo field. It contains information about the eclass and the key of the commodity.
+     * @param debugInfo a string contains eclass|key of the commodity.
+     */
+    public @NonNull CommoditySpecification setDebugInfo(@NonNull String debugInfo) {
+        debugInfo_ = debugInfo;
+        return this;
+    }
+
+    /**
+     * Returns the debugInfo field.
+     */
+    public String getDebugInfo(@ReadOnly CommoditySpecification this) {
+        return debugInfo_;
+    }
 } // end CommoditySpecification class

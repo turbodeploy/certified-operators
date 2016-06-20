@@ -35,7 +35,7 @@ public abstract class Trader {
     private final @NonNull List<@NonNull CommoditySold> commoditiesSold_ = new ArrayList<>();
     private final @NonNull List<@NonNull Integer> cliques_ = new ArrayList<>();
     private final @NonNull List<@NonNull ShoppingList> customers_ = new ArrayList<>();
-
+    private String debugInfo_; // a field keeps information about the eclass and uuid of the trader.
     // Cached data
 
     // Cached unmodifiable view of the commoditiesSold_ list.
@@ -351,4 +351,19 @@ public abstract class Trader {
     @Deterministic
     public abstract @NonNull TraderState changeState(@NonNull TraderState newState);
 
+    /**
+     * Sets the debugInfo field. It contains information about the eclass and uuid of the trader.
+     * @param debugInfo a string contains eclass|uuid of the trader
+     */
+    public @NonNull Trader setDebugInfo(@NonNull String debugInfo) {
+        debugInfo_ = debugInfo;
+        return this;
+    }
+
+    /**
+     * Returns the debugInfo field.
+     */
+    public String getDebugInfo(@ReadOnly Trader this) {
+        return debugInfo_;
+    }
 } // end interface Trader
