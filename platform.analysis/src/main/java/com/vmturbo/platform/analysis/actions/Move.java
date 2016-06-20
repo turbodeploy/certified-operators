@@ -213,7 +213,7 @@ public class Move extends MoveBase implements Action { // inheritance for code r
     @Pure // The contents of the array are deterministic but the address of the array isn't...
     public static double[] updatedQuantities(@NonNull UnmodifiableEconomy economy, @NonNull DoubleBinaryOperator defaultCombinator,
             double quantityBought, double peakQuantityBought, @NonNull Trader traderToUpdate, int soldIndex,
-            boolean incomming) {
+            boolean incoming) {
         final CommoditySpecification specificationSold = traderToUpdate.getBasketSold().get(soldIndex);
         final CommoditySold commoditySold = traderToUpdate.getCommoditiesSold().get(soldIndex);
 
@@ -221,10 +221,12 @@ public class Move extends MoveBase implements Action { // inheritance for code r
         if (explicitCombinator == null) { // if there is no explicit combinator, use default one.
             return new double[]{defaultCombinator.applyAsDouble(commoditySold.getQuantity(), quantityBought),
                                 defaultCombinator.applyAsDouble(commoditySold.getPeakQuantity(), peakQuantityBought)};
-        } if (incomming) {
+        } if (incoming) {
             return new double[]{explicitCombinator.applyAsDouble(commoditySold.getQuantity(), quantityBought),
                                 explicitCombinator.applyAsDouble(commoditySold.getPeakQuantity(), peakQuantityBought)};
         } else {
+            // this loop is used when we use a combinator that is "max" for example, when we move out of this trader, we wouldnt know the initial value
+            // that was replaced by the current quantity. For example, max(5,12), we wont know what 12 replaced.
             // Find the quantities bought by all shopping lists and calculate the quantity sold.
             double combinedQuantity = 0.0; // TODO: generalize default value
             double combinedPeakQuantity = 0.0; // if/when needed.
