@@ -20,6 +20,9 @@ message CommoditySpecificationTO {
     // The upper bound on the quality provided or requested. The default is intended to be
     // Integer.MAX_VALUE. The relationship quality_lower_bound <= quality_upper_bound must hold.
     optional int32 quality_upper_bound = 3 [default = 2147483647];
+
+    // The field contains info about commodity's eclass and key, it is used for debugging only
+    optional string debug_info = 4;
 }
 
 // A commodity that is bought or needs to be bought by a particular buyer from a particular seller
@@ -147,4 +150,7 @@ message TraderTO {
 
     // The settings affecting how the analysis engine should treat this trader.
     optional TraderSettingsTO settings = 6;
+
+    // The field contains info about trader's eclass and uuid, it is used for debugging only
+    optional string debug_info = 7;
 }
