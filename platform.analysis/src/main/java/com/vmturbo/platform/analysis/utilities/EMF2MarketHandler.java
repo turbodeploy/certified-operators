@@ -90,7 +90,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
     private final Map<String, Attributes> commodities = new LinkedHashMap<>();
     private final Map<String, Attributes> commoditySold2trader = new LinkedHashMap<>();
     private final Map<String, List<Attributes>> trader2commoditiesBought = new LinkedHashMap<>();
-    private final Map<String, Attributes> traderSettings = new LinkedHashMap<>();
+    private final Map<String, Attributes> traderSettings = new HashMap<>();
     // Basket is a set of commodity type strings
     private final Map<String, Set<String>> trader2basketSold = new LinkedHashMap<>();
     // Used to log commodities bought that consume more than one commodity sold
@@ -301,8 +301,8 @@ final public class EMF2MarketHandler extends DefaultHandler {
                 double targetBand = traderSettingsAttr.value("targetBand");
                 traderSett.setMaxDesiredUtil(utilTarget + targetBand/2);
                 traderSett.setMinDesiredUtil(utilTarget - targetBand/2);
-                traderSett.setCloneable(("true").equals(traderSettingsAttr.get("ENABLE_PROVISION")));
-                traderSett.setSuspendable(("true").equals(traderSettingsAttr.get("ENABLE_SUSPEND")));
+                traderSett.setCloneable(S_TRUE.equals(traderSettingsAttr.get("ENABLE_PROVISION")));
+                traderSett.setSuspendable(S_TRUE.equals(traderSettingsAttr.get("ENABLE_SUSPEND")));
             }
 
             // Baskets bought
