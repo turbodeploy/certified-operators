@@ -32,6 +32,7 @@ import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.Constant;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.StandardWeighted;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.Step;
+import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.Inverse;
 /**
  * A test case for the {@link ProtobufToAnalysis} class.
  */
@@ -50,11 +51,15 @@ public class ProtobufToAnalysisTest {
                         .build();
         PriceFunctionTO funcTO3 = PriceFunctionTO.newBuilder()
                         .setStep(Step.newBuilder().setStepAt(0.5f).setPriceAbove(100).setPriceBelow(10).build()).build();
+        PriceFunctionTO funcTO4 = PriceFunctionTO.newBuilder()
+                        .setInverse(Inverse.newBuilder().setWeight(1.0f).build()).build();
         PriceFunction func1 = PriceFunction.Cache.createConstantPriceFunction(100f);
         PriceFunction func2 = PriceFunction.Cache.createStandardWeightedPriceFunction(2.0f);
         PriceFunction func3 = PriceFunction.Cache.createStepPriceFunction(0.5f, 10, 100);
+        PriceFunction func4 = PriceFunction.Cache.createInversePriceFunction(1.0f);
 
-        return new Object[][] {{funcTO1, func1}, {funcTO2, func2}, {funcTO3, func3}};
+        return new Object[][] {{funcTO1, func1}, {funcTO2, func2}, {funcTO3, func3},
+                        {funcTO4, func4}};
     }
 
     @Test
