@@ -22,7 +22,7 @@ message CommoditySpecificationTO {
     optional int32 quality_upper_bound = 3 [default = 2147483647];
 
     // The field contains info about commodity's eclass and key, it is used for debugging only
-    optional string debug_info = 4;
+    optional string debug_info_never_use_in_code = 4;
 }
 
 // A commodity that is bought or needs to be bought by a particular buyer from a particular seller
@@ -152,5 +152,5 @@ message TraderTO {
     optional TraderSettingsTO settings = 6;
 
     // The field contains info about trader's eclass and uuid, it is used for debugging only
-    optional string debug_info = 7;
+    optional string debug_info_never_use_in_code = 7;
 }
