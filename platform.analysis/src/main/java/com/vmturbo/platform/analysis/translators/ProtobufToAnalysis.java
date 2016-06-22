@@ -110,7 +110,7 @@ public final class ProtobufToAnalysis {
      */
     public static @NonNull CommoditySpecification commoditySpecification(@NonNull CommoditySpecificationTO input) {
         return new CommoditySpecification(input.getType(), input.getQualityLowerBound(),
-                        input.getQualityUpperBound()).setDebugInfo(input.getDebugInfo());
+                        input.getQualityUpperBound()).setDebugInfoNeverUseInCode(input.getDebugInfoNeverUseInCode());
     }
 
     /**
@@ -257,7 +257,7 @@ public final class ProtobufToAnalysis {
     public static @NonNull Trader addTrader(@NonNull Topology topology, @NonNull TraderTO input) {
         @NonNull Basket basketSold = basket(input);
         @NonNull Trader output = topology.addTrader(input.getOid(), input.getType(), traderState(input.getState()), basketSold);
-        output.setDebugInfo(input.getDebugInfo());
+        output.setDebugInfoNeverUseInCode(input.getDebugInfoNeverUseInCode());
         populateTraderSettings(input.getSettings(), output.getSettings());
 
         for (CommoditySoldTO commoditySold : input.getCommoditiesSoldList()) {

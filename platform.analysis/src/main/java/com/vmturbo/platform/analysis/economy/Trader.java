@@ -35,7 +35,12 @@ public abstract class Trader {
     private final @NonNull List<@NonNull CommoditySold> commoditiesSold_ = new ArrayList<>();
     private final @NonNull List<@NonNull Integer> cliques_ = new ArrayList<>();
     private final @NonNull List<@NonNull ShoppingList> customers_ = new ArrayList<>();
-    private String debugInfo_; // a field keeps information about the eclass and uuid of the trader.
+    // TODO: (Jun 22, 2016) This field is intended to be temporarily used for debugging in the initial stages of M2. To avoid making drastic change in
+    // market2, we use a setter and getter to set and get this field instead of putting it part of the constructor even though it should
+    // only be set once and never changed.
+    // If in future we want to keep it, we should make it part of the constructor, remove the setter, also modify all places that call it
+    // and the corresponding tests.
+    private String debugInfoNeverUseInCode_; // a field keeps information about the eclass and uuid of the trader.
     // Cached data
 
     // Cached unmodifiable view of the commoditiesSold_ list.
@@ -355,15 +360,15 @@ public abstract class Trader {
      * Sets the debugInfo field. It contains information about the eclass and uuid of the trader.
      * @param debugInfo a string contains eclass|uuid of the trader
      */
-    public @NonNull Trader setDebugInfo(@NonNull String debugInfo) {
-        debugInfo_ = debugInfo;
+    public @NonNull Trader setDebugInfoNeverUseInCode(@NonNull String debugInfo) {
+        debugInfoNeverUseInCode_ = debugInfo;
         return this;
     }
 
     /**
      * Returns the debugInfo field.
      */
-    public String getDebugInfo(@ReadOnly Trader this) {
-        return debugInfo_;
+    public String getDebugInfoNeverUseInCode(@ReadOnly Trader this) {
+        return debugInfoNeverUseInCode_;
     }
 } // end interface Trader

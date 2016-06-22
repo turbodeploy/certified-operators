@@ -35,7 +35,12 @@ public final class CommoditySpecification implements Comparable<CommoditySpecifi
     private final int type_; // must be non-negative.
     private final int qualityLowerBound_; // must be non-negative and less than or equal to qualityUpperBound_.
     private final int qualityUpperBound_; // must be non-negative and greater than or equal to qualityLowerBound_.
-    private String debugInfo_; // a field keeps information about the eclass and key of the commodity.
+    // TODO: (Jun 22, 2016) This field is intended to be temporarily used for debugging in the initial stages of M2. To avoid making drastic change in
+    // market2, we use a setter and getter to set and get this field instead of putting it part of the constructor even though it should
+    // only be set once and never changed.
+    // If in future we want to keep it, we should make it part of the constructor, remove the setter, also modify all places that call it
+    // and the corresponding tests.
+    private String debugInfoNeverUseInCode_; // a field keeps information about the eclass and key of the commodity.
     // Constructors
 
     /**
@@ -215,15 +220,15 @@ public final class CommoditySpecification implements Comparable<CommoditySpecifi
      * Sets the debugInfo field. It contains information about the eclass and the key of the commodity.
      * @param debugInfo a string contains eclass|key of the commodity.
      */
-    public @NonNull CommoditySpecification setDebugInfo(@NonNull String debugInfo) {
-        debugInfo_ = debugInfo;
+    public @NonNull CommoditySpecification setDebugInfoNeverUseInCode(@NonNull String debugInfo) {
+        debugInfoNeverUseInCode_ = debugInfo;
         return this;
     }
 
     /**
      * Returns the debugInfo field.
      */
-    public String getDebugInfo(@ReadOnly CommoditySpecification this) {
-        return debugInfo_;
+    public String getDebugInfoNeverUseInCode(@ReadOnly CommoditySpecification this) {
+        return debugInfoNeverUseInCode_;
     }
 } // end CommoditySpecification class
