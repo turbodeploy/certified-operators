@@ -22,7 +22,7 @@ final class TraderWithSettings extends Trader implements TraderSettings {
     private boolean suspendable_ = false;
     private boolean cloneable_ = false;
     private boolean guaranteedBuyer_ = false;
-    private boolean canAcceptNewCustomer_ = false;
+    private boolean canAcceptNewCustomers_ = false;
     private double maxDesiredUtilization_ = 1.0;
     private double minDesiredUtilization_ = 0.0;
 
@@ -99,6 +99,18 @@ final class TraderWithSettings extends Trader implements TraderSettings {
 
     @Override
     @Pure
+    public boolean isGuaranteedBuyer(@ReadOnly TraderWithSettings this) {
+        return guaranteedBuyer_;
+    }
+
+    @Override
+    @Pure
+    public boolean canAcceptNewCustomers() {
+        return canAcceptNewCustomers_;
+    }
+
+    @Override
+    @Pure
     public double getMaxDesiredUtil(@ReadOnly TraderWithSettings this) {
         return maxDesiredUtilization_;
     }
@@ -144,12 +156,6 @@ final class TraderWithSettings extends Trader implements TraderSettings {
     }
 
     @Override
-    @Pure
-    public boolean isGuaranteedBuyer(@ReadOnly TraderWithSettings this) {
-        return guaranteedBuyer_;
-    }
-
-    @Override
     @Deterministic
     public @NonNull TraderSettings setGuaranteedBuyer(boolean guaranteedBuyer) {
         guaranteedBuyer_ = guaranteedBuyer;
@@ -157,15 +163,9 @@ final class TraderWithSettings extends Trader implements TraderSettings {
     }
 
     @Override
-    @Pure
-    public boolean canAcceptNewCustomer() {
-        return canAcceptNewCustomer_;
-    }
-
-    @Override
     @Deterministic
-    public @NonNull TraderSettings setCanAcceptNewCustomer(boolean canAcceptNewCustomer) {
-        canAcceptNewCustomer_ = canAcceptNewCustomer;
+    public @NonNull TraderSettings setCanAcceptNewCustomers(boolean canAcceptNewCustomers) {
+        canAcceptNewCustomers_ = canAcceptNewCustomers;
         return this;
     }
 

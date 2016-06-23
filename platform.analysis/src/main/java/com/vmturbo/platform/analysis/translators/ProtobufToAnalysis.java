@@ -227,7 +227,7 @@ public final class ProtobufToAnalysis {
         destination.setMinDesiredUtil(source.getMinDesiredUtilization());
         destination.setMaxDesiredUtil(source.getMaxDesiredUtilization());
         destination.setGuaranteedBuyer(source.getGuaranteedBuyer());
-        destination.setCanAcceptNewCustomer(source.getCanAcceptNewCustomer());
+        destination.setCanAcceptNewCustomers(source.getCanAcceptNewCustomers());
     }
 
     /**

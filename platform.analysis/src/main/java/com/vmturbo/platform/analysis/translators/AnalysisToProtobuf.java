@@ -209,7 +209,7 @@ public final class AnalysisToProtobuf {
                         .setMinDesiredUtilization((float)input.getMinDesiredUtil())
                         .setMaxDesiredUtilization((float)input.getMaxDesiredUtil())
                         .setGuaranteedBuyer(input.isGuaranteedBuyer())
-                        .setCanAcceptNewCustomer(input.canAcceptNewCustomer()).build();
+                        .setCanAcceptNewCustomers(input.canAcceptNewCustomers()).build();
     }
 
     /**

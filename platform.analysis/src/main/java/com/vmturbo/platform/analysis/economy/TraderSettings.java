@@ -22,6 +22,17 @@ public interface TraderSettings {
     boolean isCloneable();
 
     /**
+     * Whether the associated {@link Trader} should consume the clone of provider.
+     * @return
+     */
+    boolean isGuaranteedBuyer();
+
+    /**
+     * Whether the associated {@link Trader} can accept a {@link ShoppingList} move to itself.
+     */
+    boolean canAcceptNewCustomers();
+
+    /**
      * Returns the maximum desired utilization of {@code this} trader's commodities.
      *
      * <p>
@@ -90,12 +101,6 @@ public interface TraderSettings {
     @NonNull TraderSettings setMinDesiredUtil(double minDesiredUtilization);
 
     /**
-     * Whether the associated {@link Trader} should consume the clone of provider.
-     * @return
-     */
-    boolean isGuaranteedBuyer();
-
-    /**
      * Sets the value of the <b>guranteedBuyer</b> field.
      *
      * <p>
@@ -108,12 +113,6 @@ public interface TraderSettings {
     @NonNull TraderSettings setGuaranteedBuyer(boolean guaranteedBuyer);
 
     /**
-     * Whether the associated {@link Trader} can accept a {@link ShoppingList} move to or out of itself.
-     * @return
-     */
-    boolean canAcceptNewCustomer();
-
-    /**
      * Sets the value of the <b>canAcceptNewCustomer</b> field.
      *
      * <p>
@@ -124,6 +123,5 @@ public interface TraderSettings {
      * @return {@code this}
      */
     @NonNull
-    TraderSettings setCanAcceptNewCustomer(boolean canAcceptNewCustomer);
- // May need to add shopTogether here, but may also store it implicitly as well...
+    TraderSettings setCanAcceptNewCustomers(boolean canAcceptNewCustomers);
 } // end TraderSettings interface

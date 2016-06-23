@@ -326,10 +326,10 @@ public final class TraderWithSettingsTest {
 
     @Test
     @Parameters({"true", "false"})
-    @TestCaseName("Test #{index}: (set|is)CanCustomerMove({0})")
-    public final void testIsSetCanAcceptNewCustomer(boolean canAcceptNewCustomer) {
-        fixture_.setCanAcceptNewCustomer(canAcceptNewCustomer);
-        assertEquals(canAcceptNewCustomer, fixture_.canAcceptNewCustomer());
+    @TestCaseName("Test #{index}: setCanAcceptNewCustomers({0})")
+    public final void testSetCanAcceptNewCustomers(boolean canAcceptNewCustomers) {
+        fixture_.setCanAcceptNewCustomers(canAcceptNewCustomers);
+        assertEquals(canAcceptNewCustomers, fixture_.canAcceptNewCustomers());
     }
 
     @Test
