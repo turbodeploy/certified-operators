@@ -9,6 +9,7 @@ import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.Activate;
+import com.vmturbo.platform.analysis.actions.CompoundMove;
 import com.vmturbo.platform.analysis.actions.Deactivate;
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.actions.ProvisionByDemand;
@@ -28,6 +29,7 @@ import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActivateTO;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.CompoundMoveTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.DeactivateTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionByDemandTO;
@@ -341,6 +343,14 @@ public final class AnalysisToProtobuf {
                 .setSpecification(commoditySpecificationTO(resize.getResizedCommodity()))
                 .setOldCapacity((float)resize.getOldCapacity())
                 .setNewCapacity((float)resize.getNewCapacity()));
+        } else if (input instanceof CompoundMove) {
+            CompoundMove compoundMove = (CompoundMove)input;
+            CompoundMoveTO.Builder compoundMoveTO = CompoundMoveTO.newBuilder();
+            for (Move m : compoundMove.getConstituentMoves()) {
+                compoundMoveTO.addMoves(AnalysisToProtobuf.actionTO(m, traderOid, shoppingListOid,
+                                topology).getMove());
+            }
+            builder.setCompoundMove(compoundMoveTO);
         }
 
         return builder.build();
