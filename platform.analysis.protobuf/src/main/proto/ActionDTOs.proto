@@ -93,6 +93,12 @@ message ResizeTO {
     optional float new_capacity = 4;
 }
 
+// An action to move a list of shopping lists bought by a trader from a number of old providers to
+// a number of new providers.
+message CompoundMoveTO {
+    // A list of move actions that should happen atomically by shoppingLists of the same trader.
+	repeated MoveTO moves = 1;
+}
 // A compound message to encapsulate any one of the above actions.
 message ActionTO {
     oneof action_type {
@@ -103,5 +109,6 @@ message ActionTO {
         ProvisionByDemandTO provision_by_demand = 5;
         ProvisionBySupplyTO provision_by_supply = 6;
         ResizeTO resize = 7;
+        CompoundMoveTO compound_move = 8;
     }
 }
