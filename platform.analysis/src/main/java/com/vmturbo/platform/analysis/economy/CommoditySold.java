@@ -150,7 +150,8 @@ public abstract class CommoditySold {
      */
     @Deterministic
     public @NonNull CommoditySold setPeakQuantity(double peakQuantity) {
-        checkArgument(0 <= peakQuantity && peakQuantity <= getCapacity(), "peakQuantity = " + peakQuantity);
+        // quantity can be over capacity
+        checkArgument(0 <= peakQuantity, "quantity = " + peakQuantity);
         peakQuantity_ = peakQuantity;
         return this;
     }
