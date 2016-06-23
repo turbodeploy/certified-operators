@@ -78,9 +78,9 @@ public final class CommoditySoldWithSettingsTest {
     }
 
     @Test
-    @Parameters({"0.0,0.0",
-                 "0.0,1.0","1.0,1.0",
-                 "0.0,1000","1.0,1000","1000,1000"})
+    @Parameters({"0.0,0.0","0.0,1.0","0.0,1000",
+                 "1.0,1.0","1.0,0.0","1000,0.0","1000,1.0",
+                 "1.0,1000","1000,1000","1000.1,1000"})
     @TestCaseName("Test #{index}: (set|get)Quantity({0}) with capacity == {1}")
     public final void testGetSetQuantity_NormalInput(double quantity, double capacity) {
         fixture_.setCapacity(capacity);
@@ -89,9 +89,9 @@ public final class CommoditySoldWithSettingsTest {
     }
 
     @Test(expected = IllegalArgumentException.class)
-    @Parameters({"-0.001,0.0","-1.0,0.0","-1000,0.0","1.0,0.0","1000,0.0",
-                 "-0.001,1.0","-1.0,1.0","-1000,1.0","1000,1.0",
-                 "-0.001,1000","-1.0,1000","-1000,1000","1000.1,1000"})
+    @Parameters({"-0.001,0.0","-1.0,0.0","-1000,0.0",
+                 "-0.001,1.0","-1.0,1.0","-1000,1.0",
+                 "-0.001,1000","-1.0,1000","-1000,1000"})
     @TestCaseName("Test #{index}: setQuantity({0}) with capacity == {1}")
     public final void testSetQuantity_InvalidInput(double qauantity, double capacity) {
         fixture_.setCapacity(capacity);

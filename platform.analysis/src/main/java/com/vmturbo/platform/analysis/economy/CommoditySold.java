@@ -128,7 +128,8 @@ public abstract class CommoditySold {
      */
     @Deterministic
     public @NonNull CommoditySold setQuantity(double quantity) {
-        checkArgument(0 <= quantity && quantity <= getCapacity(), "quantity = " + quantity);
+        // quantity can be over capacity
+        checkArgument(0 <= quantity, "quantity = " + quantity);
         quantity_ = quantity;
         return this;
     }
