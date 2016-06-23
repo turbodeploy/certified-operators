@@ -7,6 +7,7 @@ import java.util.List;
 import org.apache.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
+import com.google.common.collect.Lists;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
 import com.vmturbo.platform.analysis.economy.Economy;
@@ -20,106 +21,98 @@ public class Provision {
     static final Logger logger = Logger.getLogger(Provision.class);
 
     /**
-     * Return a list of recommendations to optimize the cloning of all eligible traders in the economy.
+     * Return a list of recommendations to optimize the cloning of all eligible traders in the
+     * economy.
      *
      * <p>
      *  As a result of invoking this method, both the economy and the state that are passed as
      *  parameters to it, may be changed.
      * </p>
      *
-     * @param economy - the economy whose traders' placement we want to optimize
+     * @param economy - the economy whose traders we want to clone if profitable while remaining
+     *                 in the desired state
+     * @param ledger - the class that contains exp/rev about all the traders and commodities in
+     *                 the ecomomy
+     *
+     * @return list of provision and move actions
      */
-    public static @NonNull List<@NonNull Action> provisionDecisions(@NonNull Economy economy) {
+    public static @NonNull List<@NonNull Action> provisionDecisions(@NonNull Economy economy,
+                                                                    @NonNull Ledger ledger) {
 
-        @NonNull List<Action> allActions = new ArrayList<>();
-
+        List<@NonNull Action> allActions = new ArrayList<>();
+        List<@NonNull Action> actions = new ArrayList<>();
         for (Market market : economy.getMarkets()) {
-            @NonNull List<Action> actions = new ArrayList<>();
-            // if there are no sellers in the market, the buyer is misconfigured
-            List<@NonNull Trader> sellers = new ArrayList<>();
-            sellers.addAll(market.getActiveSellers());
-            if (sellers.isEmpty()) {
-                continue;
-            }
-
-            Ledger ledger = new Ledger(economy);
-            ledger.calculateAllTraderExpensesAndRevenues(economy);
-            // continue if there is no seller that is eligible for cloning in the market
-            if (!checkEngageCriteriaForMarket(ledger, market)) {
-                continue;
-            }
-
-            Trader mostProfitableTrader = null;
-            double roiOfMostProfitableTrader = 0;
-            for (Trader seller : sellers) {
-                // check engagementCriteria on every activeTrader
-                if (seller.getSettings().isCloneable()) {
-                    if (ledger.getTraderIncomeStatements().get(seller.getEconomyIndex()).getROI() > roiOfMostProfitableTrader) {
-                        mostProfitableTrader = seller;
-                    }
-                }
-            }
-
-            // we could reactivate a suspended seller, currently i just clone most profitable seller
-            ProvisionBySupply provisionAction = null;
-            if (mostProfitableTrader != null) {
-                provisionAction = new ProvisionBySupply(economy, mostProfitableTrader);
-                actions.add(provisionAction.take());
-            } else {
-                continue;
-            }
-
-            // TODO: check if a market specific placement is beneficial?
-            Trader provisionedTrader = provisionAction.getProvisionedSeller();
-            // run placement after adding a new seller to the economy
-            actions.addAll(Placement.placementDecisions(economy));
-            sellers.add(provisionedTrader);
-            Ledger newLedger = new Ledger(economy);
-            // TODO: change re-creation and computation of expRev to just updating the ledger
-            newLedger.calculateAllTraderExpensesAndRevenues(economy);
-            if (!checkAcceptanceCriteriaForMarket(newLedger, market)) {
-                // remove IncomeStatement from ledger, trader from economy and the provision action
-                newLedger.getTraderIncomeStatements().remove(provisionedTrader.getEconomyIndex());
-                actions.forEach(axn -> axn.rollback());
+            for(;;) {
+                // if there are no sellers in the market, the buyer is misconfigured
                 actions.clear();
-                break;
+                if (market.getActiveSellers().isEmpty()) {
+                    break;
+                }
+
+                ledger.calculateExpAndRevForSellersInMarket(economy, market);
+                // continue if there is no seller that is eligible for cloning in the market
+                Trader mostProfitableTrader = findProfitableTraderToEngage(market, ledger);
+                if (mostProfitableTrader == null) {
+                    break;
+                }
+
+                // TODO: we could reactivate a suspended seller, currently I just clone most profitable seller
+                ProvisionBySupply provisionAction = new ProvisionBySupply(economy, mostProfitableTrader);
+                actions.add(provisionAction.take());
+
+                Trader provisionedTrader = provisionAction.getProvisionedSeller();
+                // run placement after adding a new seller to the economy
+                actions.addAll(Placement.placementDecisions(economy));
+                ledger.addTraderIncomeStatement(provisionedTrader);
+
+                ledger.calculateExpAndRevForSellersInMarket(economy, market);
+                if (!evalAcceptanceCriteriaForMarket(market, ledger)) {
+                    // remove IncomeStatement from ledger and rollback actions
+                    ledger.removeTraderIncomeStatement(provisionedTrader);
+                    Lists.reverse(actions).forEach(axn -> axn.rollback());
+                    break;
+                }
+                allActions.addAll(actions);
             }
-            allActions.addAll(actions);
         }
 
         return allActions;
     }
 
     /**
-     * returns true/false after checking the engagement criteria for a particular trader
+     * returns best trader to clone after checking the engagement criteria for all traders of a particular market
      *
-     * @param ledger - the ledger that holds the incomeStatement of the trader whose ROI is checked
      * @param market - the market whose seller ROIs are checked to verify profitability that implies eligibility to clone
+     * @param ledger - the ledger that holds the incomeStatement of the trader whose ROI is checked
      *
-     * @return true - if there is even 1 profitable trader and is capable of cloning and false otherwise
+     * @return the mostProfitableTrader if there is one that can clone and NULL otherwise
      */
-    public static boolean checkEngageCriteriaForMarket(Ledger ledger, Market market) {
+    public static Trader findProfitableTraderToEngage(Market market, Ledger ledger) {
 
+        Trader mostProfitableTrader = null;
+        double roiOfMostProfitableTrader = 0;
         for (Trader seller : market.getActiveSellers()) {
             IncomeStatement traderIS = ledger.getTraderIncomeStatements().get(seller.getEconomyIndex());
-            // return true if there is even 1 profitable trader
-            if (traderIS.getROI() > traderIS.getMaxDesiredROI()) {
-                return true;
+            // return the most profitable trader
+            double roiOfTrader = traderIS.getROI();
+            if (seller.getSettings().isCloneable() && (roiOfTrader > traderIS.getMaxDesiredROI())
+                                                   && (roiOfTrader > roiOfMostProfitableTrader)) {
+                mostProfitableTrader = seller;
+                roiOfMostProfitableTrader = roiOfTrader;
             }
         }
-        logger.warn("There is no profitable seller to clone in market " + market.toString());
-        return false;
+        return mostProfitableTrader;
     }
 
     /**
-     * returns true/false after checking the acceptance criteria for a particular trader
+     * returns true/false after checking the acceptance criteria for a particular market
      *
      * @param ledger - the ledger that holds the incomeStatement of the trader whose ROI is checked
      * @param market - the market whose seller ROIs are checked to verify profitability after a clone was added to the market
      *
      * @return true - if this trader is not at loss and false otherwise
      */
-    public static boolean checkAcceptanceCriteriaForMarket(Ledger ledger, Market market) {
+    public static boolean evalAcceptanceCriteriaForMarket(Market market, Ledger ledger) {
 
         for (Trader seller : market.getActiveSellers()) {
             IncomeStatement traderIS = ledger.getTraderIncomeStatements().get(seller.getEconomyIndex());
