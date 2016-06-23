@@ -13,18 +13,20 @@ import org.checkerframework.dataflow.qual.Pure;
 
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
-import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ede.EdeCommon;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 
 /**
- * A bookkeeper of the expenses and revenues of all the traders and the commodities that are present in the economy
+ * A bookkeeper of the expenses and revenues of all the traders and the commodities that are
+ * present in the economy
  *
  * <p>
- *  The 2 lists present maintain the IncomeStatements of all the traders and IncomeStatements of the commoditiesSold by these traders
+ *  The 2 lists present maintain the IncomeStatements of all the traders and IncomeStatements of
+ *  the commoditiesSold by these traders
  * </p>
  */
 public class Ledger {
@@ -33,26 +35,33 @@ public class Ledger {
     private final @NonNull List<@NonNull IncomeStatement> traderIncomeStatements_ = new ArrayList<>();
 
     // The list of IncomeStatements of commoditiesSold, indexed by the economyIndex of a trader
-    private final @NonNull ArrayList<@NonNull ArrayList<IncomeStatement>> commodityIncomeStatements_ = new ArrayList<>();
+    private final @NonNull ArrayList<@NonNull ArrayList<IncomeStatement>> commodityIncomeStatements_
+                                                                                = new ArrayList<>();
 
     // Cached data
 
     // Cached unmodifiable view of the traderIncomeStatements list.
-    private final @NonNull List<@NonNull IncomeStatement> unmodifiableTraderIncomeStatements_ = Collections.unmodifiableList
-                                                                                                            (traderIncomeStatements_);
+    private final @NonNull List<@NonNull IncomeStatement> unmodifiableTraderIncomeStatements_
+                                                                = Collections.unmodifiableList
+                                                                        (traderIncomeStatements_);
     // Cached unmodifiable view of the commodityIncomeStatements of all traders
     private final @NonNull List<@NonNull ArrayList<IncomeStatement>>
-                                                       unmodifiableCommodityIncomeStatements_ = Collections.unmodifiableList
-                                                                                                            (commodityIncomeStatements_);
+                                                           unmodifiableCommodityIncomeStatements_
+                                                                = Collections.unmodifiableList
+                                                                    (commodityIncomeStatements_);
 
     @Pure
-    public @NonNull @ReadOnly List<@NonNull @ReadOnly IncomeStatement> getTraderIncomeStatements(@ReadOnly Ledger this) {
+    public @NonNull @ReadOnly List<@NonNull @ReadOnly IncomeStatement> getTraderIncomeStatements
+                                                                            (@ReadOnly Ledger this) {
         return unmodifiableTraderIncomeStatements_;
     }
 
     @Pure
-    public @NonNull @ReadOnly List<@NonNull @ReadOnly IncomeStatement> getCommodityIncomeStatements(@ReadOnly Ledger this, @NonNull @ReadOnly Trader trader) {
-        return Collections.unmodifiableList(unmodifiableCommodityIncomeStatements_.get(trader.getEconomyIndex()));
+    public @NonNull @ReadOnly List<@NonNull @ReadOnly IncomeStatement> getCommodityIncomeStatements
+                                                                            (@ReadOnly Ledger this,
+                                                                             @NonNull @ReadOnly Trader trader) {
+        return Collections.unmodifiableList(unmodifiableCommodityIncomeStatements_
+                                                .get(trader.getEconomyIndex()));
     }
 
     // Constructor
@@ -71,20 +80,21 @@ public class Ledger {
     // Methods
 
     /**
-     * Adds a new {@link IncomeStatement} for a trader to the traderIncomeStatement list that the ledger maintains
-     * we also add a IncomeStatement for every commodity that this trader sells
+     * Adds a new {@link IncomeStatement} for a trader to the traderIncomeStatement list that the
+     * ledger maintains we also add a IncomeStatement for every commodity that this trader sells
      *
      * @param trader this is the new entity that is being added to the economy
      *
      * @return The incomeStatement that was created for this newly added trader
      */
     @Deterministic
-    private @NonNull IncomeStatement addTraderIncomeStatement(@NonNull Trader trader) {
+    public @NonNull IncomeStatement addTraderIncomeStatement(@NonNull Trader trader) {
 
         IncomeStatement traderIncomeStatement = new IncomeStatement();
         traderIncomeStatements_.add(traderIncomeStatement);
 
-        checkArgument(traderIncomeStatements_.indexOf(traderIncomeStatement) == trader.getEconomyIndex());
+        checkArgument(traderIncomeStatements_.indexOf(traderIncomeStatement)
+                            == trader.getEconomyIndex());
         int eIndex = trader.getEconomyIndex();
 
         if (commodityIncomeStatements_.size() <= eIndex) {
@@ -92,35 +102,10 @@ public class Ledger {
         }
 
         // adding an incomeStatement per commoditySold
-        trader.getCommoditiesSold().forEach(commSold->{commodityIncomeStatements_.get(eIndex).add(new IncomeStatement());});
+        trader.getCommoditiesSold().forEach(commSold->commodityIncomeStatements_.get(eIndex)
+                                                            .add(new IncomeStatement()));
 
         return traderIncomeStatement;
-    }
-
-
-    /**
-     * Adds a new {@link IncomeStatement} for a trader to the traderIncomeStatement list that the ledger maintains
-     * we also add a IncomeStatement for every commodity that this trader sells to the commodityIncomeStatement list
-     *
-     * @param trader this is the new entity that is being added to the economy
-     * @param commodityIndex is the index of the commodity in the basket that the trader sells
-     *
-     * @return The incomeStatement that was created for the commodity
-     */
-    @Deterministic
-    private @NonNull IncomeStatement addCommodityIncomeStatement(Trader trader, int commodityIndex) {
-
-        int eIndex = trader.getEconomyIndex();
-
-        if (commodityIncomeStatements_.size() <= eIndex) {
-            commodityIncomeStatements_.add(eIndex, new ArrayList<IncomeStatement>());
-        }
-
-        IncomeStatement commodityIncomeStatement = new IncomeStatement();
-        commodityIncomeStatements_.get(eIndex).add(commodityIncomeStatement);
-
-        checkArgument(commodityIncomeStatements_.get(eIndex).indexOf(commodityIncomeStatement) == commodityIndex);
-        return commodityIncomeStatement;
     }
 
     private @NonNull Ledger resetTraderIncomeStatement(Trader trader) {
@@ -136,14 +121,15 @@ public class Ledger {
     }
 
     /**
-     * removes an {@link IncomeStatement} for a trader from the traderIncomeStatement list that the ledger maintains
-     * we also remove the IncomeStatements for every commodity that this trader sells from the commodityIncomeStatement list
+     * removes an {@link IncomeStatement} for a trader from the traderIncomeStatement list that the
+     * ledger maintains we also remove the IncomeStatements for every commodity that this trader
+     * sells from the commodityIncomeStatement list
      *
      * @param trader this is the entity that is being removed from the economy
      *
      * @return The incomeStatement that was created for this newly added trader
      */
-    @NonNull Ledger removeTraderIncomeStatement(@NonNull Trader trader) {
+    public @NonNull Ledger removeTraderIncomeStatement(@NonNull Trader trader) {
         traderIncomeStatements_.remove(trader.getEconomyIndex());
         commodityIncomeStatements_.remove(trader);
 
@@ -151,41 +137,62 @@ public class Ledger {
     }
 
     /**
-     * computes the {@link IncomeStatement} for every trader present in the economy and updates the traderIncomeStatement list
+     * computes the {@link IncomeStatement} for every seller present in a particular market and
+     * updates the traderIncomeStatement list accordingly
      *
-     * @param economy {@link Economy} which contains all the traders whose income statements are to be calculated
-     *
+     * @param economy {@link Economy} where the Sellers trade
+     * @param market the {@link Market} whose sellers expenses and revenues are to be computed
+     * revenues are to be computed
      * @return The Ledger containing the updated list of traderIncomeStatements
      */
-    public @NonNull Ledger calculateAllTraderExpensesAndRevenues (@NonNull Economy economy) {
-        List<Trader> traders = economy.getTraders();
+    public Ledger calculateExpAndRevForSellersInMarket(Economy economy, Market market) {
+        for (Trader seller : market.getActiveSellers()) {
+            IncomeStatement sellerIncomeStmt = getTraderIncomeStatements()
+                                                    .get(seller.getEconomyIndex());
+            sellerIncomeStmt.resetIncomeStatement();
+            double sellerMaxDesUtil = seller.getSettings().getMaxDesiredUtil();
+            double sellerMinDesUtil = seller.getSettings().getMinDesiredUtil();
+            // compute the revenues based on the utilization of the commoditiesSold
+            for (CommoditySold commSold : seller.getCommoditiesSold()) {
+                double commSoldUtil = commSold.getUtilization();
+                if (commSoldUtil != 0) {
+                    PriceFunction pf = commSold.getSettings().getPriceFunction();
+                    sellerIncomeStmt.setRevenues(sellerIncomeStmt.getRevenues()
+                                        + pf.unitPrice(commSoldUtil)*commSoldUtil)
+                        .setMinDesiredRevenues(sellerIncomeStmt.getMinDesiredRevenues()
+                                        + pf.unitPrice(sellerMinDesUtil)*sellerMinDesUtil)
+                        .setMaxDesiredRevenues(sellerIncomeStmt.getMaxDesiredRevenues()
+                                        + pf.unitPrice(sellerMaxDesUtil)*sellerMaxDesUtil);
+                }
+            }
 
-        for (Trader trader : traders) {
-            economy.getMarketsAsBuyer(trader).forEach((shoppingList, market) -> {
-                Trader currentSupplier = shoppingList.getSupplier();
-                double[] quote = EdeCommon.quote(economy, shoppingList, currentSupplier, Double.POSITIVE_INFINITY, true);
-                IncomeStatement consumerIncomsStmt = traderIncomeStatements_.get(trader.getEconomyIndex());
-                IncomeStatement providerIncomsStmt = traderIncomeStatements_.get(currentSupplier.getEconomyIndex());
+            // calculate expenses using the quote from every supplier that this trader buys from
+            for (ShoppingList sl : economy.getMarketsAsBuyer(seller).keySet()) {
+                // skip markets in which the trader in question is unplaced and
+                // not consider expense for this trader in those markets
+                if (sl.getSupplier() != null) {
 
-                // updating the expenses and revenues of the provider and consumer respectively
-                consumerIncomsStmt.setExpenses(consumerIncomsStmt.getExpenses() + quote[0]);
-                providerIncomsStmt.setRevenues(providerIncomsStmt.getRevenues() + quote[0]);
-                consumerIncomsStmt.setMinDesiredExpenses(consumerIncomsStmt.getMinDesiredExpenses() + quote[1]);
-                providerIncomsStmt.setMinDesiredRevenues(providerIncomsStmt.getMinDesiredRevenues() + quote[1]);
-                consumerIncomsStmt.setMaxDesiredExpenses(consumerIncomsStmt.getMaxDesiredExpenses() + quote[2]);
-                providerIncomsStmt.setMaxDesiredRevenues(providerIncomsStmt.getMaxDesiredRevenues() + quote[2]);
-            });
+                    double[] quote = EdeCommon.quote(economy, sl, sl.getSupplier()
+                                            , Double.POSITIVE_INFINITY, true);
 
+                    sellerIncomeStmt.setExpenses(sellerIncomeStmt.getExpenses() + quote[0])
+                                    .setMinDesiredExpenses(sellerIncomeStmt.getMinDesiredExpenses()
+                                                    + quote[1])
+                                    .setMaxDesiredExpenses(sellerIncomeStmt.getMaxDesiredExpenses()
+                                                    + quote[2]);
+                }
+            }
         }
-
         return this;
+
     }
 
     /**
-     * computes the {@link IncomeStatement} for every resizable commodity spld by all the traders present in the economy and updates the
-     * commodityIncomeStatement list
+     * computes the {@link IncomeStatement} for every resizable commodity sold by all the traders
+     * present in the economy and updates the commodityIncomeStatement list
      *
-     * @param economy the {@link Economy} which contains all the commodities whose income statements are to be calculated
+     * @param economy the {@link Economy} which contains all the commodities whose income
+     * statements are to be calculated
      *
      * @return The ledger containing the updated list of commodityIncomeStatements
      */
@@ -196,54 +203,73 @@ public class Ledger {
 
             resetTraderIncomeStatement(buyer);
             List<CommoditySold> commSoldList = buyer.getCommoditiesSold();
-            for (int indexOfCommSold = 0; indexOfCommSold < commSoldList.size(); indexOfCommSold++) {
-                CommoditySold cs = commSoldList.get(indexOfCommSold);
+            for (int commSoldIndex = 0; commSoldIndex < commSoldList.size(); commSoldIndex++) {
+                CommoditySold cs = commSoldList.get(commSoldIndex);
                 // compute rev/exp for resizable commodities
-                if (cs.getSettings().isResizable()) {
-                    IncomeStatement consumerCommIS = commodityIncomeStatements_.get(buyer.getEconomyIndex()).get(indexOfCommSold);
-                    // rev of consumer is utilOfCommSold*priceFn(utilOfCommSold)
-                    // expense of this consumer is utilOfCommBought*priceFn(utilOfCommBought)
-                    double maxDesiredUtil = buyer.getSettings().getMaxDesiredUtil();
-                    double minDesiredUtil = buyer.getSettings().getMinDesiredUtil();
-                    double commSoldUtil = cs.getUtilization();
-                    PriceFunction pf = cs.getSettings().getPriceFunction();
+                if (!cs.getSettings().isResizable()) {
+                    continue;
+                }
 
-                    consumerCommIS.setRevenues(pf.unitPrice(commSoldUtil)*commSoldUtil);
-                    consumerCommIS.setMaxDesiredRevenues(pf.unitPrice(maxDesiredUtil)*commSoldUtil);
-                    consumerCommIS.setMinDesiredRevenues(pf.unitPrice(minDesiredUtil)*commSoldUtil);
-                    // type of mem from type of vMem for example
-                    List<Integer> typeOfCommsBought = economy.getRawMaterials(buyer.getBasketSold().get(indexOfCommSold).getType());
+                IncomeStatement commSoldIS = commodityIncomeStatements_.get(
+                                buyer.getEconomyIndex()).get(commSoldIndex);
+                // rev of consumer is utilOfCommSold*priceFn(utilOfCommSold)
+                // expense of this consumer is utilOfCommBought*priceFn(utilOfCommBought)
+                double maxDesUtil = buyer.getSettings().getMaxDesiredUtil();
+                double minDesUtil = buyer.getSettings().getMinDesiredUtil();
+                double commSoldUtil = cs.getUtilization();
+                PriceFunction pf = cs.getSettings().getPriceFunction();
 
-                    if (typeOfCommsBought == null) {
-                        continue;
-                    }
+                if (Double.isNaN(commSoldUtil)) {
+                    continue;
+                }
 
-                    for (ShoppingList shoppingList : economy.getMarketsAsBuyer(buyer).keySet()) {
-                        Basket basketBought = shoppingList.getBasket();
+                commSoldIS.setRevenues(pf.unitPrice(commSoldUtil)*commSoldUtil);
+                commSoldIS.setMaxDesiredRevenues(pf.unitPrice(maxDesUtil)*maxDesUtil);
+                commSoldIS.setMinDesiredRevenues(pf.unitPrice(minDesUtil)*minDesUtil);
+                // type of mem from type of vMem for example
+                List<Integer> typeOfCommsBought = economy.getRawMaterials(buyer.getBasketSold()
+                                                             .get(commSoldIndex).getType());
 
-                        // TODO: make indexOf return 2 values minIndex and the maxIndex. All comm's btw these indices will be of this type
-                        // (needed when we have 2 comms of same type sold)
-                        for (Integer typeOfCommBought : typeOfCommsBought) {
-                            int boughtIndex = basketBought.indexOf(typeOfCommBought.intValue());
+                if (typeOfCommsBought == null) {
+                    continue;
+                }
 
-                            // if the required commodity is not in the shopping list skip shoppingList
-                            if (boughtIndex == -1) {
-                                continue;
-                            }
+                for (ShoppingList shoppingList : economy.getMarketsAsBuyer(buyer).keySet()) {
+                    Basket basketBought = shoppingList.getBasket();
 
-                            Trader supplier = shoppingList.getSupplier();
-                            CommoditySpecification basketCommSpec = basketBought.get(boughtIndex);
+                    // TODO: make indexOf return 2 values minIndex and the maxIndex.
+                    // All comm's btw these indices will be of this type
+                    // (needed when we have 2 comms of same type sold)
+                    for (Integer typeOfCommBought : typeOfCommsBought) {
+                        int boughtIndex = basketBought.indexOf(typeOfCommBought.intValue());
 
-                            // find the right provider comm and use it to compute the expenses
-                            CommoditySold commSoldBySeller = supplier.getCommoditySold(basketCommSpec);
-                            // using capacity to remain consistent with quote
-                            double commBoughtUtil = shoppingList.getQuantity(boughtIndex)/commSoldBySeller.getCapacity();
-                            PriceFunction priceFunction = commSoldBySeller.getSettings().getPriceFunction();
-
-                            consumerCommIS.setExpenses(consumerCommIS.getExpenses() + pf.unitPrice(commSoldBySeller.getQuantity()/commSoldBySeller.getEffectiveCapacity())*commBoughtUtil);
-                            consumerCommIS.setMaxDesiredExpenses(consumerCommIS.getMaxDesiredExpenses() + priceFunction.unitPrice(maxDesiredUtil)*commBoughtUtil);
-                            consumerCommIS.setMinDesiredExpenses(consumerCommIS.getMinDesiredExpenses() + priceFunction.unitPrice(minDesiredUtil)*commBoughtUtil);
+                        // if the required commodity is not in the shoppingList, skip the list
+                        if (boughtIndex == -1) {
+                            continue;
                         }
+
+                        Trader supplier = shoppingList.getSupplier();
+                        if (supplier == null) {
+                            continue;
+                        }
+
+                        // find the right provider comm and use it to compute the expenses
+                        CommoditySold commSoldBySeller = supplier.getCommoditySold(basketBought
+                                                                           .get(boughtIndex));
+                        // using capacity to remain consistent with quote
+                        double commBoughtUtil = shoppingList.getQuantity(boughtIndex)
+                                                        /commSoldBySeller.getCapacity();
+                        PriceFunction priceFunction = commSoldBySeller.getSettings()
+                                                                      .getPriceFunction();
+
+                        commSoldIS.setExpenses(commSoldIS.getExpenses()
+                                      + priceFunction.unitPrice(commSoldBySeller.getQuantity()
+                                             /commSoldBySeller.getEffectiveCapacity())
+                                                 *commBoughtUtil);
+                        commSoldIS.setMaxDesiredExpenses(commSoldIS.getMaxDesiredExpenses()
+                                      + priceFunction.unitPrice(maxDesUtil)*commBoughtUtil);
+                        commSoldIS.setMinDesiredExpenses(commSoldIS.getMinDesiredExpenses()
+                                      + priceFunction.unitPrice(minDesUtil)*commBoughtUtil);
                     }
                 }
             }

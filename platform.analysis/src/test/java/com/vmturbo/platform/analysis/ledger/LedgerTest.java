@@ -98,11 +98,7 @@ public class LedgerTest {
         economy.getModifiableRawCommodityMap().put(V_MEM.getType(), Arrays.asList(MEM.getType()));
 
         Ledger ledger = new Ledger(economy);
-        ledger.calculateAllTraderExpensesAndRevenues(economy);
-        List<IncomeStatement> traderIncomeStmts = ledger.getTraderIncomeStatements();
-        // assert if expense of VM == revenue of PM
-        assertTrue(traderIncomeStmts.get(0).getRevenues() == traderIncomeStmts.get(1).getExpenses());
-
+        // TODO: check expenses and revenues generated
         economy.getTraders().forEach(trader->{
             assertTrue(ledger.getCommodityIncomeStatements(trader).size() == trader.getCommoditiesSold().size());
         });
