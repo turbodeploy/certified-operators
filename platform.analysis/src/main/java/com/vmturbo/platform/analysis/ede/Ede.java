@@ -6,7 +6,6 @@ import java.util.List;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.platform.analysis.actions.Action;
-import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ledger.Ledger;
@@ -41,17 +40,6 @@ public final class Ede {
         // TODO: create 1 Ledger and use it throughout
         actions.addAll(Placement.placementDecisions(economy));
         Ledger ledger = new Ledger(economy);
-        for (Trader trader : economy.getTraders()) {
-            int i=0;
-            if (trader.getDebugInfoNeverUseInCode().contains("Physical")) {
-                for (CommoditySold cs : trader.getCommoditiesSold()) {
-                    if (trader.getBasketSold().get(i).getDebugInfoNeverUseInCode().contains("Mem")) {
-                        System.out.println(trader.getBasketSold().get(i).getDebugInfoNeverUseInCode() + " " + cs.getUtilization());
-                    }
-                    i++;
-                }
-            }
-        }
         actions.addAll(Provision.provisionDecisions(economy, ledger));
         return actions;
     }
