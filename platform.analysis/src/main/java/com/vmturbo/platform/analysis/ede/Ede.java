@@ -1,12 +1,15 @@
 package com.vmturbo.platform.analysis.ede;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.platform.analysis.actions.Action;
+import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
+import com.vmturbo.platform.analysis.ledger.Ledger;
 
 /**
  *
@@ -34,7 +37,23 @@ public final class Ede {
      * @return A list of actions suggested by the economic decisions engine
      */
     public @NonNull List<@NonNull Action> generateActions(@NonNull Economy economy) {
-        return Placement.placementDecisions(economy);
+        @NonNull List<Action> actions = new ArrayList<>();
+        // TODO: create 1 Ledger and use it throughout
+        actions.addAll(Placement.placementDecisions(economy));
+        Ledger ledger = new Ledger(economy);
+        for (Trader trader : economy.getTraders()) {
+            int i=0;
+            if (trader.getDebugInfoNeverUseInCode().contains("Physical")) {
+                for (CommoditySold cs : trader.getCommoditiesSold()) {
+                    if (trader.getBasketSold().get(i).getDebugInfoNeverUseInCode().contains("Mem")) {
+                        System.out.println(trader.getBasketSold().get(i).getDebugInfoNeverUseInCode() + " " + cs.getUtilization());
+                    }
+                    i++;
+                }
+            }
+        }
+        actions.addAll(Provision.provisionDecisions(economy, ledger));
+        return actions;
     }
 
 }
