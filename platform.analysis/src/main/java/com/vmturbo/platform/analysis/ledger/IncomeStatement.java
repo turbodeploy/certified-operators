@@ -252,7 +252,8 @@ public class IncomeStatement {
      * @see #setExpenses()
      */
     public double getROI() {
-        return revenues_/Math.max(expenses_, 1);
+        checkArgument(0 < expenses_, "expenses = " + expenses_);
+        return revenues_/expenses_;
     }
 
     /**
@@ -263,7 +264,8 @@ public class IncomeStatement {
      * @see #setMaxDesiredExpenses()
      */
     public double getMinDesiredROI() {
-        return minDesiredRevenues_/Math.max(maxDesiredExpenses_, 1);
+        checkArgument(0 < maxDesiredExpenses_, "maxDesiredExpenses = " + maxDesiredExpenses_);
+        return minDesiredRevenues_/maxDesiredExpenses_;
     }
 
     /**
@@ -274,7 +276,8 @@ public class IncomeStatement {
      * @see #setMinDesiredExpenses()
      */
     public double getMaxDesiredROI() {
-        return maxDesiredRevenues_/Math.max(minDesiredExpenses_, 1);
+        checkArgument(0 < minDesiredExpenses_, "minDesiredExpenses = " + minDesiredExpenses_);
+        return maxDesiredRevenues_/minDesiredExpenses_;
     }
 
     public @NonNull IncomeStatement resetIncomeStatement() {
