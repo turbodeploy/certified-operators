@@ -16,6 +16,16 @@ import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ledger.IncomeStatement;
 import com.vmturbo.platform.analysis.ledger.Ledger;
 
+/*
+ * This class is contains the implementation for generating the provision actions on an economy
+ * For generating the provisions we first check the engagement criteria on the market,
+ * if this passes, we clone the best seller after which we run placements. This is followed
+ * by the acceptance criteria. If the acceptance criteria evaluates to be true, we retain the
+ * provisioned trader. We do this for every market in the economy.
+ *
+ * @author shravan
+ * 
+ */
 public class Provision {
 
     static final Logger logger = Logger.getLogger(Provision.class);
@@ -41,6 +51,7 @@ public class Provision {
 
         List<@NonNull Action> allActions = new ArrayList<>();
         List<@NonNull Action> actions = new ArrayList<>();
+        boolean keepRunning;
         for (Market market : economy.getMarkets()) {
             for(;;) {
                 // if there are no sellers in the market, the buyer is misconfigured
@@ -50,8 +61,8 @@ public class Provision {
                 }
 
                 ledger.calculateExpAndRevForSellersInMarket(economy, market);
-                // continue if there is no seller that is eligible for cloning in the market
-                Trader mostProfitableTrader = findProfitableTraderToEngage(market, ledger);
+                // break if there is no seller that is eligible for cloning in the market
+                Trader mostProfitableTrader = findBestTraderToEngage(market, ledger);
                 if (mostProfitableTrader == null) {
                     break;
                 }
@@ -62,11 +73,17 @@ public class Provision {
 
                 Trader provisionedTrader = provisionAction.getProvisionedSeller();
                 // run placement after adding a new seller to the economy
-                actions.addAll(Placement.placementDecisions(economy));
+                // TODO: run placement within a market
+                keepRunning = true;
+                while (keepRunning) {
+                    List<Action> placeActions = Placement.placementDecisions(economy);
+                    keepRunning = !placeActions.isEmpty();
+                    actions.addAll(placeActions);
+                }
                 ledger.addTraderIncomeStatement(provisionedTrader);
 
                 ledger.calculateExpAndRevForSellersInMarket(economy, market);
-                if (!evalAcceptanceCriteriaForMarket(market, ledger)) {
+                if (!evaluateAcceptanceCriteriaForMarket(market, ledger)) {
                     // remove IncomeStatement from ledger and rollback actions
                     ledger.removeTraderIncomeStatement(provisionedTrader);
                     Lists.reverse(actions).forEach(axn -> axn.rollback());
@@ -87,7 +104,7 @@ public class Provision {
      *
      * @return the mostProfitableTrader if there is one that can clone and NULL otherwise
      */
-    public static Trader findProfitableTraderToEngage(Market market, Ledger ledger) {
+    public static Trader findBestTraderToEngage(Market market, Ledger ledger) {
 
         Trader mostProfitableTrader = null;
         double roiOfMostProfitableTrader = 0;
@@ -112,7 +129,7 @@ public class Provision {
      *
      * @return true - if this trader is not at loss and false otherwise
      */
-    public static boolean evalAcceptanceCriteriaForMarket(Market market, Ledger ledger) {
+    public static boolean evaluateAcceptanceCriteriaForMarket(Market market, Ledger ledger) {
 
         for (Trader seller : market.getActiveSellers()) {
             IncomeStatement traderIS = ledger.getTraderIncomeStatements().get(seller.getEconomyIndex());
