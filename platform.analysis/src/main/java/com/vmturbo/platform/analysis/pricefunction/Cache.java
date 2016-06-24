@@ -39,7 +39,7 @@ class Cache {
         // UnaryOperator.
         PriceFunction pf = pfMap.get(key);
         if (pf == null) {
-            pf = u -> Math.min(weight / ((1.0f - u) * (1.0f - u)), MAX_UNIT_PRICE);
+            pf = u -> u > 1 ? MAX_UNIT_PRICE : Math.min(weight / ((1.0f - u) * (1.0f - u)), MAX_UNIT_PRICE);
             pfMap.put(key, pf);
         }
         return pf;

@@ -24,7 +24,7 @@ import com.vmturbo.platform.analysis.ledger.Ledger;
  * provisioned trader. We do this for every market in the economy.
  *
  * @author shravan
- * 
+ *
  */
 public class Provision {
 
@@ -111,11 +111,13 @@ public class Provision {
         for (Trader seller : market.getActiveSellers()) {
             IncomeStatement traderIS = ledger.getTraderIncomeStatements().get(seller.getEconomyIndex());
             // return the most profitable trader
-            double roiOfTrader = traderIS.getROI();
-            if (seller.getSettings().isCloneable() && (roiOfTrader > traderIS.getMaxDesiredROI())
-                                                   && (roiOfTrader > roiOfMostProfitableTrader)) {
-                mostProfitableTrader = seller;
-                roiOfMostProfitableTrader = roiOfTrader;
+            if (seller.getSettings().isCloneable()) {
+                double roiOfTrader = traderIS.getROI();
+                if ((roiOfTrader > traderIS.getMaxDesiredROI())
+                                                       && (roiOfTrader > roiOfMostProfitableTrader)) {
+                    mostProfitableTrader = seller;
+                    roiOfMostProfitableTrader = roiOfTrader;
+                }
             }
         }
         return mostProfitableTrader;

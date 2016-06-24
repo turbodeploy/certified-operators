@@ -10,6 +10,8 @@ import org.checkerframework.checker.nullness.qual.NonNull;
  * <p>
  *  Both the trader and the commodities sold have expenses and revenues.
  * </p>
+ *
+ * @author shravan
  */
 public class IncomeStatement {
     // Fields
@@ -252,8 +254,12 @@ public class IncomeStatement {
      * @see #setExpenses()
      */
     public double getROI() {
-        checkArgument(0 < expenses_, "expenses = " + expenses_);
-        return revenues_/expenses_;
+        // checkArgument(0 < expenses_, "expenses = " + expenses_);
+        if (expenses_ == 0) {
+            return revenues_;
+        } else {
+            return revenues_/expenses_;
+        }
     }
 
     /**
@@ -264,8 +270,12 @@ public class IncomeStatement {
      * @see #setMaxDesiredExpenses()
      */
     public double getMinDesiredROI() {
-        checkArgument(0 < maxDesiredExpenses_, "maxDesiredExpenses = " + maxDesiredExpenses_);
-        return minDesiredRevenues_/maxDesiredExpenses_;
+        // checkArgument(0 < maxDesiredExpenses_, "maxDesiredExpenses = " + maxDesiredExpenses_);
+        if (maxDesiredExpenses_ == 0) {
+            return minDesiredRevenues_;
+        } else {
+            return minDesiredRevenues_/maxDesiredExpenses_;
+        }
     }
 
     /**
@@ -276,8 +286,12 @@ public class IncomeStatement {
      * @see #setMinDesiredExpenses()
      */
     public double getMaxDesiredROI() {
-        checkArgument(0 < minDesiredExpenses_, "minDesiredExpenses = " + minDesiredExpenses_);
-        return maxDesiredRevenues_/minDesiredExpenses_;
+        // checkArgument(0 < minDesiredExpenses_, "minDesiredExpenses = " + minDesiredExpenses_);
+        if (minDesiredExpenses_ == 0) {
+            return maxDesiredRevenues_;
+        } else {
+            return maxDesiredRevenues_/minDesiredExpenses_;
+        }
     }
 
     public @NonNull IncomeStatement resetIncomeStatement() {
