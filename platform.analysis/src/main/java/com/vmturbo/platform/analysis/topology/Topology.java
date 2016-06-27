@@ -1,6 +1,7 @@
 package com.vmturbo.platform.analysis.topology;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -77,12 +78,14 @@ public final class Topology {
      * @param type The numeric type of the new trader.
      * @param state The state of the new trader. e.g. active or inactive
      * @param basketSold The basket sold by the new trader.
+     * @param cliques The numbers of the k-partite cliques the new trader should be a member of.
      * @return The trader newly added to {@code this} topology.
      *
      * @see Economy#addTrader(int, TraderState, Basket, Basket...)
      */
-    public @NonNull Trader addTrader(long oid, int type, @NonNull TraderState state, @NonNull Basket basketSold) {
-        @NonNull Trader trader = economy_.addTrader(type, state, basketSold);
+    public @NonNull Trader addTrader(long oid, int type, @NonNull TraderState state, @NonNull Basket basketSold,
+                                     @NonNull Collection<@NonNull Integer> cliques) {
+        @NonNull Trader trader = economy_.addTrader(type, state, basketSold, cliques);
         traderOids_.put(trader, oid);
 
         // Check if the topology already contains shopping lists that refer to this trader...

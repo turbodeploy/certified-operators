@@ -241,6 +241,7 @@ public final class AnalysisToProtobuf {
             .setOid(trader.getEconomyIndex()) // only because we are sending an existing economy!
             .setType(trader.getType())
             .setState(traderStateTO(trader.getState()))
+            .addAllCliques(trader.getCliques())
             .setSettings(traderSettingsTO(trader.getSettings()));
 
         for (int i = 0 ; i < trader.getBasketSold().size() ; ++i) {

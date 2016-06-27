@@ -145,6 +145,9 @@ message TraderTO {
     // A list of commodities offered by this trader.
     repeated CommoditySoldTO commodities_sold = 4;
 
+    // A list of integers representing the k-partite cliques this trader is a member of.
+    repeated int32 cliques = 8 [packed = true];
+
     // A list of shopping lists this trader sets out to buy.
     repeated ShoppingListTO shopping_lists = 5;
 

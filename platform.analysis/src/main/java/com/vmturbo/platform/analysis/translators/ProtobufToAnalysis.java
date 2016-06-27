@@ -256,7 +256,8 @@ public final class ProtobufToAnalysis {
      */
     public static @NonNull Trader addTrader(@NonNull Topology topology, @NonNull TraderTO input) {
         @NonNull Basket basketSold = basket(input);
-        @NonNull Trader output = topology.addTrader(input.getOid(), input.getType(), traderState(input.getState()), basketSold);
+        @NonNull Trader output = topology.addTrader(input.getOid(), input.getType(), traderState(input.getState()),
+                                                    basketSold, input.getCliquesList());
         output.setDebugInfoNeverUseInCode(input.getDebugInfoNeverUseInCode());
         populateTraderSettings(input.getSettings(), output.getSettings());
 
