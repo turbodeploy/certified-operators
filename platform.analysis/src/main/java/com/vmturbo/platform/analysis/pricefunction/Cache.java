@@ -39,7 +39,7 @@ class Cache {
         // UnaryOperator.
         PriceFunction pf = pfMap.get(key);
         if (pf == null) {
-            pf = u -> u > 1 ? MAX_UNIT_PRICE : Math.min(weight / ((1.0f - u) * (1.0f - u)), MAX_UNIT_PRICE);
+            pf = u -> u > 1 ? Double.POSITIVE_INFINITY : Math.min(weight / ((1.0f - u) * (1.0f - u)), MAX_UNIT_PRICE);
             pfMap.put(key, pf);
         }
         return pf;
@@ -49,7 +49,7 @@ class Cache {
         String key = "CPF-" + constant;
         PriceFunction pf = pfMap.get(key);
         if (pf == null) {
-            pf = u -> constant;
+            pf = u -> u > 1 ? Double.POSITIVE_INFINITY : constant;
             pfMap.put(key, pf);
         }
         return pf;
@@ -59,7 +59,7 @@ class Cache {
         String key = String.format("SPF-%.10f,%.10f,%.10f", stepAt, priceBelow, priceAbove);
         PriceFunction pf = pfMap.get(key);
         if (pf == null) {
-            pf = u -> u < stepAt ? priceBelow : priceAbove;
+            pf = u -> u > 1 ? Double.POSITIVE_INFINITY : u < stepAt ? priceBelow : priceAbove;
             pfMap.put(key, pf);
         }
         return pf;
