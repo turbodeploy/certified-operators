@@ -6,7 +6,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.stream.Collectors;
@@ -33,40 +32,39 @@ public class CompoundMove implements Action {
     // Constructors
 
     /**
-     * Constructs a new compound move action with the specified target, economy and destinations.
+     * Constructs a new compound move action with the specified shopping lists, economy and
+     * destinations.
      *
-     * @param economy The economy containing <b>target</b> and <b>destinations</b>.
-     * @param target The trader whose shopping lists should move atomically.
-     * @param destinations The new suppliers for <b>target</b>s shopping lists in the same order as
-     *                     the shopping lists appear in {@link Economy#getMarketsAsBuyer(Trader)}.
-     *                     Must not be empty.
+     * @param economy The economy containing <b>shoppingLists</b> and <b>destinations</b>.
+     * @param shoppingLists The shopping lists that should move atomically.
+     * @param destinations The new suppliers for the shopping lists in the same order as the
+     *                     shopping lists appear in the respective collection.
      */
-    public CompoundMove(@NonNull Economy economy, @NonNull Trader target,
+    public CompoundMove(@NonNull Economy economy, @NonNull Collection<@Nullable ShoppingList> shoppingLists,
                         @NonNull Collection<@Nullable Trader> destinations) {
-        this(economy,target,economy.getMarketsAsBuyer(target).keySet().stream()
-            .map(ShoppingList::getSupplier).collect(Collectors.toList()),destinations);
+        this(economy,shoppingLists,shoppingLists.stream().map(ShoppingList::getSupplier)
+             .collect(Collectors.toList()),destinations);
     }
 
     /**
-     * Constructs a new compound move action with the specified target, economy, sources and
+     * Constructs a new compound move action with the specified shopping lists, economy, sources and
      * destinations.
      *
      * <p>
-     *  Same as {@link #CompoundMove(Economy, Trader, Collection)}, but let's you explicitly specify
-     *  the sources of the moves instead of getting them from the shopping lists.
+     *  Same as {@link #CompoundMove(Economy, Collection, Collection)}, but let's you explicitly
+     *  specify the sources of the moves instead of getting them from the shopping lists.
      * </p>
      *
-     * @param economy Same as for {@link #CompoundMove(Economy, Trader, Collection)}.
-     * @param target Same as for {@link #CompoundMove(Economy, Trader, Collection)}.
+     * @param economy Same as for {@link #CompoundMove(Economy, Collection, Collection)}.
+     * @param shoppingLists Same as for {@link #CompoundMove(Economy, Collection, Collection)}.
      * @param sources The current suppliers for the shopping lists, at the time the move would be
      *                executed, in the same order as the latter appear in
      *                {@link Economy#getMarketsAsBuyer(Trader)}.
      *                Must be the same size as <b>destinations</b> and not empty.
-     * @param destinations Same as for {@link #CompoundMove(Economy, Trader, Collection)}.
+     * @param destinations Same as for {@link #CompoundMove(Economy, Collection, Collection)}.
      */
-    public CompoundMove(@NonNull Economy economy, @NonNull Trader target,
+    public CompoundMove(@NonNull Economy economy, @NonNull Collection<@Nullable ShoppingList> shoppingLists,
             @NonNull Collection<@Nullable Trader> sources, @NonNull Collection<@Nullable Trader> destinations) {
-        final Set<@NonNull ShoppingList> shoppingLists = economy.getMarketsAsBuyer(target).keySet();
         checkArgument(shoppingLists.size() == destinations.size(), "shoppingLists.size() = "
                     + shoppingLists.size() + ", destinations.size() = " + destinations.size());
         checkArgument(shoppingLists.size() == sources.size(), "shoppingLists.size() = "
@@ -145,7 +143,8 @@ public class CompoundMove implements Action {
         if (IntStream.range(0, moves_.size()).allMatch(i->moves_.get(i).getSource() == other.moves_.get(i).getDestination())) {
             return null;
         } else {
-            return new CompoundMove(moves_.get(0).getEconomy(), getActionTarget(),
+            return new CompoundMove(moves_.get(0).getEconomy(),
+                                    moves_.stream().map(Move::getTarget).collect(Collectors.toList()),
                                     moves_.stream().map(Move::getSource).collect(Collectors.toList()),
                               other.moves_.stream().map(Move::getDestination).collect(Collectors.toList()));
         }

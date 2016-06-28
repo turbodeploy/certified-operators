@@ -3,7 +3,6 @@ package com.vmturbo.platform.analysis.translators;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.function.ToLongFunction;
 
@@ -226,15 +225,15 @@ public class AnalysisToProtobufTest {
                                         .setShoppingListToReconfigure(10l).setSource(2l).build())
                         .build();
 
-        Object[] twoShoppingLists = e.getMarketsAsBuyer(vm3).keySet().toArray();
+        ShoppingList[] twoShoppingLists = Arrays.copyOf(e.getMarketsAsBuyer(vm3).keySet().toArray(),
+                                                        2, ShoppingList[].class);
         // assign and oid for each shoppingList and make shoppinglist buy from supplier
-        shoppingListOids.put((ShoppingList)twoShoppingLists[0], 30l);
-        shoppingListOids.put((ShoppingList)twoShoppingLists[1], 40l);
-        ((ShoppingList)twoShoppingLists[0]).move(pm1);
-        ((ShoppingList)twoShoppingLists[1]).move(st1);
+        shoppingListOids.put(twoShoppingLists[0], 30l);
+        shoppingListOids.put(twoShoppingLists[1], 40l);
+        twoShoppingLists[0].move(pm1);
+        twoShoppingLists[1].move(st1);
 
-        Action compoundMove =
-                        new CompoundMove(e, vm3, new ArrayList<Trader>(Arrays.asList(pm2, st2)));
+        Action compoundMove = new CompoundMove(e, Arrays.asList(twoShoppingLists), Arrays.asList(pm2, st2));
         CompoundMoveTO.Builder compoundMoveTO = CompoundMoveTO.newBuilder();
 
         ActionTO compoundMoveActionTO = ActionTO.newBuilder()

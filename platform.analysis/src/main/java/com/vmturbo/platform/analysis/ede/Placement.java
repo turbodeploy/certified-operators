@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.Map.Entry;
+import java.util.stream.Collectors;
 
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -94,9 +95,11 @@ public class Placement {
         for (@NonNull @ReadOnly Trader buyer : economy.getTraders()) {
             final @NonNull @ReadOnly Set<Entry<@NonNull ShoppingList, @NonNull Market>> entries =
                 economy.getMarketsAsBuyer(buyer).entrySet();
+            final @NonNull @ReadOnly List<Entry<@NonNull ShoppingList, @NonNull Market>> movableEntries =
+                entries.stream().filter(entry->entry.getKey().isMovable()).collect(Collectors.toList());
 
             // Only optimize active traders that are at least partially movable.
-            if (buyer.getState().isActive() && entries.stream().anyMatch(entry->entry.getKey().isMovable())) {
+            if (buyer.getState().isActive() && !movableEntries.isEmpty()) {
                 // Find the set of k-partite cliques where the trader can potentially be placed.
                 Set<Integer> commonCliques = entries.stream()
                     .map(entry->entry.getKey().isMovable() // if shopping list is movable
@@ -106,10 +109,8 @@ public class Placement {
                                         : Arrays.asList())) // else there is no valid placement.
                     ).reduce(Sets::intersection).get();
 
-                // TODO: properly skip immovable traders when computing total quotes
-
                 // Compute current total quote.
-                final double currentTotalQuote = entries.stream().mapToDouble(entry ->
+                final double currentTotalQuote = movableEntries.stream().mapToDouble(entry ->
                     entry.getKey().getSupplier() == null // if unplaced or incorrectly placed
                         || !entry.getValue().getBasket().isSatisfiedBy(entry.getKey().getSupplier().getBasketSold())
                     ? Double.POSITIVE_INFINITY // current total is infinite
@@ -119,11 +120,13 @@ public class Placement {
 
                 // Compute the best total quote.
                 CliqueMinimizer minimizer = commonCliques.stream().collect(
-                    ()->new CliqueMinimizer(economy,entries), CliqueMinimizer::accept, CliqueMinimizer::combine);
+                    ()->new CliqueMinimizer(economy,movableEntries), CliqueMinimizer::accept, CliqueMinimizer::combine);
 
                 // If buyer can improve its position, output action.
                 if (minimizer.getBestTotalQuote() < currentTotalQuote) {
-                    output.add(new CompoundMove(economy, buyer, minimizer.getBestSellers()).take());
+                    List<ShoppingList> shoppingLists = movableEntries.stream()
+                        .map(Entry::getKey).collect(Collectors.toList());
+                    output.add(new CompoundMove(economy, shoppingLists, minimizer.getBestSellers()).take());
                 }
             }
         }
