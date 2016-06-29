@@ -72,9 +72,7 @@ public class Placement {
                     final double currentQuote = minimizer.getCurrentQuote();
 
                     // move, and update economy and state
-                    // TODO: decide how much cheaper the new supplier should be to decide to move
-                    if (currentQuote > cheapestQuote) { // + market.getBasket().size() * 2.0) {
-                        //TODO (Apostolos): use economy.getSettings().getQuoteFactor() above
+                    if (cheapestQuote < currentQuote * economy.getSettings().getQuoteFactor()) {
                         // create recommendation, add it to the result list and  update the economy to
                         // reflect the decision
                         placeActions.add(new Move(economy,shoppingList,cheapestSeller).take());
@@ -131,7 +129,7 @@ public class Placement {
                     ()->new CliqueMinimizer(economy,movableEntries), CliqueMinimizer::accept, CliqueMinimizer::combine);
 
                 // If buyer can improve its position, output action.
-                if (minimizer.getBestTotalQuote() < currentTotalQuote) {
+                if (minimizer.getBestTotalQuote() < currentTotalQuote * economy.getSettings().getQuoteFactor()) {
                     List<ShoppingList> shoppingLists = movableEntries.stream()
                         .map(Entry::getKey).collect(Collectors.toList());
                     output.add(new CompoundMove(economy, shoppingLists, minimizer.getBestSellers()).take());

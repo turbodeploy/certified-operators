@@ -6,17 +6,31 @@ import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.dataflow.qual.Deterministic;
 import org.checkerframework.dataflow.qual.Pure;
 
+import com.vmturbo.platform.analysis.actions.Move;
+
 /**
  * The settings associated with and parameterizing the behavior of a single {@link Economy}.
  */
 public final class EconomySettings {
     // Fields
 
+    /**
+     * The value returned by {@link #getMinSellersForParallelism()} when called on a newly
+     * constructed instance.
+     */
     // '256' was selected as the default value after finding the time-as-a-function-of-size curves
     // for parallel and sequential execution and finding their intersection.
     public static final int DEFAULT_MIN_SELLERS_FOR_PARALLELISM = 256;
 
+    /**
+     * The value returned by {@link #getQuoteFactor()} when called on a newly constructed instance.
+     */
+    // 0.999 corresponding to a 0.1% improvement seemed reasonable but there is no particular reason
+    // not to use another value.
+    public static final double DEFAULT_QUOTE_FACTOR = 0.999;
+
     private int minSellersForParallelism_ = DEFAULT_MIN_SELLERS_FOR_PARALLELISM;
+    private double quoteFactor_ = DEFAULT_QUOTE_FACTOR;
 
     // Constructors
 
@@ -25,7 +39,7 @@ public final class EconomySettings {
      */
     public EconomySettings() {/* empty body */}
 
-    // Methods
+    // Getters
 
     /**
      * Returns minimum number of sellers in a market required for parallel computation of minimum
@@ -40,6 +54,22 @@ public final class EconomySettings {
     public int getMinSellersForParallelism(@ReadOnly EconomySettings this) {
         return minSellersForParallelism_;
     }
+
+    /**
+     * Returns the <b>quote factor</b>.
+     *
+     * <p>
+     *  The quote factor is a number (normally between 0 and 1), so that {@link Move} actions are
+     *  only generated if best-quote < quote-factor * current-quote. That means that if we only want
+     *  {@link Move}s that result in at least 1% improvement we should use a quote-factor of 0.99.
+     * </p>
+     */
+    @Pure
+    public double getQuoteFactor(@ReadOnly EconomySettings this) {
+        return quoteFactor_;
+    }
+
+    // Setters
 
     /**
      * Sets the value of the <b>min sellers for parallelism</b> field.
@@ -61,6 +91,27 @@ public final class EconomySettings {
     }
 
     /**
+     * Sets the value of the <b>quote factor</b> field.
+     *
+     * <p>
+     *  Has no observable side-effects except setting the above field.
+     * </p>
+     *
+     * @param quoteFactor the new value for the field. Must be non-negative.
+     * @return {@code this}
+     *
+     * @see #getQuoteFactor()
+     */
+    @Deterministic
+    public EconomySettings setQuoteFactor(double quoteFactor) {
+        checkArgument(quoteFactor >= 0, "quoteFactor = " + quoteFactor);
+        quoteFactor_ = quoteFactor;
+        return this;
+    }
+
+    // Methods
+
+    /**
      * Resets {@code this} {@link EconomySettings} instance to the state it was in just after
      * construction.
      *
@@ -70,6 +121,7 @@ public final class EconomySettings {
      */
     public void clear() {
         minSellersForParallelism_ = DEFAULT_MIN_SELLERS_FOR_PARALLELISM;
+        quoteFactor_ = DEFAULT_QUOTE_FACTOR;
     }
 
 } // end EconomySettings class

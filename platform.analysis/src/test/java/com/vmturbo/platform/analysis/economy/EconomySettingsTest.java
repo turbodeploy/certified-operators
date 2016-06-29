@@ -29,8 +29,13 @@ public class EconomySettingsTest {
     @Test
     public final void testEconomySettings() {
         @NonNull EconomySettings settings = new EconomySettings();
+
+        assertEquals(EconomySettings.DEFAULT_MIN_SELLERS_FOR_PARALLELISM, settings.getMinSellersForParallelism());
+        assertEquals(EconomySettings.DEFAULT_QUOTE_FACTOR, settings.getQuoteFactor(), 0f);
+
         // Sanity check: make sure initial values are valid.
         settings.setMinSellersForParallelism(settings.getMinSellersForParallelism());
+        settings.setQuoteFactor(settings.getQuoteFactor());
     }
 
     @Test
@@ -49,12 +54,28 @@ public class EconomySettingsTest {
     }
 
     @Test
+    @Parameters({"0","0.1","2","100","10e15"})
+    @TestCaseName("Test #{index}: (set|get)QuoteFactor({0})")
+    public final void testSetGetQuoteFactor_NormalInput(double quoteFactor) {
+        fixture_.setQuoteFactor(quoteFactor);
+        assertEquals(quoteFactor, fixture_.getQuoteFactor(), 0f);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    @Parameters({"-0.1","-2","-100","-1e15"})
+    @TestCaseName("Test #{index}: setQuoteFactor({0})")
+    public final void testSetGetQuoteFactor_InvalidInput(double quoteFactor) {
+        fixture_.setQuoteFactor(quoteFactor);
+    }
+
+    @Test
     @Parameters({"0","1","10","100","1000","2147483647"})
     @TestCaseName("Test #{index}: clear() with minSellersForParallelism == {0}")
     public final void testClear(int minSellers) {
         fixture_.setMinSellersForParallelism(minSellers);
         fixture_.clear();
         assertEquals(EconomySettings.DEFAULT_MIN_SELLERS_FOR_PARALLELISM, fixture_.getMinSellersForParallelism());
+        assertEquals(EconomySettings.DEFAULT_QUOTE_FACTOR, fixture_.getQuoteFactor(), 0f);
         // TODO: compare with newly constructed object when we implement equals.
     }
 
