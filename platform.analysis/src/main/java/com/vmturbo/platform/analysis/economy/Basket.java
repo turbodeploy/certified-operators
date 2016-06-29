@@ -151,6 +151,16 @@ public final class Basket implements Comparable<@NonNull @ReadOnly Basket>, Iter
     }
 
     /**
+     * @see List#indexOf(Object)
+     */
+    @Pure
+    public final int indexOfBaseType(@ReadOnly Basket this, @NonNull @ReadOnly int baseType) {
+        // TODO: make indexOf return 2 values min and the maxIndex. All comm's btw these indices will be of this type
+        // The elements of contents_ are unique so the first match will be the only match.
+        return Math.max(-1,Arrays.binarySearch(contents_,baseType, (x,y)->((CommoditySpecification)x).getBaseType() - (Integer)y));
+    }
+
+    /**
      * @see Collection#contains(Object)
      */
     @Pure

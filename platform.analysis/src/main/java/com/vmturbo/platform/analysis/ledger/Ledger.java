@@ -13,6 +13,7 @@ import org.checkerframework.dataflow.qual.Pure;
 
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
+import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
@@ -237,7 +238,7 @@ public class Ledger {
                 commSoldIS.setMinDesiredRevenues(pf.unitPrice(minDesUtil)*minDesUtil);
 
                 List<Integer> typeOfCommsBought = economy.getRawMaterials(buyer.getBasketSold()
-                                                             .get(commSoldIndex).getType());
+                                                             .get(commSoldIndex).getBaseType());
 
                 if (typeOfCommsBought == null) {
                     continue;
@@ -246,21 +247,22 @@ public class Ledger {
                 for (ShoppingList shoppingList : economy.getMarketsAsBuyer(buyer).keySet()) {
                     Basket basketBought = shoppingList.getBasket();
 
+                    Trader supplier = shoppingList.getSupplier();
+                    if (supplier == null) {
+                        continue;
+                    }
                     // TODO: make indexOf return 2 values minIndex and the maxIndex.
                     // All comm's btw these indices will be of this type
                     // (needed when we have 2 comms of same type sold)
                     for (Integer typeOfCommBought : typeOfCommsBought) {
-                        int boughtIndex = basketBought.indexOf(typeOfCommBought.intValue());
+                        int boughtIndex = basketBought.indexOfBaseType(typeOfCommBought.intValue());
 
                         // if the required commodity is not in the shoppingList, skip the list
                         if (boughtIndex == -1) {
                             continue;
                         }
 
-                        Trader supplier = shoppingList.getSupplier();
-                        if (supplier == null) {
-                            continue;
-                        }
+                        CommoditySpecification basketCommSpec = basketBought.get(boughtIndex);
 
                         // find the right provider comm and use it to compute the expenses
                         CommoditySold commSoldBySeller = supplier.getCommoditySold(basketBought

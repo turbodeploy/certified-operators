@@ -30,18 +30,18 @@ public class EconomyTest {
 
     // CommoditySpecifications to use in tests
     private static final CommoditySpecification CPU = new CommoditySpecification(0);
-    private static final CommoditySpecification CPU_ANY = new CommoditySpecification(0,1,Integer.MAX_VALUE);
-    private static final CommoditySpecification CPU_4 = new CommoditySpecification(0,4,4);
-    private static final CommoditySpecification CPU_1to8 = new CommoditySpecification(0,1,8);
+    private static final CommoditySpecification CPU_ANY = new CommoditySpecification(0,1000,1,Integer.MAX_VALUE);
+    private static final CommoditySpecification CPU_4 = new CommoditySpecification(0,1000,4,4);
+    private static final CommoditySpecification CPU_1to8 = new CommoditySpecification(0,1000,1,8);
     private static final CommoditySpecification MEM = new CommoditySpecification(1);
-    private static final CommoditySpecification ST_OVER1000 = new CommoditySpecification(2,1000,Integer.MAX_VALUE);
-    private static final CommoditySpecification ST_UPTO1200 = new CommoditySpecification(2,0,1200);
-    private static final CommoditySpecification VM1 = new CommoditySpecification(3,0,0);
-    private static final CommoditySpecification VM2 = new CommoditySpecification(3,1,1);
-    private static final CommoditySpecification CLUSTER_A = new CommoditySpecification(4,0,0);
-    private static final CommoditySpecification CLUSTER_B = new CommoditySpecification(4,1,1);
-    private static final CommoditySpecification SEGMENT_1 = new CommoditySpecification(5,0,0);
-    private static final CommoditySpecification SEGMENT_2 = new CommoditySpecification(5,1,1);
+    private static final CommoditySpecification ST_OVER1000 = new CommoditySpecification(2,1002,1000,Integer.MAX_VALUE);
+    private static final CommoditySpecification ST_UPTO1200 = new CommoditySpecification(2,1002,0,1200);
+    private static final CommoditySpecification VM1 = new CommoditySpecification(3,1003,0,0);
+    private static final CommoditySpecification VM2 = new CommoditySpecification(3,1003,1,1);
+    private static final CommoditySpecification CLUSTER_A = new CommoditySpecification(4,1004,0,0);
+    private static final CommoditySpecification CLUSTER_B = new CommoditySpecification(4,1004,1,1);
+    private static final CommoditySpecification SEGMENT_1 = new CommoditySpecification(5,1005,0,0);
+    private static final CommoditySpecification SEGMENT_2 = new CommoditySpecification(5,1005,1,1);
 
     // Baskets to use in tests
     private static final Basket EMPTY = new Basket();

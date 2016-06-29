@@ -88,4 +88,9 @@ public final class NumericIDAllocator implements UnmodifiableNumericIDAllocator 
         return unmodifiableEntrySet;
     }
 
+    public void dumpTable() {
+        for (Entry<String,Integer> entry : ids_.entrySet()) {
+            System.out.println(entry.getKey() + ":" + entry.getValue());
+        }
+    }
 } // end NumericIdAllocator class

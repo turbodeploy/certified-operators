@@ -28,7 +28,7 @@ public class Resize {
     // Accuracy for convergence of Bisection method
     private static final double ROOT_ACCURACY = 1.0E-3;
     // The low end of range for the normalized utilization
-    private static final double UTILIZATION_LOW = .01;
+    private static final double UTILIZATION_LOW = 1.0E-12;
     // The high end of range for the normalized utilization
     private static final double UTILIZATION_HIGH = .99;
 
@@ -64,14 +64,16 @@ public class Resize {
                 }
                 if (checkEngageCriteriaForCommodity(ledger, seller, soldIndex)) {
                     IncomeStatement incomeStatement = incomeStatements.get(soldIndex);
-                    double desiredROI = getDesiredROI(incomeStatement);
                     double expenses = incomeStatement.getExpenses();
-                    double newRevenue = desiredROI * expenses;
-                    double currentRevenue = incomeStatement.getRevenues();
-                    double newCapacity = calculateNewCapacity(commoditySold, currentRevenue, newRevenue);
-                    com.vmturbo.platform.analysis.actions.Resize resizeAction =
-                      new com.vmturbo.platform.analysis.actions.Resize(seller, basketCommSpec, newCapacity);
-                    actions.add(resizeAction);
+                    if (expenses > 0) {
+                        double desiredROI = getDesiredROI(incomeStatement);
+                        double newRevenue = desiredROI * expenses;
+                        double currentRevenue = incomeStatement.getRevenues();
+                        double newCapacity = calculateNewCapacity(commoditySold, currentRevenue, newRevenue);
+                        com.vmturbo.platform.analysis.actions.Resize resizeAction =
+                          new com.vmturbo.platform.analysis.actions.Resize(seller, basketCommSpec, newCapacity);
+                        actions.add(resizeAction);
+                    }
                 }
             }
         }

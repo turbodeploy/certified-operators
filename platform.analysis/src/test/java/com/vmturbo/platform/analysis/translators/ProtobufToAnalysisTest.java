@@ -82,7 +82,8 @@ public class ProtobufToAnalysisTest {
     public final void testCommoditySpecification(@NonNull int type, @NonNull int lowerBound,
                     @NonNull int upperBound) {
         CommoditySpecificationTO commSpecTO = CommoditySpecificationTO.newBuilder().setType(type)
-                        .setQualityLowerBound(lowerBound).setQualityUpperBound(upperBound).build();
+                        .setBaseType(1000).setQualityLowerBound(lowerBound)
+                        .setQualityUpperBound(upperBound).build();
         CommoditySpecification spec = ProtobufToAnalysis.commoditySpecification(commSpecTO);
         assertEquals(type, spec.getType());
         assertEquals(lowerBound, spec.getQualityLowerBound());
@@ -95,10 +96,11 @@ public class ProtobufToAnalysisTest {
     public final void testBasket_ListOfCommoditySpecificationTO(int type, int lowerBound,
                     int upperBound) {
         CommoditySpecificationTO specTO = CommoditySpecificationTO.newBuilder().setType(type)
-                        .setQualityLowerBound(lowerBound).setQualityUpperBound(upperBound).build();
+                        .setBaseType(1000).setQualityLowerBound(lowerBound)
+                        .setQualityUpperBound(upperBound).build();
         Basket basket = ProtobufToAnalysis.basket(
                         new ArrayList<CommoditySpecificationTO>(Arrays.asList(specTO)));
-        assertEquals(new CommoditySpecification(type, lowerBound, upperBound), basket.get(0));
+        assertEquals(new CommoditySpecification(type, 1000, lowerBound, upperBound), basket.get(0));
 
     }
 
@@ -107,13 +109,14 @@ public class ProtobufToAnalysisTest {
     @TestCaseName("Test #{index}: Basket_ShoppingListTO({0}, {1}, {2})")
     public final void testBasket_ShoppingListTO(int type, int lowerBound, int upperBound) {
         CommoditySpecificationTO specTO = CommoditySpecificationTO.newBuilder().setType(type)
-                        .setQualityLowerBound(lowerBound).setQualityUpperBound(upperBound).build();
+                        .setBaseType(1000).setQualityLowerBound(lowerBound)
+                        .setQualityUpperBound(upperBound).build();
         CommodityBoughtTO commBoughtTO = CommodityBoughtTO.newBuilder().setSpecification(specTO)
                         .setQuantity(50).setPeakQuantity(50).build();
         ShoppingListTO shopTO = ShoppingListTO.newBuilder().addCommoditiesBought(commBoughtTO)
                         .setMovable(true).setOid(111).setSupplier(222).build();
         Basket basket = ProtobufToAnalysis.basket(shopTO);
-        Basket expect = new Basket(new CommoditySpecification(type, lowerBound, upperBound));
+        Basket expect = new Basket(new CommoditySpecification(type, 1000, lowerBound, upperBound));
         assertEquals(expect, basket);
     }
 
@@ -124,11 +127,11 @@ public class ProtobufToAnalysisTest {
         TraderTO trader = TraderTO.newBuilder().setOid(1).addCommoditiesSold(CommoditySoldTO
                         .newBuilder()
                         .setSpecification(CommoditySpecificationTO.newBuilder().setType(type)
-                                        .setQualityLowerBound(lowerBound)
+                                        .setBaseType(1000).setQualityLowerBound(lowerBound)
                                         .setQualityUpperBound(upperBound).build())
                         .build()).build();
         Basket basket = ProtobufToAnalysis.basket(trader);
-        Basket expect = new Basket(new CommoditySpecification(type, lowerBound, upperBound));
+        Basket expect = new Basket(new CommoditySpecification(type, 1000, lowerBound, upperBound));
         assertEquals(expect, basket);
     }
 
@@ -137,8 +140,8 @@ public class ProtobufToAnalysisTest {
         Topology topo = new Topology();
         Economy e = new Economy();
         Trader buyer = e.addTrader(0, TraderState.ACTIVE, new Basket(), new Basket());
-        CommoditySpecificationTO commSpecTO1 = CommoditySpecificationTO.newBuilder().setType(1).build();
-        CommoditySpecificationTO commSpecTO2 = CommoditySpecificationTO.newBuilder().setType(2).build();
+        CommoditySpecificationTO commSpecTO1 = CommoditySpecificationTO.newBuilder().setType(1).setBaseType(1000).build();
+        CommoditySpecificationTO commSpecTO2 = CommoditySpecificationTO.newBuilder().setType(2).setBaseType(1000).build();
         CommodityBoughtTO commBoughtTO1 = CommodityBoughtTO.newBuilder().setSpecification(commSpecTO1)
                         .setQuantity(50).setPeakQuantity(50).build();
         CommodityBoughtTO commBoughtTO2 = CommodityBoughtTO.newBuilder().setSpecification(commSpecTO2)

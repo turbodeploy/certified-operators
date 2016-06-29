@@ -33,6 +33,7 @@ import com.google.common.hash.Hashing;
 public final class CommoditySpecification implements Comparable<CommoditySpecification> {
     // Fields
     private final int type_; // must be non-negative.
+    private final int baseType_; // must be non-negative.
     private final int qualityLowerBound_; // must be non-negative and less than or equal to qualityUpperBound_.
     private final int qualityUpperBound_; // must be non-negative and greater than or equal to qualityLowerBound_.
     // TODO: (Jun 22, 2016) This field is intended to be temporarily used for debugging in the initial stages of M2. To avoid making drastic change in
@@ -54,6 +55,7 @@ public final class CommoditySpecification implements Comparable<CommoditySpecifi
         checkArgument(type >= 0, "type = " + type);
 
         type_ = type;
+        baseType_ = type;
         qualityLowerBound_ = 0;
         qualityUpperBound_ = Integer.MAX_VALUE;
     }
@@ -69,13 +71,14 @@ public final class CommoditySpecification implements Comparable<CommoditySpecifi
      * @param qualityUpperBound The highest quality of this commodity a buyer can accept or a seller
      *             provide. It must be non-negative and greater than or equal to qualityUpperBound.
      */
-    public CommoditySpecification(int type, int qualityLowerBound, int qualityUpperBound) {
+    public CommoditySpecification(int type, int baseType, int qualityLowerBound, int qualityUpperBound) {
         checkArgument(type >= 0, "type = " + type);
         checkArgument(0 <= qualityLowerBound, "qualityLowerBound = " + qualityLowerBound);
         checkArgument(qualityLowerBound <= qualityUpperBound,
             "qualityLowerBound = " + qualityLowerBound + ", qualityUpperBound = " + qualityUpperBound);
 
         type_ = type;
+        baseType_ = baseType;
         qualityLowerBound_ = qualityLowerBound;
         qualityUpperBound_ = qualityUpperBound;
     }
@@ -94,6 +97,11 @@ public final class CommoditySpecification implements Comparable<CommoditySpecifi
     @Pure
     public int getType(@ReadOnly CommoditySpecification this) {
         return type_;
+    }
+
+    @Pure
+    public int getBaseType(@ReadOnly CommoditySpecification this) {
+        return baseType_;
     }
 
     /**

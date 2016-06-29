@@ -52,7 +52,7 @@ import junitparams.naming.TestCaseName;
 public class AnalysisToProtobufTest {
     // Fields
     private static final Economy e = new Economy();
-    private static final CommoditySpecification CPU = new CommoditySpecification(100);
+    private static final CommoditySpecification CPU = new CommoditySpecification(100, 1000, 0, Integer.MAX_VALUE);
     private static final CommoditySpecification STORAGE_AMOUNT = new CommoditySpecification(200);
     private static final Basket empty = new Basket();
     private static final Basket basketBought1 = new Basket(CPU);
@@ -171,7 +171,7 @@ public class AnalysisToProtobufTest {
         ActionTO activateTO = ActionTO.newBuilder().setActivate(ActivateTO.newBuilder()
                         .setTraderToActivate(0l).setModelSeller(1l)
                         .addTriggeringBasket(CommoditySpecificationTO.newBuilder().setType(100)
-                                        .setQualityLowerBound(0)
+                                        .setBaseType(1000).setQualityLowerBound(0)
                                         .setQualityUpperBound(Integer.MAX_VALUE).build()))
                         .build();
 
@@ -179,6 +179,7 @@ public class AnalysisToProtobufTest {
         ActionTO deActionTO = ActionTO.newBuilder().setDeactivate(DeactivateTO.newBuilder()
                         .setTraderToDeactivate(1l)
                         .addTriggeringBasket(CommoditySpecificationTO.newBuilder().setType(100)
+                                                        .setBaseType(1000)
                                                         .setQualityLowerBound(0)
                                                         .setQualityUpperBound(Integer.MAX_VALUE)
                                                         .build())
@@ -214,6 +215,7 @@ public class AnalysisToProtobufTest {
                         .setSellingTrader(2l).setNewCapacity(500).setOldCapacity(15)
                         .setSpecification(
                                         CommoditySpecificationTO.newBuilder().setType(100)
+                                                        .setBaseType(1000)
                                                         .setQualityLowerBound(0)
                                                         .setQualityUpperBound(Integer.MAX_VALUE)
                                                         .build()))

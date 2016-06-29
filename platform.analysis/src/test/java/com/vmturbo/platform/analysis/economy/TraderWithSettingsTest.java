@@ -26,9 +26,9 @@ import junitparams.naming.TestCaseName;
 @RunWith(JUnitParamsRunner.class)
 public final class TraderWithSettingsTest {
     // Fields
-    private static final CommoditySpecification A = new CommoditySpecification(0,0,0);
-    private static final CommoditySpecification B = new CommoditySpecification(0,0,100);
-    private static final CommoditySpecification C = new CommoditySpecification(1,0,100);
+    private static final CommoditySpecification A = new CommoditySpecification(0,1000,0,0);
+    private static final CommoditySpecification B = new CommoditySpecification(0,1000,0,100);
+    private static final CommoditySpecification C = new CommoditySpecification(1,1001,0,100);
 
     private static final Integer[] validIndices = {0, 1, 100, Integer.MAX_VALUE};
     private static final Integer[] invalidIndices = {-1, -100, Integer.MIN_VALUE};

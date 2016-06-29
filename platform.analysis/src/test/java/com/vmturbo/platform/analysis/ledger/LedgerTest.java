@@ -29,11 +29,11 @@ public class LedgerTest {
     // Fields
 
     // CommoditySpecifications to use in tests
-    private static final CommoditySpecification CPU_ANY = new CommoditySpecification(0, 1, Integer.MAX_VALUE);
+    private static final CommoditySpecification CPU_ANY = new CommoditySpecification(0, 1000, 1, Integer.MAX_VALUE);
     private static final CommoditySpecification MEM = new CommoditySpecification(1);
     private static final CommoditySpecification V_CPU = new CommoditySpecification(2);
     private static final CommoditySpecification V_MEM = new CommoditySpecification(3);
-    private static final CommoditySpecification CLUSTER_A = new CommoditySpecification(4, 0, 0);
+    private static final CommoditySpecification CLUSTER_A = new CommoditySpecification(4, 1004, 0, 0);
 
     // Baskets to use in tests
     private static final Basket PM_ANY = new Basket(CPU_ANY, MEM);
@@ -69,7 +69,7 @@ public class LedgerTest {
     @Test
     public final void testGetUnmodifiableTraderIncomeStatements() {
         Economy economy = new Economy();
-        economy.addTrader(1, TraderState.ACTIVE, new Basket(new CommoditySpecification(0,4,8)));
+        economy.addTrader(1, TraderState.ACTIVE, new Basket(new CommoditySpecification(0,1000,4,8)));
         Ledger ledger = new Ledger(economy);
         List<IncomeStatement> isList = ledger.getTraderIncomeStatements();
         ListTests.verifyUnmodifiableValidOperations(isList, new IncomeStatement());

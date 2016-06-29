@@ -118,6 +118,7 @@ public final class AnalysisToProtobuf {
     public static @NonNull CommoditySpecificationTO commoditySpecificationTO(@NonNull CommoditySpecification input) {
         return CommoditySpecificationTO.newBuilder()
             .setType(input.getType())
+            .setBaseType(input.getBaseType())
             .setQualityLowerBound(input.getQualityLowerBound())
             .setQualityUpperBound(input.getQualityUpperBound()).build();
     }

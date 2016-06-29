@@ -53,7 +53,7 @@ public class CommoditySpecificationTest {
     @Parameters
     @TestCaseName("Test #{index}: CommoditySpecification({0},{1},{2}) and getters")
     public final void testCommoditySpecification_Int_Int_Int_NormalInput(int type, int lowerBound, int upperBound) {
-        CommoditySpecification cs = new CommoditySpecification(type,lowerBound,upperBound);
+        CommoditySpecification cs = new CommoditySpecification(type,1000+type,lowerBound,upperBound);
         assertEquals(type, cs.getType());
         assertEquals(upperBound, cs.getQualityUpperBound());
         assertEquals(lowerBound, cs.getQualityLowerBound());
@@ -78,7 +78,7 @@ public class CommoditySpecificationTest {
     @Parameters
     @TestCaseName("Test #{index}: CommoditySpecification({0},{1},{2})")
     public final void testCommoditySpecification_Int_Int_Int_InvalidInput(int type, int lowerBound, int upperBound) {
-        new CommoditySpecification(type,lowerBound,upperBound);
+        new CommoditySpecification(type,1000+type,lowerBound,upperBound);
     }
 
     @SuppressWarnings("unused") // it is used reflectively
@@ -133,8 +133,8 @@ public class CommoditySpecificationTest {
                     for(int i2 = 0 ; i2 < 2 ; ++i2) {
                         for(int j2 = 0 ; j2 < 2 ; ++j2) {
                             for(int k2 = j2 ; k2 < 2 ; ++k2) {
-                                output[c++] = new Object[]{new CommoditySpecification(i1, j1, k1),
-                                                           new CommoditySpecification(i2, j2, k2),
+                                output[c++] = new Object[]{new CommoditySpecification(i1, 1000+i1, j1, k1),
+                                                           new CommoditySpecification(i2, 1000+i2, j2, k2),
                                                            n1 - n2};
                                 ++n2;
                             }
@@ -168,8 +168,8 @@ public class CommoditySpecificationTest {
     @TestCaseName("Test #{index}: ({0},{1},{2}).isSatisfiedBy(({3},{4},{5})) == {6}")
     public final void testIsSatisfiedBy(int type1, int lowerBound1, int upperBound1,
                                         int type2, int lowerBound2, int upperBound2, boolean result) {
-        assertEquals(result, new CommoditySpecification(type1, lowerBound1, upperBound1)
-              .isSatisfiedBy(new CommoditySpecification(type2, lowerBound2, upperBound2)));
+        assertEquals(result, new CommoditySpecification(type1, 1000+type1, lowerBound1, upperBound1)
+              .isSatisfiedBy(new CommoditySpecification(type2, 1000+type2, lowerBound2, upperBound2)));
     }
 
     @Test
@@ -183,7 +183,7 @@ public class CommoditySpecificationTest {
     @Parameters
     @TestCaseName("Test #{index}: CommoditySpecification({0},{1},{2}).toString() == \"{3}\"")
     public final void testToString(int type, int lowerBound, int upperBound, String result) {
-        assertEquals(result, new CommoditySpecification(type, lowerBound, upperBound).toString());
+        assertEquals(result, new CommoditySpecification(type, 1000+type, lowerBound, upperBound).toString());
     }
 
     @SuppressWarnings("unused") // it is used reflectively

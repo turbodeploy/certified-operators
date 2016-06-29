@@ -42,7 +42,7 @@ public final class Ede {
         Ledger ledger = new Ledger(economy);
         // generate provision actions
         actions.addAll(Provision.provisionDecisions(economy, ledger));
+        actions.addAll(Resize.resizeDecisions(economy));
         return actions;
     }
-
 }
