@@ -50,19 +50,17 @@ public class Provision {
                                                                     @NonNull Ledger ledger) {
 
         List<@NonNull Action> allActions = new ArrayList<>();
-        List<@NonNull Action> actions = new ArrayList<>();
-        boolean keepRunning;
         for (Market market : economy.getMarkets()) {
             for(;;) {
                 // if there are no sellers in the market, the buyer is misconfigured
-                actions.clear();
-                if (market.getActiveSellers().isEmpty()) {
+                List<@NonNull Action> actions = new ArrayList<>();
+                if (!canMarketProvisionSellers(market)) {
                     break;
                 }
 
                 ledger.calculateExpAndRevForSellersInMarket(economy, market);
                 // break if there is no seller that is eligible for cloning in the market
-                Trader mostProfitableTrader = findBestTraderToEngage(market, ledger);
+                Trader mostProfitableTrader = findBestTraderToEngage(market, ledger, economy);
                 if (mostProfitableTrader == null) {
                     break;
                 }
@@ -74,12 +72,7 @@ public class Provision {
                 Trader provisionedTrader = provisionAction.getProvisionedSeller();
                 // run placement after adding a new seller to the economy
                 // TODO: run placement within a market
-                keepRunning = true;
-                while (keepRunning) {
-                    List<Action> placeActions = Placement.placementDecisions(economy);
-                    keepRunning = !placeActions.isEmpty();
-                    actions.addAll(placeActions);
-                }
+                actions.addAll(Placement.placementDecisions(economy));
                 ledger.addTraderIncomeStatement(provisionedTrader);
 
                 ledger.calculateExpAndRevForSellersInMarket(economy, market);
@@ -97,6 +90,33 @@ public class Provision {
     }
 
     /**
+     * returns true if the traders in the market are in the right conditions for them to be considered for cloning
+     *
+     * @param market - the market whose seller ROIs are checked to verify profitability that implies eligibility to clone
+     *
+     * @return true if the sellers in the market are eligible for cloning and false otherwise
+     */
+    private static boolean canMarketProvisionSellers(Market market) {
+
+        // do not consider cloning in this market if there are no active sellers
+        if (market.getActiveSellers().isEmpty()) {
+            return false;
+        }
+
+        // there is no point in cloning in a market with a single buyer
+        if (market.getBuyers().size() == 1) {
+            return false;
+        }
+
+        // if none of the buyers in this market are movable, provisioning a seller is not beneficial
+        if (!market.getBuyers().stream().anyMatch(shoppingList -> shoppingList.isMovable())) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
      * returns best trader to clone after checking the engagement criteria for all traders of a particular market
      *
      * @param market - the market whose seller ROIs are checked to verify profitability that implies eligibility to clone
@@ -104,14 +124,16 @@ public class Provision {
      *
      * @return the mostProfitableTrader if there is one that can clone and NULL otherwise
      */
-    public static Trader findBestTraderToEngage(Market market, Ledger ledger) {
+    public static Trader findBestTraderToEngage(Market market, Ledger ledger, Economy economy) {
 
         Trader mostProfitableTrader = null;
         double roiOfMostProfitableTrader = 0;
         for (Trader seller : market.getActiveSellers()) {
-            IncomeStatement traderIS = ledger.getTraderIncomeStatements().get(seller.getEconomyIndex());
-            // return the most profitable trader
-            if (seller.getSettings().isCloneable()) {
+            // consider only sellers that have more than 1 movable buyer
+            if (seller.getSettings().isCloneable() && seller.getCustomers().size() > 1 && seller
+                            .getCustomers().stream().anyMatch(sl-> sl.isMovable())) {
+                IncomeStatement traderIS = ledger.getTraderIncomeStatements().get(seller.getEconomyIndex());
+                // return the most profitable trader
                 double roiOfTrader = traderIS.getROI();
                 if ((roiOfTrader > traderIS.getMaxDesiredROI())
                                                        && (roiOfTrader > roiOfMostProfitableTrader)) {

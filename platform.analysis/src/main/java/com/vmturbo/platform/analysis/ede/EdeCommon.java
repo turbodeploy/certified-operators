@@ -57,6 +57,11 @@ public final class EdeCommon {
                 quote[1] += tempQuote[1];
                 quote[2] += tempQuote[2];
             }
+
+            // if quote is infinite for some commodity, return immediately
+            if (Double.isInfinite(quote[0])) {
+                return quote;
+            }
         }
         return quote;
     }
@@ -108,7 +113,7 @@ public final class EdeCommon {
 
         // calculate quote
         // TODO: decide what to do if peakQuantity is less than quantity
-        costCurrentMinMax[0] = (quantities[boughtIndex]*priceUsed + (excessQuantity > 0 ?
+        costCurrentMinMax[0] = (((quantities[boughtIndex] == 0) ? 0 : quantities[boughtIndex]*priceUsed) + (excessQuantity > 0 ?
                                             excessQuantity*pricePeak : 0))/ commSold.getCapacity();
 
         if (forTraderIncomeStmt && costCurrentMinMax[0] != 0) {
