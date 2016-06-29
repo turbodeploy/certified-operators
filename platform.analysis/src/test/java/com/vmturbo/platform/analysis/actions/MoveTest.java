@@ -245,6 +245,35 @@ public final class MoveTest {
         assertEquals(39, pm2.getCommoditySold(MEM).getQuantity(), 0f);
     }
 
+    @Test // That if the old and new supplier are the same, the move will have no effect.
+    public final void testMoveTake_SameSupplier() {
+        Economy economy = new Economy();
+        Trader vm = economy.addTrader(0, TraderState.ACTIVE, EMPTY);
+        Trader pm = economy.addTrader(0, TraderState.ACTIVE, PM);
+
+        ShoppingList shoppingList = economy.addBasketBought(vm, PM);
+        shoppingList.setQuantity(0, 10);
+        shoppingList.setQuantity(1, 20);
+        pm.getCommoditySold(CPU).setQuantity(15);
+        pm.getCommoditySold(MEM).setQuantity(6);
+
+        shoppingList.move(pm);
+
+        Move move = new Move(economy,shoppingList,pm).take();
+
+        assertEquals(10, shoppingList.getQuantities()[0], 0f);
+        assertEquals(20, shoppingList.getQuantities()[1], 0f);
+        assertEquals(15, pm.getCommoditySold(CPU).getQuantity(), 0f);
+        assertEquals( 6, pm.getCommoditySold(MEM).getQuantity(), 0f);
+
+        move.rollback();
+
+        assertEquals(10, shoppingList.getQuantities()[0], 0f);
+        assertEquals(20, shoppingList.getQuantities()[1], 0f);
+        assertEquals(15, pm.getCommoditySold(CPU).getQuantity(), 0f);
+        assertEquals( 6, pm.getCommoditySold(MEM).getQuantity(), 0f);
+    }
+
     @Test // non-additive commodities
     public final void testMoveTake_NonAdditive() {
         Economy economy = new Economy();

@@ -82,17 +82,21 @@ public class Move extends MoveBase implements Action { // inheritance for code r
 
     @Override
     public @NonNull Move take() {
-        getTarget().move(destination_);
-        updateQuantities(getEconomy(), getTarget(), getSource(), (sold, bought) -> Math.max(0, sold - bought));
-        updateQuantities(getEconomy(), getTarget(), destination_, (sold, bought) -> sold + bought);
+        if (getSource() != getDestination()) {
+            getTarget().move(destination_);
+            updateQuantities(getEconomy(), getTarget(), getSource(), (sold, bought) -> Math.max(0, sold - bought));
+            updateQuantities(getEconomy(), getTarget(), getDestination(), (sold, bought) -> sold + bought);
+        }
         return this;
     }
 
     @Override
     public @NonNull Move rollback() {
-        getTarget().move(getSource());
-        updateQuantities(getEconomy(), getTarget(), destination_, (sold, bought) -> Math.max(0, sold - bought));
-        updateQuantities(getEconomy(), getTarget(), getSource(), (sold, bought) -> sold + bought);
+        if (getSource() != getDestination()) {
+            getTarget().move(getSource());
+            updateQuantities(getEconomy(), getTarget(), getDestination(), (sold, bought) -> Math.max(0, sold - bought));
+            updateQuantities(getEconomy(), getTarget(), getSource(), (sold, bought) -> sold + bought);
+        }
         return this;
     }
 
