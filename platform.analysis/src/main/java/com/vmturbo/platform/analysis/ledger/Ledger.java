@@ -154,7 +154,7 @@ public class Ledger {
             double sellerMinDesUtil = seller.getSettings().getMinDesiredUtil();
             // compute the revenues based on the utilization of the commoditiesSold
             for (CommoditySold commSold : seller.getCommoditiesSold()) {
-                double commSoldUtil = commSold.getUtilization();
+                double commSoldUtil = commSold.getQuantity()/commSold.getEffectiveCapacity();
                 if (commSoldUtil != 0) {
                     PriceFunction pf = commSold.getSettings().getPriceFunction();
                     sellerIncomeStmt.setRevenues(sellerIncomeStmt.getRevenues()
@@ -163,24 +163,33 @@ public class Ledger {
                                         + pf.unitPrice(sellerMinDesUtil)*sellerMinDesUtil)
                         .setMaxDesiredRevenues(sellerIncomeStmt.getMaxDesiredRevenues()
                                         + pf.unitPrice(sellerMaxDesUtil)*sellerMaxDesUtil);
+                    if (Double.isInfinite(sellerIncomeStmt.getRevenues())) {
+                        break;
+                    }
                 }
             }
 
+            double[] quote = {0,0,0};
             // calculate expenses using the quote from every supplier that this trader buys from
             for (ShoppingList sl : economy.getMarketsAsBuyer(seller).keySet()) {
                 // skip markets in which the trader in question is unplaced and
                 // not consider expense for this trader in those markets
                 if (sl.getSupplier() != null) {
-
-                    double[] quote = EdeCommon.quote(economy, sl, sl.getSupplier()
+                    double[] tempQuote = EdeCommon.quote(economy, sl, sl.getSupplier()
                                             , Double.POSITIVE_INFINITY, true);
-
-                    sellerIncomeStmt.setExpenses(sellerIncomeStmt.getExpenses() + quote[0])
-                                    .setMinDesiredExpenses(sellerIncomeStmt.getMinDesiredExpenses()
-                                                    + quote[1])
-                                    .setMaxDesiredExpenses(sellerIncomeStmt.getMaxDesiredExpenses()
-                                                    + quote[2]);
+                    for (int i=0; i<3; i++) {
+                        quote[i] = quote[i] + tempQuote[i];
+                    }
                 }
+                if (Double.isInfinite(quote[0])) {
+                    break;
+                }
+            }
+            // update trader's minDesExpRev only if the expense(quote[0] here) is > 0
+            if (quote[0] != 0) {
+                sellerIncomeStmt.setExpenses(quote[0])
+                                .setMinDesiredExpenses(quote[1])
+                                .setMaxDesiredExpenses(quote[2]);
             }
         }
         return this;
@@ -226,7 +235,7 @@ public class Ledger {
                 commSoldIS.setRevenues(pf.unitPrice(commSoldUtil)*commSoldUtil);
                 commSoldIS.setMaxDesiredRevenues(pf.unitPrice(maxDesUtil)*maxDesUtil);
                 commSoldIS.setMinDesiredRevenues(pf.unitPrice(minDesUtil)*minDesUtil);
-                // type of mem from type of vMem for example
+
                 List<Integer> typeOfCommsBought = economy.getRawMaterials(buyer.getBasketSold()
                                                              .get(commSoldIndex).getType());
 
