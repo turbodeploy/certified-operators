@@ -5,4 +5,9 @@
 <web-app>
     <display-name>VMTurbo Analysis Server</display-name>
     <description>A server listening for requests to analyze a topology and provide a list of actions.</description>
+    <!-- Set the binary websocket buffers to 3MB -->
+    <context-param>
+         <param-name>org.apache.tomcat.websocket.binaryBufferSize</param-name>
+         <param-value>3145728</param-value>
+    </context-param>
 </web-app>
