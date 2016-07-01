@@ -51,20 +51,21 @@ public class Provision {
 
         List<@NonNull Action> allActions = new ArrayList<>();
         for (Market market : economy.getMarkets()) {
+            // if the traders in the market are not eligible for provision, skip this market
+            if (!canMarketProvisionSellers(market)) {
+                continue;
+            }
             for(;;) {
-                // if there are no sellers in the market, the buyer is misconfigured
                 List<@NonNull Action> actions = new ArrayList<>();
-                if (!canMarketProvisionSellers(market)) {
-                    break;
-                }
-
                 ledger.calculateExpAndRevForSellersInMarket(economy, market);
                 // break if there is no seller that is eligible for cloning in the market
-                Trader mostProfitableTrader = findBestTraderToEngage(market, ledger, economy);
+                Trader mostProfitableTrader = findBestTraderToEngage(market, ledger);
                 if (mostProfitableTrader == null) {
                     break;
                 }
 
+                double origRoI = ledger.getTraderIncomeStatements().get(
+                                mostProfitableTrader.getEconomyIndex()).getROI();
                 // TODO: we could reactivate a suspended seller, currently I just clone most profitable seller
                 ProvisionBySupply provisionAction = new ProvisionBySupply(economy, mostProfitableTrader);
                 actions.add(provisionAction.take());
@@ -72,11 +73,17 @@ public class Provision {
                 Trader provisionedTrader = provisionAction.getProvisionedSeller();
                 // run placement after adding a new seller to the economy
                 // TODO: run placement within a market
-                actions.addAll(Placement.placementDecisions(economy));
+                boolean keepRunning = true;
+                while (keepRunning) {
+                    List<Action> placeActions = Placement.placementDecisions(economy);
+                    keepRunning = !placeActions.isEmpty();
+                    actions.addAll(placeActions);
+                }
                 ledger.addTraderIncomeStatement(provisionedTrader);
 
-                ledger.calculateExpAndRevForSellersInMarket(economy, market);
-                if (!evaluateAcceptanceCriteriaForMarket(market, ledger)) {
+                if (!evaluateAcceptanceCriteria(economy, ledger, origRoI, mostProfitableTrader)) {
+                    logger.error("Provisioning of a new trader fif not cause the RoI of the "
+                                    + "modelSeller to go down");
                     // remove IncomeStatement from ledger and rollback actions
                     ledger.removeTraderIncomeStatement(provisionedTrader);
                     Lists.reverse(actions).forEach(axn -> axn.rollback());
@@ -124,21 +131,21 @@ public class Provision {
      *
      * @return the mostProfitableTrader if there is one that can clone and NULL otherwise
      */
-    public static Trader findBestTraderToEngage(Market market, Ledger ledger, Economy economy) {
+    public static Trader findBestTraderToEngage(Market market, Ledger ledger) {
 
         Trader mostProfitableTrader = null;
-        double roiOfMostProfitableTrader = 0;
+        double roiOfRichestTrader = 0;
         for (Trader seller : market.getActiveSellers()) {
             // consider only sellers that have more than 1 movable buyer
-            if (seller.getSettings().isCloneable() && seller.getCustomers().size() > 1 && seller
-                            .getCustomers().stream().anyMatch(sl-> sl.isMovable())) {
+            if (seller.getSettings().isCloneable() && seller.getCustomers().size() > 1) {
                 IncomeStatement traderIS = ledger.getTraderIncomeStatements().get(seller.getEconomyIndex());
                 // return the most profitable trader
                 double roiOfTrader = traderIS.getROI();
-                if ((roiOfTrader > traderIS.getMaxDesiredROI())
-                                                       && (roiOfTrader > roiOfMostProfitableTrader)) {
+                // TODO: evaluate if checking for movable customers earlier is beneficial
+                if ((roiOfTrader > traderIS.getMaxDesiredROI()) && (roiOfTrader > roiOfRichestTrader)
+                                && seller.getCustomers().stream().anyMatch(sl -> sl.isMovable())) {
                     mostProfitableTrader = seller;
-                    roiOfMostProfitableTrader = roiOfTrader;
+                    roiOfRichestTrader = roiOfTrader;
                 }
             }
         }
@@ -146,22 +153,23 @@ public class Provision {
     }
 
     /**
-     * returns true/false after checking the acceptance criteria for a particular market
+     * Calculate the current ROI of the  <b>mostProfitableTrader</b>. Return true if this has
+     * decreased compared to <b>origROI</b>
      *
+     * @param economy - the {@link Economy} where <b>mostProfitableTrader</b> participates in
      * @param ledger - the ledger that holds the incomeStatement of the trader whose ROI is checked
-     * @param market - the market whose seller ROIs are checked to verify profitability after a clone was added to the market
+     * @param origRoI - the RoI of the mostProfitableTrader before placements
+     * @param mostProfitableTrader - {@link Trader} that had the highest RoI and was selected to be cloned
      *
-     * @return true - if this trader is not at loss and false otherwise
+     * @return true - if the current ROI of the <b>mostProfitableTrader</b> is less than the <b>origROI</b>
      */
-    public static boolean evaluateAcceptanceCriteriaForMarket(Market market, Ledger ledger) {
+    public static boolean evaluateAcceptanceCriteria(Economy economy, Ledger ledger, double origRoI
+                                                                , Trader mostProfitableTrader) {
 
-        for (Trader seller : market.getActiveSellers()) {
-            IncomeStatement traderIS = ledger.getTraderIncomeStatements().get(seller.getEconomyIndex());
-            if (traderIS.getROI() < traderIS.getMinDesiredROI()) {
-                return false;
-            }
-        }
-        return true;
+        ledger.calculateExpRevForSeller(economy, mostProfitableTrader);
+        // check if the RoI of the mostProfitableTrader has decreased after cloning
+        return ledger.getTraderIncomeStatements().get(mostProfitableTrader.getEconomyIndex())
+                        .getROI() < origRoI;
     }
 
 }
