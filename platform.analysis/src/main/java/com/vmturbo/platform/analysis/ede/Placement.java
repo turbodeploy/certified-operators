@@ -41,47 +41,39 @@ public class Placement {
 
         @NonNull List<Action> actions = new ArrayList<>();
 
-        boolean keepRunning = true;
-        // keepRunning placement till no new placement recommendations are generated
-        while (keepRunning) {
-            List<Action> placeActions = new ArrayList<>();
-            // iterate over all markets, i.e., all sets of providers selling a specific basket
-            for (Market market : economy.getMarkets()) {
+        // iterate over all markets, i.e., all sets of providers selling a specific basket
+        for (Market market : economy.getMarkets()) {
 
-                // iterate over all buyers in this market
-                for (@NonNull ShoppingList shoppingList : market.getBuyers()) {
+            // iterate over all buyers in this market
+            for (@NonNull ShoppingList shoppingList : market.getBuyers()) {
 
-                    // if there are no sellers in the market, the buyer is misconfigured
-                    final @NonNull List<@NonNull Trader> sellers = market.getActiveSellers();
-                    if (!shoppingList.isMovable())
-                        continue;
-                    if (sellers.isEmpty()) {
-                        placeActions.add(new Reconfigure(economy, shoppingList).take());
-                        continue;
-                    }
+                // if there are no sellers in the market, the buyer is misconfigured
+                final @NonNull List<@NonNull Trader> sellers = market.getActiveSellers();
+                if (!shoppingList.isMovable())
+                    continue;
+                if (sellers.isEmpty()) {
+                    actions.add(new Reconfigure(economy, shoppingList).take());
+                    continue;
+                }
 
-                    // get cheapest quote
-                    final QuoteMinimizer minimizer =
-                        (sellers.size() < economy.getSettings().getMinSellersForParallelism()
-                            ? sellers.stream() : sellers.parallelStream())
-                        .collect(()->new QuoteMinimizer(economy,shoppingList),
-                            QuoteMinimizer::accept, QuoteMinimizer::combine);
+                // get cheapest quote
+                final QuoteMinimizer minimizer =
+                    (sellers.size() < economy.getSettings().getMinSellersForParallelism()
+                        ? sellers.stream() : sellers.parallelStream())
+                    .collect(()->new QuoteMinimizer(economy,shoppingList),
+                        QuoteMinimizer::accept, QuoteMinimizer::combine);
 
-                    final double cheapestQuote = minimizer.getBestQuote();
-                    final Trader cheapestSeller = minimizer.getBestSeller();
-                    final double currentQuote = minimizer.getCurrentQuote();
+                final double cheapestQuote = minimizer.getBestQuote();
+                final Trader cheapestSeller = minimizer.getBestSeller();
+                final double currentQuote = minimizer.getCurrentQuote();
 
-                    // move, and update economy and state
-                    if (cheapestQuote < currentQuote * economy.getSettings().getQuoteFactor()) {
-                        // create recommendation, add it to the result list and  update the economy to
-                        // reflect the decision
-                        placeActions.add(new Move(economy,shoppingList,cheapestSeller).take());
-                    }
+                // move, and update economy and state
+                if (cheapestQuote < currentQuote * economy.getSettings().getQuoteFactor()) {
+                    // create recommendation, add it to the result list and  update the economy to
+                    // reflect the decision
+                    actions.add(new Move(economy,shoppingList,cheapestSeller).take());
                 }
             }
-            keepRunning = placeActions.stream().filter(action -> action.getClass().getName()
-                            .contains("Move")).count() > 1;
-            actions.addAll(placeActions);
         }
         return actions;
     }
