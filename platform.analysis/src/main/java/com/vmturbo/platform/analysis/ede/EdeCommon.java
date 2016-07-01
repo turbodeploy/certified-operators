@@ -32,7 +32,8 @@ public final class EdeCommon {
      *
      * @return an array containing the quote offered by the seller for the given shopping list,
      *         or a part of it greater than or equal to bestQuoteSoFar iff the actual quote would
-     *         exceed that value, the minQuote and the maxQuote
+     *         exceed that value or if any commodity returns an INFINITE price, the minQuote and
+     *         the maxQuote.
      */
     @Pure
     public static double[] quote(@NonNull UnmodifiableEconomy economy, @NonNull ShoppingList shoppingList,
@@ -42,7 +43,7 @@ public final class EdeCommon {
         Basket basket = shoppingList.getBasket();
         // go over all commodities in basket
         for (int boughtIndex = 0, soldIndex = 0; boughtIndex < basket.size()
-                && quote[0] < bestQuoteSoFar ; boughtIndex++, soldIndex++) {
+                && quote[0] < bestQuoteSoFar && Double.isFinite(quote[0]); boughtIndex++, soldIndex++) {
             CommoditySpecification basketCommSpec = basket.get(boughtIndex);
 
             // Find corresponding commodity sold. Commodities sold are ordered the same way as the
@@ -58,10 +59,6 @@ public final class EdeCommon {
                 quote[2] += tempQuote[2];
             }
 
-            // if quote is infinite for some commodity, return immediately
-            if (Double.isInfinite(quote[0])) {
-                return quote;
-            }
         }
         return quote;
     }
