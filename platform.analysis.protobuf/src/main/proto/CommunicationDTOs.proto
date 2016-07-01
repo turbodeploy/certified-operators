@@ -20,7 +20,9 @@ import "UpdatingFunctionDTOs.proto";
 
 // The message to send before any trader of a new full topology.
 message StartDiscoveredTopology {
-    // May think of additional data to add in the future.
+    // The flag to indicate if the flag to indicate if shoptogether placement decisions for
+    // the economy should be used
+    required bool enableShopTogether = 1;
 }
 
 // The intention is that the Analysis server will keep information in a staging area and atomically
