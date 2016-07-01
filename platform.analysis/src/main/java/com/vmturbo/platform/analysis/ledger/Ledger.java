@@ -13,7 +13,6 @@ import org.checkerframework.dataflow.qual.Pure;
 
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
-import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
@@ -58,9 +57,10 @@ public class Ledger {
     }
 
     @Pure
-    public @NonNull @ReadOnly List<@NonNull @ReadOnly IncomeStatement> getCommodityIncomeStatements
-                                                                            (@ReadOnly Ledger this,
-                                                                             @NonNull @ReadOnly Trader trader) {
+    public @NonNull @ReadOnly List<@NonNull @ReadOnly IncomeStatement>
+                                                            getCommodityIncomeStatements
+                                                                (@ReadOnly Ledger this,
+                                                                 @NonNull @ReadOnly Trader trader) {
         return Collections.unmodifiableList(unmodifiableCommodityIncomeStatements_
                                                 .get(trader.getEconomyIndex()));
     }
@@ -141,59 +141,66 @@ public class Ledger {
      * computes the {@link IncomeStatement} for every seller present in a particular market and
      * updates the traderIncomeStatement list accordingly
      *
-     * @param economy {@link Economy} where the Sellers trade
+     * @param economy {@link Economy} where the <b>seller</b> trades
      * @param market the {@link Market} whose sellers expenses and revenues are to be computed
-     * revenues are to be computed
      * @return The Ledger containing the updated list of traderIncomeStatements
      */
     public Ledger calculateExpAndRevForSellersInMarket(Economy economy, Market market) {
-        for (Trader seller : market.getActiveSellers()) {
-            IncomeStatement sellerIncomeStmt = getTraderIncomeStatements()
-                                                    .get(seller.getEconomyIndex());
-            sellerIncomeStmt.resetIncomeStatement();
-            double sellerMaxDesUtil = seller.getSettings().getMaxDesiredUtil();
-            double sellerMinDesUtil = seller.getSettings().getMinDesiredUtil();
-            // compute the revenues based on the utilization of the commoditiesSold
-            for (CommoditySold commSold : seller.getCommoditiesSold()) {
-                double commSoldUtil = commSold.getQuantity()/commSold.getEffectiveCapacity();
-                if (commSoldUtil != 0) {
-                    PriceFunction pf = commSold.getSettings().getPriceFunction();
-                    sellerIncomeStmt.setRevenues(sellerIncomeStmt.getRevenues()
-                                        + pf.unitPrice(commSoldUtil)*commSoldUtil)
-                        .setMinDesiredRevenues(sellerIncomeStmt.getMinDesiredRevenues()
-                                        + pf.unitPrice(sellerMinDesUtil)*sellerMinDesUtil)
-                        .setMaxDesiredRevenues(sellerIncomeStmt.getMaxDesiredRevenues()
-                                        + pf.unitPrice(sellerMaxDesUtil)*sellerMaxDesUtil);
-                    if (Double.isInfinite(sellerIncomeStmt.getRevenues())) {
-                        break;
-                    }
-                }
-            }
+        market.getActiveSellers().forEach(seller -> calculateExpRevForSeller(economy, seller));
+        return this;
+    }
 
-            double[] quote = {0,0,0};
-            // calculate expenses using the quote from every supplier that this trader buys from
-            for (ShoppingList sl : economy.getMarketsAsBuyer(seller).keySet()) {
-                // skip markets in which the trader in question is unplaced and
-                // not consider expense for this trader in those markets
-                if (sl.getSupplier() != null) {
-                    double[] tempQuote = EdeCommon.quote(economy, sl, sl.getSupplier()
-                                            , Double.POSITIVE_INFINITY, true);
-                    for (int i=0; i<3; i++) {
-                        quote[i] = quote[i] + tempQuote[i];
-                    }
-                }
-                if (Double.isInfinite(quote[0])) {
+    /**
+     * computes the {@link IncomeStatement} for a seller
+     *
+     * @param economy {@link Economy} where the <b>seller</b> trades
+     * @param seller the {@link Trader} whose expenses and revenues are to be computed
+     */
+    public void calculateExpRevForSeller(Economy economy, Trader seller) {
+
+        IncomeStatement sellerIncomeStmt = getTraderIncomeStatements().get(seller.getEconomyIndex());
+        sellerIncomeStmt.resetIncomeStatement();
+        double sellerMaxDesUtil = seller.getSettings().getMaxDesiredUtil();
+        double sellerMinDesUtil = seller.getSettings().getMinDesiredUtil();
+        // compute the revenues based on the utilization of the commoditiesSold
+        for (CommoditySold commSold : seller.getCommoditiesSold()) {
+            double commSoldUtil = commSold.getQuantity()/commSold.getEffectiveCapacity();
+            if (commSoldUtil != 0) {
+                PriceFunction pf = commSold.getSettings().getPriceFunction();
+                sellerIncomeStmt.setRevenues(sellerIncomeStmt.getRevenues()
+                                    + pf.unitPrice(commSoldUtil)*commSoldUtil)
+                    .setMinDesiredRevenues(sellerIncomeStmt.getMinDesiredRevenues()
+                                    + pf.unitPrice(sellerMinDesUtil)*sellerMinDesUtil)
+                    .setMaxDesiredRevenues(sellerIncomeStmt.getMaxDesiredRevenues()
+                                    + pf.unitPrice(sellerMaxDesUtil)*sellerMaxDesUtil);
+                if (Double.isInfinite(sellerIncomeStmt.getRevenues())) {
                     break;
                 }
             }
-            // update trader's minDesExpRev only if the expense(quote[0] here) is > 0
-            if (quote[0] != 0) {
-                sellerIncomeStmt.setExpenses(quote[0])
-                                .setMinDesiredExpenses(quote[1])
-                                .setMaxDesiredExpenses(quote[2]);
+        }
+
+        double[] quote = {0,0,0};
+        // calculate expenses using the quote from every supplier that this trader buys from
+        for (ShoppingList sl : economy.getMarketsAsBuyer(seller).keySet()) {
+            // skip markets in which the trader in question is unplaced and
+            // not consider expense for this trader in those markets
+            if (sl.getSupplier() != null) {
+                double[] tempQuote = EdeCommon.quote(economy, sl, sl.getSupplier()
+                                        , Double.POSITIVE_INFINITY, true);
+                for (int i=0; i<3; i++) {
+                    quote[i] = quote[i] + tempQuote[i];
+                }
+            }
+            if (Double.isInfinite(quote[0])) {
+                break;
             }
         }
-        return this;
+        // update trader's minDesExpRev only if the expense(quote[0] here) is > 0
+        if (quote[0] != 0) {
+            sellerIncomeStmt.setExpenses(quote[0])
+                            .setMinDesiredExpenses(quote[1])
+                            .setMaxDesiredExpenses(quote[2]);
+        }
 
     }
 
@@ -253,7 +260,7 @@ public class Ledger {
                     }
                     // TODO: make indexOf return 2 values minIndex and the maxIndex.
                     // All comm's btw these indices will be of this type
-                    // (needed when we have 2 comms of same type sold)
+                    // (needed when we have 2 comms of same type bought)
                     for (Integer typeOfCommBought : typeOfCommsBought) {
                         int boughtIndex = basketBought.indexOfBaseType(typeOfCommBought.intValue());
 
@@ -262,25 +269,25 @@ public class Ledger {
                             continue;
                         }
 
-                        CommoditySpecification basketCommSpec = basketBought.get(boughtIndex);
-
                         // find the right provider comm and use it to compute the expenses
                         CommoditySold commSoldBySeller = supplier.getCommoditySold(basketBought
                                                                            .get(boughtIndex));
                         // using capacity to remain consistent with quote
                         double commBoughtUtil = shoppingList.getQuantity(boughtIndex)
                                                         /commSoldBySeller.getCapacity();
-                        PriceFunction priceFunction = commSoldBySeller.getSettings()
-                                                                      .getPriceFunction();
+                        if (commBoughtUtil != 0) {
+                            PriceFunction priceFunction = commSoldBySeller.getSettings()
+                                                                          .getPriceFunction();
 
-                        commSoldIS.setExpenses(commSoldIS.getExpenses()
-                                      + priceFunction.unitPrice(commSoldBySeller.getQuantity()
-                                             /commSoldBySeller.getEffectiveCapacity())
-                                                 *commBoughtUtil);
-                        commSoldIS.setMaxDesiredExpenses(commSoldIS.getMaxDesiredExpenses()
-                                      + priceFunction.unitPrice(maxDesUtil)*commBoughtUtil);
-                        commSoldIS.setMinDesiredExpenses(commSoldIS.getMinDesiredExpenses()
-                                      + priceFunction.unitPrice(minDesUtil)*commBoughtUtil);
+                            commSoldIS.setExpenses(commSoldIS.getExpenses()
+                                          + priceFunction.unitPrice(commSoldBySeller.getQuantity()
+                                                 /commSoldBySeller.getEffectiveCapacity())
+                                                     *commBoughtUtil);
+                            commSoldIS.setMaxDesiredExpenses(commSoldIS.getMaxDesiredExpenses()
+                                          + priceFunction.unitPrice(maxDesUtil)*commBoughtUtil);
+                            commSoldIS.setMinDesiredExpenses(commSoldIS.getMinDesiredExpenses()
+                                          + priceFunction.unitPrice(minDesUtil)*commBoughtUtil);
+                        }
                     }
                 }
             }
