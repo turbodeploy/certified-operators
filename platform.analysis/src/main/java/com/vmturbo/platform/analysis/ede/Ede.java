@@ -38,7 +38,12 @@ public final class Ede {
     public @NonNull List<@NonNull Action> generateActions(@NonNull Economy economy) {
         @NonNull List<Action> actions = new ArrayList<>();
         // generate placement actions
-        actions.addAll(Placement.placementDecisions(economy));
+        boolean keepRunning = true;
+        while (keepRunning) {
+            List<Action> placeActions = Placement.placementDecisions(economy);
+            keepRunning = !placeActions.isEmpty();
+            actions.addAll(placeActions);
+        }
         Ledger ledger = new Ledger(economy);
         // generate provision actions
         actions.addAll(Provision.provisionDecisions(economy, ledger));
