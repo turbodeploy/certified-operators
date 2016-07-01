@@ -6,6 +6,7 @@ import java.util.List;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.platform.analysis.actions.Action;
+import com.vmturbo.platform.analysis.actions.CompoundMove;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ledger.Ledger;
@@ -49,5 +50,25 @@ public final class Ede {
         actions.addAll(Provision.provisionDecisions(economy, ledger));
         actions.addAll(Resize.resizeDecisions(economy));
         return actions;
+    }
+
+    /**
+     * A helper method to break down the compoundMove to individual move so that legacy UI can
+     * assimilate it. This method should be called only when legacy UI is used!
+     *
+     * @param compoundMoves a list of CompoundMove actions to be broken down into individual
+     * Move actions
+     * @return a list of moves that constitute the compoundMove
+     */
+    public static List<Action> breakDownCompoundMove(List<Action> compoundMoves) {
+        // break down the compound move to individual moves so that legacy UI can assimilate it.
+        // TODO: if new UI can support compoundMove, we do not need this break down
+        List<Action> moveActions = new ArrayList<Action>();
+        compoundMoves.forEach(a -> {
+            if (a instanceof CompoundMove) {
+                moveActions.addAll(((CompoundMove)a).getConstituentMoves());
+            }
+        });
+        return moveActions;
     }
 }
