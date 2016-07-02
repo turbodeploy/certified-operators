@@ -48,6 +48,7 @@ public final class Ede {
         Ledger ledger = new Ledger(economy);
         // generate provision actions
         actions.addAll(Provision.provisionDecisions(economy, ledger));
+        actions.addAll(new Suspension().supplyDecisions(economy, ledger, false));
         actions.addAll(Resize.resizeDecisions(economy));
         return actions;
     }
