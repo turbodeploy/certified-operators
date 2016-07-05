@@ -8,6 +8,7 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Pure;
 
+import com.google.common.collect.Lists;
 import com.google.common.hash.Hashing;
 
 import com.vmturbo.platform.analysis.economy.CommoditySold;
@@ -146,6 +147,29 @@ public class Resize implements Action {
             return "To ensure performance.";
         else
             return "To improve efficiency.";
+    }
+
+    @Override
+    @Pure
+    public @NonNull @ReadOnly Object getCombineKey() {
+        return Lists.newArrayList(Resize.class, getSellingTrader(), getResizedCommodity());
+    }
+
+    @Override
+    @Pure
+    public @Nullable @ReadOnly Action combine(@NonNull Action action) {
+        // Assume the argument is a Resize of the same target and same commodity spec,
+    	// otherwise we are not supposed to get here.
+        // Also assume a consistent sequence of actions, i.e. this.getNewCapacity() == action.getOldCapacity().
+        Resize resize = (Resize) action;
+        checkArgument(getSellingTrader().equals(resize.getSellingTrader()));
+        checkArgument(getResizedCommodity().equals(resize.getResizedCommodity()));
+        if (resize.getNewCapacity() == getOldCapacity()) { // the resizes cancel each other
+            return null;
+        } else {
+        	Resize newResize = new Resize(getSellingTrader(), getResizedCommodity(), resize.getNewCapacity());
+            return newResize;
+        }
     }
 
     @Override
