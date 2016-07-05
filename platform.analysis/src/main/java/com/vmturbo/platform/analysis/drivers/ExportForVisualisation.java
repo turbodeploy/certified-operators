@@ -53,7 +53,7 @@ public final class ExportForVisualisation {
                          topology.getCommodityTypes()::getName,topology.getTraderTypes()::getName);
 
             Ede ede = new Ede();
-            ede.generateActions((Economy)topology.getEconomy()); // TODO: remove cast
+            ede.generateActions((Economy)topology.getEconomy(), false); // TODO: remove cast
             printEconomy(topology.getEconomy(), "Optimized",topology.getUuids()::get,topology.getNames()::get,
                          topology.getCommodityTypes()::getName,topology.getTraderTypes()::getName);
         } catch (IOException | ParseException | ParserConfigurationException e) {

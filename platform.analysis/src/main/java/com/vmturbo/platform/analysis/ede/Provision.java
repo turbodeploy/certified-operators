@@ -40,14 +40,18 @@ public class Provision {
      * </p>
      *
      * @param economy - the economy whose traders we want to clone if profitable while remaining
-     *                 in the desired state
+     *                  in the desired state
      * @param ledger - the class that contains exp/rev about all the traders and commodities in
-     *                 the ecomomy
+     *                  the ecomomy
+     * @param isShopTogether - flag specifies if we want to use SNM or normal placement between
+     *                  provisions
      *
      * @return list of provision and move actions
      */
-    public static @NonNull List<@NonNull Action> provisionDecisions(@NonNull Economy economy,
-                                                                    @NonNull Ledger ledger) {
+    public static @NonNull List<@NonNull Action> provisionDecisions(@NonNull Economy economy
+                                                                    , @NonNull Ledger ledger
+                                                                    , boolean isShopTogether
+                                                                    , Ede ede) {
 
         List<@NonNull Action> allActions = new ArrayList<>();
         for (Market market : economy.getMarkets()) {
@@ -75,7 +79,12 @@ public class Provision {
                 // TODO: run placement within a market
                 boolean keepRunning = true;
                 while (keepRunning) {
-                    List<Action> placeActions = Placement.placementDecisions(economy);
+                    List<Action> placeActions;
+                    if (isShopTogether) {
+                        placeActions = ede.breakDownCompoundMove(Placement.shopTogetherDecisions(economy));
+                    } else {
+                        placeActions = Placement.placementDecisions(economy);
+                    }
                     keepRunning = !placeActions.isEmpty();
                     actions.addAll(placeActions);
                 }

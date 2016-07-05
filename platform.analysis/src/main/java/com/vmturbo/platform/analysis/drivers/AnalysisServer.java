@@ -51,6 +51,7 @@ public final class AnalysisServer {
     // we've received and currentPartial_ is the topology we are currently populating.
     private @NonNull Topology lastComplete_ = new Topology();
     private @NonNull Topology currentPartial_ = new Topology();
+    boolean isShopTogetherEnabled = false;
 
     // Constructors
 
@@ -85,9 +86,9 @@ public final class AnalysisServer {
     public synchronized void handleMessage(@NonNull Session session, @NonNull InputStream message) {
         try {
             AnalysisCommand command = AnalysisCommand.parseFrom(message);
-
             switch (command.getCommandTypeCase()) {
                 case START_DISCOVERED_TOPOLOGY:
+                    isShopTogetherEnabled = command.getStartDiscoveredTopology().getEnableShopTogether();
                     currentPartial_.clear();
                     break;
                 case DISCOVERED_TRADER:
@@ -110,7 +111,7 @@ public final class AnalysisServer {
                     // Run one round of placement measuring time-to-process
                     long start = System.nanoTime();
                     @NonNull List<@NonNull Action> actions = new Ede()
-                        .generateActions((Economy)lastComplete_.getEconomy()); // TODO: remove cast
+                        .generateActions((Economy)lastComplete_.getEconomy(), isShopTogetherEnabled); // TODO: remove cast
                     long stop = System.nanoTime();
 
                     // Send back the results

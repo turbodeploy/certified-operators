@@ -34,20 +34,26 @@ public final class Ede {
      * Create a new set of actions for a snapshot of the economy.
      *
      * @param economy - the snapshot of the economy which we analyze and take decisions
+     * @param isShopTogether - true if we want to enable SNM and false otherwise
      * @return A list of actions suggested by the economic decisions engine
      */
-    public @NonNull List<@NonNull Action> generateActions(@NonNull Economy economy) {
+    public @NonNull List<@NonNull Action> generateActions(@NonNull Economy economy, boolean isShopTogether) {
         @NonNull List<Action> actions = new ArrayList<>();
         // generate placement actions
         boolean keepRunning = true;
         while (keepRunning) {
-            List<Action> placeActions = Placement.placementDecisions(economy);
+            List<Action> placeActions;
+            if (isShopTogether) {
+                placeActions = breakDownCompoundMove(Placement.shopTogetherDecisions(economy));
+            } else {
+                placeActions = Placement.placementDecisions(economy);
+            }
             keepRunning = !placeActions.isEmpty();
             actions.addAll(placeActions);
         }
         Ledger ledger = new Ledger(economy);
         // generate provision actions
-        actions.addAll(Provision.provisionDecisions(economy, ledger));
+        actions.addAll(Provision.provisionDecisions(economy, ledger, isShopTogether, this));
         actions.addAll(new Suspension().supplyDecisions(economy, ledger, false));
         actions.addAll(Resize.resizeDecisions(economy));
         return actions;
@@ -61,7 +67,7 @@ public final class Ede {
      * Move actions
      * @return a list of moves that constitute the compoundMove
      */
-    public static List<Action> breakDownCompoundMove(List<Action> compoundMoves) {
+    public List<Action> breakDownCompoundMove(List<Action> compoundMoves) {
         // break down the compound move to individual moves so that legacy UI can assimilate it.
         // TODO: if new UI can support compoundMove, we do not need this break down
         List<Action> moveActions = new ArrayList<Action>();

@@ -40,7 +40,8 @@ public final class RunPlan {
             while (keepRunning) {
                 logger.info("Cycle " + (++i));
                 Ede ede = new Ede();
-                List<Action> actions = ede.generateActions((Economy)topology.getEconomy()); // TODO: remove cast to Economy!
+                // TODO: remove cast to Economy!
+                List<Action> actions = ede.generateActions((Economy)topology.getEconomy(), false);
                 logger.info(actions.size() + " actions");
                 for (Action action : actions) {
                     logger.info("What: " + action.debugDescription(topology.getUuids()::get, topology.getNames()::get,
