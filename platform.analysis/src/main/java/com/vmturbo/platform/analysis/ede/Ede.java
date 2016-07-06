@@ -48,7 +48,8 @@ public final class Ede {
             } else {
                 placeActions = Placement.placementDecisions(economy);
             }
-            keepRunning = !placeActions.isEmpty();
+            keepRunning = !(placeActions.isEmpty() || placeActions.stream().allMatch(a ->
+                                a.getClass().getName().contains("Reconfigure")));
             actions.addAll(placeActions);
         }
         Ledger ledger = new Ledger(economy);

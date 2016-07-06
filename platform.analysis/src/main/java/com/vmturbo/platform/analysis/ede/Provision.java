@@ -85,7 +85,8 @@ public class Provision {
                     } else {
                         placeActions = Placement.placementDecisions(economy);
                     }
-                    keepRunning = !placeActions.isEmpty();
+                    keepRunning = !(placeActions.isEmpty() || placeActions.stream().allMatch(a ->
+                                        a.getClass().getName().contains("Reconfigure")));
                     actions.addAll(placeActions);
                 }
                 ledger.addTraderIncomeStatement(provisionedTrader);
@@ -94,8 +95,7 @@ public class Provision {
                     logger.error("Provisioning of a new trader fif not cause the RoI of the "
                                     + "modelSeller to go down");
                     // remove IncomeStatement from ledger and rollback actions
-                    ledger.removeTraderIncomeStatement(provisionedTrader);
-                    Lists.reverse(actions).forEach(axn -> axn.rollback());
+                    rollBackActionAndUpdateLedger(ledger, provisionedTrader, actions);
                     break;
                 }
                 allActions.addAll(actions);
@@ -181,4 +181,19 @@ public class Provision {
                         .getROI() < origRoI;
     }
 
+    /**
+     * remove {@Link incomeStatement} of a trader and rollback action after acceptanceCriteria fails
+     *
+     * @param ledger - the ledger that holds the incomeStatement of the trader that is being removed
+     * @param provisionedTrader - {@link Trader} that was cloned
+     * @param actions - bunch of actions that were generated after passing the acceptanceCriteria
+     *                  that need to be rolledBack
+     *
+     */
+    public static void rollBackActionAndUpdateLedger(Ledger ledger,
+                    Trader provisionedTrader, List<@NonNull Action> actions) {
+        // remove IncomeStatement from ledger and rollback actions
+        ledger.removeTraderIncomeStatement(provisionedTrader);
+        Lists.reverse(actions).forEach(axn -> axn.rollback());
+    }
 }
