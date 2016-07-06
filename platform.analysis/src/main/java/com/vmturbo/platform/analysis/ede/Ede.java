@@ -33,9 +33,9 @@ public final class Ede {
     /**
      * Create a new set of actions for a snapshot of the economy.
      *
-     * @param economy - the snapshot of the economy which we analyze and take decisions
-     * @param isShopTogether - true if we want to enable SNM and false otherwise
-     * @return A list of actions suggested by the economic decisions engine
+     * @param economy The snapshot of the economy which we analyze and take decisions.
+     * @param isShopTogether True if we want to enable SNM and false otherwise.
+     * @return A list of actions suggested by the economic decisions engine.
      */
     public @NonNull List<@NonNull Action> generateActions(@NonNull Economy economy, boolean isShopTogether) {
         @NonNull List<Action> actions = new ArrayList<>();
@@ -56,8 +56,8 @@ public final class Ede {
         // generate provision actions
         actions.addAll(Provision.provisionDecisions(economy, ledger, isShopTogether, this));
         actions.addAll(new Suspension().supplyDecisions(economy, ledger, false));
-        actions.addAll(Resize.resizeDecisions(economy));
-        return actions;
+        actions.addAll(Resizer.resizeDecisions(economy, ledger));
+        return Action.collapsed(actions);
     }
 
     /**

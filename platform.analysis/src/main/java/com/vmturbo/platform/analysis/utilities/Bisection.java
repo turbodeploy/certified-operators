@@ -15,31 +15,32 @@ public class Bisection {
 
     public static double solve(double epsilon, int maxIterations,
                   DoubleUnaryOperator function, double intervalMin, double intervalMax) {
+        checkArgument(intervalMin < intervalMax, "Expected intervalMin %s < intervalMax %s", intervalMin, intervalMax);
         checkArgument(haveDifferentSign(function.applyAsDouble(intervalMin),
                                         function.applyAsDouble(intervalMax)),
-                      "Interval (" + intervalMin + ", " + intervalMax + ")");
+                      "Interval (%s, %s)", intervalMin, intervalMax);
         double error;
         double root;
         double begin = intervalMin;
         double end = intervalMax;
         double iterations = 0;
         do {
-            double mid = begin + (Math.abs(end - begin)) / 2;
+            double mid = begin + (end - begin) / 2;
             double beginValue = function.applyAsDouble(begin);
             double midValue = function.applyAsDouble(mid);
-            double endValue = function.applyAsDouble(end);
             if (haveDifferentSign(beginValue, midValue)) {
                 end = mid;
-            } else if (haveDifferentSign(midValue, endValue)) {
+            } else {
                 begin = mid;
             }
-            error = Math.abs(end - begin);
+            error = end - begin;
             root = mid;
             iterations++;
         } while (iterations < maxIterations && error > epsilon);
 
         if (iterations == maxIterations) {
-            throw new IllegalStateException("Exceeded maximum Iterations");
+            throw new IllegalStateException("Exceeded maximum Iterations " +
+                           "Interval (" + intervalMin + ", " + intervalMax + ")");
         }
         return root;
     }
