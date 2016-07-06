@@ -158,16 +158,17 @@ public class Resize implements Action {
     @Override
     @Pure
     public @Nullable @ReadOnly Action combine(@NonNull Action action) {
-        // Assume the argument is a Resize of the same target and same commodity spec,
-    	// otherwise we are not supposed to get here.
-        // Also assume a consistent sequence of actions, i.e. this.getNewCapacity() == action.getOldCapacity().
+        // Check that the argument is a Resize of the same target and same commodity spec,
+        // otherwise we are not supposed to get here.
+        // Also check that this is a consistent sequence of actions, i.e.
+        // this.getNewCapacity() == action.getOldCapacity().
         Resize resize = (Resize) action;
         checkArgument(getSellingTrader().equals(resize.getSellingTrader()));
         checkArgument(getResizedCommodity().equals(resize.getResizedCommodity()));
         if (resize.getNewCapacity() == getOldCapacity()) { // the resizes cancel each other
             return null;
         } else {
-        	Resize newResize = new Resize(getSellingTrader(), getResizedCommodity(), resize.getNewCapacity());
+            Resize newResize = new Resize(getSellingTrader(), getResizedCommodity(), resize.getNewCapacity());
             return newResize;
         }
     }
