@@ -4,6 +4,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.DoubleBinaryOperator;
 import java.util.function.DoubleUnaryOperator;
 
 import org.apache.log4j.Logger;
@@ -33,7 +34,7 @@ public class Resizer {
     // Maximum number of iterations to use for Bisection method to ensure we never loop indefinitely
     private static final int MAX_ITERATIONS = 53;
     // Accuracy for convergence of Bisection method
-    private static final double ROOT_ACCURACY = 1.0E-3;
+    private static final double ROOT_ACCURACY = 1.0E-15;
     // The low end of range for the normalized utilization
     private static final double UTILIZATION_LOW = 1.0E-12;
     // The high end of range for the normalized utilization
@@ -234,9 +235,10 @@ public class Resizer {
 
         // solve revenueFunction(u) = newRevenue for u in (intervalMin,intervalMax)
         DoubleUnaryOperator revenueFunction = (u) -> u * priceFunction.unitPrice(u) - newRevenue;
-        double newNormalizedUtilization = Bisection.solve(ROOT_ACCURACY, MAX_ITERATIONS,
-                                              revenueFunction, intervalMin, intervalMax);
-
+        DoubleBinaryOperator errorFunction = (x, y) -> currentQuantity / x - currentQuantity / y;
+        double epsilon = resizeCommodity.getSettings().getCapacityIncrement() / 2;
+        double newNormalizedUtilization = Bisection.solve(epsilon, errorFunction,
+                                  MAX_ITERATIONS, revenueFunction, intervalMin, intervalMax);
         double newCapacity = currentQuantity / newNormalizedUtilization;
         return newCapacity;
     }
