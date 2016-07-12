@@ -77,16 +77,25 @@ message CommoditySoldTO {
     // The peak quantity that is currently sold.
     optional float peak_quantity = 3;
 
+    // The historical quantity sold.
+    optional float historical_quantity = 4;
+
+    // The historical peak quantity sold.
+    optional float historical_peak_quantity = 5;
+
+    // The max quantity sold.
+    optional float max_quantity = 6;
+
     // The maximum quantity and peak quantity that can potentially be sold. The default is intended
     // to be Double.MAX_VALUE.
-    optional float capacity = 4 [default = 1.7976931348623157e+308];
+    optional float capacity = 7 [default = 1.7976931348623157e+308];
 
     // Whether this commodity is thin provisioned. This is related to
     // <a href="https://en.wikipedia.org/wiki/Thin_provisioning">thin provisioning</a>.
-    optional bool thin = 5;
+    optional bool thin = 8;
 
     // The settings associated with and controlling the behavior of this commodity sold.
-    optional CommoditySoldSettingsTO settings = 6;
+    optional CommoditySoldSettingsTO settings = 9;
 }
 
 // A list of commodities that must be bought from the same provider, with some additional information.
