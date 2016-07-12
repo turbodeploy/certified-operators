@@ -1,17 +1,21 @@
 package com.vmturbo.platform.analysis.ede;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.DoubleUnaryOperator;
 
 import org.apache.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.Resize;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ledger.IncomeStatement;
 import com.vmturbo.platform.analysis.ledger.Ledger;
@@ -70,12 +74,14 @@ public class Resizer {
                             double newRevenue = desiredROI * expenses;
                             double currentRevenue = incomeStatement.getRevenues();
                             double desiredCapacity = calculateDesiredCapacity(commoditySold, currentRevenue, newRevenue);
-                            double newEffectiveCapacity = calculateEffectiveCapacity(desiredCapacity, commoditySold);
+                            CommoditySold rawMaterial = findSellerCommodity(economy, seller, soldIndex);
+                            double newEffectiveCapacity = calculateEffectiveCapacity(desiredCapacity, commoditySold, rawMaterial);
                             if (Double.compare(newEffectiveCapacity, commoditySold.getEffectiveCapacity()) != 0) {
                                 double capacityFactor = commoditySold.getEffectiveCapacity() / commoditySold.getCapacity();
                                 double newCapacity = newEffectiveCapacity / capacityFactor;
                                 Resize resizeAction = new Resize(seller, basketSold.get(soldIndex), newCapacity);
                                 actions.add(resizeAction);
+                                // TODO(Asjad): Also adjust the amount bought in resize dependency
                             }
                         } catch (Exception bisectionException) {
                             logger.error(bisectionException.getMessage() + ":" + commoditySold);
@@ -96,7 +102,11 @@ public class Resizer {
      * @param commoditySold The commodity sold to obtain peak usage, current capacity and capacity increment.
      * @return The recommended new capacity.
      */
-    private static double calculateEffectiveCapacity(double desiredCapacity, CommoditySold commoditySold) {
+    private static double calculateEffectiveCapacity(double desiredCapacity,
+                                                     @NonNull CommoditySold commoditySold,
+                                                     @NonNull CommoditySold rawMaterial) {
+        checkArgument(rawMaterial != null, "Expected raw material for commodity %s to be non-null",
+                                            commoditySold);
         double peakQuantity = commoditySold.getPeakQuantity();
         double capacityIncrement = commoditySold.getSettings().getCapacityIncrement();
         double currentCapacity = commoditySold.getEffectiveCapacity();
@@ -105,21 +115,57 @@ public class Resizer {
 
         if (delta > 0) {
             double numIncrements = delta / capacityIncrement;
-            newCapacity += capacityIncrement * Math.ceil(numIncrements);
-        } else {
-            double numDecrements = delta / capacityIncrement;
-            int floorNumDecrements = (int) Math.floor(Math.abs(numDecrements));
-            while (floorNumDecrements > 0) {
-                double proposedCapacityDecrement = capacityIncrement * floorNumDecrements;
-                if ((currentCapacity - proposedCapacityDecrement) > peakQuantity) {
-                    newCapacity -= proposedCapacityDecrement;
-                    break;
-                }
-                floorNumDecrements--;
+            int ceilNumIncrements = (int) Math.ceil(numIncrements);
+            double proposedIncrement = capacityIncrement * ceilNumIncrements;
+            double remaining = rawMaterial.getEffectiveCapacity() - rawMaterial.getQuantity();
+            if (remaining < proposedIncrement) {
+                int floorNumIncrements = (int) Math.floor(remaining / capacityIncrement);
+                newCapacity += capacityIncrement * floorNumIncrements;
+            } else {
+                newCapacity += proposedIncrement;
             }
+        } else {
+            delta = -delta;
+            double maxCapacityDecrement = currentCapacity - peakQuantity;
+            if (maxCapacityDecrement < delta) {
+                delta = maxCapacityDecrement;
+            }
+            double numDecrements = delta / capacityIncrement;
+            int floorNumDecrements = (int) Math.floor(numDecrements);
+            double proposedCapacityDecrement = capacityIncrement * floorNumDecrements;
+            newCapacity -= proposedCapacityDecrement;
         }
 
         return newCapacity;
+    }
+
+    /**
+     * Find the commodity sold by the Seller which is raw material for the given commodity.
+     *
+     * @param economy The Economy.
+     * @param buyer The Buyer of the commodity in the Economy.
+     * @param commoditySoldIndex The index of commodity for which we need to find the raw materials.
+     * @return The commodity sold.
+     */
+    private static @Nullable CommoditySold findSellerCommodity(@NonNull Economy economy,
+                                               @NonNull Trader buyer, int commoditySoldIndex) {
+        List<Integer> typeOfCommsBought = economy.getRawMaterials(buyer.getBasketSold()
+                                                     .get(commoditySoldIndex).getBaseType());
+        for (ShoppingList shoppingList : economy.getMarketsAsBuyer(buyer).keySet()) {
+
+            Trader supplier = shoppingList.getSupplier();
+            Basket basketBought = shoppingList.getBasket();
+            for (Integer typeOfCommBought : typeOfCommsBought) {
+                int boughtIndex = basketBought.indexOfBaseType(typeOfCommBought.intValue());
+                if (boughtIndex < 0) {
+                    continue;
+                }
+                CommoditySold commSoldBySeller = supplier.getCommoditySold(basketBought
+                                                                           .get(boughtIndex));
+                return commSoldBySeller;
+            }
+        }
+        return null;
     }
 
     /**
