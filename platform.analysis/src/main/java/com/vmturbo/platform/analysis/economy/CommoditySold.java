@@ -19,6 +19,9 @@ public abstract class CommoditySold {
     // Fields
     private double quantity_ = 0.0;
     private double peakQuantity_ = 0.0;
+    private double maxQuantity_ = 0.0;
+    private double historicalQuantity_ = 0.0;
+    private double historicalPeakQuantity_ = 0.0;
     private double capacity_ = Double.MAX_VALUE;
     private boolean thin_ = false;
 
@@ -79,6 +82,33 @@ public abstract class CommoditySold {
     @Pure
     public double getPeakQuantity(@ReadOnly CommoditySold this) {
         return peakQuantity_;
+    }
+
+    /**
+     *
+     * @return The historical quantity.
+     */
+    @Pure
+    public double getHistoricalQuantity(@ReadOnly CommoditySold this) {
+        return historicalQuantity_;
+    }
+
+    /**
+     *
+     * @return The historical peak quantity.
+     */
+    @Pure
+    public double getHistoricalPeakQuantity(@ReadOnly CommoditySold this) {
+        return historicalPeakQuantity_;
+    }
+
+    /**
+     *
+     * @return The maximum quantity.
+     */
+    @Pure
+    public double getMaxQuantity(@ReadOnly CommoditySold this) {
+        return maxQuantity_;
     }
 
     /**
@@ -153,6 +183,48 @@ public abstract class CommoditySold {
         // peakQuantity can be over capacity
         checkArgument(0 <= peakQuantity, "quantity = " + peakQuantity);
         peakQuantity_ = peakQuantity;
+        return this;
+    }
+
+    /**
+     * Sets the value of historical quantity.
+     *
+     * @param quantity Historical quantity value.
+     * @return {@code this}
+     */
+    @Deterministic
+    public @NonNull CommoditySold setHistoricalQuantity(double quantity) {
+        // quantity can be over capacity
+        checkArgument(0 <= quantity, "quantity = " + quantity);
+        historicalQuantity_ = quantity;
+        return this;
+    }
+
+    /**
+     * Sets the value of historical peak quantity.
+     *
+     * @param quantity Historical peak quantity value.
+     * @return {@code this}
+     */
+    @Deterministic
+    public @NonNull CommoditySold setHistoricalPeakQuantity(double quantity) {
+        // quantity can be over capacity
+        checkArgument(0 <= quantity, "quantity = " + quantity);
+        historicalPeakQuantity_ = quantity;
+        return this;
+    }
+
+    /**
+     * Sets the value of maximum quantity.
+     *
+     * @param quantity Maximum quantity value.
+     * @return {@code this}
+     */
+    @Deterministic
+    public @NonNull CommoditySold setMaxQuantity(double quantity) {
+        // quantity can be over capacity
+        checkArgument(0 <= quantity, "quantity = " + quantity);
+        maxQuantity_ = quantity;
         return this;
     }
 
