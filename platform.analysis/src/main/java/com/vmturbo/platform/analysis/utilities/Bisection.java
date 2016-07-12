@@ -6,6 +6,13 @@ import java.util.function.DoubleUnaryOperator;
 
 public class Bisection {
 
+    /**
+     * Check if the two arguments have different signs.
+     *
+     * @param intervalMinValue Value at the beginning of the interval.
+     * @param intervalMaxValue Value at the end of the interval.
+     * @return True if the two arguments have different signs.
+     */
     private static boolean haveDifferentSign(double intervalMinValue, double intervalMaxValue) {
         double minSign = Math.signum(intervalMinValue);
         double maxSign = Math.signum(intervalMaxValue);
@@ -13,9 +20,20 @@ public class Bisection {
         return productOfOnes < 0;
     }
 
+    /**
+     * Bisection method to find the root for the function in the given interval.
+     *
+     * @param epsilon The desired root accuracy.
+     * @param maxIterations The maximum number of iterations of the algorithm.
+     * @param function The unary function for which we are finding the root.
+     * @param intervalMin The beginning of the interval.
+     * @param intervalMax The end of the interval.
+     * @return The root.
+     */
     public static double solve(double epsilon, int maxIterations,
                   DoubleUnaryOperator function, double intervalMin, double intervalMax) {
-        checkArgument(intervalMin < intervalMax, "Expected intervalMin %s < intervalMax %s", intervalMin, intervalMax);
+        checkArgument(intervalMin < intervalMax,
+                      "Expected intervalMin %s < intervalMax %s", intervalMin, intervalMax);
         checkArgument(haveDifferentSign(function.applyAsDouble(intervalMin),
                                         function.applyAsDouble(intervalMax)),
                       "Interval (%s, %s)", intervalMin, intervalMax);
