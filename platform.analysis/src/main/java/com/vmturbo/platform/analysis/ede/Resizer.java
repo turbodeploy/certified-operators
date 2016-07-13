@@ -91,7 +91,7 @@ public class Resizer {
                         } catch (Exception bisectionException) {
                             logger.error(bisectionException.getMessage() + " : Capacity "
                                          + commoditySold.getEffectiveCapacity() + " Quantity "
-                                         + commoditySold.getQuantity() + " Revenues "
+                                         + commoditySold.getHistoricalQuantity() + " Revenues "
                                          + incomeStatement.getRevenues() + " Expenses "
                                          + incomeStatement.getExpenses());
                         }
@@ -117,7 +117,7 @@ public class Resizer {
                                                      @NonNull CommoditySold rawMaterial) {
         checkArgument(rawMaterial != null, "Expected raw material for commodity %s to be non-null",
                                             commoditySold);
-        double peakQuantity = commoditySold.getPeakQuantity();
+        double maxQuantity = commoditySold.getMaxQuantity();
         double capacityIncrement = commoditySold.getSettings().getCapacityIncrement();
         double currentCapacity = commoditySold.getEffectiveCapacity();
         double newCapacity = currentCapacity;
@@ -136,9 +136,9 @@ public class Resizer {
                 newCapacity += proposedIncrement;
             }
         } else {
-            // limit the decrease to be above peak usage
+            // limit the decrease to be above max usage
             delta = -delta;
-            double maxCapacityDecrement = currentCapacity - peakQuantity;
+            double maxCapacityDecrement = currentCapacity - maxQuantity;
             if (maxCapacityDecrement < delta) {
                 delta = maxCapacityDecrement;
             }
@@ -214,7 +214,7 @@ public class Resizer {
     private static double calculateDesiredCapacity(CommoditySold resizeCommodity,
                                                    double currentRevenue, double newRevenue) {
         double currentCapacity = resizeCommodity.getEffectiveCapacity();
-        double currentQuantity = resizeCommodity.getQuantity();
+        double currentQuantity = resizeCommodity.getHistoricalQuantity();
         PriceFunction priceFunction = resizeCommodity.getSettings().getPriceFunction();
 
         double intervalMin;
