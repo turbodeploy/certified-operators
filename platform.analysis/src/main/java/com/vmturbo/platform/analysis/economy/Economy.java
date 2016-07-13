@@ -162,6 +162,13 @@ public final class Economy implements UnmodifiableEconomy {
         return rawMaterial_.get(processedCommodityType);
     }
 
+    @Override
+    @Pure
+    public @NonNull @ReadOnly List<@NonNull CommodityResizeSpecification>
+                    getResizeDependency(@ReadOnly Economy this, int processedCommodityType) {
+        return commodityResizeDependency_.get(processedCommodityType);
+    }
+
     /**
      * Creates a new {@link Trader trader} with the given characteristics and adds it to
      * {@code this} economy.
@@ -480,4 +487,5 @@ public final class Economy implements UnmodifiableEconomy {
         quantityFunctions_.clear();
         settings_.clear();
     }
+
 } // end class Economy

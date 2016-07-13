@@ -14,6 +14,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.Resize;
 import com.vmturbo.platform.analysis.economy.Basket;
+import com.vmturbo.platform.analysis.economy.CommodityResizeSpecification;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
@@ -86,7 +87,7 @@ public class Resizer {
                                 double newCapacity = newEffectiveCapacity / capacityFactor;
                                 Resize resizeAction = new Resize(seller, basketSold.get(soldIndex), newCapacity);
                                 actions.add(resizeAction);
-                                // TODO(Asjad): Also adjust the amount bought in resize dependency
+                                updateResizeDependency(economy, seller, commoditySold, soldIndex, newCapacity);
                             }
                         } catch (Exception bisectionException) {
                             logger.error(bisectionException.getMessage() + " : Capacity "
@@ -241,5 +242,41 @@ public class Resizer {
                                   MAX_ITERATIONS, revenueFunction, intervalMin, intervalMax);
         double newCapacity = currentQuantity / newNormalizedUtilization;
         return newCapacity;
+    }
+
+    /**
+     * For resize down, update the quantity of the dependent commodity.
+     *
+     * @param economy The Economy.
+     * @param seller The Trader selling the commodity.
+     * @param commoditySold The commodity sold.
+     * @param commoditySoldIndex The index of commodity sold in basket.
+     * @param newCapacity The new capacity.
+     */
+    private static void updateResizeDependency(@NonNull Economy economy, Trader seller,
+                                               CommoditySold commoditySold, int commoditySoldIndex,
+                                               double newCapacity) {
+        if (newCapacity > commoditySold.getCapacity()) {
+            return;
+        }
+        List<CommodityResizeSpecification> typeOfCommsBought = economy.getResizeDependency(
+                                 seller.getBasketSold().get(commoditySoldIndex).getBaseType());
+        for (ShoppingList shoppingList : economy.getMarketsAsBuyer(seller).keySet()) {
+
+            Trader supplier = shoppingList.getSupplier();
+            Basket basketBought = shoppingList.getBasket();
+            for (CommodityResizeSpecification typeOfCommBought : typeOfCommsBought) {
+                int boughtIndex = basketBought.indexOfBaseType(typeOfCommBought.getCommodityType());
+                if (boughtIndex < 0) {
+                    continue;
+                }
+                CommoditySold commSoldBySeller = supplier.getCommoditySold(basketBought
+                                .get(boughtIndex));
+                DoubleBinaryOperator limitFunction = typeOfCommBought.getLimitFunction();
+                double adjustedQuantity = limitFunction.applyAsDouble(commSoldBySeller.getQuantity(),
+                                                                      newCapacity);
+                commSoldBySeller.setQuantity(adjustedQuantity);
+            }
+        }
     }
 }

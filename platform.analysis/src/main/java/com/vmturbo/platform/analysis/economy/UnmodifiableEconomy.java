@@ -188,4 +188,13 @@ public interface UnmodifiableEconomy {
      */
     @NonNull @ReadOnly List<Integer> getRawMaterials(int processedCommodityType);
 
+    /**
+     *
+     * @param processedCommodityType The commodity base type.
+     * @return An unmodifiable List of Commodity Resize Specification for the provided type.
+     */
+    @NonNull
+    @ReadOnly
+    List<@NonNull CommodityResizeSpecification> getResizeDependency(int processedCommodityType);
+
 } // end UnmodifiableEconomy interface
