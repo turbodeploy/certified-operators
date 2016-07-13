@@ -168,6 +168,9 @@ public final class AnalysisToProtobuf {
             .setSpecification(commoditySpecificationTO(specification))
             .setQuantity((float)commodity.getQuantity())
             .setPeakQuantity((float)commodity.getPeakQuantity())
+            .setHistoricalQuantity((float)commodity.getHistoricalQuantity())
+            .setHistoricalPeakQuantity((float)commodity.getHistoricalPeakQuantity())
+            .setMaxQuantity((float)commodity.getMaxQuantity())
             .setCapacity((float)commodity.getCapacity())
             .setThin(commodity.isThin())
             .setSettings(commoditySoldSettingsTO(commodity.getSettings())).build();
