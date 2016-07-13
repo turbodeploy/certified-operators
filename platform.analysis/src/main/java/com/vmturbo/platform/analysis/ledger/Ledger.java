@@ -279,7 +279,7 @@ public class Ledger {
                                                                           .getPriceFunction();
 
                             commSoldIS.setExpenses(commSoldIS.getExpenses()
-                                          + priceFunction.unitPrice(commSoldBySeller.getHistoricalQuantity()
+                                          + priceFunction.unitPrice(commSoldBySeller.getQuantity()
                                                  /commSoldBySeller.getEffectiveCapacity())
                                                      *commBoughtUtil);
                             commSoldIS.setMaxDesiredExpenses(commSoldIS.getMaxDesiredExpenses()
