@@ -32,7 +32,10 @@ public class Resizer {
 
     static final Logger logger = Logger.getLogger(Resizer.class);
 
-    // Maximum number of iterations to use for Bisection method to ensure we never loop indefinitely
+    // Maximum number of iterations for Bisection method to ensure we never loop indefinitely
+    // For the interval (0,1) Bisection will halve the interval on each iteration. Double use
+    // 52 bits to represent the mantissa, so after 52 iterations the interval cannot be made
+    // smaller.
     private static final int MAX_ITERATIONS = 53;
     // Accuracy for convergence of Bisection method
     private static final double ROOT_ACCURACY = 1.0E-15;
@@ -237,7 +240,10 @@ public class Resizer {
 
         // solve revenueFunction(u) = newRevenue for u in (intervalMin,intervalMax)
         DoubleUnaryOperator revenueFunction = (u) -> u * priceFunction.unitPrice(u) - newRevenue;
+        // pass in a function to calculate error in capacity for utilization interval (x,y)
         DoubleBinaryOperator errorFunction = (x, y) -> currentQuantity / x - currentQuantity / y;
+        // we will change capacity in steps of capacity increment so we can stop when error in
+        // capacity is less than half of capacity increment
         double epsilon = resizeCommodity.getSettings().getCapacityIncrement() / 2;
         double newNormalizedUtilization = Bisection.solve(epsilon, errorFunction,
                                   MAX_ITERATIONS, revenueFunction, intervalMin, intervalMax);
