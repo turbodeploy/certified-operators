@@ -7,6 +7,8 @@ import java.util.function.ToLongFunction;
 
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
+import org.checkerframework.dataflow.qual.Deterministic;
+
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.Activate;
 import com.vmturbo.platform.analysis.actions.CompoundMove;
@@ -26,6 +28,7 @@ import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderSettings;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
+import com.vmturbo.platform.analysis.ede.Suspension;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActivateTO;
@@ -310,7 +313,8 @@ public final class AnalysisToProtobuf {
             Reconfigure reconfigure = (Reconfigure)input;
             ReconfigureTO.Builder reconfigureTO = ReconfigureTO.newBuilder();
 
-            reconfigureTO.setShoppingListToReconfigure(shoppingListOid.applyAsLong(reconfigure.getTarget()));
+            reconfigureTO.setShoppingListToReconfigure(
+                            shoppingListOid.applyAsLong(reconfigure.getTarget()));
             if (reconfigure.getSource() != null) {
                 reconfigureTO.setSource(traderOid.applyAsLong(reconfigure.getSource()));
             }
@@ -325,21 +329,22 @@ public final class AnalysisToProtobuf {
             Deactivate deactivate = (Deactivate)input;
             builder.setDeactivate(DeactivateTO.newBuilder()
                 .setTraderToDeactivate(traderOid.applyAsLong(deactivate.getTarget()))
-                .addAllTriggeringBasket(specificationTOs(deactivate.getSourceMarket().getBasket())));
+                            .addAllTriggeringBasket(specificationTOs(
+                                            deactivate.getSourceMarket().getBasket())));
         } else if (input instanceof ProvisionByDemand) {
             ProvisionByDemand provDemand = (ProvisionByDemand)input;
             ProvisionByDemandTO.Builder provDemandTO = ProvisionByDemandTO.newBuilder()
                             .setModelBuyer(shoppingListOid.applyAsLong(provDemand.getModelBuyer()))
                             .setModelSeller(traderOid.applyAsLong(provDemand.getModelSeller()))
-                            .setProvisionedSeller(
-                                topology.addProvisionedTrader(provDemand.getProvisionedSeller()));
+                            .setProvisionedSeller(traderOid
+                                            .applyAsLong(provDemand.getProvisionedSeller()));
             builder.setProvisionByDemand(provDemandTO);
         } else if (input instanceof ProvisionBySupply) {
             ProvisionBySupply provSupply = (ProvisionBySupply)input;
             ProvisionBySupplyTO.Builder provSupplyTO = ProvisionBySupplyTO.newBuilder()
                             .setModelSeller(traderOid.applyAsLong(provSupply.getModelSeller()))
-                            .setProvisionedSeller(
-                                topology.addProvisionedTrader(provSupply.getProvisionedSeller()));
+                            .setProvisionedSeller(traderOid
+                                            .applyAsLong(provSupply.getProvisionedSeller()));
             builder.setProvisionBySupply(provSupplyTO);
         } else if (input instanceof Resize) {
             Resize resize = (Resize)input;
@@ -387,6 +392,62 @@ public final class AnalysisToProtobuf {
         }
 
         return builder.setTimeToAnalyzeNs(timeToAnalyze_ns).build();
+    }
+
+    /**
+     * Reordering the sequence for actions before sending back to legacy market. Group actions of
+     * same type together, and the sequence for actions to sent back should follow the sequence:
+     * provision-> resize-> move-> suspension.
+     *
+     * <p>
+     * If an action is ProvisionBySupply or ProvisionByDemand, assign a negative oid for it.
+     * </p>
+     * @param topology The {@link Topology} in which oid of traders sent from outside world
+     * are saved.
+     * @param actions The actions being collapsed and needs to be reordered.
+     *
+     * @return A list of actions in which same type of actions are put together and
+     * the actions should follow the sequence: provision-> resize-> move-> suspension.
+     */
+    @Deterministic
+    public static @NonNull List<@NonNull Action>
+                    reorderActions(Topology topology,
+                                    @NonNull @ReadOnly List<@NonNull @ReadOnly Action> actions) {
+        List<@NonNull Action> provisionBySupply = new ArrayList<@NonNull Action>();
+        List<@NonNull Action> provisionByDemand = new ArrayList<@NonNull Action>();
+        List<@NonNull Action> resize = new ArrayList<@NonNull Action>();
+        List<@NonNull Action> move = new ArrayList<@NonNull Action>();
+        List<@NonNull Action> suspension = new ArrayList<@NonNull Action>();
+        List<@NonNull Action> reconfigure = new ArrayList<@NonNull Action>();
+        List<@NonNull Action> reorderedActions = new ArrayList<@NonNull Action>();
+        for (Action a : actions) {
+            if (a instanceof ProvisionBySupply) {
+                provisionBySupply.add(a);
+                // the newly provisioned trader does not have OID, assign one for it and adds
+                // the oid into BiMap traderOids_
+                topology.addProvisionedTrader(((ProvisionBySupply)a).getProvisionedSeller());
+            } else if (a instanceof ProvisionByDemand) {
+                provisionByDemand.add(a);
+                // the newly provisioned trader does not have OID, assign one for it and adds
+                // the oid into BiMap traderOids_
+                topology.addProvisionedTrader(((ProvisionByDemand)a).getProvisionedSeller());
+            } else if (a instanceof Resize) {
+                resize.add(a);
+            } else if (a instanceof Move) {
+                move.add(a);
+            } else if (a instanceof Suspension) {
+                suspension.add(a);
+            } else if (a instanceof Reconfigure) {
+                reconfigure.add(a);
+            }
+        }
+        reorderedActions.addAll(provisionBySupply);
+        reorderedActions.addAll(provisionByDemand);
+        reorderedActions.addAll(resize);
+        reorderedActions.addAll(move);
+        reorderedActions.addAll(suspension);
+        reorderedActions.addAll(reconfigure);
+        return reorderedActions;
     }
 
 } // end AnalysisToProtobuf class

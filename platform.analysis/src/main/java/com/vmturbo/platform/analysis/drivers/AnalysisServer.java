@@ -87,7 +87,8 @@ public final class AnalysisServer {
      * Handles any of the messages {@code this} server is expected to receive.
      *
      * @param session see {@link OnMessage}
-     * @param message A single serialized {@link AnalysisCommand} Protobuf message. Also see {@link OnMessage}.
+     * @param message A single serialized {@link AnalysisCommand} Protobuf message.
+     * Also see {@link OnMessage}.
      */
     @OnMessage
     public synchronized void handleMessage(@NonNull Session session, @NonNull InputStream message) {
@@ -95,7 +96,8 @@ public final class AnalysisServer {
             AnalysisCommand command = AnalysisCommand.parseFrom(message);
             switch (command.getCommandTypeCase()) {
                 case START_DISCOVERED_TOPOLOGY:
-                    isShopTogetherEnabled = command.getStartDiscoveredTopology().getEnableShopTogether();
+                    isShopTogetherEnabled =
+                                    command.getStartDiscoveredTopology().getEnableShopTogether();
                     currentPartial_.clear();
                     break;
                 case DISCOVERED_TRADER:
@@ -105,7 +107,8 @@ public final class AnalysisServer {
                     // Finish topology
                     ProtobufToAnalysis.populateUpdatingFunctions(command.getEndDiscoveredTopology(),
                                                                          currentPartial_);
-                    ProtobufToAnalysis.populateCommodityResizeDependencyMap(command.getEndDiscoveredTopology(),
+                    ProtobufToAnalysis.populateCommodityResizeDependencyMap(
+                                    command.getEndDiscoveredTopology(),
                                                                             currentPartial_);
                     ProtobufToAnalysis.populateRawCommodityMap(command.getEndDiscoveredTopology(),
                                                                currentPartial_);
@@ -127,12 +130,29 @@ public final class AnalysisServer {
                                                     isShopTogetherEnabled, isProvisionEnabled,
                                                     isSuspensionEnabled, isResizeEnabled);
 
+                    // Group all actions of same type together, use the following order when
+                    // sending actions to the legacy market side, provision->resize->move->
+                    // suspension. We need to do it because action collapsing does not guarantee
+                    // provision comes before move actions, as a result, move actions may have
+                    // destination with null OID!
+                    // TODO: we should be careful when we want to generate actions for main
+                    // market instead of plan, because collapsing and reordering the actions will
+                    // break the inherent cohesion between different actions. For example, to
+                    // execute a suspension, it would often require move actions which move the
+                    // customer out of the suspension candidate.
+                    @NonNull
+                    List<@NonNull Action> reorderedActions =
+                                    AnalysisToProtobuf.reorderActions(lastComplete_, actions);
+
                     long stop = System.nanoTime();
 
                     // Send back the results
                     try (OutputStream stream = session.getBasicRemote().getSendStream()) {
-                        AnalysisToProtobuf.analysisResults(actions, lastComplete_.getTraderOids()::get,
-                                        lastComplete_.getShoppingListOids()::get, stop - start,
+                        AnalysisToProtobuf
+                                        .analysisResults(reorderedActions,
+                                                        lastComplete_.getTraderOids()::get,
+                                                        lastComplete_.getShoppingListOids()::get,
+                                                        stop - start,
                                         lastComplete_).writeTo(stream);
                     }
                     break;

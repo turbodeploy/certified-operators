@@ -179,7 +179,7 @@ public class ProvisionBySupply implements Action {
 
     @Override
     public @NonNull Trader getActionTarget() {
-        return getModelSeller();
+        return getProvisionedSeller();
     }
 
     /**
@@ -193,16 +193,24 @@ public class ProvisionBySupply implements Action {
         }
         ProvisionBySupply otherProvisionBySupply = (ProvisionBySupply)other;
         return otherProvisionBySupply.getEconomy() == getEconomy()
-                        && otherProvisionBySupply.getModelSeller() == getModelSeller();
+                        && otherProvisionBySupply.getModelSeller() == getModelSeller()
+                        && (otherProvisionBySupply.getProvisionedSeller() == null
+                                        ? (getProvisionedSeller() == null ? true : false)
+                                        : (otherProvisionBySupply.getProvisionedSeller()
+                                                        == getProvisionedSeller()));
     }
 
     /**
-     * Use the hashCode of each field to generate a hash code, consistent with {@link #equals(Object)}.
+     * Use the hashCode of each field to generate a hash code, consistent with
+     * {@link #equals(Object)}.
      */
     @Override
     @Pure
     public int hashCode() {
         return Hashing.md5().newHasher().putInt(getEconomy().hashCode())
-                        .putInt(getModelSeller().hashCode()).hash().asInt();
+                        .putInt(getModelSeller().hashCode())
+                        .putInt(getProvisionedSeller() == null ? 0
+                                        : getProvisionedSeller().hashCode())
+                        .hash().asInt();
     }
 } // end ProvisionBySupply class

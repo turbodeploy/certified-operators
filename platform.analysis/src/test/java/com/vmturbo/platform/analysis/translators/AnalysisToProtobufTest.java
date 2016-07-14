@@ -193,21 +193,25 @@ public class AnalysisToProtobufTest {
 
         Action provisionByDemand = new ProvisionByDemand(e, shop2, pm2);
         provisionByDemand.take(); // we call take to create provisionedSeller
+        // assign -1 as oid for the newly provisioned seller
+        traderOids.put(((ProvisionByDemand)provisionByDemand).getProvisionedSeller(), -1l);
         ActionTO provisionByDemanTO = ActionTO.newBuilder()
                         .setProvisionByDemand(
                                         ProvisionByDemandTO.newBuilder().setModelBuyer(20l)
-                                                        .setProvisionedSeller(-1) // it is the only one trader being provisioned in this test case
-                                                        .setModelSeller(3l)
-                                                        .build())
+                                        .setProvisionedSeller(-1)
+                                        .setModelSeller(3l)
+                                        .build())
                         .build();
 
         Action provisionBySupply = new ProvisionBySupply(e, pm1);
         provisionBySupply.take(); // we call take to create provisionedSeller
+        // assign -2 as oid for the newly povisioned seller
+        traderOids.put(((ProvisionBySupply)provisionBySupply).getProvisionedSeller(), -2l);
         ActionTO provisionBySupplyTO = ActionTO.newBuilder()
                         .setProvisionBySupply(
                                         ProvisionBySupplyTO.newBuilder().setModelSeller(2l)
-                                                        .setProvisionedSeller(-1) // it is the only one trader being provisioned in this test case
-                                                        .build())
+                                        .setProvisionedSeller(-2)
+                                        .build())
                         .build();
 
         Action resize = new Resize(pm1, CPU, 500);

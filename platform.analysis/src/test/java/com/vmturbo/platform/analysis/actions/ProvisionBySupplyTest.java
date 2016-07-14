@@ -235,11 +235,11 @@ public class ProvisionBySupplyTest {
         ShoppingList shop2 = e.addBasketBought(t2, b2);
         shop2.move(t3);
 
-        ProvisionBySupply provisionByDemand1 = new ProvisionBySupply(e, t2);
-        ProvisionBySupply provisionByDemand2 = new ProvisionBySupply(e, t2);
-        ProvisionBySupply provisionByDemand3 = new ProvisionBySupply(e, t3);
-        return new Object[][] {{provisionByDemand1, provisionByDemand2, true},
-                        {provisionByDemand1, provisionByDemand3, false}};
+        ProvisionBySupply provisionBySupply1 = new ProvisionBySupply(e, t2);
+        ProvisionBySupply provisionBySupply2 = new ProvisionBySupply(e, t2);
+        ProvisionBySupply provisionBySupply3 = new ProvisionBySupply(e, t3);
+        return new Object[][] {{provisionBySupply1, provisionBySupply2, true},
+                        {provisionBySupply1, provisionBySupply3, false}};
     }
 
     @Test
