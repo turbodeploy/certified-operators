@@ -1,5 +1,8 @@
 package com.vmturbo.platform.analysis.actions;
 
+import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
+
+import java.util.List;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
@@ -9,14 +12,15 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Pure;
 
 import com.google.common.hash.Hashing;
-
 import com.vmturbo.platform.analysis.economy.Basket;
-import com.vmturbo.platform.analysis.economy.ShoppingList;
+import com.vmturbo.platform.analysis.economy.CommodityResizeSpecification;
+import com.vmturbo.platform.analysis.economy.CommoditySold;
+import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
+import com.vmturbo.platform.analysis.economy.TraderSettings;
 import com.vmturbo.platform.analysis.economy.TraderState;
-
-import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
 
 /**
  * An action to provision a new {@link Trader seller} using another {@link Trader buyer} as the
@@ -93,12 +97,42 @@ public class ProvisionByDemand implements Action {
     public @NonNull Action take() {
         @NonNull Basket basketSold = getModelBuyer().getBasket();
         provisionedSeller_ = getEconomy().addTrader(modelSeller_.getType(),
-            TraderState.ACTIVE, basketSold /*, what should it buy? */);
+                                TraderState.ACTIVE, basketSold);
+        // adding commodities to be bought by the provisionedSeller and resizing them
+        List<CommoditySold> commSoldList = provisionedSeller_.getCommoditiesSold();
+        for (CommoditySpecification cs : basketSold) {
+            // retrieve dependent commodities to be resized
+            List<CommodityResizeSpecification> typeOfCommsBought = getEconomy().getResizeDependency
+                                                                        (cs.getBaseType());
+            if (typeOfCommsBought == null || typeOfCommsBought.isEmpty()) {
+                continue;
+            }
 
+            getEconomy().getMarketsAsBuyer(modelSeller_).keySet().forEach(shoppingList -> {
+                ShoppingList sl = getEconomy().addBasketBought(provisionedSeller_,
+                                            shoppingList.getBasket());
+                for (CommodityResizeSpecification typeOfCommBought : typeOfCommsBought) {
+                    int boughtIndex = sl.getBasket().indexOfBaseType(typeOfCommBought
+                                                    .getCommodityType());
+                    // if comm not present in shoppingList, indexOfBaseType < 0
+                    if (boughtIndex < 0) {
+                        continue;
+                    }
+                    // increase the amount of dependent commodity bought
+                    sl.getQuantities()[boughtIndex] = Math.max(sl.getQuantities()
+                                    [boughtIndex],commSoldList.get(basketSold.indexOf(cs))
+                                    .getQuantity());
+                }
+            });
+        }
+
+        TraderSettings sellerSettings = getProvisionedSeller().getSettings();
+        double desiredUtil = (sellerSettings.getMinDesiredUtil() + sellerSettings
+                                    .getMinDesiredUtil()) / 2;
         for (int i = 0 ; i < basketSold.size() ; ++i) {
             getProvisionedSeller().getCommoditiesSold().get(i).setCapacity(
-                Math.max(getModelBuyer().getQuantity(i), getModelBuyer().getPeakQuantity(i)));
-            // TODO (Vaptistis): use desired state once we have EconomySettings
+                Math.max(getModelBuyer().getQuantity(i) / desiredUtil, getModelBuyer()
+                                .getPeakQuantity(i) / desiredUtil));
         }
 
         return this;
