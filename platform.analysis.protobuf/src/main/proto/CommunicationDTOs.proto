@@ -73,6 +73,13 @@ message EndDiscoveredTopology {
     // A map from the raw (bought) commodity to the processed (sold) commodity.
     // This map links the bought commodity to the sold commodity
     repeated CommodityRawMaterialEntry raw_material_entry = 3;
+
+	// A flag to indicate if provision algorithm should be triggered or not
+    optional bool enableProvision = 4;
+    // A flag to indicate if suspension algorithm should be triggered or not
+    optional bool enableSuspension = 5;
+    // A flag to indicate if resize algorithm should be triggered or not
+    optional bool enableResize = 6;
 }
 
 // A compound message to encapsulate any one of command messages.
