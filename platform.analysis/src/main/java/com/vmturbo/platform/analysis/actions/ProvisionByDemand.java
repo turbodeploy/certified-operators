@@ -127,7 +127,7 @@ public class ProvisionByDemand implements Action {
         }
 
         TraderSettings sellerSettings = getProvisionedSeller().getSettings();
-        double desiredUtil = (sellerSettings.getMinDesiredUtil() + sellerSettings
+        double desiredUtil = (sellerSettings.getMaxDesiredUtil() + sellerSettings
                                     .getMinDesiredUtil()) / 2;
         for (int i = 0 ; i < basketSold.size() ; ++i) {
             getProvisionedSeller().getCommoditiesSold().get(i).setCapacity(
