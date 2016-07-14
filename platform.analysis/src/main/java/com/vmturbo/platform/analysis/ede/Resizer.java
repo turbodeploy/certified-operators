@@ -90,7 +90,7 @@ public class Resizer {
                                 double newCapacity = newEffectiveCapacity / capacityFactor;
                                 Resize resizeAction = new Resize(seller, basketSold.get(soldIndex), newCapacity);
                                 actions.add(resizeAction);
-                                updateResizeDependency(economy, seller, commoditySold, soldIndex, newCapacity);
+                                resizeDependentCommodities(economy, seller, commoditySold, soldIndex, newCapacity);
                             }
                         } catch (Exception bisectionException) {
                             logger.error(bisectionException.getMessage() + " : Capacity "
@@ -254,15 +254,16 @@ public class Resizer {
     /**
      * For resize down, update the quantity of the dependent commodity.
      *
-     * @param economy The Economy.
-     * @param seller The Trader selling the commodity.
-     * @param commoditySold The commodity sold.
-     * @param commoditySoldIndex The index of commodity sold in basket.
+     * @param economy The {@link Economy}.
+     * @param seller The {@link Trader} selling the {@link CommoditySold commodity}.
+     * @param commoditySold The {@link CommoditySold commodity} sold that was resized
+     *                      and may trigger resize of other commodities.
+     * @param commoditySoldIndex The index of {@link CommoditySold commodity} sold in basket.
      * @param newCapacity The new capacity.
      */
-    private static void updateResizeDependency(@NonNull Economy economy, Trader seller,
-                                               CommoditySold commoditySold, int commoditySoldIndex,
-                                               double newCapacity) {
+    private static void resizeDependentCommodities(@NonNull Economy economy,
+             @NonNull Trader seller, @NonNull CommoditySold commoditySold, int commoditySoldIndex,
+                                                                              double newCapacity) {
         if (newCapacity > commoditySold.getCapacity()) {
             return;
         }
