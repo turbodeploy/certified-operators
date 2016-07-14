@@ -51,7 +51,14 @@ public final class AnalysisServer {
     // we've received and currentPartial_ is the topology we are currently populating.
     private @NonNull Topology lastComplete_ = new Topology();
     private @NonNull Topology currentPartial_ = new Topology();
+    // a flag to decide if move should use shoptpgether algorithm or not
     boolean isShopTogetherEnabled = false;
+    // a flag to decide if provision algorithm should run or not
+    boolean isProvisionEnabled = true;
+    // a flag to decide if suspension algorithm should run or not
+    boolean isSuspensionEnabled = true;
+    // a flag to decide if resize algorithm should run or not
+    boolean isResizeEnabled = true;
 
     // Constructors
 
@@ -103,6 +110,11 @@ public final class AnalysisServer {
                     ProtobufToAnalysis.populateRawCommodityMap(command.getEndDiscoveredTopology(),
                                                                currentPartial_);
 
+                    isProvisionEnabled = command.getEndDiscoveredTopology().getEnableProvision();
+                    isSuspensionEnabled =
+                                    command.getEndDiscoveredTopology().getEnableSuspension();
+                    isResizeEnabled = command.getEndDiscoveredTopology().getEnableResize();
+
                     // Swap topologies
                     Topology temp = lastComplete_;
                     lastComplete_ = currentPartial_;
@@ -111,7 +123,10 @@ public final class AnalysisServer {
                     // Run one round of placement measuring time-to-process
                     long start = System.nanoTime();
                     @NonNull List<@NonNull Action> actions = new Ede()
-                        .generateActions((Economy)lastComplete_.getEconomy(), isShopTogetherEnabled); // TODO: remove cast
+                                    .generateActions((Economy)lastComplete_.getEconomy(),
+                                                    isShopTogetherEnabled, isProvisionEnabled,
+                                                    isSuspensionEnabled, isResizeEnabled);
+
                     long stop = System.nanoTime();
 
                     // Send back the results

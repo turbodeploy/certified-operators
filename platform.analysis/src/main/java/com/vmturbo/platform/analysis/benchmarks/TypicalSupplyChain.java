@@ -59,7 +59,7 @@ public class TypicalSupplyChain {
         System.out.print("Producing Actions:    ");
         final @NonNull Ede ede = new Ede();
         start = System.nanoTime();
-        List<Action> actions = ede.generateActions(economy, false);
+        List<Action> actions = ede.generateActions(economy, false, true, true, true);
         System.out.printf("%,20dns\n", System.nanoTime()-start);
         System.out.printf("Number of actions: %,8d\n", actions.size());
         System.out.println("Done!");

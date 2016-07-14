@@ -35,9 +35,14 @@ public final class Ede {
      *
      * @param economy The snapshot of the economy which we analyze and take decisions.
      * @param isShopTogether True if we want to enable SNM and false otherwise.
+     * @param isProvision True if we need to trigger provision algorithm and false otherwise
+     * @param isSuspension True if we need to trigger suspension algorithm and false otherwise
+     * @param isResize True if we need to trigger resize algorithm and false otherwise
      * @return A list of actions suggested by the economic decisions engine.
      */
-    public @NonNull List<@NonNull Action> generateActions(@NonNull Economy economy, boolean isShopTogether) {
+    public @NonNull List<@NonNull Action> generateActions(@NonNull Economy economy,
+                    boolean isShopTogether, boolean isProvision, boolean isSuspension,
+                    boolean isResize) {
         @NonNull List<Action> actions = new ArrayList<>();
         // generate placement actions
         boolean keepRunning = true;
@@ -53,10 +58,16 @@ public final class Ede {
             actions.addAll(placeActions);
         }
         Ledger ledger = new Ledger(economy);
-        // generate provision actions
-        actions.addAll(Provision.provisionDecisions(economy, ledger, isShopTogether, this));
-        actions.addAll(new Suspension().supplyDecisions(economy, ledger, false));
-        actions.addAll(Resizer.resizeDecisions(economy, ledger));
+        // trigger provision, suspension and resize algorithm only when needed
+        if (isProvision) {
+            actions.addAll(Provision.provisionDecisions(economy, ledger, isShopTogether, this));
+        }
+        if (isSuspension) {
+            actions.addAll(new Suspension().supplyDecisions(economy, ledger, false));
+        }
+        if (isResize) {
+            actions.addAll(Resizer.resizeDecisions(economy, ledger));
+        }
         return Action.collapsed(actions);
     }
 
