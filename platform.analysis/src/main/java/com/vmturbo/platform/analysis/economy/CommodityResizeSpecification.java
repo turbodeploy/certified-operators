@@ -25,8 +25,10 @@ public final class CommodityResizeSpecification {
 
     // The dependent commodity type
     private final @NonNull int dependentCommodityType_;
-    // The limit function used to adjust its value in case of resize
-    private final @NonNull DoubleBinaryOperator limitFunction_;
+    // The function used to adjust its value in case of resize up
+    private final @NonNull DoubleBinaryOperator incrementFunction_;
+    // The limit function used to adjust its value in case of resize down
+    private final @NonNull DoubleBinaryOperator decrementFunction_;
 
     // Constructors
 
@@ -35,12 +37,15 @@ public final class CommodityResizeSpecification {
      *
      * @param dependentCommodityType The type of the commodity bought
      *                whose quantity should be adjusted when resizing the commodity sold.
-     * @param limitFunction The limit function to be used to adjust it in case of resize.
+     * @param incrementFunction The limit function to be used to adjust it in case of resize up.
+     * @param decrementFunction The limit function to be used to adjust it in case of resize down.
      */
     public CommodityResizeSpecification(@NonNull int dependentCommodityType,
-                                        @NonNull DoubleBinaryOperator limitFunction) {
+                                        @NonNull DoubleBinaryOperator incrementFunction,
+                                        @NonNull DoubleBinaryOperator decrementFunction) {
         dependentCommodityType_ = dependentCommodityType;
-        limitFunction_ = limitFunction;
+        incrementFunction_ = incrementFunction;
+        decrementFunction_ = decrementFunction;
     }
 
     /**
@@ -55,10 +60,19 @@ public final class CommodityResizeSpecification {
     @NonNull
     /**
      *
-     * @return The limit function to be used to adjust the commodity bought in case of resize.
+     * @return The function to be used to adjust the commodity bought in case of resize up.
      */
-    public DoubleBinaryOperator getLimitFunction() {
-        return limitFunction_;
+    public DoubleBinaryOperator getIncrementFunction() {
+        return incrementFunction_;
+    }
+
+    @NonNull
+    /**
+     *
+     * @return The limit function to be used to adjust the commodity bought in case of resize down.
+     */
+    public DoubleBinaryOperator getDecrementFunction() {
+        return decrementFunction_;
     }
 
     /**
@@ -71,7 +85,8 @@ public final class CommodityResizeSpecification {
             return false;
         CommodityResizeSpecification otherResizeSpec = (CommodityResizeSpecification)other;
         return otherResizeSpec.getCommodityType() == dependentCommodityType_
-                        && otherResizeSpec.getLimitFunction() == limitFunction_;
+                        && otherResizeSpec.getIncrementFunction() == incrementFunction_
+                        && otherResizeSpec.getIncrementFunction() == decrementFunction_;
     }
 
     /**
@@ -81,6 +96,7 @@ public final class CommodityResizeSpecification {
     @Pure
     public int hashCode() {
         return Hashing.md5().newHasher().putInt(dependentCommodityType_)
-                        .putInt(limitFunction_.hashCode()).hash().asInt();
+                        .putInt(incrementFunction_.hashCode())
+                        .putInt(decrementFunction_.hashCode()).hash().asInt();
     }
 }

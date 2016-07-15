@@ -94,6 +94,8 @@ public final class ProtobufToAnalysis {
                 return Math::min;
             case PROJECT_SECOND:
                 return (a, b) -> b;
+            case DELTA:
+                return (a, b) -> a + (b - a);
             case UPDATINGFUNCTIONTYPE_NOT_SET:
             default:
                 throw new IllegalArgumentException("input = " + input);
@@ -347,13 +349,18 @@ public final class ProtobufToAnalysis {
                         destination.getModifiableCommodityResizeDependencyMap();
         for (CommodityResizeDependencyEntry entry : source.getResizeDependencyList()) {
             int commodityType = entry.getCommodityType();
-            List<CommodityResizeDependency> dependentCommodities = entry.getCommodityResizeDependencyList();
-            List<CommodityResizeSpecification> resizeSpecs = new ArrayList<>(dependentCommodities.size());
+            List<CommodityResizeDependency> dependentCommodities =
+                                                entry.getCommodityResizeDependencyList();
+            List<CommodityResizeSpecification> resizeSpecs =
+                                                new ArrayList<>(dependentCommodities.size());
             for (CommodityResizeDependency dependentCommodity : dependentCommodities) {
                 int dependentCommodityType = dependentCommodity.getDependentCommodityType();
-                UpdatingFunctionTO updateFunctionTO = dependentCommodity.getUpdateFunction();
-                DoubleBinaryOperator binaryOperator = updatingFunction(updateFunctionTO);
-                resizeSpecs.add(new CommodityResizeSpecification(dependentCommodityType, binaryOperator));
+                UpdatingFunctionTO incrementFunctionTO = dependentCommodity.getIncrementFunction();
+                DoubleBinaryOperator binaryIncrementOperator = updatingFunction(incrementFunctionTO);
+                UpdatingFunctionTO decrementFunctionTO = dependentCommodity.getDecrementFunction();
+                DoubleBinaryOperator binaryDecrementOperator = updatingFunction(decrementFunctionTO);
+                resizeSpecs.add(new CommodityResizeSpecification(dependentCommodityType,
+                                               binaryIncrementOperator, binaryDecrementOperator));
             }
             resizeDependencyMap.put(commodityType, resizeSpecs);
 

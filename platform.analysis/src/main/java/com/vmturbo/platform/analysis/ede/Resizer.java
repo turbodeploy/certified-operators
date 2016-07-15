@@ -54,8 +54,8 @@ public class Resizer {
      * @param ledger The ledger to use for revenue and expense calculation.
      * @return A list of actions.
      */
-    public static @NonNull List<@NonNull Action> resizeDecisions(@NonNull Economy economy, @NonNull Ledger ledger) {
-
+    public static @NonNull List<@NonNull Action> resizeDecisions(@NonNull Economy economy,
+                                                                 @NonNull Ledger ledger) {
         List<@NonNull Action> actions = new ArrayList<>();
 
         ledger.calculateAllCommodityExpensesAndRevenues(economy);
@@ -81,16 +81,21 @@ public class Resizer {
                             double currentRevenue = incomeStatement.getRevenues();
                             double desiredCapacity =
                                calculateDesiredCapacity(commoditySold, currentRevenue, newRevenue);
-                            CommoditySold rawMaterial = findSellerCommodity(economy, seller, soldIndex);
+                            CommoditySold rawMaterial = findSellerCommodity(economy, seller,
+                                                                            soldIndex);
                             double newEffectiveCapacity =
-                               calculateEffectiveCapacity(desiredCapacity, commoditySold, rawMaterial);
-                            if (Double.compare(newEffectiveCapacity, commoditySold.getEffectiveCapacity()) != 0) {
-                                double capacityFactor =
-                                         commoditySold.getEffectiveCapacity() / commoditySold.getCapacity();
-                                double newCapacity = newEffectiveCapacity / capacityFactor;
-                                Resize resizeAction = new Resize(seller, basketSold.get(soldIndex), newCapacity);
+                               calculateEffectiveCapacity(desiredCapacity, commoditySold,
+                                                          rawMaterial);
+                            if (Double.compare(newEffectiveCapacity,
+                                               commoditySold.getEffectiveCapacity()) != 0) {
+                                double newCapacity = newEffectiveCapacity /
+                                           commoditySold.getSettings().getUtilizationUpperBound();
+                                Resize resizeAction = new Resize(seller, basketSold.get(soldIndex),
+                                                                 newCapacity);
                                 actions.add(resizeAction);
-                                resizeDependentCommodities(economy, seller, commoditySold, soldIndex, newCapacity);
+                                resizeDependentCommodities(economy, seller, commoditySold,
+                                                           soldIndex, newCapacity);
+                                commoditySold.setCapacity(newCapacity);
                             }
                         } catch (Exception bisectionException) {
                             logger.error(bisectionException.getMessage() + " : Capacity "
@@ -108,12 +113,14 @@ public class Resizer {
     }
 
     /**
-     * Take peak used and capacity increment parameter into consideration for the recommended
-     * new capacity.
+     * Given the desired effective capacity find the new effective capacity taking into
+     * consideration capacity increment. For resize up limit the increase to what the seller
+     * can provide. For resize down, limit the decrease to the maximum used.
      *
-     * @param desiredCapacity The calculated new desired capacity.
-     * @param commoditySold The commodity sold to obtain peak usage, current capacity and capacity increment.
-     * @param rawMaterial The raw material of commoditySold.
+     * @param desiredCapacity The calculated new desired effective capacity.
+     * @param commoditySold The {@link CommoditySold commodity} sold to obtain peak usage,
+     *                      current capacity and capacity increment.
+     * @param rawMaterial The source of raw material of {@link CommoditySold commoditySold}.
      * @return The recommended new capacity.
      */
     private static double calculateEffectiveCapacity(double desiredCapacity,
@@ -252,7 +259,7 @@ public class Resizer {
     }
 
     /**
-     * For resize down, update the quantity of the dependent commodity.
+     * For resize, update the quantity of the dependent commodity.
      *
      * @param economy The {@link Economy}.
      * @param seller The {@link Trader} selling the {@link CommoditySold commodity}.
@@ -264,11 +271,11 @@ public class Resizer {
     private static void resizeDependentCommodities(@NonNull Economy economy,
              @NonNull Trader seller, @NonNull CommoditySold commoditySold, int commoditySoldIndex,
                                                                               double newCapacity) {
-        if (newCapacity > commoditySold.getCapacity()) {
-            return;
-        }
         List<CommodityResizeSpecification> typeOfCommsBought = economy.getResizeDependency(
                                  seller.getBasketSold().get(commoditySoldIndex).getBaseType());
+        if (typeOfCommsBought == null || typeOfCommsBought.isEmpty()) {
+            return;
+        }
         for (ShoppingList shoppingList : economy.getMarketsAsBuyer(seller).keySet()) {
 
             Trader supplier = shoppingList.getSupplier();
@@ -280,10 +287,26 @@ public class Resizer {
                 }
                 CommoditySold commSoldBySeller = supplier.getCommoditySold(basketBought
                                 .get(boughtIndex));
-                DoubleBinaryOperator limitFunction = typeOfCommBought.getLimitFunction();
-                double adjustedQuantity = limitFunction.applyAsDouble(commSoldBySeller.getQuantity(),
-                                                                      newCapacity);
-                commSoldBySeller.setQuantity(adjustedQuantity);
+                double changeInCapacity = newCapacity - commoditySold.getCapacity();
+                if (changeInCapacity < 0) {
+                    DoubleBinaryOperator decrementFunction =
+                                            typeOfCommBought.getDecrementFunction();
+                    double oldQuantityBought = shoppingList.getQuantities()[boughtIndex];
+                    double decrementedQuantity = decrementFunction.applyAsDouble(
+                                                oldQuantityBought, newCapacity);
+                    shoppingList.getQuantities()[boughtIndex] = decrementedQuantity;
+                    commSoldBySeller.setQuantity(commSoldBySeller.getQuantity() -
+                                                 (oldQuantityBought - decrementedQuantity));
+                } else {
+                    DoubleBinaryOperator incrementFunction =
+                                    typeOfCommBought.getIncrementFunction();
+                    double oldQuantityBought = shoppingList.getQuantities()[boughtIndex];
+                    double incrementedQuantity = incrementFunction.applyAsDouble(
+                                                           oldQuantityBought, newCapacity);
+                    shoppingList.getQuantities()[boughtIndex] = incrementedQuantity;
+                    commSoldBySeller.setQuantity(commSoldBySeller.getQuantity() +
+                                                 (incrementedQuantity - oldQuantityBought));
+                }
             }
         }
     }
