@@ -44,7 +44,8 @@ message EndDiscoveredTopology {
     // otherwise it is set to the resized commodity value.
     message CommodityResizeDependency {
         required int32 dependentCommodityType = 1;
-        required UpdatingFunctionTO updateFunction = 2;
+        required UpdatingFunctionTO incrementFunction = 2;
+        required UpdatingFunctionTO decrementFunction = 3;
     }
 
     // An entry of dependent commodity in map.

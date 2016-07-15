@@ -20,10 +20,14 @@ message UpdatingFunctionTO {
     message ProjectSecond {
     }
 
+    message Delta {
+    }
+
     // Which one of the available functions this message contains.
     oneof updating_function_type {
         Max max = 1;
         Min min = 2;
         ProjectSecond project_second = 3;
+        Delta delta = 4;
     }
 }
