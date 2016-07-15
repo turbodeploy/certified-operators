@@ -47,8 +47,8 @@ public final class Ede {
 
         // provision enough Traders so that plan starts with enough supply for all demand to be
         // placed and comply to the user-defined utilization upper bound constraints.
-        BootstrapSupply.bootstrapSupplyDecisions(economy);
-        
+        actions.addAll(BootstrapSupply.bootstrapSupplyDecisions(economy));
+
         // generate placement actions
         boolean keepRunning = true;
         while (keepRunning) {
