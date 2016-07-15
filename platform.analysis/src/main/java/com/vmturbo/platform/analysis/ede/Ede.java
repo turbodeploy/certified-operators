@@ -68,7 +68,12 @@ public final class Ede {
             actions.addAll(Provision.provisionDecisions(economy, ledger, isShopTogether, this));
         }
         if (isSuspension) {
-            actions.addAll(new Suspension().supplyDecisions(economy, ledger, false));
+            Suspension suspension = new Suspension();
+            // find if any seller is the sole provider in any market, if so, it should not
+            // be considered as suspension candidate
+            suspension.findSoleProviders(economy);
+            actions.addAll(suspension.supplyDecisions(economy, ledger, this, isShopTogether,
+                            false));
         }
         if (isResize) {
             actions.addAll(Resizer.resizeDecisions(economy, ledger));

@@ -27,12 +27,18 @@ public abstract class Supply {
      *                  the desired state
      * @param ledger - the {@link Ledger}} with the expenses and revenues of all the traders
      *        and commodities in the economy
+     * @param ede - the {@link Ede} which contains the utility method to break down the compound
+     *        move actions
+     * @param isShopTpgether - the boolean to indicate if shopTogether should be used to make
+     *        placement decisions or not
+     * @param isProvision - the boolean to indicate if provision or suspension logic should be
+     *        triggered
      *
      * @return a list of actions with regard to supply change and the move actions after applying
      *         the supply change actions
      */
     public @NonNull List<@NonNull Action> supplyDecisions(@NonNull Economy economy,
-                    @NonNull Ledger ledger, boolean isProvision) {
+                    @NonNull Ledger ledger, Ede ede, boolean isShopTogether, boolean isProvision) {
 
         List<@NonNull Action> allActions = new ArrayList<>();
         List<@NonNull Action> actions = new ArrayList<>();
@@ -54,17 +60,31 @@ public abstract class Supply {
 
                 takeActionAndUpdateLedger(economy, market, ledger, bestTraderToEngage,
                                 actions);
-                Trader provisionedSeller = (actions.get(actions.size() -1) instanceof ProvisionBySupply) ?
-                                                ((ProvisionBySupply)actions.get(actions.size() - 1))
+                Trader provisionedSeller = (actions.get(0) instanceof ProvisionBySupply) ?
+                                                ((ProvisionBySupply)actions.get(0))
                                                                 .getProvisionedSeller()
                                                 : null;
                 // run placement after cloning or suspending a trader to the economy
-                actions.addAll(Placement.placementDecisions(economy));
+                if (isShopTogether) {
+                    actions.addAll(ede.breakDownCompoundMove(
+                                    Placement.shopTogetherDecisions(economy)));
+                } else {
+                    actions.addAll(Placement.placementDecisions(economy));
+                }
                 ledger.calculateExpAndRevForSellersInMarket(economy, market);
 
-                if (!evalAcceptanceCriteriaForMarket(market, ledger)) {
-                    rollBackActionAndUpdateLedger(ledger, provisionedSeller, actions);
-                    break;
+                if (!evalAcceptanceCriteriaForMarket(market, ledger, bestTraderToEngage)) {
+                    if (!isProvision && !bestTraderToEngage.getCustomers().isEmpty()) {
+                        // in the suspension, if we find the least profitable trader who has
+                        // customers that can not move out of it after placement, we go to the
+                        // second least profitable trader, if the second least profitable trader
+                        // has same issue, we go to the third least profitable, etc.
+                        rollBackActionAndUpdateLedger(ledger, provisionedSeller, actions);
+                        continue;
+                    } else {
+                        rollBackActionAndUpdateLedger(ledger, provisionedSeller, actions);
+                        break;
+                    }
                 }
                 allActions.addAll(actions);
             }
@@ -92,9 +112,12 @@ public abstract class Supply {
      *                 implies eligibility to clone or suspend
      * @param ledger - the {@link Ledger} that holds the incomeStatement of the sellers considered
      *
+     * @param candidateTrader - the {@link Trader} that is newly provisioned or suspended
+     *
      * @return true - if the acceptance criteria is met by every trader in market
      */
-    public abstract boolean evalAcceptanceCriteriaForMarket(Market market, Ledger ledger);
+    public abstract boolean evalAcceptanceCriteriaForMarket(Market market, Ledger ledger,
+                    Trader candidateTrader);
 
     /**
      * Return a list of actions which contains the clone or suspend action. The particular supply change

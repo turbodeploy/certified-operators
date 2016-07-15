@@ -43,7 +43,8 @@ public class ProvisionSupply extends Supply {
                     Trader bestTraderToEngage, List<@NonNull Action> actions) {
         // TODO: we could reactivate a suspended seller, currently I just clone most
         // profitable seller
-        ProvisionBySupply provisionBySupplyAction = new ProvisionBySupply(economy, bestTraderToEngage);
+        ProvisionBySupply provisionBySupplyAction =
+                        new ProvisionBySupply(economy, bestTraderToEngage);
         actions.add(provisionBySupplyAction.take());
         // get the newly added seller and create an income statement for it in ledger
         Trader provisionedTrader = provisionBySupplyAction.getProvisionedSeller();
@@ -52,7 +53,8 @@ public class ProvisionSupply extends Supply {
     }
 
     @Override
-    public boolean evalAcceptanceCriteriaForMarket(Market market, Ledger ledger) {
+    public boolean evalAcceptanceCriteriaForMarket(Market market, Ledger ledger,
+                    Trader provisionedTrader) {
 
         for (Trader seller : market.getActiveSellers()) {
             IncomeStatement traderIS =
