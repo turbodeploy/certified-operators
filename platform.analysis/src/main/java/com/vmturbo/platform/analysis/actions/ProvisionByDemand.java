@@ -99,6 +99,12 @@ public class ProvisionByDemand implements Action {
         provisionedSeller_ = getEconomy().addTrader(modelSeller_.getType(),
                                 TraderState.ACTIVE, basketSold);
         // adding commodities to be bought by the provisionedSeller and resizing them
+        getEconomy().getMarketsAsBuyer(modelSeller_).keySet().forEach(shoppingList -> {
+            ShoppingList sl = getEconomy().addBasketBought(provisionedSeller_,shoppingList.getBasket());
+            // Copy movable attribute
+            sl.setMovable(shoppingList.isMovable());
+        });
+
         List<CommoditySold> commSoldList = provisionedSeller_.getCommoditiesSold();
         for (CommoditySpecification cs : basketSold) {
             // retrieve dependent commodities to be resized
@@ -108,9 +114,7 @@ public class ProvisionByDemand implements Action {
                 continue;
             }
 
-            getEconomy().getMarketsAsBuyer(modelSeller_).keySet().forEach(shoppingList -> {
-                ShoppingList sl = getEconomy().addBasketBought(provisionedSeller_,
-                                            shoppingList.getBasket());
+            getEconomy().getMarketsAsBuyer(provisionedSeller_).keySet().forEach(sl -> {
                 for (CommodityResizeSpecification typeOfCommBought : typeOfCommsBought) {
                     int boughtIndex = sl.getBasket().indexOfBaseType(typeOfCommBought
                                                     .getCommodityType());

@@ -111,9 +111,10 @@ public class BootstrapSupply {
 
 
     /**
-     * provision the best Trader that fits the requirements of the shoppingList
-     * we first clone one of the sellers that fits. If none can fit the buyer, we provision based on the buyer's demand
-     * where we use the first seller as the template. If there is no sellers in this market, we create a reconfigure action
+     * Provision the best Trader that fits the requirements of the shoppingList.
+     * We first clone one of the sellers that fits. If none can fit the buyer, we provision based
+     * on the buyer's demand where we use the first seller as the template. If there is no sellers
+     * in this market, we create a reconfigure action
      *
      * @param economy the {@Link Economy} that contains the unplaced {@link Trader}
      * @param shoppingList is the {@Link ShoppingList} of the unplaced trader
@@ -124,26 +125,49 @@ public class BootstrapSupply {
     private static List<Action> provisionTraderToFitBuyer (Economy economy, ShoppingList shoppingList,
                                             List<Trader> candidateSellers) {
         List<@NonNull Action> actions = new ArrayList<>();
-        Action provisionAction = null;
+        List<Action> provisionRelatedActionList = new ArrayList<>();
         // clone one of the sellers that fits
         Trader sellerThatFits = findSellerThatFitsBuyer (shoppingList, candidateSellers);
         if (sellerThatFits != null) {
             // cloning some seller that can fit this buyer
-            provisionAction = new ProvisionBySupply(economy, sellerThatFits);
+            provisionRelatedActionList.add(new ProvisionBySupply(economy, sellerThatFits).take());
         } else if (!candidateSellers.isEmpty()){
             // if none of the existing sellers can fit the shoppingList, provision customSeller
             // TODO: maybe pick a better seller to base the clone out off
-            provisionAction = new ProvisionByDemand(economy, shoppingList, candidateSellers.get(0));
+            provisionRelatedActionList.add(new ProvisionByDemand(economy, shoppingList, candidateSellers.get(0)).take());
+            ProvisionByDemand provisionAction = (ProvisionByDemand)provisionRelatedActionList.get(0);
+            // provisionByDemand does not place the new customClone provisionedTrader. We try finding
+            // best seller, if none exists, we create one
+
+            economy.getMarketsAsBuyer(provisionAction.getProvisionedSeller()).entrySet()
+                    .forEach(entry -> {
+                        ShoppingList sl = entry.getKey();
+                        List<Trader> sellers = entry.getValue().getActiveSellers();
+                        QuoteMinimizer minimizer =
+                            (sellers.size() < economy.getSettings().getMinSellersForParallelism()
+                                     ? sellers.stream() : sellers.parallelStream())
+                                         .collect(()->new QuoteMinimizer(economy,sl),
+                                            QuoteMinimizer::accept, QuoteMinimizer::combine);
+                        // If quote is infinite, we create a custom provider
+                        if (Double.isInfinite(minimizer.getBestQuote())) {
+                            provisionRelatedActionList.addAll(provisionTraderToFitBuyer (economy,
+                                            sl, sellers));
+                        } else {
+                            provisionRelatedActionList.add(new Move(economy, sl, minimizer
+                                            .getBestSeller()).take());
+                        }
+            });
         } else {
-            // when there is no seller in the market
-            // TODO: provisionAction = new ProvisionByDemand(economy, shoppingList); /* need templates */
-            // generating reconfigure action for now
+            // when there is no seller in the market we could handle this through 3 approaches,
+            // 1) TODO: provisionAction = new ProvisionByDemand(economy, shoppingList); OR
+            // 2) need templates
+            // 3) generating reconfigure action for now
             actions.add(new Reconfigure(economy, shoppingList).take());
             return actions;
         }
-        actions.add(provisionAction.take());
+        actions.addAll(provisionRelatedActionList);
         actions.add(new Move(economy,shoppingList,((ProvisionBySupply)
-                        provisionAction).getProvisionedSeller()).take());
+                        provisionRelatedActionList.get(0)).getProvisionedSeller()).take());
         return actions;
     }
 
