@@ -42,7 +42,7 @@ public final class Topology {
     // Fields
     private final @NonNull Economy economy_ = new Economy(); // The managed economy.
     private final @NonNull BiMap<@NonNull Trader, @NonNull Long> traderOids_ = HashBiMap.create();
-    private long provisionedTradersIndex_ = 0;
+    private long generatedOid_ = 0;
     private final @NonNull BiMap<@NonNull ShoppingList, @NonNull Long> shoppingListOids_ = HashBiMap.create();
     // A map from OIDs of traders we haven't seen yet to shopping lists that need to be
     // placed on them. It is needed if we can receive a customer before its supplier.
@@ -249,9 +249,14 @@ public final class Topology {
      * Assign a negative oid to the newly provisioned trader and put oid-trader to the traderOids_ map
      */
     public long addProvisionedTrader(@NonNull Trader provisionedTrader) {
-        provisionedTradersIndex_--;
-        traderOids_.put(provisionedTrader, provisionedTradersIndex_);
-        return provisionedTradersIndex_;
+        generatedOid_--;
+        traderOids_.put(provisionedTrader, generatedOid_);
+        economy_.getMarketsAsBuyer(provisionedTrader).keySet().forEach(sl -> {
+            generatedOid_--;
+            shoppingListOids_.put(sl, generatedOid_);
+        });
+
+        return generatedOid_;
     }
 
 } // end Topology class
