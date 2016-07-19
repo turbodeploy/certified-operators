@@ -1,16 +1,19 @@
 package com.vmturbo.platform.analysis.actions;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.IntFunction;
+import java.util.stream.Collectors;
 
 import org.apache.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
+import org.checkerframework.dataflow.qual.Deterministic;
 import org.checkerframework.dataflow.qual.Pure;
 import static com.google.common.base.Preconditions.checkArgument;
 
@@ -207,4 +210,59 @@ public interface Action {
         }
         return result;
     }
+
+    /**
+     * Group actions of same type together, and the sequence for actions should follow the order:
+     * provision-> move(initial move) -> resize-> move-> suspension.
+     *
+     * @param actions The {@link Action} to be grouped and re-ordered.
+     *
+     * @return The list of <b>actions</b> grouped and re-ordered
+     * The action order should be provision-> move(initial move) -> resize-> move-> suspension.
+     */
+    @Deterministic
+    public static @NonNull List<@NonNull Action>
+                    groupByActionType(
+                    @NonNull @ReadOnly List<@NonNull @ReadOnly Action> actions) {
+        List<@NonNull Action> reorderedActions = new ArrayList<@NonNull Action>();
+        if (actions.isEmpty()) {
+            return reorderedActions;
+        }
+
+        List<@NonNull Action> move = new ArrayList<@NonNull Action>();
+        // initial move actions are special move actions with null as source trader
+        // they need to be sent right after provision, before resize
+        List<Action> initialMove = new ArrayList<@NonNull Action>();
+
+        // a map whose key is action type and value is a list of actions of that type
+        Map<Class<? extends Action>, List<Action>> actionListPerType =
+                        actions.stream().collect(Collectors.groupingBy(Action::getClass));
+        // if a move action has null source trader, it means that the move is the initial
+        // placement for the trader, so we put it into a list which will be sent before
+        // resize. Otherwise, the move action is a regular move and we put it into a list
+        // which will be sent after resize
+        actionListPerType.get(Move.class).forEach(m-> {
+            if (((Move)m).getSource() == null) {initialMove.add(m);} else {move.add(m);}});
+
+        if (actionListPerType.get(ProvisionBySupply.class) != null) {
+            reorderedActions.addAll(actionListPerType.get(ProvisionBySupply.class));
+        }
+        if (actionListPerType.get(ProvisionByDemand.class) != null) {
+            reorderedActions.addAll(actionListPerType.get(ProvisionByDemand.class));
+        }
+        if (!initialMove.isEmpty()) {
+            reorderedActions.addAll(initialMove);
+        }
+        if (actionListPerType.get(Resize.class) != null) {
+            reorderedActions.addAll(actionListPerType.get(Resize.class));
+        }
+        if (!move.isEmpty()) {
+            reorderedActions.addAll(move);
+        }
+        if (actionListPerType.get(Deactivate.class) != null) {
+            reorderedActions.addAll(actionListPerType.get(Deactivate.class));
+        }
+        return reorderedActions;
+    }
+
 } // end Action interface

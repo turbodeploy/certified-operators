@@ -194,10 +194,10 @@ public class ProvisionBySupply implements Action {
         ProvisionBySupply otherProvisionBySupply = (ProvisionBySupply)other;
         return otherProvisionBySupply.getEconomy() == getEconomy()
                         && otherProvisionBySupply.getModelSeller() == getModelSeller()
-                        && (otherProvisionBySupply.getProvisionedSeller() == null
-                                        ? (getProvisionedSeller() == null ? true : false)
-                                        : (otherProvisionBySupply.getProvisionedSeller()
-                                                        == getProvisionedSeller()));
+                        // if the provisioned seller is null, we should expect
+                        // getProvisionedSeller() is null so that null==null returns true
+                        && otherProvisionBySupply
+                                        .getProvisionedSeller() == getProvisionedSeller();
     }
 
     /**

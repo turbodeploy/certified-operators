@@ -3,8 +3,8 @@ package com.vmturbo.platform.analysis.translators;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
+import java.lang.reflect.Field;
 import java.util.Arrays;
-import java.util.function.ToLongFunction;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Ignore;
@@ -12,7 +12,6 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import com.google.common.collect.BiMap;
-import com.google.common.collect.HashBiMap;
 
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.Activate;
@@ -140,33 +139,44 @@ public class AnalysisToProtobufTest {
         fail("Not yet implemented"); // TODO
     }
 
-    @SuppressWarnings("unused")
+    @SuppressWarnings({"unused", "unchecked"})
     private static Object[] parametersForTestActionTO() {
         pm1.getCommoditySold(CPU).setCapacity(15);
         pm2.getCommoditySold(CPU).setCapacity(25);
 
-        // create the trader to oid map
-        BiMap<@NonNull Trader, @NonNull Long> traderOids = HashBiMap.create();
-        traderOids.put(vm1, 0l);
-        traderOids.put(vm2, 1l);
-        traderOids.put(pm1, 2l);
-        traderOids.put(pm2, 3l);
-        traderOids.put(st1, 4l);
-        traderOids.put(st2, 5l);
-        traderOids.put(vm3, 6l);
-        ToLongFunction<@NonNull Trader> func1 = traderOids::get;
+        Topology topo = new Topology();
+        BiMap<@NonNull Trader, @NonNull Long> traderOids = null;
+        BiMap<@NonNull ShoppingList, @NonNull Long> shoppingListOids = null;
+        ShoppingList shop1 = null;
+        ShoppingList shop2 = null;
+        try {
+            // set the traderOid_ to be accessible so that we could get manually assign
+            // oid to a trader
+            Field traderOidField = Topology.class.getDeclaredField("traderOids_");
+            traderOidField.setAccessible(true);
+            traderOids = (BiMap<@NonNull Trader, @NonNull Long>)traderOidField.get(topo);
+            traderOids.put(vm1, 0l);
+            traderOids.put(vm2, 1l);
+            traderOids.put(pm1, 2l);
+            traderOids.put(pm2, 3l);
+            traderOids.put(st1, 4l);
+            traderOids.put(st2, 5l);
+            traderOids.put(vm3, 6l);
 
-        ShoppingList shop1 = e.addBasketBought(vm1, basketBought1);
-        shop1.move(pm1);
-        ShoppingList shop2 = e.addBasketBought(vm2, basketBought1);
-        shop2.move(pm2);
+            shop1 = e.addBasketBought(vm1, basketBought1);
+            shop1.move(pm1);
+            shop2 = e.addBasketBought(vm2, basketBought1);
+            shop2.move(pm2);
 
-        // create the shoppinglist to oid map
-        BiMap<@NonNull ShoppingList, @NonNull Long> shoppingListOids = HashBiMap.create();
-        shoppingListOids.put(shop1, 10l);
-        shoppingListOids.put(shop2, 20l);
-        ToLongFunction<@NonNull ShoppingList> func2 = shoppingListOids::get;
+            Field shoppingListOidField = Topology.class.getDeclaredField("shoppingListOids_");
+            shoppingListOidField.setAccessible(true);
+            shoppingListOids = (BiMap<@NonNull ShoppingList, @NonNull Long>)shoppingListOidField
+                            .get(topo);
+            shoppingListOids.put(shop1, 10l);
+            shoppingListOids.put(shop2, 20l);
+        } catch (Exception e) {
 
+        }
         Action activate = new Activate(e, vm1, e.getMarket(basketBought1), vm2);
         ActionTO activateTO = ActionTO.newBuilder().setActivate(ActivateTO.newBuilder()
                         .setTraderToActivate(0l).setModelSeller(1l)
@@ -250,22 +260,26 @@ public class AnalysisToProtobufTest {
                                                         .setDestination(5l).setSource(4l).build())
                                         .build())
                         .build();
-        return new Object[][] {{activate, func1, func2, new Topology(), activateTO},
-                        {deactivate, func1, func2, new Topology(), deActionTO},
-                        {move, func1, func2, new Topology(), moveTO},
-                        {provisionByDemand, func1, func2, new Topology(), provisionByDemanTO},
-                        {provisionBySupply, func1, func2, new Topology(), provisionBySupplyTO},
-                        {resize, func1, func2, new Topology(), resizeTO},
-                        {reconfigure, func1, func2, new Topology(), reconfigureTO},
-                        {compoundMove, func1, func2, new Topology(), compoundMoveActionTO}};
+        return new Object[][] {{activate, traderOids, shoppingListOids, topo, activateTO},
+                        {deactivate, traderOids, shoppingListOids, topo, deActionTO},
+                        {move, traderOids, shoppingListOids, topo, moveTO},
+                        {provisionByDemand, traderOids, shoppingListOids, topo,
+                                        provisionByDemanTO},
+                        {provisionBySupply, traderOids, shoppingListOids, topo,
+                                        provisionBySupplyTO},
+                        {resize, traderOids, shoppingListOids, topo, resizeTO},
+                        {reconfigure, traderOids, shoppingListOids, topo, reconfigureTO},
+                        {compoundMove, traderOids, shoppingListOids, topo,
+                                        compoundMoveActionTO}};
     }
 
     @Test
     @Parameters
     @TestCaseName("Test #{index}: AnalysisToProtobuf().actionTO({0},{1},{2},{3}) == {4}")
     public final void testActionTO(@NonNull Action input,
-                    @NonNull ToLongFunction<@NonNull Trader> traderOid,
-                    @NonNull ToLongFunction<@NonNull ShoppingList> shoppingListOid, Topology topo,
+                    @NonNull BiMap<@NonNull Trader, @NonNull Long> traderOid,
+                    @NonNull BiMap<@NonNull ShoppingList, @NonNull Long> shoppingListOid,
+                    Topology topo,
                     ActionTO expect) {
         ActionTO actionTO =
                         AnalysisToProtobuf.actionTO(input, traderOid, shoppingListOid, topo);

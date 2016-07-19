@@ -196,10 +196,10 @@ public class ProvisionByDemand implements Action {
                         && otherProvisionByDemand.getModelBuyer() == getModelBuyer()
                         // maybe modelSeller can be different?
                         && otherProvisionByDemand.getModelSeller() == getModelSeller()
-                        && (otherProvisionByDemand.getProvisionedSeller() == null
-                        ? (getProvisionedSeller() == null ? true : false)
-                                        : (otherProvisionByDemand.getProvisionedSeller()
-                                        == getProvisionedSeller()));
+                        // if the provisioned seller is null, we should expect
+                        // getProvisionedSeller() is null so that null==null returns true
+                        && (otherProvisionByDemand
+                                        .getProvisionedSeller() == getProvisionedSeller());
     }
 
     /**

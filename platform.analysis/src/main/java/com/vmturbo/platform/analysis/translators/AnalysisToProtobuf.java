@@ -9,6 +9,8 @@ import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Deterministic;
 
+import com.google.common.collect.BiMap;
+
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.Activate;
 import com.vmturbo.platform.analysis.actions.CompoundMove;
@@ -286,14 +288,15 @@ public final class AnalysisToProtobuf {
      * Converts an {@link Action} to an {@link ActionTO} given some additional context.
      *
      * @param input The {@link Action} to convert.
-     * @param traderOid A function mapping {@link Trader}s to their OIDs.
-     * @param shoppingListOid A function mapping {@link ShoppingList}s to their OIDs.
+     * @param traderOid A map for {@link Trader}s to their OIDs.
+     * @param shoppingListOid A map for {@link ShoppingList}s to their OIDs.
      * @param topology The topology associates with traders received from legacy market.
      * It keeps a traderOid map which will be used to populate the oid for traders.
      * @return The resulting {@link ActionTO}.
      */
-    public static @NonNull ActionTO actionTO(@NonNull Action input, @NonNull ToLongFunction<@NonNull Trader> traderOid,
-                    @NonNull ToLongFunction<@NonNull ShoppingList> shoppingListOid,
+    public static @NonNull ActionTO actionTO(@NonNull Action input,
+                    @NonNull BiMap<@NonNull Trader, @NonNull Long> traderOid,
+                    @NonNull BiMap<@NonNull ShoppingList, @NonNull Long> shoppingListOid,
                     Topology topology) {
         ActionTO.Builder builder = ActionTO.newBuilder();
 
@@ -301,12 +304,12 @@ public final class AnalysisToProtobuf {
             Move move = (Move)input;
             MoveTO.Builder moveTO = MoveTO.newBuilder();
 
-            moveTO.setShoppingListToMove(shoppingListOid.applyAsLong(move.getTarget()));
+            moveTO.setShoppingListToMove(shoppingListOid.get(move.getTarget()));
             if (move.getSource() != null) {
-                moveTO.setSource(traderOid.applyAsLong(move.getSource()));
+                moveTO.setSource(traderOid.get(move.getSource()));
             }
             if (move.getDestination() != null) {
-                moveTO.setDestination(traderOid.applyAsLong(move.getDestination()));
+                moveTO.setDestination(traderOid.get(move.getDestination()));
             }
             builder.setMove(moveTO);
         } else if (input instanceof Reconfigure) {
@@ -314,42 +317,46 @@ public final class AnalysisToProtobuf {
             ReconfigureTO.Builder reconfigureTO = ReconfigureTO.newBuilder();
 
             reconfigureTO.setShoppingListToReconfigure(
-                            shoppingListOid.applyAsLong(reconfigure.getTarget()));
+                            shoppingListOid.get(reconfigure.getTarget()));
             if (reconfigure.getSource() != null) {
-                reconfigureTO.setSource(traderOid.applyAsLong(reconfigure.getSource()));
+                reconfigureTO.setSource(traderOid.get(reconfigure.getSource()));
             }
             builder.setReconfigure(reconfigureTO);
         } else if (input instanceof Activate) {
             Activate activate = (Activate)input;
             builder.setActivate(ActivateTO.newBuilder()
-                .setTraderToActivate(traderOid.applyAsLong(activate.getTarget()))
-                            .setModelSeller(traderOid.applyAsLong(activate.getModelSeller()))
+                            .setTraderToActivate(traderOid.get(activate.getTarget()))
+                            .setModelSeller(traderOid.get(activate.getModelSeller()))
                 .addAllTriggeringBasket(specificationTOs(activate.getSourceMarket().getBasket())));
         } else if (input instanceof Deactivate) {
             Deactivate deactivate = (Deactivate)input;
             builder.setDeactivate(DeactivateTO.newBuilder()
-                .setTraderToDeactivate(traderOid.applyAsLong(deactivate.getTarget()))
+                            .setTraderToDeactivate(traderOid.get(deactivate.getTarget()))
                             .addAllTriggeringBasket(specificationTOs(
                                             deactivate.getSourceMarket().getBasket())));
         } else if (input instanceof ProvisionByDemand) {
             ProvisionByDemand provDemand = (ProvisionByDemand)input;
             ProvisionByDemandTO.Builder provDemandTO = ProvisionByDemandTO.newBuilder()
-                            .setModelBuyer(shoppingListOid.applyAsLong(provDemand.getModelBuyer()))
-                            .setModelSeller(traderOid.applyAsLong(provDemand.getModelSeller()))
-                            .setProvisionedSeller(traderOid
-                                            .applyAsLong(provDemand.getProvisionedSeller()));
+                            .setModelBuyer(shoppingListOid.get(provDemand.getModelBuyer()))
+                            .setModelSeller(traderOid.get(provDemand.getModelSeller()))
+                            // the newly provisioned trader does not have OID, assign one for it and adds
+                            // the oid into BiMap traderOids_
+                            .setProvisionedSeller(topology.addProvisionedTrader(
+                                            provDemand.getProvisionedSeller()));
             builder.setProvisionByDemand(provDemandTO);
         } else if (input instanceof ProvisionBySupply) {
             ProvisionBySupply provSupply = (ProvisionBySupply)input;
             ProvisionBySupplyTO.Builder provSupplyTO = ProvisionBySupplyTO.newBuilder()
-                            .setModelSeller(traderOid.applyAsLong(provSupply.getModelSeller()))
-                            .setProvisionedSeller(traderOid
-                                            .applyAsLong(provSupply.getProvisionedSeller()));
+                            .setModelSeller(traderOid.get(provSupply.getModelSeller()))
+                            // the newly provisioned trader does not have OID, assign one for it and adds
+                            // the oid into BiMap traderOids_
+                            .setProvisionedSeller(topology.addProvisionedTrader(
+                                            provSupply.getProvisionedSeller()));
             builder.setProvisionBySupply(provSupplyTO);
         } else if (input instanceof Resize) {
             Resize resize = (Resize)input;
             builder.setResize(ResizeTO.newBuilder()
-                .setSellingTrader(traderOid.applyAsLong(resize.getSellingTrader()))
+                            .setSellingTrader(traderOid.get(resize.getSellingTrader()))
                 .setSpecification(commoditySpecificationTO(resize.getResizedCommodity()))
                 .setOldCapacity((float)resize.getOldCapacity())
                 .setNewCapacity((float)resize.getNewCapacity()));
@@ -382,8 +389,8 @@ public final class AnalysisToProtobuf {
      * @return The resulting {@link AnalysisResults} message.
      */
     public static @NonNull AnalysisResults analysisResults(@NonNull List<Action> actions,
-            @NonNull ToLongFunction<@NonNull Trader> traderOid,
-                    @NonNull ToLongFunction<@NonNull ShoppingList> shoppingListOid,
+                    @NonNull BiMap<@NonNull Trader, @NonNull Long> traderOid,
+                    @NonNull BiMap<@NonNull ShoppingList, @NonNull Long> shoppingListOid,
                     long timeToAnalyze_ns, Topology topology) {
         AnalysisResults.Builder builder = AnalysisResults.newBuilder();
 
@@ -392,62 +399,6 @@ public final class AnalysisToProtobuf {
         }
 
         return builder.setTimeToAnalyzeNs(timeToAnalyze_ns).build();
-    }
-
-    /**
-     * Reordering the sequence for actions before sending back to legacy market. Group actions of
-     * same type together, and the sequence for actions to sent back should follow the sequence:
-     * provision-> resize-> move-> suspension.
-     *
-     * <p>
-     * If an action is ProvisionBySupply or ProvisionByDemand, assign a negative oid for it.
-     * </p>
-     * @param topology The {@link Topology} in which oid of traders sent from outside world
-     * are saved.
-     * @param actions The actions being collapsed and needs to be reordered.
-     *
-     * @return A list of actions in which same type of actions are put together and
-     * the actions should follow the sequence: provision-> resize-> move-> suspension.
-     */
-    @Deterministic
-    public static @NonNull List<@NonNull Action>
-                    reorderActions(Topology topology,
-                                    @NonNull @ReadOnly List<@NonNull @ReadOnly Action> actions) {
-        List<@NonNull Action> provisionBySupply = new ArrayList<@NonNull Action>();
-        List<@NonNull Action> provisionByDemand = new ArrayList<@NonNull Action>();
-        List<@NonNull Action> resize = new ArrayList<@NonNull Action>();
-        List<@NonNull Action> move = new ArrayList<@NonNull Action>();
-        List<@NonNull Action> suspension = new ArrayList<@NonNull Action>();
-        List<@NonNull Action> reconfigure = new ArrayList<@NonNull Action>();
-        List<@NonNull Action> reorderedActions = new ArrayList<@NonNull Action>();
-        for (Action a : actions) {
-            if (a instanceof ProvisionBySupply) {
-                provisionBySupply.add(a);
-                // the newly provisioned trader does not have OID, assign one for it and adds
-                // the oid into BiMap traderOids_
-                topology.addProvisionedTrader(((ProvisionBySupply)a).getProvisionedSeller());
-            } else if (a instanceof ProvisionByDemand) {
-                provisionByDemand.add(a);
-                // the newly provisioned trader does not have OID, assign one for it and adds
-                // the oid into BiMap traderOids_
-                topology.addProvisionedTrader(((ProvisionByDemand)a).getProvisionedSeller());
-            } else if (a instanceof Resize) {
-                resize.add(a);
-            } else if (a instanceof Move) {
-                move.add(a);
-            } else if (a instanceof Suspension) {
-                suspension.add(a);
-            } else if (a instanceof Reconfigure) {
-                reconfigure.add(a);
-            }
-        }
-        reorderedActions.addAll(provisionBySupply);
-        reorderedActions.addAll(provisionByDemand);
-        reorderedActions.addAll(resize);
-        reorderedActions.addAll(move);
-        reorderedActions.addAll(suspension);
-        reorderedActions.addAll(reconfigure);
-        return reorderedActions;
     }
 
 } // end AnalysisToProtobuf class

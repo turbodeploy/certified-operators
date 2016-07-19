@@ -134,7 +134,8 @@ public final class AnalysisServer {
                     // sending actions to the legacy market side, provision->resize->move->
                     // suspension. We need to do it because action collapsing does not guarantee
                     // provision comes before move actions, as a result, move actions may have
-                    // destination with null OID!
+                    // destination with null OID! As for resize, it should also come before move
+                    // because a trader may require resize down itself to fit in the destination.
                     // TODO: we should be careful when we want to generate actions for main
                     // market instead of plan, because collapsing and reordering the actions will
                     // break the inherent cohesion between different actions. For example, to
@@ -142,7 +143,7 @@ public final class AnalysisServer {
                     // customer out of the suspension candidate.
                     @NonNull
                     List<@NonNull Action> reorderedActions =
-                                    AnalysisToProtobuf.reorderActions(lastComplete_, actions);
+                                    Action.groupByActionType(actions);
 
                     long stop = System.nanoTime();
 
@@ -150,8 +151,8 @@ public final class AnalysisServer {
                     try (OutputStream stream = session.getBasicRemote().getSendStream()) {
                         AnalysisToProtobuf
                                         .analysisResults(reorderedActions,
-                                                        lastComplete_.getTraderOids()::get,
-                                                        lastComplete_.getShoppingListOids()::get,
+                                                        lastComplete_.getTraderOids(),
+                                                        lastComplete_.getShoppingListOids(),
                                                         stop - start,
                                         lastComplete_).writeTo(stream);
                     }
