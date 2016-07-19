@@ -100,7 +100,8 @@ public class ProvisionByDemand implements Action {
                                 TraderState.ACTIVE, basketSold);
         // adding commodities to be bought by the provisionedSeller and resizing them
         getEconomy().getMarketsAsBuyer(modelSeller_).keySet().forEach(shoppingList -> {
-            ShoppingList sl = getEconomy().addBasketBought(provisionedSeller_,shoppingList.getBasket());
+            ShoppingList sl = getEconomy().addBasketBought(provisionedSeller_, shoppingList
+                                            .getBasket());
             // Copy movable attribute
             sl.setMovable(shoppingList.isMovable());
         });
