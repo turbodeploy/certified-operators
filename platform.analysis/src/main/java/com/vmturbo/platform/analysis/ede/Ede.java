@@ -78,7 +78,7 @@ public final class Ede {
         if (isResize) {
             actions.addAll(Resizer.resizeDecisions(economy, ledger));
         }
-        return Action.collapsed(actions);
+        return actions;
     }
 
     /**

@@ -215,54 +215,68 @@ public interface Action {
      * Group actions of same type together, and the sequence for actions should follow the order:
      * provision-> move(initial move) -> resize-> move-> suspension.
      *
-     * @param actions The {@link Action} to be grouped and re-ordered.
+     * @param initialMoves The {@link Move} actions that are the first placement for any trader
+     * @param collapsedActions The {@link Action} that has gone through collapsing and needs to
+     * be grouped by type.
      *
-     * @return The list of <b>actions</b> grouped and re-ordered
+     * @return The list of <b>actions</b> grouped and reordered
      * The action order should be provision-> move(initial move) -> resize-> move-> suspension.
      */
     @Deterministic
-    public static @NonNull List<@NonNull Action>
-                    groupByActionType(
-                    @NonNull @ReadOnly List<@NonNull @ReadOnly Action> actions) {
+    public static @NonNull List<@NonNull Action> groupActionsByTypeAndReorderBeforeSending(
+                    @NonNull @ReadOnly List<@NonNull @ReadOnly Action> initialMoves,
+                    @NonNull @ReadOnly List<@NonNull @ReadOnly Action> collapsedActions) {
+        @NonNull
         List<@NonNull Action> reorderedActions = new ArrayList<@NonNull Action>();
-        if (actions.isEmpty()) {
-            return reorderedActions;
-        }
+        // group the collapsed actions by type
+        Map<Class<? extends Action>, List<Action>> collapsedActionsPerType =
+                        collapsedActions.stream().collect(Collectors.groupingBy(Action::getClass));
 
-        List<@NonNull Action> move = new ArrayList<@NonNull Action>();
-        // initial move actions are special move actions with null as source trader
-        // they need to be sent right after provision, before resize
-        List<Action> initialMove = new ArrayList<@NonNull Action>();
+        if (collapsedActionsPerType.containsKey(ProvisionBySupply.class)) {
+            reorderedActions.addAll(collapsedActionsPerType.get(ProvisionBySupply.class));
+        }
+        if (collapsedActionsPerType.containsKey(ProvisionByDemand.class)) {
+            reorderedActions.addAll(collapsedActionsPerType.get(ProvisionByDemand.class));
+        }
+        // put the initial move actions before any resize actions
+        reorderedActions.addAll(initialMoves);
 
-        // a map whose key is action type and value is a list of actions of that type
-        Map<Class<? extends Action>, List<Action>> actionListPerType =
-                        actions.stream().collect(Collectors.groupingBy(Action::getClass));
-        // if a move action has null source trader, it means that the move is the initial
-        // placement for the trader, so we put it into a list which will be sent before
-        // resize. Otherwise, the move action is a regular move and we put it into a list
-        // which will be sent after resize
-        actionListPerType.get(Move.class).forEach(m-> {
-            if (((Move)m).getSource() == null) {initialMove.add(m);} else {move.add(m);}});
-
-        if (actionListPerType.get(ProvisionBySupply.class) != null) {
-            reorderedActions.addAll(actionListPerType.get(ProvisionBySupply.class));
+        if (collapsedActionsPerType.containsKey(Resize.class)) {
+            reorderedActions.addAll(collapsedActionsPerType.get(Resize.class));
         }
-        if (actionListPerType.get(ProvisionByDemand.class) != null) {
-            reorderedActions.addAll(actionListPerType.get(ProvisionByDemand.class));
+        if (collapsedActionsPerType.containsKey(Move.class)) {
+            reorderedActions.addAll(collapsedActionsPerType.get(Move.class));
         }
-        if (!initialMove.isEmpty()) {
-            reorderedActions.addAll(initialMove);
-        }
-        if (actionListPerType.get(Resize.class) != null) {
-            reorderedActions.addAll(actionListPerType.get(Resize.class));
-        }
-        if (!move.isEmpty()) {
-            reorderedActions.addAll(move);
-        }
-        if (actionListPerType.get(Deactivate.class) != null) {
-            reorderedActions.addAll(actionListPerType.get(Deactivate.class));
+        if (collapsedActionsPerType.containsKey(Deactivate.class)) {
+            reorderedActions.addAll(collapsedActionsPerType.get(Deactivate.class));
         }
         return reorderedActions;
     }
 
+    /**
+     * Filter {@link Move} actions that set the initial placement for a trader and
+     * remove them from the {@link Action} list which will go through collapsing.
+     *
+     * <p>
+     * The state for the argument being passed in could change.
+     * </p>
+     *
+     * @param actions The {@link Action} list that will be processed to filter out initial moves
+     *
+     * @return The {@link Move} that sets the initial placement for a trader
+     */
+    public static @NonNull List<@NonNull Action>
+                    preProcessBeforeCollapse(@NonNull List<@NonNull Action> actions) {
+        // initial move actions are special move actions with null as source trader
+        // they are equivalent as Start in legacy market and needs to be sent
+        // before resize
+        List<Action> initialMove = new ArrayList<@NonNull Action>();
+        initialMove = actions.stream()
+                        .filter(m -> m instanceof Move && ((Move)m).getSource() == null)
+                        .collect(Collectors.toList());
+        // remove all initial moves from the action list because otherwise collapsing may
+        // merge initial move with regular move if both have same action target
+        actions.removeAll(initialMove);
+        return initialMove;
+    }
 } // end Action interface

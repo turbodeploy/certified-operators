@@ -130,20 +130,33 @@ public final class AnalysisServer {
                                                     isShopTogetherEnabled, isProvisionEnabled,
                                                     isSuspensionEnabled, isResizeEnabled);
 
+                    // Filter the initial moves and remove them from the action list which will go
+                    // through collapsing. The variable "actions" being passed into this method will
+                    // change
+                    List<@NonNull Action> initialMoves = Action.preProcessBeforeCollapse(actions);
+                    // Collapsing all actions except for the initial moves
+                    List<@NonNull Action> collapsedActionsWithoutInitialMoves =
+                                    Action.collapsed(actions);
                     // Group all actions of same type together, use the following order when
-                    // sending actions to the legacy market side, provision->resize->move->
-                    // suspension. We need to do it because action collapsing does not guarantee
-                    // provision comes before move actions, as a result, move actions may have
-                    // destination with null OID! As for resize, it should also come before move
-                    // because a trader may require resize down itself to fit in the destination.
+                    // sending actions to the legacy market side, provision->move(initial move)
+                    // ->resize->move-> suspension. We need to do it because after action
+                    // collapsing, the order of actions are not maintained, it does not guarantee
+                    // provision comes before move actions, which means move actions may have
+                    // destination with null OID! The initial placement for any trader is
+                    // considered as "Start" in legacy market and start will set up consumes
+                    // relation on legacy market. Resize would require the consumes to be populated
+                    // so initial moves have to be sent before any resize. As for resize, it should
+                    // be sent before non-initial moves because a trader may require resize down
+                    // itself to fit in the destination.
                     // TODO: we should be careful when we want to generate actions for main
-                    // market instead of plan, because collapsing and reordering the actions will
+                    // market instead of plan, because collapsing and grouping actions will
                     // break the inherent cohesion between different actions. For example, to
                     // execute a suspension, it would often require move actions which move the
                     // customer out of the suspension candidate.
                     @NonNull
                     List<@NonNull Action> reorderedActions =
-                                    Action.groupByActionType(actions);
+                                    Action.groupActionsByTypeAndReorderBeforeSending(initialMoves,
+                                                    collapsedActionsWithoutInitialMoves);
 
                     long stop = System.nanoTime();
 
