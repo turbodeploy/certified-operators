@@ -91,9 +91,10 @@ public class Provision {
                 }
                 ledger.addTraderIncomeStatement(provisionedTrader);
 
-                if (!evaluateAcceptanceCriteria(economy, ledger, origRoI, mostProfitableTrader)) {
-                    logger.error("Provisioning of a new trader fif not cause the RoI of the "
-                                    + "modelSeller to go down");
+                if (!evaluateAcceptanceCriteria(economy, ledger, origRoI, mostProfitableTrader,
+                                provisionedTrader)) {
+                    logger.error("rollback provisioning of a new trader if the RoI of the "
+                                    + "modelSeller does not go down");
                     // remove IncomeStatement from ledger and rollback actions
                     rollBackActionAndUpdateLedger(ledger, provisionedTrader, actions);
                     break;
@@ -169,16 +170,20 @@ public class Provision {
      * @param ledger - the ledger that holds the incomeStatement of the trader whose ROI is checked
      * @param origRoI - the RoI of the mostProfitableTrader before placements
      * @param mostProfitableTrader - {@link Trader} that had the highest RoI and was selected to be cloned
+     * @param provisionedTrader - {@link Trader} that has been provisioned in this economy
      *
-     * @return true - if the current ROI of the <b>mostProfitableTrader</b> is less than the <b>origROI</b>
+     * @return true - if (a) the current ROI of the <b>mostProfitableTrader</b> is less than or
+     * equal to the <b>origROI</b> and (b) and the newly provisioned trader has customers
+     *
      */
     public static boolean evaluateAcceptanceCriteria(Economy economy, Ledger ledger, double origRoI
-                                                                , Trader mostProfitableTrader) {
+                                                                , Trader mostProfitableTrader
+                                                                , Trader provisionedTrader ) {
 
         ledger.calculateExpRevForSeller(economy, mostProfitableTrader);
         // check if the RoI of the mostProfitableTrader has decreased after cloning
         return ledger.getTraderIncomeStatements().get(mostProfitableTrader.getEconomyIndex())
-                        .getROI() < origRoI;
+                        .getROI() <= origRoI && !provisionedTrader.getCustomers().isEmpty();
     }
 
     /**
