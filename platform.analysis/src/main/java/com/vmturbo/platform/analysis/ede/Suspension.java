@@ -36,11 +36,6 @@ public class Suspension extends Supply {
 
     @Override
     public Trader findTheBestTraderToEngage(Market market, Ledger ledger) {
-        // if there is only on active seller and it has customers, we should not
-        // consider suspending it
-        if (market.getActiveSellers().size() == 1 && !market.getBuyers().isEmpty()) {
-            return null;
-        }
         Trader leastProfitableTrader = null;
         double roiOfLeastProfitableTrader = Double.MAX_VALUE;
         for (Trader seller : market.getActiveSellers()) {
@@ -114,7 +109,11 @@ public class Suspension extends Supply {
     public void findSoleProviders(Economy economy) {
         for (Trader trader : economy.getTraders()) {
             List<Market> marketsAsSeller = economy.getMarketsAsSeller(trader);
-            if (marketsAsSeller.stream().anyMatch((m) -> m.getActiveSellers().size() == 1)) {
+            // being the sole provider means the seller is the only active seller in a market
+            // and it has some customers which are not the shoppinglists from guaranteed buyers
+            if (marketsAsSeller.stream().anyMatch((m) -> m.getActiveSellers().size() == 1 && m
+                            .getBuyers().stream()
+                            .anyMatch(sl -> !sl.getBuyer().getSettings().isGuaranteedBuyer()))) {
                 soleProviders.add(trader);
             }
         }
