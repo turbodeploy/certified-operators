@@ -130,22 +130,24 @@ public class BootstrapSupply {
         List<@NonNull Action> actions = new ArrayList<>();
         List<Action> provisionRelatedActionList = new ArrayList<>();
         Action provisionAction = null;
+        Trader provisionedSeller = null;
         // clone one of the sellers that fits
         Trader sellerThatFits = findSellerThatFitsBuyer (shoppingList, candidateSellers);
         if (sellerThatFits != null) {
             // cloning some seller that can fit this buyer
             provisionAction = new ProvisionBySupply(economy, sellerThatFits).take();
+            provisionedSeller = ((ProvisionBySupply)provisionAction).getProvisionedSeller();
             provisionRelatedActionList.add(provisionAction);
         } else if (!candidateSellers.isEmpty()){
             // if none of the existing sellers can fit the shoppingList, provision customSeller
             // TODO: maybe pick a better seller to base the clone out off
             provisionAction = new ProvisionByDemand(economy, shoppingList,candidateSellers.get(0))
                                     .take();
+            provisionedSeller = ((ProvisionByDemand)provisionAction).getProvisionedSeller();
             provisionRelatedActionList.add(provisionAction.take());
             // provisionByDemand does not place the new newClone provisionedTrader. We try finding
             // best seller, if none exists, we create one
-            economy.getMarketsAsBuyer(((ProvisionByDemand)provisionAction).getProvisionedSeller())
-               .entrySet().forEach(entry -> {
+            economy.getMarketsAsBuyer(provisionedSeller).entrySet().forEach(entry -> {
                         ShoppingList sl = entry.getKey();
                         List<Trader> sellers = entry.getValue().getActiveSellers();
                         QuoteMinimizer minimizer =
@@ -171,8 +173,7 @@ public class BootstrapSupply {
             return actions;
         }
         actions.addAll(provisionRelatedActionList);
-        actions.add(new Move(economy,shoppingList,((ProvisionBySupply)provisionAction)
-                        .getProvisionedSeller()).take());
+        actions.add(new Move(economy, shoppingList, provisionedSeller).take());
         return actions;
     }
 
