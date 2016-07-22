@@ -8,6 +8,7 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
+import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 
@@ -43,7 +44,8 @@ public final class Utility {
     public static void addShoppingListForGuaranteedBuyers(Economy economy, List<ShoppingList> participations,
                                                           Trader targetSeller) {
         for (ShoppingList modelShoppingList :participations) {
-            ShoppingList newShoppingList = economy.addBasketBought(modelShoppingList.getBuyer(),
+            Trader guranteedBuyer = modelShoppingList.getBuyer();
+            ShoppingList newShoppingList = economy.addBasketBought(guranteedBuyer,
                                                                    modelShoppingList.getBasket());
             newShoppingList.move(targetSeller);
             newShoppingList.setMovable(modelShoppingList.isMovable());
@@ -54,8 +56,19 @@ public final class Utility {
                 // update capacity of the targetSeller because we force to construct the buyer-seller relation
                 CommoditySold commSold =
                                 targetSeller.getCommoditySold(modelShoppingList.getBasket().get(i));
-                commSold.setCapacity(commSold.getCapacity() + modelShoppingList.getQuantity(i));
+                commSold.setQuantity(commSold.getQuantity() + modelShoppingList.getQuantity(i));
+                // resize the commSold by the guaranteedBuyer to the amount that it buys
+                CommoditySold commSoldByBuyer = null;
+                for (CommoditySpecification cs : guranteedBuyer.getBasketSold()) {
+                    if (cs.getBaseType() == modelShoppingList.getBasket().get(i).getBaseType()) {
+                        commSoldByBuyer = guranteedBuyer.getCommoditiesSold().get(i);
+                        break;
+                    }
+                }
+                commSoldByBuyer.setCapacity(commSoldByBuyer.getCapacity() + modelShoppingList
+                                .getQuantity(i));
             }
+
         }
     }
 

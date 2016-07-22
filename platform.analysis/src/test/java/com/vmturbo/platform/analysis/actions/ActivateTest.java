@@ -65,7 +65,7 @@ public class ActivateTest {
         //t3 is the model seller
         Trader t3 = e1.addTrader(0, TraderState.ACTIVE, basket, EMPTY);
 
-        Trader b1 = e1.addTrader(0, TraderState.ACTIVE, EMPTY, basket);
+        Trader b1 = e1.addTrader(0, TraderState.ACTIVE, basket, basket);
         b1.getSettings().setGuaranteedBuyer(true);
         //b1 is a guaranteedBuyer for t2 and t3
         ShoppingList s2 = e1.addBasketBought(b1, basket);

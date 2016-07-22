@@ -140,6 +140,9 @@ public class ProvisionByDemand implements Action {
                                 .getPeakQuantity(i) / desiredUtil));
         }
 
+        Utility.addShoppingListForGuaranteedBuyers(getEconomy(),
+                        Utility.findShoppingListForGuaranteedBuyer(getEconomy(), getModelSeller()), getProvisionedSeller());
+
         return this;
     }
 
