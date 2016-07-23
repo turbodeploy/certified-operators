@@ -115,7 +115,8 @@ public class Resizer {
     /**
      * Given the desired effective capacity find the new effective capacity taking into
      * consideration capacity increment. For resize up limit the increase to what the seller
-     * can provide. For resize down, limit the decrease to the maximum used.
+     * can provide. For resize down, limit the decrease to the maximum used (i.e.,
+     * max(maxQuantity, peakQuantity)).
      *
      * @param desiredCapacity The calculated new desired effective capacity.
      * @param commoditySold The {@link CommoditySold commodity} sold to obtain peak usage,
@@ -289,6 +290,7 @@ public class Resizer {
                                 .get(boughtIndex));
                 double changeInCapacity = newCapacity - commoditySold.getCapacity();
                 if (changeInCapacity < 0) {
+                    // resize down
                     DoubleBinaryOperator decrementFunction =
                                             typeOfCommBought.getDecrementFunction();
                     double oldQuantityBought = shoppingList.getQuantities()[boughtIndex];
@@ -298,6 +300,7 @@ public class Resizer {
                     commSoldBySeller.setQuantity(commSoldBySeller.getQuantity() -
                                                  (oldQuantityBought - decrementedQuantity));
                 } else {
+                    // resize up
                     DoubleBinaryOperator incrementFunction =
                                     typeOfCommBought.getIncrementFunction();
                     double oldQuantityBought = shoppingList.getQuantities()[boughtIndex];
