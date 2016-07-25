@@ -12,6 +12,7 @@ import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ledger.IncomeStatement;
 import com.vmturbo.platform.analysis.ledger.Ledger;
@@ -70,8 +71,10 @@ public class Provision {
 
                 double origRoI = ledger.getTraderIncomeStatements().get(
                                 mostProfitableTrader.getEconomyIndex()).getROI();
-                // TODO: we could reactivate a suspended seller, currently I just clone most profitable seller
-                ProvisionBySupply provisionAction = new ProvisionBySupply(economy, mostProfitableTrader);
+                // TODO: we could reactivate a suspended seller, currently I just clone most
+                // profitable seller
+                ProvisionBySupply provisionAction = new ProvisionBySupply(economy,
+                                mostProfitableTrader);
                 actions.add(provisionAction.take());
 
                 Trader provisionedTrader = provisionAction.getProvisionedSeller();
@@ -81,7 +84,8 @@ public class Provision {
                 while (keepRunning) {
                     List<Action> placeActions;
                     if (isShopTogether) {
-                        placeActions = ede.breakDownCompoundMove(Placement.shopTogetherDecisions(economy));
+                        placeActions = ede.breakDownCompoundMove(Placement.shopTogetherDecisions
+                                        (economy));
                     } else {
                         placeActions = Placement.placementDecisions(economy);
                     }
@@ -107,9 +111,11 @@ public class Provision {
     }
 
     /**
-     * returns true if the traders in the market are in the right conditions for them to be considered for cloning
+     * returns true if the traders in the market are in the right conditions for them to be
+     * considered for cloning
      *
-     * @param market - the market whose seller ROIs are checked to verify profitability that implies eligibility to clone
+     * @param market - the market whose seller ROIs are checked to verify profitability that implies
+     * eligibility to clone
      *
      * @return true if the sellers in the market are eligible for cloning and false otherwise
      */
@@ -120,13 +126,32 @@ public class Provision {
             return false;
         }
 
+        List<ShoppingList> buyers = market.getBuyers();
         // there is no point in cloning in a market with a single buyer
-        if (market.getBuyers().size() == 1) {
+        if (buyers.size() == 1) {
             return false;
         }
 
+        // if all buyers in this market are guaranteedBuyers, it should not cause a clone to happen
+        if (buyers.stream().allMatch(sl -> sl.getBuyer().getSettings().isGuaranteedBuyer())) {
+            return false;
+        }
+
+        // FALSE if there is no seller with greater than 1 customer shopping in this market who is
+        // not a guaranteedBuyer
+        boolean areBuyersPresent = false;
+        for (Trader seller : market.getActiveSellers()) {
+            if (seller.getCustomers().stream().filter(sl -> buyers.contains(sl) && !sl.getBuyer()
+                            .getSettings().isGuaranteedBuyer()).count() > 1) {
+                areBuyersPresent = true;
+                break;
+            }
+        }
+        if (!areBuyersPresent)
+            return false;
+
         // if none of the buyers in this market are movable, provisioning a seller is not beneficial
-        if (!market.getBuyers().stream().anyMatch(shoppingList -> shoppingList.isMovable())) {
+        if (!buyers.stream().anyMatch(shoppingList -> shoppingList.isMovable())) {
             return false;
         }
 
@@ -134,9 +159,11 @@ public class Provision {
     }
 
     /**
-     * returns best trader to clone after checking the engagement criteria for all traders of a particular market
+     * returns best trader to clone after checking the engagement criteria for all traders of a
+     * particular market
      *
-     * @param market - the market whose seller ROIs are checked to verify profitability that implies eligibility to clone
+     * @param market - the market whose seller ROIs are checked to verify profitability that
+     * implies eligibility to clone
      * @param ledger - the ledger that holds the incomeStatement of the trader whose ROI is checked
      *
      * @return the mostProfitableTrader if there is one that can clone and NULL otherwise
@@ -146,9 +173,11 @@ public class Provision {
         Trader mostProfitableTrader = null;
         double roiOfRichestTrader = 0;
         for (Trader seller : market.getActiveSellers()) {
-            // consider only sellers that have more than 1 movable buyer
-            if (seller.getSettings().isCloneable() && seller.getCustomers().size() > 1) {
-                IncomeStatement traderIS = ledger.getTraderIncomeStatements().get(seller.getEconomyIndex());
+            // consider only sellers that have more than 1 movable non-guaranteedBuyer
+            if (seller.getSettings().isCloneable() && seller.getCustomers().stream().filter(sl ->
+                    !sl.getBuyer().getSettings().isGuaranteedBuyer()).count() > 1) {
+                IncomeStatement traderIS = ledger.getTraderIncomeStatements().get(seller
+                                .getEconomyIndex());
                 // return the most profitable trader
                 double roiOfTrader = traderIS.getROI();
                 // TODO: evaluate if checking for movable customers earlier is beneficial
@@ -169,7 +198,8 @@ public class Provision {
      * @param economy - the {@link Economy} where <b>mostProfitableTrader</b> participates in
      * @param ledger - the ledger that holds the incomeStatement of the trader whose ROI is checked
      * @param origRoI - the RoI of the mostProfitableTrader before placements
-     * @param mostProfitableTrader - {@link Trader} that had the highest RoI and was selected to be cloned
+     * @param mostProfitableTrader - {@link Trader} that had the highest RoI and was selected to be
+     * cloned
      * @param provisionedTrader - {@link Trader} that has been provisioned in this economy
      *
      * @return true - if (a) the current ROI of the <b>mostProfitableTrader</b> is less than or
@@ -181,9 +211,13 @@ public class Provision {
                                                                 , Trader provisionedTrader ) {
 
         ledger.calculateExpRevForSeller(economy, mostProfitableTrader);
-        // check if the RoI of the mostProfitableTrader has decreased after cloning
+        // check if the RoI of the mostProfitableTrader has not increased cloning and if
+        // nonGuaranteedBuyers have moved into the host
         return ledger.getTraderIncomeStatements().get(mostProfitableTrader.getEconomyIndex())
-                        .getROI() <= origRoI && !provisionedTrader.getCustomers().isEmpty();
+                        .getROI() <= origRoI && !provisionedTrader.getCustomers().isEmpty() &&
+                        provisionedTrader.getCustomers().stream().anyMatch(sl -> !sl.getBuyer()
+                                        .getSettings().isGuaranteedBuyer());
+
     }
 
     /**
