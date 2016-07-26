@@ -23,6 +23,9 @@ message StartDiscoveredTopology {
     // The flag to indicate if the flag to indicate if shoptogether placement decisions for
     // the economy should be used
     required bool enableShopTogether = 1;
+
+    // Economy Settings
+    required EconomySettingsTO economySettings = 2;
 }
 
 // The intention is that the Analysis server will keep information in a staging area and atomically

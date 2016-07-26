@@ -2,6 +2,16 @@ package com.vmturbo.platform.analysis.protobuf;
 
 import "PriceFunctionDTOs.proto";
 
+// The settings associated with the Economy.
+// The acceptable commodity utilization range used in resize engage criteria.
+message EconomySettingsTO {
+    // Resize up only if utilization is above the upper watermark.
+    required float rightsize_upper_watermark = 1;
+
+    // Do not resize down if utilization is above the lower watermark.
+    required float rightsize_lower_watermark = 2;
+}
+
 // A detailed, exact statement of particulars about a commodity a buyer needs to buy (but may not be
 // currently buying) or a seller is able to sell (but may not be currently selling).
 message CommoditySpecificationTO {
