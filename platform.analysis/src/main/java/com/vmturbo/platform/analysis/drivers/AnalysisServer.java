@@ -19,8 +19,10 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.EconomySettings;
 import com.vmturbo.platform.analysis.ede.Ede;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisCommand;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.EconomySettingsTO;
 import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.translators.AnalysisToProtobuf;
 import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
@@ -99,6 +101,11 @@ public final class AnalysisServer {
                     isShopTogetherEnabled =
                                     command.getStartDiscoveredTopology().getEnableShopTogether();
                     currentPartial_.clear();
+                    EconomySettingsTO settingsTO = command.getStartDiscoveredTopology()
+                                    .getEconomySettings();
+                    EconomySettings settings = currentPartial_.getEconomy().getSettings();
+                    settings.setRightSizeLower(settingsTO.getRightsizeLowerWatermark());
+                    settings.setRightSizeUpper(settingsTO.getRightsizeUpperWatermark());
                     break;
                 case DISCOVERED_TRADER:
                     ProtobufToAnalysis.addTrader(currentPartial_, command.getDiscoveredTrader());

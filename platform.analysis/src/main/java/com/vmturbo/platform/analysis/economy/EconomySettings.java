@@ -32,6 +32,9 @@ public final class EconomySettings {
     private int minSellersForParallelism_ = DEFAULT_MIN_SELLERS_FOR_PARALLELISM;
     private double quoteFactor_ = DEFAULT_QUOTE_FACTOR;
 
+    private double rightSizeLower_;
+    private double rightSizeUpper_;
+
     // Constructors
 
     /**
@@ -106,6 +109,30 @@ public final class EconomySettings {
     public EconomySettings setQuoteFactor(double quoteFactor) {
         checkArgument(quoteFactor >= 0, "quoteFactor = " + quoteFactor);
         quoteFactor_ = quoteFactor;
+        return this;
+    }
+
+    @Pure
+    public double getRightSizeLower(@ReadOnly EconomySettings this) {
+        return rightSizeLower_;
+    }
+
+    @Pure
+    public double getRightSizeUpper(@ReadOnly EconomySettings this) {
+        return rightSizeUpper_;
+    }
+
+    @Deterministic
+    public EconomySettings setRightSizeLower(double rightSizeLower) {
+        checkArgument(rightSizeLower >= 0, "rightSizeLower = " + rightSizeLower);
+        rightSizeLower_ = rightSizeLower;
+        return this;
+    }
+
+    @Deterministic
+    public EconomySettings setRightSizeUpper(double rightSizeUpper) {
+        checkArgument(rightSizeUpper >= 0, "rightSizeUpper = " + rightSizeUpper);
+        rightSizeUpper_ = rightSizeUpper;
         return this;
     }
 

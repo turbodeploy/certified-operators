@@ -17,6 +17,7 @@ import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommodityResizeSpecification;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.EconomySettings;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ledger.IncomeStatement;
@@ -72,7 +73,7 @@ public class Resizer {
                     continue;
                 }
                 IncomeStatement incomeStatement = incomeStatements.get(soldIndex);
-                if (evaluateEngageCriteria(incomeStatement)) {
+                if (evaluateEngageCriteria(economy, commoditySold, incomeStatement)) {
                     double expenses = incomeStatement.getExpenses();
                     if (expenses > 0) {
                         try {
@@ -206,10 +207,22 @@ public class Resizer {
     /**
      * Checks the resize engagement criteria for a commodity.
      *
-     * @param commodityIS The income statement of the commodity sold.
+     * @param economy The {@link Economy}.
+     * @param commoditySold The {@link CommoditySold commodity} that is to be resized.
+     * @param commodityIS The {@link IncomeStatement income statement} of the commodity sold.
      * @return Whether the commodity meets the resize engagement criterion.
      */
-    public static boolean evaluateEngageCriteria(IncomeStatement commodityIS) {
+    public static boolean evaluateEngageCriteria(Economy economy, CommoditySold resizeCommodity,
+                                                 IncomeStatement commodityIS) {
+        double currentCapacity = resizeCommodity.getEffectiveCapacity();
+        double currentQuantity = resizeCommodity.getQuantity();
+        double currentUtilization = currentQuantity / currentCapacity;
+        // do not resize if utilization is in acceptable range
+        EconomySettings settings = economy.getSettings();
+        if (currentUtilization > settings.getRightSizeLower() &&
+            currentUtilization < settings.getRightSizeUpper()) {
+            return false;
+        }
         return (commodityIS.getROI() > commodityIS.getMaxDesiredROI()) ||
                         (commodityIS.getROI() < commodityIS.getMinDesiredROI());
     }
