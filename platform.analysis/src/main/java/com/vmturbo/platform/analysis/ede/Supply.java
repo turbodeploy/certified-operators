@@ -64,13 +64,23 @@ public abstract class Supply {
                                                 ((ProvisionBySupply)actions.get(0))
                                                                 .getProvisionedSeller()
                                                 : null;
+                boolean keepRunning = true;
                 // run placement after cloning or suspending a trader to the economy
-                if (isShopTogether) {
-                    actions.addAll(ede.breakDownCompoundMove(
-                                    Placement.shopTogetherDecisions(economy)));
-                } else {
-                    actions.addAll(Placement.placementDecisions(economy));
+                // stop running until there is either no more move being generated
+                // or Reconfigure
+                while (keepRunning) {
+                    List<Action> moveActions = new ArrayList<Action>();
+                    if (isShopTogether) {
+                        moveActions = ede.breakDownCompoundMove(
+                                        Placement.shopTogetherDecisions(economy));
+                    } else {
+                        moveActions = Placement.placementDecisions(economy);
+                    }
+                    keepRunning = !(moveActions.isEmpty() || moveActions.stream()
+                                    .allMatch(a -> a.getClass().getName().contains("Reconfigure")));
+                    actions.addAll(moveActions);
                 }
+
                 ledger.calculateExpAndRevForSellersInMarket(economy, market);
 
                 if (!evalAcceptanceCriteriaForMarket(market, ledger, bestTraderToEngage)) {
