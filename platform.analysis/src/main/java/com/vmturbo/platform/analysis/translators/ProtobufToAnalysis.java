@@ -95,7 +95,7 @@ public final class ProtobufToAnalysis {
             case PROJECT_SECOND:
                 return (a, b) -> b;
             case DELTA:
-                return (a, b) -> a + (b - a);
+                return (a, b) -> a + b;
             case UPDATINGFUNCTIONTYPE_NOT_SET:
             default:
                 throw new IllegalArgumentException("input = " + input);
@@ -310,7 +310,7 @@ public final class ProtobufToAnalysis {
             case PROVISION_BY_SUPPLY:
                 return new ProvisionBySupply(economy, trader.apply(input.getProvisionBySupply().getModelSeller()));
             case RESIZE:
-                return new Resize(trader.apply(input.getResize().getSellingTrader()),
+                return new Resize(economy,trader.apply(input.getResize().getSellingTrader()),
                     commoditySpecification(input.getResize().getSpecification()),
                     input.getResize().getOldCapacity(),input.getResize().getNewCapacity());
             case ACTIONTYPE_NOT_SET:

@@ -43,12 +43,14 @@ public class ResizeTest {
     @Test
     @Parameters(method = "parametersForTestResize_NormalInput")
     @TestCaseName("Test #{index}: new Resize({0},{1},{2},{3})")
-    public final void testResize_4_NormalInput(@NonNull Trader sellingTrader,
-            @NonNull CommoditySpecification resizedCommodity, double oldCapacity, double newCapacity) {
-        @NonNull Resize resize = new Resize(sellingTrader, resizedCommodity, oldCapacity, newCapacity);
+    public final void testResize_4_NormalInput(@NonNull Economy economy,
+            @NonNull Trader sellingTrader, @NonNull CommoditySpecification resizedCommodity,
+            double oldCapacity, double newCapacity) {
+        @NonNull Resize resize = new Resize(economy, sellingTrader, resizedCommodity,
+                                            oldCapacity, newCapacity);
 
         assertSame(sellingTrader, resize.getSellingTrader());
-        assertSame(resizedCommodity, resize.getResizedCommodity());
+        assertSame(resizedCommodity, resize.getResizedCommoditySpec());
         assertEquals(oldCapacity, resize.getOldCapacity(), 0f);
         assertEquals(newCapacity, resize.getNewCapacity(), 0f);
     }
@@ -56,14 +58,15 @@ public class ResizeTest {
     @Test
     @Parameters(method = "parametersForTestResize_NormalInput")
     @TestCaseName("Test #{index}: new Resize({0},{1},{3}) with old capacity = {2}")
-    public final void testResize_3_NormalInput(@NonNull Trader sellingTrader,
-            @NonNull CommoditySpecification resizedCommodity, double oldCapacity, double newCapacity) {
+    public final void testResize_3_NormalInput(@NonNull Economy economy,
+            @NonNull Trader sellingTrader, @NonNull CommoditySpecification resizedCommodity,
+            double oldCapacity, double newCapacity) {
         sellingTrader.getCommoditySold(resizedCommodity).setCapacity(oldCapacity);
 
-        @NonNull Resize resize = new Resize(sellingTrader, resizedCommodity, newCapacity);
+        @NonNull Resize resize = new Resize(economy, sellingTrader, resizedCommodity, newCapacity);
 
         assertSame(sellingTrader, resize.getSellingTrader());
-        assertSame(resizedCommodity, resize.getResizedCommodity());
+        assertSame(resizedCommodity, resize.getResizedCommoditySpec());
         assertEquals(oldCapacity, resize.getOldCapacity(), 0f);
         assertEquals(newCapacity, resize.getNewCapacity(), 0f);
     }
@@ -81,7 +84,7 @@ public class ResizeTest {
                 for (CommoditySpecification specification : basketSold) {
                     for (double oldCapacity : validCapacities) {
                         for (double newCapacity : validCapacities) {
-                            testCases.add(new Object[]{trader,specification,oldCapacity,newCapacity});
+                            testCases.add(new Object[]{economy,trader,specification,oldCapacity,newCapacity});
                         }
                     }
                 }
@@ -94,18 +97,18 @@ public class ResizeTest {
     @Test(expected = IllegalArgumentException.class)
     @Parameters(method = "parametersForTestResize_InvalidInput")
     @TestCaseName("Test #{index}: new Resize({0},{1},{2},{3})")
-    public final void testResize_4_InvalidInput(@NonNull Trader sellingTrader,
+    public final void testResize_4_InvalidInput(@NonNull Economy economy, @NonNull Trader sellingTrader,
             @NonNull CommoditySpecification resizedCommodity, double oldCapacity, double newCapacity) {
-        new Resize(sellingTrader, resizedCommodity, oldCapacity, newCapacity);
+        new Resize(economy, sellingTrader, resizedCommodity, oldCapacity, newCapacity);
     }
 
     @Test(expected = RuntimeException.class) // It should be either IllegalArgumentException or NullPointerException.
     @Parameters(method = "parametersForTestResize_InvalidInput")
     @TestCaseName("Test #{index}: new Resize({0},{1},{3}) with old capacity = {2}")
-    public final void testResize_3_InvalidInput(@NonNull Trader sellingTrader,
+    public final void testResize_3_InvalidInput(@NonNull Economy economy, @NonNull Trader sellingTrader,
             @NonNull CommoditySpecification resizedCommodity, double oldCapacity, double newCapacity) {
         sellingTrader.getCommoditySold(resizedCommodity).setCapacity(oldCapacity);
-        new Resize(sellingTrader, resizedCommodity, newCapacity);
+        new Resize(economy, sellingTrader, resizedCommodity, newCapacity);
     }
 
     @SuppressWarnings("unused") // it is used reflectively
@@ -121,7 +124,7 @@ public class ResizeTest {
                 for (int invalidSpec = size ; invalidSpec < specifications.length ; ++invalidSpec) {
                     for (double oldCapacity : validCapacities) {
                         for (double newCapacity : validCapacities) {
-                            testCases.add(new Object[]{trader,specifications[invalidSpec],oldCapacity,newCapacity});
+                            testCases.add(new Object[]{economy,trader,specifications[invalidSpec],oldCapacity,newCapacity});
                         }
                     }
                 }
@@ -136,7 +139,7 @@ public class ResizeTest {
                 for (CommoditySpecification specification : basketSold) {
                     for (double oldCapacity : invalidCapacities) {
                         for (double newCapacity : validCapacities) {
-                            testCases.add(new Object[]{trader,specification,oldCapacity,newCapacity});
+                            testCases.add(new Object[]{economy,trader,specification,oldCapacity,newCapacity});
                         }
                     }
                 }
@@ -151,7 +154,7 @@ public class ResizeTest {
                 for (CommoditySpecification specification : basketSold) {
                     for (double oldCapacity : validCapacities) {
                         for (double newCapacity : invalidCapacities) {
-                            testCases.add(new Object[]{trader,specification,oldCapacity,newCapacity});
+                            testCases.add(new Object[]{economy,trader,specification,oldCapacity,newCapacity});
                         }
                     }
                 }
@@ -183,9 +186,9 @@ public class ResizeTest {
         oids.put(t2, "id2");
 
         return new Object[][]{
-            {new Resize(t1, specifications[0], 10, 15),oid,"<action type=\"resize\" sellingTrader=\"id1\" "
+            {new Resize(e1, t1, specifications[0], 10, 15),oid,"<action type=\"resize\" sellingTrader=\"id1\" "
                 + "commoditySpecification=\"<0, 0, MAX_VALUE>\" oldCapacity=\"10.0\" newCapacity=\"15.0\" />"},
-            {new Resize(t2, specifications[1], 0, 1),oid,"<action type=\"resize\" sellingTrader=\"id2\" "
+            {new Resize(e1, t2, specifications[1], 0, 1),oid,"<action type=\"resize\" sellingTrader=\"id2\" "
                 + "commoditySpecification=\"<2, 0, MAX_VALUE>\" oldCapacity=\"0.0\" newCapacity=\"1.0\" />"}
         };
     }
@@ -193,9 +196,9 @@ public class ResizeTest {
     @Test
     @Parameters(method = "parametersForTestResize_NormalInput")
     @TestCaseName("Test #{index}: new Resize({0},{1},{2},{3}).take().rollback()")
-    public final void testTakeRollback(@NonNull Trader sellingTrader,
+    public final void testTakeRollback(@NonNull Economy economy, @NonNull Trader sellingTrader,
             @NonNull CommoditySpecification resizedCommodity, double oldCapacity, double newCapacity) {
-        @NonNull Resize resize = new Resize(sellingTrader, resizedCommodity, oldCapacity, newCapacity);
+        @NonNull Resize resize = new Resize(economy, sellingTrader, resizedCommodity, oldCapacity, newCapacity);
 
         assertSame(resize, resize.take());
         assertEquals(newCapacity, sellingTrader.getCommoditySold(resizedCommodity).getCapacity(), 0f);
@@ -217,6 +220,7 @@ public class ResizeTest {
     @SuppressWarnings("unused") // it is used reflectively
     private static Object[] parametersForTestDebugDescription() {
         @NonNull LegacyTopology topology1 = new LegacyTopology();
+        @NonNull Economy e1 = (Economy) topology1.getEconomy();
 
         Trader t1 = topology1.addTrader("id1","VM1","VM",TraderState.ACTIVE, Arrays.asList("VCPU"));
         CommoditySpecification cs1 = new CommoditySpecification(topology1.getCommodityTypes().getId("VCPU"));
@@ -226,13 +230,13 @@ public class ResizeTest {
         t2.getCommoditySold(cs2).setCapacity(100);
 
         return new Object[][]{
-            {new Resize(t1,cs1,5),topology1,
+            {new Resize(e1,t1,cs1,5),topology1,
                 "Resize VCPU of VM1 [id1] (#0) up from 2.0 to 5.0."},
-            {new Resize(t1,cs1,1),topology1,
+            {new Resize(e1,t1,cs1,1),topology1,
                 "Resize VCPU of VM1 [id1] (#0) down from 2.0 to 1.0."},
-            {new Resize(t2,cs2,200),topology1,
+            {new Resize(e1,t2,cs2,200),topology1,
                 "Resize MEM of Host2 [id2] (#1) up from 100.0 to 200.0."},
-            {new Resize(t2,cs2,50),topology1,
+            {new Resize(e1,t2,cs2,50),topology1,
                 "Resize MEM of Host2 [id2] (#1) down from 100.0 to 50.0."},
             // TODO: update test when we figure out how to get correct type!
         };
@@ -250,6 +254,7 @@ public class ResizeTest {
     @SuppressWarnings("unused") // it is used reflectively
     private static Object[] parametersForTestDebugReason() {
         @NonNull LegacyTopology topology1 = new LegacyTopology();
+        @NonNull Economy e1 = (Economy) topology1.getEconomy();
 
         Trader t1 = topology1.addTrader("id1","VM1","VM",TraderState.ACTIVE, Arrays.asList("VCPU"));
         CommoditySpecification cs1 = new CommoditySpecification(topology1.getCommodityTypes().getId("VCPU"));
@@ -259,10 +264,10 @@ public class ResizeTest {
         t2.getCommoditySold(cs2).setCapacity(100);
 
         return new Object[][]{
-            {new Resize(t1,cs1,5),topology1, "To ensure performance."},
-            {new Resize(t1,cs1,1),topology1, "To improve efficiency."},
-            {new Resize(t2,cs2,200),topology1, "To ensure performance."},
-            {new Resize(t2,cs2,50),topology1, "To improve efficiency."},
+            {new Resize(e1,t1,cs1,5),topology1, "To ensure performance."},
+            {new Resize(e1,t1,cs1,1),topology1, "To improve efficiency."},
+            {new Resize(e1,t2,cs2,200),topology1, "To ensure performance."},
+            {new Resize(e1,t2,cs2,50),topology1, "To improve efficiency."},
             // TODO: update test when we figure out how to get correct type!
         };
     }
@@ -283,9 +288,9 @@ public class ResizeTest {
         ShoppingList shop2 = e.addBasketBought(t2, b2);
         shop2.move(t3);
 
-        Resize resize1 = new Resize(t3, new CommoditySpecification(200), 200);
-        Resize resize2 = new Resize(t3, new CommoditySpecification(200), 200);
-        Resize resize3 = new Resize(t1, new CommoditySpecification(100), 200);
+        Resize resize1 = new Resize(e, t3, new CommoditySpecification(200), 200);
+        Resize resize2 = new Resize(e, t3, new CommoditySpecification(200), 200);
+        Resize resize3 = new Resize(e, t1, new CommoditySpecification(100), 200);
         return new Object[][] {{resize1, resize2, true}, {resize1, resize3, false}};
     }
 

@@ -90,12 +90,11 @@ public class Resizer {
                                                commoditySold.getEffectiveCapacity()) != 0) {
                                 double newCapacity = newEffectiveCapacity /
                                            commoditySold.getSettings().getUtilizationUpperBound();
-                                Resize resizeAction = new Resize(seller, basketSold.get(soldIndex),
-                                                                 newCapacity);
+                                Resize resizeAction = new Resize(economy, seller,
+                                                basketSold.get(soldIndex), commoditySold,
+                                                soldIndex, newCapacity);
+                                resizeAction.take();
                                 actions.add(resizeAction);
-                                resizeDependentCommodities(economy, seller, commoditySold,
-                                                           soldIndex, newCapacity);
-                                commoditySold.setCapacity(newCapacity);
                             }
                         } catch (Exception bisectionException) {
                             logger.error(bisectionException.getMessage() + " : Capacity "
@@ -269,7 +268,7 @@ public class Resizer {
      * @param commoditySoldIndex The index of {@link CommoditySold commodity} sold in basket.
      * @param newCapacity The new capacity.
      */
-    private static void resizeDependentCommodities(@NonNull Economy economy,
+    public static void resizeDependentCommodities(@NonNull Economy economy,
              @NonNull Trader seller, @NonNull CommoditySold commoditySold, int commoditySoldIndex,
                                                                               double newCapacity) {
         List<CommodityResizeSpecification> typeOfCommsBought = economy.getResizeDependency(
@@ -305,7 +304,7 @@ public class Resizer {
                                     typeOfCommBought.getIncrementFunction();
                     double oldQuantityBought = shoppingList.getQuantities()[boughtIndex];
                     double incrementedQuantity = incrementFunction.applyAsDouble(
-                                                           oldQuantityBought, newCapacity);
+                                                           oldQuantityBought, changeInCapacity);
                     shoppingList.getQuantities()[boughtIndex] = incrementedQuantity;
                     commSoldBySeller.setQuantity(commSoldBySeller.getQuantity() +
                                                  (incrementedQuantity - oldQuantityBought));

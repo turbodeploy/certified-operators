@@ -126,9 +126,9 @@ public class ActionTest {
         double cap3 = 40;
         Trader t = EC.addTrader(TYPE_VM,  TraderState.ACTIVE, BASKET);
         t.getCommoditiesSold().get(0).setCapacity(cap0);
-        Resize r1 = new Resize(t, new CommoditySpecification(0), cap1);
-        Resize r2 = new Resize(t, new CommoditySpecification(0), cap2);
-        Resize r3 = new Resize(t, new CommoditySpecification(0), cap3);
+        Resize r1 = new Resize(EC, t, new CommoditySpecification(0), cap1);
+        Resize r2 = new Resize(EC, t, new CommoditySpecification(0), cap2);
+        Resize r3 = new Resize(EC, t, new CommoditySpecification(0), cap3);
         List<Action> actions = Lists.newArrayList(r1, r2, r3);
         List<Action> collapsed = Action.collapsed(actions);
         assertEquals(1, collapsed.size());
@@ -136,7 +136,7 @@ public class ActionTest {
         assertEquals(cap3, collapsedResize.getNewCapacity(), 1e-5);
         assertEquals(cap0, collapsedResize.getOldCapacity(), 1e-5);
         // Add another Resize so that the actions get cancelled
-        Resize r4 = new Resize(t, new CommoditySpecification(0), cap0);
+        Resize r4 = new Resize(EC, t, new CommoditySpecification(0), cap0);
         actions.add(r4);
         collapsed = Action.collapsed(actions);
         assertTrue(collapsed.isEmpty());
@@ -147,11 +147,11 @@ public class ActionTest {
         Trader t1 = EC.addTrader(TYPE_VM,  TraderState.ACTIVE, BASKET);
         Trader t2 = EC.addTrader(TYPE_VM,  TraderState.ACTIVE, BASKET);
         // Resize the commodity of a target
-        Resize r1_0 = new Resize(t1, new CommoditySpecification(0), 10);
+        Resize r1_0 = new Resize(EC, t1, new CommoditySpecification(0), 10);
         // Resize a different commodity on the same target
-        Resize r1_1 = new Resize(t1, new CommoditySpecification(1), 10);
+        Resize r1_1 = new Resize(EC, t1, new CommoditySpecification(1), 10);
         // Resize a different target
-        Resize r2 = new Resize(t2, new CommoditySpecification(1), 10);
+        Resize r2 = new Resize(EC, t2, new CommoditySpecification(1), 10);
         List<Action> actions = Lists.newArrayList(r1_0, r1_1, r2);
         List<Action> collapsedActions = Action.collapsed(actions);
         assertEquals(actions, collapsedActions);
@@ -165,14 +165,14 @@ public class ActionTest {
         CommoditySpecification C1 = new CommoditySpecification(1);
         double t2c1InitialCapacity = 100;
         t2.getCommoditySold(C1).setCapacity(t2c1InitialCapacity);
-        Resize r1c0_1 = new Resize(t1, C0, 10);
-        Resize r1c0_2 = new Resize(t1, C0, 20);
-        Resize r1c1_1 = new Resize(t1, C1, 30);
-        Resize r1c1_2 = new Resize(t1, C1, 40);
-        Resize r2c0_1 = new Resize(t2, C0, 50);
-        Resize r2c0_2 = new Resize(t2, C0, 60);
-        Resize r2c1_1 = new Resize(t2, C1, 50);
-        Resize r2c1_2 = new Resize(t2, C1, t2c1InitialCapacity);
+        Resize r1c0_1 = new Resize(EC, t1, C0, 10);
+        Resize r1c0_2 = new Resize(EC, t1, C0, 20);
+        Resize r1c1_1 = new Resize(EC, t1, C1, 30);
+        Resize r1c1_2 = new Resize(EC, t1, C1, 40);
+        Resize r2c0_1 = new Resize(EC, t2, C0, 50);
+        Resize r2c0_2 = new Resize(EC, t2, C0, 60);
+        Resize r2c1_1 = new Resize(EC, t2, C1, 50);
+        Resize r2c1_2 = new Resize(EC, t2, C1, t2c1InitialCapacity);
         List<Action> actions = Lists.newArrayList(
                 r1c0_1,
                 r2c1_1,
@@ -193,17 +193,17 @@ public class ActionTest {
         assertEquals(3, collapsedActions.size());
         Resize collapsed1 = (Resize) collapsedActions.get(0);
         assertEquals(t1, collapsed1.getSellingTrader());
-        assertEquals(C0, collapsed1.getResizedCommodity());
+        assertEquals(C0, collapsed1.getResizedCommoditySpec());
         assertEquals(20, collapsed1.getNewCapacity(), 1e-5);
 
         Resize collapsed2 = (Resize) collapsedActions.get(1);
         assertEquals(t2, collapsed2.getSellingTrader());
-        assertEquals(C0, collapsed2.getResizedCommodity());
+        assertEquals(C0, collapsed2.getResizedCommoditySpec());
         assertEquals(60, collapsed2.getNewCapacity(), 1e-5);
 
         Resize collapsed3 = (Resize) collapsedActions.get(2);
         assertEquals(t1, collapsed3.getSellingTrader());
-        assertEquals(C1, collapsed3.getResizedCommodity());
+        assertEquals(C1, collapsed3.getResizedCommoditySpec());
         assertEquals(40, collapsed3.getNewCapacity(), 1e-5);
     }
 }

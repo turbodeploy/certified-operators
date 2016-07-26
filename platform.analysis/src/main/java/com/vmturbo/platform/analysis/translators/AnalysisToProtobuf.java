@@ -357,7 +357,7 @@ public final class AnalysisToProtobuf {
             Resize resize = (Resize)input;
             builder.setResize(ResizeTO.newBuilder()
                             .setSellingTrader(traderOid.get(resize.getSellingTrader()))
-                .setSpecification(commoditySpecificationTO(resize.getResizedCommodity()))
+                .setSpecification(commoditySpecificationTO(resize.getResizedCommoditySpec()))
                 .setOldCapacity((float)resize.getOldCapacity())
                 .setNewCapacity((float)resize.getNewCapacity()));
         } else if (input instanceof CompoundMove) {

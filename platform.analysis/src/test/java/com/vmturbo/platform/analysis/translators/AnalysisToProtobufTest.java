@@ -224,7 +224,7 @@ public class AnalysisToProtobufTest {
                                         .build())
                         .build();
 
-        Action resize = new Resize(pm1, CPU, 500);
+        Action resize = new Resize(e, pm1, CPU, 500);
         ActionTO resizeTO = ActionTO.newBuilder().setResize(ResizeTO.newBuilder()
                         .setSellingTrader(2l).setNewCapacity(500).setOldCapacity(15)
                         .setSpecification(
