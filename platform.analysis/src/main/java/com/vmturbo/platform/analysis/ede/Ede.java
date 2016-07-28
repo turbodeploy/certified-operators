@@ -3,6 +3,7 @@ package com.vmturbo.platform.analysis.ede;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.platform.analysis.actions.Action;
@@ -28,6 +29,8 @@ public final class Ede {
      */
     public Ede() {}
 
+    static final Logger logger = Logger.getLogger(Ede.class);
+
     // Methods
 
     /**
@@ -43,8 +46,9 @@ public final class Ede {
     public @NonNull List<@NonNull Action> generateActions(@NonNull Economy economy,
                     boolean isShopTogether, boolean isProvision, boolean isSuspension,
                     boolean isResize) {
-        @NonNull List<Action> actions = new ArrayList<>();
 
+        logger.info("Plan Started.");
+        @NonNull List<Action> actions = new ArrayList<>();
         // provision enough Traders so that plan starts with enough supply for all demand to be
         // placed and comply to the user-defined utilization upper bound constraints.
         actions.addAll(BootstrapSupply.bootstrapSupplyDecisions(economy));
@@ -78,6 +82,8 @@ public final class Ede {
         if (isResize) {
             actions.addAll(Resizer.resizeDecisions(economy, ledger));
         }
+        logger.info("Plan completed with " + actions.size() + " actions.");
+
         return actions;
     }
 
