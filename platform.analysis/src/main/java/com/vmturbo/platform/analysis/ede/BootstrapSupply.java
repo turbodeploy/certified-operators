@@ -231,8 +231,7 @@ public class BootstrapSupply {
             }
             CommoditySold commSold = modelSeller.getCommoditiesSold().get(soldIndex);
 
-            if (buyerShoppingList.getQuantities()[boughtIndex] > commSold.getCapacity() * commSold
-                                    .getEffectiveCapacity()) {
+            if (buyerShoppingList.getQuantities()[boughtIndex] > commSold.getEffectiveCapacity()) {
                 return false;
             }
         }
