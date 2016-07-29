@@ -8,7 +8,6 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
-import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 
@@ -50,23 +49,30 @@ public final class Utility {
             newShoppingList.move(targetSeller);
             newShoppingList.setMovable(modelShoppingList.isMovable());
             // TODO: discuss and decide what should be a reasonable quantity for new seller and guaranteed buyer
-            for (int i = 0; i < modelShoppingList.getBasket().size(); ++i) {
-                newShoppingList.setQuantity(i, modelShoppingList.getQuantity(i));
-                newShoppingList.setPeakQuantity(i, modelShoppingList.getPeakQuantity(i));
-                // update capacity of the targetSeller because we force to construct the buyer-seller relation
+            for (int boughtIndex = 0; boughtIndex < modelShoppingList.getBasket().size();
+                            ++boughtIndex) {
+                newShoppingList.setQuantity(boughtIndex, modelShoppingList
+                                .getQuantity(boughtIndex));
+                newShoppingList.setPeakQuantity(boughtIndex, modelShoppingList
+                                .getPeakQuantity(boughtIndex));
+                // update quantity of the targetSeller to construct the buyer-seller relation
                 CommoditySold commSold =
-                                targetSeller.getCommoditySold(modelShoppingList.getBasket().get(i));
-                commSold.setQuantity(commSold.getQuantity() + modelShoppingList.getQuantity(i));
+                                targetSeller.getCommoditySold(modelShoppingList.getBasket()
+                                                .get(boughtIndex));
+                commSold.setQuantity(commSold.getQuantity() + modelShoppingList
+                                                .getQuantity(boughtIndex));
                 // resize the commSold by the guaranteedBuyer to the amount that it buys
                 CommoditySold commSoldByBuyer = null;
-                for (CommoditySpecification cs : guranteedBuyer.getBasketSold()) {
-                    if (cs.getBaseType() == modelShoppingList.getBasket().get(i).getBaseType()) {
-                        commSoldByBuyer = guranteedBuyer.getCommoditiesSold().get(i);
+                for (int commSoldIndex = 0; commSoldIndex < guranteedBuyer.getBasketSold().size()
+                                ; commSoldIndex++) {
+                    if (guranteedBuyer.getBasketSold().get(commSoldIndex).getBaseType()
+                                    == modelShoppingList.getBasket().get(boughtIndex).getBaseType()) {
+                        commSoldByBuyer = guranteedBuyer.getCommoditiesSold().get(commSoldIndex);
                         break;
                     }
                 }
                 commSoldByBuyer.setCapacity(commSoldByBuyer.getCapacity() + modelShoppingList
-                                .getQuantity(i));
+                                .getQuantity(boughtIndex));
             }
 
         }
