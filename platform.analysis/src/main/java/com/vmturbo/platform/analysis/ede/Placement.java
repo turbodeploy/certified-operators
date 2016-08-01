@@ -30,6 +30,39 @@ public class Placement {
 
     /**
      * Returns a list of recommendations to optimize the placement of all traders in the economy.
+     * With a preference given to the shoppingLists in the list "sls"
+     *
+     * <p>
+     *  As a result of invoking this method, the economy may be changed.
+     * </p>
+     *
+     * @param economy - the economy whose traders' placement we want to optimize
+     * @param sls - list of shoppingLists that denotes buyers that are to shop before the others
+     */
+    public static @NonNull List<@NonNull Action> placementDecisions(@NonNull Economy economy,
+                    List<ShoppingList> sls) {
+
+        @NonNull List<Action> actions = new ArrayList<>();
+
+        // run placement on specific buyers in a selected market
+        for (ShoppingList sl : sls) {
+            actions.addAll(generatePlacementDecisions(economy, sl));
+        }
+        // iterate over all markets, i.e., all sets of providers selling a specific basket
+        for (Market market : economy.getMarkets()) {
+            // iterate over all buyers in this market that havnt already shopped
+            for (@NonNull ShoppingList shoppingList : market.getBuyers()) {
+                if (sls.contains(shoppingList)) {
+                    continue;
+                }
+                actions.addAll(generatePlacementDecisions(economy, shoppingList));
+            }
+        }
+        return actions;
+    }
+
+    /**
+     * Returns a list of recommendations to optimize the placement of all traders in the economy.
      *
      * <p>
      *  As a result of invoking this method, the economy may be changed.
@@ -38,42 +71,48 @@ public class Placement {
      * @param economy - the economy whose traders' placement we want to optimize
      */
     public static @NonNull List<@NonNull Action> placementDecisions(@NonNull Economy economy) {
+        return Placement.placementDecisions(economy, new ArrayList<>());
+    }
 
+    /**
+     * Returns a list of recommendations to optimize the placement of a trader with a
+     * particular shoppingList
+     *
+     * <p>
+     *  As a result of invoking this method, the economy may be changed.
+     * </p>
+     *
+     * @param economy - the economy whose traders' placement we want to optimize
+     * @param shoppingList - The {@link ShoppingList} for which we try to find the best destination
+     */
+    public static @NonNull List<@NonNull Action> generatePlacementDecisions(@NonNull Economy economy
+                                , ShoppingList shoppingList) {
         @NonNull List<Action> actions = new ArrayList<>();
+        // if there are no sellers in the market, the buyer is misconfigured
+        final @NonNull List<@NonNull Trader> sellers = economy.getMarket(shoppingList).getActiveSellers();
+        if (!shoppingList.isMovable())
+            return actions;
+        if (sellers.isEmpty()) {
+            actions.add(new Reconfigure(economy, shoppingList).take());
+            return actions;
+        }
 
-        // iterate over all markets, i.e., all sets of providers selling a specific basket
-        for (Market market : economy.getMarkets()) {
+        // get cheapest quote
+        final QuoteMinimizer minimizer =
+            (sellers.size() < economy.getSettings().getMinSellersForParallelism()
+                ? sellers.stream() : sellers.parallelStream())
+            .collect(()->new QuoteMinimizer(economy,shoppingList),
+                QuoteMinimizer::accept, QuoteMinimizer::combine);
 
-            // iterate over all buyers in this market
-            for (@NonNull ShoppingList shoppingList : market.getBuyers()) {
+        final double cheapestQuote = minimizer.getBestQuote();
+        final Trader cheapestSeller = minimizer.getBestSeller();
+        final double currentQuote = minimizer.getCurrentQuote();
 
-                // if there are no sellers in the market, the buyer is misconfigured
-                final @NonNull List<@NonNull Trader> sellers = market.getActiveSellers();
-                if (!shoppingList.isMovable())
-                    continue;
-                if (sellers.isEmpty()) {
-                    actions.add(new Reconfigure(economy, shoppingList).take());
-                    continue;
-                }
-
-                // get cheapest quote
-                final QuoteMinimizer minimizer =
-                    (sellers.size() < economy.getSettings().getMinSellersForParallelism()
-                        ? sellers.stream() : sellers.parallelStream())
-                    .collect(()->new QuoteMinimizer(economy,shoppingList),
-                        QuoteMinimizer::accept, QuoteMinimizer::combine);
-
-                final double cheapestQuote = minimizer.getBestQuote();
-                final Trader cheapestSeller = minimizer.getBestSeller();
-                final double currentQuote = minimizer.getCurrentQuote();
-
-                // move, and update economy and state
-                if (cheapestQuote < currentQuote * economy.getSettings().getQuoteFactor()) {
-                    // create recommendation, add it to the result list and  update the economy to
-                    // reflect the decision
-                    actions.add(new Move(economy,shoppingList,cheapestSeller).take());
-                }
-            }
+        // move, and update economy and state
+        if (cheapestQuote < currentQuote * economy.getSettings().getQuoteFactor()) {
+            // create recommendation, add it to the result list and  update the economy to
+            // reflect the decision
+            actions.add(new Move(economy,shoppingList,cheapestSeller).take());
         }
         return actions;
     }

@@ -84,10 +84,12 @@ public class Provision {
                 while (keepRunning) {
                     List<Action> placeActions;
                     if (isShopTogether) {
-                        placeActions = ede.breakDownCompoundMove(Placement.shopTogetherDecisions
-                                        (economy));
+                        placeActions = ede.breakDownCompoundMove(Placement
+                                        .shopTogetherDecisions(economy));
                     } else {
-                        placeActions = Placement.placementDecisions(economy);
+                        placeActions = Placement.placementDecisions(economy,
+                                        new ArrayList<ShoppingList>(mostProfitableTrader
+                                                        .getCustomers()));
                     }
                     keepRunning = !(placeActions.isEmpty() || placeActions.stream().allMatch(a ->
                                         a.getClass().getName().contains("Reconfigure")));
@@ -139,15 +141,15 @@ public class Provision {
 
         // FALSE if there is no seller with greater than 1 customer shopping in this market who is
         // not a guaranteedBuyer
-        boolean areBuyersPresent = false;
+        boolean multipleBuyersInSupplier = false;
         for (Trader seller : market.getActiveSellers()) {
             if (seller.getCustomers().stream().filter(sl -> buyers.contains(sl) && !sl.getBuyer()
                             .getSettings().isGuaranteedBuyer()).count() > 1) {
-                areBuyersPresent = true;
+                multipleBuyersInSupplier = true;
                 break;
             }
         }
-        if (!areBuyersPresent)
+        if (!multipleBuyersInSupplier)
             return false;
 
         // if none of the buyers in this market are movable, provisioning a seller is not beneficial
@@ -172,10 +174,12 @@ public class Provision {
 
         Trader mostProfitableTrader = null;
         double roiOfRichestTrader = 0;
+        List<ShoppingList> buyers = market.getBuyers();
         for (Trader seller : market.getActiveSellers()) {
             // consider only sellers that have more than 1 movable non-guaranteedBuyer
             if (seller.getSettings().isCloneable() && seller.getCustomers().stream().filter(sl ->
-                    !sl.getBuyer().getSettings().isGuaranteedBuyer()).count() > 1) {
+                    buyers.contains(sl) && !sl.getBuyer().getSettings().isGuaranteedBuyer())
+                        .count() > 1) {
                 IncomeStatement traderIS = ledger.getTraderIncomeStatements().get(seller
                                 .getEconomyIndex());
                 // return the most profitable trader
@@ -211,13 +215,12 @@ public class Provision {
                                                                 , Trader provisionedTrader ) {
 
         ledger.calculateExpRevForSeller(economy, mostProfitableTrader);
-        // check if the RoI of the mostProfitableTrader has not increased cloning and if
-        // nonGuaranteedBuyers have moved into the host
+        // check if the RoI of the mostProfitableTrader after cloning is less or equal to that
+        // before cloning, and that at least one nonGuaranteedBuyer has moved into the new host
         return ledger.getTraderIncomeStatements().get(mostProfitableTrader.getEconomyIndex())
                         .getROI() <= origRoI && !provisionedTrader.getCustomers().isEmpty() &&
                         provisionedTrader.getCustomers().stream().anyMatch(sl -> !sl.getBuyer()
                                         .getSettings().isGuaranteedBuyer());
-
     }
 
     /**
