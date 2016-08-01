@@ -66,19 +66,18 @@ public abstract class Supply {
                                                 : null;
                 boolean keepRunning = true;
                 // run placement after cloning or suspending a trader to the economy
-                // stop running until there is either no more move being generated
-                // or Reconfigure
+                // continue invoking Placement Decisions until there are no Move actions generated
                 while (keepRunning) {
-                    List<Action> moveActions = new ArrayList<Action>();
+                    List<Action> placementActions = new ArrayList<Action>();
                     if (isShopTogether) {
-                        moveActions = ede.breakDownCompoundMove(
+                        placementActions = ede.breakDownCompoundMove(
                                         Placement.shopTogetherDecisions(economy));
                     } else {
-                        moveActions = Placement.placementDecisions(economy);
+                        placementActions = Placement.placementDecisions(economy);
                     }
-                    keepRunning = !(moveActions.isEmpty() || moveActions.stream()
+                    keepRunning = !(placementActions.isEmpty() || placementActions.stream()
                                     .allMatch(a -> a.getClass().getName().contains("Reconfigure")));
-                    actions.addAll(moveActions);
+                    actions.addAll(placementActions);
                 }
 
                 ledger.calculateExpAndRevForSellersInMarket(economy, market);
