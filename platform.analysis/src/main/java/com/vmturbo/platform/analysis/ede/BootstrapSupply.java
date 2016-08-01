@@ -148,10 +148,10 @@ public class BootstrapSupply {
         } else if (!candidateSellers.isEmpty()){
             // if none of the existing sellers can fit the shoppingList, provision customSeller
             // TODO: maybe pick a better seller to base the clone out off
-            provisionAction = new ProvisionByDemand(economy, shoppingList,candidateSellers.get(0))
+            provisionAction = new ProvisionByDemand(economy, shoppingList, candidateSellers.get(0))
                                     .take();
             provisionedSeller = ((ProvisionByDemand)provisionAction).getProvisionedSeller();
-            provisionRelatedActionList.add(provisionAction.take());
+            provisionRelatedActionList.add(provisionAction);
             // provisionByDemand does not place the new newClone provisionedTrader. We try finding
             // best seller, if none exists, we create one
             economy.getMarketsAsBuyer(provisionedSeller).entrySet().forEach(entry -> {
@@ -167,8 +167,13 @@ public class BootstrapSupply {
                             provisionRelatedActionList.addAll(provisionTraderToFitBuyer (economy,
                                             sl, sellers));
                         } else {
-                            provisionRelatedActionList.add(new Move(economy, sl, minimizer
-                                            .getBestSeller()).take());
+                            // place the shopping list of the new clone to the best supplier
+                            // this is equivalent as Start in legacy market
+                            if (!sl.isMovable()) {
+                                sl.move(minimizer.getBestSeller());
+                                Move.updateQuantities(economy, sl, minimizer.getBestSeller(),
+                                                (sold, bought) -> sold + bought);
+                            }
                         }
             });
         } else {
@@ -180,7 +185,11 @@ public class BootstrapSupply {
             return actions;
         }
         actions.addAll(provisionRelatedActionList);
-        actions.add(new Move(economy, shoppingList, provisionedSeller).take());
+        // Note: This move action is to place the newly provisioned trader to a proper
+        // supplier. We do not add it to the "actions" variable that returns to M1, because
+        // M1 can not handle moving the shoppinglist for new trader, as it has no notion of
+        // the new trader, nor its shoppinglist, so here we execute the move in M2 internally
+        new Move(economy, shoppingList, provisionedSeller).take();
         return actions;
     }
 

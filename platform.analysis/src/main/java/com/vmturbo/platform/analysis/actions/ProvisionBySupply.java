@@ -98,8 +98,8 @@ public class ProvisionBySupply implements Action {
                                                                             entry.getValue().getBasket());
             if (!entry.getKey().isMovable()) {
                 shoppingList.move(entry.getKey().getSupplier());
-                // TODO: also update quantities sold by supplier
-                // or maybe we should provision first and then place in a separate action...
+                Move.updateQuantities(getEconomy(), shoppingList, shoppingList.getSupplier(),
+                                (sold, bought) -> sold + bought);
             }
 
             // Copy movable attribute

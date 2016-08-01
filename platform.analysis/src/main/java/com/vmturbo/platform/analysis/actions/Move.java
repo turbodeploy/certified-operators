@@ -186,7 +186,8 @@ public class Move extends MoveBase implements Action { // inheritance for code r
      * @param defaultCombinator A binary operator (old quantity sold, quantity bought) -> new quantity sold.
      */
     // TODO: should we cover moves of inactive traders?
-    static void updateQuantities(@NonNull UnmodifiableEconomy economy, @NonNull ShoppingList shoppingList,
+    public static void updateQuantities(@NonNull UnmodifiableEconomy economy,
+                    @NonNull ShoppingList shoppingList,
             @Nullable Trader traderToUpdate, @NonNull DoubleBinaryOperator defaultCombinator) {
         @NonNull Basket basketBought = economy.getMarket(shoppingList).getBasket();
 
