@@ -34,6 +34,7 @@ import com.vmturbo.platform.analysis.protobuf.ActionDTOs.CompoundMoveTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.DeactivateTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionByDemandTO;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionByDemandTO.CommodityNewCapacityEntry;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionBySupplyTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ReconfigureTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ResizeTO;
@@ -210,7 +211,10 @@ public class AnalysisToProtobufTest {
                                         ProvisionByDemandTO.newBuilder().setModelBuyer(20l)
                                         .setProvisionedSeller(-1)
                                         .setModelSeller(3l)
-                                        .build())
+                                        .addCommodityNewCapacityEntry(CommodityNewCapacityEntry.newBuilder()
+                                                                                        .setCommodityBaseType(
+                                                                                                        1000)
+                                                        .setNewCapacity(0).build()))
                         .build();
 
         Action provisionBySupply = new ProvisionBySupply(e, pm1);
