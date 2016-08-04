@@ -154,8 +154,14 @@ public class ProvisionByDemand implements Action {
             getProvisionedSeller().getCommoditiesSold().get(i).setCapacity(
                             newCapacity);
             // commodityNewCapacityMap_  keeps information about commodity sold and its
-            // new capacity.
-            commodityNewCapacityMap_.put(basketSold.get(i).getBaseType(), newCapacity);
+            // new capacity, if there are several commodities of same base type, pick the
+            // biggest capacity.
+            commodityNewCapacityMap_.put(basketSold.get(i).getBaseType(),
+                            commodityNewCapacityMap_.containsKey(
+                                            basketSold.get(i).getBaseType()) ? Math.max(
+                                                            commodityNewCapacityMap_.get(basketSold
+                                                                            .get(i).getBaseType()),
+                                                            newCapacity) : newCapacity);
         }
 
         Utility.addShoppingListForGuaranteedBuyers(getEconomy(),
