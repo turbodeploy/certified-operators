@@ -2,7 +2,9 @@ package com.vmturbo.platform.analysis.actions;
 
 import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
@@ -32,6 +34,9 @@ public class ProvisionByDemand implements Action {
     private final @NonNull ShoppingList modelBuyer_; // TODO: also add source market? Desired state?
     private final @NonNull Trader modelSeller_;
     private @Nullable Trader provisionedSeller_;
+    // a map from commodity base type to its new capacity which will satisfy the demand
+    private @NonNull Map<@NonNull Integer, @NonNull Double> commodityNewCapacityMap_ =
+                    new HashMap<>();
 
     // Constructors
 
@@ -86,6 +91,15 @@ public class ProvisionByDemand implements Action {
         return modelSeller_;
     }
 
+    /**
+     * Returns the modifiable map from the commodity base type to its new capacity after generating
+     * a provisionByDemand decision.
+     */
+    @Pure
+    public @NonNull Map<@NonNull Integer, @NonNull Double> getCommodityNewCapacityMap() {
+        return commodityNewCapacityMap_;
+    }
+
     @Override
     public @NonNull String serialize(@NonNull Function<@NonNull Trader, @NonNull String> oid) {
         return new StringBuilder().append("<action type=\"provisionByDemand\" modelBuyer=\"")
@@ -135,9 +149,13 @@ public class ProvisionByDemand implements Action {
         double desiredUtil = (sellerSettings.getMaxDesiredUtil() + sellerSettings
                                     .getMinDesiredUtil()) / 2;
         for (int i = 0 ; i < basketSold.size() ; ++i) {
+            double newCapacity = Math.max(getModelBuyer().getQuantity(i) / desiredUtil,
+                            getModelBuyer().getPeakQuantity(i) / desiredUtil);
             getProvisionedSeller().getCommoditiesSold().get(i).setCapacity(
-                Math.max(getModelBuyer().getQuantity(i) / desiredUtil, getModelBuyer()
-                                .getPeakQuantity(i) / desiredUtil));
+                            newCapacity);
+            // commodityNewCapacityMap_  keeps information about commodity sold and its
+            // new capacity.
+            commodityNewCapacityMap_.put(basketSold.get(i).getBaseType(), newCapacity);
         }
 
         Utility.addShoppingListForGuaranteedBuyers(getEconomy(),
@@ -150,7 +168,7 @@ public class ProvisionByDemand implements Action {
     public @NonNull Action rollback() {
         getEconomy().removeTrader(provisionedSeller_);
         provisionedSeller_ = null;
-
+        commodityNewCapacityMap_.clear();
         return this;
     }
 
