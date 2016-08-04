@@ -38,7 +38,8 @@ public class Deactivate extends StateChangeBase implements Action { // inheritan
      */
     public Deactivate(@NonNull Economy economy, @NonNull Trader target, @NonNull Market sourceMarket) {
         super(target,sourceMarket);
-        shoppingListForGuaranteedBuyers.addAll(Utility.findShoppingListForGuaranteedBuyer(economy, target));
+        shoppingListForGuaranteedBuyers.addAll(GuaranteedBuyerHelper.findShoppingListForGuaranteedBuyer(
+                                                economy, target));
         economy_ = economy;
 
     }
@@ -71,7 +72,8 @@ public class Deactivate extends StateChangeBase implements Action { // inheritan
         getTarget().changeState(TraderState.INACTIVE);
         // when deactivate an activate trader, remove the shoppingList associated with its guaranteed buyers
         if (oldState == TraderState.ACTIVE) {
-            Utility.removeShoppingListForGuaranteedBuyers(getEconomy(), shoppingListForGuaranteedBuyers, getTarget());
+            GuaranteedBuyerHelper.removeShoppingListForGuaranteedBuyers(getEconomy(),
+                            shoppingListForGuaranteedBuyers, getTarget());
         }
         return this;
     }
@@ -86,7 +88,9 @@ public class Deactivate extends StateChangeBase implements Action { // inheritan
         getTarget().changeState(TraderState.ACTIVE);
         // when roll back a deactivate action, adds back shoppingList for the target and its guaranteed buyers
         if (oldState == TraderState.INACTIVE) {
-            Utility.addShoppingListForGuaranteedBuyers(getEconomy(), shoppingListForGuaranteedBuyers, getTarget());
+            GuaranteedBuyerHelper.addShoppingListForGuaranteedBuyers(getEconomy(), shoppingListForGuaranteedBuyers,
+                            getTarget(), shoppingListForGuaranteedBuyers.size() != 0 ? shoppingListForGuaranteedBuyers
+                                            .get(0).getBasket() : null);
         }
         return this;
     }

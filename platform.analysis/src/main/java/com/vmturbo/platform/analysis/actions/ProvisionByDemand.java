@@ -109,9 +109,21 @@ public class ProvisionByDemand implements Action {
 
     @Override
     public @NonNull Action take() {
-        @NonNull Basket basketSold = getModelBuyer().getBasket();
-        provisionedSeller_ = getEconomy().addTrader(modelSeller_.getType(),
-                                TraderState.ACTIVE, basketSold);
+        List<ShoppingList> shoppingLists = GuaranteedBuyerHelper.findShoppingListForGuaranteedBuyer(
+                                            getEconomy(), getModelSeller());
+        // if there is a guaranteed buyer, find the commodities it buys, and for those commodities
+        // create a new CommSpec with a new commodityType. This map returned is used to update the
+        // commodities that the clone sells and what the guaranttedBuyer buys
+        Map<CommoditySpecification, CommoditySpecification> newCommSpecMap = shoppingLists.size() != 0 ?
+                        GuaranteedBuyerHelper.createCommSpecWithNewKeys(shoppingLists.get(0)) : null;
+        // use the commToReplaceMap to transform the basket that the clone sells. eg, make the clone
+        // allocation commodities with new keys
+        Basket basketSold = shoppingLists.size() != 0 ? GuaranteedBuyerHelper.transformBasket(
+                            newCommSpecMap, getModelSeller().getBasketSold()) : getModelSeller()
+                                .getBasketSold();
+        provisionedSeller_ = getEconomy().addTrader(getModelSeller().getType(), TraderState.ACTIVE,
+                                    basketSold);
+
         // adding commodities to be bought by the provisionedSeller and resizing them
         getEconomy().getMarketsAsBuyer(modelSeller_).keySet().forEach(shoppingList -> {
             ShoppingList sl = getEconomy().addBasketBought(provisionedSeller_, shoppingList
@@ -148,25 +160,28 @@ public class ProvisionByDemand implements Action {
         TraderSettings sellerSettings = getProvisionedSeller().getSettings();
         double desiredUtil = (sellerSettings.getMaxDesiredUtil() + sellerSettings
                                     .getMinDesiredUtil()) / 2;
-        for (int i = 0 ; i < basketSold.size() ; ++i) {
-            double newCapacity = Math.max(getModelBuyer().getQuantity(i) / desiredUtil,
-                            getModelBuyer().getPeakQuantity(i) / desiredUtil);
-            getProvisionedSeller().getCommoditiesSold().get(i).setCapacity(
-                            newCapacity);
+        // resize the commodities sold by the clone to fit the buyer
+        for (CommoditySpecification commSpec : getModelBuyer().getBasket()) {
+            int indexOfSoldComm = basketSold.indexOf(commSpec.getType());
+            double newCapacity = Math.max(getModelBuyer().getPeakQuantity(
+                            getModelBuyer().getBasket().indexOf(commSpec)) / desiredUtil,
+                            modelSeller_.getCommoditiesSold().get(indexOfSoldComm).getCapacity());
+            provisionedSeller_.getCommoditiesSold().get(indexOfSoldComm).setCapacity(newCapacity);
             // commodityNewCapacityMap_  keeps information about commodity sold and its
             // new capacity, if there are several commodities of same base type, pick the
             // biggest capacity.
-            commodityNewCapacityMap_.put(basketSold.get(i).getBaseType(),
-                            commodityNewCapacityMap_.containsKey(
-                                            basketSold.get(i).getBaseType()) ? Math.max(
-                                                            commodityNewCapacityMap_.get(basketSold
-                                                                            .get(i).getBaseType()),
-                                                            newCapacity) : newCapacity);
+            int baseType = basketSold.get(indexOfSoldComm).getBaseType();
+            commodityNewCapacityMap_.put(baseType,commodityNewCapacityMap_
+                            .containsKey(baseType) ? Math.max(commodityNewCapacityMap_
+                                            .get(baseType), newCapacity) : newCapacity);
         }
 
-        Utility.addShoppingListForGuaranteedBuyers(getEconomy(),
-                        Utility.findShoppingListForGuaranteedBuyer(getEconomy(), getModelSeller()), getProvisionedSeller());
-
+        // if the trader being cloned is a provider for a gauranteedBuyer, then the clone should
+        // be a provider for that guranteedBuyer as well
+        if (newCommSpecMap != null) {
+            GuaranteedBuyerHelper.storeGuaranteedbuyerInfo(shoppingLists, provisionedSeller_, new Basket(
+                            newCommSpecMap.values()));
+        }
         return this;
     }
 

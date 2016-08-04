@@ -56,7 +56,9 @@ public class ProvisionByDemandTest {
         ShoppingList b2 = e1.addBasketBought(e1.addTrader(0, TraderState.INACTIVE, EMPTY), EMPTY);
         ShoppingList b3 = e1.addBasketBought(e1.addTrader(0, TraderState.ACTIVE, EMPTY),
             new Basket(new CommoditySpecification(0)));
-        Trader model = e1.addTrader(0, TraderState.ACTIVE, EMPTY);
+        // model that sells the commodities that the buyers shop for (though not the needed amount)
+        Trader model = e1.addTrader(0, TraderState.ACTIVE, new Basket(new CommoditySpecification(0),new CommoditySpecification(1)));
+        model.getCommoditiesSold().get(1).setCapacity(Double.MAX_VALUE).setQuantity(0);
         b3.setQuantity(0, 5).setPeakQuantity(0, 6.5);
 
         ShoppingList b4 = e1.addBasketBought(e1.addTrader(0, TraderState.ACTIVE, EMPTY),

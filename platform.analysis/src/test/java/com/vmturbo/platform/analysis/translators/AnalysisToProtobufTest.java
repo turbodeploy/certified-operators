@@ -214,7 +214,7 @@ public class AnalysisToProtobufTest {
                                         .addCommodityNewCapacityEntry(CommodityNewCapacityEntry.newBuilder()
                                                                                         .setCommodityBaseType(
                                                                                                         1000)
-                                                        .setNewCapacity(0).build()))
+                                                        .setNewCapacity(25).build()))
                         .build();
 
         Action provisionBySupply = new ProvisionBySupply(e, pm1);

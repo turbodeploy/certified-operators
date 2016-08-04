@@ -61,6 +61,16 @@ public final class Basket implements Comparable<@NonNull @ReadOnly Basket>, Iter
         contents_ = set.toArray(new CommoditySpecification[set.size()]);
     }
 
+    /**
+     * Constructs a new Basket containing the commodity specifications sold by origBasket
+     *
+     * @param origBasket The basket whose commodity specifications that will become the contents of
+     *                   the new basket.
+     */
+    public Basket(@NonNull @ReadOnly Basket origBasket) {
+        this(Arrays.asList(origBasket.contents_));
+    }
+
     // Methods
 
     /**

@@ -1,5 +1,6 @@
 package com.vmturbo.platform.analysis.actions;
 
+import java.util.List;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
@@ -11,6 +12,7 @@ import com.google.common.hash.Hashing;
 
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 
@@ -73,8 +75,10 @@ public class Activate extends StateChangeBase implements Action { // inheritance
         checkArgument(!getTarget().getState().isActive());
         getTarget().changeState(TraderState.ACTIVE);
         // when activate an inactive trader, update its relation with guaranteed buyers if any
-        Utility.addShoppingListForGuaranteedBuyers(getEconomy(),
-                        Utility.findShoppingListForGuaranteedBuyer(getEconomy(), getModelSeller()), getTarget());
+        List<ShoppingList> shoppingLists = GuaranteedBuyerHelper.findShoppingListForGuaranteedBuyer(
+                                            getEconomy(), getModelSeller());
+        GuaranteedBuyerHelper.addShoppingListForGuaranteedBuyers(getEconomy(), shoppingLists, getTarget(),
+                        shoppingLists.size() != 0 ? shoppingLists.get(0).getBasket() : null);
         return this;
     }
 
@@ -86,8 +90,9 @@ public class Activate extends StateChangeBase implements Action { // inheritance
         checkArgument(getTarget().getState().isActive());
         getTarget().changeState(TraderState.INACTIVE);
         // when roll back an activate action, remove the shoppingList for the target and its guaranteed buyers
-        Utility.removeShoppingListForGuaranteedBuyers(getEconomy(),
-                        Utility.findShoppingListForGuaranteedBuyer(getEconomy(), getTarget()), getTarget());
+        GuaranteedBuyerHelper.removeShoppingListForGuaranteedBuyers(getEconomy(),
+                        GuaranteedBuyerHelper.findShoppingListForGuaranteedBuyer(getEconomy(),
+                                        getTarget()), getTarget());
         return this;
     }
 

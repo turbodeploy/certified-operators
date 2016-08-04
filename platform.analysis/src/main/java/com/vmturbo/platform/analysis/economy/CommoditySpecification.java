@@ -42,6 +42,9 @@ public final class CommoditySpecification implements Comparable<CommoditySpecifi
     // If in future we want to keep it, we should make it part of the constructor, remove the setter, also modify all places that call it
     // and the corresponding tests.
     private String debugInfoNeverUseInCode_; // a field keeps information about the eclass and key of the commodity.
+
+    // ID used for generating uniqueCommodityTypes that are to be sold by clones to guaranteedBuyers
+    private static int newCommTypeID_ = Integer.MAX_VALUE;
     // Constructors
 
     /**
@@ -81,6 +84,20 @@ public final class CommoditySpecification implements Comparable<CommoditySpecifi
         baseType_ = baseType;
         qualityLowerBound_ = qualityLowerBound;
         qualityUpperBound_ = qualityUpperBound;
+    }
+
+    /**
+     * Constructs a new CommoditySpecification with the given type and quality bounds.
+     *
+     * @param baseType The type of commodity sold or bought as an int.
+     * @param qualityLowerBound The lowest quality of this commodity a buyer can accept or a seller
+     *             provide. It must be non-negative and less than or equal to qualityUpperBound.
+     * @param qualityUpperBound The highest quality of this commodity a buyer can accept or a seller
+     *             provide. It must be non-negative and greater than or equal to qualityUpperBound.
+     */
+    public CommoditySpecification(int baseType, int qualityLowerBound, int qualityUpperBound) {
+        this(newCommTypeID_, baseType, qualityLowerBound, qualityUpperBound);
+        newCommTypeID_--;
     }
 
     // Methods

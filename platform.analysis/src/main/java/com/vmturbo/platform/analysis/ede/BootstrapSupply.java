@@ -8,6 +8,7 @@ import org.apache.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.platform.analysis.actions.Action;
+import com.vmturbo.platform.analysis.actions.GuaranteedBuyerHelper;
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.actions.ProvisionByDemand;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
@@ -115,6 +116,7 @@ public class BootstrapSupply {
                 }
             }
         }
+        GuaranteedBuyerHelper.processGuaranteedbuyerInfo(economy);
         return allActions;
     }
 

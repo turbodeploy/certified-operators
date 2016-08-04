@@ -9,6 +9,7 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.google.common.collect.Lists;
 import com.vmturbo.platform.analysis.actions.Action;
+import com.vmturbo.platform.analysis.actions.GuaranteedBuyerHelper;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
@@ -109,7 +110,7 @@ public class Provision {
                 allActions.addAll(actions);
             }
         }
-
+        GuaranteedBuyerHelper.processGuaranteedbuyerInfo(economy);
         return allActions;
     }
 

@@ -204,8 +204,6 @@ public class ProvisionBySupplyTest {
         for (ShoppingList shoppingList : modelSeller.getCustomers()) {
             if (shoppingList.getBuyer().getSettings().isGuaranteedBuyer()) {
                 guranteedBuyer.add(shoppingList.getBuyer());
-                Market m = economy.getMarketsAsBuyer(shoppingList.getBuyer()).get(shoppingList);
-                assertTrue(m.getActiveSellers().contains(provisionedSeller));
             }
         }
 
