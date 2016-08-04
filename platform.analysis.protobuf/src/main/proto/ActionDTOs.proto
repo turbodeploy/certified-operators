@@ -67,6 +67,17 @@ message ProvisionByDemandTO {
 
     // May also need a model_seller to get the desired state for producing the new trader.
     required int64 model_seller = 3;
+
+	// An entry in commodity to new capacity map. The key is base type of a commodity whose
+	// capacity needs to be changed to satisfy the demand. The value is the new capacity for
+	// that commodity.
+    message CommodityNewCapacityEntry {
+        required int32 commodity_base_Type = 1;
+        required float new_capacity = 2;
+    }
+    // A map keeps information about commodities whose capacity needs to be changed to accommodate
+    // the demand and their new capacity.
+    repeated CommodityNewCapacityEntry commodity_new_capacity_entry = 4;
 }
 
 // An action to provision a trader like another that already exists in the system.
