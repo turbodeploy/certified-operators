@@ -85,7 +85,8 @@ public class Provision {
                     List<Action> placeActions;
                     if (isShopTogether) {
                         placeActions = ede.breakDownCompoundMove(Placement
-                                        .shopTogetherDecisions(economy));
+                                        .shopTogetherDecisions(economy, new ArrayList<ShoppingList>
+                                        (mostProfitableTrader.getCustomers())));
                     } else {
                         placeActions = Placement.placementDecisions(economy,
                                         new ArrayList<ShoppingList>(mostProfitableTrader

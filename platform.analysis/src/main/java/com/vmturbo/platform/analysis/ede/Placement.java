@@ -127,9 +127,55 @@ public class Placement {
      * @param economy - the economy whose traders' placement we want to optimize
      */
     public static @NonNull List<@NonNull Action> shopTogetherDecisions(@NonNull Economy economy) {
+        return Placement.shopTogetherDecisions(economy, new ArrayList<>());
+    }
+
+    /**
+     * Returns a list of recommendations to optimize the placement of all traders in the economy.
+     * allowing shoppingLists in "specialShoppingLists" to shop before the rest of the shoppingLists
+     * in the economy
+     *
+     * <p>
+     *  As a result of invoking this method, the economy may be changed.
+     * </p>
+     *
+     * @param economy - the economy whose traders' placement we want to optimize
+     * @param specialShoppingLists - list of shoppingLists that denotes buyers that 
+     * are to shop before the others
+     */
+    public static @NonNull List<@NonNull Action> shopTogetherDecisions(@NonNull Economy economy,
+                                List<ShoppingList> specialShoppingLists) {
         @NonNull List<@NonNull Action> output = new ArrayList<>();
 
-        for (@NonNull @ReadOnly Trader buyer : economy.getTraders()) {
+        List<Trader> specialTraders = new ArrayList<>();
+        if (!specialShoppingLists.isEmpty()) {
+            specialShoppingLists.forEach(sl -> specialTraders.add(sl.getBuyer()));
+            // place selected list of buyers
+            output.addAll(generateShopTogetherDecisions(economy, specialTraders));
+            output.addAll(generateShopTogetherDecisions(economy, economy.getTraders().stream()
+                            .filter(trader -> !specialTraders.contains(trader)).collect(Collectors.toList())));
+        } else {
+            output.addAll(generateShopTogetherDecisions(economy, economy.getTraders()));
+        }
+        return output;
+    }
+
+    /**
+     * Returns a list of recommendations to optimize the placement of a trader buying
+     * shoppingLists in specific markets
+     *
+     * <p>
+     *  As a result of invoking this method, the economy may be changed.
+     * </p>
+     *
+     * @param economy - the economy whose traders' placement we want to optimize
+     * @param traders - list of {@link Trader} that are to be placed before the rest present in the {@link Economy}
+     */
+    public static @NonNull List<@NonNull Action> generateShopTogetherDecisions(@NonNull Economy
+                    economy, List<Trader> traders) {
+        @NonNull List<@NonNull Action> output = new ArrayList<>();
+
+        for (@NonNull @ReadOnly Trader buyer : traders) {
             final @NonNull @ReadOnly Set<Entry<@NonNull ShoppingList, @NonNull Market>> entries =
                 economy.getMarketsAsBuyer(buyer).entrySet();
             final @NonNull @ReadOnly List<Entry<@NonNull ShoppingList, @NonNull Market>> movableEntries =
