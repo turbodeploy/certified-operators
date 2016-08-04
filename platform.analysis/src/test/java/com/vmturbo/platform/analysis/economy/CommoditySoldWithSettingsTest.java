@@ -135,11 +135,20 @@ public final class CommoditySoldWithSettingsTest {
     }
 
     @Test
-    @Parameters({"0.0,0.0","1.0,0.0","1000,0.0",
-                 "0.0,0.5","1.0,0.5","1000,0.5",
+    @Parameters({"0.0,0.5","1.0,0.5","1000,0.5",
                  "0.0,1.0","1.0,1.0","1000,1.0"})
     @TestCaseName("Test #{index}: getEffectiveCapacity() == {0}*{1}")
-    public final void testGetEffectiveCapacity(double capacity, double utilizationUpperBound) {
+    public final void testGetEffectiveCapacity_NormalInput(double capacity, double utilizationUpperBound) {
+        fixture_.setCapacity(capacity);
+        fixture_.setUtilizationUpperBound(utilizationUpperBound);
+        assertEquals(capacity*utilizationUpperBound, fixture_.getEffectiveCapacity(), 0.0);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    @Parameters({"0.0,0.0","1.0,0.0","1000,0.0",
+                 "-1.0,0.0","1.0,-1","1000,-0.1"})
+    @TestCaseName("Test #{index}: getEffectiveCapacity() == {0}*{1}")
+    public final void testGetEffectiveCapacity_InvalidInput(double capacity, double utilizationUpperBound) {
         fixture_.setCapacity(capacity);
         fixture_.setUtilizationUpperBound(utilizationUpperBound);
         assertEquals(capacity*utilizationUpperBound, fixture_.getEffectiveCapacity(), 0.0);
@@ -221,7 +230,7 @@ public final class CommoditySoldWithSettingsTest {
     }
 
     @Test
-    @Parameters({"0.0","0.4","0.999","1.0"})
+    @Parameters({"0.4","0.999","1.0"})
     @TestCaseName("Test #{index}: (set|get)UtilizationUpperBound({0})")
     public final void testGetSetUtilizationUpperBound_NormalInput(double utilizationUpperBound) {
         fixture_.setUtilizationUpperBound(utilizationUpperBound);
@@ -229,7 +238,7 @@ public final class CommoditySoldWithSettingsTest {
     }
 
     @Test(expected = IllegalArgumentException.class)
-    @Parameters({"-0.01","-5","1.001","100"})
+    @Parameters({"0.0","-0.01","-5","1.001","100"})
     @TestCaseName("Test #{index}: setUtilizationUpperBound({0})")
     public final void testSetUtilizationUpperBound_InvalidInput(double utilizationUpperBound) {
         fixture_.setUtilizationUpperBound(utilizationUpperBound);

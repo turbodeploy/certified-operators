@@ -318,6 +318,10 @@ public class EconomyTest {
                         commodityBought2.setQuantity(quantity += 1.5);
                         assertEquals(quantity, commodityBought1.getQuantity(), 0);
 
+                        // resetting quantity. If qnty > peakQnty, we reset peakQnty to qnty
+                        quantity=0;
+                        commodityBought1.setQuantity(quantity);
+                        commodityBought2.setQuantity(quantity);
                         // test peak quantity between commodities
                         double peakQuantity = commodityBought1.getPeakQuantity();
                         assertEquals(peakQuantity, commodityBought2.getPeakQuantity(), 0);
@@ -471,7 +475,7 @@ public class EconomyTest {
         public final void testAddCommodityBought() {
             final CommoditySpecification[] specifications = {CLUSTER_A,SEGMENT_1,CPU_ANY};
             double quantity = 45;
-            double peakQuantity = 32.5;
+            double peakQuantity = 45;
 
             for (@NonNull @ReadOnly Market market : new ArrayList<>(economy.getMarkets())) {
                 for (@NonNull ShoppingList shoppingList : new ArrayList<>(market.getBuyers())) {
@@ -509,7 +513,7 @@ public class EconomyTest {
         public final void testRemoveCommodityBought() {
             final CommoditySpecification[] specifications = {CLUSTER_A,CPU_1to8,MEM};
             double quantity = 45;
-            double peakQuantity = 32.5;
+            double peakQuantity = 45;
 
             for (@NonNull @ReadOnly Market market : new ArrayList<>(economy.getMarkets())) {
                 for (@NonNull ShoppingList shoppingList : new ArrayList<>(market.getBuyers())) {

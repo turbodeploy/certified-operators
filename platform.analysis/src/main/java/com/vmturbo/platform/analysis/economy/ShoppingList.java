@@ -199,10 +199,14 @@ public final class ShoppingList {
     @Deterministic
     public @NonNull ShoppingList setPeakQuantity(int index, double newPeakQuantity) {
         checkArgument(newPeakQuantity >= 0, "newPeakQuantity = " + newPeakQuantity);
-        peakQuantities_[index] = newPeakQuantity;
+        if (newPeakQuantity < quantities_[index]) {
+            peakQuantities_[index] = quantities_[index];
+        } else {
+            peakQuantities_[index] = newPeakQuantity;
+        }
         return this;
     }
-    
+
     /**
      * Sets the value of the <b>movable</b> field.
      *

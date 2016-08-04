@@ -114,7 +114,7 @@ final class CommoditySoldWithSettings extends CommoditySold implements Commodity
     @Override
     @Deterministic
     public @NonNull CommoditySoldSettings setUtilizationUpperBound(double utilizationUpperBound) {
-        checkArgument(0.0 <= utilizationUpperBound && utilizationUpperBound <= 1.0,
+        checkArgument(0.0 < utilizationUpperBound && utilizationUpperBound <= 1.0,
                       "utilizationUpperBound = " + utilizationUpperBound);
         utilizationUpperBound_ = utilizationUpperBound;
         return this;
