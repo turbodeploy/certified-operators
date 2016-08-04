@@ -38,12 +38,6 @@ public class Resizer {
     // 52 bits to represent the mantissa, so after 52 iterations the interval cannot be made
     // smaller.
     private static final int MAX_ITERATIONS = 53;
-    // Accuracy for convergence of Bisection method
-    private static final double ROOT_ACCURACY = 1.0E-15;
-    // The low end of range for the normalized utilization
-    private static final double UTILIZATION_LOW = 1.0E-12;
-    // The high end of range for the normalized utilization
-    private static final double UTILIZATION_HIGH = .999;
 
     /**
      * Return a list of actions to optimize the size of all eligible commodities in the economy.
@@ -142,11 +136,13 @@ public class Resizer {
             int ceilNumIncrements = (int) Math.ceil(numIncrements);
             double proposedIncrement = capacityIncrement * ceilNumIncrements;
             double remaining = rawMaterial.getEffectiveCapacity() - rawMaterial.getQuantity();
-            if (remaining < proposedIncrement) {
-                int floorNumIncrements = (int) Math.floor(remaining / capacityIncrement);
-                newCapacity += capacityIncrement * floorNumIncrements;
-            } else {
-                newCapacity += proposedIncrement;
+            if (remaining > 0) {
+                if (remaining < proposedIncrement) {
+                    int floorNumIncrements = (int) Math.floor(remaining / capacityIncrement);
+                    newCapacity += capacityIncrement * floorNumIncrements;
+                } else {
+                    newCapacity += proposedIncrement;
+                }
             }
         } else {
             // limit the decrease to be above max usage
@@ -238,25 +234,12 @@ public class Resizer {
      */
     private static double calculateDesiredCapacity(CommoditySold resizeCommodity,
                                                    double currentRevenue, double newRevenue) {
-        double currentCapacity = resizeCommodity.getEffectiveCapacity();
         double currentQuantity = resizeCommodity.getHistoricalQuantity();
         PriceFunction priceFunction = resizeCommodity.getSettings().getPriceFunction();
 
-        double intervalMin;
-        double intervalMax;
-        // assuming monotonically increasing price function
-        double currentUtilization = currentQuantity / currentCapacity;
-        checkArgument(currentUtilization < 1,
-                      "Expected currentUtilization %s < 1", currentUtilization);
-        if (newRevenue < currentRevenue) {
-            intervalMin = (currentUtilization > UTILIZATION_LOW) ? UTILIZATION_LOW :
-                                                           currentUtilization * ROOT_ACCURACY;
-            intervalMax = currentUtilization;
-        } else {
-            intervalMin = currentUtilization;
-            intervalMax = (currentUtilization < UTILIZATION_HIGH) ? UTILIZATION_HIGH :
-                           currentUtilization + (1.0 - currentUtilization) *  UTILIZATION_HIGH;
-        }
+        // interval which is almost (0,1) to avoid divide by zero
+        double intervalMin = Math.nextAfter(0.0, 1.0);
+        double intervalMax = Math.nextAfter(1.0, 0.0);
 
         // solve revenueFunction(u) = newRevenue for u in (intervalMin,intervalMax)
         DoubleUnaryOperator revenueFunction = (u) -> u * priceFunction.unitPrice(u) - newRevenue;
@@ -308,9 +291,12 @@ public class Resizer {
                     double oldQuantityBought = shoppingList.getQuantities()[boughtIndex];
                     double decrementedQuantity = decrementFunction.applyAsDouble(
                                                 oldQuantityBought, newCapacity);
+                    double newQuantityBought = commSoldBySeller.getQuantity() -
+                                                        (oldQuantityBought - decrementedQuantity);
+                    checkArgument(newQuantityBought >= 0, "Expected new quantity bought %s to >= 0",
+                                  newQuantityBought);
                     shoppingList.getQuantities()[boughtIndex] = decrementedQuantity;
-                    commSoldBySeller.setQuantity(commSoldBySeller.getQuantity() -
-                                                 (oldQuantityBought - decrementedQuantity));
+                    commSoldBySeller.setQuantity(newQuantityBought);
                 } else {
                     // resize up
                     DoubleBinaryOperator incrementFunction =
