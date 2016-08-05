@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
+
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
@@ -117,10 +119,10 @@ public final class GuaranteedBuyerHelper {
         // replacing the old commSpecs with the ones in the commToReplaceMap. eg, in the case of
         // allocation commodities, we replace the commodities sold by the modelSeller with the
         // new ones that are to be sold by the clone
-        commToReplaceMap.entrySet().forEach(entry -> {
-            newBasket.remove(entry.getKey());
-            newBasket.add(entry.getValue());
-        });
+        for (Entry<CommoditySpecification, CommoditySpecification> entry : commToReplaceMap.entrySet()) {
+            newBasket = newBasket.remove(entry.getKey());
+            newBasket = newBasket.add(entry.getValue());
+        }
         return newBasket;
     }
 
