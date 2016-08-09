@@ -199,10 +199,17 @@ public interface Action {
         for (List<Action> list : perTargetMap.values()) {
             // If the list ends with a Deactivate then
             if (!list.isEmpty() && list.get(list.size() -1 ) instanceof Deactivate) {
-                List<Action> remove = list.get(0) instanceof Activate
-                        // If the list starts with an Activate remove all the actions, including the Activate and the Deactivate
+                Action firstAction = list.get(0);
+                List<Action> remove = (firstAction instanceof Activate
+                                || firstAction instanceof ProvisionBySupply
+                                || firstAction instanceof ProvisionByDemand)
+                        // If the list starts with an Activate, ProvisionByDemand or
+                        // ProvisionBySupply remove all the actions,
+                        // including the Activate and the Deactivate
                         ? Lists.newArrayList(list)
-                        // If the list doesn't start with an Activate then remove everything but keep the Deactivate
+                        // If the list doesn't start with an Activate ProvisionByDemand or
+                        // ProvisionBySupply then remove everything
+                        // but keep the Deactivate
                         : Lists.newArrayList(list.subList(0, list.size() - 1));
                 result.removeAll(remove);
                 list.removeAll(remove);
