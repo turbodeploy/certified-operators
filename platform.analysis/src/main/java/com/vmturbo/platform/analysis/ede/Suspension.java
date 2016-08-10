@@ -1,11 +1,7 @@
 package com.vmturbo.platform.analysis.ede;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import org.apache.log4j.Logger;
@@ -30,9 +26,9 @@ public class Suspension extends Supply {
     // in a particular market. In general, those sellers have gone through the process in which it
     // was selected to deactivate, however, after deactivating it and run placement desicisions,
     // some customers on this trader can not move out of it. So it should not be selected again
-    // when checking engagement criteria for the particular market.
-    private @NonNull Map<Market, List<@NonNull Trader>> unprofitableSellersCouldNotSuspend =
-                    new HashMap<Market, List<@NonNull Trader>>();
+    // because we there will always be some customers staying on it.
+    private @NonNull Set<@NonNull Trader> unprofitableSellersCouldNotSuspend =
+                    new HashSet<@NonNull Trader>();
 
     @Override
     public Trader findTheBestTraderToEngage(Market market, Ledger ledger) {
@@ -42,8 +38,7 @@ public class Suspension extends Supply {
             // we should not consider sole providers or the sellers that have been selected
             // as suspension candidate once but failed to move customers out of itself
             if (soleProviders.contains(seller) || (unprofitableSellersCouldNotSuspend
-                            .containsKey(market)
-                            && unprofitableSellersCouldNotSuspend.get(market).contains(seller))) {
+                            .contains(seller))) {
                 continue;
             }
             IncomeStatement traderIS =
@@ -65,12 +60,7 @@ public class Suspension extends Supply {
         // and put this candidate into unprofitableSellersCouldNotSuspend so that it would
         // not be considered again next round
         if (!suspensionCandidate.getCustomers().isEmpty()) {
-            if (unprofitableSellersCouldNotSuspend.containsKey(market)) {
-                unprofitableSellersCouldNotSuspend.get(market).add(suspensionCandidate);
-            } else {
-                unprofitableSellersCouldNotSuspend.put(market,
-                                new ArrayList<@NonNull Trader>(Arrays.asList(suspensionCandidate)));
-            }
+            unprofitableSellersCouldNotSuspend.add(suspensionCandidate);
             return false;
         }
         for (Trader seller : market.getActiveSellers()) {
