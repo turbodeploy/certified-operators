@@ -63,7 +63,7 @@ message CommoditySoldSettingsTO {
 
     // The highest value the analysis engine can resize the capacity to. The default is intended to
     // be Double.MAX_VALUE. The relationship capacity_lower_bound <= capacity_upper_bound must hold.
-    optional float capacity_upper_bound = 3 [default = 1.7976931348623157e+308];
+    optional float capacity_upper_bound = 3 [default = 3.402823e+38];
 
     // When the analysis engine resizes a commodity sold's capacity, the new value must be an
     // integer multiple of this value.
@@ -98,7 +98,7 @@ message CommoditySoldTO {
 
     // The maximum quantity and peak quantity that can potentially be sold. The default is intended
     // to be Double.MAX_VALUE.
-    optional float capacity = 7 [default = 1.7976931348623157e+308];
+    optional float capacity = 7 [default = 3.402823e+38];
 
     // Whether this commodity is thin provisioned. This is related to
     // <a href="https://en.wikipedia.org/wiki/Thin_provisioning">thin provisioning</a>.
