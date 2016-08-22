@@ -32,6 +32,8 @@ public class ProvisionByDemandTest {
     // Fields
     private static final Basket EMPTY = new Basket();
 
+    private static final String DEBUG_INFO = "trader name";
+
     // Methods
 
     @Test
@@ -57,12 +59,18 @@ public class ProvisionByDemandTest {
         ShoppingList b3 = e1.addBasketBought(e1.addTrader(0, TraderState.ACTIVE, EMPTY),
             new Basket(new CommoditySpecification(0)));
         // model that sells the commodities that the buyers shop for (though not the needed amount)
-        Trader model = e1.addTrader(0, TraderState.ACTIVE, new Basket(new CommoditySpecification(0),new CommoditySpecification(1)));
+        Trader model = e1.addTrader(
+                0,
+                TraderState.ACTIVE,
+                new Basket(new CommoditySpecification(0),
+                new CommoditySpecification(1))
+        );
         model.getCommoditiesSold().get(1).setCapacity(Double.MAX_VALUE).setQuantity(0);
+        model.setDebugInfoNeverUseInCode(DEBUG_INFO);
         b3.setQuantity(0, 5).setPeakQuantity(0, 6.5);
 
         ShoppingList b4 = e1.addBasketBought(e1.addTrader(0, TraderState.ACTIVE, EMPTY),
-            new Basket(new CommoditySpecification(0),new CommoditySpecification(1)));
+            new Basket(new CommoditySpecification(0), new CommoditySpecification(1)));
         b4.setQuantity(0, 2.2).setPeakQuantity(0, 6.5);
         b4.setQuantity(1, 100).setPeakQuantity(1, 101.3);
 
@@ -107,17 +115,20 @@ public class ProvisionByDemandTest {
 
         assertEquals(modelSeller, provision.getModelSeller());
         assertSame(provision, provision.take());
-        assertNotNull(provision.getProvisionedSeller());
-        assertTrue(provision.getProvisionedSeller().getState().isActive());
-        assertTrue(economy.getTraders().contains(provision.getProvisionedSeller()));
+        Trader provisionedSeller = provision.getProvisionedSeller();
+        assertNotNull(provisionedSeller);
+        assertTrue(provisionedSeller.getState().isActive());
+        assertEquals(provisionedSeller.getDebugInfoNeverUseInCode(),
+                DEBUG_INFO + " clone #" + provisionedSeller.getEconomyIndex());
+        assertTrue(economy.getTraders().contains(provisionedSeller));
         assertEquals(oldSize+1, economy.getTraders().size());
-        assertTrue(EdeCommon.quote(economy, modelBuyer, provision.getProvisionedSeller(), Double.POSITIVE_INFINITY, false)[0]
+        assertTrue(EdeCommon.quote(economy, modelBuyer, provisionedSeller, Double.POSITIVE_INFINITY, false)[0]
                                     < Double.POSITIVE_INFINITY);
         // assert that it can fit.
 
         assertSame(provision, provision.rollback());
         assertNull(provision.getProvisionedSeller());
-        assertFalse(economy.getTraders().contains(provision.getProvisionedSeller()));
+        assertFalse(economy.getTraders().contains(provisionedSeller));
         assertEquals(oldSize, economy.getTraders().size());
         // TODO: can compare economy for equality (once implemented) to test that rolling back
         // indeed completely restores it.
@@ -136,9 +147,9 @@ public class ProvisionByDemandTest {
     private static Object[] parametersForTestDebugDescription() {
         @NonNull LegacyTopology topology1 = new LegacyTopology();
 
-        Trader t1 = topology1.addTrader("id1","name1","VM",TraderState.ACTIVE, Arrays.asList());
+        Trader t1 = topology1.addTrader("id1", "name1", "VM",TraderState.ACTIVE, Arrays.asList());
         ShoppingList b1 = topology1.addBasketBought(t1, Arrays.asList());
-        Trader t2 = topology1.addTrader("id2","name2","Container",TraderState.INACTIVE, Arrays.asList());
+        Trader t2 = topology1.addTrader("id2", "name2", "Container", TraderState.INACTIVE, Arrays.asList());
         ShoppingList b2 = topology1.addBasketBought(t2, Arrays.asList("CPU"));
         Trader t3 = topology1.addTrader("id3", "name3", "VM", TraderState.ACTIVE, Arrays.asList());
         Trader t4 = topology1.addTrader("id4", "name4", "Container", TraderState.ACTIVE,
@@ -166,9 +177,9 @@ public class ProvisionByDemandTest {
     private static Object[] parametersForTestDebugReason() {
         @NonNull LegacyTopology topology1 = new LegacyTopology();
 
-        Trader t1 = topology1.addTrader("id1","VM1","VM",TraderState.ACTIVE, Arrays.asList());
+        Trader t1 = topology1.addTrader("id1", "VM1", "VM", TraderState.ACTIVE, Arrays.asList());
         ShoppingList b1 = topology1.addBasketBought(t1, Arrays.asList());
-        Trader t2 = topology1.addTrader("id2","Container1","Container",TraderState.INACTIVE, Arrays.asList());
+        Trader t2 = topology1.addTrader("id2", "Container1", "Container", TraderState.INACTIVE, Arrays.asList());
         ShoppingList b2 = topology1.addBasketBought(t2, Arrays.asList("CPU"));
         Trader t3 = topology1.addTrader("id3", "VM2", "VM", TraderState.ACTIVE, Arrays.asList());
         Trader t4 = topology1.addTrader("id4", "Container2", "Container", TraderState.ACTIVE,

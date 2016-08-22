@@ -182,6 +182,11 @@ public class ProvisionByDemand implements Action {
             GuaranteedBuyerHelper.storeGuaranteedbuyerInfo(shoppingLists, provisionedSeller_, new Basket(
                             newCommSpecMap.values()));
         }
+        getProvisionedSeller().setDebugInfoNeverUseInCode(
+                getModelSeller().getDebugInfoNeverUseInCode()
+                + " clone #"
+                + getProvisionedSeller().getEconomyIndex()
+        );
         return this;
     }
 

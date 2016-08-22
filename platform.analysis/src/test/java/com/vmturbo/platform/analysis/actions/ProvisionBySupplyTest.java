@@ -17,7 +17,6 @@ import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
-import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.topology.LegacyTopology;
@@ -38,8 +37,10 @@ public class ProvisionBySupplyTest {
     private static final CommoditySpecification VMEM = new CommoditySpecification(1);
 
     private static final Basket EMPTY = new Basket();
-    private static final Basket[] basketsSold = {EMPTY, new Basket(VCPU), new Basket(VCPU,VMEM)};
-    private static final Basket[] basketsBought = {EMPTY, new Basket(CPU), new Basket(CPU,MEM)};
+    private static final Basket[] basketsSold = {EMPTY, new Basket(VCPU), new Basket(VCPU, VMEM)};
+    private static final Basket[] basketsBought = {EMPTY, new Basket(CPU), new Basket(CPU, MEM)};
+
+    private static final String DEBUG_INFO = "trader name";
 
     // Methods
 
@@ -62,11 +63,11 @@ public class ProvisionBySupplyTest {
         for (TraderState state : TraderState.values()) {
             for (Basket basketSold : basketsSold) {
                 for (Basket basketBought1 : basketsBought) {
-                    testCases.add(new Object[]{e1,e1.addTrader(0, state, basketSold, basketBought1)});
+                    testCases.add(new Object[]{e1, e1.addTrader(0, state, basketSold, basketBought1)});
                     // TODO (Vaptistis): also add quantities bought and sold
 
                     for (Basket basketBought2 : basketsBought) {
-                        testCases.add(new Object[]{e1,e1.addTrader(0, state, basketSold, basketBought1, basketBought2)});
+                        testCases.add(new Object[]{e1, e1.addTrader(0, state, basketSold, basketBought1, basketBought2)});
                     }
                 }
             }
@@ -110,8 +111,8 @@ public class ProvisionBySupplyTest {
         oids.put(t2, "id2");
 
         return new Object[][]{
-            {new ProvisionBySupply(e1,t1),oid,"<action type=\"provisionBySupply\" modelSeller=\"id1\" />"},
-            {new ProvisionBySupply(e1,t2),oid,"<action type=\"provisionBySupply\" modelSeller=\"id2\" />"}
+            {new ProvisionBySupply(e1, t1), oid, "<action type=\"provisionBySupply\" modelSeller=\"id1\" />"},
+            {new ProvisionBySupply(e1, t2), oid, "<action type=\"provisionBySupply\" modelSeller=\"id2\" />"}
         };
     }
 
@@ -121,18 +122,22 @@ public class ProvisionBySupplyTest {
     public final void testTakeRollback(@NonNull Economy economy, @NonNull Trader modelSeller) {
         final int oldSize = economy.getTraders().size();
         @NonNull ProvisionBySupply provision = new ProvisionBySupply(economy, modelSeller);
+        modelSeller.setDebugInfoNeverUseInCode(DEBUG_INFO);
 
         assertSame(provision, provision.take());
-        assertNotNull(provision.getProvisionedSeller());
-        assertTrue(provision.getProvisionedSeller().getState().isActive());
-        assertTrue(economy.getTraders().contains(provision.getProvisionedSeller()));
+        Trader provisionedSeller = provision.getProvisionedSeller();
+        assertNotNull(provisionedSeller);
+        assertTrue(provisionedSeller.getState().isActive());
+        assertEquals(provisionedSeller.getDebugInfoNeverUseInCode(),
+                DEBUG_INFO + " clone #" + provisionedSeller.getEconomyIndex());
+        assertTrue(economy.getTraders().contains(provisionedSeller));
         assertEquals(oldSize+1, economy.getTraders().size());
         // TODO: test that provisioned seller is indeed identical to the model one when Trader
         // equality testing is implemented.
 
         assertSame(provision, provision.rollback());
         assertNull(provision.getProvisionedSeller());
-        assertFalse(economy.getTraders().contains(provision.getProvisionedSeller()));
+        assertFalse(economy.getTraders().contains(provisionedSeller));
         assertEquals(oldSize, economy.getTraders().size());
         // TODO: can compare economy for equality (once implemented) to test that rolling back
         // indeed completely restores it.
@@ -151,15 +156,17 @@ public class ProvisionBySupplyTest {
     private static Object[] parametersForTestDebugDescription() {
         @NonNull LegacyTopology topology1 = new LegacyTopology();
 
-        Trader t1 = topology1.addTrader("id1","VM1","VM",TraderState.ACTIVE, Arrays.asList());
+        Trader t1 = topology1.addTrader("id1", "VM1", "VM", TraderState.ACTIVE, Arrays.asList());
+        t1.setDebugInfoNeverUseInCode(DEBUG_INFO);
         ShoppingList b1 = topology1.addBasketBought(t1, Arrays.asList());
-        Trader t2 = topology1.addTrader("id2","Container2","Container",TraderState.INACTIVE, Arrays.asList());
+        Trader t2 = topology1.addTrader("id2", "Container2", "Container", TraderState.INACTIVE, Arrays.asList());
+        t2.setDebugInfoNeverUseInCode(DEBUG_INFO);
         ShoppingList b2 = topology1.addBasketBought(t2, Arrays.asList("CPU"));
 
         return new Object[][]{
-            {new ProvisionBySupply((Economy)topology1.getEconomy(), t1),topology1,
+            {new ProvisionBySupply((Economy)topology1.getEconomy(), t1), topology1,
                 "Provision a new VM similar to VM1 [id1] (#0)."},
-            {new ProvisionBySupply((Economy)topology1.getEconomy(), t2),topology1,
+            {new ProvisionBySupply((Economy)topology1.getEconomy(), t2), topology1,
                 "Provision a new Container similar to Container2 [id2] (#1)."},
             // TODO: update test when we figure out how to get correct type!
         };
@@ -178,15 +185,15 @@ public class ProvisionBySupplyTest {
     private static Object[] parametersForTestDebugReason() {
         @NonNull LegacyTopology topology1 = new LegacyTopology();
 
-        Trader t1 = topology1.addTrader("id1","VM1","VM",TraderState.ACTIVE, Arrays.asList());
+        Trader t1 = topology1.addTrader("id1", "VM1", "VM", TraderState.ACTIVE, Arrays.asList());
         ShoppingList b1 = topology1.addBasketBought(t1, Arrays.asList());
-        Trader t2 = topology1.addTrader("id2","Container1","Container",TraderState.INACTIVE, Arrays.asList());
+        Trader t2 = topology1.addTrader("id2", "Container1", "Container", TraderState.INACTIVE, Arrays.asList());
         ShoppingList b2 = topology1.addBasketBought(t2, Arrays.asList("CPU"));
 
         return new Object[][]{
-            {new ProvisionBySupply((Economy)topology1.getEconomy(), t1),topology1,
+            {new ProvisionBySupply((Economy)topology1.getEconomy(), t1), topology1,
                 "No VM has enough leftover capacity for [buyer]."},
-            {new ProvisionBySupply((Economy)topology1.getEconomy(), t2),topology1,
+            {new ProvisionBySupply((Economy)topology1.getEconomy(), t2), topology1,
                 "No Container has enough leftover capacity for [buyer]."},
             // TODO: update test when we figure out how to get correct type!
         };

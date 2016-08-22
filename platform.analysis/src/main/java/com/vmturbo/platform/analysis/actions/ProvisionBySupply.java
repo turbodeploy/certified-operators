@@ -156,6 +156,11 @@ public class ProvisionBySupply implements Action {
             GuaranteedBuyerHelper.storeGuaranteedbuyerInfo(shoppingLists, provisionedSeller_,
                             new Basket(commToReplaceMap.values()));
         }
+        getProvisionedSeller().setDebugInfoNeverUseInCode(
+                getModelSeller().getDebugInfoNeverUseInCode()
+                + " clone #"
+                + getProvisionedSeller().getEconomyIndex()
+        );
         return this;
     }
 
