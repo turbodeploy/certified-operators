@@ -25,7 +25,7 @@ import com.vmturbo.platform.analysis.economy.Trader;
  * An action to group multiple {@link Move}s that should happen atomically by {@link ShoppingList}s
  * of the same {@link Trader}.
  */
-public class CompoundMove implements Action {
+public class CompoundMove extends ActionImpl {
     // Fields
     private final @NonNull List<@NonNull Move> moves_;
 
@@ -108,12 +108,14 @@ public class CompoundMove implements Action {
 
     @Override
     public @NonNull CompoundMove take() {
+        super.take();
         moves_.forEach(Move::take);
         return this;
     }
 
     @Override
     public @NonNull CompoundMove rollback() {
+        super.rollback();
         moves_.forEach(Move::rollback);
         return this;
     }

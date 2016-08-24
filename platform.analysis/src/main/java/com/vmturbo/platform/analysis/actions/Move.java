@@ -82,6 +82,7 @@ public class Move extends MoveBase implements Action { // inheritance for code r
 
     @Override
     public @NonNull Move take() {
+        super.take();
         if (getSource() != getDestination()) {
             getTarget().move(destination_);
             updateQuantities(getEconomy(), getTarget(), getSource(), (sold, bought) -> Math.max(0, sold - bought));
@@ -92,6 +93,7 @@ public class Move extends MoveBase implements Action { // inheritance for code r
 
     @Override
     public @NonNull Move rollback() {
+        super.rollback();
         if (getSource() != getDestination()) {
             getTarget().move(getSource());
             updateQuantities(getEconomy(), getTarget(), getDestination(), (sold, bought) -> Math.max(0, sold - bought));

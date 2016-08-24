@@ -2,6 +2,7 @@ package com.vmturbo.platform.analysis.actions;
 
 import static org.junit.Assert.*;
 
+import java.lang.reflect.Field;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -115,7 +116,14 @@ public class DeactivateTest {
     @TestCaseName("Test #{index}: new Deactivate({0},{1},{2}).rollback()  throw == {3}")
     public final void testRollback(@NonNull Economy economy, @NonNull Trader target, @NonNull Market sourceMarket, boolean invalid) {
         @NonNull Deactivate deactivation = new Deactivate(economy, target,sourceMarket);
-        // TODO: normally, we should take the action before rolling back...
+        // mock the actionTaken flag as if it is being taken
+        try {
+            Field actionTakenField = ActionImpl.class.getDeclaredField("actionTaken");
+            actionTakenField.setAccessible(true);
+            actionTakenField.setBoolean(deactivation, true);
+        } catch (Exception e) {
+            fail();
+        }
         try {
             assertSame(deactivation, deactivation.rollback());
             assertFalse(invalid);
@@ -197,6 +205,14 @@ public class DeactivateTest {
     @TestCaseName("Test #{index}: new Deactivate({0},{1},{2}).rollback() throw == {3}")
     public final void testRollbackWithGuaranteedBuyer(@NonNull Economy economy, @NonNull Trader target, @NonNull Market sourceMarket, boolean invalid) {
         @NonNull Deactivate deactivation = new Deactivate(economy, target, sourceMarket);
+        // mock the actionTaken flag as if it is being taken
+        try {
+            Field actionTakenField = ActionImpl.class.getDeclaredField("actionTaken");
+            actionTakenField.setAccessible(true);
+            actionTakenField.setBoolean(deactivation, true);
+        } catch (Exception e) {
+            fail();
+        }
         try {
             assertSame(deactivation, deactivation.rollback());
             assertFalse(invalid);

@@ -23,7 +23,7 @@ import com.vmturbo.platform.analysis.economy.TraderState;
 /**
  * An action to deactivate an active {@link Trader trader}.
  */
-public class Deactivate extends StateChangeBase implements Action { // inheritance for code reuse
+public class Deactivate extends StateChangeBase { // inheritance for code reuse
 
     // Constructors
 
@@ -67,6 +67,7 @@ public class Deactivate extends StateChangeBase implements Action { // inheritan
      */
     @Override
     public @NonNull Deactivate take() {
+        super.take();
         checkArgument(getTarget().getState().isActive());
         TraderState oldState = getTarget().getState();
         getTarget().changeState(TraderState.INACTIVE);
@@ -83,6 +84,7 @@ public class Deactivate extends StateChangeBase implements Action { // inheritan
      */
     @Override
     public @NonNull Deactivate rollback() {
+        super.rollback();
         checkArgument(!getTarget().getState().isActive());
         TraderState oldState = getTarget().getState();
         getTarget().changeState(TraderState.ACTIVE);

@@ -50,12 +50,14 @@ public class Reconfigure extends MoveBase implements Action { // inheritance for
 
     @Override
     public @NonNull Reconfigure take() {
+        super.take();
         // Nothing can be done automatically
         return this;
     }
 
     @Override
     public @NonNull Reconfigure rollback() {
+        super.rollback();
         // Nothing to roll back!
         return this;
     }

@@ -28,7 +28,7 @@ import com.vmturbo.platform.analysis.economy.TraderState;
  * An action to provision a new {@link Trader seller} using another {@link Trader buyer} as the
  * template.
  */
-public class ProvisionByDemand implements Action {
+public class ProvisionByDemand extends ActionImpl {
     // Fields
     private final @NonNull Economy economy_;
     private final @NonNull ShoppingList modelBuyer_; // TODO: also add source market? Desired state?
@@ -109,6 +109,7 @@ public class ProvisionByDemand implements Action {
 
     @Override
     public @NonNull Action take() {
+        super.take();
         List<ShoppingList> shoppingLists = GuaranteedBuyerHelper.findShoppingListForGuaranteedBuyer(
                                             getEconomy(), getModelSeller());
         // if there is a guaranteed buyer, find the commodities it buys, and for those commodities
@@ -192,6 +193,7 @@ public class ProvisionByDemand implements Action {
 
     @Override
     public @NonNull Action rollback() {
+        super.rollback();
         getEconomy().removeTrader(provisionedSeller_);
         provisionedSeller_ = null;
         commodityNewCapacityMap_.clear();

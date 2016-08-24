@@ -2,6 +2,7 @@ package com.vmturbo.platform.analysis.actions;
 
 import static org.junit.Assert.*;
 
+import java.lang.reflect.Field;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -52,7 +53,8 @@ public class ActivateTest {
         Trader t3 = e1.addTrader(0, TraderState.ACTIVE, EMPTY, EMPTY);
         Trader t4 = e1.addTrader(0, TraderState.INACTIVE, EMPTY, EMPTY);
 
-        return new Object[][]{{e1,t1,e1.getMarket(EMPTY),t3, false},{e1,t2,e1.getMarket(EMPTY),t4, true}};
+        return new Object[][] {{e1, t1, e1.getMarket(EMPTY), t3, false},
+                        {e1, t2, e1.getMarket(EMPTY), t4, true}};
     }
 
     @SuppressWarnings("unused") // it is used reflectively
@@ -108,7 +110,8 @@ public class ActivateTest {
     @Test
     @Parameters(method = "parametersForTestActivate")
     @TestCaseName("Test #{index}: new Activate({0},{1},{2},{3}).take()  throw == {4}")
-    public final void testTake(@NonNull Economy economy, @NonNull Trader target, @NonNull Market sourceMarket, @NonNull Trader modelSeller, boolean valid) {
+    public final void testTake(@NonNull Economy economy, @NonNull Trader target,
+                    @NonNull Market sourceMarket, @NonNull Trader modelSeller, boolean valid) {
         @NonNull Activate activation = new Activate(economy, target,sourceMarket, modelSeller);
 
         try {
@@ -125,7 +128,14 @@ public class ActivateTest {
     @TestCaseName("Test #{index}: new Activate({0},{1},{2},{3}).rollback()  throw == {4}")
     public final void testRollback(@NonNull Economy economy, @NonNull Trader target, @NonNull Market sourceMarket, @NonNull Trader modelSeller, boolean invalid) {
         @NonNull Activate activation = new Activate(economy, target,sourceMarket, modelSeller);
-        // TODO: normally, we should take the action before rolling back...
+        // mock the actionTaken flag as if it is being taken
+        try {
+            Field actionTakenField = ActionImpl.class.getDeclaredField("actionTaken");
+            actionTakenField.setAccessible(true);
+            actionTakenField.setBoolean(activation, true);
+        } catch (Exception e) {
+            fail();
+        }
         try {
             assertSame(activation, activation.rollback());
             assertFalse(invalid);
@@ -218,6 +228,14 @@ public class ActivateTest {
     @TestCaseName("Test #{index}: new Activate({0},{1},{2},{3}).rollback() throw == {5}")
     public final void testRollbackWithGuaranteedBuyer(@NonNull Economy economy, @NonNull Trader target, @NonNull Market sourceMarket, @NonNull Trader modelSeller, @ NonNull Trader expectedBuyer, boolean invalid) {
         @NonNull Activate activation = new Activate(economy, target,sourceMarket, modelSeller);
+        // mock the actionTaken flag as if it is being taken
+        try {
+            Field actionTakenField = ActionImpl.class.getDeclaredField("actionTaken");
+            actionTakenField.setAccessible(true);
+            actionTakenField.setBoolean(activation, true);
+        } catch (Exception e) {
+            fail();
+        }
         try {
             assertSame(activation, activation.rollback());
             assertFalse(invalid);

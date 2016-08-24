@@ -2,6 +2,7 @@ package com.vmturbo.platform.analysis.actions;
 
 import static org.junit.Assert.*;
 
+import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
@@ -97,6 +98,14 @@ public class ReconfigureTest {
     public final void testRollback(@NonNull Economy economy, @NonNull ShoppingList target) {
         Trader oldSupplier = target.getSupplier();
         @NonNull Reconfigure reconfiguration = new Reconfigure(economy, target);
+        // mock the actionTaken flag as if it is being taken
+        try {
+            Field actionTakenField = ActionImpl.class.getDeclaredField("actionTaken");
+            actionTakenField.setAccessible(true);
+            actionTakenField.setBoolean(reconfiguration, true);
+        } catch (Exception e) {
+            fail();
+        }
         // TODO: take a copy of the economy and assert it remained unchanged when copying gets
         // implemented
         assertSame(reconfiguration, reconfiguration.rollback());

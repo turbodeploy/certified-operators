@@ -23,7 +23,7 @@ import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
 /**
  * An action to resize a {@link CommoditySold commodity sold} of a {@link Trader trader}.
  */
-public class Resize implements Action {
+public class Resize extends ActionImpl {
     // Fields
     private final @NonNull Economy economy_;
     private final @NonNull Trader sellingTrader_;
@@ -192,6 +192,7 @@ public class Resize implements Action {
 
     @Override
     public @NonNull Resize take() {
+        super.take();
         Resizer.resizeDependentCommodities(getEconomy(), getSellingTrader(), getResizedCommodity(),
                                    getSoldIndex(), getNewCapacity());
         getSellingTrader().getCommoditySold(getResizedCommoditySpec()).setCapacity(getNewCapacity());
@@ -200,6 +201,7 @@ public class Resize implements Action {
 
     @Override
     public @NonNull Resize rollback() {
+        super.rollback();
         getSellingTrader().getCommoditySold(getResizedCommoditySpec()).setCapacity(getOldCapacity());
         return this;
     }

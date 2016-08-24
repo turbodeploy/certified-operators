@@ -27,7 +27,7 @@ import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
  * An action to provision a new {@link Trader seller} using another {@link Trader seller} as the
  * template.
  */
-public class ProvisionBySupply implements Action {
+public class ProvisionBySupply extends ActionImpl {
     // Fields
     private final @NonNull Economy economy_;
     private final @NonNull Trader modelSeller_;
@@ -84,6 +84,7 @@ public class ProvisionBySupply implements Action {
 
     @Override
     public @NonNull Action take() {
+        super.take();
         List<ShoppingList> shoppingLists = GuaranteedBuyerHelper.findShoppingListForGuaranteedBuyer(getEconomy(),
                                                 getModelSeller());
         // if there is a guaranteed buyer, find the commodities it buys, and for those commodities
@@ -166,6 +167,7 @@ public class ProvisionBySupply implements Action {
 
     @Override
     public @NonNull Action rollback() {
+        super.rollback();
         getEconomy().removeTrader(provisionedSeller_);
         provisionedSeller_ = null;
 

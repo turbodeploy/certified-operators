@@ -12,7 +12,7 @@ import com.vmturbo.platform.analysis.economy.Trader;
 /**
  * A number of factored-out getters and fields needed by both {@link Move} and {@link Reconfigure}.
  */
-class MoveBase {
+class MoveBase extends ActionImpl {
     // Fields
     private final @NonNull Economy economy_; // whether we can avoid this field is under investigation.
     private final @NonNull ShoppingList target_;

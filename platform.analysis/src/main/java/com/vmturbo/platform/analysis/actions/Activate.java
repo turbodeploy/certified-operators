@@ -22,7 +22,7 @@ import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
 /**
  * An action to activate a deactivated {@link Trader trader}.
  */
-public class Activate extends StateChangeBase implements Action { // inheritance for code reuse
+public class Activate extends StateChangeBase { // inheritance for code reuse
 
     private final @NonNull Trader modelSeller_;
     private final @NonNull Economy economy_;
@@ -72,6 +72,7 @@ public class Activate extends StateChangeBase implements Action { // inheritance
      */
     @Override
     public @NonNull Activate take() {
+        super.take();
         checkArgument(!getTarget().getState().isActive());
         getTarget().changeState(TraderState.ACTIVE);
         // when activate an inactive trader, update its relation with guaranteed buyers if any
@@ -87,6 +88,7 @@ public class Activate extends StateChangeBase implements Action { // inheritance
      */
     @Override
     public @NonNull Activate rollback() {
+        super.rollback();
         checkArgument(getTarget().getState().isActive());
         getTarget().changeState(TraderState.INACTIVE);
         // when roll back an activate action, remove the shoppingList for the target and its guaranteed buyers
