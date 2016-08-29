@@ -199,11 +199,7 @@ public final class ShoppingList {
     @Deterministic
     public @NonNull ShoppingList setPeakQuantity(int index, double newPeakQuantity) {
         checkArgument(newPeakQuantity >= 0, "newPeakQuantity = " + newPeakQuantity);
-        if (newPeakQuantity < quantities_[index]) {
-            peakQuantities_[index] = quantities_[index];
-        } else {
-            peakQuantities_[index] = newPeakQuantity;
-        }
+        peakQuantities_[index] = Math.max(quantities_[index], newPeakQuantity);
         return this;
     }
 
