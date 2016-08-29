@@ -71,13 +71,14 @@ public class Move extends MoveBase implements Action { // inheritance for code r
 
     @Override
     public @NonNull String serialize(@NonNull Function<@NonNull Trader, @NonNull String> oid) {
-        return new StringBuilder()
+        StringBuilder sb = new StringBuilder()
             // TODO: is it enough to send the buyer or is the basket needed as well?
-            .append("<action type=\"move\" target=\"").append(oid.apply(getTarget().getBuyer()))
-            .append("\" source=\"").append(oid.apply(getSource()))
-            .append("\" destination=\"").append(oid.apply(destination_))
-            .append("\" />")
-            .toString();
+            .append("<action type=\"move\" target=\"").append(oid.apply(getTarget().getBuyer()));
+        if (getSource() != null) {
+            sb.append("\" source=\"").append(oid.apply(getSource()));
+        }
+        sb.append("\" destination=\"").append(oid.apply(destination_)).append("\" />");
+        return sb.toString();
     }
 
     @Override

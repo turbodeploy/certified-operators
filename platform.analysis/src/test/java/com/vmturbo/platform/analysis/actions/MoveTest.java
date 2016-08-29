@@ -132,6 +132,7 @@ public final class MoveTest {
         return new Object[][]{
             {new Move(e1,bp1,t21),oid,"<action type=\"move\" target=\"id1\" source=\"id2\" destination=\"id3\" />"},
             {new Move(e1,bp2,t11),oid,"<action type=\"move\" target=\"id3\" source=\"id4\" destination=\"id1\" />"},
+            {new Move(e1,bp2,null,t11),oid,"<action type=\"move\" target=\"id3\" destination=\"id1\" />"},
         };
     }
 
