@@ -8,6 +8,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
+import com.vmturbo.platform.analysis.actions.Reconfigure;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -76,7 +77,7 @@ public abstract class Supply {
                         placementActions = Placement.placementDecisions(economy);
                     }
                     keepRunning = !(placementActions.isEmpty() || placementActions.stream()
-                                    .allMatch(a -> a.getClass().getName().contains("Reconfigure")));
+                                    .allMatch(a -> a instanceof Reconfigure));
                     actions.addAll(placementActions);
                 }
 

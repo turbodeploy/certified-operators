@@ -9,8 +9,10 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.google.common.collect.Lists;
 import com.vmturbo.platform.analysis.actions.Action;
+import com.vmturbo.platform.analysis.actions.Activate;
 import com.vmturbo.platform.analysis.actions.GuaranteedBuyerHelper;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
+import com.vmturbo.platform.analysis.actions.Reconfigure;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
@@ -72,13 +74,25 @@ public class Provision {
 
                 double origRoI = ledger.getTraderIncomeStatements().get(
                                 mostProfitableTrader.getEconomyIndex()).getROI();
-                // TODO: we could reactivate a suspended seller, currently I just clone most
-                // profitable seller
-                ProvisionBySupply provisionAction = new ProvisionBySupply(economy,
-                                mostProfitableTrader);
-                actions.add(provisionAction.take());
 
-                Trader provisionedTrader = provisionAction.getProvisionedSeller();
+                Trader provisionedTrader = null;
+                if (!market.getInactiveSellers().isEmpty()) {
+                    // TODO: pick a trader that is closest to the mostProfitableTrader to activate
+                    // reactivate a suspended seller
+                    Activate activateAction = new Activate(economy, market.getInactiveSellers().
+                                    get(0), market, mostProfitableTrader);
+                    actions.add(activateAction.take());
+
+                    provisionedTrader = activateAction.getTarget();
+                } else {
+                    // provision a new trader
+                    ProvisionBySupply provisionAction = new ProvisionBySupply(economy,
+                                    mostProfitableTrader);
+                    actions.add(provisionAction.take());
+
+                    provisionedTrader = provisionAction.getProvisionedSeller();
+                }
+
                 // run placement after adding a new seller to the economy
                 // TODO: run placement within a market
                 boolean keepRunning = true;
@@ -94,7 +108,7 @@ public class Provision {
                                                         .getCustomers()));
                     }
                     keepRunning = !(placeActions.isEmpty() || placeActions.stream().allMatch(a ->
-                                        a.getClass().getName().contains("Reconfigure")));
+                                                a instanceof Reconfigure));
                     actions.addAll(placeActions);
                 }
                 ledger.addTraderIncomeStatement(provisionedTrader);

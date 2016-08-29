@@ -8,6 +8,7 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.CompoundMove;
+import com.vmturbo.platform.analysis.actions.Reconfigure;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ledger.Ledger;
@@ -63,7 +64,7 @@ public final class Ede {
                 placeActions = Placement.placementDecisions(economy);
             }
             keepRunning = !(placeActions.isEmpty() || placeActions.stream().allMatch(a ->
-                                a.getClass().getName().contains("Reconfigure")));
+                                a instanceof Reconfigure));
             actions.addAll(placeActions);
         }
         Ledger ledger = new Ledger(economy);
