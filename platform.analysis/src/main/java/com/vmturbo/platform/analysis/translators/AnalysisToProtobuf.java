@@ -348,6 +348,12 @@ public final class AnalysisToProtobuf {
             builder.setProvisionByDemand(provDemandTO);
         } else if (input instanceof ProvisionBySupply) {
             ProvisionBySupply provSupply = (ProvisionBySupply)input;
+            // create shopping list OIDs for the provisioned shopping lists
+            topology.getEconomy()
+            	.getMarketsAsBuyer(provSupply.getProvisionedSeller())
+            	.keySet()
+            	.stream()
+            	.forEach(topology::addProvisionedShoppingList);
             ProvisionBySupplyTO.Builder provSupplyTO = ProvisionBySupplyTO.newBuilder()
                             .setModelSeller(traderOid.get(provSupply.getModelSeller()))
                             // the newly provisioned trader does not have OID, assign one for it and adds

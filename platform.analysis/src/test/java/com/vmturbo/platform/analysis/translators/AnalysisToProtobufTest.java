@@ -1,10 +1,12 @@
 package com.vmturbo.platform.analysis.translators;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import java.lang.reflect.Field;
 import java.util.Arrays;
+import java.util.Set;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Ignore;
@@ -288,6 +290,28 @@ public class AnalysisToProtobufTest {
         ActionTO actionTO =
                         AnalysisToProtobuf.actionTO(input, traderOid, shoppingListOid, topo);
         assertEquals(expect, actionTO);
+    }
+
+    @Test
+    public final void testActionToNewShoppingLists() throws Exception{
+        Topology topology = new Topology();
+        // Use reflection to add vm1 to the traders OID map.
+        Field traderOidField = Topology.class.getDeclaredField("traderOids_");
+        traderOidField.setAccessible(true);
+        @SuppressWarnings("unchecked")
+        BiMap<Trader, Long> traderOids = (BiMap<Trader, Long>)traderOidField.get(topology);
+        traderOids.put(vm1, 100l); // needed when construction the ActionTO
+        // Provision
+        ProvisionBySupply prov = new ProvisionBySupply(e, vm1);
+        prov.take();
+        BiMap<ShoppingList, Long> shoppingListOids = topology.getShoppingListOids();
+        assertTrue(shoppingListOids.isEmpty());
+        AnalysisToProtobuf.actionTO(prov, traderOids, shoppingListOids, topology);
+        Set<ShoppingList> provisionedShoppingLists =
+                topology.getEconomy().getMarketsAsBuyer(prov.getProvisionedSeller()).keySet();
+        assertTrue(shoppingListOids.keySet().containsAll(provisionedShoppingLists));
+        // OIDs of provisioned shopping lists should all be negative
+        shoppingListOids.values().stream().forEach(oid -> assertTrue(oid < 0));
     }
 
     // Methods for converting CommunicationDTOs.
