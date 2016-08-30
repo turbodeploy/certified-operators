@@ -3,6 +3,7 @@ package com.vmturbo.platform.analysis.actions;
 import static org.junit.Assert.*;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -23,9 +24,11 @@ public class ActionTest {
 
     private static final Basket EMPTY = new Basket();
     private static final Basket BASKET = new Basket(new CommoditySpecification(0), new CommoditySpecification(1));
+    private static final Basket BASKET2 = new Basket(new CommoditySpecification(2));
     private static final Economy EC = new Economy();
     private static final int TYPE_PM = 0;
     private static final int TYPE_VM = 1;
+    private static final int TYPE_DC = 2;
 
     @Test
     public final void testCollapsed_MovesOnly() {
@@ -205,5 +208,47 @@ public class ActionTest {
         assertEquals(t1, collapsed3.getSellingTrader());
         assertEquals(C1, collapsed3.getResizedCommoditySpec());
         assertEquals(40, collapsed3.getNewCapacity(), 1e-5);
+    }
+
+    @Test // Collapse actions with same target which end with Deactivate action
+    public final void testCollapsed_EndWithDeactivate() {
+        Trader v1 = EC.addTrader(TYPE_VM, TraderState.ACTIVE, EMPTY, BASKET);
+        Trader p1 = EC.addTrader(TYPE_PM, TraderState.ACTIVE, BASKET, BASKET2);
+        Trader p2 = EC.addTrader(TYPE_PM, TraderState.INACTIVE, BASKET, BASKET2);
+        Trader dc1 = EC.addTrader(TYPE_DC, TraderState.ACTIVE, BASKET2);
+        ShoppingList s1 = EC.addBasketBought(v1, BASKET);
+
+        // suppose the sequence for actions are : ProvisionByDemand -> Deactivate
+        ProvisionByDemand provD1 = (ProvisionByDemand)new ProvisionByDemand(EC, s1, p1).take();
+        Deactivate d2 = new Deactivate(EC, provD1.getProvisionedSeller(), EC.getMarket(BASKET));
+        List<Action> sequence1 = new ArrayList<Action>(Arrays.asList(provD1, d2));
+        assertTrue(Action.collapsed(sequence1).isEmpty());
+        // suppose the sequence for actions are : ProvisionBySupply -> Move -> Deactivate
+        ProvisionBySupply provS1 = (ProvisionBySupply)new ProvisionBySupply(EC, p1).take();
+        Deactivate d3 = new Deactivate(EC, provS1.getProvisionedSeller(), EC.getMarket(BASKET));
+        ShoppingList sl3 = EC.addBasketBought(provS1.getProvisionedSeller(), BASKET2);
+        Move m3 = new Move(EC, sl3, dc1);
+        List<Action> sequence2 = new ArrayList<Action>(Arrays.asList(provS1, m3, d3));
+        assertTrue(Action.collapsed(sequence2).isEmpty());
+        // suppose the sequence for actions are: ProvisionBySupply1 -> ProvisionBySupply2 -> Deactivate1
+        ProvisionBySupply provS5 = (ProvisionBySupply)new ProvisionBySupply(EC, p2).take();
+        ProvisionBySupply provS6 = (ProvisionBySupply)new ProvisionBySupply(EC, p2).take();
+        Deactivate d5 = new Deactivate(EC, provS5.getProvisionedSeller(), EC.getMarket(BASKET));
+        List<Action> sequence3 = new ArrayList<Action>(Arrays.asList(provS5, provS6, d5));
+        List<Action> results3 = Action.collapsed(sequence3);
+        assertEquals(1, results3.size());
+        assertEquals(provS6, results3.get(0));
+        // suppose the sequence for actions are : ProvisionBySupply1 -> ProvisionByDemand2 -> Deactivate2
+        ProvisionBySupply provS7 = (ProvisionBySupply)new ProvisionBySupply(EC, p2).take();
+        ProvisionByDemand provD8 = (ProvisionByDemand)new ProvisionByDemand(EC, s1, p1).take();
+        Deactivate d6 = new Deactivate(EC, provD8.getProvisionedSeller(), EC.getMarket(BASKET));
+        List<Action> sequence4 = new ArrayList<Action>(Arrays.asList(provS7, provD8, d6));
+        List<Action> results4 = Action.collapsed(sequence4);
+        assertEquals(1, results4.size());
+        assertEquals(provS7, results4.get(0));
+        // suppose the sequence for actions with different traders
+        List<Action> sequence5 = new ArrayList<Action>(Arrays.asList(provS1, m3, d5));
+        List<Action> results5 = Action.collapsed(sequence5);
+        assertEquals(3, results5.size());
     }
 }
