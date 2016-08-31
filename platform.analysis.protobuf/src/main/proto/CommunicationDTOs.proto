@@ -28,6 +28,10 @@ message StartDiscoveredTopology {
     required EconomySettingsTO economySettings = 2;
 }
 
+// The message to force a running plan to stop
+message ForcePlanStop {
+}
+
 // The intention is that the Analysis server will keep information in a staging area and atomically
 // replace the old real-time topology with the new when it receives the EndDiscoveredTopology
 // message. That way the Analysis server will have a valid topology at any time.
@@ -93,6 +97,7 @@ message AnalysisCommand {
         StartDiscoveredTopology start_discovered_topology = 1;
         TraderTO discovered_trader = 2;
         EndDiscoveredTopology end_discovered_topology = 3;
+        ForcePlanStop force_plan_stop = 4;
     }
 }
 
@@ -107,7 +112,8 @@ message AnalysisCommand {
 message AnalysisResults {
     // The list of actions proposed by the economic decision engine.
     repeated ActionTO actions = 1;
-
+	// The boolean to indicate if plan is forced to stop state
+	optional bool plan_stopped = 2;
     // Just-for-fun field to allow showing how long it took to compute the results. (Like the
     // indication in Google Search) The value is in nanoseconds.
     optional int64 time_to_analyze_ns = 3;
