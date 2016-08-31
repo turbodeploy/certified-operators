@@ -45,7 +45,8 @@ public final class Economy implements UnmodifiableEconomy {
         commodityResizeDependency_ = new HashMap<>();
     // Map from raw processedCommodity -> rawCommodity
     private final @NonNull Map<@NonNull Integer, @NonNull List<@NonNull Integer>> rawMaterial_ = new HashMap<>();
-
+    // a flag to indicate if analysis should stop immediately or not
+    private volatile boolean forceStop = false;
     // Cached data
 
     // Cached unmodifiable view of the markets_.values() collection.
@@ -486,6 +487,22 @@ public final class Economy implements UnmodifiableEconomy {
         traders_.clear();
         quantityFunctions_.clear();
         settings_.clear();
+        forceStop = false;
     }
 
+    /**
+     * Set the flag to indicate if analysis should stop immediately.
+     */
+    @Override
+    public void setForceStop(boolean forcePlanStop) {
+        this.forceStop = forcePlanStop;
+    }
+
+    /**
+     * Get the flag which indicates if plan should stop immediately
+     */
+    @Override
+    public boolean getForceStop() {
+        return forceStop;
+    }
 } // end class Economy

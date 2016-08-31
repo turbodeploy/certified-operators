@@ -22,6 +22,7 @@ import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.EconomySettings;
 import com.vmturbo.platform.analysis.ede.Ede;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisCommand;
+import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.EconomySettingsTO;
 import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.translators.AnalysisToProtobuf;
@@ -125,65 +126,30 @@ public final class AnalysisServer {
                                     command.getEndDiscoveredTopology().getEnableSuspension();
                     isResizeEnabled = command.getEndDiscoveredTopology().getEnableResize();
 
-                    // Swap topologies
-                    Topology temp = lastComplete_;
-                    lastComplete_ = currentPartial_;
-                    currentPartial_ = temp;
-
-                    // Run one round of placement measuring time-to-process
-                    long start = System.nanoTime();
-                    @NonNull List<@NonNull Action> actions = new Ede()
-                                    .generateActions((Economy)lastComplete_.getEconomy(),
-                                                    isShopTogetherEnabled, isProvisionEnabled,
-                                                    isSuspensionEnabled, isResizeEnabled);
-
-                    // Filter the initial moves and remove them from the action list which will go
-                    // through collapsing. The variable "actions" being passed into this method will
-                    // change
-                    List<@NonNull Action> initialMoves = Action.preProcessBeforeCollapse(actions);
-                    // Collapsing all actions except for the initial moves
-                    List<@NonNull Action> collapsedActionsWithoutInitialMoves =
-                                    Action.collapsed(actions);
-                    // Group all actions of same type together, use the following order when
-                    // sending actions to the legacy market side, provision->move(initial move)
-                    // ->resize->move-> suspension. We need to do it because after action
-                    // collapsing, the order of actions are not maintained, it does not guarantee
-                    // provision comes before move actions, which means move actions may have
-                    // destination with null OID! The initial placement for any trader is
-                    // considered as "Start" in legacy market and start will set up consumes
-                    // relation on legacy market. Resize would require the consumes to be populated
-                    // so initial moves have to be sent before any resize. As for resize, it should
-                    // be sent before non-initial moves because a trader may require resize down
-                    // itself to fit in the destination.
-                    // TODO: we should be careful when we want to generate actions for main
-                    // market instead of plan, because collapsing and grouping actions will
-                    // break the inherent cohesion between different actions. For example, to
-                    // execute a suspension, it would often require move actions which move the
-                    // customer out of the suspension candidate.
-                    @NonNull
-                    List<@NonNull Action> reorderedActions =
-                                    Action.groupActionsByTypeAndReorderBeforeSending(initialMoves,
-                                                    collapsedActionsWithoutInitialMoves);
-
-                    long stop = System.nanoTime();
-
-                    // Send back the results
-                    try (OutputStream stream = session.getBasicRemote().getSendStream()) {
-                        AnalysisToProtobuf
-                                        .analysisResults(reorderedActions,
-                                                        lastComplete_.getTraderOids(),
-                                                        lastComplete_.getShoppingListOids(),
-                                                        stop - start,
-                                        lastComplete_).writeTo(stream);
-                    }
+                    // create a new thread to run the analysis algorithm so that
+                    // it does not block the server to receive messages from M1
+                    Runnable runAnalysis = new Runnable() {
+                        @Override
+                        public void run() {
+                            runAnalysis(session);
+                        }
+                    };
+                    new Thread(runAnalysis).start();
+                    break;
+                case FORCE_PLAN_STOP:
+                    logger.info("Received a message to stop running analysis from session "
+                                    + session.getId());
+                    currentPartial_.getEconomy().setForceStop(true);
                     break;
                 case COMMANDTYPE_NOT_SET:
                 default:
                     logger.warn("Unknown command received from remote endpoint with case = \""
-                                + command.getCommandTypeCase());
+                                    + command.getCommandTypeCase() + "\" from session "
+                                    + session.getId());
             }
         } catch (Throwable error) {
-            logger.error("Exception thrown while processing message!",error);
+            logger.error("Exception thrown while processing message from session "
+                            + session.getId(), error);
         }
     }
 
@@ -210,4 +176,68 @@ public final class AnalysisServer {
         logger.error("Received an error from remote endpoint!", error);
     }
 
+    /**
+     * Create a new thread to execute the analysis algorithm which
+     * generates actions.
+     */
+    private void runAnalysis(@NonNull Session session) {
+        // Swap topologies
+        Topology temp = lastComplete_;
+        lastComplete_ = currentPartial_;
+        currentPartial_ = temp;
+        // Run one round of placement measuring time-to-process
+        long start = System.nanoTime();
+        @NonNull
+        List<@NonNull Action> actions = new Ede().generateActions(
+                        (Economy)lastComplete_.getEconomy(), isShopTogetherEnabled,
+                        isProvisionEnabled, isSuspensionEnabled, isResizeEnabled);
+        // if the analysis was forced to stop, send a planStopped message back
+        // to M1 which can further clear the plan related data
+        if (lastComplete_.getEconomy().getForceStop()) {
+            try (OutputStream stream = session.getBasicRemote().getSendStream()) {
+                AnalysisResults.newBuilder().setPlanStopped(true).build().writeTo(stream);
+            } catch (Throwable error) {
+                logger.error("Exception thrown while sending back stop message from session "
+                                + session.getId(), error);
+            }
+            return;
+        }
+        // Filter the initial moves and remove them from the action list which will go
+        // through collapsing. The variable "actions" being passed into this method will
+        // change
+        List<@NonNull Action> initialMoves = Action.preProcessBeforeCollapse(actions);
+        // Collapsing all actions except for the initial moves
+        List<@NonNull Action> collapsedActionsWithoutInitialMoves = Action.collapsed(actions);
+        // Group all actions of same type together, use the following order when
+        // sending actions to the legacy market side, provision->move(initial move)
+        // ->resize->move-> suspension. We need to do it because after action
+        // collapsing, the order of actions are not maintained, it does not guarantee
+        // provision comes before move actions, which means move actions may have
+        // destination with null OID! The initial placement for any trader is
+        // considered as "Start" in legacy market and start will set up consumes
+        // relation on legacy market. Resize would require the consumes to be populated
+        // so initial moves have to be sent before any resize. As for resize, it should
+        // be sent before non-initial moves because a trader may require resize down
+        // itself to fit in the destination.
+        // TODO: we should be careful when we want to generate actions for main
+        // market instead of plan, because collapsing and grouping actions will
+        // break the inherent cohesion between different actions. For example, to
+        // execute a suspension, it would often require move actions which move the
+        // customer out of the suspension candidate.
+        @NonNull
+        List<@NonNull Action> reorderedActions = Action.groupActionsByTypeAndReorderBeforeSending(
+                        initialMoves, collapsedActionsWithoutInitialMoves);
+
+        long stop = System.nanoTime();
+
+        // Send back the results
+        try (OutputStream stream = session.getBasicRemote().getSendStream()) {
+            AnalysisToProtobuf.analysisResults(reorderedActions, lastComplete_.getTraderOids(),
+                            lastComplete_.getShoppingListOids(), stop - start, lastComplete_)
+                            .writeTo(stream);
+        } catch (Throwable error) {
+            logger.error("Exception thrown while sending back actions!", error);
+        }
+        return;
+    }
 } // end AnalysisServer class

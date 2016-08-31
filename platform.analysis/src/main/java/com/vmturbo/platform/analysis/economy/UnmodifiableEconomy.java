@@ -197,4 +197,9 @@ public interface UnmodifiableEconomy {
     @ReadOnly
     List<@NonNull CommodityResizeSpecification> getResizeDependency(int processedCommodityType);
 
+    @ReadOnly
+    boolean getForceStop();
+
+    @Pure
+    void setForceStop(boolean forcePlanStop);
 } // end UnmodifiableEconomy interface
