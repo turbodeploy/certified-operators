@@ -112,7 +112,8 @@ public class Placement {
         if (cheapestQuote < currentQuote * economy.getSettings().getQuoteFactor()) {
             // create recommendation, add it to the result list and  update the economy to
             // reflect the decision
-            actions.add(new Move(economy,shoppingList,cheapestSeller).take());
+            actions.add(new Move(economy,shoppingList,cheapestSeller).take().setImportance(
+                            currentQuote - cheapestQuote));
         }
         return actions;
     }
@@ -140,7 +141,7 @@ public class Placement {
      * </p>
      *
      * @param economy - the economy whose traders' placement we want to optimize
-     * @param specialShoppingLists - list of shoppingLists that denotes buyers that 
+     * @param specialShoppingLists - list of shoppingLists that denotes buyers that
      * are to shop before the others
      */
     public static @NonNull List<@NonNull Action> shopTogetherDecisions(@NonNull Economy economy,
@@ -209,7 +210,8 @@ public class Placement {
                 if (minimizer.getBestTotalQuote() < currentTotalQuote * economy.getSettings().getQuoteFactor()) {
                     List<ShoppingList> shoppingLists = movableEntries.stream()
                         .map(Entry::getKey).collect(Collectors.toList());
-                    output.add(new CompoundMove(economy, shoppingLists, minimizer.getBestSellers()).take());
+                    output.add(new CompoundMove(economy, shoppingLists, minimizer.getBestSellers())
+                                   .take().setImportance(currentTotalQuote - minimizer.getBestTotalQuote()));
                 }
             }
         }

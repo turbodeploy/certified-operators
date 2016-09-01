@@ -81,7 +81,9 @@ public class BootstrapSupply {
                 if (shoppingList.getSupplier() == null) {
                     if (Double.isFinite(minimizer.getBestQuote())) {
                         // on getting finiteQuote, move unplaced Trader to the best provider
-                        allActions.add(new Move(economy,shoppingList,minimizer.getBestSeller()).take());
+                        allActions.add(new Move(economy,shoppingList,minimizer.getBestSeller())
+                                        .take().setImportance(minimizer.getCurrentQuote()
+                                                        - minimizer.getBestQuote()));
                     } else {
                         // on getting an infiniteQuote, provision new Seller and move unplaced Trader to it
                         allActions.addAll(provisionTraderToFitBuyer(economy, shoppingList, sellers));
@@ -105,7 +107,9 @@ public class BootstrapSupply {
                             if (Double.isFinite(tempMinimizer
                                             .getBestQuote())) {
                                 allActions.add(provisionAction);
-                                allActions.add(new Move(economy,shoppingList,candidateSeller).take());
+                                allActions.add(new Move(economy,shoppingList,candidateSeller)
+                                              .take().setImportance(tempMinimizer.getCurrentQuote()
+                                                                - tempMinimizer.getBestQuote()));
                             } else {
                                 provisionAction.rollback();
                                 allActions.addAll(provisionTraderToFitBuyer(economy, shoppingList,
@@ -191,7 +195,8 @@ public class BootstrapSupply {
         // supplier. We do not add it to the "actions" variable that returns to M1, because
         // M1 can not handle moving the shoppinglist for new trader, as it has no notion of
         // the new trader, nor its shoppinglist, so here we execute the move in M2 internally
-        new Move(economy, shoppingList, provisionedSeller).take();
+        // marking this as as very important action
+        new Move(economy, shoppingList, provisionedSeller).take().setImportance(Double.POSITIVE_INFINITY);
         return actions;
     }
 

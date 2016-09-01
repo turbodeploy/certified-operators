@@ -16,6 +16,7 @@ import org.junit.runner.RunWith;
 import com.google.common.collect.BiMap;
 
 import com.vmturbo.platform.analysis.actions.Action;
+import com.vmturbo.platform.analysis.actions.ActionImpl;
 import com.vmturbo.platform.analysis.actions.Activate;
 import com.vmturbo.platform.analysis.actions.CompoundMove;
 import com.vmturbo.platform.analysis.actions.Deactivate;
@@ -186,6 +187,7 @@ public class AnalysisToProtobufTest {
                         .addTriggeringBasket(CommoditySpecificationTO.newBuilder().setType(100)
                                         .setBaseType(1000).setQualityLowerBound(0)
                                         .setQualityUpperBound(Integer.MAX_VALUE).build()))
+                        .setImportance((float)((ActionImpl)activate).getImportance())
                         .build();
 
         Action deactivate = new Deactivate(e, vm2, e.getMarket(basketBought1));
@@ -195,13 +197,15 @@ public class AnalysisToProtobufTest {
                                                         .setBaseType(1000)
                                                         .setQualityLowerBound(0)
                                                         .setQualityUpperBound(Integer.MAX_VALUE)
-                                                        .build())
-                        .build()).build();
+                                                        .build()).build()).setImportance((float)(
+                                                        (ActionImpl)deactivate).getImportance())
+                        .build();
 
         Action move = new Move(e, shop2, pm1);
         ActionTO moveTO = ActionTO.newBuilder().setMove(
                         MoveTO.newBuilder().setShoppingListToMove(20l).setDestination(2l)
-                                        .setSource(3l).build())
+                                        .setSource(3l).build()).setImportance((float)(
+                                        (ActionImpl)move).getImportance())
                         .build();
 
         Action provisionByDemand = new ProvisionByDemand(e, shop2, pm2);
@@ -216,7 +220,9 @@ public class AnalysisToProtobufTest {
                                         .addCommodityNewCapacityEntry(CommodityNewCapacityEntry.newBuilder()
                                                                                         .setCommodityBaseType(
                                                                                                         1000)
-                                                        .setNewCapacity(25).build()))
+                                                        .setNewCapacity(25).build())).setImportance((float)(
+                                                                        (ActionImpl)provisionByDemand)
+                                                                        .getImportance())
                         .build();
 
         Action provisionBySupply = new ProvisionBySupply(e, pm1);
@@ -227,7 +233,8 @@ public class AnalysisToProtobufTest {
                         .setProvisionBySupply(
                                         ProvisionBySupplyTO.newBuilder().setModelSeller(2l)
                                         .setProvisionedSeller(-2)
-                                        .build())
+                                        .build()).setImportance((float)(
+                                        (ActionImpl)provisionBySupply).getImportance())
                         .build();
 
         Action resize = new Resize(e, pm1, CPU, 500);
@@ -238,13 +245,15 @@ public class AnalysisToProtobufTest {
                                                         .setBaseType(1000)
                                                         .setQualityLowerBound(0)
                                                         .setQualityUpperBound(Integer.MAX_VALUE)
-                                                        .build()))
+                                                        .build())).setImportance((float)
+                                                        ((ActionImpl)resize).getImportance())
                         .build();
 
         Action reconfigure = new Reconfigure(e, shop1);
         ActionTO reconfigureTO = ActionTO
                         .newBuilder().setReconfigure(ReconfigureTO.newBuilder()
                                         .setShoppingListToReconfigure(10l).setSource(2l).build())
+                        .setImportance((float)((ActionImpl)reconfigure).getImportance())
                         .build();
 
         ShoppingList[] twoShoppingLists = Arrays.copyOf(e.getMarketsAsBuyer(vm3).keySet().toArray(),
@@ -264,7 +273,8 @@ public class AnalysisToProtobufTest {
                                                         .setDestination(3l).setSource(2l).build())
                                         .addMoves(MoveTO.newBuilder().setShoppingListToMove(40l)
                                                         .setDestination(5l).setSource(4l).build())
-                                        .build())
+                                        .build()).setImportance((float)(
+                                                        (ActionImpl)compoundMove).getImportance())
                         .build();
         return new Object[][] {{activate, traderOids, shoppingListOids, topo, activateTO},
                         {deactivate, traderOids, shoppingListOids, topo, deActionTO},

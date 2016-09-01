@@ -89,6 +89,7 @@ public class Resizer {
                                                 basketSold.get(soldIndex), commoditySold,
                                                 soldIndex, newCapacity);
                                 resizeAction.take();
+                                resizeAction.setImportance(currentRevenue - newRevenue);
                                 actions.add(resizeAction);
                             }
                         } catch (Exception bisectionException) {

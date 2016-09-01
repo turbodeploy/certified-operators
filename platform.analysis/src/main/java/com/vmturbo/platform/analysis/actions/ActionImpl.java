@@ -17,6 +17,27 @@ public class ActionImpl implements Action {
     // a flag to indicate if the action is taken or not
     private boolean actionTaken = false;
 
+    // measure of importance of an action
+    private double importance_ = 0;
+
+    /**
+     * @return the importance of this action
+     * @see #setImportance()
+     */
+    public double getImportance() {
+        return importance_;
+    }
+
+    /**
+     * @param importance of an action
+     * @return {@code this}
+     * @see #getImportance()
+     */
+    public @NonNull Action setImportance(double importance) {
+        importance_ = importance;
+        return this;
+    }
+
     /**
      * A getter for the flag regarding whether the action is taken or not.
      */

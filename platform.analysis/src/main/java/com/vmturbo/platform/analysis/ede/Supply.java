@@ -7,6 +7,7 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import com.vmturbo.platform.analysis.actions.Action;
+import com.vmturbo.platform.analysis.actions.ActionImpl;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
 import com.vmturbo.platform.analysis.actions.Reconfigure;
 import com.vmturbo.platform.analysis.economy.Economy;
@@ -58,7 +59,8 @@ public abstract class Supply {
                 if (bestTraderToEngage == null) {
                     break;
                 }
-
+                double oldRevenue = ledger.getTraderIncomeStatements().get(
+                                bestTraderToEngage.getEconomyIndex()).getRevenues();
                 takeActionAndUpdateLedger(economy, market, ledger, bestTraderToEngage,
                                 actions);
                 Trader provisionedSeller = (actions.get(0) instanceof ProvisionBySupply) ?
@@ -96,6 +98,9 @@ public abstract class Supply {
                         break;
                     }
                 }
+                ((ActionImpl)actions.get(0)).setImportance(oldRevenue - ledger
+                                .getTraderIncomeStatements().get(bestTraderToEngage
+                                                .getEconomyIndex()).getRevenues());
                 allActions.addAll(actions);
             }
         }

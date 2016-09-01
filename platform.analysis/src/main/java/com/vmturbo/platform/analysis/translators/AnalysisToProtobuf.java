@@ -8,6 +8,7 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import com.google.common.collect.BiMap;
 
 import com.vmturbo.platform.analysis.actions.Action;
+import com.vmturbo.platform.analysis.actions.ActionImpl;
 import com.vmturbo.platform.analysis.actions.Activate;
 import com.vmturbo.platform.analysis.actions.CompoundMove;
 import com.vmturbo.platform.analysis.actions.Deactivate;
@@ -377,7 +378,7 @@ public final class AnalysisToProtobuf {
             }
             builder.setCompoundMove(compoundMoveTO);
         }
-
+        builder.setImportance(((ActionImpl)input).getImportance());
         return builder.build();
     }
 

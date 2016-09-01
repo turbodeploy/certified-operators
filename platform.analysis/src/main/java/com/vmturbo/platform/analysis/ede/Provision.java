@@ -9,6 +9,7 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.google.common.collect.Lists;
 import com.vmturbo.platform.analysis.actions.Action;
+import com.vmturbo.platform.analysis.actions.ActionImpl;
 import com.vmturbo.platform.analysis.actions.Activate;
 import com.vmturbo.platform.analysis.actions.GuaranteedBuyerHelper;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
@@ -71,26 +72,26 @@ public class Provision {
                 if (mostProfitableTrader == null) {
                     break;
                 }
-
+                Action provisionAction = null;
                 double origRoI = ledger.getTraderIncomeStatements().get(
                                 mostProfitableTrader.getEconomyIndex()).getROI();
+                double oldRevenue = ledger.getTraderIncomeStatements().get(
+                                mostProfitableTrader.getEconomyIndex()).getRevenues();
 
                 Trader provisionedTrader = null;
                 if (!market.getInactiveSellers().isEmpty()) {
                     // TODO: pick a trader that is closest to the mostProfitableTrader to activate
                     // reactivate a suspended seller
-                    Activate activateAction = new Activate(economy, market.getInactiveSellers().
+                    provisionAction = new Activate(economy, market.getInactiveSellers().
                                     get(0), market, mostProfitableTrader);
-                    actions.add(activateAction.take());
-
-                    provisionedTrader = activateAction.getTarget();
+                    actions.add(provisionAction.take());
+                    provisionedTrader = ((Activate)provisionAction).getTarget();
                 } else {
                     // provision a new trader
-                    ProvisionBySupply provisionAction = new ProvisionBySupply(economy,
+                    provisionAction = new ProvisionBySupply(economy,
                                     mostProfitableTrader);
                     actions.add(provisionAction.take());
-
-                    provisionedTrader = provisionAction.getProvisionedSeller();
+                    provisionedTrader = ((ProvisionBySupply)provisionAction).getProvisionedSeller();
                 }
 
                 // run placement after adding a new seller to the economy
@@ -121,6 +122,9 @@ public class Provision {
                     rollBackActionAndUpdateLedger(ledger, provisionedTrader, actions);
                     break;
                 }
+                ((ActionImpl)provisionAction).setImportance(oldRevenue - ledger
+                                .getTraderIncomeStatements().get(mostProfitableTrader
+                                                .getEconomyIndex()).getRevenues());
                 allActions.addAll(actions);
             }
         }
