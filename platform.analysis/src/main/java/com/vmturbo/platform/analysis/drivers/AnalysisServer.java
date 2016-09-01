@@ -21,9 +21,7 @@ import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.EconomySettings;
 import com.vmturbo.platform.analysis.ede.Ede;
-import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisCommand;
-import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults;
-import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.EconomySettingsTO;
+import com.vmturbo.platform.analysis.ledger.PriceStatement;
 import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.translators.AnalysisToProtobuf;
 import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
@@ -117,7 +115,7 @@ public final class AnalysisServer {
                                                                          currentPartial_);
                     ProtobufToAnalysis.populateCommodityResizeDependencyMap(
                                     command.getEndDiscoveredTopology(),
-                                                                            currentPartial_);
+                                    currentPartial_);
                     ProtobufToAnalysis.populateRawCommodityMap(command.getEndDiscoveredTopology(),
                                                                currentPartial_);
 
@@ -187,10 +185,13 @@ public final class AnalysisServer {
         currentPartial_ = temp;
         // Run one round of placement measuring time-to-process
         long start = System.nanoTime();
-        @NonNull
-        List<@NonNull Action> actions = new Ede().generateActions(
-                        (Economy)lastComplete_.getEconomy(), isShopTogetherEnabled,
-                        isProvisionEnabled, isSuspensionEnabled, isResizeEnabled);
+        PriceStatement priceStatement = new PriceStatement();
+        Economy economy = (Economy)lastComplete_.getEconomy();
+        priceStatement.computePriceIndex(economy, true);
+        @NonNull List<@NonNull Action> actions = new Ede().generateActions(
+                        economy, isShopTogetherEnabled, isProvisionEnabled, isSuspensionEnabled,
+                        isResizeEnabled);
+        priceStatement.computePriceIndex(economy, false);
         // if the analysis was forced to stop, send a planStopped message back
         // to M1 which can further clear the plan related data
         if (lastComplete_.getEconomy().getForceStop()) {
