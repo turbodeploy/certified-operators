@@ -1,0 +1,182 @@
+package com.vmturbo.platform.analysis.protobuf;
+
+import "PriceFunctionDTOs.proto";
+
+// The settings associated with the Economy.
+// The acceptable commodity utilization range used in resize engage criteria.
+message EconomySettingsTO {
+    // Resize up only if utilization is above the upper watermark.
+    required float rightsize_upper_watermark = 1;
+
+    // Do not resize down if utilization is above the lower watermark.
+    required float rightsize_lower_watermark = 2;
+}
+
+// A detailed, exact statement of particulars about a commodity a buyer needs to buy (but may not be
+// currently buying) or a seller is able to sell (but may not be currently selling).
+message CommoditySpecificationTO {
+    // The type of the commodity provided or requested. e.g. CPU or Memory. Using an int32 instead
+    // of an enum keeps us agnostic and lets us support all types that may be added in the future.
+    required int32 type = 1;
+
+    // The base type of the commodity. This does not include information about the subtype that
+    // is part of the type field above.
+    required int32 base_type = 2;
+
+    // Two commodities (one bought and one sold) will match iff their types are the same and their
+    // quality ranges overlap. This may be used e.g. to match a VM that needs 4 cores with a host
+    // that sells 1-8 cores, for storage tiers, or to encode keys if the ranges only contain one
+    // element.
+
+    // The lower bound on the quality provided or requested.
+    optional int32 quality_lower_bound = 3;
+
+    // The upper bound on the quality provided or requested. The default is intended to be
+    // Integer.MAX_VALUE. The relationship quality_lower_bound <= quality_upper_bound must hold.
+    optional int32 quality_upper_bound = 4 [default = 2147483647];
+
+    // The field contains info about commodity's eclass and key, it is used for debugging only
+    optional string debug_info_never_use_in_code = 5;
+}
+
+// A commodity that is bought or needs to be bought by a particular buyer from a particular seller
+// as part of a particular shopping list. It includes the amount(s) bought or requested.
+message CommodityBoughtTO {
+    // Defines the type and quality that needs to be bought.
+    required CommoditySpecificationTO specification = 1;
+
+    // The quantity that is currently bought or needs to be bought.
+    optional float quantity = 2;
+
+    // The peak quantity that is currently bought or needs to be bought. The relationship
+    // quantity <= peak_quantity must hold.
+    optional float peak_quantity = 3;
+}
+
+// The settings associated with and controlling the behavior of a single commodity sold.
+message CommoditySoldSettingsTO {
+    // Whether the analysis engine is allowed to change the commodity's  capacity.
+    optional bool resizable = 1;
+
+    // The lowest value the analysis engine can resize the capacity to.
+    optional float capacity_lower_bound = 2;
+
+    // The highest value the analysis engine can resize the capacity to. The default is intended to
+    // be Double.MAX_VALUE. The relationship capacity_lower_bound <= capacity_upper_bound must hold.
+    optional float capacity_upper_bound = 3 [default = 3.402823e+38];
+
+    // When the analysis engine resizes a commodity sold's capacity, the new value must be an
+    // integer multiple of this value.
+    optional float capacity_increment = 4 [default = 1.0];
+
+    // The analysis engine should produce actions to prevent utilization above this limit.
+    optional float utilization_upper_bound = 5 [default = 1.0];
+
+    // A function from quantity sold to the price charged for this quantity.
+    optional PriceFunctionTO price_function = 6;
+}
+
+// A commodity sold by a single trader. It includes the quantity(s) sold and a number of settings.
+message CommoditySoldTO {
+    // Defines the type and quality that are offered.
+    optional CommoditySpecificationTO specification = 1;
+
+    // The quantity that is currently sold.
+    optional float quantity = 2;
+
+    // The peak quantity that is currently sold.
+    optional float peak_quantity = 3;
+
+    // The historical quantity sold.
+    optional float historical_quantity = 4;
+
+    // The historical peak quantity sold.
+    optional float historical_peak_quantity = 5;
+
+    // The max quantity sold.
+    optional float max_quantity = 6;
+
+    // The maximum quantity and peak quantity that can potentially be sold. The default is intended
+    // to be Double.MAX_VALUE.
+    optional float capacity = 7 [default = 3.402823e+38];
+
+    // Whether this commodity is thin provisioned. This is related to
+    // <a href="https://en.wikipedia.org/wiki/Thin_provisioning">thin provisioning</a>.
+    optional bool thin = 8;
+
+    // The settings associated with and controlling the behavior of this commodity sold.
+    optional CommoditySoldSettingsTO settings = 9;
+}
+
+// A list of commodities that must be bought from the same provider, with some additional information.
+message ShoppingListTO {
+    // The unique identifier of this shopping list. Used to control individual volumes.
+    required int64 oid = 1;
+
+    // The current supplier for this shopping list. Assumed null if missing.
+    optional int64 supplier = 2;
+
+    // Whether the analysis engine can move this shopping list. Intended to be true only for VM and
+    // Container shopping lists.
+    optional bool movable = 3;
+
+    // The list of commodities that are currently bought from this supplier or need to be bought by
+    // some supplier if supplier is missing.
+    repeated CommodityBoughtTO commodities_bought = 4;
+}
+
+// A group of parameters effecting how a trader will be treated by the analysis engine.
+message TraderSettingsTO {
+    // Whether the analysis engine can use this as a template to create new traders.
+    optional bool clonable = 1;
+
+    // Whether the analysis engine can deactivate this trader.
+    optional bool suspendable = 2;
+
+    // Min and max desired utilizations together define the desired zone for a trader.
+    // The relationship min_desired_utilization <= max_desired_utilization must hold.
+    optional float min_desired_utilization = 3;
+    optional float max_desired_utilization = 4 [default = 1.0];
+
+    // Whether the trader should consume the clone of provider
+    optional bool guaranteed_buyer = 5;
+
+	// Whether the trader can accept consumer move in or out
+    optional bool can_accept_new_customers = 6;
+}
+
+// The different states a trader can be in. The intention is to make this a boolean once we confirm
+// no more states are needed by the analysis engine.
+enum TraderStateTO {
+    ACTIVE = 1; // The trader is participating in the economy and has expenses and revenues.
+    INACTIVE = 2; // The trader isn't participating in the economy and has zero expenses and revenues.
+}
+
+// An entity that trades goods in a market. Can buy and sell goods simultaneously.
+// Virtual machines, data centers and applications are examples of entities that can be modeled as
+// a trader.
+message TraderTO {
+    // The unique identifier of this trader. Used to send back actions for it.
+    required int64 oid = 1;
+
+    // Analysis is currently not using this field, but may be used for debugging.
+    optional int32 type = 2;
+
+    // Whether this trader participates in the economy and has expenses and revenues.
+    optional TraderStateTO state = 3;
+
+    // A list of commodities offered by this trader.
+    repeated CommoditySoldTO commodities_sold = 4;
+
+    // A list of integers representing the k-partite cliques this trader is a member of.
+    repeated int32 cliques = 8 [packed = true];
+
+    // A list of shopping lists this trader sets out to buy.
+    repeated ShoppingListTO shopping_lists = 5;
+
+    // The settings affecting how the analysis engine should treat this trader.
+    optional TraderSettingsTO settings = 6;
+
+    // The field contains info about trader's eclass and uuid, it is used for debugging only
+    optional string debug_info_never_use_in_code = 7;
+}
