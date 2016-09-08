@@ -6,7 +6,6 @@ import java.util.function.DoubleBinaryOperator;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import com.google.common.collect.BiMap;
-
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionImpl;
 import com.vmturbo.platform.analysis.actions.Activate;
@@ -27,6 +26,8 @@ import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderSettings;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
+import com.vmturbo.platform.analysis.ledger.PriceStatement;
+import com.vmturbo.platform.analysis.ledger.PriceStatement.TraderPriceStatement;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActivateTO;
@@ -51,6 +52,8 @@ import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.Constant;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.StandardWeighted;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.Step;
+import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
+import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessagePayload;
 import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO;
 import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO.Max;
 import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO.Min;
@@ -400,14 +403,30 @@ public final class AnalysisToProtobuf {
     public static @NonNull AnalysisResults analysisResults(@NonNull List<Action> actions,
                     @NonNull BiMap<@NonNull Trader, @NonNull Long> traderOid,
                     @NonNull BiMap<@NonNull ShoppingList, @NonNull Long> shoppingListOid,
-                    long timeToAnalyze_ns, Topology topology) {
+                    long timeToAnalyze_ns, Topology topology, PriceStatement priceStatement) {
         AnalysisResults.Builder builder = AnalysisResults.newBuilder();
 
         for (Action action : actions) {
             builder.addActions(actionTO(action, traderOid, shoppingListOid, topology));
         }
 
-        return builder.setTimeToAnalyzeNs(timeToAnalyze_ns).build();
+        Economy economy = (Economy)topology.getEconomy();
+        // compulate the endPriceIndex
+        priceStatement.computePriceIndex(economy, false);
+        // populate AnalysisResults with priceIndex info
+        PriceIndexMessage.Builder piBuilder = PriceIndexMessage.newBuilder();
+        int traderIndex = 0;
+        for (TraderPriceStatement traderPriceStmt : priceStatement.getTraderPriceStatements()) {
+            PriceIndexMessagePayload.Builder payloadBuilder = PriceIndexMessagePayload.newBuilder();
+            payloadBuilder.setOid(traderOid.get(economy.getTraders().get(traderIndex)));
+            payloadBuilder.setPriceindexCurrent(traderPriceStmt.getPriceIndex(true));
+            payloadBuilder.setPriceindexProjected(traderPriceStmt.getPriceIndex(false));
+            piBuilder.addPayload(payloadBuilder.build());
+            traderIndex++;
+        }
+
+        return builder.setTimeToAnalyzeNs(timeToAnalyze_ns).setPriceIndexMsg(piBuilder.build())
+                                         .build();
     }
 
 } // end AnalysisToProtobuf class

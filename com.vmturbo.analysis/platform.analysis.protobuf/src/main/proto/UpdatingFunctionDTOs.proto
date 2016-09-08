@@ -1,3 +1,4 @@
+syntax = "proto2";
 package com.vmturbo.platform.analysis.protobuf;
 
 // Any one from a small set of functions that can be used to update the quantity sold by a supplier

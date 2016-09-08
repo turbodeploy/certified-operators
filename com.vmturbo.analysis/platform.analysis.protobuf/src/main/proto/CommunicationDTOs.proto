@@ -1,8 +1,10 @@
+syntax = "proto2";
 package com.vmturbo.platform.analysis.protobuf;
 
 import "ActionDTOs.proto";
 import "EconomyDTOs.proto";
 import "UpdatingFunctionDTOs.proto";
+import "PriceIndexDTOs.proto";
 
 // Market 2.0 isn't concerned with segments, groups, etc. because it's enough to know about
 // commodities. Thus we need a limited number of messages.
@@ -112,9 +114,11 @@ message AnalysisCommand {
 message AnalysisResults {
     // The list of actions proposed by the economic decision engine.
     repeated ActionTO actions = 1;
+    // The PriceIndex of the traders in the economy
+    optional PriceIndexMessage priceIndexMsg = 2;
 	// The boolean to indicate if plan is forced to stop state
-	optional bool plan_stopped = 2;
+	optional bool plan_stopped = 3;
     // Just-for-fun field to allow showing how long it took to compute the results. (Like the
     // indication in Google Search) The value is in nanoseconds.
-    optional int64 time_to_analyze_ns = 3;
+    optional int64 time_to_analyze_ns = 4;
 }

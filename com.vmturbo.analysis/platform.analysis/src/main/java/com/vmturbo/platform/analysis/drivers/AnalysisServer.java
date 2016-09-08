@@ -194,7 +194,6 @@ public final class AnalysisServer {
         @NonNull List<@NonNull Action> actions = new Ede().generateActions(
                         economy, isShopTogetherEnabled, isProvisionEnabled, isSuspensionEnabled,
                         isResizeEnabled);
-        priceStatement.computePriceIndex(economy, false);
         // if the analysis was forced to stop, send a planStopped message back
         // to M1 which can further clear the plan related data
         if (lastComplete_.getEconomy().getForceStop()) {
@@ -237,8 +236,8 @@ public final class AnalysisServer {
         // Send back the results
         try (OutputStream stream = session.getBasicRemote().getSendStream()) {
             AnalysisToProtobuf.analysisResults(reorderedActions, lastComplete_.getTraderOids(),
-                            lastComplete_.getShoppingListOids(), stop - start, lastComplete_)
-                            .writeTo(stream);
+                            lastComplete_.getShoppingListOids(), stop - start, lastComplete_,
+                            priceStatement).writeTo(stream);
         } catch (Throwable error) {
             logger.error("Exception thrown while sending back actions!", error);
         }

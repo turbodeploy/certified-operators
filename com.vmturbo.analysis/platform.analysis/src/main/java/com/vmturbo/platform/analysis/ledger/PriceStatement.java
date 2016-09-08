@@ -1,9 +1,12 @@
 package com.vmturbo.platform.analysis.ledger;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
+import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
+import org.checkerframework.dataflow.qual.Pure;
 
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.Economy;
@@ -19,6 +22,10 @@ import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 public class PriceStatement {
 
     private final @NonNull List<@NonNull TraderPriceStatement> traderPriceStatements_ = new ArrayList<>();
+
+    // Cached unmodifiable view of the traderPriceStatements_ list.
+    private final @NonNull List<@NonNull TraderPriceStatement> unmodifiabletTraderPriceStatements_
+                                = Collections.unmodifiableList(traderPriceStatements_);
 
     public PriceStatement() {
         // Initializes an empty list of traderPriceStatements
@@ -83,6 +90,16 @@ public class PriceStatement {
     } // end class TraderPriceStatement
 
     /**
+     * Returns a unmodifiable list of {@link TraderPriceStatement}s
+     *
+     */
+    @Pure
+    public @NonNull @ReadOnly List<@NonNull @ReadOnly TraderPriceStatement> getTraderPriceStatements
+                                                      (@ReadOnly PriceStatement this) {
+        return unmodifiabletTraderPriceStatements_;
+    }
+
+    /**
      * Calculates the priceIndex of all the {@link Trader}s in an economy
      *
      * @param economy the {@link Economy} for whose entities we compute the priceIndex
@@ -98,19 +115,15 @@ public class PriceStatement {
                 traderPriceStmt = traderPriceStatements_.get(trader.getEconomyIndex());
             } else {
                 traderPriceStmt = new TraderPriceStatement();
+                traderPriceStatements_.add(traderPriceStmt);
             }
             for (CommoditySold commSold : trader.getCommoditiesSold()) {
                 double commSoldUtil = commSold.getQuantity()/commSold.getEffectiveCapacity();
-                if (commSoldUtil != 0) {
-                    PriceFunction pf = commSold.getSettings().getPriceFunction();
-                    Double commPrice = pf.unitPrice(commSoldUtil);
-                    if (commPrice > traderPriceStmt.getPriceIndex(isStart)) {
-                        traderPriceStmt.setPriceIndex(commPrice, isStart);
-                    }
+                PriceFunction pf = commSold.getSettings().getPriceFunction();
+                Double commPrice = pf.unitPrice(commSoldUtil);
+                if (commPrice > traderPriceStmt.getPriceIndex(isStart)) {
+                    traderPriceStmt.setPriceIndex(commPrice, isStart);
                 }
-            }
-            if (trader.getEconomyIndex() >= traderPriceStatements_.size()) {
-                traderPriceStatements_.add(traderPriceStmt);
             }
         }
         return this;
