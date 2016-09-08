@@ -3,19 +3,21 @@ package com.vmturbo.platform.analysis.ede;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionImpl;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
-import com.vmturbo.platform.analysis.actions.Reconfigure;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ledger.Ledger;
 
 public abstract class Supply {
+
+	static final Logger logger = Logger.getLogger(Supply.class);
 
     /**
      * Return a list of recommendations to optimize the change in supply of the economy.
@@ -67,22 +69,8 @@ public abstract class Supply {
                                                 ((ProvisionBySupply)actions.get(0))
                                                                 .getProvisionedSeller()
                                                 : null;
-                boolean keepRunning = true;
-                // run placement after cloning or suspending a trader to the economy
-                // continue invoking Placement Decisions until there are no Move actions generated
-                while (keepRunning) {
-                    List<Action> placementActions = new ArrayList<Action>();
-                    if (isShopTogether) {
-                        placementActions = ede.breakDownCompoundMove(
-                                        Placement.shopTogetherDecisions(economy));
-                    } else {
-                        placementActions = Placement.placementDecisions(economy);
-                    }
-                    keepRunning = !(placementActions.isEmpty() || placementActions.stream()
-                                    .allMatch(a -> a instanceof Reconfigure));
-                    actions.addAll(placementActions);
-                }
-
+            
+                actions.addAll(Placement.runPlacementsTillConverge(economy, isShopTogether));
                 ledger.calculateExpAndRevForSellersInMarket(economy, market);
 
                 if (!evalAcceptanceCriteriaForMarket(market, ledger, bestTraderToEngage)) {

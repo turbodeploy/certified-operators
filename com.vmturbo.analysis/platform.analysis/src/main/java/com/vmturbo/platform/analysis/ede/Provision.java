@@ -13,7 +13,6 @@ import com.vmturbo.platform.analysis.actions.ActionImpl;
 import com.vmturbo.platform.analysis.actions.Activate;
 import com.vmturbo.platform.analysis.actions.GuaranteedBuyerHelper;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
-import com.vmturbo.platform.analysis.actions.Reconfigure;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
@@ -96,22 +95,8 @@ public class Provision {
 
                 // run placement after adding a new seller to the economy
                 // TODO: run placement within a market
-                boolean keepRunning = true;
-                while (keepRunning) {
-                    List<Action> placeActions;
-                    if (isShopTogether) {
-                        placeActions = ede.breakDownCompoundMove(Placement
-                                        .shopTogetherDecisions(economy, new ArrayList<ShoppingList>
-                                        (mostProfitableTrader.getCustomers())));
-                    } else {
-                        placeActions = Placement.placementDecisions(economy,
-                                        new ArrayList<ShoppingList>(mostProfitableTrader
-                                                        .getCustomers()));
-                    }
-                    keepRunning = !(placeActions.isEmpty() || placeActions.stream().allMatch(a ->
-                                                a instanceof Reconfigure));
-                    actions.addAll(placeActions);
-                }
+                actions.addAll(Placement.runPlacementsTillConverge(economy, isShopTogether));
+
                 ledger.addTraderIncomeStatement(provisionedTrader);
 
                 if (!evaluateAcceptanceCriteria(economy, ledger, origRoI, mostProfitableTrader,

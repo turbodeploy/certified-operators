@@ -28,6 +28,12 @@ import com.vmturbo.platform.analysis.economy.Trader;
  */
 public class Placement {
 
+	static final Logger logger = Logger.getLogger(Placement.class);
+
+    // the maximum number of placements to be 1000, when reaching this limit, we force stop
+    // the placements. 1000 is a random number, it does not have any significant meaning.
+    public static int MAX_NUM_PLACEMENT = 1000;
+
     /**
      * Returns a list of recommendations to optimize the placement of all traders in the economy.
      * With a preference given to the shoppingLists in the list "sls"
@@ -218,4 +224,58 @@ public class Placement {
         return output;
     }
 
+    /**
+     * Run placement algorithm until there is no more actions generate or there is only {@link Reconfigure}.
+     * If the placement has been running for more than MAX_NUM_PLACEMENT, force placement to stop.
+     * @param economy
+     * @param isShopTogether
+     * @return a list of recommendations about trader placement
+     */
+    public static @NonNull List<@NonNull Action> runPlacementsTillConverge(Economy economy,
+                    boolean isShopTogether) {
+        @NonNull
+        List<Action> actions = new ArrayList<@NonNull Action>();
+        // generate placement actions
+        boolean keepRunning = true;
+        int counter = 0;
+        while (keepRunning) {
+            // in certain edge cases, we may have placement keep generating move actions
+            // while they don't really improve the performance. We force the placement to
+            // stop when reaching the max number allowed.
+            if (counter >= Placement.MAX_NUM_PLACEMENT) {
+                keepRunning = false;
+                logger.warn("The placement has been running for " + Placement.MAX_NUM_PLACEMENT
+                                + " rounds, forcing placement to stop now!");
+                break;
+            }
+            List<Action> placeActions = isShopTogether
+                            ? breakDownCompoundMove(Placement.shopTogetherDecisions(economy))
+                            : placementDecisions(economy);
+            counter++;
+            keepRunning = !(placeActions.isEmpty()
+                            || placeActions.stream().allMatch(a -> a instanceof Reconfigure));
+            actions.addAll(placeActions);
+        }
+        return actions;
+    }
+
+    /**
+     * A helper method to break down the compoundMove to individual move so that legacy UI can
+     * assimilate it. This method should be called only when legacy UI is used!
+     *
+     * @param compoundMoves a list of CompoundMove actions to be broken down into individual
+     * Move actions
+     * @return a list of moves that constitute the compoundMove
+     */
+    public static List<Action> breakDownCompoundMove(List<Action> compoundMoves) {
+        // break down the compound move to individual moves so that legacy UI can assimilate it.
+        // TODO: if new UI can support compoundMove, we do not need this break down
+        List<Action> moveActions = new ArrayList<Action>();
+        compoundMoves.forEach(a -> {
+            if (a instanceof CompoundMove) {
+                moveActions.addAll(((CompoundMove)a).getConstituentMoves());
+            }
+        });
+        return moveActions;
+    }
 } // end Placement class
