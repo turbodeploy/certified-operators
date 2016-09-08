@@ -9,6 +9,7 @@ import java.util.TreeSet;
 import java.util.Map.Entry;
 import java.util.stream.Collectors;
 
+import org.apache.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
