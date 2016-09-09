@@ -69,6 +69,8 @@ import com.vmturbo.platform.analysis.topology.Topology;
 public final class AnalysisToProtobuf {
     // Methods for converting PriceFunctionDTOs.
 
+    private static final double MAX_PRICE_INDEX = 20000;
+
     /**
      * Converts a {@link PriceFunction} to a {@link PriceFunctionTO}.
      *
@@ -419,8 +421,10 @@ public final class AnalysisToProtobuf {
         for (TraderPriceStatement traderPriceStmt : priceStatement.getTraderPriceStatements()) {
             PriceIndexMessagePayload.Builder payloadBuilder = PriceIndexMessagePayload.newBuilder();
             payloadBuilder.setOid(traderOid.get(economy.getTraders().get(traderIndex)));
-            payloadBuilder.setPriceindexCurrent(traderPriceStmt.getPriceIndex(true));
-            payloadBuilder.setPriceindexProjected(traderPriceStmt.getPriceIndex(false));
+            payloadBuilder.setPriceindexCurrent(Double.isInfinite(traderPriceStmt.getPriceIndex(true))
+                    ? MAX_PRICE_INDEX : traderPriceStmt.getPriceIndex(true));
+            payloadBuilder.setPriceindexProjected(Double.isInfinite(traderPriceStmt.getPriceIndex(false))
+                    ? MAX_PRICE_INDEX : traderPriceStmt.getPriceIndex(false));
             piBuilder.addPayload(payloadBuilder.build());
             traderIndex++;
         }
