@@ -412,7 +412,7 @@ public final class AnalysisToProtobuf {
             builder.addActions(actionTO(action, traderOid, shoppingListOid, topology));
         }
 
-        Economy economy = (Economy)topology.getEconomy();
+        final UnmodifiableEconomy economy = topology.getEconomy();
         // compulate the endPriceIndex
         priceStatement.computePriceIndex(economy, false);
         // populate AnalysisResults with priceIndex info

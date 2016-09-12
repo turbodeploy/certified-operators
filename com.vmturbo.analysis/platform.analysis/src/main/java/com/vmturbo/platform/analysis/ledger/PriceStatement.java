@@ -9,13 +9,13 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
 
 import com.vmturbo.platform.analysis.economy.CommoditySold;
-import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
+import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 
 /**
  * Store the price index of a {@link Trader}, i.e., the max price among all commodities sold by the
- * {@link Trader}, at two distinct states of the {@link Economy} the start state and the end state.
+ * {@link Trader}, at two distinct states of the {@link UnmodifiableEconomy} the start state and the end state.
  *
  * @author shravan
  */
@@ -102,13 +102,13 @@ public class PriceStatement {
     /**
      * Calculates the priceIndex of all the {@link Trader}s in an economy
      *
-     * @param economy the {@link Economy} for whose entities we compute the priceIndex
+     * @param economy the {@link UnmodifiableEconomy} for whose entities we compute the priceIndex
      * @param isStart value of true indicates that we compute the startPriceIndex and
      *        false indicates that we compute the endPriceIndex for all Traders
      * @return {@code this}
      *
      */
-    public PriceStatement computePriceIndex(Economy economy, boolean isStart) {
+    public PriceStatement computePriceIndex(@NonNull final UnmodifiableEconomy economy, boolean isStart) {
         for (Trader trader : economy.getTraders()) {
             TraderPriceStatement traderPriceStmt = null;
             if (trader.getEconomyIndex() < traderPriceStatements_.size()) {
