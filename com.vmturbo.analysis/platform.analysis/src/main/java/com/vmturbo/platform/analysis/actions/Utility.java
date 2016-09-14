@@ -4,6 +4,8 @@ import java.util.function.Function;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
 
+import com.vmturbo.platform.analysis.economy.CommoditySpecification;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 
 /**
@@ -28,4 +30,29 @@ public final class Utility {
                .append(trader.getEconomyIndex()).append(")");
     }
 
+    /**
+     * removes the effect of the used values of the commoditiesBought by the consumer on
+     * the used values of the commoditiesSold of the provisionedSeller
+     * @param modelSeller this is the {@link Trader} that the new clone is based out off
+     * @param provisionedSeller is the newly cloned {@link Trader}
+     */
+    public static void adjustOverhead(Trader modelSeller, Trader provisionedSeller) {
+        for(ShoppingList sl : modelSeller.getCustomers()) {
+            int buyerIndex = 0;
+            for (CommoditySpecification commSpec : sl.getBasket()) {
+                int soldIndex = provisionedSeller.getBasketSold().indexOf(commSpec);
+                // skip allocation commodities
+                if (soldIndex >= 0) {
+                    provisionedSeller.getCommoditiesSold().get(soldIndex).setQuantity(
+                                    Math.max(provisionedSeller.getCommoditiesSold().get(soldIndex)
+                                    .getQuantity() - sl.getQuantity(buyerIndex), 0));
+                    provisionedSeller.getCommoditiesSold().get(soldIndex).setPeakQuantity(
+                                    provisionedSeller.getCommoditiesSold().get(soldIndex)
+                                    .getQuantity());
+                    buyerIndex++;
+                }
+            }
+        }
+    }
+    
 } // end Utility class

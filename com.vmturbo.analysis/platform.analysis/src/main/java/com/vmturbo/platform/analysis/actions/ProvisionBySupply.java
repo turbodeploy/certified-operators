@@ -133,6 +133,8 @@ public class ProvisionBySupply extends ActionImpl {
             // Copy commodity sold attributes
             getProvisionedSeller().getCommoditiesSold().get(i).setCapacity(
                 getModelSeller().getCommoditiesSold().get(i).getCapacity());
+            getProvisionedSeller().getCommoditiesSold().get(i).setQuantity(
+                    getModelSeller().getCommoditiesSold().get(i).getQuantity());
             getProvisionedSeller().getCommoditiesSold().get(i).setThin(
                 getModelSeller().getCommoditiesSold().get(i).isThin());
 
@@ -151,6 +153,7 @@ public class ProvisionBySupply extends ActionImpl {
                 getModelSeller().getCommoditiesSold().get(i).getSettings().getPriceFunction());
         }
 
+        Utility.adjustOverhead(getModelSeller(), getProvisionedSeller());
         // if the trader being cloned is a provider for a gauranteedBuyer, then the clone should
         // be a provider for that guranteedBuyer as well
         if (commToReplaceMap != null) {

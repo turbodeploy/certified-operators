@@ -163,20 +163,24 @@ public class ProvisionByDemand extends ActionImpl {
                                     .getMinDesiredUtil()) / 2;
         // resize the commodities sold by the clone to fit the buyer
         for (CommoditySpecification commSpec : getModelBuyer().getBasket()) {
-            int indexOfSoldComm = basketSold.indexOf(commSpec.getType());
-            double newCapacity = Math.max(getModelBuyer().getPeakQuantity(
-                            getModelBuyer().getBasket().indexOf(commSpec)) / desiredUtil,
-                            modelSeller_.getCommoditiesSold().get(indexOfSoldComm).getCapacity());
-            provisionedSeller_.getCommoditiesSold().get(indexOfSoldComm).setCapacity(newCapacity);
+            int indexOfCommSold = basketSold.indexOf(commSpec.getType());
+            int indexOfCommBought = getModelBuyer().getBasket().indexOf(commSpec);
+            double newCapacity = Math.max(getModelBuyer().getPeakQuantity(indexOfCommBought) /
+                            desiredUtil, modelSeller_.getCommoditiesSold().get(indexOfCommSold)
+                            .getCapacity());
+            provisionedSeller_.getCommoditiesSold().get(indexOfCommSold).setCapacity(newCapacity);
+            provisionedSeller_.getCommoditiesSold().get(indexOfCommSold).setQuantity(
+                            getModelSeller().getCommoditiesSold().get(indexOfCommSold).getQuantity());
             // commodityNewCapacityMap_  keeps information about commodity sold and its
             // new capacity, if there are several commodities of same base type, pick the
             // biggest capacity.
-            int baseType = basketSold.get(indexOfSoldComm).getBaseType();
+            int baseType = basketSold.get(indexOfCommSold).getBaseType();
             commodityNewCapacityMap_.put(baseType,commodityNewCapacityMap_
                             .containsKey(baseType) ? Math.max(commodityNewCapacityMap_
                                             .get(baseType), newCapacity) : newCapacity);
         }
 
+        Utility.adjustOverhead(getModelSeller(), getProvisionedSeller());
         // if the trader being cloned is a provider for a gauranteedBuyer, then the clone should
         // be a provider for that guranteedBuyer as well
         if (newCommSpecMap != null) {
