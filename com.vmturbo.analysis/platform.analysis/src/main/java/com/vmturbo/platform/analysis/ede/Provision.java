@@ -71,13 +71,13 @@ public class Provision {
                 if (mostProfitableTrader == null) {
                     break;
                 }
-                Action provisionAction = null;
+                Action provisionAction;
                 double origRoI = ledger.getTraderIncomeStatements().get(
                                 mostProfitableTrader.getEconomyIndex()).getROI();
                 double oldRevenue = ledger.getTraderIncomeStatements().get(
                                 mostProfitableTrader.getEconomyIndex()).getRevenues();
 
-                Trader provisionedTrader = null;
+                Trader provisionedTrader;
                 if (!market.getInactiveSellers().isEmpty()) {
                     // TODO: pick a trader that is closest to the mostProfitableTrader to activate
                     // reactivate a suspended seller
@@ -91,13 +91,12 @@ public class Provision {
                                     mostProfitableTrader);
                     actions.add(provisionAction.take());
                     provisionedTrader = ((ProvisionBySupply)provisionAction).getProvisionedSeller();
+                    ledger.addTraderIncomeStatement(provisionedTrader);
                 }
 
                 // run placement after adding a new seller to the economy
                 // TODO: run placement within a market
                 actions.addAll(Placement.runPlacementsTillConverge(economy, isShopTogether));
-
-                ledger.addTraderIncomeStatement(provisionedTrader);
 
                 if (!evaluateAcceptanceCriteria(economy, ledger, origRoI, mostProfitableTrader,
                                 provisionedTrader)) {
@@ -240,7 +239,9 @@ public class Provision {
     public static void rollBackActionAndUpdateLedger(Ledger ledger,
                     Trader provisionedTrader, List<@NonNull Action> actions) {
         // remove IncomeStatement from ledger and rollback actions
-        ledger.removeTraderIncomeStatement(provisionedTrader);
+        if (actions.get(0) instanceof ProvisionBySupply) {
+            ledger.removeTraderIncomeStatement(provisionedTrader);
+        }
         Lists.reverse(actions).forEach(axn -> axn.rollback());
     }
 }
