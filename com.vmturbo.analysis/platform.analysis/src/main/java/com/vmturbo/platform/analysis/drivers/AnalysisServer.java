@@ -188,9 +188,8 @@ public final class AnalysisServer {
         currentPartial_ = temp;
         // Run one round of placement measuring time-to-process
         long start = System.nanoTime();
-        PriceStatement priceStatement = new PriceStatement();
         Economy economy = (Economy)lastComplete_.getEconomy();
-        priceStatement.computePriceIndex(economy, true);
+        PriceStatement startPriceStatement = new PriceStatement().computePriceIndex(economy);
         @NonNull List<@NonNull Action> actions = new Ede().generateActions(
                         economy, isShopTogetherEnabled, isProvisionEnabled, isSuspensionEnabled,
                         isResizeEnabled);
@@ -237,7 +236,7 @@ public final class AnalysisServer {
         try (OutputStream stream = session.getBasicRemote().getSendStream()) {
             AnalysisToProtobuf.analysisResults(reorderedActions, lastComplete_.getTraderOids(),
                             lastComplete_.getShoppingListOids(), stop - start, lastComplete_,
-                            priceStatement).writeTo(stream);
+                            startPriceStatement).writeTo(stream);
         } catch (Throwable error) {
             logger.error("Exception thrown while sending back actions!", error);
         }

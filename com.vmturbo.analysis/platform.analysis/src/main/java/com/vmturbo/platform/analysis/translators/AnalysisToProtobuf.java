@@ -356,10 +356,10 @@ public final class AnalysisToProtobuf {
             ProvisionBySupply provSupply = (ProvisionBySupply)input;
             // create shopping list OIDs for the provisioned shopping lists
             topology.getEconomy()
-            	.getMarketsAsBuyer(provSupply.getProvisionedSeller())
-            	.keySet()
-            	.stream()
-            	.forEach(topology::addProvisionedShoppingList);
+                .getMarketsAsBuyer(provSupply.getProvisionedSeller())
+                .keySet()
+                .stream()
+                .forEach(topology::addProvisionedShoppingList);
             ProvisionBySupplyTO.Builder provSupplyTO = ProvisionBySupplyTO.newBuilder()
                             .setModelSeller(traderOid.get(provSupply.getModelSeller()))
                             // the newly provisioned trader does not have OID, assign one for it and adds
@@ -400,12 +400,13 @@ public final class AnalysisToProtobuf {
      *        list of actions in nanoseconds.
      * @param topology The topology associates with traders received from legacy market.
      * It keeps a traderOid map which will be used to populate the oid for traders.
+     * @param priceStatement contains all the {@link traderPriceStatement}s
      * @return The resulting {@link AnalysisResults} message.
      */
     public static @NonNull AnalysisResults analysisResults(@NonNull List<Action> actions,
                     @NonNull BiMap<@NonNull Trader, @NonNull Long> traderOid,
                     @NonNull BiMap<@NonNull ShoppingList, @NonNull Long> shoppingListOid,
-                    long timeToAnalyze_ns, Topology topology, PriceStatement priceStatement) {
+                    long timeToAnalyze_ns, Topology topology, PriceStatement startPriceStatement) {
         AnalysisResults.Builder builder = AnalysisResults.newBuilder();
 
         for (Action action : actions) {
@@ -414,17 +415,20 @@ public final class AnalysisToProtobuf {
 
         final UnmodifiableEconomy economy = topology.getEconomy();
         // compulate the endPriceIndex
-        priceStatement.computePriceIndex(economy, false);
+        PriceStatement endPriceStatement = new PriceStatement().computePriceIndex(economy);
+        List<TraderPriceStatement> startTraderPriceStmts = startPriceStatement.getTraderPriceStatements();
         // populate AnalysisResults with priceIndex info
         PriceIndexMessage.Builder piBuilder = PriceIndexMessage.newBuilder();
         int traderIndex = 0;
-        for (TraderPriceStatement traderPriceStmt : priceStatement.getTraderPriceStatements()) {
+        int startPriceStatementSize = startPriceStatement.getTraderPriceStatements().size();
+        for (TraderPriceStatement endTraderPriceStmt : endPriceStatement.getTraderPriceStatements()) {
             PriceIndexMessagePayload.Builder payloadBuilder = PriceIndexMessagePayload.newBuilder();
             payloadBuilder.setOid(traderOid.get(economy.getTraders().get(traderIndex)));
-            payloadBuilder.setPriceindexCurrent(Double.isInfinite(traderPriceStmt.getPriceIndex(true))
-                    ? MAX_PRICE_INDEX : traderPriceStmt.getPriceIndex(true));
-            payloadBuilder.setPriceindexProjected(Double.isInfinite(traderPriceStmt.getPriceIndex(false))
-                    ? MAX_PRICE_INDEX : traderPriceStmt.getPriceIndex(false));
+            double startPriceIndex = (traderIndex < startPriceStatementSize) ? startTraderPriceStmts.get(traderIndex).getPriceIndex() : 0;
+            payloadBuilder.setPriceindexCurrent(Double.isInfinite(startPriceIndex)
+                    ? MAX_PRICE_INDEX : startPriceIndex);
+            payloadBuilder.setPriceindexProjected(Double.isInfinite(endTraderPriceStmt.getPriceIndex())
+                    ? MAX_PRICE_INDEX : endTraderPriceStmt.getPriceIndex());
             piBuilder.addPayload(payloadBuilder.build());
             traderIndex++;
         }

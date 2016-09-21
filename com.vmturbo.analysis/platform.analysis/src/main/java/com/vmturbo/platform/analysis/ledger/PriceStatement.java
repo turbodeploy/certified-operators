@@ -34,8 +34,7 @@ public class PriceStatement {
     public class TraderPriceStatement {
 
         // Fields
-        private double startPriceIndex_;
-        private double endPriceIndex_;
+        private double priceIndex_;
 
         // Constructors
 
@@ -44,8 +43,7 @@ public class PriceStatement {
          *
          */
         public TraderPriceStatement() {
-            startPriceIndex_ = 0;
-            endPriceIndex_ = 0;
+            priceIndex_ = 0;
         }
 
         // Methods
@@ -56,35 +54,27 @@ public class PriceStatement {
         *  Get the start or end price index for the {@link Trader}
         * </p>
         *
-        * @param isStart value of true indicates that the we get the startPriceIndex and
-        *        false indicates that we set the endPriceIndex
-        * @return startPriceIndex or endPriceIndex of the entity
+        * @return priceIndex of the entity
         * @see #setPriceIndex()
         */
-        public double getPriceIndex(boolean isStart) {
-            return isStart ? startPriceIndex_ : endPriceIndex_;
+        public double getPriceIndex() {
+            return priceIndex_;
         }
 
         /**
-        * Sets the value of the <b>startPriceIndex_</b> or <b>endPriceIndex_</b> field.
+        * Sets the value of the <b>priceIndex_</b> field.
         *
         * <p>
         *  Has no observable side-effects except setting the above field.
         * </p>
         *
         * @param priceIndex the new value for the field. Must be non-negative.
-        * @param isStart value of true indicates that the we set the startPriceIndex and
-        *        false indicates that we set the endPriceIndex
         * @return {@code this}
         *
         * @see #getPriceIndex()
         */
-        public TraderPriceStatement setPriceIndex(double priceIndex, boolean isStart) {
-            if (isStart) {
-                startPriceIndex_ = priceIndex;
-            } else {
-                endPriceIndex_ = priceIndex;
-            }
+        public TraderPriceStatement setPriceIndex(double priceIndex) {
+            priceIndex_ = priceIndex;
             return this;
         }
     } // end class TraderPriceStatement
@@ -108,21 +98,16 @@ public class PriceStatement {
      * @return {@code this}
      *
      */
-    public PriceStatement computePriceIndex(@NonNull final UnmodifiableEconomy economy, boolean isStart) {
+    public PriceStatement computePriceIndex(@NonNull final UnmodifiableEconomy economy) {
         for (Trader trader : economy.getTraders()) {
-            TraderPriceStatement traderPriceStmt = null;
-            if (trader.getEconomyIndex() < traderPriceStatements_.size()) {
-                traderPriceStmt = traderPriceStatements_.get(trader.getEconomyIndex());
-            } else {
-                traderPriceStmt = new TraderPriceStatement();
-                traderPriceStatements_.add(traderPriceStmt);
-            }
+            TraderPriceStatement traderPriceStmt = new TraderPriceStatement();
+            traderPriceStatements_.add(traderPriceStmt);
             for (CommoditySold commSold : trader.getCommoditiesSold()) {
                 double commSoldUtil = commSold.getQuantity()/commSold.getEffectiveCapacity();
                 PriceFunction pf = commSold.getSettings().getPriceFunction();
                 Double commPrice = pf.unitPrice(commSoldUtil);
-                if (commPrice > traderPriceStmt.getPriceIndex(isStart)) {
-                    traderPriceStmt.setPriceIndex(commPrice, isStart);
+                if (commPrice > traderPriceStmt.getPriceIndex()) {
+                    traderPriceStmt.setPriceIndex(commPrice);
                 }
             }
         }
