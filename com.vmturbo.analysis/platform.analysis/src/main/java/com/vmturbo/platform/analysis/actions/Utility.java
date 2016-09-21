@@ -41,7 +41,9 @@ public final class Utility {
             int buyerIndex = 0;
             for (CommoditySpecification commSpec : sl.getBasket()) {
                 int soldIndex = provisionedSeller.getBasketSold().indexOf(commSpec);
-                // skip allocation commodities
+                // The allocation commodities sold by the modelSeller is not going to be sold by 
+                // the clone (we create new ones for the clone to sell). Hence, we wont find these
+                // allocComms in the basketSold and we get a negative index (hence skipping them).
                 if (soldIndex >= 0) {
                     provisionedSeller.getCommoditiesSold().get(soldIndex).setQuantity(
                                     Math.max(provisionedSeller.getCommoditiesSold().get(soldIndex)
