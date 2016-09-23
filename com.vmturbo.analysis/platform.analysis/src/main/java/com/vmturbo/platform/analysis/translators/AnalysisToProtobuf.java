@@ -40,6 +40,7 @@ import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionBySupplyTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ReconfigureTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ResizeTO;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults;
+import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults.NewShoppingListToBuyerEntry;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.CommodityBoughtTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.CommoditySoldSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.CommoditySoldTO;
@@ -345,6 +346,12 @@ public final class AnalysisToProtobuf {
                             // the oid into BiMap traderOids_
                             .setProvisionedSeller(topology.addProvisionedTrader(
                                             provDemand.getProvisionedSeller()));
+            // create shopping list OIDs for the provisioned shopping lists
+            topology.getEconomy()
+                .getMarketsAsBuyer(provDemand.getProvisionedSeller())
+                .keySet()
+                .stream()
+                .forEach(topology::addProvisionedShoppingList);
             // send commodity to new capacity map to legacy market so that newly provisioned trader
             // gets the correct capacity
             provDemand.getCommodityNewCapacityMap().forEach((key, value) -> provDemandTO
@@ -354,18 +361,18 @@ public final class AnalysisToProtobuf {
             builder.setProvisionByDemand(provDemandTO);
         } else if (input instanceof ProvisionBySupply) {
             ProvisionBySupply provSupply = (ProvisionBySupply)input;
-            // create shopping list OIDs for the provisioned shopping lists
-            topology.getEconomy()
-                .getMarketsAsBuyer(provSupply.getProvisionedSeller())
-                .keySet()
-                .stream()
-                .forEach(topology::addProvisionedShoppingList);
             ProvisionBySupplyTO.Builder provSupplyTO = ProvisionBySupplyTO.newBuilder()
                             .setModelSeller(traderOid.get(provSupply.getModelSeller()))
                             // the newly provisioned trader does not have OID, assign one for it and adds
                             // the oid into BiMap traderOids_
                             .setProvisionedSeller(topology.addProvisionedTrader(
                                             provSupply.getProvisionedSeller()));
+            // create shopping list OIDs for the provisioned shopping lists
+            topology.getEconomy()
+                .getMarketsAsBuyer(provSupply.getProvisionedSeller())
+                .keySet()
+                .stream()
+                .forEach(topology::addProvisionedShoppingList);
             builder.setProvisionBySupply(provSupplyTO);
         } else if (input instanceof Resize) {
             Resize resize = (Resize)input;
@@ -408,11 +415,12 @@ public final class AnalysisToProtobuf {
                     @NonNull BiMap<@NonNull ShoppingList, @NonNull Long> shoppingListOid,
                     long timeToAnalyze_ns, Topology topology, PriceStatement startPriceStatement) {
         AnalysisResults.Builder builder = AnalysisResults.newBuilder();
-
         for (Action action : actions) {
             builder.addActions(actionTO(action, traderOid, shoppingListOid, topology));
         }
-
+        // New shoppingList map has to be created after action conversion, because assigning
+        // oid for new shopping list happens in conversion
+        builder.addAllNewShoppingListToBuyerEntry(createNewShoppingListToBuyerMap(topology));
         final UnmodifiableEconomy economy = topology.getEconomy();
         // compulate the endPriceIndex
         PriceStatement endPriceStatement = new PriceStatement().computePriceIndex(economy);
@@ -434,7 +442,22 @@ public final class AnalysisToProtobuf {
         }
 
         return builder.setTimeToAnalyzeNs(timeToAnalyze_ns).setPriceIndexMsg(piBuilder.build())
-                                         .build();
+                        .build();
+    }
+
+
+    /**
+     * Convert the newShoppingListToBuyerMap to DTO.
+     * @param topology The topology keeps trader oid and shopping list oid information.
+     * @return The result {@link NewShoppingListToBuyerMap} message
+     */
+    public static @NonNull List<NewShoppingListToBuyerEntry> createNewShoppingListToBuyerMap(Topology topology) {
+        List<NewShoppingListToBuyerEntry> entryList = new ArrayList<NewShoppingListToBuyerEntry>();
+        topology.getNewShoppingListToBuyerMap().entrySet().forEach(entry -> {
+            entryList.add(NewShoppingListToBuyerEntry.newBuilder().setNewShoppingList(entry
+                            .getKey()).setBuyer(entry.getValue()).build());
+        });
+        return entryList;
     }
 
 } // end AnalysisToProtobuf class

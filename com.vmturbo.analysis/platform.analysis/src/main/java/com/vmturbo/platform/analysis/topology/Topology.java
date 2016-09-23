@@ -42,12 +42,13 @@ public final class Topology {
     // Fields
     private final @NonNull Economy economy_ = new Economy(); // The managed economy.
     private final @NonNull BiMap<@NonNull Trader, @NonNull Long> traderOids_ = HashBiMap.create();
-    private long provisionedTradersIndex_ = 0;
-    private long provisionedShoppingListsIndex_ = 0;
+    private long provisionedTraderOrShoppingListIndex_ = 0;
     private final @NonNull BiMap<@NonNull ShoppingList, @NonNull Long> shoppingListOids_ = HashBiMap.create();
     // A map from OIDs of traders we haven't seen yet to shopping lists that need to be
     // placed on them. It is needed if we can receive a customer before its supplier.
     private final @NonNull Map<@NonNull Long, @NonNull List<@NonNull ShoppingList>> danglingShoppingLists_ = new HashMap<>();
+    // A map to record the newly provisioned trader's shoppinglist to the provisioned trader
+    private final @NonNull Map<@NonNull Long, @NonNull Long> newShoppingListToBuyerMap_ = new HashMap<>();
 
     // Cached data
 
@@ -60,6 +61,9 @@ public final class Topology {
     // Cached unmodifiable view of the danglingShoppingLists_ Map.
     private final @NonNull Map<@NonNull Long, @NonNull List<@NonNull ShoppingList>>
         unmodifiableDanglingShoppingLists_ = Collections.unmodifiableMap(danglingShoppingLists_);
+    // Cached unmodifiable view of the newShoppingListToBuyerMap.
+    private final @NonNull Map<@NonNull Long, @NonNull Long>
+        unmodifiableNewShoppingListToBuyerMap_ = Collections.unmodifiableMap(newShoppingListToBuyerMap_);
 
     // Constructors
 
@@ -233,6 +237,15 @@ public final class Topology {
     }
 
     /**
+     * Returns an unmodifiable Map mapping OIDs of shopping list of newly provisioned traders and
+     * OIDs of its corresponding traders
+     */
+    public @ReadOnly @NonNull Map<@NonNull Long, @NonNull Long>
+            getNewShoppingListToBuyerMap(@ReadOnly Topology this) {
+        return unmodifiableNewShoppingListToBuyerMap;
+    }
+
+    /**
      * Resets {@code this} {@link Topology} to the state it was in just after construction.
      *
      * <p>
@@ -244,23 +257,29 @@ public final class Topology {
         traderOids_.clear();
         shoppingListOids_.clear();
         danglingShoppingLists_.clear();
+        newShoppingListToBuyerMap.clear();
     }
 
     /**
-     * Assign a negative oid to the newly provisioned shopping list and update the shoppingListOids_ map
+     * Assign a negative oid to the newly provisioned shopping list, update the shoppingListOids_ map,
+     * update the newShoppingListToBuyer map.
      */
     public long addProvisionedShoppingList(@NonNull ShoppingList provisionedShoppingList) {
-        provisionedShoppingListsIndex_--;
-        shoppingListOids_.put(provisionedShoppingList, provisionedShoppingListsIndex_);
-        return provisionedShoppingListsIndex_;
+        provisionedTraderOrShoppingListIndex_--;
+        shoppingListOids_.put(provisionedShoppingList, provisionedTraderOrShoppingListIndex_);
+        // put oid of shopping list from newly provisioned trader and the oid of newly provisioned
+        // trader to a map
+        newShoppingListToBuyerMap.put(provisionedTraderOrShoppingListIndex_, traderOids_
+                        .get(provisionedShoppingList.getBuyer()));
+        return provisionedTraderOrShoppingListIndex_;
     }
 
     /**
      * Assign a negative oid to the newly provisioned trader and update the traderOids_ map
      */
     public long addProvisionedTrader(@NonNull Trader provisionedTrader) {
-        provisionedTradersIndex_--;
-        traderOids_.put(provisionedTrader, provisionedTradersIndex_);
-        return provisionedTradersIndex_;
+        provisionedTraderOrShoppingListIndex_--;
+        traderOids_.put(provisionedTrader, provisionedTraderOrShoppingListIndex_);
+        return provisionedTraderOrShoppingListIndex_;
     }
 } // end Topology class
