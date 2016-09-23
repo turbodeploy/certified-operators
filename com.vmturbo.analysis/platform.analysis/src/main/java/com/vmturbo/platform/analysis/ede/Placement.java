@@ -100,7 +100,7 @@ public class Placement {
         if (!shoppingList.isMovable())
             return actions;
         if (sellers.isEmpty()) {
-            actions.add(new Reconfigure(economy, shoppingList).take());
+            actions.add(new Reconfigure(economy, shoppingList).take().setImportance(Double.POSITIVE_INFINITY));
             return actions;
         }
 
@@ -140,7 +140,7 @@ public class Placement {
 
     /**
      * Returns a list of recommendations to optimize the placement of all traders in the economy.
-     * allowing shoppingLists in "specialShoppingLists" to shop before the rest of the shoppingLists
+     * allowing shoppingLists in "shopFirstShoppingLists" to shop before the rest of the shoppingLists
      * in the economy
      *
      * <p>
@@ -148,16 +148,16 @@ public class Placement {
      * </p>
      *
      * @param economy - the economy whose traders' placement we want to optimize
-     * @param specialShoppingLists - list of shoppingLists that denotes buyers that
+     * @param shopFirstShoppingLists - list of shoppingLists that denotes buyers that
      * are to shop before the others
      */
     public static @NonNull List<@NonNull Action> shopTogetherDecisions(@NonNull Economy economy,
-                                List<ShoppingList> specialShoppingLists) {
+                                List<ShoppingList> shopFirstShoppingLists) {
         @NonNull List<@NonNull Action> output = new ArrayList<>();
 
         List<Trader> specialTraders = new ArrayList<>();
-        if (!specialShoppingLists.isEmpty()) {
-            specialShoppingLists.forEach(sl -> specialTraders.add(sl.getBuyer()));
+        if (!shopFirstShoppingLists.isEmpty()) {
+            shopFirstShoppingLists.forEach(sl -> specialTraders.add(sl.getBuyer()));
             // place selected list of buyers
             output.addAll(generateShopTogetherDecisions(economy, specialTraders));
             output.addAll(generateShopTogetherDecisions(economy, economy.getTraders().stream()
@@ -177,7 +177,8 @@ public class Placement {
      * </p>
      *
      * @param economy - the economy whose traders' placement we want to optimize
-     * @param traders - list of {@link Trader} that are to be placed before the rest present in the {@link Economy}
+     * @param traders - list of {@link Trader} that are to be placed before the rest present in the
+     * {@link Economy}
      */
     public static @NonNull List<@NonNull Action> generateShopTogetherDecisions(@NonNull Economy
                     economy, List<Trader> traders) {
@@ -203,7 +204,8 @@ public class Placement {
                 // Compute current total quote.
                 final double currentTotalQuote = movableEntries.stream().mapToDouble(entry ->
                     entry.getKey().getSupplier() == null // if unplaced or incorrectly placed
-                        || !entry.getValue().getBasket().isSatisfiedBy(entry.getKey().getSupplier().getBasketSold())
+                        || !entry.getValue().getBasket().isSatisfiedBy(entry.getKey().getSupplier()
+                                .getBasketSold())
                     ? Double.POSITIVE_INFINITY // current total is infinite
                     : EdeCommon.quote(economy, entry.getKey(), entry.getKey().getSupplier(),
                                       Double.POSITIVE_INFINITY, false)[0]
@@ -211,14 +213,16 @@ public class Placement {
 
                 // Compute the best total quote.
                 CliqueMinimizer minimizer = commonCliques.stream().collect(
-                    ()->new CliqueMinimizer(economy,movableEntries), CliqueMinimizer::accept, CliqueMinimizer::combine);
+                    ()->new CliqueMinimizer(economy,movableEntries), CliqueMinimizer::accept,
+                    CliqueMinimizer::combine);
 
                 // If buyer can improve its position, output action.
                 if (minimizer.getBestTotalQuote() < currentTotalQuote * economy.getSettings().getQuoteFactor()) {
                     List<ShoppingList> shoppingLists = movableEntries.stream()
                         .map(Entry::getKey).collect(Collectors.toList());
                     output.add(new CompoundMove(economy, shoppingLists, minimizer.getBestSellers())
-                                   .take().setImportance(currentTotalQuote - minimizer.getBestTotalQuote()));
+                                   .take().setImportance(currentTotalQuote - minimizer
+                                   .getBestTotalQuote()));
                 }
             }
         }

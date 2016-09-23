@@ -8,6 +8,7 @@ import org.apache.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.platform.analysis.actions.Action;
+import com.vmturbo.platform.analysis.actions.ActionImpl;
 import com.vmturbo.platform.analysis.actions.GuaranteedBuyerHelper;
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.actions.ProvisionByDemand;
@@ -142,13 +143,14 @@ public class BootstrapSupply {
                                             List<Trader> candidateSellers) {
         List<@NonNull Action> actions = new ArrayList<>();
         List<Action> provisionRelatedActionList = new ArrayList<>();
-        Action provisionAction = null;
-        Trader provisionedSeller = null;
+        Action provisionAction;
+        Trader provisionedSeller;
         // clone one of the sellers that fits
         Trader sellerThatFits = findSellerThatFitsBuyer (shoppingList, candidateSellers);
         if (sellerThatFits != null) {
             // cloning some seller that can fit this buyer
             provisionAction = new ProvisionBySupply(economy, sellerThatFits).take();
+            ((ActionImpl)provisionAction).setImportance(Double.POSITIVE_INFINITY);
             provisionedSeller = ((ProvisionBySupply)provisionAction).getProvisionedSeller();
             provisionRelatedActionList.add(provisionAction);
         } else if (!candidateSellers.isEmpty()){
@@ -156,6 +158,7 @@ public class BootstrapSupply {
             // TODO: maybe pick a better seller to base the clone out off
             provisionAction = new ProvisionByDemand(economy, shoppingList, candidateSellers.get(0))
                                     .take();
+            ((ActionImpl)provisionAction).setImportance(Double.POSITIVE_INFINITY);
             provisionedSeller = ((ProvisionByDemand)provisionAction).getProvisionedSeller();
             provisionRelatedActionList.add(provisionAction);
             // provisionByDemand does not place the new newClone provisionedTrader. We try finding
@@ -187,7 +190,7 @@ public class BootstrapSupply {
             // 1) TODO: provisionAction = new ProvisionByDemand(economy, shoppingList); OR
             // 2) need templates
             // 3) generating reconfigure action for now
-            actions.add(new Reconfigure(economy, shoppingList).take());
+            actions.add(new Reconfigure(economy, shoppingList).take().setImportance(Double.POSITIVE_INFINITY));
             return actions;
         }
         actions.addAll(provisionRelatedActionList);
@@ -195,7 +198,7 @@ public class BootstrapSupply {
         // supplier. We do not add it to the "actions" variable that returns to M1, because
         // M1 can not handle moving the shoppinglist for new trader, as it has no notion of
         // the new trader, nor its shoppinglist, so here we execute the move in M2 internally
-        // marking this as as very important action
+        // marking this a very important action
         new Move(economy, shoppingList, provisionedSeller).take().setImportance(Double.POSITIVE_INFINITY);
         return actions;
     }

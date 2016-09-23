@@ -86,9 +86,7 @@ public abstract class Supply {
                         break;
                     }
                 }
-                ((ActionImpl)actions.get(0)).setImportance(oldRevenue - ledger
-                                .getTraderIncomeStatements().get(bestTraderToEngage
-                                                .getEconomyIndex()).getRevenues());
+                ((ActionImpl)actions.get(0)).setImportance(-oldRevenue);
                 allActions.addAll(actions);
             }
         }

@@ -74,7 +74,7 @@ public class Ledger {
      */
     public Ledger(@NonNull Economy  economy) {
 
-        economy.getTraders().forEach(trader->{addTraderIncomeStatement(trader);});
+        economy.getTraders().forEach(trader-> addTraderIncomeStatement(trader));
 
     }
 

@@ -92,7 +92,7 @@ public class ProvisionBySupply extends ActionImpl {
         // commodities that the clone sells and what the guaranttedBuyer buys
         Map<CommoditySpecification, CommoditySpecification> commToReplaceMap = shoppingLists.size() != 0 ?
                         GuaranteedBuyerHelper.createCommSpecWithNewKeys(shoppingLists.get(0)) : null;
-        // use the commToReplaceMap to transform the basket that the clone sells. eg, make the clone
+        // use the commToReplaceMap to transform the basket that the clone sells. eg, make the clone sell
         // allocation commodities with new keys
         provisionedSeller_ = getEconomy().addTrader(getModelSeller().getType(), TraderState.ACTIVE,
                                 shoppingLists.size() != 0 ? GuaranteedBuyerHelper.transformBasket(commToReplaceMap
