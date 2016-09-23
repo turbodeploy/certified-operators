@@ -242,7 +242,7 @@ public final class Topology {
      */
     public @ReadOnly @NonNull Map<@NonNull Long, @NonNull Long>
             getNewShoppingListToBuyerMap(@ReadOnly Topology this) {
-        return unmodifiableNewShoppingListToBuyerMap;
+        return unmodifiableNewShoppingListToBuyerMap_;
     }
 
     /**
@@ -257,7 +257,7 @@ public final class Topology {
         traderOids_.clear();
         shoppingListOids_.clear();
         danglingShoppingLists_.clear();
-        newShoppingListToBuyerMap.clear();
+        newShoppingListToBuyerMap_.clear();
     }
 
     /**
