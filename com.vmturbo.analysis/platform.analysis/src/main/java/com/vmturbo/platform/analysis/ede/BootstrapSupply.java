@@ -99,6 +99,7 @@ public class BootstrapSupply {
                         if (shoppingList.getSupplier().getSettings().isCloneable()) {
                             provisionAction = new ProvisionBySupply(economy,shoppingList.getSupplier());
                             provisionAction.take();
+                            ((ActionImpl)provisionAction).setImportance(Double.POSITIVE_INFINITY);
                             Trader candidateSeller = ((ProvisionBySupply)provisionAction)
                                                         .getProvisionedSeller();
                             QuoteMinimizer tempMinimizer = new QuoteMinimizer(economy, shoppingList);
