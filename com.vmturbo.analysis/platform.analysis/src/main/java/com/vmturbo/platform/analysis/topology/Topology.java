@@ -269,7 +269,7 @@ public final class Topology {
         shoppingListOids_.put(provisionedShoppingList, provisionedTraderOrShoppingListIndex_);
         // put oid of shopping list from newly provisioned trader and the oid of newly provisioned
         // trader to a map
-        newShoppingListToBuyerMap.put(provisionedTraderOrShoppingListIndex_, traderOids_
+        newShoppingListToBuyerMap_.put(provisionedTraderOrShoppingListIndex_, traderOids_
                         .get(provisionedShoppingList.getBuyer()));
         return provisionedTraderOrShoppingListIndex_;
     }
