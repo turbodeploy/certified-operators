@@ -121,4 +121,11 @@ message AnalysisResults {
     // Just-for-fun field to allow showing how long it took to compute the results. (Like the
     // indication in Google Search) The value is in nanoseconds.
     optional int64 time_to_analyze_ns = 4;
+    // The map which keeps relation for new shopping list and its buyer
+    repeated NewShoppingListToBuyerEntry new_shopping_list_to_buyer_entry = 5;
+	// An entry for new shopping list to its buyer
+    message NewShoppingListToBuyerEntry {
+        required int64 new_shopping_list = 1;
+        required int64 buyer = 2;
+    } 
 }
