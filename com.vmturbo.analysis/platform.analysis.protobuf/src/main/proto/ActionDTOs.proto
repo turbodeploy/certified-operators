@@ -123,5 +123,5 @@ message ActionTO {
         ResizeTO resize = 7;
         CompoundMoveTO compound_move = 8;
     }
-    optional double importance = 9;
+    required double importance = 9 [default = -1.7976931348623157e+308];
 }

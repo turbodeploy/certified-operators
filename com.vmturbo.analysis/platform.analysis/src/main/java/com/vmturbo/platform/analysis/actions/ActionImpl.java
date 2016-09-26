@@ -34,7 +34,13 @@ public class ActionImpl implements Action {
      * @see #getImportance()
      */
     public @NonNull Action setImportance(double importance) {
-        importance_ = importance;
+        if (importance < -Double.MAX_VALUE) {
+            importance_ = -Double.MAX_VALUE;
+        } else if (importance < Double.MAX_VALUE) {
+            importance_ = importance;
+        } else {
+            importance_ = Double.MAX_VALUE;
+        }
         return this;
     }
 
