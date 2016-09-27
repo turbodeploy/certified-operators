@@ -69,11 +69,14 @@ public abstract class Supply {
                                                 ((ProvisionBySupply)actions.get(0))
                                                                 .getProvisionedSeller()
                                                 : null;
-            
-                actions.addAll(Placement.runPlacementsTillConverge(economy, isShopTogether));
+
+                List<@NonNull Action> placementActions = Placement.runPlacementsTillConverge(economy,
+                                isShopTogether);
+                actions.addAll(placementActions);
                 ledger.calculateExpAndRevForSellersInMarket(economy, market);
 
-                if (!evalAcceptanceCriteriaForMarket(market, ledger, bestTraderToEngage)) {
+                if (!evalAcceptanceCriteriaForMarket(market, ledger, bestTraderToEngage,
+                                placementActions)) {
                     if (!isProvision && !bestTraderToEngage.getCustomers().isEmpty()) {
                         // in the suspension, if we find the least profitable trader who has
                         // customers that can not move out of it after placement, we go to the
@@ -112,13 +115,12 @@ public abstract class Supply {
      * @param market - the {@link Market} whose sellers are considered to verify profitability that
      *                 implies eligibility to clone or suspend
      * @param ledger - the {@link Ledger} that holds the incomeStatement of the sellers considered
-     *
      * @param candidateTrader - the {@link Trader} that is newly provisioned or suspended
-     *
+     * @param actions - a list of placement actions generated after the supply change action
      * @return true - if the acceptance criteria is met by every trader in market
      */
     public abstract boolean evalAcceptanceCriteriaForMarket(Market market, Ledger ledger,
-                    Trader candidateTrader);
+                    Trader candidateTrader, List<@NonNull Action> actions);
 
     /**
      * Return a list of actions which contains the clone or suspend action. The particular supply change

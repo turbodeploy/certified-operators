@@ -9,7 +9,9 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import com.google.common.collect.Lists;
 
 import com.vmturbo.platform.analysis.actions.Action;
+import com.vmturbo.platform.analysis.actions.CompoundMove;
 import com.vmturbo.platform.analysis.actions.Deactivate;
+import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -55,7 +57,7 @@ public class Suspension extends Supply {
 
     @Override
     public boolean evalAcceptanceCriteriaForMarket(Market market, Ledger ledger,
-                    Trader suspensionCandidate) {
+                    Trader suspensionCandidate, List<@NonNull Action> actions) {
         // if any customer still present on the suspension candidate, cancel suspension
         // and put this candidate into unprofitableSellersCouldNotSuspend so that it would
         // not be considered again next round
@@ -67,6 +69,26 @@ public class Suspension extends Supply {
             IncomeStatement traderIS =
                             ledger.getTraderIncomeStatements().get(seller.getEconomyIndex());
             if (traderIS.getROI() > traderIS.getMaxDesiredROI()) {
+                return false;
+            }
+        }
+        // we need to check if the placement decision made after the suspension will result in
+        // any trader that goes outside the desire state, the traders may be in other markets
+        Set<Integer> affectedTradersIndex = new HashSet<Integer>();
+        for (Action a : actions) {
+            // the type check is in case we encounter Reconfigure
+            if (a instanceof CompoundMove) {
+                for (Move move : ((CompoundMove)a).getConstituentMoves()) {
+                    affectedTradersIndex.add(move.getDestination().getEconomyIndex());
+                }
+            } else if (a instanceof Move) {
+                affectedTradersIndex.add(((Move)a).getDestination().getEconomyIndex());
+            }
+        }
+        for (Integer i : affectedTradersIndex) {
+            IncomeStatement traderIS = ledger.getTraderIncomeStatements().get(i);
+            if (traderIS.getROI() > traderIS.getMaxDesiredROI() || traderIS.getROI() <
+                            traderIS.getMinDesiredROI()) {
                 return false;
             }
         }
