@@ -6,6 +6,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Deterministic;
@@ -64,6 +66,8 @@ public class Ledger {
         return Collections.unmodifiableList(unmodifiableCommodityIncomeStatements_
                                                 .get(trader.getEconomyIndex()));
     }
+
+    private static final Logger logger = LogManager.getLogger(Ledger.class);
 
     // Constructor
 
@@ -185,10 +189,21 @@ public class Ledger {
             // skip markets in which the trader in question is unplaced and
             // not consider expense for this trader in those markets
             if (sl.getSupplier() != null) {
-                double[] tempQuote = EdeCommon.quote(economy, sl, sl.getSupplier()
-                                        , Double.POSITIVE_INFINITY, true);
-                for (int i=0; i<3; i++) {
-                    quote[i] = quote[i] + tempQuote[i];
+                try {
+                    double[] tempQuote = EdeCommon.quote(economy, sl, sl.getSupplier()
+                                            , Double.POSITIVE_INFINITY, true);
+                    for (int i=0; i<3; i++) {
+                        quote[i] = quote[i] + tempQuote[i];
+                    }
+                } catch (IndexOutOfBoundsException e) {
+                    // TODO (shravan): move try catch inside edeCommon
+                    // setting expense to INFINITY
+                    for (int i=0; i<3; i++) {
+                        quote[i] = Double.POSITIVE_INFINITY;
+                    }
+                    logger.warn("seller " + seller.getDebugInfoNeverUseInCode() + " placed on the "
+                            + "wrong provider " + sl.getSupplier().getDebugInfoNeverUseInCode() +
+                            " hence returning INFINITE expense");
                 }
             }
             if (Double.isInfinite(quote[0])) {
