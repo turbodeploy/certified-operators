@@ -196,11 +196,8 @@ public class BootstrapSupply {
         }
         actions.addAll(provisionRelatedActionList);
         // Note: This move action is to place the newly provisioned trader to a proper
-        // supplier. We do not add it to the "actions" variable that returns to M1, because
-        // M1 can not handle moving the shoppinglist for new trader, as it has no notion of
-        // the new trader, nor its shoppinglist, so here we execute the move in M2 internally
-        // marking this a very important action
-        new Move(economy, shoppingList, provisionedSeller).take().setImportance(Double.POSITIVE_INFINITY);
+        // supplier.
+        actions.add(new Move(economy, shoppingList, provisionedSeller).take().setImportance(Double.POSITIVE_INFINITY));
         return actions;
     }
 
