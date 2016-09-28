@@ -149,6 +149,9 @@ public class Resizer {
             // limit the decrease to be above max usage
             delta = -delta;
             double maxCapacityDecrement = currentCapacity - Math.max(maxQuantity, peakQuantity);
+            if (maxCapacityDecrement < 0) {
+                return newCapacity;
+            }
             if (maxCapacityDecrement < delta) {
                 delta = maxCapacityDecrement;
             }
