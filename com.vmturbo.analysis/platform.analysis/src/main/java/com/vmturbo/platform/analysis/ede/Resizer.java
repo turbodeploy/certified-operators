@@ -150,7 +150,7 @@ public class Resizer {
             delta = -delta;
             double maxCapacityDecrement = currentCapacity - Math.max(maxQuantity, peakQuantity);
             if (maxCapacityDecrement < 0) {
-                return newCapacity;
+                return currentCapacity;
             }
             if (maxCapacityDecrement < delta) {
                 delta = maxCapacityDecrement;
