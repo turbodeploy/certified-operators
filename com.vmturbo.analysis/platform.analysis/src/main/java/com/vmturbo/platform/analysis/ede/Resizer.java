@@ -146,6 +146,10 @@ public class Resizer {
                 }
             }
         } else {
+            if (commoditySold.getQuantity() == 0 && maxQuantity == 0 && peakQuantity == 0) {
+                return currentCapacity;
+            }
+
             // limit the decrease to be above max usage
             delta = -delta;
             double maxCapacityDecrement = currentCapacity - Math.max(maxQuantity, peakQuantity);
@@ -159,6 +163,14 @@ public class Resizer {
             int floorNumDecrements = (int) Math.floor(numDecrements);
             double proposedCapacityDecrement = capacityIncrement * floorNumDecrements;
             newCapacity -= proposedCapacityDecrement;
+            // do not fall below 1 unit of capacity increment
+            if (newCapacity < capacityIncrement) {
+                if (currentCapacity > capacityIncrement) {
+                    newCapacity = capacityIncrement;
+                } else {
+                    return currentCapacity;
+                }
+            }
         }
 
         return newCapacity;
