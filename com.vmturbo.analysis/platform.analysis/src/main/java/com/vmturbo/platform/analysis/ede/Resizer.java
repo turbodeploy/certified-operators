@@ -235,8 +235,10 @@ public class Resizer {
             currentUtilization < settings.getRightSizeUpper()) {
             return false;
         }
-        return (commodityIS.getROI() > commodityIS.getMaxDesiredROI()) ||
-                        (commodityIS.getROI() < commodityIS.getMinDesiredROI());
+        return (commodityIS.getROI() > commodityIS.getMaxDesiredROI() &&
+                currentUtilization > settings.getRightSizeUpper()) ||
+               (commodityIS.getROI() < commodityIS.getMinDesiredROI() &&
+                currentUtilization < settings.getRightSizeLower());
     }
 
     /**
