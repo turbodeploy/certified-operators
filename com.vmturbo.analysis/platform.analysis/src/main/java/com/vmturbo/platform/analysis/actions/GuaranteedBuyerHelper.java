@@ -57,8 +57,7 @@ public final class GuaranteedBuyerHelper {
                             break;
                         }
                     }
-                    commSoldByBuyer.setCapacity(commSoldByBuyer.getCapacity() + modelShoppingList
-                                    .getQuantity(boughtIndex));
+                    commSoldByBuyer.setCapacity(commSoldByBuyer.getCapacity() + commSold.getCapacity());
                 }
             }
         }
