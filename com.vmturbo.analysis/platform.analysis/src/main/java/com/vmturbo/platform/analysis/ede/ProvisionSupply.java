@@ -53,7 +53,7 @@ public class ProvisionSupply extends Supply {
     }
 
     @Override
-    public boolean evalAcceptanceCriteriaForMarket(Market market, Ledger ledger,
+    public boolean evalAcceptanceCriteriaForMarket(Economy economy, Market market, Ledger ledger,
                     Trader provisionedTrader, List<@NonNull Action> actions) {
 
         for (Trader seller : market.getActiveSellers()) {

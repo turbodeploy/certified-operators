@@ -56,7 +56,7 @@ public class Suspension extends Supply {
     }
 
     @Override
-    public boolean evalAcceptanceCriteriaForMarket(Market market, Ledger ledger,
+    public boolean evalAcceptanceCriteriaForMarket(Economy economy, Market market, Ledger ledger,
                     Trader suspensionCandidate, List<@NonNull Action> actions) {
         // if any customer still present on the suspension candidate, cancel suspension
         // and put this candidate into unprofitableSellersCouldNotSuspend so that it would
@@ -65,30 +65,23 @@ public class Suspension extends Supply {
             unprofitableSellersCouldNotSuspend.add(suspensionCandidate);
             return false;
         }
-        for (Trader seller : market.getActiveSellers()) {
-            IncomeStatement traderIS =
-                            ledger.getTraderIncomeStatements().get(seller.getEconomyIndex());
-            if (traderIS.getROI() > traderIS.getMaxDesiredROI()) {
-                return false;
-            }
-        }
         // we need to check if the placement decision made after the suspension will result in
         // any trader that goes outside the desire state, the traders may be in other markets
-        Set<Integer> affectedTradersIndex = new HashSet<Integer>();
+        Set<Trader> affectedTraders = new HashSet<Trader>();
         for (Action a : actions) {
-            // the type check is in case we encounter Reconfigure
             if (a instanceof CompoundMove) {
                 for (Move move : ((CompoundMove)a).getConstituentMoves()) {
-                    affectedTradersIndex.add(move.getDestination().getEconomyIndex());
+                    affectedTraders.add(move.getDestination());
                 }
             } else if (a instanceof Move) {
-                affectedTradersIndex.add(((Move)a).getDestination().getEconomyIndex());
+                affectedTraders.add(((Move)a).getDestination());
             }
         }
-        for (Integer i : affectedTradersIndex) {
-            IncomeStatement traderIS = ledger.getTraderIncomeStatements().get(i);
-            if (traderIS.getROI() > traderIS.getMaxDesiredROI() || traderIS.getROI() <
-                            traderIS.getMinDesiredROI()) {
+        for (Trader t : affectedTraders) {
+            // calculate the income statement for affected sellers, they may not in the current market
+            ledger.calculateExpRevForSeller(economy, t);
+            IncomeStatement traderIS = ledger.getTraderIncomeStatements().get(t.getEconomyIndex());
+            if (traderIS.getROI() > traderIS.getMaxDesiredROI()) {
                 return false;
             }
         }

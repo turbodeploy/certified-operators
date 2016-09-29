@@ -73,9 +73,12 @@ public abstract class Supply {
                 List<@NonNull Action> placementActions = Placement.runPlacementsTillConverge(economy,
                                 isShopTogether);
                 actions.addAll(placementActions);
-                ledger.calculateExpAndRevForSellersInMarket(economy, market);
+                // provision will only need to calculate the seller in current market
+                if (isProvision) {
+                    ledger.calculateExpAndRevForSellersInMarket(economy, market);
+                }
 
-                if (!evalAcceptanceCriteriaForMarket(market, ledger, bestTraderToEngage,
+                if (!evalAcceptanceCriteriaForMarket(economy, market, ledger, bestTraderToEngage,
                                 placementActions)) {
                     if (!isProvision && !bestTraderToEngage.getCustomers().isEmpty()) {
                         // in the suspension, if we find the least profitable trader who has
@@ -100,7 +103,7 @@ public abstract class Supply {
     /**
      * Return the best trader to clone or suspend after checking the engagement criteria for all
      * traders of a particular market
-     *
+     * @param economy - the {@link Economy} in which the clone or suspend action is taken place
      * @param market - the {@link Market} whose sellers are considered to verify profitability that
      *                 implies eligibility to clone or suspend
      * @param ledger - the {@link Ledger} that holds the incomeStatement of the sellers considered
@@ -119,7 +122,7 @@ public abstract class Supply {
      * @param actions - a list of placement actions generated after the supply change action
      * @return true - if the acceptance criteria is met by every trader in market
      */
-    public abstract boolean evalAcceptanceCriteriaForMarket(Market market, Ledger ledger,
+    public abstract boolean evalAcceptanceCriteriaForMarket(Economy economy, Market market, Ledger ledger,
                     Trader candidateTrader, List<@NonNull Action> actions);
 
     /**
