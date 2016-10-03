@@ -203,50 +203,6 @@ public class ActivateTest {
         };
     }
 
-    @Test
-    @Parameters(method = "parametersForTestWithGuaranteedBuyer")
-    @TestCaseName("Test #{index}: new Activate({0}, {1}, {2}, {3}).take() throw == {5}")
-    public final void testTakeWithGuaranteedBuyer(@NonNull Economy economy, @NonNull Trader target, @NonNull Market sourceMarket, @NonNull Trader modelSeller, @NonNull Trader expectedBuyer, boolean valid) {
-        @NonNull Activate activation = new Activate(economy, target, sourceMarket, modelSeller);
-
-        try {
-            assertSame(activation, activation.take());
-            assertTrue(valid);
-        } catch (IllegalArgumentException e) {
-            assertFalse(valid);
-        }
-        assertTrue(target.getState().isActive());
-
-        // check for shoppingList for guaranteedBuyer and trader to activate
-        assertEquals(1, target.getCustomers().size());
-        // check the buyer-seller relation is being set for guaranteed buyer and newly activated trader
-        assertEquals(expectedBuyer, target.getCustomers().get(0).getBuyer());
-    }
-
-    @Test
-    @Parameters(method = "parametersForTestWithGuaranteedBuyer")
-    @TestCaseName("Test #{index}: new Activate({0},{1},{2},{3}).rollback() throw == {5}")
-    public final void testRollbackWithGuaranteedBuyer(@NonNull Economy economy, @NonNull Trader target, @NonNull Market sourceMarket, @NonNull Trader modelSeller, @ NonNull Trader expectedBuyer, boolean invalid) {
-        @NonNull Activate activation = new Activate(economy, target,sourceMarket, modelSeller);
-        // mock the actionTaken flag as if it is being taken
-        try {
-            Field actionTakenField = ActionImpl.class.getDeclaredField("actionTaken");
-            actionTakenField.setAccessible(true);
-            actionTakenField.setBoolean(activation, true);
-        } catch (Exception e) {
-            fail();
-        }
-        try {
-            assertSame(activation, activation.rollback());
-            assertFalse(invalid);
-        } catch (IllegalArgumentException e) {
-            assertTrue(invalid);
-        }
-        assertFalse(target.getState().isActive());
-        // check the buyer-seller relation is being cancelled
-        assertEquals(0, target.getCustomers().size());
-    }
-
     @SuppressWarnings("unused")
     private static Object[] parametersForTestEquals_and_HashCode() {
         Economy e = new Economy();

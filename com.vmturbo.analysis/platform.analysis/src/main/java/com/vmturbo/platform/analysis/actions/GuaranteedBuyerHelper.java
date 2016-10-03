@@ -2,9 +2,14 @@ package com.vmturbo.platform.analysis.actions;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+
+import org.apache.log4j.Logger;
+import org.checkerframework.checker.javari.qual.ReadOnly;
+import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
@@ -18,46 +23,54 @@ import com.vmturbo.platform.analysis.economy.Trader;
  * guaranteedBuyers
  */
 public final class GuaranteedBuyerHelper {
+
+    private static final Logger logger = Logger.getLogger(GuaranteedBuyerHelper.class);
     // Methods
 
     /**
      * A helper method to create {@link ShoppingList} to establish buyer-seller relation between
-     *  guaranteed buyers and a newly provisioned or activated trader.
+     * guaranteed buyers and a newly provisioned or activated trader.
+     *
      * @param economy the economy the targetSeller should be part of
-     * @param participations a list of {@link ShoppingList} that would be used as model to create
+     * @param modelSLs a list of {@link ShoppingList} that would be used as model to create
      *                      the buyer-seller relation
-     * @param targetSeller the {@link Trader} which would be a seller for the guaranteed buyers
-     * @param modelBasket is the {@link Basket} that is to be purchased by the guaranteedBuyers
+     * @param newSupplier the {@link Trader} which would be a seller for the guaranteed buyers
+     * @param commSpecMap maps the {@link CommoditySpecification} sold by the modelSeller to the
+     *                      guaranteedBuyer to the one to be sold by the newSupplier to the guaranteedBuyer
      */
-    public static void addShoppingListForGuaranteedBuyers(Economy economy, List<ShoppingList> participations,
-                                                          Trader targetSeller, Basket modelBasket) {
-        if (modelBasket != null) {
-            for (ShoppingList modelShoppingList : participations) {
-                Trader guranteedBuyer = modelShoppingList.getBuyer();
-                ShoppingList newShoppingList = economy.addBasketBought(guranteedBuyer, modelBasket);
-                newShoppingList.move(targetSeller);
-                newShoppingList.setMovable(modelShoppingList.isMovable());
-                for (int boughtIndex = 0; boughtIndex < modelBasket.size(); ++boughtIndex) {
-                    newShoppingList.setQuantity(boughtIndex, modelShoppingList
-                                       .getQuantity(boughtIndex))
-                                   .setPeakQuantity(boughtIndex, modelShoppingList
-                                       .getPeakQuantity(boughtIndex));
-                    // update quantity of the targetSeller to construct the buyer-seller relation
-                    CommoditySold commSold =
-                                    targetSeller.getCommoditySold(modelBasket.get(boughtIndex));
-                    commSold.setQuantity(commSold.getQuantity() + modelShoppingList
-                                                    .getQuantity(boughtIndex));
-                    // resize the commSold by the guaranteedBuyer to the amount that it buys
-                    CommoditySold commSoldByBuyer = null;
-                    for (int commSoldIndex = 0; commSoldIndex < guranteedBuyer.getBasketSold().size()
-                                    ; commSoldIndex++) {
-                        if (guranteedBuyer.getBasketSold().get(commSoldIndex).getBaseType()
-                                        == modelBasket.get(boughtIndex).getBaseType()) {
-                            commSoldByBuyer = guranteedBuyer.getCommoditiesSold().get(commSoldIndex);
-                            break;
-                        }
+    public static void addShoppingListForGuaranteedBuyers(Economy economy, List<ShoppingList> modelSLs,
+                                                          Trader newSupplier, Map<CommoditySpecification,
+                                                          CommoditySpecification> commSpecMapNew) {
+        for (ShoppingList sl : modelSLs) {
+            Trader guaranteedBuyer = sl.getBuyer();
+            // use the commSpecMap and create a newBasket based on every basket that the guaranteedBuyers
+            // were buying from the original host
+            Basket newBasket = createBasketForClone(sl.getBasket(), commSpecMapNew);
+            ShoppingList newSl = economy.addBasketBought(guaranteedBuyer, newBasket);
+            newSl.move(newSupplier);
+            newSl.setMovable(sl.isMovable());
+            for (int boughtIndex = 0; boughtIndex < newBasket.size(); ++boughtIndex) {
+                newSl.setQuantity(boughtIndex, sl.getQuantity(boughtIndex))
+                     .setPeakQuantity(boughtIndex, sl.getPeakQuantity(boughtIndex));
+                // update quantity of the newSupplier to construct the buyer-seller relation
+                CommoditySold commSold = newSupplier.getCommoditySold(newBasket.get(boughtIndex));
+                commSold.setQuantity(commSold.getQuantity() + sl.getQuantity(boughtIndex));
+                // resize the commSold by the guaranteedBuyer to the amount that it buys
+                CommoditySold commSoldByBuyer = null;
+                for (int commSoldIndex = 0; commSoldIndex < guaranteedBuyer.getBasketSold().size()
+                                ; commSoldIndex++) {
+                    if (guaranteedBuyer.getBasketSold().get(commSoldIndex).getBaseType()
+                                    == newBasket.get(boughtIndex).getBaseType()) {
+                        commSoldByBuyer = guaranteedBuyer.getCommoditiesSold().get(commSoldIndex);
+                        break;
                     }
+                }
+                if (commSoldByBuyer != null) {
                     commSoldByBuyer.setCapacity(commSoldByBuyer.getCapacity() + commSold.getCapacity());
+                } else {
+                    logger.warn("unable to find commSold by guaranteedBuyer to resize based on "
+                                    + "commBought" + newBasket.get(boughtIndex) + " from "
+                                    + newSupplier.getDebugInfoNeverUseInCode());
                 }
             }
         }
@@ -126,22 +139,31 @@ public final class GuaranteedBuyerHelper {
     }
 
     /**
-     * This method creates a map of newly generated {@link CommoditySpecification}s that are sold by the clone
-     * in place of the commodities sold by the modelSeller
+     * This method creates a map of newly generated {@link CommoditySpecification}s that are sold
+     * by the clone in place of the commodities sold by the modelSeller
      *
-     * @param shoppingList is the shoppingList that the guaranteedBuyer buys from the modelSeller
-     * @return a map where the key and values are a {@link CommoditySpecification}s with same "baseType" but
-     * different "commodityType"
+     * @param shoppingLists is the list of {@link shoppingList}s that the guaranteedBuyer buys from
+     *              the modelSeller
+     * @return a map where the key and values are a {@link CommoditySpecification}s with same
+     *              "baseType" but different "commodityType"
      */
     public static Map<CommoditySpecification, CommoditySpecification>
-                            createCommSpecWithNewKeys (ShoppingList shoppingList) {
+                            createCommSpecWithNewKeys (List<ShoppingList> shoppingLists) {
         Map<CommoditySpecification, CommoditySpecification> newCommSoldMap = new HashMap<>();
-        shoppingList.getBasket().forEach(
-                        cs ->
-                             // change commType and add commSpecs into the basket
-                             newCommSoldMap.put(cs, new CommoditySpecification(cs.getBaseType(), cs
-                                             .getQualityLowerBound(), cs.getQualityUpperBound()))
-        );
+        shoppingLists.forEach(sl -> {
+            // since we start assign type based from Integer.MAX_VALUE and keep decrementing from this
+            // we must start cloning CommoditySpecs in a basket starting from the last entity(the one
+            // with the largest type to the one with the smallest.)
+            Iterator<@NonNull @ReadOnly CommoditySpecification> iter = sl.getBasket().reverseIterator();
+            while(iter.hasNext()) {
+                CommoditySpecification cs = iter.next();
+                if (!newCommSoldMap.containsKey(cs)) {
+                    // change commType and add commSpecs into the basket
+                    newCommSoldMap.put(cs, new CommoditySpecification(cs.getBaseType(), cs
+                                  .getQualityLowerBound(), cs.getQualityUpperBound()));
+                }
+            }
+        });
         return newCommSoldMap;
     }
 
@@ -153,40 +175,56 @@ public final class GuaranteedBuyerHelper {
     */
     public static class BuyerInfo {
 
-        public BuyerInfo(List<ShoppingList> participations, Trader targetSeller,
-                        Basket modelBasket) {
-            this.participations = participations;
-            this.targetSeller = targetSeller;
-            this.modelBasket = modelBasket;
+        public BuyerInfo(List<ShoppingList> sls, Trader targetSeller,
+                         @NonNull Map<CommoditySpecification, CommoditySpecification> commSpecMapNew) {
+            sls_ = sls;
+            newSupplier_ = targetSeller;
+            commSpecMapNew_ = commSpecMapNew;
         }
 
-        private List<ShoppingList> participations;
-        private Trader targetSeller;
-        private Basket modelBasket;
+        List<ShoppingList> sls_;
+        Trader newSupplier_;
+        Map<CommoditySpecification, CommoditySpecification> commSpecMapNew_;
 
-        public List<ShoppingList> getParticipations() {
-            return participations;
+        public List<ShoppingList> getSLs() {
+            return sls_;
         }
-        public Trader getTargetSeller() {
-            return targetSeller;
+        public Trader getNewSupplier() {
+            return newSupplier_;
         }
-        public Basket getModelBasket() {
-            return modelBasket;
+        public Map<CommoditySpecification, CommoditySpecification> getCommSpecMapNew() {
+            return commSpecMapNew_;
         }
 
     }
 
     /**
-     * store shoppingLists of traders that need to be added to the economy. Hence, creating new markets.
+     * create a new basket using an existing basket
+     * @param originalBasket is the basket that basket that the guaranteedBuyers were buying from
+     *                       the original host
+     * @param commSpecMapNew map of oldCommSpecs to the one with new type that are sold by the clone
+     * @return basket containing commSpecs that are derived from the originalBasket with new type
      *
-     * @param participants list of {@link ShoppingList} that the guaranteedBuyers shop for
-     *                     from the targetSeller
-     * @param targetSeller the newly provisioned trader
-     * @param modelBasket is the newly created basket that the guaranteedBuyers shop for
      */
-    public static void storeGuaranteedbuyerInfo (List<ShoppingList> participations,
-                    Trader targetSeller, Basket modelBasket) {
-        guaranteedBuyersToProcess.add(new BuyerInfo(participations, targetSeller, modelBasket));
+    static Basket createBasketForClone(Basket originalBasket, Map<CommoditySpecification, CommoditySpecification> commSpecMapNew) {
+        List<CommoditySpecification> commSpecList = new ArrayList<>();
+        originalBasket.forEach(cs -> commSpecList.add(commSpecMapNew.get(cs)));
+        return new Basket(commSpecList);
+    }
+
+    /**
+     * store shoppingLists of traders that need to be added to the economy. Hence, creating new
+     * markets.
+     *
+     * @param sls list of {@link ShoppingList} that the guaranteedBuyers shop for from the
+     *            targetSeller
+     * @param targetSeller the newly provisioned trader
+     * @param commSpecMapNew map of oldCommSpecs to the one with new type that are sold by the clone
+     */
+    public static void storeGuaranteedbuyerInfo (List<ShoppingList> sls,
+                    Trader newSupplier, @NonNull Map<CommoditySpecification,
+                    CommoditySpecification> commSpecMapNew) {
+        guaranteedBuyersToProcess.add(new BuyerInfo(sls, newSupplier, commSpecMapNew));
     }
 
     /**
@@ -198,8 +236,8 @@ public final class GuaranteedBuyerHelper {
      */
     public static void processGuaranteedbuyerInfo (Economy economy) {
         for (BuyerInfo info : guaranteedBuyersToProcess) {
-            addShoppingListForGuaranteedBuyers(economy, info.getParticipations(), info
-                            .getTargetSeller(), info.getModelBasket());
+            addShoppingListForGuaranteedBuyers(economy, info.getSLs(), info
+                            .getNewSupplier(), info.getCommSpecMapNew());
         }
         guaranteedBuyersToProcess.clear();
     }

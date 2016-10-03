@@ -14,7 +14,6 @@ import org.checkerframework.dataflow.qual.Pure;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 
 import com.google.common.hash.Hashing;
-import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
@@ -89,9 +88,9 @@ public class ProvisionBySupply extends ActionImpl {
                                                 getModelSeller());
         // if there is a guaranteed buyer, find the commodities it buys, and for those commodities
         // create a new CommSpec with a new commodityType. This map returned is used to update the
-        // commodities that the clone sells and what the guaranttedBuyer buys
-        Map<CommoditySpecification, CommoditySpecification> commToReplaceMap = shoppingLists.size() != 0 ?
-                        GuaranteedBuyerHelper.createCommSpecWithNewKeys(shoppingLists.get(0)) : null;
+        // commodities that the clone sells and what the guaranteedBuyer buys
+        Map<CommoditySpecification, CommoditySpecification> commToReplaceMap = 
+                        GuaranteedBuyerHelper.createCommSpecWithNewKeys(shoppingLists);
         // use the commToReplaceMap to transform the basket that the clone sells. eg, make the clone sell
         // allocation commodities with new keys
         provisionedSeller_ = getEconomy().addTrader(getModelSeller().getType(), TraderState.ACTIVE,
@@ -156,9 +155,9 @@ public class ProvisionBySupply extends ActionImpl {
         Utility.adjustOverhead(getModelSeller(), getProvisionedSeller());
         // if the trader being cloned is a provider for a gauranteedBuyer, then the clone should
         // be a provider for that guranteedBuyer as well
-        if (commToReplaceMap != null) {
+        if (shoppingLists.size() != 0) {
             GuaranteedBuyerHelper.storeGuaranteedbuyerInfo(shoppingLists, provisionedSeller_,
-                            new Basket(commToReplaceMap.values()));
+                                                           commToReplaceMap);
         }
         getProvisionedSeller().setDebugInfoNeverUseInCode(
                 getModelSeller().getDebugInfoNeverUseInCode()

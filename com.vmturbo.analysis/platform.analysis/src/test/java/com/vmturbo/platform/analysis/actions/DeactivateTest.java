@@ -183,48 +183,6 @@ public class DeactivateTest {
         };
     }
 
-    @Test
-    @Parameters(method = "parametersForTestWithGuaranteedBuyer")
-    @TestCaseName("Test #{index}: new Deactivate({0},{1},{2}).take() throw == {3}")
-    public final void testTakeWithGuaranteedBuyer(@NonNull Economy economy, @NonNull Trader target, @NonNull Market sourceMarket, boolean valid) {
-        @NonNull Deactivate deactivation = new Deactivate(economy, target,sourceMarket);
-        try {
-            assertSame(deactivation, deactivation.take());
-            assertTrue(valid);
-        } catch (IllegalArgumentException e) {
-            assertFalse(valid);
-        }
-        assertFalse(target.getState().isActive());
-
-        // check for buyer-seller relation for guaranteedBuyer and trader to deactivate
-        assertEquals(0, target.getCustomers().size());
-    }
-
-    @Test
-    @Parameters(method = "parametersForTestWithGuaranteedBuyer")
-    @TestCaseName("Test #{index}: new Deactivate({0},{1},{2}).rollback() throw == {3}")
-    public final void testRollbackWithGuaranteedBuyer(@NonNull Economy economy, @NonNull Trader target, @NonNull Market sourceMarket, boolean invalid) {
-        @NonNull Deactivate deactivation = new Deactivate(economy, target, sourceMarket);
-        // mock the actionTaken flag as if it is being taken
-        try {
-            Field actionTakenField = ActionImpl.class.getDeclaredField("actionTaken");
-            actionTakenField.setAccessible(true);
-            actionTakenField.setBoolean(deactivation, true);
-        } catch (Exception e) {
-            fail();
-        }
-        try {
-            assertSame(deactivation, deactivation.rollback());
-            assertFalse(invalid);
-        } catch (IllegalArgumentException e) {
-            assertTrue(invalid);
-        }
-        assertTrue(target.getState().isActive());
-
-        // check the buyer-seller relation is being cancelled
-        assertEquals(invalid ? 1 : 0, target.getCustomers().size());
-    }
-
     @SuppressWarnings("unused")
     private static Object[] parametersForTestEquals_and_HashCode() {
         Economy e = new Economy();

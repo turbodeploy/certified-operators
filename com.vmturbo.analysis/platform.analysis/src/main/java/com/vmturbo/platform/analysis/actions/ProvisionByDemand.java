@@ -114,9 +114,9 @@ public class ProvisionByDemand extends ActionImpl {
                                             getEconomy(), getModelSeller());
         // if there is a guaranteed buyer, find the commodities it buys, and for those commodities
         // create a new CommSpec with a new commodityType. This map returned is used to update the
-        // commodities that the clone sells and what the guaranttedBuyer buys
-        Map<CommoditySpecification, CommoditySpecification> newCommSpecMap = shoppingLists.size() != 0 ?
-                        GuaranteedBuyerHelper.createCommSpecWithNewKeys(shoppingLists.get(0)) : null;
+        // commodities that the clone sells and what the guaranteedBuyer buys
+        Map<CommoditySpecification, CommoditySpecification> newCommSpecMap = GuaranteedBuyerHelper
+                        .createCommSpecWithNewKeys(shoppingLists);
         // use the commToReplaceMap to transform the basket that the clone sells. eg, make the clone
         // allocation commodities with new keys
         Basket basketSold = shoppingLists.size() != 0 ? GuaranteedBuyerHelper.transformBasket(
@@ -183,9 +183,9 @@ public class ProvisionByDemand extends ActionImpl {
         Utility.adjustOverhead(getModelSeller(), getProvisionedSeller());
         // if the trader being cloned is a provider for a gauranteedBuyer, then the clone should
         // be a provider for that guranteedBuyer as well
-        if (newCommSpecMap != null) {
-            GuaranteedBuyerHelper.storeGuaranteedbuyerInfo(shoppingLists, provisionedSeller_, new Basket(
-                            newCommSpecMap.values()));
+        if (shoppingLists.size() != 0) {
+            GuaranteedBuyerHelper.storeGuaranteedbuyerInfo(shoppingLists, provisionedSeller_,
+                                                           newCommSpecMap);
         }
         getProvisionedSeller().setDebugInfoNeverUseInCode(
                 getModelSeller().getDebugInfoNeverUseInCode()

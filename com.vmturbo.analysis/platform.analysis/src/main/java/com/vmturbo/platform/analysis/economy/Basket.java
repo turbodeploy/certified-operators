@@ -238,6 +238,26 @@ public final class Basket implements Comparable<@NonNull @ReadOnly Basket>, Iter
     }
 
     /**
+     * @see Iterable#iterator()
+     */
+    @SideEffectFree
+    public Iterator<@NonNull @ReadOnly CommoditySpecification> reverseIterator(@ReadOnly Basket this) {
+        return new Iterator<@NonNull @ReadOnly CommoditySpecification>() {
+            private int index = contents_.length - 1;
+
+            @Override
+            public boolean hasNext() {
+                return index > -1;
+            }
+
+            @Override
+            public @NonNull @ReadOnly CommoditySpecification next() {
+                return contents_[index--];
+            }
+        }; // end Iterator implementation
+    }
+
+    /**
      * A total ordering on the Baskets to allow sorting and insertion into maps.
      *
      * <p>

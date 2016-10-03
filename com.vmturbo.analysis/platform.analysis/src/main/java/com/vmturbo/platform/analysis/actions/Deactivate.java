@@ -3,8 +3,6 @@ package com.vmturbo.platform.analysis.actions;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
@@ -16,7 +14,6 @@ import com.google.common.hash.Hashing;
 
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
-import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 
@@ -27,7 +24,6 @@ public class Deactivate extends StateChangeBase { // inheritance for code reuse
 
     // Constructors
 
-    private final @NonNull List<@NonNull ShoppingList> shoppingListForGuaranteedBuyers = new ArrayList<>();
     private final @NonNull Economy economy_;
 
     /**
@@ -38,8 +34,6 @@ public class Deactivate extends StateChangeBase { // inheritance for code reuse
      */
     public Deactivate(@NonNull Economy economy, @NonNull Trader target, @NonNull Market sourceMarket) {
         super(target,sourceMarket);
-        shoppingListForGuaranteedBuyers.addAll(GuaranteedBuyerHelper.findShoppingListForGuaranteedBuyer(
-                                                economy, target));
         economy_ = economy;
 
     }
@@ -69,13 +63,7 @@ public class Deactivate extends StateChangeBase { // inheritance for code reuse
     public @NonNull Deactivate take() {
         super.take();
         checkArgument(getTarget().getState().isActive());
-        TraderState oldState = getTarget().getState();
         getTarget().changeState(TraderState.INACTIVE);
-        // when deactivate an activate trader, remove the shoppingList associated with its guaranteed buyers
-        if (oldState == TraderState.ACTIVE) {
-            GuaranteedBuyerHelper.removeShoppingListForGuaranteedBuyers(getEconomy(),
-                            shoppingListForGuaranteedBuyers, getTarget());
-        }
         return this;
     }
 
@@ -86,14 +74,7 @@ public class Deactivate extends StateChangeBase { // inheritance for code reuse
     public @NonNull Deactivate rollback() {
         super.rollback();
         checkArgument(!getTarget().getState().isActive());
-        TraderState oldState = getTarget().getState();
         getTarget().changeState(TraderState.ACTIVE);
-        // when roll back a deactivate action, adds back shoppingList for the target and its guaranteed buyers
-        if (oldState == TraderState.INACTIVE) {
-            GuaranteedBuyerHelper.addShoppingListForGuaranteedBuyers(getEconomy(), shoppingListForGuaranteedBuyers,
-                            getTarget(), shoppingListForGuaranteedBuyers.size() != 0 ? shoppingListForGuaranteedBuyers
-                                            .get(0).getBasket() : null);
-        }
         return this;
     }
 
