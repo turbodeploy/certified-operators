@@ -178,12 +178,10 @@ public class Provision {
 
         Trader mostProfitableTrader = null;
         double roiOfRichestTrader = 0;
-        List<ShoppingList> buyers = market.getBuyers();
         for (Trader seller : market.getActiveSellers()) {
-            // consider only sellers that have more than 1 movable non-guaranteedBuyer
+            // consider only sellers that have more than 1 non-guaranteedBuyer
             if (seller.getSettings().isCloneable() && seller.getCustomers().stream().filter(sl ->
-                    buyers.contains(sl) && !sl.getBuyer().getSettings().isGuaranteedBuyer())
-                        .count() > 1) {
+                    !sl.getBuyer().getSettings().isGuaranteedBuyer()).count() > 1) {
                 IncomeStatement traderIS = ledger.getTraderIncomeStatements().get(seller
                                 .getEconomyIndex());
                 // return the most profitable trader
