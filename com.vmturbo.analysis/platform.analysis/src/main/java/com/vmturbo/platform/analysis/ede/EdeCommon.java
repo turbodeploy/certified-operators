@@ -110,14 +110,14 @@ public final class EdeCommon {
 
         // calculate quote
         // TODO: decide what to do if peakQuantity is less than quantity
-        costCurrentMinMax[0] = (((quantities[boughtIndex] == 0) ? 0 : quantities[boughtIndex]*priceUsed) + (excessQuantity > 0 ?
-                                            excessQuantity*pricePeak : 0))/ commSold.getCapacity();
+        costCurrentMinMax[0] = (((quantities[boughtIndex] == 0) ? 0 : quantities[boughtIndex]*priceUsed)
+                                + (excessQuantity > 0 ? excessQuantity*pricePeak : 0)) / effectiveCapacity;
 
         if (forTraderIncomeStmt && costCurrentMinMax[0] != 0) {
             costCurrentMinMax[1] = pf.unitPrice(seller.getSettings().getMinDesiredUtil())
-                                                *quantities[boughtIndex]/commSold.getCapacity();
+                                                *quantities[boughtIndex] / effectiveCapacity;
             costCurrentMinMax[2] = pf.unitPrice(seller.getSettings().getMaxDesiredUtil())
-                                                *quantities[boughtIndex]/commSold.getCapacity();
+                                                *quantities[boughtIndex] / effectiveCapacity;
         } else {
             costCurrentMinMax[1] = costCurrentMinMax[2] = 0;
         }

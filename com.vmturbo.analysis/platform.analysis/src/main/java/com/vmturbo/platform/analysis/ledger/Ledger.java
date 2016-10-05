@@ -174,9 +174,9 @@ public class Ledger {
                 sellerIncomeStmt.setRevenues(sellerIncomeStmt.getRevenues()
                                     + pf.unitPrice(commSoldUtil)*commSoldUtil)
                     .setMinDesiredRevenues(sellerIncomeStmt.getMinDesiredRevenues()
-                                    + pf.unitPrice(sellerMinDesUtil)*sellerMinDesUtil)
+                                    + pf.unitPrice(sellerMinDesUtil) * sellerMinDesUtil)
                     .setMaxDesiredRevenues(sellerIncomeStmt.getMaxDesiredRevenues()
-                                    + pf.unitPrice(sellerMaxDesUtil)*sellerMaxDesUtil);
+                                    + pf.unitPrice(sellerMaxDesUtil) * sellerMaxDesUtil);
                 if (Double.isInfinite(sellerIncomeStmt.getRevenues())) {
                     break;
                 }
@@ -247,7 +247,8 @@ public class Ledger {
                 // expense of this consumer is utilOfCommBought*priceFn(utilOfCommBought)
                 double maxDesUtil = buyer.getSettings().getMaxDesiredUtil();
                 double minDesUtil = buyer.getSettings().getMinDesiredUtil();
-                double commSoldUtil = cs.getUtilization();
+                double commSoldUtil = cs.getUtilization() / cs.getSettings()
+                                        .getUtilizationUpperBound();
                 PriceFunction pf = cs.getSettings().getPriceFunction();
 
                 if (Double.isNaN(commSoldUtil)) {
@@ -288,7 +289,7 @@ public class Ledger {
                                                                            .get(boughtIndex));
                         // using capacity to remain consistent with quote
                         double commBoughtUtil = shoppingList.getQuantity(boughtIndex)
-                                                        /commSoldBySeller.getCapacity();
+                                                        /commSoldBySeller.getEffectiveCapacity();
                         if (commBoughtUtil != 0) {
                             PriceFunction priceFunction = commSoldBySeller.getSettings()
                                                                           .getPriceFunction();
@@ -298,9 +299,9 @@ public class Ledger {
                                                  /commSoldBySeller.getEffectiveCapacity())
                                                      *commBoughtUtil);
                             commSoldIS.setMaxDesiredExpenses(commSoldIS.getMaxDesiredExpenses()
-                                          + priceFunction.unitPrice(maxDesUtil)*commBoughtUtil);
+                                          + priceFunction.unitPrice(maxDesUtil) * commBoughtUtil);
                             commSoldIS.setMinDesiredExpenses(commSoldIS.getMinDesiredExpenses()
-                                          + priceFunction.unitPrice(minDesUtil)*commBoughtUtil);
+                                          + priceFunction.unitPrice(minDesUtil) * commBoughtUtil);
                         }
                     }
                 }
