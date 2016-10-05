@@ -62,14 +62,19 @@ public final class Ede {
         logger.info("Plan Started.");
         // Start by provisioning enough traders to satisfy all the demand
         @NonNull List<Action> actions = BootstrapSupply.bootstrapSupplyDecisions(economy);
-        // run placement algorithm to balance the enviornment
+        logger.info("Plan completed bootstrap with " + actions.size() + " actions.");
+        int oldActionCount = actions.size();
+        // run placement algorithm to balance the environment
         actions.addAll(Placement.runPlacementsTillConverge(economy, isShopTogether));
-
+        logger.info("Plan completed initial placement with " + (actions.size() - oldActionCount) + " actions.");
+        oldActionCount = actions.size();
         Ledger ledger = new Ledger(economy);
         // trigger provision, suspension and resize algorithm only when needed
         if (isProvision) {
             actions.addAll(Provision.provisionDecisions(economy, ledger, isShopTogether, this));
         }
+        logger.info("Plan completed provisioning with " + (actions.size() - oldActionCount) + " actions.");
+        oldActionCount = actions.size();
         if (isSuspension) {
             Suspension suspension = new Suspension();
             // find if any seller is the sole provider in any market, if so, it should not
@@ -78,9 +83,12 @@ public final class Ede {
             actions.addAll(suspension.supplyDecisions(economy, ledger, this, isShopTogether,
                             false));
         }
+        logger.info("Plan completed suspending with " + (actions.size() - oldActionCount) + " actions.");
+        oldActionCount = actions.size();
         if (isResize) {
             actions.addAll(Resizer.resizeDecisions(economy, ledger));
         }
+        logger.info("Plan completed resizing with " + (actions.size() - oldActionCount) + " actions.");
         if (collapse) {
             // TODO: All of this should be done in the collapse method
             // Don't collapse Moves that have a 'null' source (no-source moves)
