@@ -18,6 +18,44 @@ message MoveTO {
 
     // The OID of a trader to move to. Assumed null if missing.
     optional int64 destination = 3;
+
+    // the explanation for move action
+    required MoveExplanation move_explanation = 4;
+}
+
+// a move explanation suggesting unavailability of commodities
+message Compliance {
+    // a list of commodities which are missing in current supplier
+    repeated int32 missing_commodities = 1;
+}
+
+// a move explanation suggesting commodity congestion
+message Congestion {
+    // a list of commodities which are cheaper at the destination
+    repeated int32 congested_commodities = 1;
+}
+
+// a move explanation suggesting evacuation of buyers
+message Evacuation {
+    // a trader which was suspended so buyers of it should move out
+    required int64 suspended_trader = 1;
+}
+
+// a move explanation suggesting initial placement of buyer
+message InitialPlacement {}
+
+// a move explanation suggesting an overall performance improvement
+message Performance {}
+
+// a list of explanations for move action
+message MoveExplanation {
+    oneof explanation_type {
+        Compliance compliance = 1;
+        Congestion congestion = 2;
+        Evacuation evacuation = 3;
+        InitialPlacement initialPlacement = 4;
+        Performance performance = 5;
+    }
 }
 
 // Represents an action to reconfigure a shopping list of a trader that contains a mix of
@@ -30,6 +68,9 @@ message ReconfigureTO {
     // a trader is buying a particular shopping list from a supplier that isn't supplying the
     // complete list and no supplier can supply the complete list.
     optional int64 source = 2;
+
+    // The base type of commodity which the shopping list requests but can not find in sellers
+    repeated int32 commodity_to_reconfigure = 3;
 }
 
 // An action to activate a deactivated (suspended) trader.
@@ -43,8 +84,9 @@ message ActivateTO {
 
     // The OID of the template seller
     required int64 model_seller = 3;
-	
-    
+
+   // The base type of the most expensive commodity
+    optional int32 most_expensive_commodity = 4;
 }
 
 // An action to deactivate (suspend) an active trader.
@@ -73,12 +115,24 @@ message ProvisionByDemandTO {
 	// capacity needs to be changed to satisfy the demand. The value is the new capacity for
 	// that commodity.
     message CommodityNewCapacityEntry {
-        required int32 commodity_base_Type = 1;
+        required int32 commodity_base_type = 1;
         required float new_capacity = 2;
     }
     // A map keeps information about commodities whose capacity needs to be changed to accommodate
     // the demand and their new capacity.
     repeated CommodityNewCapacityEntry commodity_new_capacity_entry = 4;
+
+    // An entry in commodity to max amount available from sellers map. The key is base type of a
+    // commodity whose requested quantity can not be satisfied. The value is the max amount that
+    // from any provider in market and the requested amount from the buyer
+    message CommodityMaxAmountAvailableEntry {
+        required int32 commodity_base_Type = 1;
+        required float max_amount_available = 2;
+        required float requested_amount = 3;
+    }
+    // commodities whose requested quantity can not be satisfied and
+    // the max amount from any provider in market
+    repeated CommodityMaxAmountAvailableEntry commodity_max_amount_available = 5;
 }
 
 // An action to provision a trader like another that already exists in the system.
@@ -88,6 +142,9 @@ message ProvisionBySupplyTO {
 
 	// The OID of a trader that is provisioned, which is negative
     optional sint64 provisioned_seller = 2;
+
+    // The base type of the most expensive commodity
+    optional int32 most_expensive_commodity = 3;
 }
 
 // An action to resize the capacity of a particular commodity sold by a specified trader.
@@ -103,6 +160,12 @@ message ResizeTO {
 
     // The capacity to resize to.
     optional float new_capacity = 4;
+
+    // The start utilization of resize commodity before resize
+    optional float start_utilization = 5;
+
+    // The end utilization of resize commodity after resize
+    optional float end_utilization = 6;
 }
 
 // An action to move a list of shopping lists bought by a trader from a number of old providers to
