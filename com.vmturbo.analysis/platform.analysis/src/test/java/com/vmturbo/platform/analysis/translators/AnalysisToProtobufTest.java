@@ -35,8 +35,11 @@ import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActivateTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.CompoundMoveTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.DeactivateTO;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveExplanation;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveTO;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.Performance;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionByDemandTO;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionByDemandTO.CommodityMaxAmountAvailableEntry;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionByDemandTO.CommodityNewCapacityEntry;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionBySupplyTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ReconfigureTO;
@@ -56,9 +59,10 @@ public class AnalysisToProtobufTest {
     // Fields
     private static final Economy e = new Economy();
     private static final CommoditySpecification CPU = new CommoditySpecification(100, 1000, 0, Integer.MAX_VALUE);
+    private static final CommoditySpecification MEM = new CommoditySpecification(101, 1001, 0, Integer.MAX_VALUE);
     private static final CommoditySpecification STORAGE_AMOUNT = new CommoditySpecification(200);
     private static final Basket empty = new Basket();
-    private static final Basket basketBought1 = new Basket(CPU);
+    private static final Basket basketBought1 = new Basket(CPU, MEM);
     private static final Basket basketBought2 = new Basket(STORAGE_AMOUNT);
 
     private static final Trader vm1 = e.addTrader(0, TraderState.INACTIVE, empty, basketBought1);
@@ -145,8 +149,10 @@ public class AnalysisToProtobufTest {
 
     @SuppressWarnings({"unused", "unchecked"})
     private static Object[] parametersForTestActionTO() {
-        pm1.getCommoditySold(CPU).setCapacity(15);
-        pm2.getCommoditySold(CPU).setCapacity(25);
+        pm1.getCommoditySold(CPU).setCapacity(15).setQuantity(10);
+        pm1.getCommoditySold(MEM).setCapacity(100).setQuantity(10);
+        pm2.getCommoditySold(CPU).setCapacity(25).setQuantity(10);
+        pm2.getCommoditySold(MEM).setCapacity(200).setQuantity(10);
 
         Topology topo = new Topology();
         BiMap<@NonNull Trader, @NonNull Long> traderOids = null;
@@ -181,12 +187,17 @@ public class AnalysisToProtobufTest {
         } catch (Exception e) {
 
         }
-        Action activate = new Activate(e, vm1, e.getMarket(basketBought1), vm2);
+        Action activate = new Activate(e, pm1, e.getMarket(basketBought1), pm2);
         ActionTO activateTO = ActionTO.newBuilder().setActivate(ActivateTO.newBuilder()
-                        .setTraderToActivate(0l).setModelSeller(1l)
+                        .setTraderToActivate(2l).setModelSeller(3l).setMostExpensiveCommodity(1000)
                         .addTriggeringBasket(CommoditySpecificationTO.newBuilder().setType(100)
                                         .setBaseType(1000).setQualityLowerBound(0)
-                                        .setQualityUpperBound(Integer.MAX_VALUE).build()))
+                                        .setQualityUpperBound(Integer.MAX_VALUE)
+                                        .build())
+                        .addTriggeringBasket(CommoditySpecificationTO.newBuilder().setType(101)
+                                        .setBaseType(1001).setQualityLowerBound(0)
+                                        .setQualityUpperBound(Integer.MAX_VALUE)
+                                        .build()))
                         .setImportance((float)((ActionImpl)activate).getImportance())
                         .build();
 
@@ -197,6 +208,11 @@ public class AnalysisToProtobufTest {
                                                         .setBaseType(1000)
                                                         .setQualityLowerBound(0)
                                                         .setQualityUpperBound(Integer.MAX_VALUE)
+                                                        .build())
+                        .addTriggeringBasket(CommoditySpecificationTO.newBuilder().setType(101)
+                                                        .setBaseType(1001)
+                                                        .setQualityLowerBound(0)
+                                                        .setQualityUpperBound(Integer.MAX_VALUE)
                                                         .build()).build()).setImportance((float)(
                                                         (ActionImpl)deactivate).getImportance())
                         .build();
@@ -204,10 +220,11 @@ public class AnalysisToProtobufTest {
         Action move = new Move(e, shop2, pm1);
         ActionTO moveTO = ActionTO.newBuilder().setMove(
                         MoveTO.newBuilder().setShoppingListToMove(20l).setDestination(2l)
-                                        .setSource(3l).build()).setImportance((float)(
-                                        (ActionImpl)move).getImportance())
+                                        .setSource(3l).setMoveExplanation(MoveExplanation.newBuilder()
+                                                        .setPerformance(Performance.newBuilder()
+                                                                        .build()).build()).build())
+                        .setImportance((float)((ActionImpl)move).getImportance())
                         .build();
-
         Action provisionByDemand = new ProvisionByDemand(e, shop2, pm2);
         provisionByDemand.take(); // we call take to create provisionedSeller
         // assign -1 as oid for the newly provisioned seller
@@ -217,12 +234,23 @@ public class AnalysisToProtobufTest {
                                         ProvisionByDemandTO.newBuilder().setModelBuyer(20l)
                                         .setProvisionedSeller(-1)
                                         .setModelSeller(3l)
-                                        .addCommodityNewCapacityEntry(CommodityNewCapacityEntry.newBuilder()
-                                                                                        .setCommodityBaseType(
-                                                                                                        1000)
-                                                        .setNewCapacity(25).build())).setImportance((float)(
-                                                                        (ActionImpl)provisionByDemand)
-                                                                        .getImportance())
+                                        .addCommodityNewCapacityEntry(CommodityNewCapacityEntry
+                                                        .newBuilder().setCommodityBaseType(1000)
+                                                        .setNewCapacity(25).build())
+                                        .addCommodityNewCapacityEntry(CommodityNewCapacityEntry
+                                                        .newBuilder().setCommodityBaseType(1001)
+                                                        .setNewCapacity(200).build())
+                                        .addCommodityMaxAmountAvailable(
+                                                        CommodityMaxAmountAvailableEntry
+                                                        .newBuilder().setCommodityBaseType(1000)
+                                                        .setMaxAmountAvailable(25).setRequestedAmount(0)
+                                                        .build())
+                                        .addCommodityMaxAmountAvailable(
+                                                        CommodityMaxAmountAvailableEntry
+                                                        .newBuilder().setCommodityBaseType(1001)
+                                                        .setMaxAmountAvailable(200).setRequestedAmount(0)
+                                                        .build()))
+                        .setImportance((float)((ActionImpl)provisionByDemand).getImportance())
                         .build();
 
         Action provisionBySupply = new ProvisionBySupply(e, pm1);
@@ -232,7 +260,8 @@ public class AnalysisToProtobufTest {
         ActionTO provisionBySupplyTO = ActionTO.newBuilder()
                         .setProvisionBySupply(
                                         ProvisionBySupplyTO.newBuilder().setModelSeller(2l)
-                                        .setProvisionedSeller(-3)
+                                        .setProvisionedSeller(-4)
+                                        .setMostExpensiveCommodity(1000)
                                         .build()).setImportance((float)(
                                         (ActionImpl)provisionBySupply).getImportance())
                         .build();
@@ -240,6 +269,7 @@ public class AnalysisToProtobufTest {
         Action resize = new Resize(e, pm1, CPU, 500);
         ActionTO resizeTO = ActionTO.newBuilder().setResize(ResizeTO.newBuilder()
                         .setSellingTrader(2l).setNewCapacity(500).setOldCapacity(15)
+                        .setStartUtilization(0).setEndUtilization(0)
                         .setSpecification(
                                         CommoditySpecificationTO.newBuilder().setType(100)
                                                         .setBaseType(1000)
@@ -270,9 +300,23 @@ public class AnalysisToProtobufTest {
         ActionTO compoundMoveActionTO = ActionTO.newBuilder()
                         .setCompoundMove(compoundMoveTO
                                         .addMoves(MoveTO.newBuilder().setShoppingListToMove(30l)
-                                                        .setDestination(3l).setSource(2l).build())
+                                                        .setDestination(3l).setSource(2l)
+                                                        .setMoveExplanation(MoveExplanation
+                                                                        .newBuilder()
+                                                                        .setPerformance(Performance
+                                                                                        .newBuilder()
+                                                                                        .build())
+                                                                        .build())
+                                                      .build())
                                         .addMoves(MoveTO.newBuilder().setShoppingListToMove(40l)
-                                                        .setDestination(5l).setSource(4l).build())
+                                                        .setDestination(5l).setSource(4l)
+                                                        .setMoveExplanation(MoveExplanation
+                                                                        .newBuilder()
+                                                                        .setPerformance(Performance
+                                                                                        .newBuilder()
+                                                                                        .build())
+                                                                        .build())
+                                                        .build())
                                         .build()).setImportance((float)(
                                                         (ActionImpl)compoundMove).getImportance())
                         .build();
@@ -310,9 +354,9 @@ public class AnalysisToProtobufTest {
         traderOidField.setAccessible(true);
         @SuppressWarnings("unchecked")
         BiMap<Trader, Long> traderOids = (BiMap<Trader, Long>)traderOidField.get(topology);
-        traderOids.put(vm1, 100l); // needed when construction the ActionTO
+        traderOids.put(pm1, 100l); // needed when construction the ActionTO
         // Provision
-        ProvisionBySupply prov = new ProvisionBySupply(e, vm1);
+        ProvisionBySupply prov = new ProvisionBySupply(e, pm1);
         prov.take();
         BiMap<ShoppingList, Long> shoppingListOids = topology.getShoppingListOids();
         assertTrue(shoppingListOids.isEmpty());

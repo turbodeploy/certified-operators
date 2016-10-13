@@ -1,8 +1,16 @@
 package com.vmturbo.platform.analysis.translators;
 
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.DoubleBinaryOperator;
+
+import org.apache.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import com.google.common.collect.BiMap;
@@ -31,10 +39,17 @@ import com.vmturbo.platform.analysis.ledger.PriceStatement.TraderPriceStatement;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActivateTO;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.Compliance;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.CompoundMoveTO;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.Congestion;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.DeactivateTO;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.Evacuation;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.InitialPlacement;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveExplanation;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveTO;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.Performance;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionByDemandTO;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionByDemandTO.CommodityMaxAmountAvailableEntry;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionByDemandTO.CommodityNewCapacityEntry;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionBySupplyTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ReconfigureTO;
@@ -68,10 +83,16 @@ import com.vmturbo.platform.analysis.topology.Topology;
  * </p>
  */
 public final class AnalysisToProtobuf {
-    // Methods for converting PriceFunctionDTOs.
+
+
+    private static final Logger logger = Logger.getLogger(AnalysisToProtobuf.class);
 
     private static final double MAX_PRICE_INDEX = 20000;
+    private static final double MAX_REASON_COMMODITY = 2;
+    // TODO: we need to do some experiment to get a reasonable threshold
+    private static final double QUOTE_DIFF_THRESHOLD = 1;
 
+    // Methods for converting PriceFunctionDTOs.
     /**
      * Converts a {@link PriceFunction} to a {@link PriceFunctionTO}.
      *
@@ -305,16 +326,18 @@ public final class AnalysisToProtobuf {
 
         if (input instanceof Move) {
             Move move = (Move)input;
-            MoveTO.Builder moveTO = MoveTO.newBuilder();
+            Trader newSupplier = move.getDestination();
+            if (newSupplier == null) {
+                logger.error("The destination for the move action is null!");
+                return null;
+            }
 
+            MoveTO.Builder moveTO = MoveTO.newBuilder();
             moveTO.setShoppingListToMove(shoppingListOid.get(move.getTarget()));
-            if (move.getSource() != null) {
-                moveTO.setSource(traderOid.get(move.getSource()));
-            }
-            if (move.getDestination() != null) {
-                moveTO.setDestination(traderOid.get(move.getDestination()));
-            }
+            moveTO.setDestination(traderOid.get(newSupplier));
+            moveTO = explainMoveAction(move.getSource(), newSupplier, traderOid, move, moveTO);
             builder.setMove(moveTO);
+
         } else if (input instanceof Reconfigure) {
             Reconfigure reconfigure = (Reconfigure)input;
             ReconfigureTO.Builder reconfigureTO = ReconfigureTO.newBuilder();
@@ -324,12 +347,19 @@ public final class AnalysisToProtobuf {
             if (reconfigure.getSource() != null) {
                 reconfigureTO.setSource(traderOid.get(reconfigure.getSource()));
             }
+            for (CommoditySpecification c : reconfigure.getTarget().getBasket()) {
+                if (!reconfigure.getSource().getBasketSold().contains(c)) {
+                    reconfigureTO.addCommodityToReconfigure(c.getBaseType());
+                }
+            }
             builder.setReconfigure(reconfigureTO);
         } else if (input instanceof Activate) {
             Activate activate = (Activate)input;
             builder.setActivate(ActivateTO.newBuilder()
                             .setTraderToActivate(traderOid.get(activate.getTarget()))
                             .setModelSeller(traderOid.get(activate.getModelSeller()))
+                            .setMostExpensiveCommodity(findMostExpensiveCommodity(activate
+                                            .getModelSeller()).getBaseType())
                 .addAllTriggeringBasket(specificationTOs(activate.getSourceMarket().getBasket())));
         } else if (input instanceof Deactivate) {
             Deactivate deactivate = (Deactivate)input;
@@ -342,8 +372,8 @@ public final class AnalysisToProtobuf {
             ProvisionByDemandTO.Builder provDemandTO = ProvisionByDemandTO.newBuilder()
                             .setModelBuyer(shoppingListOid.get(provDemand.getModelBuyer()))
                             .setModelSeller(traderOid.get(provDemand.getModelSeller()))
-                            // the newly provisioned trader does not have OID, assign one for it and adds
-                            // the oid into BiMap traderOids_
+                            // the newly provisioned trader does not have OID, assign one for it
+                            // and add the oid into BiMap traderOids_
                             .setProvisionedSeller(topology.addProvisionedTrader(
                                             provDemand.getProvisionedSeller()));
             // create shopping list OIDs for the provisioned shopping lists
@@ -358,21 +388,43 @@ public final class AnalysisToProtobuf {
                             .addCommodityNewCapacityEntry(CommodityNewCapacityEntry.newBuilder()
                                             .setCommodityBaseType(key)
                                             .setNewCapacity(value.floatValue()).build()));
+             // send the commodity whose requested quantity can not be satisfied, its requested
+            // amount and the max amount could be provided by any seller in market
+            Basket basketSold = provDemand.getProvisionedSeller().getBasketSold();
+            List<Trader> sellers = provDemand.getEconomy().getMarket(basketSold).getActiveSellers();
+
+            provDemand.getCommodityNewCapacityMap().forEach((key, value) -> {
+                int index = basketSold.indexOfBaseType(key);
+                provDemandTO.addCommodityMaxAmountAvailable(CommodityMaxAmountAvailableEntry
+                                .newBuilder().setCommodityBaseType(key).setMaxAmountAvailable((float)
+                                                sellers.stream().max((s1, s2) ->
+                                                Double.compare(s1.getCommoditiesSold()
+                                                .get(index).getEffectiveCapacity(),
+                                                s2.getCommoditiesSold().get(index)
+                                                .getEffectiveCapacity())).get().getCommoditiesSold()
+                                                .get(index).getEffectiveCapacity())
+                                .setRequestedAmount((float)provDemand.getModelBuyer()
+                                                .getQuantities()[provDemand.getModelBuyer()
+                                                                 .getBasket().indexOfBaseType(key)])
+                                .build());
+            });
             builder.setProvisionByDemand(provDemandTO);
         } else if (input instanceof ProvisionBySupply) {
             ProvisionBySupply provSupply = (ProvisionBySupply)input;
-            ProvisionBySupplyTO.Builder provSupplyTO = ProvisionBySupplyTO.newBuilder()
-                            .setModelSeller(traderOid.get(provSupply.getModelSeller()))
-                            // the newly provisioned trader does not have OID, assign one for it and adds
-                            // the oid into BiMap traderOids_
-                            .setProvisionedSeller(topology.addProvisionedTrader(
-                                            provSupply.getProvisionedSeller()));
             // create shopping list OIDs for the provisioned shopping lists
             topology.getEconomy()
                 .getMarketsAsBuyer(provSupply.getProvisionedSeller())
                 .keySet()
                 .stream()
                 .forEach(topology::addProvisionedShoppingList);
+            ProvisionBySupplyTO.Builder provSupplyTO = ProvisionBySupplyTO.newBuilder()
+                .setModelSeller(traderOid.get(provSupply.getModelSeller()))
+                // the newly provisioned trader does not have OID, assign one for it and add
+                // the oid into BiMap traderOids_
+                .setProvisionedSeller(topology.addProvisionedTrader(
+                                provSupply.getProvisionedSeller()))
+                .setMostExpensiveCommodity(findMostExpensiveCommodity(provSupply
+                                .getModelSeller()).getBaseType());
             builder.setProvisionBySupply(provSupplyTO);
         } else if (input instanceof Resize) {
             Resize resize = (Resize)input;
@@ -380,7 +432,16 @@ public final class AnalysisToProtobuf {
                             .setSellingTrader(traderOid.get(resize.getSellingTrader()))
                 .setSpecification(commoditySpecificationTO(resize.getResizedCommoditySpec()))
                 .setOldCapacity((float)resize.getOldCapacity())
-                .setNewCapacity((float)resize.getNewCapacity()));
+                .setNewCapacity((float)resize.getNewCapacity())
+                // first multiply upper util bound with old capacity to get the old effective
+                // capacity, then get start util by using start quantity divided by old effective
+                // capacity
+                .setStartUtilization((float)(resize.getResizedCommodity().getStartQuantity() /
+                            (resize.getResizedCommodity().getSettings()
+                                            .getUtilizationUpperBound() *
+                                            resize.getOldCapacity())))
+                .setEndUtilization((float)(resize.getResizedCommodity().getStartQuantity() /
+                            resize.getResizedCommodity().getEffectiveCapacity())));
         } else if (input instanceof CompoundMove) {
             CompoundMove compoundMove = (CompoundMove)input;
             CompoundMoveTO.Builder compoundMoveTO = CompoundMoveTO.newBuilder();
@@ -416,7 +477,10 @@ public final class AnalysisToProtobuf {
                     long timeToAnalyze_ns, Topology topology, PriceStatement startPriceStatement) {
         AnalysisResults.Builder builder = AnalysisResults.newBuilder();
         for (Action action : actions) {
-            builder.addActions(actionTO(action, traderOid, shoppingListOid, topology));
+            ActionTO actionTO = actionTO(action, traderOid, shoppingListOid, topology);
+            if (actionTO != null) {
+                builder.addActions(actionTO);
+            }
         }
         // New shoppingList map has to be created after action conversion, because assigning
         // oid for new shopping list happens in conversion
@@ -459,6 +523,32 @@ public final class AnalysisToProtobuf {
 
 
     /**
+     * Finds the commodity with the highest price for a given trader.
+     *
+     * @param modelSeller the model seller used in provision or activation
+     * @return the {@link CommoditySpecification} of the most expensive commodity
+     */
+    private static CommoditySpecification findMostExpensiveCommodity(Trader modelSeller) {
+        double mostExpensivePrice = 0;
+        CommoditySpecification mostExpensiveComm = null;
+        // we find the most expensive commodity at the start state to explain the provisionBySupply
+        for (CommoditySold c : modelSeller.getCommoditiesSold()) {
+            double usedPrice = c.getSettings().getPriceFunction().unitPrice(c.getStartQuantity() /
+                            c.getEffectiveCapacity());
+            double peakPrice = c.getSettings().getPriceFunction().unitPrice(Math.max(0,
+                            c.getStartPeakQuantity() - c.getStartQuantity())
+                               / (c.getEffectiveCapacity() - c.getSettings().getUtilizationUpperBound()
+                                               * c.getStartQuantity()));
+            double greaterPrice = usedPrice > peakPrice ? usedPrice : peakPrice;
+            if (mostExpensivePrice < greaterPrice) {
+                mostExpensivePrice = greaterPrice;
+                mostExpensiveComm = modelSeller.getBasketSold().get(modelSeller.getCommoditiesSold().indexOf(c));
+            }
+        }
+        return mostExpensiveComm;
+    }
+
+    /**
      * Convert the newShoppingListToBuyerMap to DTO.
      * @param topology The topology keeps trader oid and shopping list oid information.
      * @return The result {@link NewShoppingListToBuyerMap} message
@@ -472,4 +562,151 @@ public final class AnalysisToProtobuf {
         return entryList;
     }
 
+    /**
+     * Generates the explanation for a given move action. The type of explanation could be
+     * Compliance: move is because the old supplier failed to provide certain commodities
+     * Congestion: move is because certain commodities utilization are lower at new supplier
+     * Evacuation: move is because the old supplier suspended
+     * InitialPlacement: move is to start placing the consumer at a proper supplier
+     * Performance: move is to improve the overall performance
+     *
+     * @param oldSupplier the original supplier for the consumer
+     * @param newSupplier the destination supplier of the move
+     * @param traderOid A map for {@link Trader}s to their OIDs
+     * @param move the move action to explain
+     * @param moveTO the DTO for the move action to explain
+     * @return The resulting {@link MoveTO.Builder}.
+     */
+    private static MoveTO.Builder explainMoveAction(Trader oldSupplier, Trader newSupplier,
+                    @NonNull BiMap<@NonNull Trader, @NonNull Long> traderOid, Move move,
+                    MoveTO.Builder moveTO) {
+        if (oldSupplier == null) {
+            // when the source does not exist, move is actually initial placement.
+            moveTO.setMoveExplanation(MoveExplanation.newBuilder().setInitialPlacement(
+                            InitialPlacement.newBuilder().build()).build());
+        } else {
+            // when the source exists, the move can be either a result of compliance,
+            // cheaper quote or suspension.
+            moveTO.setSource(traderOid.get(oldSupplier));
+            // when old supplier is inactive, move is a result of supplier suspension.
+            // TODO: we need to understand if old host is in failover state, could it still has
+            // some consumers? If so, is it valid to consider move as a result of suspension?
+            if (oldSupplier.getState() == TraderState.INACTIVE) {
+                moveTO.setMoveExplanation(MoveExplanation.newBuilder().setEvacuation(Evacuation
+                                .newBuilder().setSuspendedTrader(traderOid.get(oldSupplier)).build())
+                                .build());
+            } else {
+                // old supplier exists and its state is Active
+                Map<Double, List<Integer>> quoteDiffPerComm = new TreeMap<Double, List<Integer>>();
+                Basket basketBought = move.getTarget().getBasket();
+                Set<Integer> complianceCommSet = new HashSet<Integer>();
+                // iterate over all comm that the shopping list requests, calculate at the old
+                // supplier and the new supplier  the priceUsed and peakPriceUsed
+                for (int i = 0; i < basketBought.size(); i++) {
+                    CommoditySpecification commBought = basketBought.get(i);
+                    CommoditySold oldCommSold = oldSupplier.getCommoditySold(commBought);
+                    // if old supplier does not have the shopping list's requested commodity,
+                    // move is due to compliance
+                    if (oldCommSold == null) {
+                        complianceCommSet.add(commBought.getBaseType());
+                    } else {
+                        CommoditySold newCommSold = newSupplier.getCommoditySold(commBought);
+                        // if the comm utilization is less than min desired util, we dont consider
+                        // it as reason commodities even though the quote at destination may be
+                        // smaller, because from a user's point of view, move away from such a low
+                        // utilized supplier is not congestion
+                        if (oldCommSold.getUtilization() < oldCommSold.getSettings()
+                                        .getUtilizationUpperBound() * oldSupplier.getSettings()
+                                        .getMinDesiredUtil()) {
+                            continue;
+                        }
+
+                        double quantityBought = move.getTarget().getQuantity(i);
+                        double peakQuantityBought = move.getTarget().getPeakQuantity(i);
+                        // calculate the price at the old and new supplier and get the quote
+                        // difference
+                        double oldQuote = calculateQuote(oldCommSold, quantityBought, peakQuantityBought);
+                        double newQuote = calculateQuote(newCommSold, quantityBought, peakQuantityBought);
+                        double quoteDiff = newQuote - oldQuote;
+
+                        // if the difference in quote is positive, or it is not bigger than
+                        // threshold, skip it
+                        if (quoteDiff >= 0 && (Math.abs(quoteDiff) < QUOTE_DIFF_THRESHOLD)) {
+                            continue;
+                        }
+                        if (quoteDiffPerComm.containsKey(quoteDiff)) {
+                            quoteDiffPerComm.get(quoteDiff).add(commBought.getBaseType());
+                        } else {
+                            List<Integer> list = new ArrayList<>();
+                            list.add(commBought.getBaseType());
+                            quoteDiffPerComm.put(newQuote - oldQuote, list);
+                        }
+                    }
+
+                }
+                if (!complianceCommSet.isEmpty()) {
+                    complianceCommSet.forEach(i -> moveTO.setMoveExplanation(MoveExplanation
+                                    .newBuilder().setCompliance(Compliance.newBuilder()
+                                                    .addMissingCommodities(i).build())).build());
+                } else {
+                    // move could be due to cheaper quote, we limit the number of congested commodity to 2
+                    // which means we pick up the 2 commodities with most different quote.
+                    Iterator<Entry<Double, List<Integer>>> iterator = quoteDiffPerComm.entrySet().iterator();
+                    Congestion.Builder congestion = Congestion.newBuilder();
+                    int counter = 0;
+                    while(iterator.hasNext() && counter < MAX_REASON_COMMODITY) {
+                        // if newQuote-oldQuote is less than 0, quote is cheaper at the new supplier
+                        // otherwise, do not consider it
+                        @SuppressWarnings("rawtypes")
+                        Map.Entry entry = iterator.next();
+                        if ((Double)entry.getKey() <= 0) {
+                            @SuppressWarnings("unchecked")
+                            List<Integer> commList = (List<Integer>)entry.getValue();
+                            for (Integer i : commList) {
+                                if (counter < MAX_REASON_COMMODITY) {
+                                    congestion.addCongestedCommodities(i);
+                                    counter++;
+                                }
+                            }
+                        }
+                    }
+                    // if all commodities utilization are greater at destination, move is to improve
+                    // overall performance
+                    if (counter == 0) {
+                        moveTO.setMoveExplanation(MoveExplanation.newBuilder().setPerformance(
+                                        Performance.newBuilder().build()).build());
+                    } else {
+                        moveTO.setMoveExplanation(MoveExplanation.newBuilder().setCongestion(
+                                        congestion.build()).build());
+                    }
+                }
+            }
+        }
+        return moveTO;
+    }
+
+    /**
+     * Computes the quote for a given {@link CommoditySold}.
+     *
+     * @param commSold The {@link CommoditySold} to compute the quote
+     * @param quantityBought The quantity bought of the commodity
+     * @param peakQuantityBought The peak quantity bought of the commodity
+     * @return quote for the given {@link CommoditySold}
+     */
+    private static double calculateQuote(CommoditySold commSold, double quantityBought,
+                    double peakQuantityBought) {
+        PriceFunction pf = commSold.getSettings().getPriceFunction();
+        double startQuantity = commSold.getStartQuantity();
+        double startPeakQuantity = commSold.getStartPeakQuantity();
+        double effectiveCapacity = commSold.getEffectiveCapacity();
+        double excessQuantity = peakQuantityBought - quantityBought;
+
+        double usedPrice = pf.unitPrice(startQuantity / effectiveCapacity);
+        double peakPrice = pf.unitPrice(Math.max(0, startPeakQuantity - startQuantity)/
+                                        (effectiveCapacity - commSold.getSettings()
+                                                        .getUtilizationUpperBound()*startQuantity));
+
+        return ((((quantityBought == 0) ? 0 : quantityBought * usedPrice) +
+                        excessQuantity > 0 ? excessQuantity * peakPrice : 0)) / effectiveCapacity;
+    }
 } // end AnalysisToProtobuf class

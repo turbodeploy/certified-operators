@@ -23,6 +23,8 @@ public abstract class CommoditySold {
     private double historicalQuantity_ = 0.0;
     private double historicalPeakQuantity_ = 0.0;
     private double capacity_ = Double.MAX_VALUE;
+    private double startQuantity_ = 0.0;
+    private double startPeakQuantity_ = 0.0;
     private boolean thin_ = false;
 
     // Methods
@@ -118,6 +120,24 @@ public abstract class CommoditySold {
     public double getCapacity(@ReadOnly CommoditySold this) {
         return capacity_;
     }
+
+    /**
+    *
+    * @return The start quantity.
+    */
+   @Pure
+   public double getStartQuantity(@ReadOnly CommoditySold this) {
+       return startQuantity_;
+   }
+
+    /**
+    *
+    * @return The start peak quantity.
+    */
+   @Pure
+   public double getStartPeakQuantity(@ReadOnly CommoditySold this) {
+       return startPeakQuantity_;
+   }
 
     /**
      * Returns the <b>effective capacity</b> of {@code this} commodity.
@@ -244,6 +264,34 @@ public abstract class CommoditySold {
     public @NonNull CommoditySold setCapacity(double capacity) {
         checkArgument(0 <= capacity, "capacity = " + capacity); // should we check that this is >= max(quantity,peakQuantity)?
         capacity_ = capacity;
+        return this;
+    }
+
+    /**
+     * Sets the value of start quantity.
+     *
+     * @param startQuantity Start quantity value.
+     * @return {@code this}
+     */
+    @Deterministic
+    public @NonNull CommoditySold setStartQuantity(double startQuantity) {
+        // startQuantity can be over capacity
+        checkArgument(0 <= startQuantity, "startQuantity = " + startQuantity);
+        startQuantity_ = startQuantity;
+        return this;
+    }
+
+    /**
+     * Sets the value of start peak quantity.
+     *
+     * @param startPeakQuantity Start peak quantity value.
+     * @return {@code this}
+     */
+    @Deterministic
+    public @NonNull CommoditySold setStartPeakQuantity(double startPeakQuantity) {
+        // startPeakQuantity can be over capacity
+        checkArgument(0 <= startPeakQuantity, "startPeakQuantity = " + startPeakQuantity);
+        startPeakQuantity_ = startPeakQuantity;
         return this;
     }
 
