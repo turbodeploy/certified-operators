@@ -260,7 +260,7 @@ public class AnalysisToProtobufTest {
         ActionTO provisionBySupplyTO = ActionTO.newBuilder()
                         .setProvisionBySupply(
                                         ProvisionBySupplyTO.newBuilder().setModelSeller(2l)
-                                        .setProvisionedSeller(-4)
+                                        .setProvisionedSeller(-3)
                                         .setMostExpensiveCommodity(1000)
                                         .build()).setImportance((float)(
                                         (ActionImpl)provisionBySupply).getImportance())
