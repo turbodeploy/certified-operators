@@ -5,6 +5,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.IntStream;
 
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
@@ -167,21 +168,42 @@ public class Ledger {
         double sellerMaxDesUtil = seller.getSettings().getMaxDesiredUtil();
         double sellerMinDesUtil = seller.getSettings().getMinDesiredUtil();
         // compute the revenues based on the utilization of the commoditiesSold
+        CommoditySold[] topSellingComm = {null, null};
+        double[] topRev = new double[2];
+        // Find the top 2 commodities that generate the most revenue
         for (CommoditySold commSold : seller.getCommoditiesSold()) {
             double commSoldUtil = commSold.getQuantity()/commSold.getEffectiveCapacity();
             if (commSoldUtil != 0) {
                 PriceFunction pf = commSold.getSettings().getPriceFunction();
-                sellerIncomeStmt.setRevenues(sellerIncomeStmt.getRevenues()
-                                    + pf.unitPrice(commSoldUtil)*commSoldUtil)
-                    .setMinDesiredRevenues(sellerIncomeStmt.getMinDesiredRevenues()
-                                    + pf.unitPrice(sellerMinDesUtil) * sellerMinDesUtil)
-                    .setMaxDesiredRevenues(sellerIncomeStmt.getMaxDesiredRevenues()
-                                    + pf.unitPrice(sellerMaxDesUtil) * sellerMaxDesUtil);
-                if (Double.isInfinite(sellerIncomeStmt.getRevenues())) {
-                    break;
+                double revFromComm = pf.unitPrice(commSoldUtil) * commSoldUtil;
+                if (topRev[0] < revFromComm) {
+                    topRev[1] = topRev[0];
+                    topRev[0] = revFromComm;
+                    topSellingComm[1] = topSellingComm[0];
+                    topSellingComm[0] = commSold;
+                } else if (topRev[1] < revFromComm) {
+                    topRev[1] = revFromComm;
+                    topSellingComm[1] = commSold;
                 }
             }
         }
+        // compute total revenue with the top 2 commodities
+        double[] tempCurrMinMaxRev = new double[3];
+        IntStream.range(0, topRev.length).forEach(i -> {
+            if (Double.isFinite(tempCurrMinMaxRev[0])) {
+                CommoditySold cs = topSellingComm[i];
+                if (cs != null) {
+                    PriceFunction pf = cs.getSettings().getPriceFunction();
+                    tempCurrMinMaxRev[0] = tempCurrMinMaxRev[0] + topRev[i];
+                    tempCurrMinMaxRev[1] = tempCurrMinMaxRev[1] + pf.unitPrice(sellerMinDesUtil);
+                    tempCurrMinMaxRev[2] = tempCurrMinMaxRev[2] + pf.unitPrice(sellerMaxDesUtil);
+                }
+            }
+        });
+
+        sellerIncomeStmt.setRevenues(tempCurrMinMaxRev[0])
+                        .setMinDesiredRevenues(tempCurrMinMaxRev[1] * sellerMinDesUtil)
+                        .setMaxDesiredRevenues(tempCurrMinMaxRev[2] * sellerMaxDesUtil);
 
         double[] quote = {0,0,0};
         // calculate expenses using the quote from every supplier that this trader buys from
