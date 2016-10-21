@@ -11,6 +11,9 @@ message EconomySettingsTO {
 
     // Do not resize down if utilization is above the lower watermark.
     required float rightsize_lower_watermark = 2;
+
+    // Use expense metric in termination criterion for placement.
+    required bool use_expense_metric_for_termination = 3;
 }
 
 // A detailed, exact statement of particulars about a commodity a buyer needs to buy (but may not be
