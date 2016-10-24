@@ -85,10 +85,10 @@ public final class Ede {
         }
         logger.info("Plan completed suspending with " + (actions.size() - oldActionCount) + " actions.");
         oldActionCount = actions.size();
-        if (isResize) {
-            actions.addAll(Resizer.resizeDecisions(economy, ledger));
-        }
-        logger.info("Plan completed resizing with " + (actions.size() - oldActionCount) + " actions.");
+//        if (isResize) {
+//            actions.addAll(Resizer.resizeDecisions(economy, ledger));
+//        }
+//        logger.info("Plan completed resizing with " + (actions.size() - oldActionCount) + " actions.");
         if (collapse) {
             // TODO: All of this should be done in the collapse method
             // Don't collapse Moves that have a 'null' source (no-source moves)
