@@ -3,7 +3,6 @@ package com.vmturbo.platform.analysis.ede;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-
 import org.apache.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import com.google.common.collect.Lists;
@@ -58,10 +57,11 @@ public class Suspension extends Supply {
     @Override
     public boolean evalAcceptanceCriteriaForMarket(Economy economy, Market market, Ledger ledger,
                     Trader suspensionCandidate, List<@NonNull Action> actions) {
-        // if any customer still present on the suspension candidate, cancel suspension
-        // and put this candidate into unprofitableSellersCouldNotSuspend so that it would
-        // not be considered again next round
-        if (!suspensionCandidate.getCustomers().isEmpty()) {
+        // if any non-guaranteedBuyer is still present on the suspension candidate, cancel
+        // suspension and put this candidate into unprofitableSellersCouldNotSuspend so that it
+        // would not be considered again next round
+        if (suspensionCandidate.getCustomers().stream().filter(sl -> !sl.getBuyer().getSettings()
+                 .isGuaranteedBuyer()).count() != 0) {
             unprofitableSellersCouldNotSuspend.add(suspensionCandidate);
             return false;
         }
