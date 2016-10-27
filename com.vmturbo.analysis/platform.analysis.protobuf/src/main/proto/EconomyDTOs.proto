@@ -14,6 +14,9 @@ message EconomySettingsTO {
 
     // Use expense metric in termination criterion for placement.
     required bool use_expense_metric_for_termination = 3;
+
+    // The minimum percent to be used for the expenses metric termination criterion.
+    required float expense_metric_factor = 4;
 }
 
 // A detailed, exact statement of particulars about a commodity a buyer needs to buy (but may not be
