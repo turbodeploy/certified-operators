@@ -108,6 +108,9 @@ public final class AnalysisServer {
                     EconomySettings settings = currentPartial_.getEconomy().getSettings();
                     settings.setRightSizeLower(settingsTO.getRightsizeLowerWatermark());
                     settings.setRightSizeUpper(settingsTO.getRightsizeUpperWatermark());
+                    settings.setUseExpenseMetricForTermination(settingsTO
+                            .getUseExpenseMetricForTermination());
+                    settings.setExpenseMetricFactor(settingsTO.getExpenseMetricFactor());
                     break;
                 case DISCOVERED_TRADER:
                     ProtobufToAnalysis.addTrader(currentPartial_, command.getDiscoveredTrader());

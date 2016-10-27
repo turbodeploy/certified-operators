@@ -24,6 +24,8 @@ public final class Ede {
 
     // Constructor
 
+    private static final String PLACEMENT_PHASE = "Placement Phase";
+
     /**
      * Constructs the Economic Decisions Engine, with an empty initial State
      */
@@ -64,11 +66,11 @@ public final class Ede {
         @NonNull List<Action> actions = BootstrapSupply.bootstrapSupplyDecisions(economy);
         logger.info("Plan completed bootstrap with " + actions.size() + " actions.");
         int oldActionCount = actions.size();
+        Ledger ledger = new Ledger(economy);
         // run placement algorithm to balance the environment
-        actions.addAll(Placement.runPlacementsTillConverge(economy, isShopTogether));
+        actions.addAll(Placement.runPlacementsTillConverge(economy, ledger, isShopTogether, PLACEMENT_PHASE));
         logger.info("Plan completed initial placement with " + (actions.size() - oldActionCount) + " actions.");
         oldActionCount = actions.size();
-        Ledger ledger = new Ledger(economy);
         // trigger provision, suspension and resize algorithm only when needed
         if (isProvision) {
             actions.addAll(Provision.provisionDecisions(economy, ledger, isShopTogether, this));

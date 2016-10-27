@@ -4,9 +4,9 @@ package com.vmturbo.platform.analysis.ede;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.Map.Entry;
 import java.util.stream.Collectors;
 
 import org.apache.log4j.Logger;
@@ -18,10 +18,11 @@ import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.CompoundMove;
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.actions.Reconfigure;
-import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
+import com.vmturbo.platform.analysis.ledger.Ledger;
 
 /**
  * Contains static methods related to optimizing the placement of {@link Trader}s in an
@@ -92,8 +93,8 @@ public class Placement {
      * @param economy - the economy whose traders' placement we want to optimize
      * @param shoppingList - The {@link ShoppingList} for which we try to find the best destination
      */
-    public static @NonNull List<@NonNull Action> generatePlacementDecisions(@NonNull Economy economy
-                                , ShoppingList shoppingList) {
+    public static @NonNull List<@NonNull Action> generatePlacementDecisions(@NonNull Economy economy,
+                                ShoppingList shoppingList) {
         @NonNull List<Action> actions = new ArrayList<>();
         // if there are no sellers in the market, the buyer is misconfigured
         final @NonNull List<@NonNull Trader> sellers = economy.getMarket(shoppingList).getActiveSellers();
@@ -117,10 +118,23 @@ public class Placement {
 
         // move, and update economy and state
         if (cheapestQuote < currentQuote * economy.getSettings().getQuoteFactor()) {
+            double savings = currentQuote - cheapestQuote;
+            if (Double.isInfinite(savings)) {
+                savings = 0;
+            }
             // create recommendation, add it to the result list and  update the economy to
             // reflect the decision
             actions.add(new Move(economy,shoppingList,cheapestSeller).take().setImportance(
-                            currentQuote - cheapestQuote));
+                            savings));
+            if (economy.getSettings().isUseExpenseMetricForTermination()) {
+                Market myMarket = economy.getMarket(shoppingList);
+                myMarket.setPlacementSavings(myMarket.getPlacementSavings() + savings);
+                if (myMarket.getExpenseBaseline() < myMarket.getPlacementSavings()) {
+                    logger.info("Total savings exceeds base expenses for buyer while shopping " +
+                        shoppingList.getBuyer().getDebugInfoNeverUseInCode() + " Basket " +
+                        shoppingList.getBasket());
+                }
+            }
         }
         return actions;
     }
@@ -233,15 +247,22 @@ public class Placement {
      * Run placement algorithm until there is no more actions generate or there is only {@link Reconfigure}.
      * If the placement has been running for more than MAX_NUM_PLACEMENT, force placement to stop.
      * @param economy
+     * @param ledger - the {@link Ledger} with the expenses and revenues of all the traders
+     *        and commodities in the economy
      * @param isShopTogether
+     * @param callerPhase - tag to identify phase it is being called from
      * @return a list of recommendations about trader placement
      */
     public static @NonNull List<@NonNull Action> runPlacementsTillConverge(Economy economy,
-                    boolean isShopTogether) {
+                    Ledger ledger, boolean isShopTogether, String callerPhase) {
         @NonNull
         List<Action> actions = new ArrayList<@NonNull Action>();
         // generate placement actions
         boolean keepRunning = true;
+        boolean useExpenseMetric = economy.getSettings().isUseExpenseMetricForTermination();
+        if (useExpenseMetric) {
+            initializeMarketExpenses(economy, ledger);
+        }
         int counter = 0;
         while (keepRunning) {
             // in certain edge cases, we may have placement keep generating move actions
@@ -258,10 +279,86 @@ public class Placement {
                             : placementDecisions(economy);
             counter++;
             keepRunning = !(placeActions.isEmpty()
-                            || placeActions.stream().allMatch(a -> a instanceof Reconfigure));
+                            || placeActions.stream().allMatch(a -> a instanceof Reconfigure)
+                            || (useExpenseMetric && areSavingsLessThanThreshold(economy)));
             actions.addAll(placeActions);
+            if (useExpenseMetric) {
+                adjustMarketBaselineExpenses(economy, ledger);
+            }
+
         }
+        logger.info(callerPhase + " Total Placement Iterations: " + counter);
         return actions;
+    }
+
+    /**
+     * Initialize the total expenses of buyers in the market
+     *
+     * @param economy - the {@link Economy}
+     * @param ledger - the {@link Ledger} with the expenses and revenues of all the traders
+     *        and commodities in the economy
+     */
+    private static void initializeMarketExpenses(@NonNull Economy economy,
+                                                 @NonNull Ledger ledger) {
+        for (Market market : economy.getMarkets()) {
+            calculateTotalExpensesForBuyersInMarket(economy, ledger, market);
+        }
+    }
+
+    /**
+     * Initialize the total expenses of buyers in the market
+     *
+     * @param economy - the {@link Economy}
+     * @param ledger - the {@link Ledger} with the expenses and revenues of all the traders
+     *        and commodities in the economy
+     * @param market - the {@link Market} for which expenses are to be calculated
+     */
+    private static void calculateTotalExpensesForBuyersInMarket(@NonNull Economy economy,
+                                                                @NonNull Ledger ledger,
+                                                                @NonNull Market market) {
+        double totalExpenseForMarket =
+                  ledger.calculateTotalExpensesForBuyers(economy, market);
+        if (Double.isInfinite(totalExpenseForMarket)) {
+            totalExpenseForMarket = Double.MAX_VALUE;
+        }
+        market.setExpenseBaseline(totalExpenseForMarket);
+    }
+
+    /**
+     * Adjust the expenses of each Market for use in next iteration
+     *
+     * @param economy The {@link Economy}
+     * @param ledger - the {@link Ledger} of the {@link Economy}
+     */
+    private static void adjustMarketBaselineExpenses(@NonNull Economy economy,
+                                                     @NonNull Ledger ledger) {
+        for (Market market : economy.getMarkets()) {
+            double newBaseLine = market.getExpenseBaseline() - market.getPlacementSavings();
+            if (newBaseLine < 0 || Double.isInfinite(newBaseLine)) {
+                calculateTotalExpensesForBuyersInMarket(economy, ledger, market);
+                logger.info("Total savings exceeds base expenses, recalculating market " +
+                            market.getBasket());
+            } else {
+                market.setExpenseBaseline(newBaseLine);
+            }
+            market.setPlacementSavings(0);
+        }
+    }
+
+    /**
+     * Returns true if the expenses in any market have not changed by more than epsilon
+     *
+     * @param economy The {@link Economy}
+     * @return true if the expenses are at minimum
+     */
+    public static boolean areSavingsLessThanThreshold(@NonNull Economy economy) {
+        double factor = economy.getSettings().getExpenseMetricFactor();
+        for (Market market : economy.getMarkets()) {
+            if (market.getPlacementSavings() > factor * market.getExpenseBaseline()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

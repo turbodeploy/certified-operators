@@ -32,6 +32,7 @@ import com.vmturbo.platform.analysis.ledger.Ledger;
  */
 public class Provision {
 
+    private static final String PROVISION_PHASE = "Provision Phase";
     static final Logger logger = Logger.getLogger(Provision.class);
 
     /**
@@ -96,7 +97,7 @@ public class Provision {
 
                 // run placement after adding a new seller to the economy
                 // TODO: run placement within a market
-                actions.addAll(Placement.runPlacementsTillConverge(economy, isShopTogether));
+                actions.addAll(Placement.runPlacementsTillConverge(economy, ledger, isShopTogether, PROVISION_PHASE));
 
                 if (!evaluateAcceptanceCriteria(economy, ledger, origRoI, mostProfitableTrader,
                                 provisionedTrader)) {

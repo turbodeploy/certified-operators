@@ -4,7 +4,9 @@ import static com.google.common.base.Preconditions.checkArgument;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.IntStream;
 
 import org.apache.log4j.LogManager;
@@ -156,6 +158,19 @@ public class Ledger {
     }
 
     /**
+     * Computes the expenses for all buyers in the {@link Market}
+     *
+     * @param economy {@link Economy} where the <b>seller</b> trades
+     * @param market the {@link Market} whose buyer's expenses and revenues are to be computed
+     * @return The Ledger containing the updated list of traderIncomeStatements
+     */
+    public Ledger calculateExpensesForBuyersInMarket(Economy economy, Market market) {
+        market.getBuyers().forEach(shoppingList -> resetTraderIncomeStatement(shoppingList.getBuyer()));
+        market.getBuyers().forEach(shoppingList -> calculateExpensesForBuyer(economy, shoppingList));
+        return this;
+    }
+
+    /**
      * computes the {@link IncomeStatement} for a seller
      *
      * @param economy {@link Economy} where the <b>seller</b> trades
@@ -205,6 +220,17 @@ public class Ledger {
                         .setMinDesiredRevenues(tempCurrMinMaxRev[1] * sellerMinDesUtil)
                         .setMaxDesiredRevenues(tempCurrMinMaxRev[2] * sellerMaxDesUtil);
 
+        calculateExpensesForSeller(economy, seller);
+    }
+
+    /**
+     * Computes the expenses for the given seller
+     *
+     * @param economy {@link Economy} where the <b>seller</b> trades
+     * @param seller the {@link Trader} whose expenses are to be computed
+     */
+    private void calculateExpensesForSeller(Economy economy, Trader seller) {
+        IncomeStatement sellerIncomeStmt = getTraderIncomeStatements().get(seller.getEconomyIndex());
         double[] quote = {0,0,0};
         // calculate expenses using the quote from every supplier that this trader buys from
         for (ShoppingList sl : economy.getMarketsAsBuyer(seller).keySet()) {
@@ -238,7 +264,44 @@ public class Ledger {
                             .setMinDesiredExpenses(quote[1])
                             .setMaxDesiredExpenses(quote[2]);
         }
+    }
 
+    /**
+     * Computes the expenses for the given buyer
+     *
+     * @param economy {@link Economy} where the <b>buyer</b> trades
+     * @param shoppingList the {@link ShoppingList} whose expenses are to be computed
+     */
+    private void calculateExpensesForBuyer(Economy economy, ShoppingList shoppingList) {
+        IncomeStatement buyerIncomeStmt = getTraderIncomeStatements().get(shoppingList.getBuyer().getEconomyIndex());
+        double[] quote = {0,0,0};
+        // skip markets in which the trader in question is unplaced and
+        // not consider expense for this trader in those markets
+        if (shoppingList.getSupplier() != null) {
+            try {
+                double[] tempQuote = EdeCommon.quote(economy, shoppingList, shoppingList.getSupplier()
+                                        , Double.POSITIVE_INFINITY, true);
+                for (int i=0; i<3; i++) {
+                    quote[i] = quote[i] + tempQuote[i];
+                }
+            } catch (IndexOutOfBoundsException e) {
+                // TODO (shravan): move try catch inside edeCommon
+                // setting expense to INFINITY
+                for (int i=0; i<3; i++) {
+                    quote[i] = Double.POSITIVE_INFINITY;
+                }
+                logger.warn("seller " + shoppingList.getBuyer().getDebugInfoNeverUseInCode() + " placed on the "
+                        + "wrong provider " + shoppingList.getSupplier().getDebugInfoNeverUseInCode() +
+                        " hence returning INFINITE expense");
+            }
+        }
+
+        // update trader's minDesExpRev only if the expense(quote[0] here) is > 0
+        if (quote[0] != 0) {
+            buyerIncomeStmt.setExpenses(buyerIncomeStmt.getExpenses() + quote[0])
+                            .setMinDesiredExpenses(buyerIncomeStmt.getMinDesiredExpenses() + quote[1])
+                            .setMaxDesiredExpenses(buyerIncomeStmt.getMaxDesiredExpenses() + quote[2]);
+        }
     }
 
     /**
@@ -331,6 +394,28 @@ public class Ledger {
         }
 
         return this;
+    }
+
+    /**
+     * Calculate the total expenses for buyers in the given {@link Market}
+     *
+     * @param economy The {@link Economy}
+     * @param market The {@link Market}
+     * @return total expenses for the buyers in the given {@link Market}
+     */
+    public double calculateTotalExpensesForBuyers(Economy economy, Market market) {
+        calculateExpensesForBuyersInMarket(economy, market);
+        double totalExpenses = 0;
+        Set<Trader> marketBuyers = new HashSet<>();
+        market.getBuyers().stream().forEach(sl -> marketBuyers.add(sl.getBuyer()));
+        for (Trader buyer: marketBuyers) {
+             totalExpenses += getTraderIncomeStatements().get(buyer.getEconomyIndex())
+                                 .getExpenses();
+             if (Double.isInfinite(totalExpenses)) {
+                 break;
+             }
+        }
+        return totalExpenses;
     }
 
 } // end class Ledger

@@ -43,6 +43,9 @@ public final class Market {
     private final @NonNull List<@NonNull Trader> inactiveSellers_ = new ArrayList<>(); // see #getInactiveSellers()
 
     // Cached data
+    // used in placement termination condition
+    private double expenseBaseline_;
+    private double placementSavings_;
 
     // Cached unmodifiable view of the buyers_ list.
     private final @NonNull List<@NonNull ShoppingList> unmodifiableBuyers_ = Collections.unmodifiableList(buyers_);
@@ -122,6 +125,30 @@ public final class Market {
     @Pure
     public @NonNull @ReadOnly List<@NonNull Trader> getInactiveSellers(@ReadOnly Market this) {
         return unmodifiableInactiveSellers_;
+    }
+
+    @Pure
+    public @NonNull @ReadOnly double getExpenseBaseline(@ReadOnly Market this) {
+        return expenseBaseline_;
+    }
+
+    @Pure
+    public @NonNull @ReadOnly double getPlacementSavings(@ReadOnly Market this) {
+        return placementSavings_;
+    }
+
+    @Deterministic
+    public Market setExpenseBaseline(double expenseBaseline) {
+        checkArgument(expenseBaseline >= 0, "expenseBaseline = %s", expenseBaseline);
+        expenseBaseline_ = expenseBaseline;
+        return this;
+    }
+
+    @Deterministic
+    public Market setPlacementSavings(double placementSavings) {
+        checkArgument(placementSavings >= 0, "placementSavings = %s", placementSavings);
+        placementSavings_ = placementSavings;
+        return this;
     }
 
     /**

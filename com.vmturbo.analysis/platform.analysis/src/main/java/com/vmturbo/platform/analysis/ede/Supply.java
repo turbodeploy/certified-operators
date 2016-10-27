@@ -17,7 +17,8 @@ import com.vmturbo.platform.analysis.ledger.Ledger;
 
 public abstract class Supply {
 
-	static final Logger logger = Logger.getLogger(Supply.class);
+	private static final String SUPPLY_PHASE = "Supply Phase";
+    static final Logger logger = Logger.getLogger(Supply.class);
 
     /**
      * Return a list of recommendations to optimize the change in supply of the economy.
@@ -71,7 +72,7 @@ public abstract class Supply {
                                                 : null;
 
                 List<@NonNull Action> placementActions = Placement.runPlacementsTillConverge(economy,
-                                isShopTogether);
+                                ledger, isShopTogether, SUPPLY_PHASE);
                 actions.addAll(placementActions);
                 // provision will only need to calculate the seller in current market
                 if (isProvision) {

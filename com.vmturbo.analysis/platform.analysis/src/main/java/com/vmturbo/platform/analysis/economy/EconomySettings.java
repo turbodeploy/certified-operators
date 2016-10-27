@@ -34,6 +34,8 @@ public final class EconomySettings {
 
     private double rightSizeLower_;
     private double rightSizeUpper_;
+    private boolean useExpenseMetricForTermination_;
+    private float expenseMetricFactor_;
 
     // Constructors
 
@@ -122,6 +124,16 @@ public final class EconomySettings {
         return rightSizeUpper_;
     }
 
+    @Pure
+    public boolean isUseExpenseMetricForTermination(@ReadOnly EconomySettings this) {
+        return useExpenseMetricForTermination_;
+    }
+
+    @Pure
+    public float getExpenseMetricFactor(@ReadOnly EconomySettings this) {
+        return expenseMetricFactor_;
+    }
+
     @Deterministic
     public EconomySettings setRightSizeLower(double rightSizeLower) {
         checkArgument(rightSizeLower >= 0, "rightSizeLower = " + rightSizeLower);
@@ -133,6 +145,19 @@ public final class EconomySettings {
     public EconomySettings setRightSizeUpper(double rightSizeUpper) {
         checkArgument(rightSizeUpper >= 0, "rightSizeUpper = " + rightSizeUpper);
         rightSizeUpper_ = rightSizeUpper;
+        return this;
+    }
+
+    @Deterministic
+    public EconomySettings setUseExpenseMetricForTermination(
+                              boolean useExpenseMetricForTermination) {
+        useExpenseMetricForTermination_ = useExpenseMetricForTermination;
+        return this;
+    }
+
+    @Deterministic
+    public EconomySettings setExpenseMetricFactor(float expenseMetricFactor) {
+        expenseMetricFactor_ = expenseMetricFactor;
         return this;
     }
 
