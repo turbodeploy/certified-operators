@@ -17,6 +17,7 @@ import org.apache.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
+import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.EconomySettings;
@@ -84,6 +85,8 @@ public final class AnalysisServer {
         logger.info("Max session timeout:             " + session.getMaxBinaryMessageBufferSize() + "ms.");
         logger.info("Max binary buffer size:          " + session.getMaxIdleTimeout() + "bytes.");
         logger.info("");
+        logger.info("Intializing IdentityGenerator");
+        IdentityGenerator.initPrefix(IdentityGenerator.MAXPREFIX);
         // Would be nice to log the remote IP address but I couldn't find a way...
     }
 

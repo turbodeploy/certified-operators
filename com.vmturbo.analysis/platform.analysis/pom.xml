@@ -21,6 +21,7 @@
         <checker-qual.version>1.9.5</checker-qual.version>
         <log4j.version>1.2.17</log4j.version>
         <websocket.version>1.1</websocket.version>
+        <vmturbo.mt.branch.version>5.6.0-SNAPSHOT</vmturbo.mt.branch.version>
         <!-- A variable for developers to be able to redirect output of the resulting war to a
              directory were the web server would pick it up from within the Eclipse run configuration.
              It defaults to were the maven-war-plugin outputDirectory defaults. -->
@@ -91,6 +92,11 @@
             <groupId>com.vmturbo</groupId>
             <artifactId>platform.analysis.protobuf</artifactId>
             <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.commons</artifactId>
+            <version>${vmturbo.mt.branch.version}</version>
         </dependency>
     </dependencies>
 

@@ -12,9 +12,9 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-
 import com.google.common.collect.BiMap;
 
+import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionImpl;
 import com.vmturbo.platform.analysis.actions.Activate;
@@ -149,6 +149,7 @@ public class AnalysisToProtobufTest {
 
     @SuppressWarnings({"unused", "unchecked"})
     private static Object[] parametersForTestActionTO() {
+        IdentityGenerator.initPrefix(0);
         pm1.getCommoditySold(CPU).setCapacity(15).setQuantity(10);
         pm1.getCommoditySold(MEM).setCapacity(100).setQuantity(10);
         pm2.getCommoditySold(CPU).setCapacity(25).setQuantity(10);
@@ -232,7 +233,7 @@ public class AnalysisToProtobufTest {
         ActionTO provisionByDemanTO = ActionTO.newBuilder()
                         .setProvisionByDemand(
                                         ProvisionByDemandTO.newBuilder().setModelBuyer(20l)
-                                        .setProvisionedSeller(-1)
+                                        .setProvisionedSeller(-1l)
                                         .setModelSeller(3l)
                                         .addCommodityNewCapacityEntry(CommodityNewCapacityEntry
                                                         .newBuilder().setCommodityBaseType(1000)
@@ -260,7 +261,7 @@ public class AnalysisToProtobufTest {
         ActionTO provisionBySupplyTO = ActionTO.newBuilder()
                         .setProvisionBySupply(
                                         ProvisionBySupplyTO.newBuilder().setModelSeller(2l)
-                                        .setProvisionedSeller(-3)
+                                        .setProvisionedSeller(-2l)
                                         .setMostExpensiveCommodity(1000)
                                         .build()).setImportance((float)(
                                         (ActionImpl)provisionBySupply).getImportance())
@@ -343,7 +344,28 @@ public class AnalysisToProtobufTest {
                     ActionTO expect) {
         ActionTO actionTO =
                         AnalysisToProtobuf.actionTO(input, traderOid, shoppingListOid, topo);
-        assertEquals(expect, actionTO);
+        // we dont know the oid of he provisioned seller because the oid is based on time
+        // so comparing other fields one by one
+        if (input instanceof ProvisionByDemand) {
+            ProvisionByDemandTO output = expect.getProvisionByDemand();
+            assertEquals(output.getModelBuyer(), actionTO.getProvisionByDemand().getModelBuyer());
+            assertEquals(output.getModelSeller(), actionTO.getProvisionByDemand().getModelSeller());
+            assertEquals(output.getCommodityMaxAmountAvailable(0),
+                            actionTO.getProvisionByDemand().getCommodityMaxAmountAvailable(0));
+            assertEquals(output.getCommodityMaxAmountAvailable(1),
+                            actionTO.getProvisionByDemand().getCommodityMaxAmountAvailable(1));
+            assertEquals(output.getCommodityNewCapacityEntry(0),
+                            actionTO.getProvisionByDemand().getCommodityNewCapacityEntry(0));
+            assertEquals(output.getCommodityNewCapacityEntry(1),
+                            actionTO.getProvisionByDemand().getCommodityNewCapacityEntry(1));
+        }  else if (input instanceof ProvisionBySupply) {
+            ProvisionBySupplyTO output = expect.getProvisionBySupply();
+            assertEquals(output.getModelSeller(), actionTO.getProvisionBySupply().getModelSeller());
+            assertEquals(output.getMostExpensiveCommodity(),
+                            actionTO.getProvisionBySupply().getMostExpensiveCommodity());
+        } else {
+            assertEquals(expect, actionTO);
+        }
     }
 
     @Test

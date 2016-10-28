@@ -22,6 +22,7 @@ import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
+import com.vmturbo.commons.idgen.IdentityGenerator;
 
 /**
  * Encapsulates an {@link Economy} together with a number of auxiliary maps, for use by code that
@@ -42,7 +43,7 @@ public final class Topology {
     // Fields
     private final @NonNull Economy economy_ = new Economy(); // The managed economy.
     private final @NonNull BiMap<@NonNull Trader, @NonNull Long> traderOids_ = HashBiMap.create();
-    private long provisionedTraderOrShoppingListIndex_ = 0;
+    private long provisionedShoppingListIndex_ = 0;
     private final @NonNull BiMap<@NonNull ShoppingList, @NonNull Long> shoppingListOids_ = HashBiMap.create();
     // A map from OIDs of traders we haven't seen yet to shopping lists that need to be
     // placed on them. It is needed if we can receive a customer before its supplier.
@@ -265,21 +266,23 @@ public final class Topology {
      * update the newShoppingListToBuyer map.
      */
     public long addProvisionedShoppingList(@NonNull ShoppingList provisionedShoppingList) {
-        provisionedTraderOrShoppingListIndex_--;
-        shoppingListOids_.put(provisionedShoppingList, provisionedTraderOrShoppingListIndex_);
+        provisionedShoppingListIndex_--;
+        shoppingListOids_.put(provisionedShoppingList, provisionedShoppingListIndex_);
         // put oid of shopping list from newly provisioned trader and the oid of newly provisioned
         // trader to a map
-        newShoppingListToBuyerMap_.put(provisionedTraderOrShoppingListIndex_, traderOids_
+        newShoppingListToBuyerMap_.put(provisionedShoppingListIndex_, traderOids_
                         .get(provisionedShoppingList.getBuyer()));
-        return provisionedTraderOrShoppingListIndex_;
+        return provisionedShoppingListIndex_;
     }
 
     /**
-     * Assign a negative oid to the newly provisioned trader and update the traderOids_ map
+     * Assign an OID for newly provisioned trader and update the traderOids_ map. Use the
+     * {@link IdentityGenerator} to give a globally unique OID.
      */
     public long addProvisionedTrader(@NonNull Trader provisionedTrader) {
-        provisionedTraderOrShoppingListIndex_--;
-        traderOids_.put(provisionedTrader, provisionedTraderOrShoppingListIndex_);
-        return provisionedTraderOrShoppingListIndex_;
+        long newId = IdentityGenerator.next();
+        traderOids_.put(provisionedTrader, newId);
+        return newId;
+
     }
 } // end Topology class
