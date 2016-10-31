@@ -202,4 +202,11 @@ public interface UnmodifiableEconomy {
 
     @Pure
     void setForceStop(boolean forcePlanStop);
+
+    /**
+    * @return An unmodifiable List of Markets that have at least one movable trader
+    */
+    @ReadOnly
+    @NonNull
+    List<@NonNull Market> getMarketsForPlacement();
 } // end UnmodifiableEconomy interface

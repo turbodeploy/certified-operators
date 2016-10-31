@@ -62,6 +62,8 @@ public final class Ede {
                     boolean isShopTogether, boolean isProvision, boolean isSuspension,
                     boolean isResize, boolean collapse) {
         logger.info("Plan Started.");
+        // create a subset list of markets that have atleast one buyer that can move
+        economy.composeMarketSubsetForPlacement();
         // Start by provisioning enough traders to satisfy all the demand
         @NonNull List<Action> actions = BootstrapSupply.bootstrapSupplyDecisions(economy);
         logger.info("Plan completed bootstrap with " + actions.size() + " actions.");

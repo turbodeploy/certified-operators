@@ -10,6 +10,8 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.TreeMap;
 import java.util.function.DoubleBinaryOperator;
+import java.util.stream.Collectors;
+
 import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -47,6 +49,8 @@ public final class Economy implements UnmodifiableEconomy {
     private final @NonNull Map<@NonNull Integer, @NonNull List<@NonNull Integer>> rawMaterial_ = new HashMap<>();
     // a flag to indicate if analysis should stop immediately or not
     private volatile boolean forceStop = false;
+    // The list of all Markets with at least one buyer that can move
+    private final @NonNull List<@NonNull Market> marketsForPlacement_ = new ArrayList<>();
     // Cached data
 
     // Cached unmodifiable view of the markets_.values() collection.
@@ -56,6 +60,8 @@ public final class Economy implements UnmodifiableEconomy {
     // Cached unmodifiable view of the quantityFunctions_ map.
     private final @NonNull Map<@NonNull CommoditySpecification, @NonNull DoubleBinaryOperator>
         unmodifiableQuantityFunctions_ = Collections.unmodifiableMap(quantityFunctions_);
+    // Cached unmodifiable view of the marketsForPlacement_ list.
+    private final @NonNull List<@NonNull Market> unmodifiableMarketsForPlacement_ = Collections.unmodifiableList(marketsForPlacement_);
 
     // Constructors
 
@@ -88,6 +94,18 @@ public final class Economy implements UnmodifiableEconomy {
             getModifiableQuantityFunctions(@PolyRead Economy this) {
         return quantityFunctions_;
     }
+
+    /**
+     * @return unmodifiable list of Markets that has at least one movable buyer
+     *
+     */
+    @Override
+    @Pure
+    public @ReadOnly @NonNull List<@NonNull Market>
+            getMarketsForPlacement(@ReadOnly Economy this) {
+        return unmodifiableMarketsForPlacement_;
+    }
+
 
     @Pure
     public @NonNull Map<@NonNull Integer, @NonNull List<@NonNull CommodityResizeSpecification>>
@@ -505,4 +523,14 @@ public final class Economy implements UnmodifiableEconomy {
     public boolean getForceStop() {
         return forceStop;
     }
+
+    /**
+     * create a list containing a  subset of Markets that have atleast one trader that is movable
+     */
+    public void composeMarketSubsetForPlacement() {
+        getMarkets().stream().filter(market -> market.getBuyers().stream().filter(sl ->
+            sl.isMovable()).count() != 0).collect(Collectors.toCollection(() ->
+            marketsForPlacement_));
+    }
+
 } // end class Economy

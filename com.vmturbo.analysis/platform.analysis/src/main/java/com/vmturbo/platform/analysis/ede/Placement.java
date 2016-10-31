@@ -57,7 +57,7 @@ public class Placement {
             actions.addAll(generatePlacementDecisions(economy, sl));
         }
         // iterate over all markets, i.e., all sets of providers selling a specific basket
-        for (Market market : economy.getMarkets()) {
+        for (Market market : economy.getMarketsForPlacement()) {
             // iterate over all buyers in this market that havnt already shopped
             for (@NonNull ShoppingList shoppingList : market.getBuyers()) {
                 if (sls.contains(shoppingList)) {
