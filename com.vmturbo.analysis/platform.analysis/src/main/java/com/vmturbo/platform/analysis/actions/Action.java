@@ -257,6 +257,9 @@ public interface Action {
         if (collapsedActionsPerType.containsKey(Deactivate.class)) {
             reorderedActions.addAll(collapsedActionsPerType.get(Deactivate.class));
         }
+        if (collapsedActionsPerType.containsKey(Reconfigure.class)) {
+            reorderedActions.addAll(collapsedActionsPerType.get(Reconfigure.class));
+        }
         return reorderedActions;
     }
 

@@ -388,21 +388,26 @@ public final class AnalysisToProtobuf {
                             .addCommodityNewCapacityEntry(CommodityNewCapacityEntry.newBuilder()
                                             .setCommodityBaseType(key)
                                             .setNewCapacity(value.floatValue()).build()));
-             // send the commodity whose requested quantity can not be satisfied, its requested
-            // amount and the max amount could be provided by any seller in market
-            Basket basketSold = provDemand.getProvisionedSeller().getBasketSold();
-            List<Trader> sellers = provDemand.getEconomy().getMarket(basketSold).getActiveSellers();
+            // find the sellers(excluding the newly provisioned one) that can sell to the model buyer,
+            // we will use it later to compute the maximum amount that the model buyer could get
+            List<Trader> sellers = new ArrayList<>();
+            provDemand.getEconomy().getMarketsAsBuyer(provDemand.getModelBuyer().getBuyer()).values()
+                .forEach(m -> {if (m.getActiveSellers().contains(provDemand.getProvisionedSeller())) {
+                    sellers.addAll(m.getActiveSellers());
+                    }});
+            sellers.remove(provDemand.getProvisionedSeller());
 
+            // send the commodity whose requested quantity can not be satisfied, its requested
+            // amount and the max amount could be provided by any seller in market
             provDemand.getCommodityNewCapacityMap().forEach((key, value) -> {
-                int index = basketSold.indexOfBaseType(key);
+                CommoditySpecification commSpec = provDemand.getProvisionedSeller().getBasketSold()
+                                .get(provDemand.getProvisionedSeller().getBasketSold().indexOfBaseType(key));
                 provDemandTO.addCommodityMaxAmountAvailable(CommodityMaxAmountAvailableEntry
                                 .newBuilder().setCommodityBaseType(key).setMaxAmountAvailable((float)
                                                 sellers.stream().max((s1, s2) ->
-                                                Double.compare(s1.getCommoditiesSold()
-                                                .get(index).getEffectiveCapacity(),
-                                                s2.getCommoditiesSold().get(index)
-                                                .getEffectiveCapacity())).get().getCommoditiesSold()
-                                                .get(index).getEffectiveCapacity())
+                                                Double.compare(s1.getCommoditySold(commSpec).getEffectiveCapacity(),
+                                                s2.getCommoditySold(commSpec).getEffectiveCapacity()))
+                                                .get().getCommoditySold(commSpec).getEffectiveCapacity())
                                 .setRequestedAmount((float)provDemand.getModelBuyer()
                                                 .getQuantities()[provDemand.getModelBuyer()
                                                                  .getBasket().indexOfBaseType(key)])

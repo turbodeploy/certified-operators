@@ -165,9 +165,14 @@ public final class Basket implements Comparable<@NonNull @ReadOnly Basket>, Iter
      */
     @Pure
     public final int indexOfBaseType(@ReadOnly Basket this, @NonNull @ReadOnly int baseType) {
-        // TODO: make indexOf return 2 values min and the maxIndex. All comm's btw these indices will be of this type
-        // The elements of contents_ are unique so the first match will be the only match.
-        return Math.max(-1,Arrays.binarySearch(contents_,baseType, (x,y)->((CommoditySpecification)x).getBaseType() - (Integer)y));
+        // search for index corresponding to the baseType, we can not use binary search because
+        // the basket is sorted only based on type not the baseType.
+        for (int i = 0; i < contents_.length; i++) {
+            if (contents_[i].getBaseType() == baseType) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     /**
