@@ -97,7 +97,9 @@ public class Provision {
 
                 // run placement after adding a new seller to the economy
                 // TODO: run placement within a market
-                actions.addAll(Placement.runPlacementsTillConverge(economy, ledger, isShopTogether, PROVISION_PHASE));
+                actions.addAll(Placement.runPlacementsTillConverge(economy,
+                                  new ArrayList<ShoppingList>(mostProfitableTrader.getCustomers()),
+                                  ledger, isShopTogether, PROVISION_PHASE));
 
                 if (!evaluateAcceptanceCriteria(economy, ledger, origRoI, mostProfitableTrader,
                                 provisionedTrader)) {

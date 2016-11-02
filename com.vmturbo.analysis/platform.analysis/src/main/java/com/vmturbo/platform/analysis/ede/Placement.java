@@ -255,6 +255,24 @@ public class Placement {
      */
     public static @NonNull List<@NonNull Action> runPlacementsTillConverge(Economy economy,
                     Ledger ledger, boolean isShopTogether, String callerPhase) {
+        return runPlacementsTillConverge(economy, new ArrayList<ShoppingList>(), ledger,
+                                         isShopTogether, callerPhase);
+    }
+
+    /**
+     * Run placement algorithm until there is no more actions generate or there is only {@link Reconfigure}.
+     * If the placement has been running for more than MAX_NUM_PLACEMENT, force placement to stop.
+     * @param economy
+     * @param shoppingLists - list of shoppingLists that denotes buyers that are to shop before the others
+     * @param ledger - the {@link Ledger} with the expenses and revenues of all the traders
+     *        and commodities in the economy
+     * @param isShopTogether
+     * @param callerPhase - tag to identify phase it is being called from
+     * @return a list of recommendations about trader placement
+     */
+    public static @NonNull List<@NonNull Action> runPlacementsTillConverge(Economy economy,
+                    List<ShoppingList> shoppingLists, Ledger ledger, boolean isShopTogether,
+                    String callerPhase) {
         @NonNull
         List<Action> actions = new ArrayList<@NonNull Action>();
         // generate placement actions
@@ -276,7 +294,7 @@ public class Placement {
             }
             List<Action> placeActions = isShopTogether
                             ? breakDownCompoundMove(Placement.shopTogetherDecisions(economy))
-                            : placementDecisions(economy);
+                            : placementDecisions(economy, shoppingLists);
             counter++;
             keepRunning = !(placeActions.isEmpty()
                             || placeActions.stream().allMatch(a -> a instanceof Reconfigure)
