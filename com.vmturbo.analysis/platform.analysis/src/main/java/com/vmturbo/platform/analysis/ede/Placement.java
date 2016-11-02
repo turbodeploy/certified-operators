@@ -244,7 +244,7 @@ public class Placement {
     }
 
     /**
-     * Run placement algorithm until there is no more actions generate or there is only {@link Reconfigure}.
+     * Run placement algorithm until there is no more actions or there is only {@link Reconfigure}.
      * If the placement has been running for more than MAX_NUM_PLACEMENT, force placement to stop.
      * @param economy
      * @param ledger - the {@link Ledger} with the expenses and revenues of all the traders
@@ -260,7 +260,7 @@ public class Placement {
     }
 
     /**
-     * Run placement algorithm until there is no more actions generate or there is only {@link Reconfigure}.
+     * Run placement algorithm until there is no more actions or there is only {@link Reconfigure}.
      * If the placement has been running for more than MAX_NUM_PLACEMENT, force placement to stop.
      * @param economy
      * @param shoppingLists - list of shoppingLists that denotes buyers that are to shop before the others
