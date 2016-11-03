@@ -57,18 +57,21 @@ public class PrimaryClient {
         try {
             logger.info("Start sending messages!");
             try (OutputStream stream = session.getBasicRemote().getSendStream()) {
-                AnalysisCommand.newBuilder().setStartDiscoveredTopology(StartDiscoveredTopology.newBuilder()).build().writeTo(stream);
+                AnalysisCommand.newBuilder().setStartDiscoveredTopology(StartDiscoveredTopology
+                                            .newBuilder()).build().writeTo(stream);
                 logger.info("Sent start discovered topology message!");
             }
             for (@NonNull @ReadOnly Trader trader : topology_.getEconomy().getTraders()) {
                 try (OutputStream stream = session.getBasicRemote().getSendStream()) {
                     AnalysisCommand.newBuilder().setDiscoveredTrader(
-                         AnalysisToProtobuf.traderTO(topology_.getEconomy(), trader)).build().writeTo(stream);
+                         AnalysisToProtobuf.traderTO(topology_.getEconomy(), trader, null)).build()
+                            .writeTo(stream);
                     logger.info("Sent discovered trader message!");
                 }
             }
             try (OutputStream stream = session.getBasicRemote().getSendStream()) {
-                AnalysisCommand.newBuilder().setEndDiscoveredTopology(EndDiscoveredTopology.newBuilder()).build().writeTo(stream);
+                AnalysisCommand.newBuilder().setEndDiscoveredTopology(EndDiscoveredTopology
+                                            .newBuilder()).build().writeTo(stream);
                 logger.info("Sent end discovered topology message!");
             }
         }

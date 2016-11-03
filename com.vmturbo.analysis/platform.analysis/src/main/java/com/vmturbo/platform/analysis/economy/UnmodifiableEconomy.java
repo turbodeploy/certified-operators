@@ -209,4 +209,6 @@ public interface UnmodifiableEconomy {
     @ReadOnly
     @NonNull
     List<@NonNull Market> getMarketsForPlacement();
+    
+    Trader getCloneOfTrader(Trader trader);
 } // end UnmodifiableEconomy interface

@@ -124,6 +124,7 @@ public class ProvisionByDemand extends ActionImpl {
                                 .getBasketSold();
         provisionedSeller_ = getEconomy().addTrader(getModelSeller().getType(), TraderState.ACTIVE,
                                     basketSold);
+        provisionedSeller_.setCloneOf(modelSeller_);
 
         // adding commodities to be bought by the provisionedSeller and resizing them
         getEconomy().getMarketsAsBuyer(modelSeller_).keySet().forEach(shoppingList -> {

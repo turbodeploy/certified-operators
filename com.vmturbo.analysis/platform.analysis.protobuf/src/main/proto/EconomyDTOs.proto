@@ -176,14 +176,17 @@ message TraderTO {
     repeated CommoditySoldTO commodities_sold = 4;
 
     // A list of integers representing the k-partite cliques this trader is a member of.
-    repeated int32 cliques = 8 [packed = true];
+    repeated int32 cliques = 5 [packed = true];
 
     // A list of shopping lists this trader sets out to buy.
-    repeated ShoppingListTO shopping_lists = 5;
+    repeated ShoppingListTO shopping_lists = 6;
 
     // The settings affecting how the analysis engine should treat this trader.
-    optional TraderSettingsTO settings = 6;
+    optional TraderSettingsTO settings = 7;
 
     // The field contains info about trader's eclass and uuid, it is used for debugging only
-    optional string debug_info_never_use_in_code = 7;
+    optional string debug_info_never_use_in_code = 8;
+
+    // This field contains the economicIndex of the modelSeller if this host was cloned
+    optional int64 clone_of = 9;
 }

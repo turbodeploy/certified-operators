@@ -89,21 +89,20 @@ public class ProvisionBySupply extends ActionImpl {
         // if there is a guaranteed buyer, find the commodities it buys, and for those commodities
         // create a new CommSpec with a new commodityType. This map returned is used to update the
         // commodities that the clone sells and what the guaranteedBuyer buys
-        Map<CommoditySpecification, CommoditySpecification> commToReplaceMap = 
+        Map<CommoditySpecification, CommoditySpecification> commToReplaceMap =
                         GuaranteedBuyerHelper.createCommSpecWithNewKeys(shoppingLists);
         // use the commToReplaceMap to transform the basket that the clone sells. eg, make the clone sell
         // allocation commodities with new keys
         provisionedSeller_ = getEconomy().addTrader(getModelSeller().getType(), TraderState.ACTIVE,
                                 shoppingLists.size() != 0 ? GuaranteedBuyerHelper.transformBasket(commToReplaceMap
                                         , getModelSeller().getBasketSold()) : getModelSeller().getBasketSold());
-
+        provisionedSeller_.setCloneOf(modelSeller_);
         // Copy trader settings
         provisionedSeller_.getSettings().setCloneable(getModelSeller().getSettings().isCloneable());
         provisionedSeller_.getSettings().setSuspendable(getModelSeller().getSettings().isSuspendable());
         provisionedSeller_.getSettings().setMinDesiredUtil(getModelSeller().getSettings().getMinDesiredUtil());
         provisionedSeller_.getSettings().setMaxDesiredUtil(getModelSeller().getSettings().getMaxDesiredUtil());
         provisionedSeller_.getSettings().setGuaranteedBuyer(getModelSeller().getSettings().isGuaranteedBuyer());
-
         // Add basket(s) bought
         for (@NonNull Entry<@NonNull ShoppingList, @NonNull Market> entry
                 : getEconomy().getMarketsAsBuyer(getModelSeller()).entrySet()) {

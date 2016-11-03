@@ -29,6 +29,7 @@ import org.checkerframework.dataflow.qual.Pure;
 public abstract class Trader {
     // Fields
     private int economyIndex_;
+    private int cloneOf_;
     private final int type_; // this should never change once the object is created.
     private @NonNull TraderState state_;
     private @NonNull Basket basketSold_;
@@ -66,6 +67,7 @@ public abstract class Trader {
         type_ = type;
         state_ = state;
         basketSold_ = basketSold;
+        cloneOf_ = -1;
         setEconomyIndex(economyIndex);
 
         for(int i = 0 ; i < basketSold.size() ; ++i) {
@@ -370,5 +372,27 @@ public abstract class Trader {
      */
     public String getDebugInfoNeverUseInCode(@ReadOnly Trader this) {
         return debugInfoNeverUseInCode_;
+    }
+
+    /**
+     * Returns the cloneOf field.
+     */
+    public int getCloneOf() {
+        return cloneOf_;
+    }
+
+    /**
+     * Sets the cloneOf field. It contains economyIndex of the modelSeller
+     * @param modelSeller the {@link Trader} that we clone
+     */
+    public void setCloneOf(Trader modelSeller) {
+        cloneOf_ = modelSeller.getEconomyIndex();
+    }
+
+    /**
+     * @return true if the entity is a clone
+     */
+    public boolean isClone() {
+        return cloneOf_ != -1;
     }
 } // end interface Trader

@@ -106,7 +106,6 @@ public final class Economy implements UnmodifiableEconomy {
         return unmodifiableMarketsForPlacement_;
     }
 
-
     @Pure
     public @NonNull Map<@NonNull Integer, @NonNull List<@NonNull CommodityResizeSpecification>>
                                                     getModifiableCommodityResizeDependencyMap() {
@@ -525,6 +524,19 @@ public final class Economy implements UnmodifiableEconomy {
     }
 
     /**
+     * retrieve the {@link Trader} (that was part of the plan scope) that "trader" is a clone of
+     * if a clone is of an existing clone (that is cloned from an entity in the scope), we return
+     * the entity in the scope
+     */
+    @Override
+    public Trader getCloneOfTrader (Trader trader) {
+        while (trader.isClone()) {
+            trader = this.getTraders().get(trader.getCloneOf());
+        }
+        return trader;
+    }
+
+    /**
      * create a list containing a  subset of Markets that have atleast one trader that is movable
      */
     public void composeMarketSubsetForPlacement() {
@@ -532,5 +544,4 @@ public final class Economy implements UnmodifiableEconomy {
             sl.isMovable()).count() != 0).collect(Collectors.toCollection(() ->
             marketsForPlacement_));
     }
-
 } // end class Economy

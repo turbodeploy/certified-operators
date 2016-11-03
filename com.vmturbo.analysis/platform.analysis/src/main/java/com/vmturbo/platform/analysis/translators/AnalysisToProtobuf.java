@@ -269,13 +269,18 @@ public final class AnalysisToProtobuf {
      * @param trader The {@link Trader} to convert.
      * @return The resulting {@link TraderTO}.
      */
-    public static @NonNull TraderTO traderTO(@NonNull UnmodifiableEconomy economy, @NonNull Trader trader) {
+    public static @NonNull TraderTO traderTO(@NonNull UnmodifiableEconomy economy, @NonNull Trader trader,
+                                             @NonNull BiMap<@NonNull Trader, @NonNull Long> traderToOidMap) {
         TraderTO.Builder builder = TraderTO.newBuilder()
-            .setOid(trader.getEconomyIndex()) // only because we are sending an existing economy!
+            .setOid(traderToOidMap == null ? trader.getEconomyIndex() : traderToOidMap.get(trader))
             .setType(trader.getType())
             .setState(traderStateTO(trader.getState()))
             .addAllCliques(trader.getCliques())
             .setSettings(traderSettingsTO(trader.getSettings()));
+
+        if (trader.isClone()) {
+            builder.setCloneOf(traderToOidMap.get(((Economy)economy).getCloneOfTrader(trader)));
+        }
 
         for (int i = 0 ; i < trader.getBasketSold().size() ; ++i) {
             builder.addCommoditiesSold(commoditySoldTO(trader.getCommoditiesSold().get(i), trader.getBasketSold().get(i)));
@@ -467,7 +472,7 @@ public final class AnalysisToProtobuf {
      * additional context.
      *
      * @param actions The list of {@link Action}s to convert.
-     * @param traderOid A function mapping {@link Trader}s to their OIDs.
+     * @param traderToOid A mapping of {@link Trader}s to their OIDs.
      * @param shoppingListOid A function mapping {@link ShoppingList}s to their OIDs.
      * @param timeToAnalyze_ns The amount of time it took to analyze the topology and produce the
      *        list of actions in nanoseconds.
@@ -477,12 +482,12 @@ public final class AnalysisToProtobuf {
      * @return The resulting {@link AnalysisResults} message.
      */
     public static @NonNull AnalysisResults analysisResults(@NonNull List<Action> actions,
-                    @NonNull BiMap<@NonNull Trader, @NonNull Long> traderOid,
+                    @NonNull BiMap<@NonNull Trader, @NonNull Long> traderToOidMap,
                     @NonNull BiMap<@NonNull ShoppingList, @NonNull Long> shoppingListOid,
                     long timeToAnalyze_ns, Topology topology, PriceStatement startPriceStatement) {
         AnalysisResults.Builder builder = AnalysisResults.newBuilder();
         for (Action action : actions) {
-            ActionTO actionTO = actionTO(action, traderOid, shoppingListOid, topology);
+            ActionTO actionTO = actionTO(action, traderToOidMap, shoppingListOid, topology);
             if (actionTO != null) {
                 builder.addActions(actionTO);
             }
@@ -503,16 +508,18 @@ public final class AnalysisToProtobuf {
             Trader trader = economy.getTraders().get(traderIndex);
             // for inactive traders we don't care much about price index, so setting it to 0
             // if the inactive trader is a clone created in M2, skip it
-            if (!trader.getState().isActive() && traderOid.containsKey(trader)) {
-                payloadBuilder.setOid(traderOid.get(trader));
-                double startPriceIndex = (traderIndex < startPriceStatementSize) ? startTraderPriceStmts.get(traderIndex).getPriceIndex() : 0;
+            if (!trader.getState().isActive() && traderToOidMap.containsKey(trader)) {
+                payloadBuilder.setOid(traderToOidMap.get(trader));
+                double startPriceIndex = (traderIndex < startPriceStatementSize) ? startTraderPriceStmts
+                                .get(traderIndex).getPriceIndex() : 0;
                 payloadBuilder.setPriceindexCurrent(Double.isInfinite(startPriceIndex)
                                 ? MAX_PRICE_INDEX : startPriceIndex);
                 payloadBuilder.setPriceindexProjected(0);
                 piBuilder.addPayload(payloadBuilder.build());
             } else if (trader.getState() == TraderState.ACTIVE) {
-                payloadBuilder.setOid(traderOid.get(trader));
-                double startPriceIndex = (traderIndex < startPriceStatementSize) ? startTraderPriceStmts.get(traderIndex).getPriceIndex() : 0;
+                payloadBuilder.setOid(traderToOidMap.get(trader));
+                double startPriceIndex = (traderIndex < startPriceStatementSize) ? startTraderPriceStmts
+                                .get(traderIndex).getPriceIndex() : 0;
                 payloadBuilder.setPriceindexCurrent(Double.isInfinite(startPriceIndex)
                                 ? MAX_PRICE_INDEX : startPriceIndex);
                 payloadBuilder.setPriceindexProjected(Double.isInfinite(endTraderPriceStmt.getPriceIndex())
@@ -522,8 +529,14 @@ public final class AnalysisToProtobuf {
             traderIndex++;
         }
 
+        List<TraderTO> traderTOList = new ArrayList<>();
+        for (@NonNull @ReadOnly Trader trader : economy.getTraders()) {
+            traderTOList.add(AnalysisToProtobuf.traderTO(economy, trader, traderToOidMap));
+        }
+
         return builder.setTimeToAnalyzeNs(timeToAnalyze_ns).setPriceIndexMsg(piBuilder.build())
-                        .build();
+                        .addAllProjectedTopoEntityTO(traderTOList).build();
+
     }
 
 
