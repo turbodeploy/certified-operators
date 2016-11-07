@@ -60,7 +60,7 @@
             <url>http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo</url>
 	    </repository>
   <snapshotRepository>
-            <id>Snapshots</id>
+            <id>snapshots</id>
             <name>Internal Snapshots</name>
             <url>http://build.vmturbo.com:8081/nexus/content/repositories/snapshots</url>
 	    </snapshotRepository>
