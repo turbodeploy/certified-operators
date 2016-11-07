@@ -118,6 +118,13 @@ public class BootstrapSupply {
                                                 sellers));
                             }
                         }
+                    } else if (Double.isInfinite(minimizer.getCurrentQuote()) &&
+                                    minimizer.getBestSeller() != shoppingList.getSupplier()) {
+                        // If we have a seller that can fit the buyer getting an infiniteQuote,
+                        // move buyer to this provider
+                        allActions.add(new Move(economy,shoppingList,minimizer.getBestSeller())
+                                       .take().setImportance(minimizer.getCurrentQuote()
+                                                         - minimizer.getBestQuote()));
                     }
                 }
             }
