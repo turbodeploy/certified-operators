@@ -4,14 +4,15 @@
 
     <parent>
         <groupId>com.vmturbo</groupId>
-        <artifactId>vmt-parent</artifactId>
-        <version>1.0.1</version>
+        <artifactId>OpsManager</artifactId>
+        <version>5.6.0-SNAPSHOT</version>
+	<relativePath>../build/pom.xml</relativePath>
     </parent>
 
     <artifactId>analysis-parent</artifactId>
     <name>All Analysis Modules</name>
     <description>A parent pom to host common configuration and build all Analysis (Market 2) modules.</description>
-    <version>2.0.0-SNAPSHOT</version> <!-- Since its going to be the 2nd major version of the Market. -->
+    <version>2.6.0-SNAPSHOT</version> <!-- Since its going to be the 2nd major version of the Market. -->
     <packaging>pom</packaging>
 
     <properties>
@@ -21,6 +22,7 @@
     <modules>
         <module>platform.analysis</module>
         <module>platform.analysis.protobuf</module>
+	<module>platform.analysis.app</module>
     </modules>
 
     <build>
@@ -51,10 +53,18 @@
         </pluginManagement>
     </build>
 
-    <scm>
-        <connection>scm:svn:https://insight.svn.cloudforge.com/analysis/trunk</connection>
-        <developerConnection>scm:svn:https://insight.svn.cloudforge.com/analysis/trunk</developerConnection>
-        <url>https://insight.browse.cloudforge.com/cgi-bin/analysis/trunk</url>
-    </scm>
+<distributionManagement>
+  <repository>
+            <id>vmturbo</id>
+            <name>Internal Releases</name>
+            <url>http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo</url>
+	    </repository>
+  <snapshotRepository>
+            <id>Snapshots</id>
+            <name>Internal Snapshots</name>
+            <url>http://build.vmturbo.com:8081/nexus/content/repositories/snapshots</url>
+	    </snapshotRepository>
+    </distributionManagement>
+
 
 </project>
