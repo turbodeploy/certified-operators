@@ -396,17 +396,15 @@ public final class AnalysisToProtobuf {
             // find the sellers(excluding the newly provisioned one) that can sell to the model buyer,
             // we will use it later to compute the maximum amount that the model buyer could get
             List<Trader> sellers = new ArrayList<>();
-            provDemand.getEconomy().getMarketsAsBuyer(provDemand.getModelBuyer().getBuyer()).values()
-                .forEach(m -> {if (m.getActiveSellers().contains(provDemand.getProvisionedSeller())) {
-                    sellers.addAll(m.getActiveSellers());
-                    }});
+            provDemand.getEconomy().getMarket(provDemand.getModelBuyer()).getActiveSellers()
+                .forEach(s -> {if (!s.isClone()) {sellers.add(s);}});
             sellers.remove(provDemand.getProvisionedSeller());
 
             // send the commodity whose requested quantity can not be satisfied, its requested
             // amount and the max amount could be provided by any seller in market
             provDemand.getCommodityNewCapacityMap().forEach((key, value) -> {
-                CommoditySpecification commSpec = provDemand.getProvisionedSeller().getBasketSold()
-                                .get(provDemand.getProvisionedSeller().getBasketSold().indexOfBaseType(key));
+                Basket basket = provDemand.getProvisionedSeller().getBasketSold();
+                CommoditySpecification commSpec = basket.get(basket.indexOfBaseType(key));
                 provDemandTO.addCommodityMaxAmountAvailable(CommodityMaxAmountAvailableEntry
                                 .newBuilder().setCommodityBaseType(key).setMaxAmountAvailable((float)
                                                 sellers.stream().max((s1, s2) ->
