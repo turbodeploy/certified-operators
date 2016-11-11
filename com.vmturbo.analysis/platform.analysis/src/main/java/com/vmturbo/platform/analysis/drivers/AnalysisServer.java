@@ -216,7 +216,7 @@ public final class AnalysisServer {
         try (OutputStream stream = session.getBasicRemote().getSendStream()) {
             AnalysisToProtobuf.analysisResults(actions, lastComplete_.getTraderOids(),
                             lastComplete_.getShoppingListOids(), stop - start, lastComplete_,
-                            startPriceStatement).writeTo(stream);
+                            startPriceStatement, false).writeTo(stream);
         } catch (Throwable error) {
             logger.error("Exception thrown while sending back actions!", error);
         }

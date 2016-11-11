@@ -351,10 +351,10 @@ public final class AnalysisToProtobuf {
                             shoppingListOid.get(reconfigure.getTarget()));
             if (reconfigure.getSource() != null) {
                 reconfigureTO.setSource(traderOid.get(reconfigure.getSource()));
-            }
-            for (CommoditySpecification c : reconfigure.getTarget().getBasket()) {
-                if (!reconfigure.getSource().getBasketSold().contains(c)) {
-                    reconfigureTO.addCommodityToReconfigure(c.getBaseType());
+                for (CommoditySpecification c : reconfigure.getTarget().getBasket()) {
+                    if (!reconfigure.getSource().getBasketSold().contains(c)) {
+                        reconfigureTO.addCommodityToReconfigure(c.getBaseType());
+                    }
                 }
             }
             builder.setReconfigure(reconfigureTO);
@@ -483,6 +483,29 @@ public final class AnalysisToProtobuf {
                     @NonNull BiMap<@NonNull Trader, @NonNull Long> traderToOidMap,
                     @NonNull BiMap<@NonNull ShoppingList, @NonNull Long> shoppingListOid,
                     long timeToAnalyze_ns, Topology topology, PriceStatement startPriceStatement) {
+        return analysisResults(actions, traderToOidMap, shoppingListOid, timeToAnalyze_ns, topology,
+                        startPriceStatement, true);
+    }
+    /**
+     * Converts a list of {@link Action}s to an {@link AnalysisResults} message given some
+     * additional context.
+     *
+     * @param actions The list of {@link Action}s to convert.
+     * @param traderToOid A mapping of {@link Trader}s to their OIDs.
+     * @param shoppingListOid A function mapping {@link ShoppingList}s to their OIDs.
+     * @param timeToAnalyze_ns The amount of time it took to analyze the topology and produce the
+     *        list of actions in nanoseconds.
+     * @param topology The topology associates with traders received from legacy market.
+     * It keeps a traderOid map which will be used to populate the oid for traders.
+     * @param priceStatement contains all the {@link traderPriceStatement}s
+     * @param sendBack whether to send back traderTO or not
+     * @return The resulting {@link AnalysisResults} message.
+     */
+    public static @NonNull AnalysisResults analysisResults(@NonNull List<Action> actions,
+                    @NonNull BiMap<@NonNull Trader, @NonNull Long> traderToOidMap,
+                    @NonNull BiMap<@NonNull ShoppingList, @NonNull Long> shoppingListOid,
+                    long timeToAnalyze_ns, Topology topology, PriceStatement startPriceStatement,
+                    boolean sendBack) {
         AnalysisResults.Builder builder = AnalysisResults.newBuilder();
         for (Action action : actions) {
             ActionTO actionTO = actionTO(action, traderToOidMap, shoppingListOid, topology);
@@ -528,8 +551,10 @@ public final class AnalysisToProtobuf {
         }
 
         List<TraderTO> traderTOList = new ArrayList<>();
-        for (@NonNull @ReadOnly Trader trader : economy.getTraders()) {
-            traderTOList.add(AnalysisToProtobuf.traderTO(economy, trader, traderToOidMap));
+        if (sendBack) {
+            for (@NonNull @ReadOnly Trader trader : economy.getTraders()) {
+                traderTOList.add(AnalysisToProtobuf.traderTO(economy, trader, traderToOidMap));
+            }
         }
 
         return builder.setTimeToAnalyzeNs(timeToAnalyze_ns).setPriceIndexMsg(piBuilder.build())
