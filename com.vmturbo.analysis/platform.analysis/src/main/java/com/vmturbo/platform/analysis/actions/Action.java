@@ -220,18 +220,16 @@ public interface Action {
 
     /**
      * Group actions of same type together, and the sequence for actions should follow the order:
-     * provision-> move(initial move) -> resize-> move-> suspension.
+     * provision-> move-> resize-> suspension -> reconfigure.
      *
-     * @param initialMoves The {@link Move} actions that are the first placement for any trader
      * @param collapsedActions The {@link Action} that has gone through collapsing and needs to
      * be grouped by type.
      *
      * @return The list of <b>actions</b> grouped and reordered
-     * The action order should be provision-> move(initial move) -> resize-> move-> suspension.
+     * The action order should be provision-> move-> resize-> suspension -> reconfigure.
      */
     @Deterministic
     public static @NonNull List<@NonNull Action> groupActionsByTypeAndReorderBeforeSending(
-                    @NonNull @ReadOnly List<@NonNull @ReadOnly Action> initialMoves,
                     @NonNull @ReadOnly List<@NonNull @ReadOnly Action> collapsedActions) {
         @NonNull
         List<@NonNull Action> reorderedActions = new ArrayList<@NonNull Action>();
@@ -245,9 +243,6 @@ public interface Action {
         if (collapsedActionsPerType.containsKey(ProvisionByDemand.class)) {
             reorderedActions.addAll(collapsedActionsPerType.get(ProvisionByDemand.class));
         }
-        // put the initial move actions before any resize actions
-        reorderedActions.addAll(initialMoves);
-
         if (collapsedActionsPerType.containsKey(Resize.class)) {
             reorderedActions.addAll(collapsedActionsPerType.get(Resize.class));
         }

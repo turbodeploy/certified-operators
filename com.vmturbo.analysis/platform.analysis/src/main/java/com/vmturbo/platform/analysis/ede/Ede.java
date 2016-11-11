@@ -7,7 +7,6 @@ import org.apache.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.platform.analysis.actions.Action;
-import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ledger.Ledger;
@@ -89,21 +88,15 @@ public final class Ede {
         }
         logger.info("Plan completed suspending with " + (actions.size() - oldActionCount) + " actions.");
         oldActionCount = actions.size();
-//        if (isResize) {
-//            actions.addAll(Resizer.resizeDecisions(economy, ledger));
-//        }
-//        logger.info("Plan completed resizing with " + (actions.size() - oldActionCount) + " actions.");
+
+        if (isResize) {
+            actions.addAll(Resizer.resizeDecisions(economy, ledger));
+        }
+        logger.info("Plan completed resizing with " + (actions.size() - oldActionCount) + " actions.");
         if (collapse) {
-            // TODO: All of this should be done in the collapse method
-            // Don't collapse Moves that have a 'null' source (no-source moves)
-            List<Action> noSourceMoves = actions.stream()
-                    .filter(m -> m instanceof Move && ((Move)m).getSource() == null)
-                    .collect(Collectors.toList());
-            actions.removeAll(noSourceMoves);
-            // Now collapse all actions except for those no-source moves
             List<@NonNull Action> collapsed = Action.collapsed(actions);
-            // Reorder actions by type. Include the no-source moves.
-            actions = Action.groupActionsByTypeAndReorderBeforeSending(noSourceMoves, collapsed);
+            // Reorder actions by type.
+            actions = Action.groupActionsByTypeAndReorderBeforeSending(collapsed);
         }
         logger.info("Plan completed with " + actions.size() + " actions.");
         if (logger.isDebugEnabled()) {
