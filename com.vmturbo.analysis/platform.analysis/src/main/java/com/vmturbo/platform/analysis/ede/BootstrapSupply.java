@@ -9,6 +9,7 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionImpl;
+import com.vmturbo.platform.analysis.actions.Activate;
 import com.vmturbo.platform.analysis.actions.GuaranteedBuyerHelper;
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.actions.ProvisionByDemand;
@@ -21,6 +22,7 @@ import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
+import com.vmturbo.platform.analysis.economy.TraderState;
 
 /*
  * This class contains the implementation for generating the provision actions to satisfy
@@ -86,7 +88,7 @@ public class BootstrapSupply {
                                                         - minimizer.getBestQuote()));
                     } else {
                         // on getting an infiniteQuote, provision new Seller and move unplaced Trader to it
-                        allActions.addAll(provisionTraderToFitBuyer(economy, shoppingList, sellers));
+                        allActions.addAll(provisionTraderToFitBuyer(economy, shoppingList, market));
                     }
                 } else {
                     // already placed Buyer
@@ -94,7 +96,7 @@ public class BootstrapSupply {
                         // Start by cloning the best provider that can fit the buyer. If none can fit
                         // the buyer, provision a new seller large enough to fit the demand.
                         if (sellers.stream().filter(seller -> seller.getSettings().isCloneable()).count() != 0) {
-                            allActions.addAll(provisionTraderToFitBuyer(economy, shoppingList, sellers));
+                            allActions.addAll(provisionTraderToFitBuyer(economy, shoppingList, market));
                         }
                     } else if (Double.isInfinite(minimizer.getCurrentQuote()) &&
                                     minimizer.getBestSeller() != shoppingList.getSupplier()) {
@@ -113,40 +115,45 @@ public class BootstrapSupply {
 
 
     /**
-     * Provision the best Trader that fits the requirements of the shoppingList and make the
-     * shoppingList shop from the new Trader
-     * We first clone one of the sellers that fits. If none can fit the buyer, we provision based
-     * on the buyer's demand where we use the first seller as the template. If there is no sellers
-     * in this market, we create a reconfigure action
+     * Reactivate the best trader that can fit the buyer. If there is no inactive trader that can
+     * fit the buyer, Provision the best Trader that fits the shoppingList and make the buyer consume
+     * from the new Trader
      *
      * @param economy the {@Link Economy} that contains the unplaced {@link Trader}
      * @param shoppingList is the {@Link ShoppingList} of the unplaced trader
-     * @param candidateSellers is the list of candidate {@link Trader sellers} to examine
+     * @param market is the market containing the inactiveSellers
      *
      * @return list of actions that might include provision, move and reconfigure.
      */
     private static List<Action> provisionTraderToFitBuyer (Economy economy, ShoppingList shoppingList,
-                                            List<Trader> candidateSellers) {
+                                                           Market market) {
         List<@NonNull Action> actions = new ArrayList<>();
         List<Action> provisionRelatedActionList = new ArrayList<>();
-        Action provisionAction;
+        Action bootstrapAction;
         Trader provisionedSeller;
-        // clone one of the sellers that fits
-        Trader sellerThatFits = findSellerThatFitsBuyer (shoppingList, candidateSellers);
+        List<Trader> activeSellers = market.getActiveSellers();
+        Trader sellerThatFits = findSellerThatFitsBuyer (shoppingList, activeSellers, market);
         if (sellerThatFits != null) {
-            // cloning some seller that can fit this buyer
-            provisionAction = new ProvisionBySupply(economy, sellerThatFits).take();
-            ((ActionImpl)provisionAction).setImportance(Double.POSITIVE_INFINITY);
-            provisionedSeller = ((ProvisionBySupply)provisionAction).getProvisionedSeller();
-            provisionRelatedActionList.add(provisionAction);
-        } else if (!candidateSellers.isEmpty()){
+            // clone one of the sellers or reactivate an inactive seller that the VM can fit in
+            if (sellerThatFits.getState() == TraderState.ACTIVE) {
+                bootstrapAction = new ProvisionBySupply(economy, sellerThatFits).take();
+                ((ActionImpl)bootstrapAction).setImportance(Double.POSITIVE_INFINITY);
+                provisionedSeller = ((ProvisionBySupply)bootstrapAction).getProvisionedSeller();
+                provisionRelatedActionList.add(bootstrapAction);
+            } else {
+                bootstrapAction = new Activate(economy, sellerThatFits, market, sellerThatFits).take();
+                ((ActionImpl)bootstrapAction).setImportance(Double.POSITIVE_INFINITY);
+                provisionedSeller = sellerThatFits;
+                provisionRelatedActionList.add(bootstrapAction);
+            }
+        } else if (!activeSellers.isEmpty()){
             // if none of the existing sellers can fit the shoppingList, provision customSeller
             // TODO: maybe pick a better seller to base the clone out off
-            provisionAction = new ProvisionByDemand(economy, shoppingList, candidateSellers.get(0))
+            bootstrapAction = new ProvisionByDemand(economy, shoppingList, activeSellers.get(0))
                                     .take();
-            ((ActionImpl)provisionAction).setImportance(Double.POSITIVE_INFINITY);
-            provisionedSeller = ((ProvisionByDemand)provisionAction).getProvisionedSeller();
-            provisionRelatedActionList.add(provisionAction);
+            ((ActionImpl)bootstrapAction).setImportance(Double.POSITIVE_INFINITY);
+            provisionedSeller = ((ProvisionByDemand)bootstrapAction).getProvisionedSeller();
+            provisionRelatedActionList.add(bootstrapAction);
             // provisionByDemand does not place the new newClone provisionedTrader. We try finding
             // best seller, if none exists, we create one
             economy.getMarketsAsBuyer(provisionedSeller).entrySet().forEach(entry -> {
@@ -159,8 +166,8 @@ public class BootstrapSupply {
                                             QuoteMinimizer::accept, QuoteMinimizer::combine);
                         // If quote is infinite, we create a new provider
                         if (Double.isInfinite(minimizer.getBestQuote())) {
-                            provisionRelatedActionList.addAll(provisionTraderToFitBuyer (economy,
-                                            sl, sellers));
+                            provisionRelatedActionList.addAll(provisionTraderToFitBuyer(economy,
+                                            sl, market));
                         } else {
                             // place the shopping list of the new clone to the best supplier
                             // this is equivalent as Start in legacy market
@@ -191,23 +198,26 @@ public class BootstrapSupply {
      *
      * @param buyerShoppingList is the {@Link shoppingList} of the buyer
      * @param candidateSellers is the list of candidate {@link Trader sellers} to examine
+     * @param market is the {@link Market} in which we try finding the best provider to reactivate/clone
      *
      * @return the any of the candidateSellers that can fit the buyer when cloned, or NULL if none
      * is big enough
      */
     private static Trader findSellerThatFitsBuyer(ShoppingList buyerShoppingList, List<Trader>
-                                                  candidateSellers) {
-        Trader candidateSeller = null;
+                                                  candidateSellers, Market market) {
+        for (Trader seller : market.getInactiveSellers()) {
+            if (canBuyerFitInSeller(buyerShoppingList, seller)) {
+                return seller;
+            }
+        }
         for (Trader seller : candidateSellers) {
             // pick the first candidate seller that can fit the demand
             if (seller.getSettings().isCloneable() && canBuyerFitInSeller(buyerShoppingList
                             , seller)) {
-                candidateSeller = seller;
-                break;
+                return seller;
             }
         }
-        return candidateSeller;
-
+        return null;
     }
 
     /**

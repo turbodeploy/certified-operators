@@ -243,6 +243,9 @@ public interface Action {
         if (collapsedActionsPerType.containsKey(ProvisionByDemand.class)) {
             reorderedActions.addAll(collapsedActionsPerType.get(ProvisionByDemand.class));
         }
+        if (collapsedActionsPerType.containsKey(Activate.class)) {
+            reorderedActions.addAll(collapsedActionsPerType.get(Activate.class));
+        }
         if (collapsedActionsPerType.containsKey(Resize.class)) {
             reorderedActions.addAll(collapsedActionsPerType.get(Resize.class));
         }
