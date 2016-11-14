@@ -103,7 +103,7 @@ public class Provision {
 
                 if (!evaluateAcceptanceCriteria(economy, ledger, origRoI, mostProfitableTrader,
                                 provisionedTrader)) {
-                    logger.error("rollback provisioning of a new trader if the RoI of the "
+                    logger.warn("rollback provisioning of a new trader if the RoI of the "
                                     + "modelSeller does not go down");
                     // remove IncomeStatement from ledger and rollback actions
                     rollBackActionAndUpdateLedger(ledger, provisionedTrader, actions);
@@ -220,10 +220,10 @@ public class Provision {
                                                                 , Trader provisionedTrader ) {
 
         ledger.calculateExpRevForSeller(economy, mostProfitableTrader);
-        // check if the RoI of the mostProfitableTrader after cloning is less or equal to that
-        // before cloning, and that at least one nonGuaranteedBuyer has moved into the new host
+        // check if the RoI of the mostProfitableTrader after cloning is less than before cloning
+        // and that at least one nonGuaranteedBuyer has moved into the new host
         return ledger.getTraderIncomeStatements().get(mostProfitableTrader.getEconomyIndex())
-                        .getROI() <= origRoI && !provisionedTrader.getCustomers().isEmpty() &&
+                        .getROI() < origRoI && !provisionedTrader.getCustomers().isEmpty() &&
                         provisionedTrader.getCustomers().stream().anyMatch(sl -> !sl.getBuyer()
                                         .getSettings().isGuaranteedBuyer());
     }
