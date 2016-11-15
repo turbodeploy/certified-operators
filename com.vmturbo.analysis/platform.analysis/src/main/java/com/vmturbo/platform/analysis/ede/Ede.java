@@ -67,11 +67,12 @@ public final class Ede {
         // generate moves for IDLE VMs
         @NonNull List<Action> actions = new ArrayList<>();
         actions.addAll(Placement.prefPlacementDecisions(economy, economy.getIdleVms()));
-        logger.info("Plan completed idleVM placement with " + actions.size() + " actions.");
+        int oldActionCount = actions.size();
+        logger.info("Plan completed idleVM placement with " + oldActionCount + " actions.");
         // Start by provisioning enough traders to satisfy all the demand
         actions.addAll(BootstrapSupply.bootstrapSupplyDecisions(economy));
-        logger.info("Plan completed bootstrap with " + actions.size() + " actions.");
-        int oldActionCount = actions.size();
+        logger.info("Plan completed bootstrap with " + (actions.size() - oldActionCount) + " actions.");
+        oldActionCount = actions.size();
         Ledger ledger = new Ledger(economy);
         // run placement algorithm to balance the environment
         actions.addAll(Placement.runPlacementsTillConverge(economy, ledger, isShopTogether, PLACEMENT_PHASE));
