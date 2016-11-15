@@ -1,5 +1,6 @@
 package com.vmturbo.platform.analysis.ede;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -63,8 +64,12 @@ public final class Ede {
         logger.info("Plan Started.");
         // create a subset list of markets that have atleast one buyer that can move
         economy.composeMarketSubsetForPlacement();
+        // generate moves for IDLE VMs
+        @NonNull List<Action> actions = new ArrayList<>();
+        actions.addAll(Placement.prefPlacementDecisions(economy, economy.getIdleVms()));
+        logger.info("Plan completed idleVM placement with " + actions.size() + " actions.");
         // Start by provisioning enough traders to satisfy all the demand
-        @NonNull List<Action> actions = BootstrapSupply.bootstrapSupplyDecisions(economy);
+        actions.addAll(BootstrapSupply.bootstrapSupplyDecisions(economy));
         logger.info("Plan completed bootstrap with " + actions.size() + " actions.");
         int oldActionCount = actions.size();
         Ledger ledger = new Ledger(economy);

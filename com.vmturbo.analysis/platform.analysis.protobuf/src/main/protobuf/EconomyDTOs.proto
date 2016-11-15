@@ -157,6 +157,7 @@ message TraderSettingsTO {
 enum TraderStateTO {
     ACTIVE = 1; // The trader is participating in the economy and has expenses and revenues.
     INACTIVE = 2; // The trader isn't participating in the economy and has zero expenses and revenues.
+    IDLE = 3; // VMs can be in an IDLE state. they behave like active traders in M2
 }
 
 // An entity that trades goods in a market. Can buy and sell goods simultaneously.

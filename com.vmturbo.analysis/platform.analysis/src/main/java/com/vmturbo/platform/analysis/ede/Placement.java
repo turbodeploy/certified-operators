@@ -50,12 +50,7 @@ public class Placement {
     public static @NonNull List<@NonNull Action> placementDecisions(@NonNull Economy economy,
                     List<ShoppingList> sls) {
 
-        @NonNull List<Action> actions = new ArrayList<>();
-
-        // run placement on specific buyers in a selected market
-        for (ShoppingList sl : sls) {
-            actions.addAll(generatePlacementDecisions(economy, sl));
-        }
+        @NonNull List<Action> actions = prefPlacementDecisions(economy, sls);
         // iterate over all markets, i.e., all sets of providers selling a specific basket
         for (Market market : economy.getMarketsForPlacement()) {
             // iterate over all buyers in this market that havnt already shopped
@@ -65,6 +60,26 @@ public class Placement {
                 }
                 actions.addAll(generatePlacementDecisions(economy, shoppingList));
             }
+        }
+        return actions;
+    }
+
+    /**
+     * Returns a list of recommendations to optimize placement of a set of shopping lists
+     *
+     * <p>
+     *  As a result of invoking this method, the economy may be changed.
+     * </p>
+     *
+     * @param economy - the economy whose traders' placement we want to optimize
+     * @param sls - list of shoppingLists that denotes buyers that are to shop before the others
+     */
+    public static @NonNull List<@NonNull Action> prefPlacementDecisions(@NonNull Economy economy,
+                                                                        List<ShoppingList> sls) {
+        @NonNull List<Action> actions = new ArrayList<>();
+        // run placement on specific buyers in a selected market
+        for (ShoppingList sl : sls) {
+            actions.addAll(generatePlacementDecisions(economy, sl));
         }
         return actions;
     }

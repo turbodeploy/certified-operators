@@ -285,4 +285,11 @@ public final class Topology {
         return newId;
 
     }
+
+    /**
+     * adding a {@link ShoppingList} of an idleVM to the idleVMs list in the economy
+     */
+    public void addIdleVmSl (@NonNull ShoppingList shoppingList) {
+        economy_.getModifiableIdleVmSls().add(shoppingList);
+    }
 } // end Topology class

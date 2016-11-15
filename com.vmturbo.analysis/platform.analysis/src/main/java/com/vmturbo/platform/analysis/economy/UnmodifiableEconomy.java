@@ -209,6 +209,16 @@ public interface UnmodifiableEconomy {
     @ReadOnly
     @NonNull
     List<@NonNull Market> getMarketsForPlacement();
-    
+
+    /**
+     * @return the {@link Trader} from which "trader" is cloned
+     */
     Trader getCloneOfTrader(Trader trader);
+
+    /**
+     * @return An unmodifiable List of {@link ShoppingList}s of Idle VMs
+     */
+    @NonNull
+    @ReadOnly
+    List<@NonNull @ReadOnly ShoppingList> getIdleVms();
 } // end UnmodifiableEconomy interface

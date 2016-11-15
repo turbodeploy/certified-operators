@@ -51,12 +51,16 @@ public final class Economy implements UnmodifiableEconomy {
     private volatile boolean forceStop = false;
     // The list of all Markets with at least one buyer that can move
     private final @NonNull List<@NonNull Market> marketsForPlacement_ = new ArrayList<>();
+    // list of IDLE VMs in the economy
+    private final @NonNull List<@NonNull ShoppingList> idleVmSls_ = new ArrayList<>();
     // Cached data
 
     // Cached unmodifiable view of the markets_.values() collection.
     private final @NonNull Collection<@NonNull Market> unmodifiableMarkets_ = Collections.unmodifiableCollection(markets_.values());
     // Cached unmodifiable view of the traders_ list.
     private final @NonNull List<@NonNull Trader> unmodifiableTraders_ = Collections.unmodifiableList(traders_);
+    // Cached unmodifiable view of the idleVms_ list.
+    private final @NonNull List<@NonNull ShoppingList> unmodifiableIdleVmSls_ = Collections.unmodifiableList(idleVmSls_);
     // Cached unmodifiable view of the quantityFunctions_ map.
     private final @NonNull Map<@NonNull CommoditySpecification, @NonNull DoubleBinaryOperator>
         unmodifiableQuantityFunctions_ = Collections.unmodifiableMap(quantityFunctions_);
@@ -171,6 +175,28 @@ public final class Economy implements UnmodifiableEconomy {
     @Pure
     public @NonNull @ReadOnly List<@NonNull @ReadOnly Trader> getTraders(@ReadOnly Economy this) {
         return unmodifiableTraders_;
+    }
+
+    /**
+     * returns an unmodifiable list of Idle VMs
+     *
+     * @param this the economy that the idleVMs participate in
+     * @return an unmodifiable list of idle VMs
+     */
+    @Override
+    @Pure
+    public @NonNull @ReadOnly List<@NonNull @ReadOnly ShoppingList> getIdleVms(@ReadOnly Economy this) {
+        return unmodifiableIdleVmSls_;
+    }
+
+    /**
+     * returns a modifiable list of Idle VMs
+     *
+     * @param this the economy that the idleVMs participate in
+     * @return a modifiable list of idle VMs
+     */
+    public List<ShoppingList> getModifiableIdleVmSls() {
+        return idleVmSls_;
     }
 
     @Override
@@ -504,6 +530,7 @@ public final class Economy implements UnmodifiableEconomy {
         traders_.clear();
         quantityFunctions_.clear();
         settings_.clear();
+        idleVmSls_.clear();
         forceStop = false;
     }
 

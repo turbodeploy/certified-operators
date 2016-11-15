@@ -248,6 +248,7 @@ public final class ProtobufToAnalysis {
     public static TraderState traderState(@NonNull TraderStateTO input) {
         switch (input) {
             case ACTIVE:
+            case IDLE:
                 return TraderState.ACTIVE;
             case INACTIVE:
                 return TraderState.INACTIVE;
@@ -274,8 +275,10 @@ public final class ProtobufToAnalysis {
             populateCommoditySold(commoditySold, output.getCommoditySold(commoditySpecification(commoditySold.getSpecification())));
         }
 
-        for (ShoppingListTO shoppingList : input.getShoppingListsList()) {
-            addShoppingList(topology, output, shoppingList);
+        if (input.getState() == TraderStateTO.IDLE) {
+            input.getShoppingListsList().forEach(sl -> topology.addIdleVmSl(addShoppingList(topology, output, sl)));
+        } else {
+            input.getShoppingListsList().forEach(sl -> addShoppingList(topology, output, sl));
         }
 
         return output;
