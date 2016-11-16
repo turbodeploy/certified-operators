@@ -531,6 +531,9 @@ public final class Economy implements UnmodifiableEconomy {
         quantityFunctions_.clear();
         settings_.clear();
         idleVmSls_.clear();
+        commodityResizeDependency_.clear();
+        rawMaterial_.clear();
+        marketsForPlacement_.clear();
         forceStop = false;
     }
 
