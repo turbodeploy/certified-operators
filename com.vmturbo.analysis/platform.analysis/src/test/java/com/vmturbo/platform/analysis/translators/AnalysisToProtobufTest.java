@@ -350,14 +350,6 @@ public class AnalysisToProtobufTest {
             ProvisionByDemandTO output = expect.getProvisionByDemand();
             assertEquals(output.getModelBuyer(), actionTO.getProvisionByDemand().getModelBuyer());
             assertEquals(output.getModelSeller(), actionTO.getProvisionByDemand().getModelSeller());
-            assertEquals(output.getCommodityMaxAmountAvailable(0),
-                            actionTO.getProvisionByDemand().getCommodityMaxAmountAvailable(0));
-            assertEquals(output.getCommodityMaxAmountAvailable(1),
-                            actionTO.getProvisionByDemand().getCommodityMaxAmountAvailable(1));
-            assertEquals(output.getCommodityNewCapacityEntry(0),
-                            actionTO.getProvisionByDemand().getCommodityNewCapacityEntry(0));
-            assertEquals(output.getCommodityNewCapacityEntry(1),
-                            actionTO.getProvisionByDemand().getCommodityNewCapacityEntry(1));
         }  else if (input instanceof ProvisionBySupply) {
             ProvisionBySupplyTO output = expect.getProvisionBySupply();
             assertEquals(output.getModelSeller(), actionTO.getProvisionBySupply().getModelSeller());

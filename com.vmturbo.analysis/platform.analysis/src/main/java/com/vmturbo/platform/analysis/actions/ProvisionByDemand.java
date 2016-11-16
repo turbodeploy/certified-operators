@@ -169,16 +169,19 @@ public class ProvisionByDemand extends ActionImpl {
             double newCapacity = Math.max(getModelBuyer().getPeakQuantity(indexOfCommBought) /
                             desiredUtil, modelSeller_.getCommoditiesSold().get(indexOfCommSold)
                             .getCapacity());
+            if (newCapacity > provisionedSeller_.getCommoditiesSold().get(indexOfCommSold).getCapacity()) {
+                // commodityNewCapacityMap_  keeps information about commodity sold and its
+                // new capacity, if there are several commodities of same base type, pick the
+                // biggest capacity.
+                int baseType = basketSold.get(indexOfCommSold).getBaseType();
+                commodityNewCapacityMap_.put(baseType,commodityNewCapacityMap_
+                                .containsKey(baseType) ? Math.max(commodityNewCapacityMap_
+                                                .get(baseType), newCapacity) : newCapacity);
+            }
             provisionedSeller_.getCommoditiesSold().get(indexOfCommSold).setCapacity(newCapacity);
             provisionedSeller_.getCommoditiesSold().get(indexOfCommSold).setQuantity(
                             getModelSeller().getCommoditiesSold().get(indexOfCommSold).getQuantity());
-            // commodityNewCapacityMap_  keeps information about commodity sold and its
-            // new capacity, if there are several commodities of same base type, pick the
-            // biggest capacity.
-            int baseType = basketSold.get(indexOfCommSold).getBaseType();
-            commodityNewCapacityMap_.put(baseType,commodityNewCapacityMap_
-                            .containsKey(baseType) ? Math.max(commodityNewCapacityMap_
-                                            .get(baseType), newCapacity) : newCapacity);
+
         }
 
         Utility.adjustOverhead(getModelSeller(), getProvisionedSeller());
