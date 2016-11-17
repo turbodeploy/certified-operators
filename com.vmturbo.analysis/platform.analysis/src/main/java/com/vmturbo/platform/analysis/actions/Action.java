@@ -246,11 +246,11 @@ public interface Action {
         if (collapsedActionsPerType.containsKey(Activate.class)) {
             reorderedActions.addAll(collapsedActionsPerType.get(Activate.class));
         }
-        if (collapsedActionsPerType.containsKey(Resize.class)) {
-            reorderedActions.addAll(collapsedActionsPerType.get(Resize.class));
-        }
         if (collapsedActionsPerType.containsKey(Move.class)) {
             reorderedActions.addAll(collapsedActionsPerType.get(Move.class));
+        }
+        if (collapsedActionsPerType.containsKey(Resize.class)) {
+            reorderedActions.addAll(collapsedActionsPerType.get(Resize.class));
         }
         if (collapsedActionsPerType.containsKey(Deactivate.class)) {
             reorderedActions.addAll(collapsedActionsPerType.get(Deactivate.class));
