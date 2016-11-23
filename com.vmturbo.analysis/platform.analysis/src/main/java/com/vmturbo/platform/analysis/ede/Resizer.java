@@ -94,8 +94,8 @@ public class Resizer {
                             }
                         } catch (Exception bisectionException) {
                             logger.error(bisectionException.getMessage() + " : Capacity "
-                                         + commoditySold.getEffectiveCapacity() + " Historical Quantity "
-                                         + commoditySold.getHistoricalQuantity() + " Revenues "
+                                         + commoditySold.getEffectiveCapacity() + " Quantity "
+                                         + commoditySold.getQuantity() + " Revenues "
                                          + incomeStatement.getRevenues() + " Expenses "
                                          + incomeStatement.getExpenses());
                         }
@@ -125,7 +125,7 @@ public class Resizer {
         checkArgument(rawMaterial != null, "Expected raw material for commodity %s to be non-null",
                                             commoditySold);
         double maxQuantity = commoditySold.getMaxQuantity();
-        double peakQuantity = commoditySold.getHistoricalPeakQuantity();
+        double peakQuantity = commoditySold.getPeakQuantity();
         double capacityIncrement = commoditySold.getSettings().getCapacityIncrement();
         double currentCapacity = commoditySold.getEffectiveCapacity();
         double newCapacity = currentCapacity;
@@ -252,7 +252,7 @@ public class Resizer {
      */
     private static double calculateDesiredCapacity(CommoditySold resizeCommodity,
                                                    double currentRevenue, double newRevenue) {
-        double currentQuantity = resizeCommodity.getHistoricalQuantity();
+        double currentQuantity = resizeCommodity.getQuantity();
         PriceFunction priceFunction = resizeCommodity.getSettings().getPriceFunction();
 
         // interval which is almost (0,1) to avoid divide by zero

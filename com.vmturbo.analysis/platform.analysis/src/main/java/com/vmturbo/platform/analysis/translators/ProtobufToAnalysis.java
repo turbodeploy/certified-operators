@@ -210,8 +210,6 @@ public final class ProtobufToAnalysis {
                                              @NonNull CommoditySold destination) {
         destination.setQuantity(source.getQuantity());
         destination.setPeakQuantity(source.getPeakQuantity());
-        destination.setHistoricalQuantity(source.getHistoricalQuantity());
-        destination.setHistoricalPeakQuantity(source.getHistoricalPeakQuantity());
         destination.setMaxQuantity(source.getMaxQuantity());
         destination.setCapacity(source.getCapacity());
         destination.setStartQuantity(source.getQuantity());
