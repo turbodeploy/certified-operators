@@ -69,48 +69,45 @@ public final class Ede {
         actions.addAll(Placement.prefPlacementDecisions(economy, economy.getIdleVms()));
         int oldActionCount = actions.size();
         logger.info("Plan completed idleVM placement with " + oldActionCount + " actions.");
+
         // Start by provisioning enough traders to satisfy all the demand
         actions.addAll(BootstrapSupply.bootstrapSupplyDecisions(economy));
         logger.info("Plan completed bootstrap with " + (actions.size() - oldActionCount) + " actions.");
+
         oldActionCount = actions.size();
         Ledger ledger = new Ledger(economy);
         // run placement algorithm to balance the environment
         actions.addAll(Placement.runPlacementsTillConverge(economy, ledger, isShopTogether, PLACEMENT_PHASE));
         logger.info("Plan completed initial placement with " + (actions.size() - oldActionCount) + " actions.");
+
         oldActionCount = actions.size();
         if (isResize) {
             actions.addAll(Resizer.resizeDecisions(economy, ledger));
         }
-        logger.info("Plan completed initial resizing with " + (actions.size() - oldActionCount) + " actions.");
+        logger.info("Plan completed resizing with " + (actions.size() - oldActionCount) + " actions.");
 
-        boolean keepRunning = true;
-        while (keepRunning) {
-            oldActionCount = actions.size();
-            actions.addAll(Placement.runPlacementsTillConverge(economy, ledger, isShopTogether, PLACEMENT_PHASE));
-            logger.info("Plan completed placement with " + (actions.size() - oldActionCount) + " actions.");
-            oldActionCount = actions.size();
-            // trigger provision, suspension and resize algorithm only when needed
-            if (isProvision) {
-                actions.addAll(Provision.provisionDecisions(economy, ledger, isShopTogether, this));
-            }
-            logger.info("Plan completed provisioning with " + (actions.size() - oldActionCount) + " actions.");
-            oldActionCount = actions.size();
-            if (isSuspension) {
-                Suspension suspension = new Suspension();
-                // find if any seller is the sole provider in any market, if so, it should not
-                // be considered as suspension candidate
-                suspension.findSoleProviders(economy);
-                actions.addAll(suspension.supplyDecisions(economy, ledger, this, isShopTogether,
-                                false));
-            }
-            logger.info("Plan completed suspending with " + (actions.size() - oldActionCount) + " actions.");
-            oldActionCount = actions.size();
-            if (isResize) {
-                actions.addAll(Resizer.resizeDecisions(economy, ledger));
-            }
-            logger.info("Plan completed resizing with " + (actions.size() - oldActionCount) + " actions.");
-            keepRunning = actions.size() > oldActionCount;
+        oldActionCount = actions.size();
+        actions.addAll(Placement.runPlacementsTillConverge(economy, ledger, isShopTogether, PLACEMENT_PHASE));
+        logger.info("Plan completed placement with " + (actions.size() - oldActionCount) + " actions.");
+
+        oldActionCount = actions.size();
+        // trigger provision, suspension and resize algorithm only when needed
+        if (isProvision) {
+            actions.addAll(Provision.provisionDecisions(economy, ledger, isShopTogether, this));
         }
+        logger.info("Plan completed provisioning with " + (actions.size() - oldActionCount) + " actions.");
+
+        oldActionCount = actions.size();
+        if (isSuspension) {
+            Suspension suspension = new Suspension();
+            // find if any seller is the sole provider in any market, if so, it should not
+            // be considered as suspension candidate
+            suspension.findSoleProviders(economy);
+            actions.addAll(suspension.supplyDecisions(economy, ledger, this, isShopTogether,
+                            false));
+        }
+        logger.info("Plan completed suspending with " + (actions.size() - oldActionCount) + " actions.");
+
         if (collapse) {
             List<@NonNull Action> collapsed = Action.collapsed(actions);
             // Reorder actions by type.
