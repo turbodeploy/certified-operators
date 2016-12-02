@@ -64,7 +64,7 @@ public class PrimaryClient {
             for (@NonNull @ReadOnly Trader trader : topology_.getEconomy().getTraders()) {
                 try (OutputStream stream = session.getBasicRemote().getSendStream()) {
                     AnalysisCommand.newBuilder().setDiscoveredTrader(
-                         AnalysisToProtobuf.traderTO(topology_.getEconomy(), trader, null)).build()
+                         AnalysisToProtobuf.traderTO(topology_.getEconomy(), trader, null, null)).build()
                             .writeTo(stream);
                     logger.info("Sent discovered trader message!");
                 }

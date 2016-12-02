@@ -268,7 +268,8 @@ public final class AnalysisToProtobuf {
      * @return The resulting {@link TraderTO}.
      */
     public static @NonNull TraderTO traderTO(@NonNull UnmodifiableEconomy economy, @NonNull Trader trader,
-                                             @NonNull BiMap<@NonNull Trader, @NonNull Long> traderToOidMap) {
+                                             @NonNull BiMap<@NonNull Trader, @NonNull Long> traderToOidMap,
+                                             @NonNull BiMap<@NonNull ShoppingList, @NonNull Long> shoppingListOid) {
         TraderTO.Builder builder = TraderTO.newBuilder()
             .setOid(traderToOidMap == null ? trader.getEconomyIndex() : traderToOidMap.get(trader))
             .setType(trader.getType())
@@ -284,9 +285,8 @@ public final class AnalysisToProtobuf {
             builder.addCommoditiesSold(commoditySoldTO(trader.getCommoditiesSold().get(i), trader.getBasketSold().get(i)));
         }
 
-        int i = 0; // Warning: the computation of shopping list oid is just a hack. Need to replace!
         for (@NonNull ShoppingList shoppingList : economy.getMarketsAsBuyer(trader).keySet()) {
-            builder.addShoppingLists(shoppingListTO((trader.getEconomyIndex() << 10) + i++, economy, shoppingList));
+            builder.addShoppingLists(shoppingListTO(shoppingListOid.get(shoppingList), economy, shoppingList));
         }
 
         return builder.build();
@@ -551,7 +551,7 @@ public final class AnalysisToProtobuf {
         List<TraderTO> traderTOList = new ArrayList<>();
         if (sendBack) {
             for (@NonNull @ReadOnly Trader trader : economy.getTraders()) {
-                traderTOList.add(AnalysisToProtobuf.traderTO(economy, trader, traderToOidMap));
+                traderTOList.add(AnalysisToProtobuf.traderTO(economy, trader, traderToOidMap, shoppingListOid));
             }
         }
 

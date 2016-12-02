@@ -34,8 +34,9 @@ import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
  * The WebSocket server endpoint for the analysis server. It is the entry point of the application.
  *
  * <p>
- *  Currently it can receive a topology as a sequence of Protobuf messages, run a round of placement
- *  on the resulting economy and send back a list of proposed actions.
+ *  Currently it can receive a topology as a sequence of Protobuf messages, run a round of placement,
+ *  resize, provision and suspension on the resulting economy and send back a list of proposed actions
+ *  and a sequence of Protobuf messages carrying end state values.
  * </p>
  *
  * <p>
@@ -216,7 +217,7 @@ public final class AnalysisServer {
         try (OutputStream stream = session.getBasicRemote().getSendStream()) {
             AnalysisToProtobuf.analysisResults(actions, lastComplete_.getTraderOids(),
                             lastComplete_.getShoppingListOids(), stop - start, lastComplete_,
-                            startPriceStatement, false).writeTo(stream);
+                            startPriceStatement, true).writeTo(stream);
         } catch (Throwable error) {
             logger.error("Exception thrown while sending back actions!", error);
         }
