@@ -3,7 +3,9 @@ package com.vmturbo.platform.analysis.drivers;
 
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import javax.websocket.CloseReason;
 import javax.websocket.OnClose;
@@ -25,6 +27,7 @@ import com.vmturbo.platform.analysis.ede.Ede;
 import com.vmturbo.platform.analysis.ledger.PriceStatement;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisCommand;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults;
+import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTopology;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.EconomySettingsTO;
 import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.translators.AnalysisToProtobuf;
@@ -50,21 +53,8 @@ public final class AnalysisServer {
     // A logger to be used for all logging by this class.
     private static final Logger logger = Logger.getLogger(AnalysisServer.class);
 
-    // It is possible that some exceptional event, like a connection drop will result in an
-    // incomplete topology. e.g. if we receive a START_DISCOVERED_TOPOLOGY, then some
-    // DISCOVERED_TRADER messages and then the connection resets and we receive a
-    // START_DISCOVERED_TOPOLOGY again. In that context, lastComplete_ is the last complete topology
-    // we've received and currentPartial_ is the topology we are currently populating.
-    private @NonNull Topology lastComplete_ = new Topology();
-    private @NonNull Topology currentPartial_ = new Topology();
-    // a flag to decide if move should use shoptpgether algorithm or not
-    boolean isShopTogetherEnabled = false;
-    // a flag to decide if provision algorithm should run or not
-    boolean isProvisionEnabled = true;
-    // a flag to decide if suspension algorithm should run or not
-    boolean isSuspensionEnabled = true;
-    // a flag to decide if resize algorithm should run or not
-    boolean isResizeEnabled = true;
+    // map that associates every topology with a instanceInfo that has the topology and some associated settings
+    private Map<Long, AnalysisInstanceInfo> analysisInstanceInfoMap = new HashMap<>();
 
     // Constructors
 
@@ -104,12 +94,16 @@ public final class AnalysisServer {
             AnalysisCommand command = AnalysisCommand.parseFrom(message);
             switch (command.getCommandTypeCase()) {
                 case START_DISCOVERED_TOPOLOGY:
-                    isShopTogetherEnabled =
-                                    command.getStartDiscoveredTopology().getEnableShopTogether();
-                    currentPartial_.clear();
+                    AnalysisInstanceInfo instInfo = new AnalysisInstanceInfo();
+                    analysisInstanceInfoMap.put(command.getTopologyId(), instInfo);
+                    instInfo.setShopTogetherEnabled(command.getStartDiscoveredTopology()
+                                                    .getEnableShopTogether());
+                    instInfo.getLastComplete().setTopologyId(command.getTopologyId());
+                    Topology currentPartial = instInfo.getCurrentPartial();
+                    currentPartial.setTopologyId(command.getTopologyId());
                     EconomySettingsTO settingsTO = command.getStartDiscoveredTopology()
                                     .getEconomySettings();
-                    EconomySettings settings = currentPartial_.getEconomy().getSettings();
+                    EconomySettings settings = currentPartial.getEconomy().getSettings();
                     settings.setRightSizeLower(settingsTO.getRightsizeLowerWatermark());
                     settings.setRightSizeUpper(settingsTO.getRightsizeUpperWatermark());
                     settings.setUseExpenseMetricForTermination(settingsTO
@@ -117,29 +111,28 @@ public final class AnalysisServer {
                     settings.setExpenseMetricFactor(settingsTO.getExpenseMetricFactor());
                     break;
                 case DISCOVERED_TRADER:
-                    ProtobufToAnalysis.addTrader(currentPartial_, command.getDiscoveredTrader());
+                    ProtobufToAnalysis.addTrader(analysisInstanceInfoMap.get(command.getTopologyId())
+                                                 .getCurrentPartial(), command.getDiscoveredTrader());
                     break;
                 case END_DISCOVERED_TOPOLOGY:
                     // Finish topology
-                    ProtobufToAnalysis.populateUpdatingFunctions(command.getEndDiscoveredTopology(),
-                                                                         currentPartial_);
-                    ProtobufToAnalysis.populateCommodityResizeDependencyMap(
-                                    command.getEndDiscoveredTopology(),
-                                    currentPartial_);
-                    ProtobufToAnalysis.populateRawCommodityMap(command.getEndDiscoveredTopology(),
-                                                               currentPartial_);
+                    EndDiscoveredTopology endDiscMsg = command.getEndDiscoveredTopology();
+                    AnalysisInstanceInfo instInfoAfterDisc = analysisInstanceInfoMap.get(command.getTopologyId());
+                    Topology currPartial = instInfoAfterDisc.getCurrentPartial();
+                    ProtobufToAnalysis.populateUpdatingFunctions(endDiscMsg, currPartial);
+                    ProtobufToAnalysis.populateCommodityResizeDependencyMap(endDiscMsg, currPartial);
+                    ProtobufToAnalysis.populateRawCommodityMap(endDiscMsg, currPartial);
 
-                    isProvisionEnabled = command.getEndDiscoveredTopology().getEnableProvision();
-                    isSuspensionEnabled =
-                                    command.getEndDiscoveredTopology().getEnableSuspension();
-                    isResizeEnabled = command.getEndDiscoveredTopology().getEnableResize();
+                    instInfoAfterDisc.setProvisionEnabled(endDiscMsg.getEnableProvision());
+                    instInfoAfterDisc.setSuspensionEnabled(endDiscMsg.getEnableSuspension());
+                    instInfoAfterDisc.setResizeEnabled(endDiscMsg.getEnableResize());
 
                     // create a new thread to run the analysis algorithm so that
                     // it does not block the server to receive messages from M1
                     Runnable runAnalysis = new Runnable() {
                         @Override
                         public void run() {
-                            runAnalysis(session);
+                            runAnalysis(session, command.getTopologyId());
                         }
                     };
                     new Thread(runAnalysis).start();
@@ -147,7 +140,10 @@ public final class AnalysisServer {
                 case FORCE_PLAN_STOP:
                     logger.info("Received a message to stop running analysis from session "
                                     + session.getId());
-                    currentPartial_.getEconomy().setForceStop(true);
+                    if (analysisInstanceInfoMap != null) {
+                        analysisInstanceInfoMap.get(command.getTopologyId()).getCurrentPartial()
+                                .getEconomy().setForceStop(true);
+                    }
                     break;
                 case COMMANDTYPE_NOT_SET:
                 default:
@@ -188,21 +184,24 @@ public final class AnalysisServer {
      * Create a new thread to execute the analysis algorithm which
      * generates actions.
      */
-    private void runAnalysis(@NonNull Session session) {
+    private void runAnalysis(@NonNull Session session, long topologyId) {
         // Swap topologies
-        Topology temp = lastComplete_;
-        lastComplete_ = currentPartial_;
-        currentPartial_ = temp;
+        AnalysisInstanceInfo instInfo = analysisInstanceInfoMap.get(topologyId);
+
+        Topology temp = instInfo.getLastComplete();
+        Topology lastComplete = instInfo.getCurrentPartial();
+        instInfo.setLastComplete(lastComplete);
+        instInfo.setCurrentPartial(temp);
         // Run one round of placement measuring time-to-process
         long start = System.nanoTime();
-        Economy economy = (Economy)lastComplete_.getEconomy();
+        Economy economy = (Economy)lastComplete.getEconomy();
         PriceStatement startPriceStatement = new PriceStatement().computePriceIndex(economy);
         @NonNull List<@NonNull Action> actions = new Ede().generateActions(
-                        economy, isShopTogetherEnabled, isProvisionEnabled, isSuspensionEnabled,
-                        isResizeEnabled, true);
+                        economy, instInfo.isShopTogetherEnabled(), instInfo.isProvisionEnabled(),
+                        instInfo.isSuspensionEnabled(), instInfo.isResizeEnabled(), true);
         // if the analysis was forced to stop, send a planStopped message back
         // to M1 which can further clear the plan related data
-        if (lastComplete_.getEconomy().getForceStop()) {
+        if (lastComplete.getEconomy().getForceStop()) {
             try (OutputStream stream = session.getBasicRemote().getSendStream()) {
                 AnalysisResults.newBuilder().setPlanStopped(true).build().writeTo(stream);
             } catch (Throwable error) {
@@ -215,12 +214,71 @@ public final class AnalysisServer {
 
         // Send back the results
         try (OutputStream stream = session.getBasicRemote().getSendStream()) {
-            AnalysisToProtobuf.analysisResults(actions, lastComplete_.getTraderOids(),
-                            lastComplete_.getShoppingListOids(), stop - start, lastComplete_,
+            AnalysisToProtobuf.analysisResults(actions, lastComplete.getTraderOids(),
+                            lastComplete.getShoppingListOids(), stop - start, lastComplete,
                             startPriceStatement, true).writeTo(stream);
         } catch (Throwable error) {
             logger.error("Exception thrown while sending back actions!", error);
+        } finally {
+            // remove topologyInfo from the map
+            analysisInstanceInfoMap.remove(topologyId);
         }
         return;
     }
+
+    public class AnalysisInstanceInfo {
+        // It is possible that some exceptional event like a connection drop will result in an
+        // incomplete topology. e.g. if we receive a START_DISCOVERED_TOPOLOGY, then some
+        // DISCOVERED_TRADER messages and then the connection resets and we receive a
+        // START_DISCOVERED_TOPOLOGY again. In that context, lastComplete_ is the last complete topology
+        // we've received and currentPartial_ is the topology we are currently populating.
+        private @NonNull Topology lastComplete_ = new Topology();
+        private @NonNull Topology currentPartial_ = new Topology();
+        // a flag to decide if move should use shop-together algorithm or not
+        boolean isShopTogetherEnabled = false;
+        // a flag to decide if provision algorithm should run or not
+        boolean isProvisionEnabled = true;
+        // a flag to decide if suspension algorithm should run or not
+        boolean isSuspensionEnabled = true;
+        // a flag to decide if resize algorithm should run or not
+        boolean isResizeEnabled = true;
+
+        public boolean isShopTogetherEnabled() {
+            return isShopTogetherEnabled;
+        }
+        public void setShopTogetherEnabled(boolean isShopTogetherEnabled) {
+            this.isShopTogetherEnabled = isShopTogetherEnabled;
+        }
+        public boolean isProvisionEnabled() {
+            return isProvisionEnabled;
+        }
+        public void setProvisionEnabled(boolean isProvisionEnabled) {
+            this.isProvisionEnabled = isProvisionEnabled;
+        }
+        public boolean isSuspensionEnabled() {
+            return isSuspensionEnabled;
+        }
+        public void setSuspensionEnabled(boolean isSuspensionEnabled) {
+            this.isSuspensionEnabled = isSuspensionEnabled;
+        }
+        public boolean isResizeEnabled() {
+            return isResizeEnabled;
+        }
+        public void setResizeEnabled(boolean isResizeEnabled) {
+            this.isResizeEnabled = isResizeEnabled;
+        }
+        public Topology getLastComplete() {
+            return lastComplete_;
+        }
+        public void setLastComplete(Topology lastComplete) {
+            this.lastComplete_ = lastComplete;
+        }
+        public Topology getCurrentPartial() {
+            return currentPartial_;
+        }
+        public void setCurrentPartial(Topology currentPartial) {
+            this.currentPartial_ = currentPartial;
+        }
+    } // end AnalysisInstanceInfo class
+
 } // end AnalysisServer class

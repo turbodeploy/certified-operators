@@ -50,6 +50,8 @@ public final class Topology {
     private final @NonNull Map<@NonNull Long, @NonNull List<@NonNull ShoppingList>> danglingShoppingLists_ = new HashMap<>();
     // A map to record the newly provisioned trader's shoppinglist to the provisioned trader
     private final @NonNull Map<@NonNull Long, @NonNull Long> newShoppingListToBuyerMap_ = new HashMap<>();
+    // Id that uniquely identifies the topology
+    private long topologyId;
 
     // Cached data
 
@@ -291,5 +293,13 @@ public final class Topology {
      */
     public void addIdleVmSl (@NonNull ShoppingList shoppingList) {
         economy_.getModifiableIdleVmSls().add(shoppingList);
+    }
+
+    public long getTopologyId() {
+        return topologyId;
+    }
+
+    public void setTopologyId(long topologyId) {
+        this.topologyId = topologyId;
     }
 } // end Topology class

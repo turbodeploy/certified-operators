@@ -505,6 +505,7 @@ public final class AnalysisToProtobuf {
                     long timeToAnalyze_ns, Topology topology, PriceStatement startPriceStatement,
                     boolean sendBack) {
         AnalysisResults.Builder builder = AnalysisResults.newBuilder();
+        builder.setTopologyId(topology.getTopologyId());
         for (Action action : actions) {
             ActionTO actionTO = actionTO(action, traderToOidMap, shoppingListOid, topology);
             if (actionTO != null) {
