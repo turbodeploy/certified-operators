@@ -140,7 +140,6 @@ public class Ledger {
     public @NonNull Ledger removeTraderIncomeStatement(@NonNull Trader trader) {
         traderIncomeStatements_.remove(trader.getEconomyIndex());
         commodityIncomeStatements_.remove(trader);
-
         return this;
     }
 
@@ -153,7 +152,10 @@ public class Ledger {
      * @return The Ledger containing the updated list of traderIncomeStatements
      */
     public Ledger calculateExpAndRevForSellersInMarket(Economy economy, Market market) {
-        market.getActiveSellers().forEach(seller -> calculateExpRevForSeller(economy, seller));
+        List<Trader> sellers = market.getActiveSellers();
+        (sellers.size() < economy.getSettings().getMinSellersForParallelism()
+            ? sellers.stream() : sellers.parallelStream())
+            .forEach(seller -> calculateExpRevForSeller(economy, seller));
         return this;
     }
 
@@ -165,8 +167,13 @@ public class Ledger {
      * @return The Ledger containing the updated list of traderIncomeStatements
      */
     public Ledger calculateExpensesForBuyersInMarket(Economy economy, Market market) {
-        market.getBuyers().forEach(shoppingList -> resetTraderIncomeStatement(shoppingList.getBuyer()));
-        market.getBuyers().forEach(shoppingList -> calculateExpensesForBuyer(economy, shoppingList));
+        List<ShoppingList> buyers = market.getBuyers();
+        (buyers.size() < economy.getSettings().getMinSellersForParallelism()
+            ? buyers.stream() : buyers.parallelStream())
+            .forEach(shoppingList -> {
+                resetTraderIncomeStatement(shoppingList.getBuyer());
+                calculateExpensesForBuyer(economy, shoppingList);
+            });
         return this;
     }
 
@@ -314,9 +321,9 @@ public class Ledger {
      * @return The ledger containing the updated list of commodityIncomeStatements
      */
     public @NonNull Ledger calculateAllCommodityExpensesAndRevenues(@NonNull Economy economy) {
-
-        for (Trader buyer : economy.getTraders()) {
-
+        List<Trader> traders = economy.getTraders();
+        (traders.size() < economy.getSettings().getMinSellersForParallelism()
+            ? traders.stream() : traders.parallelStream()).forEach(buyer -> {
             resetTraderIncomeStatement(buyer);
             List<CommoditySold> commSoldList = buyer.getCommoditiesSold();
             for (int commSoldIndex = 0; commSoldIndex < commSoldList.size(); commSoldIndex++) {
@@ -391,8 +398,7 @@ public class Ledger {
                     }
                 }
             }
-        }
-
+        });
         return this;
     }
 
