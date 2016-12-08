@@ -275,7 +275,13 @@ public final class AnalysisToProtobuf {
             .setType(trader.getType())
             .setState(traderStateTO(trader.getState()))
             .addAllCliques(trader.getCliques())
-            .setSettings(traderSettingsTO(trader.getSettings()));
+            .setSettings(traderSettingsTO(trader.getSettings()))
+            .setNumOfProduces((int)trader.getUniqueCustomers().stream()
+                                        .filter(t -> t.getState().isActive() && !economy
+                                                        .getMarketsAsBuyer(t).keySet()
+                                                        .stream().anyMatch(sl -> economy
+                                                                        .getIdleVms().contains(sl)))
+                                        .count());
 
         if (trader.isClone()) {
             builder.setCloneOf(traderToOidMap.get(((Economy)economy).getCloneOfTrader(trader)));
@@ -552,7 +558,12 @@ public final class AnalysisToProtobuf {
         List<TraderTO> traderTOList = new ArrayList<>();
         if (sendBack) {
             for (@NonNull @ReadOnly Trader trader : economy.getTraders()) {
-                traderTOList.add(AnalysisToProtobuf.traderTO(economy, trader, traderToOidMap, shoppingListOid));
+                if (!trader.isClone() || trader.getState() != TraderState.INACTIVE) {
+                    // in case of a cloned trader, if it is suspended(INACTIVE state), skip
+                    // creating a traderTO for it
+                    traderTOList.add(AnalysisToProtobuf.traderTO(economy, trader, traderToOidMap,
+                                    shoppingListOid));
+                }
             }
         }
 
