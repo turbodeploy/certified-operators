@@ -63,6 +63,9 @@ public class BootstrapSupply {
     public static @NonNull List<@NonNull Action> bootstrapSupplyDecisions(@NonNull Economy economy) {
         List<@NonNull Action> allActions = new ArrayList<>();
         for (Market market : economy.getMarkets()) {
+            if (economy.getForceStop()) {
+                return allActions;
+            }
             // do not provision traders in markets where guaranteedBuyers are unplaced
             // or when all the sellers are not cloneable
             if (market.getActiveSellers().stream().allMatch(trader -> !trader.getSettings()
@@ -128,6 +131,9 @@ public class BootstrapSupply {
     private static List<Action> provisionTraderToFitBuyer (Economy economy, ShoppingList shoppingList,
                                                            Market market) {
         List<@NonNull Action> actions = new ArrayList<>();
+        if (economy.getForceStop()) {
+            return actions;
+        }
         List<Action> provisionRelatedActionList = new ArrayList<>();
         Action bootstrapAction;
         Trader provisionedSeller;

@@ -49,6 +49,9 @@ public abstract class Supply {
         List<@NonNull Action> actions = new ArrayList<>();
         for (Market market : economy.getMarkets()) {
             for (;;) {
+                if (economy.getForceStop()) {
+                    return allActions;
+                }
                 // if there are no sellers in the market, the buyer is misconfigured
                 actions.clear();
                 if (market.getActiveSellers().isEmpty()) {

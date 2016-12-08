@@ -65,6 +65,9 @@ public class Provision {
                 continue;
             }
             for(;;) {
+                if (economy.getForceStop()) {
+                    return allActions;
+                }
                 List<@NonNull Action> actions = new ArrayList<>();
                 ledger.calculateExpAndRevForSellersInMarket(economy, market);
                 // break if there is no seller that is eligible for cloning in the market

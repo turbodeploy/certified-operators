@@ -111,6 +111,9 @@ public class Placement {
     public static @NonNull List<@NonNull Action> generatePlacementDecisions(@NonNull Economy economy,
                                 ShoppingList shoppingList) {
         @NonNull List<Action> actions = new ArrayList<>();
+        if (economy.getForceStop()) {
+            return actions;
+        }
         // if there are no sellers in the market, the buyer is misconfigured
         final @NonNull List<@NonNull Trader> sellers = economy.getMarket(shoppingList).getActiveSellers();
         if (!shoppingList.isMovable())
@@ -214,6 +217,9 @@ public class Placement {
         @NonNull List<@NonNull Action> output = new ArrayList<>();
 
         for (@NonNull @ReadOnly Trader buyer : traders) {
+            if (economy.getForceStop()) {
+                return output;
+            }
             final @NonNull @ReadOnly Set<Entry<@NonNull ShoppingList, @NonNull Market>> entries =
                 economy.getMarketsAsBuyer(buyer).entrySet();
             final @NonNull @ReadOnly List<Entry<@NonNull ShoppingList, @NonNull Market>> movableEntries =

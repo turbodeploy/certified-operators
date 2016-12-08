@@ -56,6 +56,9 @@ public class Resizer {
         ledger.calculateAllCommodityExpensesAndRevenues(economy);
 
         for (Trader seller : economy.getTraders()) {
+            if (economy.getForceStop()) {
+                return actions;
+            }
             Basket basketSold = seller.getBasketSold();
             if (basketSold == null) {
                 continue;

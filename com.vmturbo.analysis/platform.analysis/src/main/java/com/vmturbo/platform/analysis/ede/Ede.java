@@ -108,7 +108,7 @@ public final class Ede {
         }
         logger.info("Plan completed suspending with " + (actions.size() - oldActionCount) + " actions.");
 
-        if (collapse) {
+        if (collapse && !economy.getForceStop()) {
             List<@NonNull Action> collapsed = Action.collapsed(actions);
             // Reorder actions by type.
             actions = Action.groupActionsByTypeAndReorderBeforeSending(collapsed);

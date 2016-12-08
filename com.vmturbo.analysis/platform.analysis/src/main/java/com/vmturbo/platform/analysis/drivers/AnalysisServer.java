@@ -140,9 +140,12 @@ public final class AnalysisServer {
                 case FORCE_PLAN_STOP:
                     logger.info("Received a message to stop running analysis from session "
                                     + session.getId());
-                    if (analysisInstanceInfoMap != null) {
+                    if (analysisInstanceInfoMap != null && analysisInstanceInfoMap
+                                    .containsKey(command.getTopologyId())) {
                         analysisInstanceInfoMap.get(command.getTopologyId()).getCurrentPartial()
                                 .getEconomy().setForceStop(true);
+                        analysisInstanceInfoMap.get(command.getTopologyId()).getLastComplete()
+                                        .getEconomy().setForceStop(true);
                     }
                     break;
                 case COMMANDTYPE_NOT_SET:
@@ -203,7 +206,9 @@ public final class AnalysisServer {
         // to M1 which can further clear the plan related data
         if (lastComplete.getEconomy().getForceStop()) {
             try (OutputStream stream = session.getBasicRemote().getSendStream()) {
-                AnalysisResults.newBuilder().setPlanStopped(true).build().writeTo(stream);
+                AnalysisResults.newBuilder().setPlanStopped(true)
+                                .setTopologyId(lastComplete.getTopologyId()).build()
+                                .writeTo(stream);
             } catch (Throwable error) {
                 logger.error("Exception thrown while sending back stop message from session "
                                 + session.getId(), error);
