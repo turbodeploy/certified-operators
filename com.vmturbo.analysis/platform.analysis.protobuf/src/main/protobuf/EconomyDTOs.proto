@@ -184,4 +184,7 @@ message TraderTO {
 
     // This field contains the economicIndex of the modelSeller if this host was cloned
     optional int64 clone_of = 9;
+
+    // The number of buyers that consuming the trader
+    optional int32 num_of_produces = 10;
 }
