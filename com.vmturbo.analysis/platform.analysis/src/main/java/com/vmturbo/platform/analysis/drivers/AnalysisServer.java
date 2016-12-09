@@ -1,6 +1,5 @@
 package com.vmturbo.platform.analysis.drivers;
 
-
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.HashMap;
@@ -32,6 +31,7 @@ import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.EconomySettingsTO;
 import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.translators.AnalysisToProtobuf;
 import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
+import com.vmturbo.platform.analysis.utilities.StatsUtils;
 
 /**
  * The WebSocket server endpoint for the analysis server. It is the entry point of the application.
@@ -180,7 +180,7 @@ public final class AnalysisServer {
      */
     @OnError
     public synchronized void logError(@ReadOnly AnalysisServer this, @NonNull Throwable error) {
-        logger.error("Received an error from remote endpoint!", error);
+        logger.error("Received an error from remote endpoint", error);
     }
 
     /**
@@ -223,7 +223,9 @@ public final class AnalysisServer {
                             lastComplete.getShoppingListOids(), stop - start, lastComplete,
                             startPriceStatement, true).writeTo(stream);
         } catch (Throwable error) {
-            logger.error("Exception thrown while sending back actions!", error);
+            logger.error("Exception thrown while sending back actions", error);
+            StatsUtils statsUtils = new StatsUtils("m2stats");
+            statsUtils.write("Exception sending back actions: " + error.toString(), true);
         } finally {
             // remove topologyInfo from the map
             analysisInstanceInfoMap.remove(topologyId);

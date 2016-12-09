@@ -1,5 +1,6 @@
 package com.vmturbo.platform.analysis.ede;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -11,6 +12,7 @@ import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ledger.Ledger;
+import com.vmturbo.platform.analysis.utilities.StatsUtils;
 
 /**
  *
@@ -32,8 +34,6 @@ public final class Ede {
     public Ede() {}
 
     static final Logger logger = Logger.getLogger(Ede.class);
-
-    // Methods
 
     /**
      * Add 'collapse' argument
@@ -59,8 +59,11 @@ public final class Ede {
      * @see {@link Action#collapsed(List)}
      */
     public @NonNull List<@NonNull Action> generateActions(@NonNull Economy economy,
-                    boolean isShopTogether, boolean isProvision, boolean isSuspension,
-                    boolean isResize, boolean collapse) {
+                                                          boolean isShopTogether,
+                                                          boolean isProvision, boolean isSuspension,
+                                                          boolean isResize, boolean collapse) {
+        StatsUtils statsUtils = new StatsUtils("m2Stats");
+
         logger.info("Plan Started.");
         // create a subset list of markets that have atleast one buyer that can move
         economy.composeMarketSubsetForPlacement();
@@ -71,42 +74,69 @@ public final class Ede {
         logger.info("Plan completed idleVM placement with " + oldActionCount + " actions.");
 
         // Start by provisioning enough traders to satisfy all the demand
+        // Save first call to before() to calculate total plan time
+        Instant begin = statsUtils.before();
         actions.addAll(BootstrapSupply.bootstrapSupplyDecisions(economy));
-        logger.info("Plan completed bootstrap with " + (actions.size() - oldActionCount) + " actions.");
+        logger.info("Plan completed bootstrap with " + (actions.size() - oldActionCount)
+                    + " actions.");
+        // time to run bootstrap
+        statsUtils.after(true, false);
 
         oldActionCount = actions.size();
+        statsUtils.before();
         Ledger ledger = new Ledger(economy);
         // run placement algorithm to balance the environment
-        actions.addAll(Placement.runPlacementsTillConverge(economy, ledger, isShopTogether, PLACEMENT_PHASE));
-        logger.info("Plan completed initial placement with " + (actions.size() - oldActionCount) + " actions.");
+        actions.addAll(Placement.runPlacementsTillConverge(economy, ledger, isShopTogether,
+                                                           PLACEMENT_PHASE));
+        logger.info("Plan completed initial placement with " + (actions.size() - oldActionCount)
+                    + " actions.");
+        // time to run initial placement
+        statsUtils.after();
 
         oldActionCount = actions.size();
+        statsUtils.before();
         if (isResize) {
             actions.addAll(Resizer.resizeDecisions(economy, ledger));
         }
-        logger.info("Plan completed resizing with " + (actions.size() - oldActionCount) + " actions.");
+        logger.info("Plan completed resizing with " + (actions.size() - oldActionCount)
+                    + " actions.");
+        // resize time
+        statsUtils.after();
 
         oldActionCount = actions.size();
-        actions.addAll(Placement.runPlacementsTillConverge(economy, ledger, isShopTogether, PLACEMENT_PHASE));
-        logger.info("Plan completed placement with " + (actions.size() - oldActionCount) + " actions.");
+        statsUtils.before();
+        actions.addAll(Placement.runPlacementsTillConverge(economy, ledger, isShopTogether,
+                                                           PLACEMENT_PHASE));
+        logger.info("Plan completed placement with " + (actions.size() - oldActionCount)
+                    + " actions.");
+        // placement time
+        statsUtils.after();
 
         oldActionCount = actions.size();
+        statsUtils.before();
         // trigger provision, suspension and resize algorithm only when needed
         if (isProvision) {
             actions.addAll(Provision.provisionDecisions(economy, ledger, isShopTogether, this));
         }
-        logger.info("Plan completed provisioning with " + (actions.size() - oldActionCount) + " actions.");
+        logger.info("Plan completed provisioning with " + (actions.size() - oldActionCount)
+                    + " actions.");
+        // provisioning time
+        statsUtils.after();
 
         oldActionCount = actions.size();
+        statsUtils.before();
         if (isSuspension) {
             Suspension suspension = new Suspension();
             // find if any seller is the sole provider in any market, if so, it should not
             // be considered as suspension candidate
             suspension.findSoleProviders(economy);
             actions.addAll(suspension.supplyDecisions(economy, ledger, this, isShopTogether,
-                            false));
+                                                      false));
         }
-        logger.info("Plan completed suspending with " + (actions.size() - oldActionCount) + " actions.");
+        logger.info("Plan completed suspending with " + (actions.size() - oldActionCount)
+                    + " actions.");
+        // suspension time
+        statsUtils.after();
 
         if (collapse && !economy.getForceStop()) {
             List<@NonNull Action> collapsed = Action.collapsed(actions);
@@ -114,11 +144,18 @@ public final class Ede {
             actions = Action.groupActionsByTypeAndReorderBeforeSending(collapsed);
         }
         logger.info("Plan completed with " + actions.size() + " actions.");
+        // total time to run plan
+        statsUtils.after(begin);
+        // file total actions
+        statsUtils.concatAtEnd(actions.size(), false, true);
+
+
         if (logger.isDebugEnabled()) {
-        	// Log number of actions by type
-        	actions.stream()
-        	    .collect(Collectors.groupingBy(Action::getClass))
-        	    .forEach((k, v) -> logger.debug("    " + k.getSimpleName() + " : " + v.size()));
+            // Log number of actions by type
+            actions.stream()
+                            .collect(Collectors.groupingBy(Action::getClass))
+                            .forEach((k, v) -> logger
+                                            .debug("    " + k.getSimpleName() + " : " + v.size()));
         }
         return actions;
     }
