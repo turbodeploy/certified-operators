@@ -62,7 +62,7 @@ public final class Ede {
                                                           boolean isShopTogether,
                                                           boolean isProvision, boolean isSuspension,
                                                           boolean isResize, boolean collapse) {
-        StatsUtils statsUtils = new StatsUtils("m2Stats");
+        StatsUtils statsUtils = new StatsUtils("m2stats");
 
         logger.info("Plan Started.");
         // create a subset list of markets that have atleast one buyer that can move
