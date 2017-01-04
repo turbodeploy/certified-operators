@@ -2,9 +2,6 @@ package com.vmturbo.platform.analysis.utilities;
 
 import java.io.File;
 import java.io.FileWriter;
-import java.io.RandomAccessFile;
-import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
 import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
 import java.time.Duration;
@@ -240,22 +237,15 @@ public class StatsUtils {
      * @param doFlush - write to file (true when a concatenated list is ready to write).
      */
     public void append(@NonNull Object data, boolean isFirst, boolean doFlush) {
-        try (FileChannel channel = new RandomAccessFile(statsFileName, "rw").getChannel()) {
-            channel.lock();
-            if (!isEnabled()) {
-                return;
-            }
-            if (isFirst) {
-                dataBuffer.setLength(0);
-            }
-            dataBuffer.append(data + fieldSeparator);
-            if (doFlush) {
-                flush();
-            }
-            channel.close();
+        if (!isEnabled()) {
+            return;
         }
-        catch (Exception e) {
-            logger.error("Error in Csv File Writer: ", e);
+        if (isFirst) {
+            dataBuffer.setLength(0);
+        }
+        dataBuffer.append(data + fieldSeparator);
+        if (doFlush) {
+            flush();
         }
     }
 
@@ -297,7 +287,7 @@ public class StatsUtils {
         if(!isEnabled()) {
             return;
         }
-        append(getDateTime(), false, false);
+        append(getDateTime(), false, doFlush);
     }
 
     /**
@@ -310,7 +300,7 @@ public class StatsUtils {
         if(!isEnabled()) {
             return;
         }
-        append(getTime(), false, false);
+        append(getTime(), false, doFlush);
     }
 
     /**
@@ -323,6 +313,6 @@ public class StatsUtils {
         if(!isEnabled()) {
             return;
         }
-        append(getDate(), false, false);
+        append(getDate(), false, doFlush);
     }
 }
