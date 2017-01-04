@@ -58,8 +58,8 @@ public final class Ede {
                                                           boolean isShopTogether,
                                                           boolean isProvision, boolean isSuspension,
                                                           boolean isResize) {
-        return generateActions(economy, isShopTogether, isProvision, isSuspension, isResize, false,
-                               "unspecified");
+        return generateActions(economy, isShopTogether, isProvision, isSuspension, isResize, false, "unspecified");
+
     }
 
     /**
@@ -71,6 +71,29 @@ public final class Ede {
      * @param isSuspension True if we need to trigger suspension algorithm and false otherwise
      * @param isResize True if we need to trigger resize algorithm and false otherwise
      * @param collapse whether to collapse the returned list of actions.
+     * @return A list of actions suggested by the economic decisions engine.
+     *
+     * @see {@link Action#collapsed(List)}
+     */
+    public @NonNull List<@NonNull Action> generateActions(@NonNull Economy economy,
+                                                          boolean isShopTogether,
+                                                          boolean isProvision, boolean isSuspension,
+                                                          boolean isResize, boolean collapse) {
+        return generateActions(economy, isShopTogether, isProvision, isSuspension, isResize,
+                               collapse, "unspecified");
+
+    }
+
+    /**
+     * Create a new set of actions for a snapshot of the economy.
+     *
+     * @param economy The snapshot of the economy which we analyze and take decisions.
+     * @param isShopTogether True if we want to enable SNM and false otherwise.
+     * @param isProvision True if we need to trigger provision algorithm and false otherwise
+     * @param isSuspension True if we need to trigger suspension algorithm and false otherwise
+     * @param isResize True if we need to trigger resize algorithm and false otherwise
+     * @param collapse whether to collapse the returned list of actions.
+     * @param marketName The market name
      * @return A list of actions suggested by the economic decisions engine.
      *
      * @see {@link Action#collapsed(List)}
