@@ -36,13 +36,30 @@ public final class Ede {
     static final Logger logger = Logger.getLogger(Ede.class);
 
     /**
+     * generateActions with a market name specified.
+     *
      * Add 'collapse' argument
      * @see {@link #generateActions(Economy, boolean, boolean, boolean, boolean, boolean)}
      */
     public @NonNull List<@NonNull Action> generateActions(@NonNull Economy economy,
-            boolean isShopTogether, boolean isProvision, boolean isSuspension,
-            boolean isResize, String mktName) {
-        return generateActions(economy, isShopTogether, isProvision, isSuspension, isResize, false, mktName);
+                                                          boolean isShopTogether,
+                                                          boolean isProvision, boolean isSuspension,
+                                                          boolean isResize, String mktName) {
+        return generateActions(economy, isShopTogether, isProvision, isSuspension, isResize, false,
+                               mktName);
+    }
+
+    /** generateActions with no market name specified.
+     *
+     * Add 'collapse' argument
+     * @see {@link #generateActions(Economy, boolean, boolean, boolean, boolean, boolean, String)}
+     */
+    public @NonNull List<@NonNull Action> generateActions(@NonNull Economy economy,
+                                                          boolean isShopTogether,
+                                                          boolean isProvision, boolean isSuspension,
+                                                          boolean isResize) {
+        return generateActions(economy, isShopTogether, isProvision, isSuspension, isResize, false,
+                               "unspecified");
     }
 
     /**
