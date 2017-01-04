@@ -41,8 +41,8 @@ public final class Ede {
      */
     public @NonNull List<@NonNull Action> generateActions(@NonNull Economy economy,
             boolean isShopTogether, boolean isProvision, boolean isSuspension,
-            boolean isResize) {
-        return generateActions(economy, isShopTogether, isProvision, isSuspension, isResize, false);
+            boolean isResize, String mktName) {
+        return generateActions(economy, isShopTogether, isProvision, isSuspension, isResize, false, mktName);
     }
 
     /**
@@ -61,8 +61,8 @@ public final class Ede {
     public @NonNull List<@NonNull Action> generateActions(@NonNull Economy economy,
                                                           boolean isShopTogether,
                                                           boolean isProvision, boolean isSuspension,
-                                                          boolean isResize, boolean collapse) {
-        StatsUtils statsUtils = new StatsUtils("m2stats");
+                                                          boolean isResize, boolean collapse, String mktName) {
+        StatsUtils statsUtils = new StatsUtils("m2stats-" + mktName, true);
 
         logger.info("Plan Started.");
         // create a subset list of markets that have atleast one buyer that can move
@@ -147,7 +147,7 @@ public final class Ede {
         // total time to run plan
         statsUtils.after(begin);
         // file total actions
-        statsUtils.concatAtEnd(actions.size(), false, true);
+        statsUtils.appendAtEnd(actions.size(), false, true);
 
 
         if (logger.isDebugEnabled()) {

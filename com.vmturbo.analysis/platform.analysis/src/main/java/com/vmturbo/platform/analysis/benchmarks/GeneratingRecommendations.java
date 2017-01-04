@@ -77,7 +77,7 @@ public final class GeneratingRecommendations {
         System.out.println("Warming up:");
         long start = System.nanoTime();
         List<Action> actions = ede.generateActions(economies[nOrdersOfMagnitude - 1], false,
-                        true, true, true);
+                        true, true, true, "genreco");
         System.out.println(System.nanoTime()-start);
 
 
@@ -85,7 +85,8 @@ public final class GeneratingRecommendations {
         for (int i = 0 ; i < nOrdersOfMagnitude ; ++i) {
             for (int j = 0 ; j < nIterations ; ++j) {
                 start = System.nanoTime();
-                actions = ede.generateActions(economies[i], false, true, true, true);
+                StringBuffer strBuffer = new StringBuffer();
+                actions = ede.generateActions(economies[i], false, true, true, true, strBuffer.append("genreco" + j).toString());
                 System.out.print(System.nanoTime()-start + "\t");
             }
             System.out.println();

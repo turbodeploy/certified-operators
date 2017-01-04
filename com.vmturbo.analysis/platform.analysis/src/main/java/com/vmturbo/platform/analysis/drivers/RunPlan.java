@@ -37,7 +37,7 @@ public final class RunPlan {
             Ede ede = new Ede();
             // TODO: remove cast to Economy!
             List<Action> actions = ede.generateActions((Economy)topology.getEconomy(), false, true,
-                            true, true);
+                            true, true, "runplan");
             logger.info(actions.size() + " actions");
             for (Action action : actions) {
                 logger.info("What: " + action.debugDescription(topology.getUuids()::get,

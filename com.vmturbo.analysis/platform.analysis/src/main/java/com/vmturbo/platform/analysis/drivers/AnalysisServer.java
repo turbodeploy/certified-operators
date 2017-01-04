@@ -99,6 +99,7 @@ public final class AnalysisServer {
                     instInfo.setShopTogetherEnabled(command.getStartDiscoveredTopology()
                                                     .getEnableShopTogether());
                     instInfo.getLastComplete().setTopologyId(command.getTopologyId());
+                    instInfo.setMarketName(command.getMarketName());
                     Topology currentPartial = instInfo.getCurrentPartial();
                     currentPartial.setTopologyId(command.getTopologyId());
                     EconomySettingsTO settingsTO = command.getStartDiscoveredTopology()
@@ -126,6 +127,7 @@ public final class AnalysisServer {
                     instInfoAfterDisc.setProvisionEnabled(endDiscMsg.getEnableProvision());
                     instInfoAfterDisc.setSuspensionEnabled(endDiscMsg.getEnableSuspension());
                     instInfoAfterDisc.setResizeEnabled(endDiscMsg.getEnableResize());
+                    instInfoAfterDisc.setMarketName(command.getMarketName());
 
                     // create a new thread to run the analysis algorithm so that
                     // it does not block the server to receive messages from M1
@@ -186,6 +188,9 @@ public final class AnalysisServer {
     /**
      * Create a new thread to execute the analysis algorithm which
      * generates actions.
+     *
+     * @param session Current session.
+     * @param topologyId Topology  Id of the topology for which analysis is being run.
      */
     private void runAnalysis(@NonNull Session session, long topologyId) {
         // Swap topologies
@@ -195,13 +200,14 @@ public final class AnalysisServer {
         Topology lastComplete = instInfo.getCurrentPartial();
         instInfo.setLastComplete(lastComplete);
         instInfo.setCurrentPartial(temp);
+        String mktName = instInfo.getMarketName();
         // Run one round of placement measuring time-to-process
         long start = System.nanoTime();
         Economy economy = (Economy)lastComplete.getEconomy();
         PriceStatement startPriceStatement = new PriceStatement().computePriceIndex(economy);
         @NonNull List<@NonNull Action> actions = new Ede().generateActions(
                         economy, instInfo.isShopTogetherEnabled(), instInfo.isProvisionEnabled(),
-                        instInfo.isSuspensionEnabled(), instInfo.isResizeEnabled(), true);
+                        instInfo.isSuspensionEnabled(), instInfo.isResizeEnabled(), true, instInfo.getMarketName());
         // if the analysis was forced to stop, send a planStopped message back
         // to M1 which can further clear the plan related data
         if (lastComplete.getEconomy().getForceStop()) {
@@ -224,8 +230,8 @@ public final class AnalysisServer {
                             startPriceStatement, true).writeTo(stream);
         } catch (Throwable error) {
             logger.error("Exception thrown while sending back actions", error);
-            StatsUtils statsUtils = new StatsUtils("m2stats");
-            statsUtils.write("Exception sending back actions: " + error.toString(), true);
+            StatsUtils statsUtils = new StatsUtils("m2stats-" + mktName, true);
+            statsUtils.write("Exception sending back actions: " + error, true);
         } finally {
             // remove topologyInfo from the map
             analysisInstanceInfoMap.remove(topologyId);
@@ -249,6 +255,8 @@ public final class AnalysisServer {
         boolean isSuspensionEnabled = true;
         // a flag to decide if resize algorithm should run or not
         boolean isResizeEnabled = true;
+        // market name
+        String marketName_;
 
         public boolean isShopTogetherEnabled() {
             return isShopTogetherEnabled;
@@ -264,6 +272,9 @@ public final class AnalysisServer {
         }
         public boolean isSuspensionEnabled() {
             return isSuspensionEnabled;
+        }
+        public String getMarketName() {
+            return marketName_;
         }
         public void setSuspensionEnabled(boolean isSuspensionEnabled) {
             this.isSuspensionEnabled = isSuspensionEnabled;
@@ -285,6 +296,9 @@ public final class AnalysisServer {
         }
         public void setCurrentPartial(Topology currentPartial) {
             this.currentPartial_ = currentPartial;
+        }
+        public void setMarketName(String marketName) {
+            marketName_ = marketName;
         }
     } // end AnalysisInstanceInfo class
 

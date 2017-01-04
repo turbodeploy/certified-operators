@@ -102,6 +102,7 @@ message AnalysisCommand {
         ForcePlanStop force_plan_stop = 4;
     }
     optional int64 topology_id = 5;
+    optional string market_name = 6;
 }
 
 // It shouldn't matter if the connection is dropped and reestablished at any point between messages.
