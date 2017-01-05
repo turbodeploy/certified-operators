@@ -2,6 +2,9 @@ package com.vmturbo.platform.analysis.utilities;
 
 import java.io.File;
 import java.io.FileWriter;
+import java.nio.file.Files;
+import java.nio.file.LinkOption;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
 import java.time.Duration;
@@ -43,10 +46,23 @@ public class StatsUtils {
     private boolean enabled = true;
 
     public StatsUtils(@NonNull String filename, boolean isEnabled) {
-        if(!isEnabled()) {
+        if (!isEnabled()) {
             return;
         }
-        statsFileName = statsFilePrefix + filename + ".csv";
+
+        Path path = Paths.get(statsFilePrefix);
+        boolean pathExists =
+                           Files.exists(path,
+                                        new LinkOption[] {LinkOption.NOFOLLOW_LINKS});
+        // XL
+        if (!pathExists) {
+            statsFileName = System.getenv().get("HOME").toString() + File.separator + "data"
+                            + File.separator + filename + ".csv";
+            logger.info("XL stats file path:" + statsFileName);
+        // non-XL
+        } else {
+            statsFileName = statsFilePrefix + filename + ".csv";
+        }
         setEnabled(isEnabled);
     }
 
