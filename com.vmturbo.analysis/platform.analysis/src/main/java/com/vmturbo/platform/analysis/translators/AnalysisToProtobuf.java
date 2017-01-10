@@ -209,16 +209,18 @@ public final class AnalysisToProtobuf {
      * @param oid The OID used to refer to this {@link ShoppingList} across process boundaries.
      * @param economy The {@link Economy} containing <b>shopping list</b>.
      * @param shoppingList The {@link ShoppingList} to convert.
+     * @param traderToOidMap The trader to oid mapping which include both original traders and newly
+     * provisioned traders
      * @return The resulting {@link ShoppingListTO}.
      */
     public static @NonNull ShoppingListTO shoppingListTO(long oid, @NonNull UnmodifiableEconomy economy,
-                                                         @NonNull ShoppingList shoppingList) {
+                    @NonNull ShoppingList shoppingList,
+                    @NonNull BiMap<@NonNull Trader, @NonNull Long> traderToOidMap) {
         ShoppingListTO.Builder builder = ShoppingListTO.newBuilder()
             .setOid(oid)
             .setMovable(shoppingList.isMovable());
         if (shoppingList.getSupplier() != null)
-            builder.setSupplier(shoppingList.getSupplier().getEconomyIndex()); // only because we
-                                                                    // are sending existing economy!
+            builder.setSupplier(traderToOidMap.get(shoppingList.getSupplier()));
         Basket basketBought = economy.getMarket(shoppingList).getBasket();
         for (int i = 0; i < basketBought.size() ; ++i) {
             builder.addCommoditiesBought(commodityBoughtTO(shoppingList.getQuantity(i),
@@ -265,13 +267,17 @@ public final class AnalysisToProtobuf {
      *
      * @param economy The {@link Economy} containing <b>trader</b>.
      * @param trader The {@link Trader} to convert.
+     * @param traderToOidMap The trader to oid mapping which includes both original traders and newly
+     * provisioned traders
+     * @param shoppingListOid The shoppinglist to oid mapping which includes both original and newly
+     * provisioned shoppinglists
      * @return The resulting {@link TraderTO}.
      */
     public static @NonNull TraderTO traderTO(@NonNull UnmodifiableEconomy economy, @NonNull Trader trader,
                                              @NonNull BiMap<@NonNull Trader, @NonNull Long> traderToOidMap,
                                              @NonNull BiMap<@NonNull ShoppingList, @NonNull Long> shoppingListOid) {
         TraderTO.Builder builder = TraderTO.newBuilder()
-            .setOid(traderToOidMap == null ? trader.getEconomyIndex() : traderToOidMap.get(trader))
+            .setOid(traderToOidMap.get(trader))
             .setType(trader.getType())
             .setState(traderStateTO(trader.getState()))
             .addAllCliques(trader.getCliques())
@@ -292,7 +298,8 @@ public final class AnalysisToProtobuf {
         }
 
         for (@NonNull ShoppingList shoppingList : economy.getMarketsAsBuyer(trader).keySet()) {
-            builder.addShoppingLists(shoppingListTO(shoppingListOid.get(shoppingList), economy, shoppingList));
+            builder.addShoppingLists(shoppingListTO(shoppingListOid.get(shoppingList), economy,
+                            shoppingList, traderToOidMap));
         }
 
         return builder.build();
