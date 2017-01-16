@@ -20,6 +20,18 @@ public class ActionImpl implements Action {
     // measure of importance of an action
     private double importance_ = 0;
 
+    private boolean executable_ = true;
+
+    @Override
+    public boolean setExecutable(boolean executable) {
+        return executable_ = executable;
+    }
+
+    @Override
+    public boolean isExecutable() {
+        return executable_;
+    }
+
     /**
      * @return the importance of this action
      * @see #setImportance()

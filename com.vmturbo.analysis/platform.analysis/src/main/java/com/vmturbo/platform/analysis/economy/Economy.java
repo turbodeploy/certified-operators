@@ -1,6 +1,13 @@
 package com.vmturbo.platform.analysis.economy;
 
 import static com.google.common.base.Preconditions.checkArgument;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -29,7 +36,7 @@ import com.google.common.primitives.Ints;
  *  destroying markets while that happens.
  * </p>
  */
-public final class Economy implements UnmodifiableEconomy {
+public final class Economy implements UnmodifiableEconomy, Serializable {
     // Fields
 
     // The map that associates Baskets with Markets.
@@ -56,7 +63,7 @@ public final class Economy implements UnmodifiableEconomy {
     // Cached data
 
     // Cached unmodifiable view of the markets_.values() collection.
-    private final @NonNull Collection<@NonNull Market> unmodifiableMarkets_ = Collections.unmodifiableCollection(markets_.values());
+    private transient final @NonNull Collection<@NonNull Market> unmodifiableMarkets_ = Collections.unmodifiableCollection(markets_.values());
     // Cached unmodifiable view of the traders_ list.
     private final @NonNull List<@NonNull Trader> unmodifiableTraders_ = Collections.unmodifiableList(traders_);
     // Cached unmodifiable view of the idleVms_ list.
@@ -574,4 +581,26 @@ public final class Economy implements UnmodifiableEconomy {
             sl.isMovable()).count() != 0).collect(Collectors.toCollection(() ->
             marketsForPlacement_));
     }
+
+    //TODO Asjad replace by more efficient copying
+    /**
+     * Clone the given {@link Economy}
+     *
+     * @param economy {@link Economy} to be cloned
+     * @return Cloned {@link Economy}
+     * @throws IOException
+     * @throws ClassNotFoundException
+     */
+    public @NonNull Economy cloneEconomy(@NonNull Economy economy) throws IOException,
+                                                                   ClassNotFoundException {
+        try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
+             ObjectOutputStream out = new ObjectOutputStream(bos)) {
+             out.writeObject(economy);
+             try (ByteArrayInputStream bis = new ByteArrayInputStream(bos.toByteArray());
+                  ObjectInputStream in = new ObjectInputStream(bis)) {
+                  return (Economy) in.readObject();
+             }
+        }
+    }
+
 } // end class Economy

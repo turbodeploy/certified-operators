@@ -1,6 +1,9 @@
 package com.vmturbo.platform.analysis.economy;
 
 import static com.google.common.base.Preconditions.checkArgument;
+
+import java.io.Serializable;
+
 import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -21,7 +24,7 @@ import org.checkerframework.dataflow.qual.Pure;
  *  invalidated.
  * </p>
  */
-public final class ShoppingList {
+public final class ShoppingList implements Serializable {
     // Fields
     private final @NonNull Trader buyer_; // @see #getBuyer().
     private @Nullable Trader supplier_; // @see #setSupplier(Trader).

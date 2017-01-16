@@ -1,5 +1,6 @@
 package com.vmturbo.platform.analysis.economy;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -31,7 +32,7 @@ import com.google.common.hash.Hashing;
  */
 // TODO: investigate the effect of having two different commodity specifications with the same type
 // in the same basket.
-public final class Basket implements Comparable<@NonNull @ReadOnly Basket>, Iterable<@NonNull @ReadOnly CommoditySpecification>{
+public final class Basket implements Comparable<@NonNull @ReadOnly Basket>, Iterable<@NonNull @ReadOnly CommoditySpecification>, Serializable {
     // Fields
 
     // An array holding the commodity specifications comprising this basket.

@@ -13,6 +13,7 @@ import java.util.function.DoubleBinaryOperator;
 import org.apache.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
+
 import com.google.common.collect.BiMap;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionImpl;
@@ -25,11 +26,11 @@ import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
 import com.vmturbo.platform.analysis.actions.Reconfigure;
 import com.vmturbo.platform.analysis.actions.Resize;
 import com.vmturbo.platform.analysis.economy.Basket;
-import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySoldSettings;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderSettings;
 import com.vmturbo.platform.analysis.economy.TraderState;
@@ -339,6 +340,7 @@ public final class AnalysisToProtobuf {
                     @NonNull BiMap<@NonNull ShoppingList, @NonNull Long> shoppingListOid,
                     Topology topology) {
         ActionTO.Builder builder = ActionTO.newBuilder();
+        builder.setIsNotExecutable(!input.isExecutable());
 
         if (input instanceof Move) {
             Move move = (Move)input;
@@ -350,6 +352,12 @@ public final class AnalysisToProtobuf {
 
             MoveTO.Builder moveTO = MoveTO.newBuilder();
             moveTO.setShoppingListToMove(shoppingListOid.get(move.getTarget()));
+            // the provision by demand action may not have been handled
+            if (traderOid.get(newSupplier) == null) {
+                topology.addProvisionedTrader(newSupplier);
+                logger.info("NPE newSupplier=" + newSupplier.getDebugInfoNeverUseInCode() +
+                            " buyer=" + move.getActionTarget().getDebugInfoNeverUseInCode());
+            }
             moveTO.setDestination(traderOid.get(newSupplier));
             moveTO = explainMoveAction(move.getSource(), newSupplier, traderOid, move, moveTO);
             builder.setMove(moveTO);

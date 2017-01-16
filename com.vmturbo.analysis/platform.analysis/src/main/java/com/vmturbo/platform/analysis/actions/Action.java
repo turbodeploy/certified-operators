@@ -1,5 +1,7 @@
 package com.vmturbo.platform.analysis.actions;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
@@ -15,7 +17,6 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Deterministic;
 import org.checkerframework.dataflow.qual.Pure;
-import static com.google.common.base.Preconditions.checkArgument;
 
 import com.google.common.collect.Lists;
 import com.vmturbo.platform.analysis.economy.Economy;
@@ -31,6 +32,8 @@ public interface Action {
     static final Logger logger = Logger.getLogger(Action.class);
     static final Function<Trader, String> ECONOMY_INDEX = t -> String.valueOf(t.getEconomyIndex());
    // Methods
+    boolean setExecutable(boolean executable);
+    boolean isExecutable();
 
     /**
      * Returns a String representation of {@code this} action suitable for transmission to the

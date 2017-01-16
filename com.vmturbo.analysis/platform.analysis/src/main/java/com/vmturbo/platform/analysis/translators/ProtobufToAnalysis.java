@@ -1,5 +1,6 @@
 package com.vmturbo.platform.analysis.translators;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -19,21 +20,21 @@ import com.vmturbo.platform.analysis.actions.Reconfigure;
 import com.vmturbo.platform.analysis.actions.Resize;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommodityResizeSpecification;
-import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySoldSettings;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderSettings;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTopology;
-import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTopology.MapEntry;
-import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTopology.CommodityResizeDependencyEntry;
-import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTopology.CommodityResizeDependency;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTopology.CommodityRawMaterialEntry;
+import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTopology.CommodityResizeDependency;
+import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTopology.CommodityResizeDependencyEntry;
+import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTopology.MapEntry;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.CommodityBoughtTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.CommoditySoldSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.CommoditySoldTO;
@@ -89,13 +90,13 @@ public final class ProtobufToAnalysis {
     public static @NonNull DoubleBinaryOperator updatingFunction(@NonNull UpdatingFunctionTO input) {
         switch (input.getUpdatingFunctionTypeCase()) {
             case MAX:
-                return Math::max;
+                return (DoubleBinaryOperator & Serializable) Math::max;
             case MIN:
-                return Math::min;
+                return (DoubleBinaryOperator & Serializable) Math::min;
             case PROJECT_SECOND:
-                return (a, b) -> b;
+                return (DoubleBinaryOperator & Serializable) (a, b) -> b;
             case DELTA:
-                return (a, b) -> a + b;
+                return (DoubleBinaryOperator & Serializable) (a, b) -> a + b;
             case UPDATINGFUNCTIONTYPE_NOT_SET:
             default:
                 throw new IllegalArgumentException("input = " + input);

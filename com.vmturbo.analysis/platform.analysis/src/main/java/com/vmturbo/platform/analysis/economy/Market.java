@@ -2,6 +2,7 @@ package com.vmturbo.platform.analysis.economy;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -30,7 +31,7 @@ import org.checkerframework.dataflow.qual.Pure;
  *  traders in sync.
  * </p>
  */
-public final class Market {
+public final class Market implements Serializable {
     // Fields
 
     private final @NonNull Basket basket_; // see #getBasket()

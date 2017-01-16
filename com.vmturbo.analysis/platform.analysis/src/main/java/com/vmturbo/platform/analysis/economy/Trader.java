@@ -2,6 +2,7 @@ package com.vmturbo.platform.analysis.economy;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -26,7 +27,7 @@ import org.checkerframework.dataflow.qual.Pure;
  *  enforced initially.
  * </p>
  */
-public abstract class Trader {
+public abstract class Trader implements Serializable {
     // Fields
     private int economyIndex_;
     private int cloneOf_;

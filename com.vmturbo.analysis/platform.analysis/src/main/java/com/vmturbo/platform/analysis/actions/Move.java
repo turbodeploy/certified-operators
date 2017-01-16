@@ -1,5 +1,8 @@
 package com.vmturbo.platform.analysis.actions;
 
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
+
 import java.util.function.DoubleBinaryOperator;
 import java.util.function.Function;
 import java.util.function.IntFunction;
@@ -8,20 +11,16 @@ import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Pure;
-import static com.google.common.base.Preconditions.checkArgument;
 
 import com.google.common.collect.Lists;
 import com.google.common.hash.Hashing;
-
 import com.vmturbo.platform.analysis.economy.Basket;
-import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
-
-import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
 
 /**
  * An action to move a {@link ShoppingList} from one supplier to another.
@@ -308,4 +307,23 @@ public class Move extends MoveBase implements Action { // inheritance for code r
                         .asInt();
     }
 
+    /**
+     * Simulate the move on a copy of the Economy. It changes the destination quantities
+     * but does not modify those at the source.
+     *
+     * @param economy The economy containing target and destination.
+     * @param source The trader, target is going to move from.
+     * @param destination The trader, target is going to move to.
+     * @param target The shopping list that will move.
+     * @return The {@link Move} object.
+     */
+    public  @NonNull Move simulateChangeDestinationOnly(@NonNull Economy economy,
+                               @NonNull Trader source, @NonNull Trader destination,
+                               @NonNull ShoppingList target) {
+        if (source != destination) {
+            target.move(destination);
+            updateQuantities(economy, target, destination, (sold, bought) -> sold + bought);
+        }
+        return this;
+    }
 } // end Move class

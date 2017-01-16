@@ -12,8 +12,8 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import com.google.common.collect.BiMap;
 
+import com.google.common.collect.BiMap;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionImpl;
@@ -200,6 +200,7 @@ public class AnalysisToProtobufTest {
                                         .setQualityUpperBound(Integer.MAX_VALUE)
                                         .build()))
                         .setImportance((float)((ActionImpl)activate).getImportance())
+                        .setIsNotExecutable(false)
                         .build();
 
         Action deactivate = new Deactivate(e, vm2, e.getMarket(basketBought1));
@@ -216,6 +217,7 @@ public class AnalysisToProtobufTest {
                                                         .setQualityUpperBound(Integer.MAX_VALUE)
                                                         .build()).build()).setImportance((float)(
                                                         (ActionImpl)deactivate).getImportance())
+                        .setIsNotExecutable(false)
                         .build();
 
         Action move = new Move(e, shop2, pm1);
@@ -225,6 +227,7 @@ public class AnalysisToProtobufTest {
                                                         .setPerformance(Performance.newBuilder()
                                                                         .build()).build()).build())
                         .setImportance((float)((ActionImpl)move).getImportance())
+                        .setIsNotExecutable(false)
                         .build();
         Action provisionByDemand = new ProvisionByDemand(e, shop2, pm2);
         provisionByDemand.take(); // we call take to create provisionedSeller
@@ -252,6 +255,7 @@ public class AnalysisToProtobufTest {
                                                         .setMaxAmountAvailable(200).setRequestedAmount(0)
                                                         .build()))
                         .setImportance((float)((ActionImpl)provisionByDemand).getImportance())
+                        .setIsNotExecutable(false)
                         .build();
 
         Action provisionBySupply = new ProvisionBySupply(e, pm1);
@@ -265,6 +269,7 @@ public class AnalysisToProtobufTest {
                                         .setMostExpensiveCommodity(1000)
                                         .build()).setImportance((float)(
                                         (ActionImpl)provisionBySupply).getImportance())
+                        .setIsNotExecutable(false)
                         .build();
 
         Action resize = new Resize(e, pm1, CPU, 500);
@@ -278,6 +283,7 @@ public class AnalysisToProtobufTest {
                                                         .setQualityUpperBound(Integer.MAX_VALUE)
                                                         .build())).setImportance((float)
                                                         ((ActionImpl)resize).getImportance())
+                        .setIsNotExecutable(false)
                         .build();
 
         Action reconfigure = new Reconfigure(e, shop1);
@@ -285,6 +291,7 @@ public class AnalysisToProtobufTest {
                         .newBuilder().setReconfigure(ReconfigureTO.newBuilder()
                                         .setShoppingListToReconfigure(10l).setSource(2l).build())
                         .setImportance((float)((ActionImpl)reconfigure).getImportance())
+                        .setIsNotExecutable(false)
                         .build();
 
         ShoppingList[] twoShoppingLists = Arrays.copyOf(e.getMarketsAsBuyer(vm3).keySet().toArray(),
@@ -320,6 +327,7 @@ public class AnalysisToProtobufTest {
                                                         .build())
                                         .build()).setImportance((float)(
                                                         (ActionImpl)compoundMove).getImportance())
+                        .setIsNotExecutable(false)
                         .build();
         return new Object[][] {{activate, traderOids, shoppingListOids, topo, activateTO},
                         {deactivate, traderOids, shoppingListOids, topo, deActionTO},

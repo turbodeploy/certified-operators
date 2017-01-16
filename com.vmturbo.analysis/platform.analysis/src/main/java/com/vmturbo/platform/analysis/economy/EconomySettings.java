@@ -2,6 +2,8 @@ package com.vmturbo.platform.analysis.economy;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
+import java.io.Serializable;
+
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.dataflow.qual.Deterministic;
 import org.checkerframework.dataflow.qual.Pure;
@@ -11,7 +13,7 @@ import com.vmturbo.platform.analysis.actions.Move;
 /**
  * The settings associated with and parameterizing the behavior of a single {@link Economy}.
  */
-public final class EconomySettings {
+public final class EconomySettings implements Serializable {
     // Fields
 
     /**

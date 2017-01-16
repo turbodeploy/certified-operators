@@ -1,5 +1,6 @@
 package com.vmturbo.platform.analysis.economy;
 
+import java.io.Serializable;
 import java.util.function.DoubleBinaryOperator;
 
 import org.checkerframework.checker.javari.qual.ReadOnly;
@@ -19,7 +20,7 @@ import com.google.common.hash.Hashing;
  * Provisioned (sold) of the host.
  *
  */
-public final class CommodityResizeSpecification {
+public final class CommodityResizeSpecification implements Serializable {
 
     // Fields
 

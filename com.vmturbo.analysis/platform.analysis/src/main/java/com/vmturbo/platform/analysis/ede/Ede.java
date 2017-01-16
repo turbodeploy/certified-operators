@@ -1,5 +1,6 @@
 package com.vmturbo.platform.analysis.ede;
 
+import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -102,13 +103,22 @@ public final class Ede {
                                                           boolean isShopTogether,
                                                           boolean isProvision, boolean isSuspension,
                                                           boolean isResize, boolean collapse, String mktName) {
+        logger.info("Plan Started.");
+        @NonNull List<Action> actions = new ArrayList<>();
+        ActionClassifier classifier;
+        try {
+            classifier = new ActionClassifier(economy);
+        }
+        catch (ClassNotFoundException|IOException e) {
+            logger.error("Could not copy economy.", e);
+            return actions;
+        }
+
         StatsUtils statsUtils = new StatsUtils("m2stats-" + mktName, true);
 
-        logger.info("Plan Started.");
         // create a subset list of markets that have atleast one buyer that can move
         economy.composeMarketSubsetForPlacement();
         // generate moves for IDLE VMs
-        @NonNull List<Action> actions = new ArrayList<>();
         actions.addAll(Placement.prefPlacementDecisions(economy, economy.getIdleVms()));
         int oldActionCount = actions.size();
         logger.info("Plan completed idleVM placement with " + oldActionCount + " actions.");
@@ -183,12 +193,13 @@ public final class Ede {
             // Reorder actions by type.
             actions = Action.groupActionsByTypeAndReorderBeforeSending(collapsed);
         }
+        // mark non-executable actions
+        classifier.classify(actions);
         logger.info("Plan completed with " + actions.size() + " actions.");
         // total time to run plan
         statsUtils.after(begin);
         // file total actions
         statsUtils.appendAtEnd(actions.size(), false, true);
-
 
         if (logger.isDebugEnabled()) {
             // Log number of actions by type

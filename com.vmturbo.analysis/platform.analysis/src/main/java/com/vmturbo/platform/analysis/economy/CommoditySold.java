@@ -2,6 +2,8 @@ package com.vmturbo.platform.analysis.economy;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
+import java.io.Serializable;
+
 import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -15,7 +17,7 @@ import org.checkerframework.dataflow.qual.Pure;
  *  A CommoditySold instance should be sold by exactly one Trader instance.
  * </p>
  */
-public abstract class CommoditySold {
+public abstract class CommoditySold implements Serializable {
     // Fields
     private double quantity_ = 0.0;
     private double peakQuantity_ = 0.0;

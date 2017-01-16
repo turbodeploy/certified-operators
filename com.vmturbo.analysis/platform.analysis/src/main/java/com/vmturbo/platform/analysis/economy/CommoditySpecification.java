@@ -2,6 +2,8 @@ package com.vmturbo.platform.analysis.economy;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
+import java.io.Serializable;
+
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
@@ -30,7 +32,7 @@ import com.google.common.hash.Hashing;
  *  CommoditySpecification objects are immutable.
  * </p>
  */
-public final class CommoditySpecification implements Comparable<CommoditySpecification> {
+public final class CommoditySpecification implements Comparable<CommoditySpecification>, Serializable {
     // Fields
     private final int type_; // must be non-negative.
     private final int baseType_; // must be non-negative.

@@ -1,11 +1,13 @@
 package com.vmturbo.platform.analysis.pricefunction;
 
+import java.io.Serializable;
+
 import org.checkerframework.dataflow.qual.Pure;
 
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 
 @FunctionalInterface
-public interface PriceFunction {
+public interface PriceFunction extends Serializable {
     // Methods
 
     /**

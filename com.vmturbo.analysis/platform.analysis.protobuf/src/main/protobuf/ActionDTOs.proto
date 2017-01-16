@@ -187,4 +187,5 @@ message ActionTO {
         CompoundMoveTO compound_move = 8;
     }
     required double importance = 9 [default = -1.7976931348623157e+308];
+    required bool is_not_executable = 10;
 }
