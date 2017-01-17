@@ -120,6 +120,8 @@ public class Placement {
             return actions;
         if (sellers.isEmpty()) {
             actions.add(new Reconfigure(economy, shoppingList).take().setImportance(Double.POSITIVE_INFINITY));
+            // To prevent regeneration of duplicate reconfigure actions
+            shoppingList.setMovable(false);
             return actions;
         }
 
