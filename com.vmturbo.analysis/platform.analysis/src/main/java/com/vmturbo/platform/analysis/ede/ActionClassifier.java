@@ -174,7 +174,8 @@ public class ActionClassifier {
         actions.stream().filter(a -> a instanceof Move).forEach(m -> {
             Move move = (Move) m;
 
-            Trader currentSupplierCopy = lookupTraderInSimulationEconomy(move.getSource());
+            Trader currentSupplierCopy = move.getSource() != null ?
+                            lookupTraderInSimulationEconomy(move.getSource()) : null;
             Trader newSupplierCopy = lookupTraderInSimulationEconomy(move.getDestination());
             if (newSupplierCopy == null) {
                 move.setExecutable(false);

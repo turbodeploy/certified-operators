@@ -307,7 +307,7 @@ public final class Basket implements Comparable<@NonNull @ReadOnly Basket>, Iter
         }
         // if any commoditySpecification in the basket does not match, return false immediately
         for (CommoditySpecification commSpec : otherBasket.contents_) {
-            if (!get(indexOf(commSpec)).equals(commSpec)) {
+            if (indexOf(commSpec) < 0 || !get(indexOf(commSpec)).equals(commSpec)) {
                 return false;
             }
         }

@@ -137,7 +137,7 @@ public final class AnalysisServer {
                             runAnalysis(session, command.getTopologyId());
                         }
                     };
-                    new Thread(runAnalysis).start();
+                    new Thread(null, runAnalysis, "Market2-"+command.getTopologyId(), 1L<<21).start();
                     break;
                 case FORCE_PLAN_STOP:
                     logger.info("Received a message to stop running analysis from session "
