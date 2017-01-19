@@ -7,9 +7,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.DoubleBinaryOperator;
+
 import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
+
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 import com.google.common.collect.Maps;
@@ -23,6 +25,7 @@ import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 
 /**
  * Encapsulates an {@link Economy} together with a number of auxiliary maps, for use by code that
@@ -51,7 +54,7 @@ public final class Topology {
     // A map to record the newly provisioned trader's shoppinglist to the provisioned trader
     private final @NonNull Map<@NonNull Long, @NonNull Long> newShoppingListToBuyerMap_ = new HashMap<>();
     // Id that uniquely identifies the topology
-    private long topologyId;
+    private long topologyId_;
 
     // Cached data
 
@@ -74,7 +77,7 @@ public final class Topology {
      * Constructs an empty Topology
      */
     public Topology() {
-        // nothing to do
+        economy_.setTopology(this);
     }
 
     // Methods
@@ -296,10 +299,15 @@ public final class Topology {
     }
 
     public long getTopologyId() {
-        return topologyId;
+        return topologyId_;
     }
 
     public void setTopologyId(long topologyId) {
-        this.topologyId = topologyId;
+        topologyId_ = topologyId;
     }
+
+    public boolean addTradersForHeadroom(TraderTO trader) {
+        return economy_.getTradersForHeadroom().add(trader);
+    }
+
 } // end Topology class

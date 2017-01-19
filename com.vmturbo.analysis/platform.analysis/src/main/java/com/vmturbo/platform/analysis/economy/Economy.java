@@ -27,6 +27,8 @@ import org.checkerframework.dataflow.qual.Pure;
 import org.checkerframework.dataflow.qual.SideEffectFree;
 
 import com.google.common.primitives.Ints;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
+import com.vmturbo.platform.analysis.topology.Topology;
 
 /**
  * A set of related markets and the traders participating in them.
@@ -60,6 +62,8 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     private final @NonNull List<@NonNull Market> marketsForPlacement_ = new ArrayList<>();
     // list of IDLE VMs in the economy
     private final @NonNull List<@NonNull ShoppingList> idleVmSls_ = new ArrayList<>();
+    private final List<TraderTO> tradersForHeadroom_ = new ArrayList<>();
+    private Topology topology_;
     // Cached data
 
     // Cached unmodifiable view of the markets_.values() collection.
@@ -577,6 +581,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
      * create a list containing a  subset of Markets that have atleast one trader that is movable
      */
     public void composeMarketSubsetForPlacement() {
+        marketsForPlacement_.clear();
         getMarkets().stream().filter(market -> market.getBuyers().stream().filter(sl ->
             sl.isMovable()).count() != 0).collect(Collectors.toCollection(() ->
             marketsForPlacement_));
@@ -602,5 +607,27 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
              }
         }
     }
+    
+    /**
+     * list of traderTOs
+     * @return list of {@link TraderTO}s
+     */
+    @Override
+    public List<TraderTO> getTradersForHeadroom() {
+        return tradersForHeadroom_;
+    }
 
+    /**
+     * save the {@link Topology} associated with this {@link Economy}
+     */
+    public void setTopology(Topology topology) {
+        topology_ = topology;
+    }
+
+    /**
+     * @return return the {@link Topology} associated with this {@link Economy}
+     */
+    public Topology getTopology() {
+        return topology_;
+    }
 } // end class Economy

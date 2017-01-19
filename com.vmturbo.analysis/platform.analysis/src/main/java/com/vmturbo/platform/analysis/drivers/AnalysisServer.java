@@ -112,8 +112,13 @@ public final class AnalysisServer {
                     settings.setExpenseMetricFactor(settingsTO.getExpenseMetricFactor());
                     break;
                 case DISCOVERED_TRADER:
-                    ProtobufToAnalysis.addTrader(analysisInstanceInfoMap.get(command.getTopologyId())
-                                                 .getCurrentPartial(), command.getDiscoveredTrader());
+                    if (command.getDiscoveredTrader().getTemplateForHeadroom()) {
+                        analysisInstanceInfoMap.get(command.getTopologyId())
+                        .getCurrentPartial().addTradersForHeadroom(command.getDiscoveredTrader());
+                    } else {
+                        ProtobufToAnalysis.addTrader(analysisInstanceInfoMap.get(command.getTopologyId())
+                                                     .getCurrentPartial(), command.getDiscoveredTrader());
+                    }
                     break;
                 case END_DISCOVERED_TOPOLOGY:
                     // Finish topology
@@ -205,9 +210,22 @@ public final class AnalysisServer {
         long start = System.nanoTime();
         Economy economy = (Economy)lastComplete.getEconomy();
         PriceStatement startPriceStatement = new PriceStatement().computePriceIndex(economy);
-        @NonNull List<@NonNull Action> actions = new Ede().generateActions(
-                        economy, instInfo.isShopTogetherEnabled(), instInfo.isProvisionEnabled(),
-                        instInfo.isSuspensionEnabled(), instInfo.isResizeEnabled(), true, instInfo.getMarketName());
+        @NonNull List<@NonNull Action> actions;
+        if (lastComplete.getEconomy().getTradersForHeadroom().isEmpty()) {
+            actions = new Ede().generateActions(economy,
+                                                instInfo.isShopTogetherEnabled(),
+                                                instInfo.isProvisionEnabled(),
+                                                instInfo.isSuspensionEnabled(),
+                                                instInfo.isResizeEnabled(), mktName);
+        } else {
+            // if there are no templates to be added this is not a headroom plan
+            actions = new Ede().generateHeadroomActions(economy,
+                                                        instInfo.isShopTogetherEnabled(),
+                                                        instInfo.isProvisionEnabled(),
+                                                        instInfo.isSuspensionEnabled(),
+                                                        instInfo.isResizeEnabled(), true);
+        }
+
         // if the analysis was forced to stop, send a planStopped message back
         // to M1 which can further clear the plan related data
         if (lastComplete.getEconomy().getForceStop()) {

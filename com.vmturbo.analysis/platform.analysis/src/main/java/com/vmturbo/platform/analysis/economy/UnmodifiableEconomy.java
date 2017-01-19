@@ -10,6 +10,8 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
 import org.checkerframework.dataflow.qual.SideEffectFree;
 
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
+
 /**
  * An unmodifiable view of an {@link Economy}.
  *
@@ -221,4 +223,9 @@ public interface UnmodifiableEconomy {
     @NonNull
     @ReadOnly
     List<@NonNull @ReadOnly ShoppingList> getIdleVms();
+
+    /**
+     * @return list of {@link TraderTO}s
+     */
+    List<TraderTO> getTradersForHeadroom();
 } // end UnmodifiableEconomy interface

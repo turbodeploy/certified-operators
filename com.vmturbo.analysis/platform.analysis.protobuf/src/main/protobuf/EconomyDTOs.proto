@@ -187,4 +187,8 @@ message TraderTO {
 
     // The number of buyers that consuming the trader
     optional int32 num_of_produces = 10;
+
+    // This field specifies weather a trader is a clone of a sampleSE from a template used
+    // for headroom plans
+    optional bool templateForHeadroom = 11 [default = false];
 }

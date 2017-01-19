@@ -14,6 +14,7 @@ import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ledger.Ledger;
 import com.vmturbo.platform.analysis.utilities.StatsUtils;
+import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
 
 /**
  *
@@ -126,7 +127,9 @@ public final class Ede {
         // Start by provisioning enough traders to satisfy all the demand
         // Save first call to before() to calculate total plan time
         Instant begin = statsUtils.before();
-        actions.addAll(BootstrapSupply.bootstrapSupplyDecisions(economy));
+        if (isProvision) {
+            actions.addAll(BootstrapSupply.bootstrapSupplyDecisions(economy));
+        }
         logger.info("Plan completed bootstrap with " + (actions.size() - oldActionCount)
                     + " actions.");
         // time to run bootstrap
@@ -211,4 +214,36 @@ public final class Ede {
         return actions;
     }
 
+    /**
+     * Run a capacity plan using the economic scheduling engine and generate a new set of actions.
+     *
+     * @param economy The snapshot of the economy which we analyze and take decisions.
+     * @param isShopTogether True if we want to enable SNM and false otherwise.
+     * @param isProvision True if we need to trigger provision algorithm and false otherwise
+     * @param isSuspension True if we need to trigger suspension algorithm and false otherwise
+     * @param isResize True if we need to trigger resize algorithm and false otherwise
+     * @param collapse whether to collapse the returned list of actions.
+     * @return A list of actions suggested after running a capacityPlan using 
+     *          the the economic decisions engine.
+     *
+     * @see {@link Action#collapsed(List)}
+     */
+    public @NonNull List<@NonNull Action> generateHeadroomActions(@NonNull Economy economy,
+                                                          boolean isShopTogether, boolean isProvision, boolean isSuspension,
+                                                          boolean isResize, boolean collapse) {
+        // create a subset list of markets that have at least one buyer that can move
+        economy.composeMarketSubsetForPlacement();
+        @NonNull List<Action> actions = new ArrayList<>();
+        // balance entities in plan
+        actions.addAll(generateActions(economy, isShopTogether, isProvision, isSuspension, isResize));
+        logger.info("Plan completed initial placement with " + actions.size() + " actions.");
+        // add clones of sampleSE to the economy
+        economy.getTradersForHeadroom().forEach(template -> ProtobufToAnalysis.addTrader(
+                                        economy.getTopology(), template));
+        int oldActionCount = actions.size();
+        actions.addAll(generateActions(economy, isShopTogether, isProvision, isSuspension, isResize));
+        logger.info("Plan completed placement after adding demand with " + (actions.size() - oldActionCount)
+                    + " actions.");
+        return actions;
+    }
 }
