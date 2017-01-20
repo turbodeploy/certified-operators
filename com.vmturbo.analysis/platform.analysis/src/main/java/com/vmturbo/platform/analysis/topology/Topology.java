@@ -1,5 +1,6 @@
 package com.vmturbo.platform.analysis.topology;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -15,16 +16,16 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 import com.google.common.collect.Maps;
+import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommodityResizeSpecification;
-import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
-import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 
 /**
@@ -42,7 +43,7 @@ import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
  *  It is responsible for keeping the managed maps and economy consistent with each other.
  * </p>
  */
-public final class Topology {
+public final class Topology implements Serializable {
     // Fields
     private final @NonNull Economy economy_ = new Economy(); // The managed economy.
     private final @NonNull BiMap<@NonNull Trader, @NonNull Long> traderOids_ = HashBiMap.create();
