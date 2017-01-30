@@ -13,7 +13,9 @@ import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ledger.Ledger;
+import com.vmturbo.platform.analysis.utilities.StatsManager;
 import com.vmturbo.platform.analysis.utilities.StatsUtils;
+import com.vmturbo.platform.analysis.utilities.StatsWriter;
 import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
 
 /**
@@ -38,7 +40,7 @@ public final class Ede {
     static final Logger logger = Logger.getLogger(Ede.class);
 
     /**
-     * generateActions with a market name specified.
+     * Generate Actions.
      *
      * Add 'collapse' argument
      * @see {@link #generateActions(Economy, boolean, boolean, boolean, boolean, boolean)}
@@ -51,7 +53,7 @@ public final class Ede {
                                mktName);
     }
 
-    /** generateActions with no market name specified.
+    /** Generate Actions.
      *
      * Add 'collapse' argument
      * @see {@link #generateActions(Economy, boolean, boolean, boolean, boolean, boolean, String)}
@@ -60,7 +62,7 @@ public final class Ede {
                                                           boolean isShopTogether,
                                                           boolean isProvision, boolean isSuspension,
                                                           boolean isResize) {
-        return generateActions(economy, isShopTogether, isProvision, isSuspension, isResize, false, "unspecified");
+        return generateActions(economy, isShopTogether, isProvision, isSuspension, isResize, false, "unspecified|");
 
     }
 
@@ -82,7 +84,7 @@ public final class Ede {
                                                           boolean isProvision, boolean isSuspension,
                                                           boolean isResize, boolean collapse) {
         return generateActions(economy, isShopTogether, isProvision, isSuspension, isResize,
-                               collapse, "unspecified");
+                               collapse, "unspecified|");
 
     }
 
@@ -95,7 +97,8 @@ public final class Ede {
      * @param isSuspension True if we need to trigger suspension algorithm and false otherwise
      * @param isResize True if we need to trigger resize algorithm and false otherwise
      * @param collapse whether to collapse the returned list of actions.
-     * @param marketName The market name
+     * @param mktData contains the market name and any stats to be written to the row
+     *          delimited by "|"
      * @return A list of actions suggested by the economic decisions engine.
      *
      * @see {@link Action#collapsed(List)}
@@ -103,7 +106,7 @@ public final class Ede {
     public @NonNull List<@NonNull Action> generateActions(@NonNull Economy economy,
                                                           boolean isShopTogether,
                                                           boolean isProvision, boolean isSuspension,
-                                                          boolean isResize, boolean collapse, String mktName) {
+                                                          boolean isResize, boolean collapse, String mktData) {
         logger.info("Plan Started.");
         @NonNull List<Action> actions = new ArrayList<>();
         ActionClassifier classifier;
@@ -115,7 +118,15 @@ public final class Ede {
             return actions;
         }
 
-        StatsUtils statsUtils = new StatsUtils("m2stats-" + mktName, true);
+        //Parse market stats data coming from Market1, add prepare to write to stats file.
+        String data[] = StatsUtils.getTokens(mktData, "|");
+        StatsUtils statsUtils = new StatsUtils("m2stats-" + data[0], true);
+        if (data.length == 3) {
+            statsUtils.append(data[1]);
+            statsUtils.after(Instant.parse(data[2]));
+        } else {
+            statsUtils.append("NA,NA,NA,NA"); //currently 4 columns for topology related  data
+        }
 
         // create a subset list of markets that have atleast one buyer that can move
         economy.composeMarketSubsetForPlacement();
@@ -133,7 +144,7 @@ public final class Ede {
         logger.info("Plan completed bootstrap with " + (actions.size() - oldActionCount)
                     + " actions.");
         // time to run bootstrap
-        statsUtils.after(true, false);
+        statsUtils.after();
 
         oldActionCount = actions.size();
         statsUtils.before();
@@ -202,7 +213,9 @@ public final class Ede {
         // total time to run plan
         statsUtils.after(begin);
         // file total actions
-        statsUtils.appendAtEnd(actions.size(), false, true);
+        statsUtils.append(actions.size(), false, false);
+        StatsWriter statsWriter = StatsManager.getInstance().init("m2stats-" + data[0]);
+        statsWriter.add(statsUtils.getdata());
 
         if (logger.isDebugEnabled()) {
             // Log number of actions by type
@@ -223,7 +236,7 @@ public final class Ede {
      * @param isSuspension True if we need to trigger suspension algorithm and false otherwise
      * @param isResize True if we need to trigger resize algorithm and false otherwise
      * @param collapse whether to collapse the returned list of actions.
-     * @return A list of actions suggested after running a capacityPlan using 
+     * @return A list of actions suggested after running a capacityPlan using
      *          the the economic decisions engine.
      *
      * @see {@link Action#collapsed(List)}

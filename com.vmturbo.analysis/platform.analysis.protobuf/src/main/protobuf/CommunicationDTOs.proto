@@ -103,6 +103,7 @@ message AnalysisCommand {
     }
     optional int64 topology_id = 5;
     optional string market_name = 6;
+    optional string market_data = 7;
 }
 
 // It shouldn't matter if the connection is dropped and reestablished at any point between messages.

@@ -1,15 +1,16 @@
 package com.vmturbo.platform.analysis.utilities;
 
+import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.nio.file.Files;
-import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
+import java.util.StringTokenizer;
 
 import org.apache.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -18,9 +19,8 @@ import org.checkerframework.checker.nullness.qual.NonNull;
  * This class is for internal use to log stats to file.
  *
  * It logs to a file named by the date and market name, so that a market and plan running in parallel
- * do not conflict.  It has a .csv extension to allow it to open in excel.
- * TODO: Using FileLock.lock() if multiple threads write to a stats file with the same name at the same time.
- * Replace with another locking mechanism if FileLock is not the most appropriate
+ * preserve data integrity.
+ * Supports concurrent writes by multiple threads
  *
  * @author reshmakumar1
  *
@@ -30,20 +30,25 @@ public class StatsUtils {
 
     static final Logger logger = Logger.getLogger(StatsUtils.class);
     // Delimiters used in CSV file
-    private static final String fieldSeparator = ",";
-    private static final String recordSeparator = "\n";
-    private static final String statsFilePrefix = Paths.get(".").toAbsolutePath().normalize().toString() + File.separator
-                     + "data" + File.separator + "repos" + File.separator;
+    private static final String FIELD_SEPARATOR = ",";
+    private static final String RECORD_SEPARATOR = "\n";
+    private static final String statsFilePrefix = Paths.get(".").toAbsolutePath().normalize()
+                    .toString() + File.separator
+                                                  + "data"
+                                                  //+ File.separator
+                                                  //+ "repos"
+                                                  + File.separator;
 
     private static final SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd");
     private static final SimpleDateFormat simpleDateFormatWithTime =
-                                                                   new SimpleDateFormat("MM-DD-YY-HH:SS");
+                                                       new SimpleDateFormat("MM-DD-YY-HH:SS");
     private static final SimpleDateFormat simpleTimeFormat =
                                                            new SimpleDateFormat("h:mm a");
     private String statsFileName;
     private StringBuilder dataBuffer = new StringBuilder();
-    private Instant before;
-    private boolean enabled = true;
+    private Instant before_;
+    private boolean enabled_ = true;
+
 
     public StatsUtils(@NonNull String filename, boolean isEnabled) {
         if (!isEnabled()) {
@@ -51,18 +56,16 @@ public class StatsUtils {
         }
 
         Path path = Paths.get(statsFilePrefix);
-        boolean pathExists =
-                           Files.exists(path,
-                                        new LinkOption[] {LinkOption.NOFOLLOW_LINKS});
-        // XL
-        if (!pathExists) {
-            statsFileName = System.getenv().get("HOME").toString() + File.separator + "data"
-                            + File.separator + filename + ".csv";
-            logger.info("XL stats file path:" + statsFileName);
-        // non-XL
-        } else {
-            statsFileName = statsFilePrefix + filename + ".csv";
-        }
+        String prefix = Files.exists(path)
+                        ? statsFilePrefix
+                        : System.getProperty("user.home")
+                          + File.separator
+                          + "data"
+                          + File.separator;
+
+        statsFileName = prefix + filename + ".csv";
+        logger.info("XL stats file path:" + statsFileName);
+
         setEnabled(isEnabled);
     }
 
@@ -72,7 +75,7 @@ public class StatsUtils {
      * Stats are written to file daily if enabled is true.
      */
     public boolean isEnabled() {
-        return enabled;
+        return enabled_;
     }
 
     /**
@@ -80,7 +83,16 @@ public class StatsUtils {
      *
      */
     private void setEnabled(boolean enabled) {
-        this.enabled = enabled;
+        this.enabled_ = enabled;
+    }
+
+    /**
+     * Return the internal data buffer.
+     *
+     *
+     */
+    public String getdata() {
+        return dataBuffer.toString();
     }
 
     /**
@@ -92,16 +104,16 @@ public class StatsUtils {
         if (!isEnabled()) {
             return;
         }
-        try (FileWriter fileWriter = new FileWriter(statsFileName, true)) {
+        try (BufferedWriter bufferedWriter = new BufferedWriter(new FileWriter(statsFileName, true))) {
             // append data to file
             String data = dataBuffer.toString();
             if (isLast) {
-                fileWriter.append(data + recordSeparator);
+                bufferedWriter.append(data + RECORD_SEPARATOR);
             } else {
                 if (data.length() > 0) {
-                    fileWriter.append(data);
-                    if (!data.substring(data.length() - 1).equals(fieldSeparator)) {
-                        fileWriter.append(fieldSeparator);
+                    bufferedWriter.append(data);
+                    if (!data.substring(data.length() - 1).equals(FIELD_SEPARATOR)) {
+                        bufferedWriter.append(FIELD_SEPARATOR);
                     }
                 }
             }
@@ -184,36 +196,38 @@ public class StatsUtils {
     }
 
     /**
-     * Instant now.
+     * The Instant at the beginning of a duration to be computed later.
      *
+     * It returns a value, so that it can be saved for later use, say in a local variable, as every
+     * call to this method will reset before_.
+     * All duration calculations calculate duration from the last call to before().  Suppose we
+     * wanted to calculate durations between events A and B  and also B and C  and A and C.  Then
+     * the Instant before() called for event B would overwrite the value of before_ at event A.
+     * Hence the return value, so that the value of before_ at A can be preserved by the caller if
+     * required.
      */
     public Instant before() {
-        before = Instant.now();
-        return before;
+        before_ = Instant.now();
+        return before_;
     }
 
     /**
      * Duration between last call to before() and now.
      *
-     * @param isFirst is this the first value in a list of values being written.
+     * @param isFirst is this the first value in a list of values to be written.
      * @param doFlush - write to file (true when a concatenated list is ready to write).
      */
     public void after(boolean isFirst, boolean doFlush) {
-        if(!isEnabled()) {
-            return;
-        }
-        append(getDurationInMilliSec(before, Instant.now()), isFirst, doFlush);
+        append(getDurationInMilliSec(before_, Instant.now()), isFirst, doFlush);
     }
 
     /**
      * Duration between last call to before() and now.
-     * No arguments implies arguments of false meaning it's not the first.
-     * in a list of values being written and it's not to be written to file yet.
+     *
+     * No arguments implies both arguments are default false, meaning it's not the first
+     * in a list of values to be written, and it's not ready to be written to file yet.
      */
     public void after() {
-        if(!isEnabled()) {
-            return;
-        }
         after(false, false);
     }
 
@@ -221,27 +235,21 @@ public class StatsUtils {
      * Duration between Instant prior and now.
      *
      * @param prior.
-     * @param isFirst is this first value in a list of values being written.
+     * @param isFirst is this first value in a list of values to be written.
      * @param doFlush - write to file (true when a concatenated list is ready to write).
      */
     public void after(@NonNull Instant prior, boolean isFirst, boolean doFlush) {
-        if(!isEnabled()) {
-            return;
-        }
         append(getDurationInMilliSec(prior, Instant.now()), isFirst, doFlush);
     }
 
     /**
      * Duration between Instant prior and now.
-     * By default it's not the first in a list of values being written and
-     * it's not to be written to file yet.
+     * By default it's not the first in a list of values to be written and
+     * it's not ready to be written to file yet.
      *
      * @param prior
      */
     public void after(@NonNull Instant prior) {
-        if(!isEnabled()) {
-            return;
-        }
         append(getDurationInMilliSec(prior, Instant.now()));
     }
 
@@ -249,7 +257,7 @@ public class StatsUtils {
      * Build a comma separated list of values to add to file.  Write if doFlush is true.
      *
      * @param data data to write.
-     * @param isFirst is this first value in a list of values being written.
+     * @param isFirst is this first value in a list of values to be written.
      * @param doFlush - write to file (true when a concatenated list is ready to write).
      */
     public void append(@NonNull Object data, boolean isFirst, boolean doFlush) {
@@ -259,76 +267,79 @@ public class StatsUtils {
         if (isFirst) {
             dataBuffer.setLength(0);
         }
-        dataBuffer.append(data + fieldSeparator);
+        dataBuffer.append(data + FIELD_SEPARATOR);
         if (doFlush) {
             flush();
         }
     }
 
     /**
-     * By default data is not the first in a list of values being written and
-     * it's not to be written to file yet.
+     * By default data is not the first in a list of values to be written and
+     * it's not ready to be written to file yet.
      *
      * @param data data to write.
      */
     public void append(@NonNull Object data) {
-        if(!isEnabled()) {
-            return;
-        }
         append(data, false, false);
     }
 
     /**
-     * Build a comma separated list of values to add to file, at the end of a row.  Write if doFlush is true.
+     * Build a comma separated list of values to add to file, at the end of a row.
+     * Write if doFlush is true.
      *
      * @param data data to write.
-     * @param isFirst is this first value in a list of values being written.
+     * @param isFirst is this first value in a list of values  to be written.
      * @param doFlush - write to file (true when a concatenated list is ready to write).
      */
-    public void appendAtEnd(@NonNull Object data, boolean isFirst, boolean doFlush) {
-        if(!isEnabled()) {
-            return;
-        }
-        append(data, false, true);
+    public void appendAtRowEnd(@NonNull Object data, boolean isFirst, boolean doFlush) {
+        append(data, false, doFlush);
         flush(true);
     }
 
     /**
-     * concatenate date and time to be logged.
+     * Concatenate date and time to be logged.
      *
-     * @param isFirst is this first value in a list of values being written.
+     * @param isFirst is this first value in a list of values to be written.
      * @param doFlush - write to file (true when a concatenated list is ready to write).
      */
     public void appendDateTime(boolean isFirst, boolean doFlush) {
-        if(!isEnabled()) {
-            return;
-        }
         append(getDateTime(), false, doFlush);
     }
 
     /**
      * concatenate time to be logged.
      *
-     * @param isFirst is this first value in a list of values being written.
+     * @param isFirst is this first value in a list of values to be written.
      * @param doFlush - write to file (true when a concatenated list is ready to write).
      */
     public void appendTime(boolean isFirst, boolean doFlush) {
-        if(!isEnabled()) {
-            return;
-        }
         append(getTime(), false, doFlush);
     }
 
     /**
      * concatenate date to be logged.
      *
-     * @param isFirst is this first value in a list of values being written.
+     * @param isFirst is this first value in a list of values to be written.
      * @param doFlush - write to file (true when a concatenated list is ready to write).
      */
     public void appendDate(boolean isFirst, boolean doFlush) {
-        if(!isEnabled()) {
-            return;
-        }
         append(getDate(), false, doFlush);
     }
+
+    /**
+     * Split String into tokens based on a specified delimiter.
+     *
+     * @param str  String to split.
+     * @param delim The delimiter.
+     * @return
+     */
+    public static String[] getTokens(String str, String delim){
+        StringTokenizer stok = new StringTokenizer(str, delim);
+        String tokens[] = new String[stok.countTokens()];
+        for(int i=0; i<tokens.length; i++){
+            tokens[i] = stok.nextToken();
+        }
+        return tokens;
+    }
+
 }

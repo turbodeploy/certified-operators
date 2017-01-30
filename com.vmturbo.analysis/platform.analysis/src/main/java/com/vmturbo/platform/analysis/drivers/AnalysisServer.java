@@ -100,6 +100,7 @@ public final class AnalysisServer {
                                                     .getEnableShopTogether());
                     instInfo.getLastComplete().setTopologyId(command.getTopologyId());
                     instInfo.setMarketName(command.getMarketName());
+                    instInfo.setMarketData(command.getMarketData());
                     Topology currentPartial = instInfo.getCurrentPartial();
                     currentPartial.setTopologyId(command.getTopologyId());
                     EconomySettingsTO settingsTO = command.getStartDiscoveredTopology()
@@ -133,6 +134,7 @@ public final class AnalysisServer {
                     instInfoAfterDisc.setSuspensionEnabled(endDiscMsg.getEnableSuspension());
                     instInfoAfterDisc.setResizeEnabled(endDiscMsg.getEnableResize());
                     instInfoAfterDisc.setMarketName(command.getMarketName());
+                    instInfoAfterDisc.setMarketData(command.getMarketData());
 
                     // create a new thread to run the analysis algorithm so that
                     // it does not block the server to receive messages from M1
@@ -206,6 +208,7 @@ public final class AnalysisServer {
         instInfo.setLastComplete(lastComplete);
         instInfo.setCurrentPartial(temp);
         String mktName = instInfo.getMarketName();
+        String mktData = instInfo.getMarketData();
         // Run one round of placement measuring time-to-process
         long start = System.nanoTime();
         Economy economy = (Economy)lastComplete.getEconomy();
@@ -216,7 +219,7 @@ public final class AnalysisServer {
                                                 instInfo.isShopTogetherEnabled(),
                                                 instInfo.isProvisionEnabled(),
                                                 instInfo.isSuspensionEnabled(),
-                                                instInfo.isResizeEnabled(), mktName);
+                                                instInfo.isResizeEnabled(), mktData);
         } else {
             // if there are no templates to be added this is not a headroom plan
             actions = new Ede().generateHeadroomActions(economy,
@@ -249,7 +252,7 @@ public final class AnalysisServer {
         } catch (Throwable error) {
             logger.error("Exception thrown while sending back actions", error);
             StatsUtils statsUtils = new StatsUtils("m2stats-" + mktName, true);
-            statsUtils.write("Exception sending back actions: " + error, true);
+            statsUtils.write("Exception sending back actions: " + error + "\n", true);
         } finally {
             // remove topologyInfo from the map
             analysisInstanceInfoMap.remove(topologyId);
@@ -275,6 +278,8 @@ public final class AnalysisServer {
         boolean isResizeEnabled = true;
         // market name
         String marketName_;
+        // market data
+        String marketData_;
 
         public boolean isShopTogetherEnabled() {
             return isShopTogetherEnabled;
@@ -293,6 +298,9 @@ public final class AnalysisServer {
         }
         public String getMarketName() {
             return marketName_;
+        }
+        public String getMarketData() {
+            return marketData_;
         }
         public void setSuspensionEnabled(boolean isSuspensionEnabled) {
             this.isSuspensionEnabled = isSuspensionEnabled;
@@ -317,6 +325,9 @@ public final class AnalysisServer {
         }
         public void setMarketName(String marketName) {
             marketName_ = marketName;
+        }
+        public void setMarketData(String marketData) {
+            marketData_ = marketData;
         }
     } // end AnalysisInstanceInfo class
 
