@@ -38,6 +38,7 @@ public final class EconomySettings implements Serializable {
     private double rightSizeUpper_;
     private boolean useExpenseMetricForTermination_;
     private float expenseMetricFactor_;
+    private float rateOfResize_ = 1.0f;
 
     // Constructors
 
@@ -136,6 +137,11 @@ public final class EconomySettings implements Serializable {
         return expenseMetricFactor_;
     }
 
+    @Pure
+    public float getRateOfResize(@ReadOnly EconomySettings this) {
+        return rateOfResize_;
+    }
+
     @Deterministic
     public EconomySettings setRightSizeLower(double rightSizeLower) {
         checkArgument(rightSizeLower >= 0, "rightSizeLower = " + rightSizeLower);
@@ -160,6 +166,13 @@ public final class EconomySettings implements Serializable {
     @Deterministic
     public EconomySettings setExpenseMetricFactor(float expenseMetricFactor) {
         expenseMetricFactor_ = expenseMetricFactor;
+        return this;
+    }
+
+    @Deterministic
+    public EconomySettings setRateOfResize(float rateOfRightSize) {
+        checkArgument(rateOfRightSize > 0, "rateOfRightSize = " + rateOfRightSize);
+        rateOfResize_ = rateOfRightSize;
         return this;
     }
 

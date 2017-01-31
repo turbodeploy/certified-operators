@@ -52,6 +52,7 @@ public class Resizer {
     public static @NonNull List<@NonNull Action> resizeDecisions(@NonNull Economy economy,
                                                                  @NonNull Ledger ledger) {
         List<@NonNull Action> actions = new ArrayList<>();
+        float rateOfResize = economy.getSettings().getRateOfResize();
 
         ledger.calculateAllCommodityExpensesAndRevenues(economy);
 
@@ -83,7 +84,7 @@ public class Resizer {
                                                                             soldIndex);
                             double newEffectiveCapacity =
                                calculateEffectiveCapacity(desiredCapacity, commoditySold,
-                                                          rawMaterial);
+                                                          rawMaterial, rateOfResize);
                             if (Double.compare(newEffectiveCapacity,
                                                commoditySold.getEffectiveCapacity()) != 0) {
                                 double newCapacity = newEffectiveCapacity /
@@ -120,13 +121,17 @@ public class Resizer {
      * @param commoditySold The {@link CommoditySold commodity} sold to obtain peak usage,
      *                      current capacity and capacity increment.
      * @param rawMaterial The source of raw material of {@link CommoditySold commoditySold}.
+     * @param rateOfRightSize The user configured rateOfRightSize from {@link EconomySettings}.
      * @return The recommended new capacity.
      */
     private static double calculateEffectiveCapacity(double desiredCapacity,
                                                      @NonNull CommoditySold commoditySold,
-                                                     @NonNull CommoditySold rawMaterial) {
+                                                     @NonNull CommoditySold rawMaterial,
+                                                     float rateOfRightSize) {
         checkArgument(rawMaterial != null, "Expected raw material for commodity %s to be non-null",
                                             commoditySold);
+        checkArgument(rateOfRightSize > 0, "Expected rateOfRightSize to be > 0", rateOfRightSize);
+
         double maxQuantity = commoditySold.getMaxQuantity();
         double peakQuantity = commoditySold.getPeakQuantity();
         double capacityIncrement = commoditySold.getSettings().getCapacityIncrement();
@@ -136,7 +141,7 @@ public class Resizer {
 
         if (delta > 0) {
             // limit the increase to what the seller can provide
-            double numIncrements = delta / capacityIncrement;
+            double numIncrements = delta / capacityIncrement / rateOfRightSize;
             int ceilNumIncrements = (int) Math.ceil(numIncrements);
             double proposedIncrement = capacityIncrement * ceilNumIncrements;
             double remaining = rawMaterial.getEffectiveCapacity() - rawMaterial.getQuantity();
@@ -162,7 +167,7 @@ public class Resizer {
             if (maxCapacityDecrement < delta) {
                 delta = maxCapacityDecrement;
             }
-            double numDecrements = delta / capacityIncrement;
+            double numDecrements = delta / capacityIncrement / rateOfRightSize;
             int floorNumDecrements = (int) Math.floor(numDecrements);
             double proposedCapacityDecrement = capacityIncrement * floorNumDecrements;
             newCapacity -= proposedCapacityDecrement;

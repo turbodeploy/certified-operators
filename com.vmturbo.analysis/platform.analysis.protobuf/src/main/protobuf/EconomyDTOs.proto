@@ -17,6 +17,9 @@ message EconomySettingsTO {
 
     // The minimum percent to be used for the expenses metric termination criterion.
     required float expense_metric_factor = 4;
+
+    // Support user configured rate of resize.
+    required float rate_of_resize = 5;
 }
 
 // A detailed, exact statement of particulars about a commodity a buyer needs to buy (but may not be
