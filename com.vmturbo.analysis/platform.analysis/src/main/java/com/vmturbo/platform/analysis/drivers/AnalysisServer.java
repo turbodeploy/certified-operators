@@ -1,8 +1,11 @@
 package com.vmturbo.platform.analysis.drivers;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.ByteBuffer;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
@@ -56,6 +59,8 @@ public final class AnalysisServer {
     // map that associates every topology with a instanceInfo that has the topology and some associated settings
     private Map<Long, AnalysisInstanceInfo> analysisInstanceInfoMap = new HashMap<>();
 
+    // a queue to keep the message that failed to send back to opsmanager because of network issues
+    private LinkedList<AnalysisResults> previousFailedMsg = new LinkedList<AnalysisResults>();
     // Constructors
 
     // Methods
@@ -78,6 +83,22 @@ public final class AnalysisServer {
         logger.info("");
         logger.info("Intializing IdentityGenerator");
         IdentityGenerator.initPrefix(IdentityGenerator.MAXPREFIX);
+        // re-send the failed message by order
+        AnalysisResults msg = null;
+        try {
+            while (!previousFailedMsg.isEmpty()) {
+                msg = previousFailedMsg.poll();
+                msg.writeTo(session.getBasicRemote().getSendStream());
+            }
+        } catch (IOException ioException) {
+            // msg failed to be sent due to connection issue, put it back to the front of list
+            if (msg != null) {
+                previousFailedMsg.addFirst(msg);
+                logger.error("Sending back message " + msg.getTopologyId() +
+                                " failed due to IOException, put it back and send next time");
+            }
+            return;
+        }
         // Would be nice to log the remote IP address but I couldn't find a way...
     }
 
@@ -142,7 +163,39 @@ public final class AnalysisServer {
                     Runnable runAnalysis = new Runnable() {
                         @Override
                         public void run() {
-                            runAnalysis(session, command.getTopologyId());
+                            AnalysisResults result;
+                            try {
+                                result = runAnalysis(session, command.getTopologyId());
+                            } catch (Exception error) {
+                                // if exceptions occur when running analysis, send back a message
+                                // with analysis_failed=true
+                                logger.error("Exception thrown while sending back actions", error);
+                                StatsUtils statsUtils = new StatsUtils(
+                                                "m2stats-" + command.getMarketName(), true);
+                                statsUtils.write("Exception sending back actions: " + error + "\n",
+                                                true);
+                                // since running analysis throws exceptions, we send a failure
+                                // message with topology id back to notify ops manager
+                                result = AnalysisResults.newBuilder()
+                                                    .setTopologyId(command.getTopologyId())
+                                                    .setAnalysisFailed(true).build();
+                            }
+                            try (OutputStream stream = session.getBasicRemote().getSendStream()) {
+                                result.writeTo(stream);
+                            } catch (IOException ioException) {
+                                // communication is disconnected between opsmanager and M2
+                                // we add the failed message to a list and once the connection
+                                // is re-established (the websocket framework we use will
+                                // automatically retry until connection is back), we send the
+                                // failed messages back to opsmanager
+                                previousFailedMsg.offer(result);
+                                logger.error("Sending back message " + result.getTopologyId()
+                                                + " failed due to IOException, queueing at"
+                                                + " Analalysis side to resend once communication"
+                                                + " recovers");
+                            }
+                            // remove topologyInfo from the map
+                            analysisInstanceInfoMap.remove(command.getTopologyId());
                         }
                     };
                     new Thread(null, runAnalysis, "Market2-"+command.getTopologyId(), 1L<<21).start();
@@ -199,11 +252,12 @@ public final class AnalysisServer {
      *
      * @param session Current session.
      * @param topologyId Topology  Id of the topology for which analysis is being run.
+     * @return AnalysisResults the object containing result
      */
-    private void runAnalysis(@NonNull Session session, long topologyId) {
+    private @NonNull AnalysisResults runAnalysis(@NonNull Session session, long topologyId)
+                    throws Exception {
         // Swap topologies
         AnalysisInstanceInfo instInfo = analysisInstanceInfoMap.get(topologyId);
-
         Topology temp = instInfo.getLastComplete();
         Topology lastComplete = instInfo.getCurrentPartial();
         instInfo.setLastComplete(lastComplete);
@@ -233,32 +287,15 @@ public final class AnalysisServer {
         // if the analysis was forced to stop, send a planStopped message back
         // to M1 which can further clear the plan related data
         if (lastComplete.getEconomy().getForceStop()) {
-            try (OutputStream stream = session.getBasicRemote().getSendStream()) {
-                AnalysisResults.newBuilder().setPlanStopped(true)
-                                .setTopologyId(lastComplete.getTopologyId()).build()
-                                .writeTo(stream);
-            } catch (Throwable error) {
-                logger.error("Exception thrown while sending back stop message from session "
-                                + session.getId(), error);
-            }
-            return;
+            return AnalysisResults.newBuilder().setPlanStopped(true)
+                            .setTopologyId(lastComplete.getTopologyId()).build();
         }
-        long stop = System.nanoTime();
 
+        long stop = System.nanoTime();
         // Send back the results
-        try (OutputStream stream = session.getBasicRemote().getSendStream()) {
-            AnalysisToProtobuf.analysisResults(actions, lastComplete.getTraderOids(),
-                            lastComplete.getShoppingListOids(), stop - start, lastComplete,
-                            startPriceStatement, true).writeTo(stream);
-        } catch (Throwable error) {
-            logger.error("Exception thrown while sending back actions", error);
-            StatsUtils statsUtils = new StatsUtils("m2stats-" + mktName, true);
-            statsUtils.write("Exception sending back actions: " + error + "\n", true);
-        } finally {
-            // remove topologyInfo from the map
-            analysisInstanceInfoMap.remove(topologyId);
-        }
-        return;
+        return AnalysisToProtobuf.analysisResults(actions, lastComplete.getTraderOids(),
+                        lastComplete.getShoppingListOids(), stop - start, lastComplete,
+                        startPriceStatement, true);
     }
 
     public class AnalysisInstanceInfo {
