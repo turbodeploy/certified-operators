@@ -134,4 +134,5 @@ message AnalysisResults {
         required int64 buyer = 2;
     }
     optional int64 topology_id = 7;
+    optional bool analysis_failed = 8;
 }
