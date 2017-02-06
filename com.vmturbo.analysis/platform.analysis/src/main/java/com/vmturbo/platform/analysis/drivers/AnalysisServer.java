@@ -274,7 +274,7 @@ public final class AnalysisServer {
                                                 instInfo.isShopTogetherEnabled(),
                                                 instInfo.isProvisionEnabled(),
                                                 instInfo.isSuspensionEnabled(),
-                                                instInfo.isResizeEnabled(), mktData);
+                                                instInfo.isResizeEnabled(), true, mktData);
         } else {
             // if there are no templates to be added this is not a headroom plan
             actions = new Ede().generateHeadroomActions(economy,
