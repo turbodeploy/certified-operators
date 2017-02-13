@@ -54,7 +54,6 @@ public class StatsUtils {
         if (!isEnabled()) {
             return;
         }
-
         Path path = Paths.get(statsFilePrefix);
         String prefix = Files.exists(path)
                         ? statsFilePrefix
@@ -62,10 +61,15 @@ public class StatsUtils {
                           + File.separator
                           + "data"
                           + File.separator;
-
-        statsFileName = prefix + filename + ".csv";
-        logger.info("XL stats file path:" + statsFileName);
-
+        // keep current path for unit test, as it will run on build server also
+        statsFileName =
+                      filename.contains("UnitTest") ? "target" + File.separator + filename + ".csv"
+                                      : prefix + filename + ".csv";
+        File file = new File(statsFileName);
+        if (file.getParentFile() != null) {
+            file.getParentFile().mkdirs();
+        }
+        logger.info("stats file path:" + statsFileName);
         setEnabled(isEnabled);
     }
 
