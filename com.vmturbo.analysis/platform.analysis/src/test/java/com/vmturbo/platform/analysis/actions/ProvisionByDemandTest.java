@@ -1,6 +1,11 @@
 package com.vmturbo.platform.analysis.actions;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -12,9 +17,9 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import com.vmturbo.platform.analysis.economy.Basket;
-import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.ede.EdeCommon;
@@ -38,16 +43,27 @@ public class ProvisionByDemandTest {
 
     @Test
     @Parameters
-    @TestCaseName("Test #{index}: new ProvisionByDemand({0},{1}, {2})")
+    @TestCaseName("Test #{index}: new ProvisionByDemand({0},{1},{2},{3])")
     public final void testProvisionByDemand(@NonNull Economy economy,
-                    @NonNull ShoppingList modelBuyer, @NonNull Trader modelSeller) {
+                    @NonNull ShoppingList modelBuyer, @NonNull Trader modelSeller, boolean isProvisionUseful) {
+        double[] quoteBefore = EdeCommon.quote(economy, modelBuyer, modelSeller, Double.POSITIVE_INFINITY, false);
+
+        if (isProvisionUseful) {
+            assertTrue(Double.isInfinite(quoteBefore[0]));
+        }
         @NonNull
-        ProvisionByDemand provision = new ProvisionByDemand(economy, modelBuyer, modelSeller);
+        ProvisionByDemand provision = (ProvisionByDemand)(new ProvisionByDemand(economy, modelBuyer, modelSeller)).take();
+
+        // verify if all the modified commodities are added to commodityNewCapacityMap_
+        assertEquals(provision.getCommodityNewCapacityMap().isEmpty(), !isProvisionUseful);
+
+        double[] quoteAfter = EdeCommon.quote(economy, modelBuyer, provision.getProvisionedSeller(), 0, false);
+        assertTrue(Double.isFinite(quoteAfter[0]));
 
         assertSame(economy, provision.getEconomy());
         assertSame(modelBuyer, provision.getModelBuyer());
         assertSame(modelSeller, provision.getModelSeller());
-        assertNull(provision.getProvisionedSeller());
+        assertNotNull(provision.getProvisionedSeller());
     }
 
     @SuppressWarnings("unused") // it is used reflectively
@@ -65,16 +81,17 @@ public class ProvisionByDemandTest {
                 new Basket(new CommoditySpecification(0),
                 new CommoditySpecification(1))
         );
-        model.getCommoditiesSold().get(1).setCapacity(Double.MAX_VALUE).setQuantity(0);
+        model.getCommoditiesSold().get(0).setCapacity(75).setQuantity(0);
+        model.getCommoditiesSold().get(1).setCapacity(75).setQuantity(0);
         model.setDebugInfoNeverUseInCode(DEBUG_INFO);
-        b3.setQuantity(0, 5).setPeakQuantity(0, 6.5);
+        b3.setQuantity(0, 100).setPeakQuantity(0, 6.5);
 
         ShoppingList b4 = e1.addBasketBought(e1.addTrader(0, TraderState.ACTIVE, EMPTY),
             new Basket(new CommoditySpecification(0), new CommoditySpecification(1)));
         b4.setQuantity(0, 2.2).setPeakQuantity(0, 6.5);
         b4.setQuantity(1, 100).setPeakQuantity(1, 101.3);
 
-        return new Object[][] {{e1, b1, model}, {e1, b2, model}, {e1, b3, model}, {e1, b4, model}};
+        return new Object[][] {{e1, b1, model, false}, {e1, b2, model, false}, {e1, b3, model, true}, {e1, b4, model, true}};
     }
 
     @Test
@@ -109,7 +126,8 @@ public class ProvisionByDemandTest {
     @Test
     @Parameters(method = "parametersForTestProvisionByDemand")
     @TestCaseName("Test #{index}: new ProvisionByDemand({0},{1},{2}).take().rollback()")
-    public final void testTakeRollback(@NonNull Economy economy, @NonNull ShoppingList modelBuyer, @NonNull Trader modelSeller) {
+    public final void testTakeRollback(@NonNull Economy economy, @NonNull ShoppingList modelBuyer, @NonNull Trader modelSeller
+                    , boolean isProvisionUseful) {
         final int oldSize = economy.getTraders().size();
         @NonNull ProvisionByDemand provision = new ProvisionByDemand(economy, modelBuyer, modelSeller);
 
