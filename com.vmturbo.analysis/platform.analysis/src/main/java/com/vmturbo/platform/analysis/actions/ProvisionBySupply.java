@@ -43,7 +43,10 @@ public class ProvisionBySupply extends ActionImpl {
      */
     public ProvisionBySupply(@NonNull Economy economy, @NonNull Trader modelSeller) {
         economy_ = economy;
-        modelSeller_ = modelSeller;
+        // provisionBySupply means create an exact copy of modelSeller, in case the modelSeller
+        // is itself a clone, go all the way back to the original modelSeller to simplify action
+        // handling by entities outside M2 that are not necessarily aware of cloned traders
+        modelSeller_ = economy.getCloneOfTrader(modelSeller);
     }
     // Methods
 

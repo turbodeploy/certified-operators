@@ -50,7 +50,11 @@ public class ProvisionByDemand extends ActionImpl {
                     @NonNull Trader modelSeller) {
         economy_ = economy;
         modelBuyer_ = modelBuyer;
-        modelSeller_ = modelSeller;
+        // provisionByDemand means create an copy of modelSeller and increase capacity of certain
+        // commodities, in case the modelSeller is itself a clone, go all the way back to the
+        // original modelSeller to simplify action handling by entities outside M2 that are not
+        // necessarily aware of cloned traders
+        modelSeller_ = economy.getCloneOfTrader(modelSeller);
     }
 
     // Methods
@@ -196,6 +200,9 @@ public class ProvisionByDemand extends ActionImpl {
                 + " clone #"
                 + getProvisionedSeller().getEconomyIndex()
         );
+        // traders provisioned by demand should NOT be cloneable. They exist to handle cases where
+        // none of the sellers has enough capacity to satisfy a particular demand
+        provisionedSeller_.getSettings().setCloneable(false);
         return this;
     }
 
