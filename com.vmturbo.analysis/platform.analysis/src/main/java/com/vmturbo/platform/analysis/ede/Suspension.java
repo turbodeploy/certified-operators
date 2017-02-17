@@ -8,9 +8,7 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import com.google.common.collect.Lists;
 
 import com.vmturbo.platform.analysis.actions.Action;
-import com.vmturbo.platform.analysis.actions.CompoundMove;
 import com.vmturbo.platform.analysis.actions.Deactivate;
-import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -25,7 +23,7 @@ public class Suspension extends Supply {
     private @NonNull Set<@NonNull Trader> soleProviders = new HashSet<@NonNull Trader>();
     // a map to keep unprofitable sellers that should not be considered as suspension candidate
     // in a particular market. In general, those sellers have gone through the process in which it
-    // was selected to deactivate, however, after deactivating it and run placement desicisions,
+    // was selected to deactivate, however, after deactivating it and run placement decisions,
     // some customers on this trader can not move out of it. So it should not be selected again
     // because we there will always be some customers staying on it.
     private @NonNull Set<@NonNull Trader> unprofitableSellersCouldNotSuspend =
@@ -56,7 +54,8 @@ public class Suspension extends Supply {
 
     @Override
     public boolean evalAcceptanceCriteriaForMarket(Economy economy, Market market, Ledger ledger,
-                    Trader suspensionCandidate, List<@NonNull Action> actions) {
+                    Trader suspensionCandidate, List<@NonNull Action> actions,
+                    Set<Trader> affectedTraders) {
         // if any non-guaranteedBuyer is still present on the suspension candidate, cancel
         // suspension and put this candidate into unprofitableSellersCouldNotSuspend so that it
         // would not be considered again next round
@@ -65,23 +64,15 @@ public class Suspension extends Supply {
             unprofitableSellersCouldNotSuspend.add(suspensionCandidate);
             return false;
         }
-        // we need to check if the placement decision made after the suspension will result in
-        // any trader that goes outside the desire state, the traders may be in other markets
-        Set<Trader> affectedTraders = new HashSet<Trader>();
-        for (Action a : actions) {
-            if (a instanceof CompoundMove) {
-                for (Move move : ((CompoundMove)a).getConstituentMoves()) {
-                    affectedTraders.add(move.getDestination());
-                }
-            } else if (a instanceof Move) {
-                affectedTraders.add(((Move)a).getDestination());
-            }
-        }
         for (Trader t : affectedTraders) {
             // calculate the income statement for affected sellers, they may not in the current market
             ledger.calculateExpRevForSeller(economy, t);
             IncomeStatement traderIS = ledger.getTraderIncomeStatements().get(t.getEconomyIndex());
             if (traderIS.getROI() > traderIS.getMaxDesiredROI()) {
+                // since the suspending the candidate leads to undesirable ROI for some traders
+                // after running full economy placement, we should not consider it as suspension
+                // candidate again
+                unprofitableSellersCouldNotSuspend.add(suspensionCandidate);
                 return false;
             }
         }
@@ -97,13 +88,23 @@ public class Suspension extends Supply {
     }
 
     @Override
-    public void rollBackActionAndUpdateLedger(Ledger ledger, Trader provisionedTrader,
-                    List<@NonNull Action> actions) {
+    public void rollBackActionAndUpdateLedger(Economy economy, Market market, Ledger ledger,
+                    Trader provisionedTrader, List<@NonNull Action> actions,
+                    Set<Trader> affectedTraders) {
         if (provisionedTrader != null) {
             // this is the roll back for suspension so provisionedTrader should always be null
             logger.error("ProvisionedTrader is not null when rolling back a suspension action!");
         }
+        // first roll back all the move actions
         Lists.reverse(actions).forEach(axn -> axn.rollback());
+        // then calculate the expense and revenues for action affected sellers in current market
+        // as for affected sellers outside market, we will calculate the expense and revenue once
+        // running suspension on their market
+        for (Trader t : affectedTraders) {
+            if (market.getActiveSellers().contains(t)) {
+                ledger.calculateExpRevForSeller(economy, t);
+            }
+        }
         return;
     }
 
@@ -123,4 +124,5 @@ public class Suspension extends Supply {
             }
         }
     }
+
 }

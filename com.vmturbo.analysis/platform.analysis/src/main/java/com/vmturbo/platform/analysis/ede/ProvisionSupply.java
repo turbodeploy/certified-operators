@@ -1,6 +1,7 @@
 package com.vmturbo.platform.analysis.ede;
 
 import java.util.List;
+import java.util.Set;
 
 import org.apache.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -54,7 +55,8 @@ public class ProvisionSupply extends Supply {
 
     @Override
     public boolean evalAcceptanceCriteriaForMarket(Economy economy, Market market, Ledger ledger,
-                    Trader provisionedTrader, List<@NonNull Action> actions) {
+                    Trader provisionedTrader, List<@NonNull Action> actions,
+                    Set<Trader> affectedTraders) {
 
         for (Trader seller : market.getActiveSellers()) {
             IncomeStatement traderIS =
@@ -67,8 +69,9 @@ public class ProvisionSupply extends Supply {
     }
 
     @Override
-    public void rollBackActionAndUpdateLedger(Ledger ledger,
-                    Trader provisionedTrader, List<@NonNull Action> actions) {
+    public void rollBackActionAndUpdateLedger(Economy economy, Market market, Ledger ledger,
+                    Trader provisionedTrader, List<@NonNull Action> actions,
+                    Set<Trader> affectedTraders) {
         // remove IncomeStatement from ledger and rollback actions
         ledger.removeTraderIncomeStatement(provisionedTrader);
         Lists.reverse(actions).forEach(axn -> axn.rollback());

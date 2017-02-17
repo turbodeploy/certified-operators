@@ -1,7 +1,9 @@
 package com.vmturbo.platform.analysis.ede;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.apache.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -9,6 +11,8 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionImpl;
+import com.vmturbo.platform.analysis.actions.CompoundMove;
+import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
@@ -48,6 +52,7 @@ public abstract class Supply {
         List<@NonNull Action> allActions = new ArrayList<>();
         List<@NonNull Action> actions = new ArrayList<>();
         for (Market market : economy.getMarkets()) {
+            ledger.calculateExpAndRevForSellersInMarket(economy, market);
             for (;;) {
                 if (economy.getForceStop()) {
                     return allActions;
@@ -57,8 +62,6 @@ public abstract class Supply {
                 if (market.getActiveSellers().isEmpty()) {
                     break;
                 }
-
-                ledger.calculateExpAndRevForSellersInMarket(economy, market);
 
                 Trader bestTraderToEngage = findTheBestTraderToEngage(market, ledger);
                 // break if there is no seller that satisfies the engagement criteria in the market
@@ -81,18 +84,34 @@ public abstract class Supply {
                 if (isProvision) {
                     ledger.calculateExpAndRevForSellersInMarket(economy, market);
                 }
-
+                // keep a set of traders whose ROI will be affected as a result of placement after
+                // the suspension action.
+                Set<Trader> affectedTraders = new HashSet<Trader>();
+                if (!isProvision) {
+                    // we need to check if the placement decision made after the suspension will result in
+                    // any trader that goes outside the desire state, the traders may be in other markets
+                    for (Action a : placementActions) {
+                        if (a instanceof CompoundMove) {
+                            for (Move move : ((CompoundMove)a).getConstituentMoves()) {
+                                affectedTraders.add(move.getDestination());
+                            }
+                        } else if (a instanceof Move) {
+                            affectedTraders.add(((Move)a).getDestination());
+                        }
+                    }
+                }
+                // in the suspension, if we find the least profitable trader who has
+                // customers that can not move out of it after placement, we continue to the
+                // second least profitable trader, if the second least profitable trader
+                // has same issue, we go to the third least profitable, etc.
+                boolean continueSuspension = !isProvision && !bestTraderToEngage.getCustomers().isEmpty();
                 if (!evalAcceptanceCriteriaForMarket(economy, market, ledger, bestTraderToEngage,
-                                placementActions)) {
-                    if (!isProvision && !bestTraderToEngage.getCustomers().isEmpty()) {
-                        // in the suspension, if we find the least profitable trader who has
-                        // customers that can not move out of it after placement, we go to the
-                        // second least profitable trader, if the second least profitable trader
-                        // has same issue, we go to the third least profitable, etc.
-                        rollBackActionAndUpdateLedger(ledger, provisionedSeller, actions);
+                                placementActions, affectedTraders)) {
+                    rollBackActionAndUpdateLedger(economy, market, ledger, provisionedSeller,
+                                    actions, affectedTraders);
+                    if (continueSuspension) {
                         continue;
                     } else {
-                        rollBackActionAndUpdateLedger(ledger, provisionedSeller, actions);
                         break;
                     }
                 }
@@ -119,15 +138,18 @@ public abstract class Supply {
     /**
      * Return true/false after checking the acceptance criteria for a particular market
      *
+     * @param economy - the {@link Economy} in which the clone or suspend action is taken place
      * @param market - the {@link Market} whose sellers are considered to verify profitability that
      *                 implies eligibility to clone or suspend
      * @param ledger - the {@link Ledger} that holds the incomeStatement of the sellers considered
      * @param candidateTrader - the {@link Trader} that is newly provisioned or suspended
      * @param actions - a list of placement actions generated after the supply change action
+     * @param affectedTraders the traders that are the destinations of placement actions
      * @return true - if the acceptance criteria is met by every trader in market
      */
-    public abstract boolean evalAcceptanceCriteriaForMarket(Economy economy, Market market, Ledger ledger,
-                    Trader candidateTrader, List<@NonNull Action> actions);
+    public abstract boolean evalAcceptanceCriteriaForMarket(Economy economy, Market market,
+                    Ledger ledger, Trader candidateTrader, List<@NonNull Action> actions,
+                    Set<Trader> affectedTraders);
 
     /**
      * Return a list of actions which contains the clone or suspend action. The particular supply change
@@ -153,12 +175,16 @@ public abstract class Supply {
      *  e.g: action1 is trader1 move from A to B, action2 is trader1 move from B to C
      *  rolling back should start from action2 as trader1 is at C now
      * </p>
+     *
+     * @param economy - the {@link Economy} in which the clone or suspend action is taken place
+     * @param market - the {@link Market} in which the clone or suspend action takes place
      * @param ledger - the {@link Ledger} that holds the incomeStatement of the economy
      * @param provisionedTrader - the newly added trader, it is NULL if actions contain a provision
      * @param actions - a list of actions to be rolled back
-     *
+     * @param affectedTraders the traders that are the destinations of placement actions
      * @return a list of actions that has being rolled back
      */
-    public abstract void rollBackActionAndUpdateLedger(Ledger ledger,
-                    @Nullable Trader provisionedTrader, List<@NonNull Action> actions);
+    public abstract void rollBackActionAndUpdateLedger(Economy economy, Market market,
+                    Ledger ledger, @Nullable Trader provisionedTrader,
+                    List<@NonNull Action> actions, Set<Trader> affectedTraders);
 }
