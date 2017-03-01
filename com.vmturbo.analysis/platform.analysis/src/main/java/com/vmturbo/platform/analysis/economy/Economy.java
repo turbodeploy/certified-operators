@@ -2,11 +2,6 @@ package com.vmturbo.platform.analysis.economy;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -27,6 +22,8 @@ import org.checkerframework.dataflow.qual.Pure;
 import org.checkerframework.dataflow.qual.SideEffectFree;
 
 import com.google.common.primitives.Ints;
+import com.vmturbo.platform.analysis.actions.Move;
+import com.vmturbo.platform.analysis.ede.ActionClassifier;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.topology.Topology;
 
@@ -251,7 +248,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
         newTrader.getModifiableCliques().addAll(cliques);
 
         // Add as seller (it won't be buying anything yet)
-        for(Market market : markets_.values()) {
+        for (Market market : markets_.values()) {
             if (market.getBasket().isSatisfiedBy(basketSold)) {
                 market.addSeller(newTrader);
             }
@@ -400,21 +397,22 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
      */
     public @NonNull ShoppingList addBasketBought(@NonNull Trader buyer, @NonNull @ReadOnly Basket basketBought) {
         // create a market if it doesn't already exist.
-        if (!markets_.containsKey(basketBought)) {
-            Market newMarket = new Market(basketBought);
+        Market market = markets_.get(basketBought);
+        if (market == null) {
+            market = new Market(basketBought);
 
-            markets_.put(basketBought, newMarket);
+            markets_.put(basketBought, market);
 
             // Populate new market
             for (TraderWithSettings seller : traders_) {
-                if (newMarket.getBasket().isSatisfiedBy(seller.getBasketSold())) {
-                    newMarket.addSeller(seller);
+                if (market.getBasket().isSatisfiedBy(seller.getBasketSold())) {
+                    market.addSeller(seller);
                 }
             }
         }
 
         // add the buyer to the correct market.
-        return markets_.get(basketBought).addBuyer((@NonNull TraderWithSettings)buyer);
+        return market.addBuyer((@NonNull TraderWithSettings)buyer);
     }
 
     /**
@@ -587,27 +585,78 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
             marketsForPlacement_));
     }
 
-    //TODO Asjad replace by more efficient copying
     /**
-     * Clone the given {@link Economy}
-     *
-     * @param economy {@link Economy} to be cloned
-     * @return Cloned {@link Economy}
-     * @throws IOException
-     * @throws ClassNotFoundException
+     * Create a minimal clone of the economy for the purpose of simulating {@link Move} actions
+     * and figuring whether the action is executable or not. It is "minimal" in the sense that
+     * it only has the properties necessary for that simulation, namely traders, shopping lists,
+     * and commodities sold, and nothing else.
+     * @see {@link ActionClassifier}
+     * @return a minimal clone of {@code this} economy
      */
-    public @NonNull Economy cloneEconomy(@NonNull Economy economy) throws IOException,
-                                                                   ClassNotFoundException {
-        try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
-             ObjectOutputStream out = new ObjectOutputStream(bos)) {
-             out.writeObject(economy);
-             try (ByteArrayInputStream bis = new ByteArrayInputStream(bos.toByteArray());
-                  ObjectInputStream in = new ObjectInputStream(bis)) {
-                  return (Economy) in.readObject();
-             }
+    public @NonNull Economy simulationClone() {
+        Economy clone = new Economy();
+        for (Trader trader : getTraders()) {
+            clone.addTrader(trader.getType(), trader.getState(), new Basket(trader.getBasketSold()));
+        }
+        getTraders().stream()
+            .forEach(clone::simulationCloneTrader);
+        return clone;
+    }
+
+    protected static final String SIM_CLONE_SUFFIX = " SIMCLONE";
+
+    /**
+     * Clone a trader. Notice that the method is called from the clone economy and the
+     * argument is a trader from the original economy.
+     * @param trader the trader to clone
+     */
+    private void simulationCloneTrader(Trader trader) {
+        Trader cloneTrader = getTraders().get(trader.getEconomyIndex());
+        cloneTrader.setDebugInfoNeverUseInCode(
+                trader.getDebugInfoNeverUseInCode() + SIM_CLONE_SUFFIX);
+        cloneCommoditiesSold(trader, cloneTrader);
+        cloneShoppingLists(trader, cloneTrader);
+    }
+
+    /**
+     * Clones the commodities sold from one trader (the original) to its clone.
+     * @param trader the original trader
+     * @param cloneTrader the clone of the original trader
+     */
+    private void cloneCommoditiesSold(Trader trader, Trader cloneTrader) {
+        List<CommoditySold> commoditiesSold = trader.getCommoditiesSold();
+        List<CommoditySold> cloneCommoditiesSold = cloneTrader.getCommoditiesSold();
+        for (int commIndex = 0; commIndex < commoditiesSold.size(); commIndex++) {
+            CommoditySold commSold = commoditiesSold.get(commIndex);
+            CommoditySold cloneCommSold = cloneCommoditiesSold.get(commIndex);
+            cloneCommSold.setCapacity(commSold.getCapacity());
+            cloneCommSold.setQuantity(commSold.getQuantity());
+            cloneCommSold.setPeakQuantity(commSold.getPeakQuantity());
+            cloneCommSold.getSettings().setPriceFunction(commSold.getSettings().getPriceFunction());
         }
     }
-    
+
+    /**
+     * Clones the shopping lists bought from one trader (the original) to its clone.
+     * @param trader the original trader
+     * @param cloneTrader the clone of the original trader
+     */
+    private void cloneShoppingLists(Trader trader, Trader cloneTrader) {
+        for (ShoppingList sl : trader.getCustomers()) {
+            int j = sl.getBuyer().getEconomyIndex();
+            Trader cloneBuyer = this.getTraders().get(j);
+            Basket cloneBasketBought = sl.getBasket(); // reuse baskets in original and clone
+            ShoppingList cloneShoppingList = this.addBasketBought(cloneBuyer, cloneBasketBought);
+            double[] quantities = sl.getQuantities();
+            double[] peakQuantities = sl.getPeakQuantities();
+            for (int q = 0; q < quantities.length; q++) {
+                cloneShoppingList.setQuantity(q, quantities[q]);
+                cloneShoppingList.setPeakQuantity(q, peakQuantities[q]);
+            }
+            cloneShoppingList.move(cloneTrader);
+        }
+    }
+
     /**
      * list of traderTOs
      * @return list of {@link TraderTO}s

@@ -23,10 +23,10 @@ public class ActionClassifier {
 
     static final Logger logger = Logger.getLogger(ActionClassifier.class);
 
-    private @NonNull Economy simulationEconomy_;
+    final private @NonNull Economy simulationEconomy_;
 
     public ActionClassifier(@NonNull Economy economy) throws IOException, ClassNotFoundException {
-        simulationEconomy_ = economy.cloneEconomy(economy);
+        simulationEconomy_ = economy.simulationClone();
     }
 
     /**
@@ -35,7 +35,6 @@ public class ActionClassifier {
      * @param actions The list of actions to be classified.
      */
     public void classify(@NonNull List<Action> actions) {
-
         // Step 1 - mark actions we know to be non-executable
         markProvisionsNonExecutable(actions);
         markSuspensionsNonEmptyTradersNonExecutable(actions);
@@ -206,11 +205,7 @@ public class ActionClassifier {
     private @Nullable Trader lookupTraderInSimulationEconomy(Trader realTrader) {
         List<Trader> tradersCopy = simulationEconomy_.getTraders();
         int traderIndex = realTrader.getEconomyIndex();
-        if (traderIndex < tradersCopy.size()) {
-            return tradersCopy.get(traderIndex);
-        } else {
-            return null;
-        }
+        return traderIndex < tradersCopy.size() ? tradersCopy.get(traderIndex) : null;
     }
 
     /**
