@@ -118,6 +118,9 @@ public class Provision {
                 allActions.addAll(actions);
             }
         }
+        // TODO: Note that we have to explicitly add the sellers to the new market for this to work properly.
+        // TODO: Update the Economy#populateMarketsWithSellers() to accept a collection and pass in the
+        // market to populate.
         GuaranteedBuyerHelper.processGuaranteedbuyerInfo(economy);
         return allActions;
     }

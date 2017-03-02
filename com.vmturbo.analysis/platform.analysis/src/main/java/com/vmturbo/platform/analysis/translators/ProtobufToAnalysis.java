@@ -153,8 +153,9 @@ public final class ProtobufToAnalysis {
      * @see #basket(ShoppingListTO)
      */
     public static @NonNull Basket basket(@NonNull TraderTO input) {
-        return new Basket(input.getCommoditiesSoldList().stream()
+        Basket basket = new Basket(input.getCommoditiesSoldList().stream()
            .map(cs -> commoditySpecification(cs.getSpecification())).collect(Collectors.toList()));
+        return basket;
     }
 
     /**

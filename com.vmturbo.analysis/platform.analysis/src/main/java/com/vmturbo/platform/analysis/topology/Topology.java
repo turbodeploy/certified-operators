@@ -114,6 +114,10 @@ public final class Topology implements Serializable {
         return trader;
     }
 
+    public void populateMarketsWithSellers() {
+        economy_.populateMarketsWithSellers();
+    }
+
     /**
      * Adds a new basket bought to the specified buyer.
      *

@@ -148,6 +148,7 @@ public final class AnalysisServer {
                     EndDiscoveredTopology endDiscMsg = command.getEndDiscoveredTopology();
                     AnalysisInstanceInfo instInfoAfterDisc = analysisInstanceInfoMap.get(command.getTopologyId());
                     Topology currPartial = instInfoAfterDisc.getCurrentPartial();
+                    currPartial.populateMarketsWithSellers();
                     ProtobufToAnalysis.populateUpdatingFunctions(endDiscMsg, currPartial);
                     ProtobufToAnalysis.populateCommodityResizeDependencyMap(endDiscMsg, currPartial);
                     ProtobufToAnalysis.populateRawCommodityMap(endDiscMsg, currPartial);

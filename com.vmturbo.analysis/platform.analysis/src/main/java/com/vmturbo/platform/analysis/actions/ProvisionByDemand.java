@@ -19,6 +19,7 @@ import com.vmturbo.platform.analysis.economy.CommodityResizeSpecification;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderSettings;
@@ -126,14 +127,16 @@ public class ProvisionByDemand extends ActionImpl {
         Basket basketSold = shoppingLists.size() != 0 ? GuaranteedBuyerHelper.transformBasket(
                             newCommSpecMap, getModelSeller().getBasketSold()) : getModelSeller()
                                 .getBasketSold();
-        provisionedSeller_ = getEconomy().addTrader(getModelSeller().getType(), TraderState.ACTIVE,
-                                    basketSold);
+        provisionedSeller_ = getEconomy().addTraderByModelSeller(getModelSeller(), TraderState.ACTIVE,
+            basketSold);
         provisionedSeller_.setCloneOf(modelSeller_);
 
         // adding commodities to be bought by the provisionedSeller and resizing them
         getEconomy().getMarketsAsBuyer(modelSeller_).keySet().forEach(shoppingList -> {
+            // Note that because we are cloning, this does not require that we populate a new market
+            // with sellers. There must be an existing market for sellers.
             ShoppingList sl = getEconomy().addBasketBought(provisionedSeller_, shoppingList
-                                            .getBasket());
+                .getBasket());
             // Copy movable attribute
             sl.setMovable(shoppingList.isMovable());
         });
@@ -150,7 +153,7 @@ public class ProvisionByDemand extends ActionImpl {
             getEconomy().getMarketsAsBuyer(provisionedSeller_).keySet().forEach(sl -> {
                 for (CommodityResizeSpecification typeOfCommBought : typeOfCommsBought) {
                     int boughtIndex = sl.getBasket().indexOfBaseType(typeOfCommBought
-                                                    .getCommodityType());
+                        .getCommodityType());
                     // if comm not present in shoppingList, indexOfBaseType < 0
                     if (boughtIndex < 0) {
                         continue;
@@ -158,7 +161,7 @@ public class ProvisionByDemand extends ActionImpl {
                     // increase the amount of dependent commodity bought
                     sl.getQuantities()[boughtIndex] = Math.max(sl.getQuantities()
                                     [boughtIndex],commSoldList.get(basketSold.indexOf(cs))
-                                    .getQuantity());
+                        .getQuantity());
                 }
             });
         }
@@ -196,7 +199,7 @@ public class ProvisionByDemand extends ActionImpl {
                                                            newCommSpecMap);
         }
         getProvisionedSeller().setDebugInfoNeverUseInCode(
-                getModelSeller().getDebugInfoNeverUseInCode()
+            getModelSeller().getDebugInfoNeverUseInCode()
                 + " clone #"
                 + getProvisionedSeller().getEconomyIndex()
         );

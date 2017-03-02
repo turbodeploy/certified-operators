@@ -399,6 +399,7 @@ public class PlacementTest {
             // 1 VM, 0 PMs, 0 STs, 0 edges
             Economy economy = new Economy();
             economy.addTrader(VM_TYPE, TraderState.ACTIVE, EMPTY);
+            economy.populateMarketsWithSellers();
             output.add(new Object[]{economy, NO_ACTIONS});
 
             return output;
@@ -460,6 +461,7 @@ public class PlacementTest {
                 }
             }
         }
+        e.populateMarketsWithSellers();
 
         // Construct results
         Action[] results = new Action[moves.length];

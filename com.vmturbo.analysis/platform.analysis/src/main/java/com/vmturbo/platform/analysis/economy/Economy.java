@@ -21,6 +21,7 @@ import org.checkerframework.dataflow.qual.Deterministic;
 import org.checkerframework.dataflow.qual.Pure;
 import org.checkerframework.dataflow.qual.SideEffectFree;
 
+import com.google.common.base.Preconditions;
 import com.google.common.primitives.Ints;
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.ede.ActionClassifier;
@@ -74,6 +75,14 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
         unmodifiableQuantityFunctions_ = Collections.unmodifiableMap(quantityFunctions_);
     // Cached unmodifiable view of the marketsForPlacement_ list.
     private final @NonNull List<@NonNull Market> unmodifiableMarketsForPlacement_ = Collections.unmodifiableList(marketsForPlacement_);
+
+    // An index to speed up looking for traders that satisfy the basket in a given market.
+    // 32 is chosen as a stop threshold because when that scanning a list of 32 traders
+    // for satisfiability may be faster than scanning all commodities in a basket for very large baskets.
+    // The number is not scientifically chosen but works well in practice.
+    private final @NonNull InvertedIndex sellersInvertedIndex_ = new InvertedIndex(this, 32);
+
+    private boolean marketsPopulated = false;
 
     // Constructors
 
@@ -186,6 +195,41 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     }
 
     /**
+     * For all markets in the economy, scan each individual market and add all satisfying
+     * sellers to that market.
+     *
+     * <p>
+     * For an economy with M markets with T traders where the average number
+     * of commodities sold by a given trader is k, the algorithm runs in O(M*T) time (the
+     * bound may be lower but I cannot prove it so I chose the conservative number).
+     * In practice on real topologies the algorithm runs in O(M*k) time. A survey of all
+     * entities in all customer topologies gathered from customer diagnostics, the average
+     * across all service entities is k=6.1.
+     * </p>
+     *
+     * <p>
+     * For an explanation of why this optimization performs well in practice, see
+     * https://vmturbo.atlassian.net/wiki/pages/viewpage.action?pageId=170271654
+     * </p>
+     *
+     * <p>
+     * This method should only be run once and only after all traders have been added to the
+     * economy.
+     * </p>
+     */
+    public void populateMarketsWithSellers() {
+        Preconditions.checkArgument(!marketsPopulated);
+
+        for (Market market : markets_.values()) {
+            sellersInvertedIndex_.getSatisfyingTraders(market.getBasket()).forEach(
+                seller -> market.addSeller((TraderWithSettings) seller)
+            );
+        }
+
+        marketsPopulated = true;
+    }
+
+    /**
      * returns an unmodifiable list of Idle VMs
      *
      * @param this the economy that the idleVMs participate in
@@ -226,12 +270,18 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
      * {@code this} economy.
      *
      * <p>
-     *  Ignoring cliques, it is an O(M*C) operation, where M is the number of markets present in
-     *  {@code this} economy and C is the number of commodities sold by the trader.
+     *  Ignoring cliques, it is an approximately constant time operation.
      * </p>
      *
      * <p>
      *  New traders are always added to the end of the {@link #getTraders() traders list}.
+     * </p>
+     *
+     * <p>
+     * Note well that adding a trader does NOT add that trader as a seller in the markets that
+     * trader satisfies. Instead, call {@link #populateMarketsWithSellers()} after adding all
+     * traders to the economy and this will match all traders with the markets in which they
+     * should sell.
      * </p>
      *
      * @param type The type of the trader (e.g. host or virtual machine) represented as an integer.
@@ -247,15 +297,10 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
         // Populate cliques list before adding to markets
         newTrader.getModifiableCliques().addAll(cliques);
 
-        // Add as seller (it won't be buying anything yet)
-        for (Market market : markets_.values()) {
-            if (market.getBasket().isSatisfiedBy(basketSold)) {
-                market.addSeller(newTrader);
-            }
-        }
-
         // update traders list
         traders_.add(newTrader);
+        sellersInvertedIndex_.add(newTrader);
+
         return newTrader;
     }
 
@@ -270,15 +315,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
      *
      * <p>
      *  The complexity is as for {@link #addTrader(int, TraderState, Basket, Collection)} plus an
-     *  O(B*logM) term, where M is the number of markets present in {@code this} economy and B is
-     *  the number of baskets bought. That is if no new markets are created as a result of adding
-     *  the trader.
-     * </p>
-     *
-     * <p>
-     *  If new markets have to be created as a result of adding the trader, then there is an extra
-     *  O(T*C) cost for each basket bought creating a new market, where T is the number of traders
-     *  in the economy and C is the number of commodities in the basket creating the market.
+     *  O(B) term, where B is the number of baskets bought.
      * </p>
      *
      * @param basketsBought The baskets the new trader should buy. {@link ShoppingList}s will be
@@ -292,6 +329,35 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
         // Add as buyer
         for (Basket basketBought : basketsBought) {
             addBasketBought(newTrader, basketBought);
+        }
+
+        return newTrader;
+    }
+
+    /**
+     * Provides the same behavior as {@link #addTrader(int, TraderState, Basket, Collection)}
+     * but also adds the trader to the markets associated with the basketSold. The modelSeller
+     * must already be a member of the economy.
+     *
+     * If the model seller belongs to m markets and there are M markets in the overall economy,
+     * this method has complexity O(m) when the modelSeller's basket is equal to the new
+     * trader's basket sold and complexity O(M) when the modelSeller's basket is different from
+     * the new trader's basket sold.
+     *
+     * @param modelSeller The seller whose properties match the trader to be added.
+     */
+    public @NonNull Trader addTraderByModelSeller(@NonNull Trader modelSeller,
+                                                  @NonNull TraderState state, @NonNull Basket basketSold) {
+        @NonNull Trader newTrader = addTrader(modelSeller.getType(), state, basketSold);
+
+        Collection<Market> marketsToScan = basketSold.equals(modelSeller.getBasketSold()) ?
+            getMarketsAsSeller(modelSeller) :
+            markets_.values();
+
+        for (Market market : marketsToScan) {
+            if (market.getBasket().isSatisfiedBy(basketSold)) {
+                market.addSeller((TraderWithSettings) newTrader);
+            }
         }
 
         return newTrader;
@@ -347,7 +413,8 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
                 trader.setEconomyIndex(trader.getEconomyIndex() - 1);
             }
         }
-        checkArgument(traders_.remove(traderToRemove), "traderToRemove = " + traderToRemove);
+        checkArgument(traders_.remove(traderToRemove), "traderToRemove = {}", traderToRemove);
+        sellersInvertedIndex_.remove(traderToRemove);
 
         return this;
     }
@@ -371,14 +438,14 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     @Pure
     public @NonNull @ReadOnly Map<@NonNull ShoppingList, @NonNull Market>
             getMarketsAsBuyer(@ReadOnly Economy this, @NonNull @ReadOnly Trader trader) {
-        return Collections.unmodifiableMap(((TraderWithSettings)trader).getMarketsAsBuyer());
+        return Collections.unmodifiableMap(((TraderWithSettings) trader).getMarketsAsBuyer());
     }
 
     @Override
     @Pure
     public @NonNull @ReadOnly List<@NonNull @ReadOnly Market> getMarketsAsSeller(@ReadOnly Economy this,
                                                                                  @NonNull @ReadOnly Trader trader) {
-        return Collections.unmodifiableList(((TraderWithSettings)trader).getMarketsAsSeller());
+        return Collections.unmodifiableList(((TraderWithSettings) trader).getMarketsAsSeller());
     }
 
     /**
@@ -402,13 +469,6 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
             market = new Market(basketBought);
 
             markets_.put(basketBought, market);
-
-            // Populate new market
-            for (TraderWithSettings seller : traders_) {
-                if (market.getBasket().isSatisfiedBy(seller.getBasketSold())) {
-                    market.addSeller(seller);
-                }
-            }
         }
 
         // add the buyer to the correct market.
@@ -537,6 +597,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     public void clear() {
         markets_.clear();
         traders_.clear();
+        sellersInvertedIndex_.clear();
         quantityFunctions_.clear();
         settings_.clear();
         idleVmSls_.clear();

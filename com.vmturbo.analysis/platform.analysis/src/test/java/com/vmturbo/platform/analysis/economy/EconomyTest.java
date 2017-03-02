@@ -9,9 +9,12 @@ import java.util.List;
 import java.util.function.DoubleBinaryOperator;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
+import org.junit.Before;
 import org.junit.Ignore;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.runners.Enclosed;
+import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameter;
@@ -250,6 +253,69 @@ public class EconomyTest {
             MapTests.verifyUnmodifiableInvalidOperations(economy.getQuantityFunctions(), CPU, DUMMY_FUNCTION);
         }
     } // end TestEconomy class
+
+    public static class TraderAndPopulateTests {
+        private final Economy economy = new Economy();
+        private final Basket emptyBasket = new Basket();
+        private final Basket cpuBasket = new Basket(new CommoditySpecification(0));
+        private final Basket memBasket = new Basket(new CommoditySpecification(1));
+        private final Trader cpuBuyer = economy.addTrader(0, TraderState.ACTIVE, emptyBasket, cpuBasket);
+        private final Trader memBuyer = economy.addTrader(0, TraderState.ACTIVE, emptyBasket, memBasket);
+        private Trader modelSeller;
+
+        @Rule
+        public ExpectedException expectedException = ExpectedException.none();
+
+        @Before
+        public void setup() {
+            modelSeller = economy.addTrader(0, TraderState.ACTIVE, cpuBasket);
+        }
+
+        @Test
+        public void testAddTraderByModelSellerSameBasketSold() {
+            assertEquals(2, economy.getMarkets().size());
+            economy.populateMarketsWithSellers();
+            assertEquals(1, getActiveSellerCountForBuyerMarkets(cpuBuyer));
+            assertEquals(0, getActiveSellerCountForBuyerMarkets(memBuyer));
+
+            economy.addTraderByModelSeller(modelSeller, TraderState.ACTIVE, cpuBasket);
+            assertEquals(2, getActiveSellerCountForBuyerMarkets(cpuBuyer));
+            assertEquals(0, getActiveSellerCountForBuyerMarkets(memBuyer));
+        }
+
+        @Test
+        public void testAddTraderByModelSellerDifferentBasketSold() {
+            economy.populateMarketsWithSellers();
+            assertEquals(1, getActiveSellerCountForBuyerMarkets(cpuBuyer));
+            assertEquals(0, getActiveSellerCountForBuyerMarkets(memBuyer));
+
+            economy.addTraderByModelSeller(modelSeller, TraderState.ACTIVE, memBasket);
+            assertEquals(1, getActiveSellerCountForBuyerMarkets(cpuBuyer));
+            assertEquals(1, getActiveSellerCountForBuyerMarkets(memBuyer));
+        }
+
+        @Test
+        public void testPopulateMarketsWithSellers() {
+            assertEquals(0, getActiveSellerCountForBuyerMarkets(cpuBuyer));
+            assertEquals(0, getActiveSellerCountForBuyerMarkets(memBuyer));
+
+            economy.populateMarketsWithSellers();
+            assertEquals(1, getActiveSellerCountForBuyerMarkets(cpuBuyer));
+            assertEquals(0, getActiveSellerCountForBuyerMarkets(memBuyer));
+        }
+
+        @Test
+        public void testPopulateMarketsWithSellersThrowsOnMultipleCalls() {
+            economy.populateMarketsWithSellers();
+
+            expectedException.expect(IllegalArgumentException.class);
+            economy.populateMarketsWithSellers();
+        }
+
+        private int getActiveSellerCountForBuyerMarkets(final Trader buyer) {
+            return economy.getMarketsAsBuyer(buyer).values().iterator().next().getActiveSellers().size();
+        }
+    }
 
     @RunWith(Parameterized.class)
     public static class EconomyReadOnlyMethods extends CommonMembersOfParameterizedTests{

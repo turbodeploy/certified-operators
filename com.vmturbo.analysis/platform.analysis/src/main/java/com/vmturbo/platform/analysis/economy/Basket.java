@@ -98,8 +98,9 @@ public final class Basket implements Comparable<@NonNull @ReadOnly Basket>, Iter
             while(otherIndex < other.contents_.length && !specification.isSatisfiedBy(other.contents_[otherIndex])) {
                 ++otherIndex;
             }
-            if(otherIndex >= other.contents_.length)
+            if (otherIndex >= other.contents_.length) {
                 return false;
+            }
             ++otherIndex;
         }
         return true;
@@ -138,7 +139,9 @@ public final class Basket implements Comparable<@NonNull @ReadOnly Basket>, Iter
     @Pure
     public final int indexOf(@ReadOnly Basket this, @NonNull @ReadOnly CommoditySpecification specificationToSearchFor) {
         // The elements of contents_ are unique so the first match will be the only match.
-        return Math.max(-1,Arrays.binarySearch(contents_, specificationToSearchFor));
+        int i = Math.max(-1,Arrays.binarySearch(contents_, specificationToSearchFor));
+
+        return i;
     }
 
     /**
@@ -307,7 +310,8 @@ public final class Basket implements Comparable<@NonNull @ReadOnly Basket>, Iter
         }
         // if any commoditySpecification in the basket does not match, return false immediately
         for (CommoditySpecification commSpec : otherBasket.contents_) {
-            if (indexOf(commSpec) < 0 || !get(indexOf(commSpec)).equals(commSpec)) {
+            int specIndex = indexOf(commSpec);
+            if (specIndex < 0 || !get(specIndex).equals(commSpec)) {
                 return false;
             }
         }
@@ -325,6 +329,8 @@ public final class Basket implements Comparable<@NonNull @ReadOnly Basket>, Iter
         forEach(commSpec -> {
             hasher.putInt(commSpec.hashCode());
         });
-        return hasher.hash().asInt();
+
+        int i = hasher.hash().asInt();
+        return i;
     }
 } // end Basket interface

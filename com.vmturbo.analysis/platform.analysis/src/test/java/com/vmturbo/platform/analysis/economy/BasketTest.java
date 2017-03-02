@@ -364,4 +364,37 @@ public class BasketTest {
         };
     }
 
+    @Test
+    public void testEqualsNullDoesNotThrowException() {
+        Basket b = new Basket();
+        assertFalse(b.equals(null));
+    }
+
+    @Test
+    public void testEqualsDifferentSizeBaskets() {
+        Basket b1 = new Basket();
+        Basket b2 = new Basket(A);
+
+        assertNotEquals(b1, b2);
+        assertNotEquals(b2, b1);
+    }
+
+    @Test
+    public void testEqualBasketsAreEqual() {
+        Basket b1 = new Basket(A);
+        Basket b2 = new Basket(A);
+
+        assertEquals(b1, b2);
+        assertEquals(b2, b1);
+    }
+
+    @Test
+    public void testUnequalBasketCommoditiesAreUnequal() {
+        Basket b1 = new Basket(A);
+        Basket b2 = new Basket(B);
+
+        assertNotEquals(b1, b2);
+        assertNotEquals(b2, b1);
+    }
+
 } // end class BasketTest

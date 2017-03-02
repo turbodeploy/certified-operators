@@ -143,7 +143,7 @@ public class LedgerTest {
             .setQuantity(0, 4).setPeakQuantity(0, 10)
             .setQuantity(1, 10).setPeakQuantity(1, 20)
             .setQuantity(2, 5).setPeakQuantity(2, 5).setMovable(true).move(seller);
-
+        economy.populateMarketsWithSellers();
 
         Ledger ledger = new Ledger(economy);
 
@@ -172,7 +172,6 @@ public class LedgerTest {
         // assert seller's revenue equals revenues from top 2 commodities
         double totalRev = revFromComm.get(0) + revFromComm.get(1);
         assertEquals(sellerIncomeStmt.getRevenues(), totalRev, 0);
-
 
         // change max, min desired util
         revFromComm.clear();
@@ -305,7 +304,7 @@ public class LedgerTest {
             .setQuantity(0, 4).setPeakQuantity(0, 10)
             .setQuantity(1, 10).setPeakQuantity(1, 20)
             .setQuantity(2, 5).setPeakQuantity(2, 5).setMovable(true).move(seller);
-
+        economy.populateMarketsWithSellers();
 
         Ledger ledger1 = new Ledger(economy);
 
@@ -335,7 +334,6 @@ public class LedgerTest {
         // assert seller's revenue equals revenues from top 2 commodities
         totalRev = revFromComm.get(0) + revFromComm.get(1);
         assertEquals(seller1IncomeStmt.getRevenues(), totalRev, 0);
-
     }
 
 } // end LedgerTest class

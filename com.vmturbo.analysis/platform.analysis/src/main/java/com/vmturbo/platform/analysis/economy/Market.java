@@ -168,7 +168,7 @@ public final class Market implements Serializable {
     @Deterministic
     @NonNull Market addSeller(@NonNull TraderWithSettings newSeller) {
         checkArgument(getBasket().isSatisfiedBy(newSeller.getBasketSold()),
-            "getBasket() = " + getBasket() + " newSeller = " + newSeller);
+            "getBasket() = " + getBasket() + " sellerBasket = " + newSeller.getBasketSold() + " newSeller = " + newSeller);
 
         (newSeller.getState().isActive() ? activeSellers_ : inactiveSellers_).add(newSeller);
         newSeller.getMarketsAsSeller().add(this);

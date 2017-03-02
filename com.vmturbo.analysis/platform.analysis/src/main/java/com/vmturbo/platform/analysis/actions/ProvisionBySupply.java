@@ -11,6 +11,7 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Pure;
 
+import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 
 import com.google.common.hash.Hashing;
@@ -96,9 +97,11 @@ public class ProvisionBySupply extends ActionImpl {
                         GuaranteedBuyerHelper.createCommSpecWithNewKeys(shoppingLists);
         // use the commToReplaceMap to transform the basket that the clone sells. eg, make the clone sell
         // allocation commodities with new keys
-        provisionedSeller_ = getEconomy().addTrader(getModelSeller().getType(), TraderState.ACTIVE,
-                                shoppingLists.size() != 0 ? GuaranteedBuyerHelper.transformBasket(commToReplaceMap
-                                        , getModelSeller().getBasketSold()) : getModelSeller().getBasketSold());
+        final Basket basketSold = shoppingLists.size() != 0 ?
+            GuaranteedBuyerHelper.transformBasket(commToReplaceMap, getModelSeller().getBasketSold()) :
+            getModelSeller().getBasketSold();
+        provisionedSeller_ = getEconomy().addTraderByModelSeller(getModelSeller(), TraderState.ACTIVE,
+            basketSold);
         provisionedSeller_.setCloneOf(modelSeller_);
         // Copy trader settings
         provisionedSeller_.getSettings().setCloneable(getModelSeller().getSettings().isCloneable());
@@ -109,8 +112,10 @@ public class ProvisionBySupply extends ActionImpl {
         // Add basket(s) bought
         for (@NonNull Entry<@NonNull ShoppingList, @NonNull Market> entry
                 : getEconomy().getMarketsAsBuyer(getModelSeller()).entrySet()) {
+            // Note that because the basket bought is coming from a model buyer, this cannot result in the creation
+            // of new markets. If it did, we would have to populate that new market with sellers.
             ShoppingList shoppingList = getEconomy().addBasketBought(getProvisionedSeller(),
-                                                                entry.getValue().getBasket());
+                entry.getValue().getBasket());
             if (!entry.getKey().isMovable()) {
                 shoppingList.move(entry.getKey().getSupplier());
                 Move.updateQuantities(getEconomy(), shoppingList, shoppingList.getSupplier(),

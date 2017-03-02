@@ -102,6 +102,10 @@ public final class LegacyTopology {
             .collect(Collectors.toList())));
     }
 
+    public void populateMarketsWithSellers() {
+        economy_.populateMarketsWithSellers();
+    }
+
     /**
      * Add a function that will be used to calculate the quantity sold by a
      * {@link CommoditySpecification} of type {@code commodityType}

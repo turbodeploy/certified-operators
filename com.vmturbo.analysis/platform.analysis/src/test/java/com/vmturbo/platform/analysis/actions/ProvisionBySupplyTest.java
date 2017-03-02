@@ -73,6 +73,7 @@ public class ProvisionBySupplyTest {
             }
 
         }
+        e1.populateMarketsWithSellers();
 
         return testCases.toArray();
     }
@@ -86,6 +87,8 @@ public class ProvisionBySupplyTest {
         b1.getSettings().setGuaranteedBuyer(true);
         ShoppingList s1 = e1.addBasketBought(b1, basketsSold[1]);
         s1.move(modelSeller);
+        e1.populateMarketsWithSellers();
+
         return new Object[]{e1, modelSeller};
     }
 
@@ -106,6 +109,7 @@ public class ProvisionBySupplyTest {
         Economy e1 = new Economy();
         Trader t1 = e1.addTrader(0, TraderState.ACTIVE, EMPTY, EMPTY);
         Trader t2 = e1.addTrader(0, TraderState.INACTIVE, EMPTY, EMPTY);
+        e1.populateMarketsWithSellers();
 
         oids.put(t1, "id1");
         oids.put(t2, "id2");
@@ -162,6 +166,7 @@ public class ProvisionBySupplyTest {
         Trader t2 = topology1.addTrader("id2", "Container2", "Container", TraderState.INACTIVE, Arrays.asList());
         t2.setDebugInfoNeverUseInCode(DEBUG_INFO);
         ShoppingList b2 = topology1.addBasketBought(t2, Arrays.asList("CPU"));
+        topology1.populateMarketsWithSellers();
 
         return new Object[][]{
             {new ProvisionBySupply((Economy)topology1.getEconomy(), t1), topology1,
@@ -189,6 +194,7 @@ public class ProvisionBySupplyTest {
         ShoppingList b1 = topology1.addBasketBought(t1, Arrays.asList());
         Trader t2 = topology1.addTrader("id2", "Container1", "Container", TraderState.INACTIVE, Arrays.asList());
         ShoppingList b2 = topology1.addBasketBought(t2, Arrays.asList("CPU"));
+        topology1.populateMarketsWithSellers();
 
         return new Object[][]{
             {new ProvisionBySupply((Economy)topology1.getEconomy(), t1), topology1,
@@ -239,6 +245,7 @@ public class ProvisionBySupplyTest {
         shop1.move(t3);
         ShoppingList shop2 = e.addBasketBought(t2, b2);
         shop2.move(t3);
+        e.populateMarketsWithSellers();
 
         ProvisionBySupply provisionBySupply1 = new ProvisionBySupply(e, t2);
         ProvisionBySupply provisionBySupply2 = new ProvisionBySupply(e, t2);

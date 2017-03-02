@@ -421,6 +421,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
                 }
             }
         }
+        topology.populateMarketsWithSellers();
 
         // Set various properties of commodity sold
         logger.info("Set commodity properties");
