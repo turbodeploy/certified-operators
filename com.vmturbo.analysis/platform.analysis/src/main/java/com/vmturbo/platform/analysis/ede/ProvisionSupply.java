@@ -20,7 +20,6 @@ public class ProvisionSupply extends Supply {
 
     private static final Logger logger = Logger.getLogger(ProvisionBySupply.class);
 
-    @Override
     public Trader findTheBestTraderToEngage(Market market, Ledger ledger) {
 
         Trader mostProfitableTrader = null;
@@ -76,5 +75,11 @@ public class ProvisionSupply extends Supply {
         ledger.removeTraderIncomeStatement(provisionedTrader);
         Lists.reverse(actions).forEach(axn -> axn.rollback());
         return;
+    }
+
+    @Override
+    public Trader findTheBestTraderToEngage(List<Trader> candidates, Ledger ledger) {
+        // TODO Auto-generated method stub
+        return null;
     }
 }

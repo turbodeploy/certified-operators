@@ -133,6 +133,7 @@ public final class AnalysisServer {
                             .getUseExpenseMetricForTermination());
                     settings.setExpenseMetricFactor(settingsTO.getExpenseMetricFactor());
                     settings.setRateOfResize(settingsTO.getRateOfResize());
+                    settings.setEstimatesEnabled(settingsTO.getEstimates());
                     break;
                 case DISCOVERED_TRADER:
                     if (command.getDiscoveredTrader().getTemplateForHeadroom()) {

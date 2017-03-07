@@ -30,10 +30,10 @@ public class Suspension extends Supply {
                     new HashSet<@NonNull Trader>();
 
     @Override
-    public Trader findTheBestTraderToEngage(Market market, Ledger ledger) {
+    public Trader findTheBestTraderToEngage(List<Trader> candidates, Ledger ledger) {
         Trader leastProfitableTrader = null;
         double roiOfLeastProfitableTrader = Double.MAX_VALUE;
-        for (Trader seller : market.getActiveSellers()) {
+        for (Trader seller : candidates) {
             // we should not consider sole providers or the sellers that have been selected
             // as suspension candidate once but failed to move customers out of itself
             if (soleProviders.contains(seller) || (unprofitableSellersCouldNotSuspend

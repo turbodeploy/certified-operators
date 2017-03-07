@@ -59,6 +59,13 @@ public class Provision {
                                                                     , Ede ede) {
 
         List<@NonNull Action> allActions = new ArrayList<>();
+        if (economy.getSettings().isEstimatesEnabled()) {
+            EstimateSupply es = new EstimateSupply(economy, ledger, true);
+
+            allActions.addAll(es.getActions());
+            allActions.addAll(Placement.runPlacementsTillConverge(economy, ledger, isShopTogether,
+                            PROVISION_PHASE));
+        }
         for (Market market : economy.getMarkets()) {
             // if the traders in the market are not eligible for provision, skip this market
             if (!canMarketProvisionSellers(market)) {

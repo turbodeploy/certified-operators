@@ -4,8 +4,10 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.apache.log4j.Logger;
+import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -51,6 +53,10 @@ public abstract class Supply {
 
         List<@NonNull Action> allActions = new ArrayList<>();
         List<@NonNull Action> actions = new ArrayList<>();
+        EstimateSupply es = null;
+        if (economy.getSettings().isEstimatesEnabled()) {
+            es = new EstimateSupply(economy, ledger, false);
+        }
         for (Market market : economy.getMarkets()) {
             ledger.calculateExpAndRevForSellersInMarket(economy, market);
             for (;;) {
@@ -59,11 +65,12 @@ public abstract class Supply {
                 }
                 // if there are no sellers in the market, the buyer is misconfigured
                 actions.clear();
-                if (market.getActiveSellers().isEmpty()) {
+                if (market.getActiveSellers().isEmpty() || (es != null && es.getSuspensionCandidates(market) == null)) {
                     break;
                 }
-
-                Trader bestTraderToEngage = findTheBestTraderToEngage(market, ledger);
+                List<Trader> suspensionCandidates = es != null? (@NonNull @ReadOnly List<@NonNull Trader>)es.getSuspensionCandidates(market)
+                                .stream().filter(t -> t.getState().isActive()).collect(Collectors.toList()) : market.getActiveSellers();
+                Trader bestTraderToEngage = findTheBestTraderToEngage(suspensionCandidates, ledger);
                 // break if there is no seller that satisfies the engagement criteria in the market
                 if (bestTraderToEngage == null) {
                     break;
@@ -115,6 +122,8 @@ public abstract class Supply {
                         break;
                     }
                 }
+                suspensionCandidates.remove(bestTraderToEngage);
+                continueSuspension &= !suspensionCandidates.isEmpty();
                 ((ActionImpl)actions.get(0)).setImportance(-oldRevenue);
                 allActions.addAll(actions);
             }
@@ -126,14 +135,12 @@ public abstract class Supply {
     /**
      * Return the best trader to clone or suspend after checking the engagement criteria for all
      * traders of a particular market
-     * @param economy - the {@link Economy} in which the clone or suspend action is taken place
-     * @param market - the {@link Market} whose sellers are considered to verify profitability that
-     *                 implies eligibility to clone or suspend
+     * @param suspensionCandidates - the {@link Trader}s that are eligible to clone or suspend
      * @param ledger - the {@link Ledger} that holds the incomeStatement of the sellers considered
      *
      * @return the best trader satisfy the engagement criteria if there is any, otherwise NULL
      */
-    public abstract Trader findTheBestTraderToEngage(Market market, Ledger ledger);
+    public abstract Trader findTheBestTraderToEngage(List<Trader> candidates, Ledger ledger);
 
     /**
      * Return true/false after checking the acceptance criteria for a particular market

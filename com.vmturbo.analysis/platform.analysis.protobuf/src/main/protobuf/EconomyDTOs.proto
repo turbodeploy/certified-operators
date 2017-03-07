@@ -20,6 +20,9 @@ message EconomySettingsTO {
 
     // Support user configured rate of resize.
     required float rate_of_resize = 5;
+
+    // flag to enable estimates
+    required bool estimates = 6 [default = false];
 }
 
 // A detailed, exact statement of particulars about a commodity a buyer needs to buy (but may not be

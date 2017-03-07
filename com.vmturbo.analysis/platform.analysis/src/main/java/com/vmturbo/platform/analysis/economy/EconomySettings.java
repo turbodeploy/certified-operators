@@ -39,6 +39,7 @@ public final class EconomySettings implements Serializable {
     private boolean useExpenseMetricForTermination_;
     private float expenseMetricFactor_;
     private float rateOfResize_ = 1.0f;
+    private boolean isEstimatesEnabled_ = false;
 
     // Constructors
 
@@ -146,6 +147,17 @@ public final class EconomySettings implements Serializable {
     public EconomySettings setRightSizeLower(double rightSizeLower) {
         checkArgument(rightSizeLower >= 0, "rightSizeLower = " + rightSizeLower);
         rightSizeLower_ = rightSizeLower;
+        return this;
+    }
+
+    @Pure
+    public boolean isEstimatesEnabled(@ReadOnly EconomySettings this) {
+        return isEstimatesEnabled_;
+    }
+
+    @Deterministic
+    public EconomySettings setEstimatesEnabled(boolean isEstimatesEnabled) {
+        isEstimatesEnabled_ = isEstimatesEnabled;
         return this;
     }
 

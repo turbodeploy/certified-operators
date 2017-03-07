@@ -132,9 +132,9 @@ public final class Ede {
         economy.composeMarketSubsetForPlacement();
         // generate moves for IDLE VMs
         actions.addAll(Placement.prefPlacementDecisions(economy, economy.getIdleVms()));
-        int oldActionCount = actions.size();
-        logger.info("Plan completed idleVM placement with " + oldActionCount + " actions.");
+        logger.info("Plan completed idleVM placement with " + actions.size() + " actions.");
 
+        int oldActionCount = actions.size();
         // Start by provisioning enough traders to satisfy all the demand
         // Save first call to before() to calculate total plan time
         Instant begin = statsUtils.before();
@@ -181,9 +181,9 @@ public final class Ede {
         // trigger provision, suspension and resize algorithm only when needed
         if (isProvision) {
             actions.addAll(Provision.provisionDecisions(economy, ledger, isShopTogether, this));
+            logger.info("Plan completed provisioning with " + (actions.size() - oldActionCount)
+                        + " actions.");
         }
-        logger.info("Plan completed provisioning with " + (actions.size() - oldActionCount)
-                    + " actions.");
         // provisioning time
         statsUtils.after();
 
@@ -196,9 +196,9 @@ public final class Ede {
             suspension.findSoleProviders(economy);
             actions.addAll(suspension.supplyDecisions(economy, ledger, this, isShopTogether,
                                                       false));
+            logger.info("Plan completed suspending with " + (actions.size() - oldActionCount)
+                        + " actions.");
         }
-        logger.info("Plan completed suspending with " + (actions.size() - oldActionCount)
-                    + " actions.");
         // suspension time
         statsUtils.after();
 
