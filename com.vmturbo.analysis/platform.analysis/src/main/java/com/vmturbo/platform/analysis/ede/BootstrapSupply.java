@@ -173,7 +173,7 @@ public class BootstrapSupply {
                         // If quote is infinite, we create a new provider
                         if (Double.isInfinite(minimizer.getBestQuote())) {
                             provisionRelatedActionList.addAll(provisionTraderToFitBuyer(economy,
-                                            sl, market));
+                                            sl, entry.getValue()));
                         } else {
                             // place the shopping list of the new clone to the best supplier
                             // this is equivalent as Start in legacy market
