@@ -9,6 +9,7 @@ import javax.xml.parsers.ParserConfigurationException;
 
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
+
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.ede.Ede;
 import com.vmturbo.platform.analysis.utilities.M2Utils;
@@ -68,7 +69,7 @@ public final class RunningLoadedTopologies {
             for (int i = 0 ; i < 3 ; ++i) {
                 Ede ede = new Ede();
                 long start = System.nanoTime();
-                ede.generateActions(economy, false, true, true, true, "runloadtopo");
+                ede.generateActions(economy, true, false, true, true, true, "runloadtopo");
                 System.out.print(System.nanoTime()-start + "\t");
             }
             System.out.println();

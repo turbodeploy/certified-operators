@@ -2,12 +2,12 @@ package com.vmturbo.platform.analysis.drivers;
 
 import java.io.IOException;
 import java.text.ParseException;
-import java.util.ArrayList;
 import java.util.List;
 
 import javax.xml.parsers.ParserConfigurationException;
 
 import org.apache.log4j.Logger;
+
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.ede.Ede;
@@ -36,8 +36,8 @@ public final class RunPlan {
             LegacyTopology topology = M2Utils.loadFile(args[0]);
             Ede ede = new Ede();
             // TODO: remove cast to Economy!
-            List<Action> actions = ede.generateActions((Economy)topology.getEconomy(), false, true,
-                            true, true, "runplan");
+            List<Action> actions = ede.generateActions((Economy)topology.getEconomy(), true,
+                                                       false, true, true, true, "runplan");
             logger.info(actions.size() + " actions");
             for (Action action : actions) {
                 logger.info("What: " + action.debugDescription(topology.getUuids()::get,

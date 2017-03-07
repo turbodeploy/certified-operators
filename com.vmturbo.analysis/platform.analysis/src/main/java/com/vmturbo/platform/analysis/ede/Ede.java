@@ -13,10 +13,10 @@ import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ledger.Ledger;
+import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
 import com.vmturbo.platform.analysis.utilities.StatsManager;
 import com.vmturbo.platform.analysis.utilities.StatsUtils;
 import com.vmturbo.platform.analysis.utilities.StatsWriter;
-import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
 
 /**
  *
@@ -46,11 +46,12 @@ public final class Ede {
      * @see {@link #generateActions(Economy, boolean, boolean, boolean, boolean, boolean)}
      */
     public @NonNull List<@NonNull Action> generateActions(@NonNull Economy economy,
+                                                          boolean isPlan,
                                                           boolean isShopTogether,
                                                           boolean isProvision, boolean isSuspension,
                                                           boolean isResize, String mktName) {
-        return generateActions(economy, isShopTogether, isProvision, isSuspension, isResize, false,
-                               mktName);
+        return generateActions(economy, isPlan, isShopTogether, isProvision, isSuspension,
+                               isResize, false, mktName);
     }
 
     /** Generate Actions.
@@ -59,17 +60,19 @@ public final class Ede {
      * @see {@link #generateActions(Economy, boolean, boolean, boolean, boolean, boolean, String)}
      */
     public @NonNull List<@NonNull Action> generateActions(@NonNull Economy economy,
+                                                          boolean isPlan,
                                                           boolean isShopTogether,
                                                           boolean isProvision, boolean isSuspension,
                                                           boolean isResize) {
-        return generateActions(economy, isShopTogether, isProvision, isSuspension, isResize, false, "unspecified|");
-
+        return generateActions(economy, isPlan, isShopTogether, isProvision, isSuspension,
+                               isResize, false, "unspecified|");
     }
 
     /**
      * Create a new set of actions for a snapshot of the economy.
      *
      * @param economy The snapshot of the economy which we analyze and take decisions.
+     * @param isPlan True if we are running a Plan and false otherwise.
      * @param isShopTogether True if we want to enable SNM and false otherwise.
      * @param isProvision True if we need to trigger provision algorithm and false otherwise
      * @param isSuspension True if we need to trigger suspension algorithm and false otherwise
@@ -80,18 +83,20 @@ public final class Ede {
      * @see {@link Action#collapsed(List)}
      */
     public @NonNull List<@NonNull Action> generateActions(@NonNull Economy economy,
+                                                          boolean isPlan,
                                                           boolean isShopTogether,
-                                                          boolean isProvision, boolean isSuspension,
+                                                          boolean isProvision,
+                                                          boolean isSuspension,
                                                           boolean isResize, boolean collapse) {
-        return generateActions(economy, isShopTogether, isProvision, isSuspension, isResize,
-                               collapse, "unspecified|");
-
+        return generateActions(economy, isPlan, isShopTogether, isProvision, isSuspension,
+                               isResize, collapse, "unspecified|");
     }
 
     /**
      * Create a new set of actions for a snapshot of the economy.
      *
      * @param economy The snapshot of the economy which we analyze and take decisions.
+     * @param isPlan True if we are running a Plan and false otherwise.
      * @param isShopTogether True if we want to enable SNM and false otherwise.
      * @param isProvision True if we need to trigger provision algorithm and false otherwise
      * @param isSuspension True if we need to trigger suspension algorithm and false otherwise
@@ -104,18 +109,21 @@ public final class Ede {
      * @see {@link Action#collapsed(List)}
      */
     public @NonNull List<@NonNull Action> generateActions(@NonNull Economy economy,
+                                                          boolean isPlan,
                                                           boolean isShopTogether,
                                                           boolean isProvision, boolean isSuspension,
                                                           boolean isResize, boolean collapse, String mktData) {
         logger.info("Plan Started.");
         @NonNull List<Action> actions = new ArrayList<>();
-        ActionClassifier classifier;
-        try {
-            classifier = new ActionClassifier(economy);
-        }
-        catch (ClassNotFoundException|IOException e) {
-            logger.error("Could not copy economy.", e);
-            return actions;
+        ActionClassifier classifier = null;
+        if (!isPlan) {
+            try {
+                classifier = new ActionClassifier(economy);
+            }
+            catch (ClassNotFoundException | IOException e) {
+                logger.error("Could not copy economy.", e);
+                return actions;
+            }
         }
 
         //Parse market stats data coming from Market1, add prepare to write to stats file.
@@ -208,7 +216,9 @@ public final class Ede {
             actions = Action.groupActionsByTypeAndReorderBeforeSending(collapsed);
         }
         // mark non-executable actions
-        classifier.classify(actions);
+        if (!isPlan && classifier != null) {
+            classifier.classify(actions);
+        }
         logger.info("Plan completed with " + actions.size() + " actions.");
         // total time to run plan
         statsUtils.after(begin);
@@ -244,17 +254,18 @@ public final class Ede {
     public @NonNull List<@NonNull Action> generateHeadroomActions(@NonNull Economy economy,
                                                           boolean isShopTogether, boolean isProvision, boolean isSuspension,
                                                           boolean isResize, boolean collapse) {
+        boolean isPlan = true;
         // create a subset list of markets that have at least one buyer that can move
         economy.composeMarketSubsetForPlacement();
         @NonNull List<Action> actions = new ArrayList<>();
         // balance entities in plan
-        actions.addAll(generateActions(economy, isShopTogether, isProvision, isSuspension, isResize));
+        actions.addAll(generateActions(economy, isPlan, isShopTogether, isProvision, isSuspension, isResize));
         logger.info("Plan completed initial placement with " + actions.size() + " actions.");
         // add clones of sampleSE to the economy
         economy.getTradersForHeadroom().forEach(template -> ProtobufToAnalysis.addTrader(
                                         economy.getTopology(), template));
         int oldActionCount = actions.size();
-        actions.addAll(generateActions(economy, isShopTogether, isProvision, isSuspension, isResize));
+        actions.addAll(generateActions(economy, isPlan, isShopTogether, isProvision, isSuspension, isResize));
         logger.info("Plan completed placement after adding demand with " + (actions.size() - oldActionCount)
                     + " actions.");
         return actions;

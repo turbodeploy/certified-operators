@@ -26,8 +26,11 @@ message StartDiscoveredTopology {
     // the economy should be used
     required bool enableShopTogether = 1;
 
+    // The flag to indicate if we are running a Plan
+    required bool isPlan = 2;
+
     // Economy Settings
-    required EconomySettingsTO economySettings = 2;
+    required EconomySettingsTO economySettings = 3;
 }
 
 // The message to force a running plan to stop

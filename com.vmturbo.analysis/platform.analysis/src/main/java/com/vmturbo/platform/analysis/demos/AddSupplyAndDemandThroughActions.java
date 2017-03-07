@@ -12,6 +12,7 @@ import javax.xml.parsers.ParserConfigurationException;
 import org.apache.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
+
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
 import com.vmturbo.platform.analysis.economy.Economy;
@@ -99,7 +100,8 @@ public final class AddSupplyAndDemandThroughActions {
             do {
                 logger.info("Cycle " + (++nCycles));
                 Ede ede = new Ede();
-                actions = ede.generateActions(economy, false, true, true, true, "addsupplydemand"); // TODO: remove cast to Economy!
+                actions = ede.generateActions(economy, true, false, true, true, true,
+                                              "addsupplydemand"); // TODO: remove cast to Economy!
                 logger.info(actions.size() + " actions");
                 for (Action action : actions) {
                     logger.info("What: " + action.debugDescription(supplementaryUuids::get, supplementaryNames::get,

@@ -3,7 +3,6 @@ package com.vmturbo.platform.analysis.drivers;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -119,6 +118,7 @@ public final class AnalysisServer {
                     analysisInstanceInfoMap.put(command.getTopologyId(), instInfo);
                     instInfo.setShopTogetherEnabled(command.getStartDiscoveredTopology()
                                                     .getEnableShopTogether());
+                    instInfo.setIsPlan(command.getStartDiscoveredTopology().getIsPlan());
                     instInfo.getLastComplete().setTopologyId(command.getTopologyId());
                     instInfo.setMarketName(command.getMarketName());
                     instInfo.setMarketData(command.getMarketData());
@@ -273,6 +273,7 @@ public final class AnalysisServer {
         @NonNull List<@NonNull Action> actions;
         if (lastComplete.getEconomy().getTradersForHeadroom().isEmpty()) {
             actions = new Ede().generateActions(economy,
+                                                instInfo.isPlan(),
                                                 instInfo.isShopTogetherEnabled(),
                                                 instInfo.isProvisionEnabled(),
                                                 instInfo.isSuspensionEnabled(),
@@ -308,6 +309,8 @@ public final class AnalysisServer {
         // we've received and currentPartial_ is the topology we are currently populating.
         private @NonNull Topology lastComplete_ = new Topology();
         private @NonNull Topology currentPartial_ = new Topology();
+        // a flag to denote if we are running a Plan
+        boolean isPlan = false;
         // a flag to decide if move should use shop-together algorithm or not
         boolean isShopTogetherEnabled = false;
         // a flag to decide if provision algorithm should run or not
@@ -323,6 +326,12 @@ public final class AnalysisServer {
 
         public boolean isShopTogetherEnabled() {
             return isShopTogetherEnabled;
+        }
+        public void setIsPlan(boolean isPlan) {
+            this.isPlan = isPlan;
+        }
+        public boolean isPlan() {
+            return isPlan;
         }
         public void setShopTogetherEnabled(boolean isShopTogetherEnabled) {
             this.isShopTogetherEnabled = isShopTogetherEnabled;

@@ -10,6 +10,7 @@ import javax.xml.parsers.ParserConfigurationException;
 import org.apache.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
+
 import com.google.common.base.Strings;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -53,7 +54,8 @@ public final class ExportForVisualisation {
                          topology.getCommodityTypes()::getName,topology.getTraderTypes()::getName);
 
             Ede ede = new Ede();
-            ede.generateActions((Economy)topology.getEconomy(), false, true, true, true, "exportvisual"); // TODO: remove cast
+            ede.generateActions((Economy)topology.getEconomy(), true, false, true, true, true,
+                                "exportvisual"); // TODO: remove cast
             printEconomy(topology.getEconomy(), "Optimized",topology.getUuids()::get,topology.getNames()::get,
                          topology.getCommodityTypes()::getName,topology.getTraderTypes()::getName);
         } catch (IOException | ParseException | ParserConfigurationException e) {
