@@ -122,8 +122,9 @@ public abstract class Supply {
                         break;
                     }
                 }
-                suspensionCandidates.remove(bestTraderToEngage);
-                continueSuspension &= !suspensionCandidates.isEmpty();
+                if (es != null) {
+                    es.getSuspensionCandidates(market).remove(bestTraderToEngage);
+                }
                 ((ActionImpl)actions.get(0)).setImportance(-oldRevenue);
                 allActions.addAll(actions);
             }
