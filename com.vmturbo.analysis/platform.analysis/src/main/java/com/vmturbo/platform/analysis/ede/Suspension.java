@@ -34,6 +34,9 @@ public class Suspension extends Supply {
         Trader leastProfitableTrader = null;
         double roiOfLeastProfitableTrader = Double.MAX_VALUE;
         for (Trader seller : candidates) {
+            if (seller.getCustomers().isEmpty()) {
+                return seller;
+            }
             // we should not consider sole providers or the sellers that have been selected
             // as suspension candidate once but failed to move customers out of itself
             if (soleProviders.contains(seller) || (unprofitableSellersCouldNotSuspend

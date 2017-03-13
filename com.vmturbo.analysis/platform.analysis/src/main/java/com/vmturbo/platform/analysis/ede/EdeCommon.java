@@ -78,25 +78,28 @@ public final class EdeCommon {
                                     @NonNull Trader seller, int soldIndex,
                                     int boughtIndex, boolean forTraderIncomeStmt) {
 
-        double[] costCurrentMinMax = {Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY,
-                                      Double.POSITIVE_INFINITY};
-        boolean isCurrentSupplier = seller == shoppingList.getSupplier();
-
         // get the quantity and peak quantity to buy for each commodity of the basket
         final double[] quantities = shoppingList.getQuantities();
         final double[] peakQuantities = shoppingList.getPeakQuantities();
+        double boughtQnty = quantities[boughtIndex];
+        if (boughtQnty == 0) {
+            return new double[] {0, 0, 0};
+        }
 
+        double[] costCurrentMinMax = {Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY,
+                        Double.POSITIVE_INFINITY};
+        boolean isCurrentSupplier = seller == shoppingList.getSupplier();
         final CommoditySold commSold = seller.getCommoditiesSold().get(soldIndex);
         final DoubleBinaryOperator addition = (sold, bought) -> sold + bought;
 
         // add quantities bought by buyer, to quantities already used at seller
         final double effectiveCapacity = commSold.getEffectiveCapacity();
         final double[] newQuantities = Move.updatedQuantities(economy, addition,
-            quantities[boughtIndex], peakQuantities[boughtIndex], seller, soldIndex, true);
+                        boughtQnty, peakQuantities[boughtIndex], seller, soldIndex, true);
         final double newQuantity = isCurrentSupplier ? commSold.getQuantity() : newQuantities[0];
         final double newPeakQuantity = isCurrentSupplier ? commSold.getPeakQuantity() : newQuantities[1];
         final double utilUpperBound = commSold.getSettings().getUtilizationUpperBound();
-        final double excessQuantity = peakQuantities[boughtIndex] - quantities[boughtIndex];
+        final double excessQuantity = peakQuantities[boughtIndex] - boughtQnty;
 
         if (newQuantity > effectiveCapacity || newPeakQuantity > effectiveCapacity) {
             return costCurrentMinMax;
@@ -110,14 +113,14 @@ public final class EdeCommon {
 
         // calculate quote
         // TODO: decide what to do if peakQuantity is less than quantity
-        costCurrentMinMax[0] = (((quantities[boughtIndex] == 0) ? 0 : quantities[boughtIndex]*priceUsed)
-                                + (excessQuantity > 0 ? excessQuantity*pricePeak : 0)) / effectiveCapacity;
+        costCurrentMinMax[0] = ((boughtQnty*priceUsed) + (excessQuantity > 0 ?
+                        excessQuantity*pricePeak : 0)) / effectiveCapacity;
 
         if (forTraderIncomeStmt && costCurrentMinMax[0] != 0) {
             costCurrentMinMax[1] = pf.unitPrice(seller.getSettings().getMinDesiredUtil())
-                                                *quantities[boughtIndex] / effectiveCapacity;
+                                                *boughtQnty / effectiveCapacity;
             costCurrentMinMax[2] = pf.unitPrice(seller.getSettings().getMaxDesiredUtil())
-                                                *quantities[boughtIndex] / effectiveCapacity;
+                                                *boughtQnty / effectiveCapacity;
         } else {
             costCurrentMinMax[1] = costCurrentMinMax[2] = 0;
         }
