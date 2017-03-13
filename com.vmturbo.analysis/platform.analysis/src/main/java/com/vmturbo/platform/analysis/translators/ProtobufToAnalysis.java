@@ -237,6 +237,7 @@ public final class ProtobufToAnalysis {
         destination.setMaxDesiredUtil(source.getMaxDesiredUtilization());
         destination.setGuaranteedBuyer(source.getGuaranteedBuyer());
         destination.setCanAcceptNewCustomers(source.getCanAcceptNewCustomers());
+        destination.setIsEligibleForResizeDown(source.getIsEligibleForResizeDown());
     }
 
     /**

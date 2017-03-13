@@ -71,7 +71,8 @@ public class Resizer {
                     continue;
                 }
                 IncomeStatement incomeStatement = incomeStatements.get(soldIndex);
-                if (evaluateEngageCriteria(economy, commoditySold, incomeStatement)) {
+                if (evaluateEngageCriteria(economy, commoditySold, incomeStatement,
+                                           seller.getSettings().isEligibleForResizeDown())) {
                     double expenses = incomeStatement.getExpenses();
                     if (expenses > 0) {
                         try {
@@ -233,11 +234,12 @@ public class Resizer {
      * @return Whether the commodity meets the resize engagement criterion.
      */
     public static boolean evaluateEngageCriteria(Economy economy, CommoditySold resizeCommodity,
-                                                 IncomeStatement commodityIS) {
+                                                 IncomeStatement commodityIS, boolean eligibleForResizeDown) {
         double currentCapacity = resizeCommodity.getEffectiveCapacity();
         double currentQuantity = resizeCommodity.getQuantity();
         double currentUtilization = currentQuantity / currentCapacity;
         // do not resize if utilization is in acceptable range
+        // or if resizeDown warm up interval not finish
         EconomySettings settings = economy.getSettings();
         if (currentUtilization > settings.getRightSizeLower() &&
             currentUtilization < settings.getRightSizeUpper()) {
@@ -246,7 +248,8 @@ public class Resizer {
         return (commodityIS.getROI() > commodityIS.getMaxDesiredROI() &&
                 currentUtilization > settings.getRightSizeUpper()) ||
                (commodityIS.getROI() < commodityIS.getMinDesiredROI() &&
-                currentUtilization < settings.getRightSizeLower());
+                currentUtilization < settings.getRightSizeLower() &&
+               eligibleForResizeDown);
     }
 
     /**

@@ -23,6 +23,7 @@ final class TraderWithSettings extends Trader implements TraderSettings {
     private boolean cloneable_ = false;
     private boolean guaranteedBuyer_ = false;
     private boolean canAcceptNewCustomers_ = false;
+    private boolean isEligibleForResizeDown_ = true;
     private double maxDesiredUtilization_ = 1.0;
     private double minDesiredUtilization_ = 0.0;
 
@@ -122,6 +123,11 @@ final class TraderWithSettings extends Trader implements TraderSettings {
     }
 
     @Override
+    public boolean isEligibleForResizeDown() {
+        return isEligibleForResizeDown_;
+    }
+
+    @Override
     @Deterministic
     public @NonNull TraderWithSettings setSuspendable(boolean suspendable) {
         suspendable_ = suspendable;
@@ -166,6 +172,12 @@ final class TraderWithSettings extends Trader implements TraderSettings {
     @Deterministic
     public @NonNull TraderSettings setCanAcceptNewCustomers(boolean canAcceptNewCustomers) {
         canAcceptNewCustomers_ = canAcceptNewCustomers;
+        return this;
+    }
+
+    @Override
+    public @NonNull TraderSettings setIsEligibleForResizeDown(boolean isEligibleForResizeDown) {
+        isEligibleForResizeDown_ = isEligibleForResizeDown;
         return this;
     }
 

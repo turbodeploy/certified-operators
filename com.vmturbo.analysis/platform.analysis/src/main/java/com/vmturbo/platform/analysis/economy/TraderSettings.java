@@ -53,6 +53,11 @@ public interface TraderSettings {
     double getMinDesiredUtil();
 
     /**
+     * Whether the associated {@link Trader} can take resize down action.
+     */
+    boolean isEligibleForResizeDown();
+
+    /**
      * Sets the value of the <b>suspendable</b> field.
      *
      * <p>
@@ -124,4 +129,17 @@ public interface TraderSettings {
      */
     @NonNull
     TraderSettings setCanAcceptNewCustomers(boolean canAcceptNewCustomers);
+
+
+    /**
+     * Sets the value of the <b>isEligibleForResizeDown</b> field.
+     *
+     * <p>
+     *  Has no observable side-effects except setting the above field.
+     * </p>
+     *
+     * @param isEligibleForResizeDown the new value for the field.
+     * @return {@code this}
+     */
+    @NonNull TraderSettings setIsEligibleForResizeDown(boolean isEligibleForResizeDown);
 } // end TraderSettings interface
