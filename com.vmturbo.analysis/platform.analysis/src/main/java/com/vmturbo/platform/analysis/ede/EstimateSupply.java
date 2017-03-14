@@ -43,7 +43,7 @@ public class EstimateSupply {
 
     // constructor
     public EstimateSupply(Economy economy, Ledger ledger, boolean isProvision) {
-        logger.info("Estimate Supply Start");
+        logger.info("Plan started Estimate Supply");
         economy_ = economy;
         ledger_ = ledger;
         marketSuperSellers_ = new HashMap<>();
@@ -76,7 +76,7 @@ public class EstimateSupply {
                     + counter[2]
                     + " STSuspened:"
                     + counter[3] + " ");
-        logger.info("Estimate Supply End");
+        logger.info("Plan Completed Estimate Supply");
 
     }
 
