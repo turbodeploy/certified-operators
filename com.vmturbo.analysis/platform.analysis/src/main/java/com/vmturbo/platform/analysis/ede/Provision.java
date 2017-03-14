@@ -76,6 +76,11 @@ public class Provision {
                     return allActions;
                 }
                 List<@NonNull Action> actions = new ArrayList<>();
+
+                // run placement on the current buyers
+                allActions.addAll(Placement.prefPlacementDecisions(economy,
+                                new ArrayList<ShoppingList>(market.getBuyers())));
+
                 ledger.calculateExpAndRevForSellersInMarket(economy, market);
                 // break if there is no seller that is eligible for cloning in the market
                 Trader mostProfitableTrader = findBestTraderToEngage(market, ledger);
@@ -106,17 +111,16 @@ public class Provision {
                 }
 
                 // run placement after adding a new seller to the economy
-                // TODO: run placement within a market
-                actions.addAll(Placement.runPlacementsTillConverge(economy,
-                                  new ArrayList<ShoppingList>(mostProfitableTrader.getCustomers()),
-                                  ledger, isShopTogether, PROVISION_PHASE));
+                actions.addAll(Placement.prefPlacementDecisions(economy,
+                                new ArrayList<ShoppingList>(mostProfitableTrader.getCustomers())));
+                actions.addAll(Placement.prefPlacementDecisions(economy, market.getBuyers()));
 
                 if (!evaluateAcceptanceCriteria(economy, ledger, origRoI, mostProfitableTrader,
                                 provisionedTrader)) {
                     logger.warn("rollback provisioning of a new trader if the RoI of the "
                                     + "modelSeller does not go down");
                     // remove IncomeStatement from ledger and rollback actions
-                    rollBackActionAndUpdateLedger(ledger, provisionedTrader, actions);
+                    rollBackActionAndUpdateLedger(ledger, provisionedTrader, actions, provisionAction);
                     break;
                 }
                 ((ActionImpl)provisionAction).setImportance(oldRevenue - ledger
@@ -251,9 +255,9 @@ public class Provision {
      *
      */
     public static void rollBackActionAndUpdateLedger(Ledger ledger,
-                    Trader provisionedTrader, List<@NonNull Action> actions) {
+                    Trader provisionedTrader, List<@NonNull Action> actions, Action provisionAction) {
         // remove IncomeStatement from ledger and rollback actions
-        if (actions.get(0) instanceof ProvisionBySupply) {
+        if (provisionAction instanceof ProvisionBySupply) {
             ledger.removeTraderIncomeStatement(provisionedTrader);
         }
         Lists.reverse(actions).forEach(axn -> axn.rollback());

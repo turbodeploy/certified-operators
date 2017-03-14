@@ -12,6 +12,12 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
+import com.vmturbo.platform.analysis.ede.ActionClassifier;
+import com.vmturbo.platform.analysis.ede.BootstrapSupply;
+import com.vmturbo.platform.analysis.ede.Placement;
+import com.vmturbo.platform.analysis.ede.Provision;
+import com.vmturbo.platform.analysis.ede.Resizer;
+import com.vmturbo.platform.analysis.ede.Suspension;
 import com.vmturbo.platform.analysis.ledger.Ledger;
 import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
 import com.vmturbo.platform.analysis.utilities.StatsManager;
@@ -191,6 +197,11 @@ public final class Ede {
             actions.addAll(Provision.provisionDecisions(economy, ledger, isShopTogether, this));
             logger.info("Plan completed provisioning with " + (actions.size() - oldActionCount)
                         + " actions.");
+            // if provision generated some actions, run placements
+            if (actions.size() > oldActionCount) {
+                actions.addAll(Placement.runPlacementsTillConverge(economy, ledger, isShopTogether,
+                                                                   PLACEMENT_PHASE));
+            }
         }
         // provisioning time
         statsUtils.after();
