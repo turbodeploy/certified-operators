@@ -1,8 +1,12 @@
 package com.vmturbo.platform.analysis.economy;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
 
 import java.util.HashSet;
+
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Before;
 import org.junit.Test;
@@ -234,13 +238,13 @@ public final class TraderWithSettingsTest {
 
     @Test
     public final void testGetCliques() {
-        ListTests.verifyUnmodifiableValidOperations(fixture_.getCliques(), 42);
-        ListTests.verifyUnmodifiableInvalidOperations(fixture_.getCliques(), 42);
+        ListTests.verifyUnmodifiableValidOperations(fixture_.getCliques(), 42L);
+        ListTests.verifyUnmodifiableInvalidOperations(fixture_.getCliques(), 42L);
     }
 
     @Test
     public final void testGetModifiableCliques() {
-        ListTests.verifyModifiable(fixture_.getModifiableCliques(), 42);
+        ListTests.verifyModifiable(fixture_.getModifiableCliques(), 42L);
     }
 
     @Test

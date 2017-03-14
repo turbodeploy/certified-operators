@@ -22,7 +22,7 @@ import org.checkerframework.dataflow.qual.Pure;
 import org.checkerframework.dataflow.qual.SideEffectFree;
 
 import com.google.common.base.Preconditions;
-import com.google.common.primitives.Ints;
+import com.google.common.primitives.Longs;
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.ede.ActionClassifier;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
@@ -291,7 +291,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
      * @return The newly created trader, so that its properties can be updated.
      */
     public @NonNull Trader addTrader(int type, @NonNull TraderState state, @NonNull Basket basketSold,
-                                     @NonNull Collection<@NonNull Integer> cliques) {
+                                     @NonNull Collection<@NonNull Long> cliques) {
         TraderWithSettings newTrader = new TraderWithSettings(traders_.size(), type, state, basketSold);
 
         // Populate cliques list before adding to markets
@@ -324,7 +324,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
      */
     public @NonNull Trader addTrader(int type, @NonNull TraderState state, @NonNull Basket basketSold,
                                      @NonNull Basket... basketsBought) {
-        @NonNull Trader newTrader = addTrader(type, state, basketSold, Ints.asList());
+        @NonNull Trader newTrader = addTrader(type, state, basketSold, Longs.asList());
 
         // Add as buyer
         for (Basket basketBought : basketsBought) {

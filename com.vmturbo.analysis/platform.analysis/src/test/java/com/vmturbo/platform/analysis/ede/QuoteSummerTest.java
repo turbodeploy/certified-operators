@@ -1,6 +1,9 @@
 package com.vmturbo.platform.analysis.ede;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Ignore;
@@ -8,6 +11,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import com.vmturbo.platform.analysis.economy.Economy;
+
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
 import junitparams.naming.TestCaseName;
@@ -24,7 +28,7 @@ public class QuoteSummerTest {
     @Test
     @Parameters
     @TestCaseName("Test #{index}: QuoteSummer({0},{1})")
-    public final void testQuoteSummer_And_Getters(@NonNull Economy economy, int clique) {
+    public final void testQuoteSummer_And_Getters(@NonNull Economy economy, long clique) {
         QuoteSummer summer = new QuoteSummer(economy, clique);
 
         assertSame(economy, summer.getEconomy());

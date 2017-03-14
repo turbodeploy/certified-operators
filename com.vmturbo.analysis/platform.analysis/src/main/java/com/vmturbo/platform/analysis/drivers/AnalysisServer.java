@@ -25,6 +25,7 @@ import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.EconomySettings;
 import com.vmturbo.platform.analysis.ede.Ede;
+import com.vmturbo.platform.analysis.ede.ReplayActions;
 import com.vmturbo.platform.analysis.ledger.PriceStatement;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisCommand;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults;
@@ -60,6 +61,10 @@ public final class AnalysisServer {
 
     // a queue to keep the message that failed to send back to opsmanager because of network issues
     private LinkedList<AnalysisResults> previousFailedMsg = new LinkedList<AnalysisResults>();
+
+    // map that associates every market name with actions from last run
+    private Map<String, ReplayActions> replayActionsMap = new HashMap<>();
+
     // Constructors
 
     // Methods
@@ -118,7 +123,10 @@ public final class AnalysisServer {
                     analysisInstanceInfoMap.put(command.getTopologyId(), instInfo);
                     instInfo.setShopTogetherEnabled(command.getStartDiscoveredTopology()
                                                     .getEnableShopTogether());
-                    instInfo.setIsPlan(command.getStartDiscoveredTopology().getIsPlan());
+                    instInfo.setClassifyActions(command.getStartDiscoveredTopology()
+                                                .getClassifyActions());
+                    instInfo.setReplayActions(command.getStartDiscoveredTopology()
+                                                .getReplayActions());
                     instInfo.getLastComplete().setTopologyId(command.getTopologyId());
                     instInfo.setMarketName(command.getMarketName());
                     instInfo.setMarketData(command.getMarketData());
@@ -276,15 +284,33 @@ public final class AnalysisServer {
         // Run one round of placement measuring time-to-process
         long start = System.nanoTime();
         Economy economy = (Economy)lastComplete.getEconomy();
+        logger.info(economy.toString());
         PriceStatement startPriceStatement = new PriceStatement().computePriceIndex(economy);
         @NonNull List<@NonNull Action> actions;
+        AnalysisResults results;
         if (lastComplete.getEconomy().getTradersForHeadroom().isEmpty()) {
-            actions = new Ede().generateActions(economy,
-                                                instInfo.isPlan(),
+            ReplayActions lastDecisions = replayActionsMap.get(mktName);
+            Ede ede = new Ede();
+            if (instInfo.getReplayActions()) {
+                ede.setReplayActions((lastDecisions != null) ? lastDecisions : new ReplayActions());
+            }
+            actions = ede.generateActions(economy,
+                                                instInfo.getClassifyActions(),
                                                 instInfo.isShopTogetherEnabled(),
                                                 instInfo.isProvisionEnabled(),
                                                 instInfo.isSuspensionEnabled(),
                                                 instInfo.isResizeEnabled(), true, mktData);
+            long stop = System.nanoTime();
+            // need this for oids to be added for provisioned traders
+            results = AnalysisToProtobuf.analysisResults(actions, lastComplete.getTraderOids(),
+                                                      lastComplete.getShoppingListOids(), stop - start, lastComplete,
+                                                      startPriceStatement, true);
+            if (instInfo.getReplayActions()) {
+                ReplayActions newReplayActions = ede.getReplayActions();
+                newReplayActions.setTraderOids(lastComplete.getTraderOids());
+                newReplayActions.setActions(actions);
+                replayActionsMap.put(mktName, newReplayActions);
+            }
         } else {
             // if there are no templates to be added this is not a headroom plan
             actions = new Ede().generateHeadroomActions(economy,
@@ -292,6 +318,10 @@ public final class AnalysisServer {
                                                         instInfo.isProvisionEnabled(),
                                                         instInfo.isSuspensionEnabled(),
                                                         instInfo.isResizeEnabled(), true);
+            long stop = System.nanoTime();
+            results = AnalysisToProtobuf.analysisResults(actions, lastComplete.getTraderOids(),
+                                                      lastComplete.getShoppingListOids(), stop - start, lastComplete,
+                                                      startPriceStatement, true);
         }
 
         // if the analysis was forced to stop, send a planStopped message back
@@ -301,11 +331,8 @@ public final class AnalysisServer {
                             .setTopologyId(lastComplete.getTopologyId()).build();
         }
 
-        long stop = System.nanoTime();
         // Send back the results
-        return AnalysisToProtobuf.analysisResults(actions, lastComplete.getTraderOids(),
-                        lastComplete.getShoppingListOids(), stop - start, lastComplete,
-                        startPriceStatement, true);
+        return results;
     }
 
     public class AnalysisInstanceInfo {
@@ -316,8 +343,10 @@ public final class AnalysisServer {
         // we've received and currentPartial_ is the topology we are currently populating.
         private @NonNull Topology lastComplete_ = new Topology();
         private @NonNull Topology currentPartial_ = new Topology();
-        // a flag to denote if we are running a Plan
-        boolean isPlan = false;
+        // a flag to denote if we should classify Actions
+        boolean classifyActions = false;
+        // a flag to denote if we should replay Actions
+        boolean replayActions = false;
         // a flag to decide if move should use shop-together algorithm or not
         boolean isShopTogetherEnabled = false;
         // a flag to decide if provision algorithm should run or not
@@ -334,11 +363,17 @@ public final class AnalysisServer {
         public boolean isShopTogetherEnabled() {
             return isShopTogetherEnabled;
         }
-        public void setIsPlan(boolean isPlan) {
-            this.isPlan = isPlan;
+        public void setClassifyActions(boolean classifyActions) {
+            this.classifyActions = classifyActions;
         }
-        public boolean isPlan() {
-            return isPlan;
+        public boolean getClassifyActions() {
+            return classifyActions;
+        }
+        public void setReplayActions(boolean replayActions) {
+            this.replayActions = replayActions;
+        }
+        public boolean getReplayActions() {
+            return replayActions;
         }
         public void setShopTogetherEnabled(boolean isShopTogetherEnabled) {
             this.isShopTogetherEnabled = isShopTogetherEnabled;

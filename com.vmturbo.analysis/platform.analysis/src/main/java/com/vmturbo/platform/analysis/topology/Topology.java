@@ -96,7 +96,7 @@ public final class Topology implements Serializable {
      * @see Economy#addTrader(int, TraderState, Basket, Basket...)
      */
     public @NonNull Trader addTrader(long oid, int type, @NonNull TraderState state, @NonNull Basket basketSold,
-                                     @NonNull Collection<@NonNull Integer> cliques) {
+                                     @NonNull Collection<@NonNull Long> cliques) {
         @NonNull Trader trader = economy_.addTrader(type, state, basketSold, cliques);
         traderOids_.put(trader, oid);
 
@@ -294,6 +294,23 @@ public final class Topology implements Serializable {
         traderOids_.put(provisionedTrader, newId);
         return newId;
 
+    }
+
+    /**
+     * Add the given OID for newly provisioned trader to the traderOids_ map. This OID must have
+     * been generated with {@link IdentityGenerator} to give a globally unique OID.
+     *
+     * @param provisionedTrader The provisioned {@link Trader}
+     * @param aliasId The alias OID that the trader should be associated with
+     * @return the old OID if any
+     */
+    public long addProvisionedTrader(@NonNull Trader provisionedTrader, long aliasId) {
+        long oldId = -1;
+        if (traderOids_.containsKey(provisionedTrader)) {
+            oldId = traderOids_.get(provisionedTrader);
+        }
+        traderOids_.put(provisionedTrader, aliasId);
+        return oldId;
     }
 
     /**

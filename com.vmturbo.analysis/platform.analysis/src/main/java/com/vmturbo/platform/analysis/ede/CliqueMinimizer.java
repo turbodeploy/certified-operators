@@ -3,6 +3,7 @@ package com.vmturbo.platform.analysis.ede;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map.Entry;
+import java.util.function.BiConsumer;
 import java.util.stream.Stream;
 
 import org.checkerframework.checker.javari.qual.ReadOnly;
@@ -10,9 +11,9 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
 
-import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 
@@ -123,7 +124,7 @@ final class CliqueMinimizer {
      *
      * @param clique The k-partite clique in which to ask for quotes and update internal state.
      */
-    public void accept(int clique) {
+    public void accept(long clique) {
         final @NonNull QuoteSummer summer = entries_.stream()
             .collect(()->new QuoteSummer(economy_,clique), QuoteSummer::accept, QuoteSummer::combine);
 

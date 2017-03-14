@@ -1,7 +1,13 @@
 package com.vmturbo.platform.analysis.economy;
 
-import static org.junit.Assert.*;
-import static com.vmturbo.platform.analysis.utility.ListTests.*;
+import static com.vmturbo.platform.analysis.utility.ListTests.verifyUnmodifiableInvalidOperations;
+import static com.vmturbo.platform.analysis.utility.ListTests.verifyUnmodifiableValidOperations;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -94,12 +100,12 @@ public class MarketTest {
 
     @Test
     public final void testGetCliques_ValidOperations() {
-        MapTests.verifyUnmodifiableValidOperations(fixture_.getCliques(),42,Arrays.asList());
+        MapTests.verifyUnmodifiableValidOperations(fixture_.getCliques(),42L,Arrays.asList());
     }
 
     @Test
     public final void testGetCliques_InvalidOperations() {
-        MapTests.verifyUnmodifiableInvalidOperations(fixture_.getCliques(),42,Arrays.asList());
+        MapTests.verifyUnmodifiableInvalidOperations(fixture_.getCliques(),42L,Arrays.asList());
     }
 
     @Test

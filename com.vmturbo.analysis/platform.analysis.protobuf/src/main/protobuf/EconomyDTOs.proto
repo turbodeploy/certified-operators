@@ -180,7 +180,7 @@ message TraderTO {
     repeated CommoditySoldTO commodities_sold = 4;
 
     // A list of integers representing the k-partite cliques this trader is a member of.
-    repeated int32 cliques = 5 [packed = true];
+    repeated int64 cliques = 5 [packed = true];
 
     // A list of shopping lists this trader sets out to buy.
     repeated ShoppingListTO shopping_lists = 6;

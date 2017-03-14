@@ -3,10 +3,11 @@ package com.vmturbo.platform.analysis.ede;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+
 import org.apache.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
-import com.google.common.collect.Lists;
 
+import com.google.common.collect.Lists;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.Deactivate;
 import com.vmturbo.platform.analysis.economy.Economy;
@@ -126,6 +127,14 @@ public class Suspension extends Supply {
                 soleProviders.add(trader);
             }
         }
+    }
+
+    public void setRolledBack(@NonNull Set<@NonNull Trader> rolledBackTraders) {
+        unprofitableSellersCouldNotSuspend = rolledBackTraders;
+    }
+
+    public @NonNull Set<@NonNull Trader> getRolledBack() {
+        return unprofitableSellersCouldNotSuspend;
     }
 
 }

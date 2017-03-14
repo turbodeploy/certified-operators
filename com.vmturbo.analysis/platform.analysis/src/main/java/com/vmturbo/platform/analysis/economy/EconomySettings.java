@@ -39,7 +39,7 @@ public final class EconomySettings implements Serializable {
     private boolean useExpenseMetricForTermination_;
     private float expenseMetricFactor_;
     private float rateOfResize_ = 1.0f;
-    private boolean isEstimatesEnabled_ = false;
+    private boolean isEstimatesEnabled_ = true;
 
     // Constructors
 

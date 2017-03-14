@@ -34,7 +34,7 @@ public abstract class Trader implements Serializable {
     private @NonNull TraderState state_;
     private @NonNull Basket basketSold_;
     private final @NonNull List<@NonNull CommoditySold> commoditiesSold_ = new ArrayList<>();
-    private final @NonNull List<@NonNull Integer> cliques_ = new ArrayList<>();
+    private final @NonNull List<@NonNull Long> cliques_ = new ArrayList<>();
     private final @NonNull List<@NonNull ShoppingList> customers_ = new ArrayList<>();
     // TODO: (Jun 22, 2016) This field is intended to be temporarily used for debugging in the initial stages of M2. To avoid making drastic change in
     // market2, we use a setter and getter to set and get this field instead of putting it part of the constructor even though it should
@@ -47,7 +47,7 @@ public abstract class Trader implements Serializable {
     // Cached unmodifiable view of the commoditiesSold_ list.
     private final @NonNull List<@NonNull CommoditySold> unmodifiableCommoditiesSold_ = Collections.unmodifiableList(commoditiesSold_);
     // Cached unmodifiable view of the cliques_ list.
-    private final @NonNull List<@NonNull Integer> unmodifiableCliques_ = Collections.unmodifiableList(cliques_);
+    private final @NonNull List<@NonNull Long> unmodifiableCliques_ = Collections.unmodifiableList(cliques_);
     // Cached unmodifiable view of the customers_ list.
     private final @NonNull List<@NonNull ShoppingList> unmodifiableCustomers_ = Collections.unmodifiableList(customers_);
 
@@ -184,7 +184,7 @@ public abstract class Trader implements Serializable {
      * </p>
      */
     @Pure
-    public @NonNull @ReadOnly List<@NonNull Integer> getCliques(@ReadOnly Trader this) {
+    public @NonNull @ReadOnly List<@NonNull Long> getCliques(@ReadOnly Trader this) {
         return unmodifiableCliques_;
     }
 
@@ -198,7 +198,7 @@ public abstract class Trader implements Serializable {
      * @see #getCliques()
      */
     @Pure
-    @NonNull @PolyRead List<@NonNull @PolyRead Integer> getModifiableCliques(@PolyRead Trader this) {
+    @NonNull @PolyRead List<@NonNull @PolyRead Long> getModifiableCliques(@PolyRead Trader this) {
         return cliques_;
     }
 

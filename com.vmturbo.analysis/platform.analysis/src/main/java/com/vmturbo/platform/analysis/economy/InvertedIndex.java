@@ -1,5 +1,6 @@
 package com.vmturbo.platform.analysis.economy;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -25,7 +26,7 @@ import com.google.common.base.Preconditions;
  * See for example http://nlp.stanford.edu/IR-book/html/htmledition/an-example-information-retrieval-problem-1.html#963
  * which also includes many guidelines for how to speed up information retrieval.
  */
-class InvertedIndex {
+class InvertedIndex implements Serializable {
 
     private final Economy economy;
     private final Map<Integer, PostingsList> index = new HashMap<>();

@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map.Entry;
+import java.util.function.BiConsumer;
 import java.util.stream.Stream;
 
 import org.checkerframework.checker.javari.qual.ReadOnly;
@@ -29,7 +30,7 @@ final class QuoteSummer {
     // Auxiliary Fields
     private final @NonNull UnmodifiableEconomy economy_; // should contain all the shopping lists
                                                         // and markets that are passed to #accept.
-    private final int clique_; // the k-partite clique for which to compute the total quote.
+    private final long clique_; // the k-partite clique for which to compute the total quote.
 
     // Accumulator Fields
     private final @NonNull List<@Nullable Trader> bestSellers_ = new ArrayList<>(); // will contain
@@ -48,7 +49,7 @@ final class QuoteSummer {
      * @param economy See {@link #getEconomy()}.
      * @param quality See {@link #getClique()}.
      */
-    public QuoteSummer(@NonNull UnmodifiableEconomy economy, int quality) {
+    public QuoteSummer(@NonNull UnmodifiableEconomy economy, long quality) {
         economy_ = economy;
         clique_ = quality;
     }
@@ -73,7 +74,7 @@ final class QuoteSummer {
      * Returns the k-partite clique for which the best quotes will be queried and summed.
      */
     @Pure
-    public int getClique(@ReadOnly QuoteSummer this) {
+    public long getClique(@ReadOnly QuoteSummer this) {
         return clique_;
     }
 

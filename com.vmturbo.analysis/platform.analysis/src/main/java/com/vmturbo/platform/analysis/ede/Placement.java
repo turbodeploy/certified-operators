@@ -230,7 +230,7 @@ public class Placement {
             // Only optimize active traders that are at least partially movable.
             if (buyer.getState().isActive() && !movableEntries.isEmpty()) {
                 // Find the set of k-partite cliques where the trader can potentially be placed.
-                Set<Integer> commonCliques = entries.stream()
+                Set<Long> commonCliques = entries.stream()
                     .map(entry->entry.getKey().isMovable() // if shopping list is movable
                         ? entry.getValue().getCliques().keySet() // use the cliques of the market
                         : (new TreeSet<>(entry.getKey().getSupplier() != null // else if shopping list is placed

@@ -40,7 +40,7 @@ public final class Market implements Serializable {
     // utilized as sets in the sense that they are not supposed to contain duplicate elements. Lists
     // were selected for fast iteration.
     private final @NonNull List<@NonNull Trader> activeSellers_ = new ArrayList<>(); // see #getActiveSellers()
-    private final @NonNull Map<@NonNull Integer, @NonNull List<@NonNull Trader>> cliques_ = new TreeMap<>(); // see #getCliques
+    private final @NonNull Map<@NonNull Long, @NonNull List<@NonNull Trader>> cliques_ = new TreeMap<>(); // see #getCliques
     private final @NonNull List<@NonNull Trader> inactiveSellers_ = new ArrayList<>(); // see #getInactiveSellers()
 
     // Cached data
@@ -54,7 +54,7 @@ public final class Market implements Serializable {
     private final @NonNull List<@NonNull Trader> unmodifiableActiveSellers_ = Collections.unmodifiableList(activeSellers_);
     // Cached unmodifiable view of the cliques_ map.
     // TODO: find a way to make the contained lists unmodifiable as well.
-    private final @NonNull Map<@NonNull Integer, @NonNull List<@NonNull Trader>> unmodifiableCliques_ = Collections.unmodifiableMap(cliques_);
+    private final @NonNull Map<@NonNull Long, @NonNull List<@NonNull Trader>> unmodifiableCliques_ = Collections.unmodifiableMap(cliques_);
     // Cached unmodifiable view of the inactiveSellers_ list.
     private final @NonNull List<@NonNull Trader> unmodifiableInactiveSellers_ = Collections.unmodifiableList(inactiveSellers_);
 
@@ -108,7 +108,7 @@ public final class Market implements Serializable {
      * </p>
      */
     @Pure
-    public @NonNull Map<@NonNull Integer, @NonNull List<@NonNull Trader>> getCliques(@ReadOnly Market this) {
+    public @NonNull Map<@NonNull Long, @NonNull List<@NonNull Trader>> getCliques(@ReadOnly Market this) {
         return unmodifiableCliques_;
     }
 
@@ -174,7 +174,7 @@ public final class Market implements Serializable {
         newSeller.getMarketsAsSeller().add(this);
 
         // Add seller to corresponding cliques
-        for (@NonNull Integer cliqueNumber : newSeller.getCliques()) {
+        for (@NonNull Long cliqueNumber : newSeller.getCliques()) {
             List<@NonNull Trader> cliquePart = cliques_.get(cliqueNumber);
             if (cliquePart == null) {
                 cliques_.put(cliqueNumber, cliquePart = new ArrayList<>());
@@ -211,7 +211,7 @@ public final class Market implements Serializable {
         sellerToRemove.getMarketsAsSeller().remove(this);
 
         // Remove seller from corresponding cliques
-        for (@NonNull Integer cliqueNumber : sellerToRemove.getCliques()) {
+        for (@NonNull Long cliqueNumber : sellerToRemove.getCliques()) {
             @NonNull List<@NonNull Trader> cliquePart = cliques_.get(cliqueNumber);
             checkArgument(cliquePart.remove(sellerToRemove), "sellerToRemove = " + sellerToRemove);
         }
@@ -299,7 +299,7 @@ public final class Market implements Serializable {
                 for (@NonNull @PolyRead Market market : trader.getMarketsAsSeller()) {
                     checkArgument(market.inactiveSellers_.remove(trader), "trader = " + trader);
                     market.activeSellers_.add(trader);
-                    for (@NonNull Integer cliqueNumber : trader.getCliques()) {
+                    for (@NonNull Long cliqueNumber : trader.getCliques()) {
                         market.cliques_.get(cliqueNumber).add(trader);
                     }
                 }
@@ -312,7 +312,7 @@ public final class Market implements Serializable {
                 for (@NonNull @PolyRead Market market : trader.getMarketsAsSeller()) {
                     checkArgument(market.activeSellers_.remove(trader), "trader = " + trader);
                     market.inactiveSellers_.add(trader);
-                    for (@NonNull Integer cliqueNumber : trader.getCliques()) {
+                    for (@NonNull Long cliqueNumber : trader.getCliques()) {
                         checkArgument(market.cliques_.get(cliqueNumber).remove(trader),"trader = " + trader);
                     }
                 }

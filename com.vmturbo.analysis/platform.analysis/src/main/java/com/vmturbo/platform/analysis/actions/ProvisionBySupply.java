@@ -1,5 +1,7 @@
 package com.vmturbo.platform.analysis.actions;
 
+import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -11,17 +13,14 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Pure;
 
-import com.vmturbo.platform.analysis.economy.Basket;
-import com.vmturbo.platform.analysis.economy.ShoppingList;
-
 import com.google.common.hash.Hashing;
+import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
-
-import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
 
 /**
  * An action to provision a new {@link Trader seller} using another {@link Trader seller} as the
@@ -32,6 +31,7 @@ public class ProvisionBySupply extends ActionImpl {
     private final @NonNull Economy economy_;
     private final @NonNull Trader modelSeller_;
     private @Nullable Trader provisionedSeller_;
+    private long oid_;
     // TODO: may need to add a 'triggering buyer' for debugReason...
 
     // Constructors
@@ -244,5 +244,13 @@ public class ProvisionBySupply extends ActionImpl {
                         .putInt(getProvisionedSeller() == null ? 0
                                         : getProvisionedSeller().hashCode())
                         .hash().asInt();
+    }
+
+    public void setOid(@NonNull Long oid) {
+        oid_ = oid;
+    }
+
+    public Long getOid() {
+        return oid_;
     }
 } // end ProvisionBySupply class

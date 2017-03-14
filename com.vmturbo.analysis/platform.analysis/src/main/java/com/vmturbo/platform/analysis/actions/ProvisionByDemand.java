@@ -19,7 +19,6 @@ import com.vmturbo.platform.analysis.economy.CommodityResizeSpecification;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
-import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderSettings;
@@ -35,6 +34,7 @@ public class ProvisionByDemand extends ActionImpl {
     private final @NonNull ShoppingList modelBuyer_; // TODO: also add source market? Desired state?
     private final @NonNull Trader modelSeller_;
     private @Nullable Trader provisionedSeller_;
+    private long oid_;
     // a map from commodity base type to its new capacity which will satisfy the demand
     private @NonNull Map<@NonNull Integer, @NonNull Double> commodityNewCapacityMap_ =
                     new HashMap<>();
@@ -281,5 +281,13 @@ public class ProvisionByDemand extends ActionImpl {
                         .putInt(getProvisionedSeller() == null ? 0
                                         : getProvisionedSeller().hashCode())
                         .hash().asInt();
+    }
+
+    public void setOid(@NonNull Long oid) {
+        oid_ = oid;
+    }
+
+    public Long getOid() {
+        return oid_;
     }
 } // end ProvisionByDemand class

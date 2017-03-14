@@ -1,6 +1,7 @@
 package com.vmturbo.platform.analysis.ede;
 
 import static org.junit.Assert.assertArrayEquals;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -19,10 +20,10 @@ import org.junit.runners.Parameterized.Parameters;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.CompoundMove;
 import com.vmturbo.platform.analysis.economy.Basket;
-import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 
@@ -136,256 +137,256 @@ public class PlacementTest {
 /* PBD? RCF? */ {{{{PM_SMALL,false,false}}},{},{}}, // immovable
                 // 0 VMs, 1 PM, 0 STs, 0 edges
    /* error? */ {{},{{PM_S,{},{},{}}},{}}, // no bicliques
-                {{},{{PM_S,{},{},{0}}},{}}, // empty host
-                {{},{{PM_S,{10.0,10.0},{},{0}}},{}}, // empty host with overhead
+                {{},{{PM_S,{},{},{0L}}},{}}, // empty host
+                {{},{{PM_S,{10.0,10.0},{},{0L}}},{}}, // empty host with overhead
                 // 1 VM, 1 PM, 0 STs, 1 edge
                  // movable and initially placed
                   // baskets match
-                {{{PM_S_M_P_LL}},{{PM_S,LL,{},{0}}},{}}, // fits
-     /* PBS? */ {{{{PM_SMALL, true, true, 90.0,20.0}}},{{PM_S,HL,{},{0}}},{}}, // can't fit CPU
-     /* PBD? */ {{{{PM_SMALL, true, true,105.0,20.0}}},{{PM_S,HL,{},{0}}},{}}, // not enough capacity for CPU
-     /* PBD? */ {{{{PM_SMALL, true, true,105.0,20.0}}},{{PM_S,ML,{},{0}}},{}}, // not enough capacity for CPU but host seems fine!
+                {{{PM_S_M_P_LL}},{{PM_S,LL,{},{0L}}},{}}, // fits
+     /* PBS? */ {{{{PM_SMALL, true, true, 90.0,20.0}}},{{PM_S,HL,{},{0L}}},{}}, // can't fit CPU
+     /* PBD? */ {{{{PM_SMALL, true, true,105.0,20.0}}},{{PM_S,HL,{},{0L}}},{}}, // not enough capacity for CPU
+     /* PBD? */ {{{{PM_SMALL, true, true,105.0,20.0}}},{{PM_S,ML,{},{0L}}},{}}, // not enough capacity for CPU but host seems fine!
                   // basket subset
-                {{{PM_S_M_P_LL}},{{PM_L,LL,{},{0}}},{}}, // fits
-     /* PBS? */ {{{{PM_SMALL, true, true, 20.0,90.0}}},{{PM_L,LH,{},{0}}},{}}, // can't fit MEM
-/* PBD !PBS? */ {{{{PM_SMALL, true, true,105.0,90.0}}},{{PM_L,HH,{},{0}}},{}}, // can't fit MEM & not enough capacity for CPU
-/* PBD !PBS? */ {{{{PM_SMALL, true, true,105.0,90.0}}},{{PM_L,MH,{},{0}}},{}}, // can't fit MEM & not enough capacity for CPU, but host seems fine for CPU!
+                {{{PM_S_M_P_LL}},{{PM_L,LL,{},{0L}}},{}}, // fits
+     /* PBS? */ {{{{PM_SMALL, true, true, 20.0,90.0}}},{{PM_L,LH,{},{0L}}},{}}, // can't fit MEM
+/* PBD !PBS? */ {{{{PM_SMALL, true, true,105.0,90.0}}},{{PM_L,HH,{},{0L}}},{}}, // can't fit MEM & not enough capacity for CPU
+/* PBD !PBS? */ {{{{PM_SMALL, true, true,105.0,90.0}}},{{PM_L,MH,{},{0L}}},{}}, // can't fit MEM & not enough capacity for CPU, but host seems fine for CPU!
                   // basket superset
-     /* RCF? */ {{{PM_L_M_P_LL}},{{PM_S,LL,{},{0}}},{}}, // fits
-/* RCF !PBS? */ {{{{PM_LARGE, true, true, 90.0,20.0}}},{{PM_S,HL,{},{0}}},{}}, // can't fit CPU
-/* RCF !PBD? */ {{{{PM_LARGE, true, true,105.0,20.0}}},{{PM_S,HL,{},{0}}},{}}, // not enough capacity for CPU
-/* RCF !PBD? */ {{{{PM_LARGE, true, true,105.0,20.0}}},{{PM_S,ML,{},{0}}},{}}, // not enough capacity for CPU but host seems fine!
+     /* RCF? */ {{{PM_L_M_P_LL}},{{PM_S,LL,{},{0L}}},{}}, // fits
+/* RCF !PBS? */ {{{{PM_LARGE, true, true, 90.0,20.0}}},{{PM_S,HL,{},{0L}}},{}}, // can't fit CPU
+/* RCF !PBD? */ {{{{PM_LARGE, true, true,105.0,20.0}}},{{PM_S,HL,{},{0L}}},{}}, // not enough capacity for CPU
+/* RCF !PBD? */ {{{{PM_LARGE, true, true,105.0,20.0}}},{{PM_S,ML,{},{0L}}},{}}, // not enough capacity for CPU but host seems fine!
                   // baskets match (but are bigger)
-                {{{PM_L_M_P_LL}},{{PM_L,LL,{},{0}}},{}}, // fits
-     /* PBS? */ {{{{PM_LARGE, true, true, 20.0,90.0}}},{{PM_L,LH,{},{0}}},{}}, // can't fit MEM
-/* PBD !PBS? */ {{{{PM_LARGE, true, true,105.0,90.0}}},{{PM_L,HH,{},{0}}},{}}, // can't fit MEM & not enough capacity for CPU
-/* PBD !PBS? */ {{{{PM_LARGE, true, true,105.0,90.0}}},{{PM_L,MH,{},{0}}},{}}, // can't fit MEM & not enough capacity for CPU, but host seems fine for CPU!
+                {{{PM_L_M_P_LL}},{{PM_L,LL,{},{0L}}},{}}, // fits
+     /* PBS? */ {{{{PM_LARGE, true, true, 20.0,90.0}}},{{PM_L,LH,{},{0L}}},{}}, // can't fit MEM
+/* PBD !PBS? */ {{{{PM_LARGE, true, true,105.0,90.0}}},{{PM_L,HH,{},{0L}}},{}}, // can't fit MEM & not enough capacity for CPU
+/* PBD !PBS? */ {{{{PM_LARGE, true, true,105.0,90.0}}},{{PM_L,MH,{},{0L}}},{}}, // can't fit MEM & not enough capacity for CPU, but host seems fine for CPU!
                  // movable and initially unplaced
                   // baskets match
-                {{{{PM_SMALL, true,false, 20.0,20.0}}},{{PM_S,LL,{},{0}}},{{{0,0},{1}}}}, // fits
-     /* PBS? */ {{{{PM_SMALL, true,false, 90.0,20.0}}},{{PM_S,LL,{},{0}}},{}}, // can't fit CPU
-     /* PBD? */ {{{{PM_SMALL, true,false,105.0,20.0}}},{{PM_S,LL,{},{0}}},{}}, // not enough capacity for CPU
+                {{{{PM_SMALL, true,false, 20.0,20.0}}},{{PM_S,LL,{},{0L}}},{{{0,0},{1}}}}, // fits
+     /* PBS? */ {{{{PM_SMALL, true,false, 90.0,20.0}}},{{PM_S,LL,{},{0L}}},{}}, // can't fit CPU
+     /* PBD? */ {{{{PM_SMALL, true,false,105.0,20.0}}},{{PM_S,LL,{},{0L}}},{}}, // not enough capacity for CPU
                   // basket subset
-                {{{{PM_SMALL, true,false, 20.0,20.0}}},{{PM_L,LL,{},{0}}},{{{0,0},{1}}}}, // fits
-     /* PBS? */ {{{{PM_SMALL, true,false, 20.0,90.0}}},{{PM_L,LL,{},{0}}},{}}, // can't fit MEM
-/* PBD !PBS? */ {{{{PM_SMALL, true,false,105.0,90.0}}},{{PM_L,LL,{},{0}}},{}}, // can't fit MEM & not enough capacity for CPU
+                {{{{PM_SMALL, true,false, 20.0,20.0}}},{{PM_L,LL,{},{0L}}},{{{0,0},{1}}}}, // fits
+     /* PBS? */ {{{{PM_SMALL, true,false, 20.0,90.0}}},{{PM_L,LL,{},{0L}}},{}}, // can't fit MEM
+/* PBD !PBS? */ {{{{PM_SMALL, true,false,105.0,90.0}}},{{PM_L,LL,{},{0L}}},{}}, // can't fit MEM & not enough capacity for CPU
                   // basket superset
-     /* RCF? */ {{{{PM_LARGE, true,false, 20.0,20.0}}},{{PM_S,LL,{},{0}}},{}}, // fits
-/* RCF !PBS? */ {{{{PM_LARGE, true,false, 90.0,20.0}}},{{PM_S,LL,{},{0}}},{}}, // can't fit CPU
-/* RCF !PBD? */ {{{{PM_LARGE, true,false,105.0,20.0}}},{{PM_S,LL,{},{0}}},{}}, // not enough capacity for CPU
+     /* RCF? */ {{{{PM_LARGE, true,false, 20.0,20.0}}},{{PM_S,LL,{},{0L}}},{}}, // fits
+/* RCF !PBS? */ {{{{PM_LARGE, true,false, 90.0,20.0}}},{{PM_S,LL,{},{0L}}},{}}, // can't fit CPU
+/* RCF !PBD? */ {{{{PM_LARGE, true,false,105.0,20.0}}},{{PM_S,LL,{},{0L}}},{}}, // not enough capacity for CPU
                   // baskets match (but are bigger)
-                {{{{PM_LARGE, true,false, 20.0,20.0}}},{{PM_L,LL,{},{0}}},{{{0,0},{1}}}}, // fits
-     /* PBS? */ {{{{PM_LARGE, true,false, 20.0,90.0}}},{{PM_L,LL,{},{0}}},{}}, // can't fit MEM
-/* PBD !PBS? */ {{{{PM_LARGE, true,false,105.0,90.0}}},{{PM_L,LL,{},{0}}},{}}, // can't fit MEM & not enough capacity for CPU
+                {{{{PM_LARGE, true,false, 20.0,20.0}}},{{PM_L,LL,{},{0L}}},{{{0,0},{1}}}}, // fits
+     /* PBS? */ {{{{PM_LARGE, true,false, 20.0,90.0}}},{{PM_L,LL,{},{0L}}},{}}, // can't fit MEM
+/* PBD !PBS? */ {{{{PM_LARGE, true,false,105.0,90.0}}},{{PM_L,LL,{},{0L}}},{}}, // can't fit MEM & not enough capacity for CPU
 
                 // 1 VM, 1 PM, 1 ST, 1 edge
                 // (Same as above. Just checking that the results won't be changed by additional trader)
                  // movable and initially placed
                   // baskets match
-                {{{PM_S_M_P_LL}},{{PM_S,LL,{},{0}},{ST_S,LL,{},{0}}},{}}, // fits
-     /* PBS? */ {{{{PM_SMALL, true, true, 90.0,20.0}}},{{PM_S,HL,{},{0}},{ST_S,ML,{},{0}}},{}}, // can't fit CPU
-     /* PBD? */ {{{{PM_SMALL, true, true,105.0,20.0}}},{{PM_S,HL,{},{0}},{ST_S,LL,{},{1}}},{}}, // not enough capacity for CPU
-     /* PBD? */ {{{{PM_SMALL, true, true,105.0,20.0}}},{{PM_S,ML,{},{0}},{ST_S,HM,{},{0}}},{}}, // not enough capacity for CPU but host seems fine!
+                {{{PM_S_M_P_LL}},{{PM_S,LL,{},{0L}},{ST_S,LL,{},{0L}}},{}}, // fits
+     /* PBS? */ {{{{PM_SMALL, true, true, 90.0,20.0}}},{{PM_S,HL,{},{0L}},{ST_S,ML,{},{0L}}},{}}, // can't fit CPU
+     /* PBD? */ {{{{PM_SMALL, true, true,105.0,20.0}}},{{PM_S,HL,{},{0L}},{ST_S,LL,{},{1L}}},{}}, // not enough capacity for CPU
+     /* PBD? */ {{{{PM_SMALL, true, true,105.0,20.0}}},{{PM_S,ML,{},{0L}},{ST_S,HM,{},{0L}}},{}}, // not enough capacity for CPU but host seems fine!
                   // basket subset
-                {{{PM_S_M_P_LL}},{{PM_L,LL,{},{0}},{ST_L,LL,{},{0}}},{}}, // fits
-     /* PBS? */ {{{{PM_SMALL, true, true, 20.0,90.0}}},{{PM_L,LH,{},{0}},{ST_S,ML,{},{1}}},{}}, // can't fit MEM
-/* PBD !PBS? */ {{{{PM_SMALL, true, true,105.0,90.0}}},{{PM_L,HH,{},{0}},{ST_S,LL,{},{0}}},{}}, // can't fit MEM & not enough capacity for CPU
-/* PBD !PBS? */ {{{{PM_SMALL, true, true,105.0,90.0}}},{{PM_L,MH,{},{0}},{ST_S,HM,{},{0}}},{}}, // can't fit MEM & not enough capacity for CPU, but host seems fine for CPU!
+                {{{PM_S_M_P_LL}},{{PM_L,LL,{},{0L}},{ST_L,LL,{},{0L}}},{}}, // fits
+     /* PBS? */ {{{{PM_SMALL, true, true, 20.0,90.0}}},{{PM_L,LH,{},{0L}},{ST_S,ML,{},{1L}}},{}}, // can't fit MEM
+/* PBD !PBS? */ {{{{PM_SMALL, true, true,105.0,90.0}}},{{PM_L,HH,{},{0L}},{ST_S,LL,{},{0L}}},{}}, // can't fit MEM & not enough capacity for CPU
+/* PBD !PBS? */ {{{{PM_SMALL, true, true,105.0,90.0}}},{{PM_L,MH,{},{0L}},{ST_S,HM,{},{0L}}},{}}, // can't fit MEM & not enough capacity for CPU, but host seems fine for CPU!
                   // basket superset
-     /* RCF? */ {{{PM_L_M_P_LL}},{{PM_S,LL,{},{0}},{ST_S,LL,{},{1}}},{}}, // fits
-/* RCF !PBS? */ {{{{PM_LARGE, true, true, 90.0,20.0}}},{{PM_S,HL,{},{0}},{ST_L,ML,{},{0}}},{}}, // can't fit CPU
-/* RCF !PBD? */ {{{{PM_LARGE, true, true,105.0,20.0}}},{{PM_S,HL,{},{0}},{ST_S,LL,{},{0}}},{}}, // not enough capacity for CPU
-/* RCF !PBD? */ {{{{PM_LARGE, true, true,105.0,20.0}}},{{PM_S,ML,{},{0}},{ST_S,HM,{},{1}}},{}}, // not enough capacity for CPU but host seems fine!
+     /* RCF? */ {{{PM_L_M_P_LL}},{{PM_S,LL,{},{0L}},{ST_S,LL,{},{1L}}},{}}, // fits
+/* RCF !PBS? */ {{{{PM_LARGE, true, true, 90.0,20.0}}},{{PM_S,HL,{},{0L}},{ST_L,ML,{},{0L}}},{}}, // can't fit CPU
+/* RCF !PBD? */ {{{{PM_LARGE, true, true,105.0,20.0}}},{{PM_S,HL,{},{0L}},{ST_S,LL,{},{0L}}},{}}, // not enough capacity for CPU
+/* RCF !PBD? */ {{{{PM_LARGE, true, true,105.0,20.0}}},{{PM_S,ML,{},{0L}},{ST_S,HM,{},{1L}}},{}}, // not enough capacity for CPU but host seems fine!
                   // baskets match (but are bigger)
-                {{{PM_L_M_P_LL}},{{PM_L,LL,{},{0}},{ST_S,LL,{},{0}}},{}}, // fits
-     /* PBS? */ {{{{PM_LARGE, true, true, 20.0,90.0}}},{{PM_L,LH,{},{0}},{ST_S,ML,{},{0}}},{}}, // can't fit MEM
-/* PBD !PBS? */ {{{{PM_LARGE, true, true,105.0,90.0}}},{{PM_L,HH,{},{0}},{ST_L,LL,{},{1}}},{}}, // can't fit MEM & not enough capacity for CPU
-/* PBD !PBS? */ {{{{PM_LARGE, true, true,105.0,90.0}}},{{PM_L,MH,{},{0}},{ST_S,HM,{},{0}}},{}}, // can't fit MEM & not enough capacity for CPU, but host seems fine for CPU!
+                {{{PM_L_M_P_LL}},{{PM_L,LL,{},{0L}},{ST_S,LL,{},{0L}}},{}}, // fits
+     /* PBS? */ {{{{PM_LARGE, true, true, 20.0,90.0}}},{{PM_L,LH,{},{0L}},{ST_S,ML,{},{0L}}},{}}, // can't fit MEM
+/* PBD !PBS? */ {{{{PM_LARGE, true, true,105.0,90.0}}},{{PM_L,HH,{},{0L}},{ST_L,LL,{},{1L}}},{}}, // can't fit MEM & not enough capacity for CPU
+/* PBD !PBS? */ {{{{PM_LARGE, true, true,105.0,90.0}}},{{PM_L,MH,{},{0L}},{ST_S,HM,{},{0L}}},{}}, // can't fit MEM & not enough capacity for CPU, but host seems fine for CPU!
                  // movable and initially unplaced
                   // baskets match
-                {{{{PM_SMALL, true,false, 20.0,20.0}}},{{PM_S,LL,{},{0}},{ST_S,LL,{},{0}}},{{{0,0},{1}}}}, // fits
-     /* PBS? */ {{{{PM_SMALL, true,false, 90.0,20.0}}},{{PM_S,LL,{},{0}},{ST_S,ML,{},{1}}},{}}, // can't fit CPU
-     /* PBD? */ {{{{PM_SMALL, true,false,105.0,20.0}}},{{PM_S,LL,{},{0}},{ST_S,LL,{},{0}}},{}}, // not enough capacity for CPU
+                {{{{PM_SMALL, true,false, 20.0,20.0}}},{{PM_S,LL,{},{0L}},{ST_S,LL,{},{0L}}},{{{0,0},{1}}}}, // fits
+     /* PBS? */ {{{{PM_SMALL, true,false, 90.0,20.0}}},{{PM_S,LL,{},{0L}},{ST_S,ML,{},{1L}}},{}}, // can't fit CPU
+     /* PBD? */ {{{{PM_SMALL, true,false,105.0,20.0}}},{{PM_S,LL,{},{0L}},{ST_S,LL,{},{0L}}},{}}, // not enough capacity for CPU
                   // basket subset
-                {{{{PM_SMALL, true,false, 20.0,20.0}}},{{PM_L,LL,{},{0}},{ST_L,HM,{},{0}}},{{{0,0},{1}}}}, // fits
-     /* PBS? */ {{{{PM_SMALL, true,false, 20.0,90.0}}},{{PM_L,LL,{},{0}},{ST_S,LL,{},{1}}},{}}, // can't fit MEM
-/* PBD !PBS? */ {{{{PM_SMALL, true,false,105.0,90.0}}},{{PM_L,LL,{},{0}},{ST_S,ML,{},{0}}},{}}, // can't fit MEM & not enough capacity for CPU
+                {{{{PM_SMALL, true,false, 20.0,20.0}}},{{PM_L,LL,{},{0L}},{ST_L,HM,{},{0L}}},{{{0,0},{1}}}}, // fits
+     /* PBS? */ {{{{PM_SMALL, true,false, 20.0,90.0}}},{{PM_L,LL,{},{0L}},{ST_S,LL,{},{1L}}},{}}, // can't fit MEM
+/* PBD !PBS? */ {{{{PM_SMALL, true,false,105.0,90.0}}},{{PM_L,LL,{},{0L}},{ST_S,ML,{},{0L}}},{}}, // can't fit MEM & not enough capacity for CPU
                   // basket superset
-     /* RCF? */ {{{{PM_LARGE, true,false, 20.0,20.0}}},{{PM_S,LL,{},{0}},{ST_S,LL,{},{0}}},{}}, // fits
-/* RCF !PBS? */ {{{{PM_LARGE, true,false, 90.0,20.0}}},{{PM_S,LL,{},{0}},{ST_S,HM,{},{1}}},{}}, // can't fit CPU
-/* RCF !PBD? */ {{{{PM_LARGE, true,false,105.0,20.0}}},{{PM_S,LL,{},{0}},{ST_L,LL,{},{0}}},{}}, // not enough capacity for CPU
+     /* RCF? */ {{{{PM_LARGE, true,false, 20.0,20.0}}},{{PM_S,LL,{},{0L}},{ST_S,LL,{},{0L}}},{}}, // fits
+/* RCF !PBS? */ {{{{PM_LARGE, true,false, 90.0,20.0}}},{{PM_S,LL,{},{0L}},{ST_S,HM,{},{1L}}},{}}, // can't fit CPU
+/* RCF !PBD? */ {{{{PM_LARGE, true,false,105.0,20.0}}},{{PM_S,LL,{},{0L}},{ST_L,LL,{},{0L}}},{}}, // not enough capacity for CPU
                   // baskets match (but are bigger)
-                {{{{PM_LARGE, true,false, 20.0,20.0}}},{{PM_L,LL,{},{0}},{ST_S,ML,{},{0}}},{{{0,0},{1}}}}, // fits
-     /* PBS? */ {{{{PM_LARGE, true,false, 20.0,90.0}}},{{PM_L,LL,{},{0}},{ST_S,LL,{},{1}}},{}}, // can't fit MEM
-/* PBD !PBS? */ {{{{PM_LARGE, true,false,105.0,90.0}}},{{PM_L,LL,{},{0}},{ST_S,HM,{},{0}}},{}}, // can't fit MEM & not enough capacity for CPU
+                {{{{PM_LARGE, true,false, 20.0,20.0}}},{{PM_L,LL,{},{0L}},{ST_S,ML,{},{0L}}},{{{0,0},{1}}}}, // fits
+     /* PBS? */ {{{{PM_LARGE, true,false, 20.0,90.0}}},{{PM_L,LL,{},{0L}},{ST_S,LL,{},{1L}}},{}}, // can't fit MEM
+/* PBD !PBS? */ {{{{PM_LARGE, true,false,105.0,90.0}}},{{PM_L,LL,{},{0L}},{ST_S,HM,{},{0L}}},{}}, // can't fit MEM & not enough capacity for CPU
 
                 // 1 VM, 2 PMs, 0 STs, 1 edge
                  // movable and initially placed
                   // 1st fits
                    // 2nd fits (moves to distribute load)
-                {{{PM_S_M_P_LL}},{{PM_S,LL,{},{0}},{PM_S,MM,{},{0}}},{}}, // best CPU,MEM, same biclique
-                {{{PM_S_M_P_LL}},{{PM_S,LL,{},{0}},{PM_S,MM,{},{1}}},{}}, // best CPU,MEM, different biclique
-                {{{PM_S_M_P_LL}},{{PM_S,MM,{},{0}},{PM_S,LL,{},{0}}},{{{0,0},{2}}}}, // improve CPU,MEM, same biclique
-                {{{PM_S_M_P_LL}},{{PM_S,MM,{},{0}},{PM_S,LL,{},{1}}},{{{0,0},{2}}}}, // improve CPU,MEM, different biclique
-                {{{{PM_SMALL, true, true, 10.0,20.0}}},{{PM_S,{60.0,40.0},{},{0}},{PM_S,LM,{},{0}}},{}}, // MEM driven best, same biclique
-                {{{{PM_SMALL, true, true, 10.0,20.0}}},{{PM_S,{60.0,40.0},{},{0}},{PM_S,LM,{},{1}}},{}}, // MEM driven best, different biclique
-                {{{{PM_SMALL, true, true, 20.0,10.0}}},{{PM_S,{70.0,30.0},{},{0}},{PM_S,LM,{},{0}}},{{{0,0},{2}}}}, // CPU driven improve, same biclique
-                {{{{PM_SMALL, true, true, 20.0,10.0}}},{{PM_S,{70.0,30.0},{},{0}},{PM_S,LM,{},{1}}},{{{0,0},{2}}}}, // CPU driven improve, different biclique
+                {{{PM_S_M_P_LL}},{{PM_S,LL,{},{0L}},{PM_S,MM,{},{0L}}},{}}, // best CPU,MEM, same biclique
+                {{{PM_S_M_P_LL}},{{PM_S,LL,{},{0L}},{PM_S,MM,{},{1L}}},{}}, // best CPU,MEM, different biclique
+                {{{PM_S_M_P_LL}},{{PM_S,MM,{},{0L}},{PM_S,LL,{},{0L}}},{{{0,0},{2}}}}, // improve CPU,MEM, same biclique
+                {{{PM_S_M_P_LL}},{{PM_S,MM,{},{0L}},{PM_S,LL,{},{1L}}},{{{0,0},{2}}}}, // improve CPU,MEM, different biclique
+                {{{{PM_SMALL, true, true, 10.0,20.0}}},{{PM_S,{60.0,40.0},{},{0L}},{PM_S,LM,{},{0L}}},{}}, // MEM driven best, same biclique
+                {{{{PM_SMALL, true, true, 10.0,20.0}}},{{PM_S,{60.0,40.0},{},{0L}},{PM_S,LM,{},{1L}}},{}}, // MEM driven best, different biclique
+                {{{{PM_SMALL, true, true, 20.0,10.0}}},{{PM_S,{70.0,30.0},{},{0L}},{PM_S,LM,{},{0L}}},{{{0,0},{2}}}}, // CPU driven improve, same biclique
+                {{{{PM_SMALL, true, true, 20.0,10.0}}},{{PM_S,{70.0,30.0},{},{0L}},{PM_S,LM,{},{1L}}},{{{0,0},{2}}}}, // CPU driven improve, different biclique
                     // 2nd doesn't have enough leftover effective capacity
-                {{{PM_L_M_P_LM}},{{PM_L,MM,{},{0}},{PM_L,LM,{},{0}}},{}}, // same biclique
-                {{{PM_L_M_P_LM}},{{PM_L,MM,{},{0}},{PM_L,LM,{},{1}}},{}}, // different biclique
+                {{{PM_L_M_P_LM}},{{PM_L,MM,{},{0L}},{PM_L,LM,{},{0L}}},{}}, // same biclique
+                {{{PM_L_M_P_LM}},{{PM_L,MM,{},{0L}},{PM_L,LM,{},{1L}}},{}}, // different biclique
                     // 2nd doens't have enough effective capacity
-                {{{PM_L_M_P_ML}},{{PM_L,ML,{},{0}},{PM_L,LL,{0.4},{0}}},{}}, // same biclique
-                {{{PM_L_M_P_ML}},{{PM_L,ML,{},{0}},{PM_L,LL,{0.4},{1}}},{}}, // different biclique
+                {{{PM_L_M_P_ML}},{{PM_L,ML,{},{0L}},{PM_L,LL,{0.4},{0L}}},{}}, // same biclique
+                {{{PM_L_M_P_ML}},{{PM_L,ML,{},{0L}},{PM_L,LL,{0.4},{1L}}},{}}, // different biclique
                     // 2nd doesn't sell all required commodities
-                {{{PM_L_M_P_LL}},{{PM_L,MM,{},{0}},{PM_S,{},{},{0}}},{}}, // cheaper, same biclique
-                {{{PM_L_M_P_LL}},{{PM_L,MM,{},{0}},{PM_S,{},{},{1}}},{}}, // cheaper, different biclique
-                {{{PM_L_M_P_LL}},{{PM_L,MM,{},{0}},{PM_S,MM,{},{0}}},{}}, // more expensive, same biclique
-                {{{PM_L_M_P_LL}},{{PM_L,MM,{},{0}},{PM_S,MM,{},{1}}},{}}, // more expensive, different biclique
+                {{{PM_L_M_P_LL}},{{PM_L,MM,{},{0L}},{PM_S,{},{},{0L}}},{}}, // cheaper, same biclique
+                {{{PM_L_M_P_LL}},{{PM_L,MM,{},{0L}},{PM_S,{},{},{1L}}},{}}, // cheaper, different biclique
+                {{{PM_L_M_P_LL}},{{PM_L,MM,{},{0L}},{PM_S,MM,{},{0L}}},{}}, // more expensive, same biclique
+                {{{PM_L_M_P_LL}},{{PM_L,MM,{},{0L}},{PM_S,MM,{},{1L}}},{}}, // more expensive, different biclique
                    // 1st doesn't have enough leftover effective capacity
                     // 2nd fits
-                {{{PM_L_M_P_LM}},{{PM_L,LH,{},{0}},{PM_L,ML,{},{0}}},{{{0,0},{2}}}}, // same biclique
-                {{{PM_L_M_P_LM}},{{PM_L,LH,{},{0}},{PM_L,ML,{},{1}}},{{{0,0},{2}}}}, // different biclique
+                {{{PM_L_M_P_LM}},{{PM_L,LH,{},{0L}},{PM_L,ML,{},{0L}}},{{{0,0},{2}}}}, // same biclique
+                {{{PM_L_M_P_LM}},{{PM_L,LH,{},{0L}},{PM_L,ML,{},{1L}}},{{{0,0},{2}}}}, // different biclique
                     // 2nd doesn't have enough leftover effective capacity
-     /* PBS? */ {{{PM_L_M_P_LM}},{{PM_L,LH,{},{0}},{PM_L,LM,{},{0}}},{}}, // MEM both, same biclique
-     /* PBS? */ {{{PM_L_M_P_LM}},{{PM_L,LH,{},{0}},{PM_L,LM,{},{1}}},{}}, // MEM both, different biclique
-     /* PBS? */ {{{PM_L_M_P_MM}},{{PM_L,MH,{},{0}},{PM_L,ML,{},{0}}},{}}, // one MEM one CPU, same biclique
-     /* PBS? */ {{{PM_L_M_P_MM}},{{PM_L,MH,{},{0}},{PM_L,ML,{},{1}}},{}}, // one MEM one CPU, different biclique
+     /* PBS? */ {{{PM_L_M_P_LM}},{{PM_L,LH,{},{0L}},{PM_L,LM,{},{0L}}},{}}, // MEM both, same biclique
+     /* PBS? */ {{{PM_L_M_P_LM}},{{PM_L,LH,{},{0L}},{PM_L,LM,{},{1L}}},{}}, // MEM both, different biclique
+     /* PBS? */ {{{PM_L_M_P_MM}},{{PM_L,MH,{},{0L}},{PM_L,ML,{},{0L}}},{}}, // one MEM one CPU, same biclique
+     /* PBS? */ {{{PM_L_M_P_MM}},{{PM_L,MH,{},{0L}},{PM_L,ML,{},{1L}}},{}}, // one MEM one CPU, different biclique
                     // 2nd doesn't have enough effective capacity
-/* PBS !PBD? */ {{{PM_L_M_P_ML}},{{PM_L,HL,{},{0}},{PM_L,{},{0.4},{0}}},{}}, // CPU both, same biclique
-/* PBS !PBD? */ {{{PM_L_M_P_ML}},{{PM_L,HL,{},{0}},{PM_L,{},{0.4},{1}}},{}}, // CPU both, different biclique
-/* PBS !PBD? */ {{{PM_L_M_P_MM}},{{PM_L,HL,{},{0}},{PM_L,{},{1.0,0.4},{0}}},{}}, // one CPU one MEM, same biclique
-/* PBS !PBD? */ {{{PM_L_M_P_MM}},{{PM_L,HL,{},{0}},{PM_L,{},{1.0,0.4},{1}}},{}}, // one CPU one MEM, different biclique
+/* PBS !PBD? */ {{{PM_L_M_P_ML}},{{PM_L,HL,{},{0L}},{PM_L,{},{0.4},{0L}}},{}}, // CPU both, same biclique
+/* PBS !PBD? */ {{{PM_L_M_P_ML}},{{PM_L,HL,{},{0L}},{PM_L,{},{0.4},{1L}}},{}}, // CPU both, different biclique
+/* PBS !PBD? */ {{{PM_L_M_P_MM}},{{PM_L,HL,{},{0L}},{PM_L,{},{1.0,0.4},{0L}}},{}}, // one CPU one MEM, same biclique
+/* PBS !PBD? */ {{{PM_L_M_P_MM}},{{PM_L,HL,{},{0L}},{PM_L,{},{1.0,0.4},{1L}}},{}}, // one CPU one MEM, different biclique
                     // 2nd doesn't sell all required commodities
-/* PBS !RCF? */ {{{PM_L_M_P_ML}},{{PM_L,HM,{},{0}},{PM_S,LL,{},{0}}},{}}, // cheaper, same biclique
-/* PBS !RCF? */ {{{PM_L_M_P_ML}},{{PM_L,HM,{},{0}},{PM_S,LL,{},{1}}},{}}, // cheaper, different biclique
+/* PBS !RCF? */ {{{PM_L_M_P_ML}},{{PM_L,HM,{},{0L}},{PM_S,LL,{},{0L}}},{}}, // cheaper, same biclique
+/* PBS !RCF? */ {{{PM_L_M_P_ML}},{{PM_L,HM,{},{0L}},{PM_S,LL,{},{1L}}},{}}, // cheaper, different biclique
                    // 1st doesn't have enough effective capacity
                     // 2nd fits
-                {{{PM_L_M_P_ML}},{{PM_L,ML,{0.4},{0}},{PM_L,LL,{},{0}}},{{{0,0},{2}}}}, // same biclique
-                {{{PM_L_M_P_ML}},{{PM_L,ML,{0.4},{0}},{PM_L,LL,{},{1}}},{{{0,0},{2}}}}, // different biclique
+                {{{PM_L_M_P_ML}},{{PM_L,ML,{0.4},{0L}},{PM_L,LL,{},{0L}}},{{{0,0},{2}}}}, // same biclique
+                {{{PM_L_M_P_ML}},{{PM_L,ML,{0.4},{0L}},{PM_L,LL,{},{1L}}},{{{0,0},{2}}}}, // different biclique
                     // 2nd doesn't have enough leftover effective capacity
-/* PBS !PBD? */ {{{PM_L_M_P_ML}},{{PM_L,ML,{0.4},{0}},{PM_L,MM,{},{0}}},{}}, // CPU both, same biclique
-/* PBS !PBD? */ {{{PM_L_M_P_ML}},{{PM_L,ML,{0.4},{0}},{PM_L,MM,{},{1}}},{}}, // CPU both, different biclique
-/* PBS !PBD? */ {{{PM_L_M_P_MM}},{{PM_L,ML,{0.4},{0}},{PM_L,LM,{},{0}}},{}}, // one CPU one MEM, same biclique
-/* PBS !PBD? */ {{{PM_L_M_P_MM}},{{PM_L,ML,{0.4},{0}},{PM_L,LM,{},{1}}},{}}, // one CPU one MEM, different biclique
+/* PBS !PBD? */ {{{PM_L_M_P_ML}},{{PM_L,ML,{0.4},{0L}},{PM_L,MM,{},{0L}}},{}}, // CPU both, same biclique
+/* PBS !PBD? */ {{{PM_L_M_P_ML}},{{PM_L,ML,{0.4},{0L}},{PM_L,MM,{},{1L}}},{}}, // CPU both, different biclique
+/* PBS !PBD? */ {{{PM_L_M_P_MM}},{{PM_L,ML,{0.4},{0L}},{PM_L,LM,{},{0L}}},{}}, // one CPU one MEM, same biclique
+/* PBS !PBD? */ {{{PM_L_M_P_MM}},{{PM_L,ML,{0.4},{0L}},{PM_L,LM,{},{1L}}},{}}, // one CPU one MEM, different biclique
                     // 2nd doesn't have enough effective capacity
-     /* PBD? */ {{{PM_L_M_P_ML}},{{PM_L,ML,{0.4},{0}},{PM_L,{},{0.4},{0}}},{}}, // CPU both, same biclique
-     /* PBD? */ {{{PM_L_M_P_ML}},{{PM_L,ML,{0.4},{0}},{PM_L,{},{0.4},{1}}},{}}, // CPU both, different biclique
-     /* PBD? */ {{{PM_L_M_P_MM}},{{PM_L,ML,{0.4},{0}},{PM_L,{},{1.0,0.4},{0}}},{}}, // one CPU one MEM, same biclique
-     /* PBD? */ {{{PM_L_M_P_MM}},{{PM_L,ML,{0.4},{0}},{PM_L,{},{1.0,0.4},{1}}},{}}, // one CPU one MEM, different biclique
+     /* PBD? */ {{{PM_L_M_P_ML}},{{PM_L,ML,{0.4},{0L}},{PM_L,{},{0.4},{0L}}},{}}, // CPU both, same biclique
+     /* PBD? */ {{{PM_L_M_P_ML}},{{PM_L,ML,{0.4},{0L}},{PM_L,{},{0.4},{1L}}},{}}, // CPU both, different biclique
+     /* PBD? */ {{{PM_L_M_P_MM}},{{PM_L,ML,{0.4},{0L}},{PM_L,{},{1.0,0.4},{0L}}},{}}, // one CPU one MEM, same biclique
+     /* PBD? */ {{{PM_L_M_P_MM}},{{PM_L,ML,{0.4},{0L}},{PM_L,{},{1.0,0.4},{1L}}},{}}, // one CPU one MEM, different biclique
                     // 2nd doesn't sell all required commodities
-/* PBD !RCF? */ {{{PM_L_M_P_ML}},{{PM_L,ML,{0.4},{0}},{PM_S,{},{},{0}}},{}}, // cheaper, same biclique
-/* PBD !RCF? */ {{{PM_L_M_P_ML}},{{PM_L,ML,{0.4},{0}},{PM_S,{},{},{1}}},{}}, // cheaper, different biclique
+/* PBD !RCF? */ {{{PM_L_M_P_ML}},{{PM_L,ML,{0.4},{0L}},{PM_S,{},{},{0L}}},{}}, // cheaper, same biclique
+/* PBD !RCF? */ {{{PM_L_M_P_ML}},{{PM_L,ML,{0.4},{0L}},{PM_S,{},{},{1L}}},{}}, // cheaper, different biclique
                    // 1st doesn't sell all required commodities
                     // 2nd fits
-                {{{PM_L_M_P_LL}},{{PM_S,MM,{},{0}},{PM_L,{},{},{0}}},{{{0,0},{2}}}}, // cheaper, same biclique
-                {{{PM_L_M_P_LL}},{{PM_S,MM,{},{0}},{PM_L,{},{},{1}}},{{{0,0},{2}}}}, // cheaper, different biclique
-                {{{PM_L_M_P_LL}},{{PM_S,LL,{},{0}},{PM_L,MM,{},{0}}},{{{0,0},{2}}}}, // more expensive, same biclique
-                {{{PM_L_M_P_LL}},{{PM_S,LL,{},{0}},{PM_L,MM,{},{1}}},{{{0,0},{2}}}}, // more expensive, different biclique
+                {{{PM_L_M_P_LL}},{{PM_S,MM,{},{0L}},{PM_L,{},{},{0L}}},{{{0,0},{2}}}}, // cheaper, same biclique
+                {{{PM_L_M_P_LL}},{{PM_S,MM,{},{0L}},{PM_L,{},{},{1L}}},{{{0,0},{2}}}}, // cheaper, different biclique
+                {{{PM_L_M_P_LL}},{{PM_S,LL,{},{0L}},{PM_L,MM,{},{0L}}},{{{0,0},{2}}}}, // more expensive, same biclique
+                {{{PM_L_M_P_LL}},{{PM_S,LL,{},{0L}},{PM_L,MM,{},{1L}}},{{{0,0},{2}}}}, // more expensive, different biclique
                     // 2nd doesn't have enough leftover effective capacity
-/* PBS !RCF? */ {{{PM_L_M_P_LM}},{{PM_S,LM,{},{0}},{PM_L,MM,{},{0}}},{}}, // MEM, same biclique
-/* PBS !RCF? */ {{{PM_L_M_P_LM}},{{PM_S,LM,{},{0}},{PM_L,MM,{},{1}}},{}}, // MEM, different biclique
+/* PBS !RCF? */ {{{PM_L_M_P_LM}},{{PM_S,LM,{},{0L}},{PM_L,MM,{},{0L}}},{}}, // MEM, same biclique
+/* PBS !RCF? */ {{{PM_L_M_P_LM}},{{PM_S,LM,{},{0L}},{PM_L,MM,{},{1L}}},{}}, // MEM, different biclique
                     // 2nd doesn't have enough effective capacity
-/* PBD !RCF? */ {{{PM_L_M_P_LM}},{{PM_S,LM,{},{0}},{PM_L,{},{1.0,0.4},{0}}},{}}, // MEM, same biclique
-/* PBD !RCF? */ {{{PM_L_M_P_LM}},{{PM_S,LM,{},{0}},{PM_L,{},{1.0,0.4},{1}}},{}}, // MEM, different biclique
+/* PBD !RCF? */ {{{PM_L_M_P_LM}},{{PM_S,LM,{},{0L}},{PM_L,{},{1.0,0.4},{0L}}},{}}, // MEM, same biclique
+/* PBD !RCF? */ {{{PM_L_M_P_LM}},{{PM_S,LM,{},{0L}},{PM_L,{},{1.0,0.4},{1L}}},{}}, // MEM, different biclique
                     // 2nd doesn't sell all required commodities
-     /* RCF? */ {{{PM_L_M_P_LL}},{{PM_S,LL,{},{0}},{PM_S,LL,{},{0}}},{}}, // same biclique
-     /* RCF? */ {{{PM_L_M_P_LL}},{{PM_S,LL,{},{0}},{PM_S,LL,{},{1}}},{}}, // different biclique
+     /* RCF? */ {{{PM_L_M_P_LL}},{{PM_S,LL,{},{0L}},{PM_S,LL,{},{0L}}},{}}, // same biclique
+     /* RCF? */ {{{PM_L_M_P_LL}},{{PM_S,LL,{},{0L}},{PM_S,LL,{},{1L}}},{}}, // different biclique
                  // movable and initially unplaced
                   // 1st fits
                    // 2nd fits (moves to distribute load)
-                {{{PM_S_M_U_LL}},{{PM_S,LL,{},{0}},{PM_S,MM,{},{0}}},{{{0,0},{1}}}}, // 1st is best CPU,MEM, same biclique
-                {{{PM_S_M_U_LL}},{{PM_S,LL,{},{0}},{PM_S,MM,{},{1}}},{{{0,0},{1}}}}, // 1st is best CPU,MEM, different biclique
-                {{{PM_S_M_U_LL}},{{PM_S,MM,{},{0}},{PM_S,LL,{},{0}}},{{{0,0},{2}}}}, // 2nd is best CPU,MEM, same biclique
-                {{{PM_S_M_U_LL}},{{PM_S,MM,{},{0}},{PM_S,LL,{},{1}}},{{{0,0},{2}}}}, // 2nd is best CPU,MEM, different biclique
-                {{{{PM_SMALL, true,false, 10.0,20.0}}},{{PM_S,ML,{},{0}},{PM_S,LM,{},{0}}},{{{0,0},{1}}}}, // MEM driven 1st best, same biclique
-                {{{{PM_SMALL, true,false, 10.0,20.0}}},{{PM_S,ML,{},{0}},{PM_S,LM,{},{1}}},{{{0,0},{1}}}}, // MEM driven 1st best, different biclique
-                {{{{PM_SMALL, true,false, 20.0,10.0}}},{{PM_S,ML,{},{0}},{PM_S,LM,{},{0}}},{{{0,0},{2}}}}, // CPU driven 2nd best, same biclique
-                {{{{PM_SMALL, true,false, 20.0,10.0}}},{{PM_S,ML,{},{0}},{PM_S,LM,{},{1}}},{{{0,0},{2}}}}, // CPU driven 2nd best, different biclique
+                {{{PM_S_M_U_LL}},{{PM_S,LL,{},{0L}},{PM_S,MM,{},{0L}}},{{{0,0},{1}}}}, // 1st is best CPU,MEM, same biclique
+                {{{PM_S_M_U_LL}},{{PM_S,LL,{},{0L}},{PM_S,MM,{},{1L}}},{{{0,0},{1}}}}, // 1st is best CPU,MEM, different biclique
+                {{{PM_S_M_U_LL}},{{PM_S,MM,{},{0L}},{PM_S,LL,{},{0L}}},{{{0,0},{2}}}}, // 2nd is best CPU,MEM, same biclique
+                {{{PM_S_M_U_LL}},{{PM_S,MM,{},{0L}},{PM_S,LL,{},{1L}}},{{{0,0},{2}}}}, // 2nd is best CPU,MEM, different biclique
+                {{{{PM_SMALL, true,false, 10.0,20.0}}},{{PM_S,ML,{},{0L}},{PM_S,LM,{},{0L}}},{{{0,0},{1}}}}, // MEM driven 1st best, same biclique
+                {{{{PM_SMALL, true,false, 10.0,20.0}}},{{PM_S,ML,{},{0L}},{PM_S,LM,{},{1L}}},{{{0,0},{1}}}}, // MEM driven 1st best, different biclique
+                {{{{PM_SMALL, true,false, 20.0,10.0}}},{{PM_S,ML,{},{0L}},{PM_S,LM,{},{0L}}},{{{0,0},{2}}}}, // CPU driven 2nd best, same biclique
+                {{{{PM_SMALL, true,false, 20.0,10.0}}},{{PM_S,ML,{},{0L}},{PM_S,LM,{},{1L}}},{{{0,0},{2}}}}, // CPU driven 2nd best, different biclique
                     // 2nd doesn't have enough leftover effective capacity
-                {{{PM_L_M_U_LM}},{{PM_L,LL,{},{0}},{PM_L,LM,{},{0}}},{{{0,0},{1}}}}, // same biclique
-                {{{PM_L_M_U_LM}},{{PM_L,LL,{},{0}},{PM_L,LM,{},{1}}},{{{0,0},{1}}}}, // different biclique
+                {{{PM_L_M_U_LM}},{{PM_L,LL,{},{0L}},{PM_L,LM,{},{0L}}},{{{0,0},{1}}}}, // same biclique
+                {{{PM_L_M_U_LM}},{{PM_L,LL,{},{0L}},{PM_L,LM,{},{1L}}},{{{0,0},{1}}}}, // different biclique
                     // 2nd doens't have enough effective capacity
-                {{{PM_L_M_U_ML}},{{PM_L,LL,{},{0}},{PM_L,LL,{0.4},{0}}},{{{0,0},{1}}}}, // same biclique
-                {{{PM_L_M_U_ML}},{{PM_L,LL,{},{0}},{PM_L,LL,{0.4},{1}}},{{{0,0},{1}}}}, // different biclique
+                {{{PM_L_M_U_ML}},{{PM_L,LL,{},{0L}},{PM_L,LL,{0.4},{0L}}},{{{0,0},{1}}}}, // same biclique
+                {{{PM_L_M_U_ML}},{{PM_L,LL,{},{0L}},{PM_L,LL,{0.4},{1L}}},{{{0,0},{1}}}}, // different biclique
                     // 2nd doesn't sell all required commodities
-                {{{PM_L_M_U_LL}},{{PM_L,LL,{},{0}},{PM_S,{},{},{0}}},{{{0,0},{1}}}}, // cheaper, same biclique
-                {{{PM_L_M_U_LL}},{{PM_L,LL,{},{0}},{PM_S,{},{},{1}}},{{{0,0},{1}}}}, // cheaper, different biclique
-                {{{PM_L_M_U_LL}},{{PM_L,LL,{},{0}},{PM_S,MM,{},{0}}},{{{0,0},{1}}}}, // more expensive, same biclique
-                {{{PM_L_M_U_LL}},{{PM_L,LL,{},{0}},{PM_S,MM,{},{1}}},{{{0,0},{1}}}}, // more expensive, different biclique
+                {{{PM_L_M_U_LL}},{{PM_L,LL,{},{0L}},{PM_S,{},{},{0L}}},{{{0,0},{1}}}}, // cheaper, same biclique
+                {{{PM_L_M_U_LL}},{{PM_L,LL,{},{0L}},{PM_S,{},{},{1L}}},{{{0,0},{1}}}}, // cheaper, different biclique
+                {{{PM_L_M_U_LL}},{{PM_L,LL,{},{0L}},{PM_S,MM,{},{0L}}},{{{0,0},{1}}}}, // more expensive, same biclique
+                {{{PM_L_M_U_LL}},{{PM_L,LL,{},{0L}},{PM_S,MM,{},{1L}}},{{{0,0},{1}}}}, // more expensive, different biclique
                    // 1st doesn't have enough leftover effective capacity
                     // 2nd fits
-                {{{PM_L_M_U_LM}},{{PM_L,LM,{},{0}},{PM_L,ML,{},{0}}},{{{0,0},{2}}}}, // same biclique
-                {{{PM_L_M_U_LM}},{{PM_L,LM,{},{0}},{PM_L,ML,{},{1}}},{{{0,0},{2}}}}, // different biclique
+                {{{PM_L_M_U_LM}},{{PM_L,LM,{},{0L}},{PM_L,ML,{},{0L}}},{{{0,0},{2}}}}, // same biclique
+                {{{PM_L_M_U_LM}},{{PM_L,LM,{},{0L}},{PM_L,ML,{},{1L}}},{{{0,0},{2}}}}, // different biclique
                     // 2nd doesn't have enough leftover effective capacity
-     /* PBS? */ {{{PM_L_M_U_LM}},{{PM_L,LM,{},{0}},{PM_L,LM,{},{0}}},{}}, // MEM both, same biclique
-     /* PBS? */ {{{PM_L_M_U_LM}},{{PM_L,LM,{},{0}},{PM_L,LM,{},{1}}},{}}, // MEM both, different biclique
-     /* PBS? */ {{{PM_L_M_U_MM}},{{PM_L,LM,{},{0}},{PM_L,ML,{},{0}}},{}}, // one MEM one CPU, same biclique
-     /* PBS? */ {{{PM_L_M_U_MM}},{{PM_L,LM,{},{0}},{PM_L,ML,{},{1}}},{}}, // one MEM one CPU, different biclique
+     /* PBS? */ {{{PM_L_M_U_LM}},{{PM_L,LM,{},{0L}},{PM_L,LM,{},{0L}}},{}}, // MEM both, same biclique
+     /* PBS? */ {{{PM_L_M_U_LM}},{{PM_L,LM,{},{0L}},{PM_L,LM,{},{1L}}},{}}, // MEM both, different biclique
+     /* PBS? */ {{{PM_L_M_U_MM}},{{PM_L,LM,{},{0L}},{PM_L,ML,{},{0L}}},{}}, // one MEM one CPU, same biclique
+     /* PBS? */ {{{PM_L_M_U_MM}},{{PM_L,LM,{},{0L}},{PM_L,ML,{},{1L}}},{}}, // one MEM one CPU, different biclique
                     // 2nd doesn't have enough effective capacity
-/* PBS !PBD? */ {{{PM_L_M_U_ML}},{{PM_L,ML,{},{0}},{PM_L,{},{0.4},{0}}},{}}, // CPU both, same biclique
-/* PBS !PBD? */ {{{PM_L_M_U_ML}},{{PM_L,ML,{},{0}},{PM_L,{},{0.4},{1}}},{}}, // CPU both, different biclique
-/* PBS !PBD? */ {{{PM_L_M_U_MM}},{{PM_L,ML,{},{0}},{PM_L,{},{1.0,0.4},{0}}},{}}, // one CPU one MEM, same biclique
-/* PBS !PBD? */ {{{PM_L_M_U_MM}},{{PM_L,ML,{},{0}},{PM_L,{},{1.0,0.4},{1}}},{}}, // one CPU one MEM, different biclique
+/* PBS !PBD? */ {{{PM_L_M_U_ML}},{{PM_L,ML,{},{0L}},{PM_L,{},{0.4},{0L}}},{}}, // CPU both, same biclique
+/* PBS !PBD? */ {{{PM_L_M_U_ML}},{{PM_L,ML,{},{0L}},{PM_L,{},{0.4},{1L}}},{}}, // CPU both, different biclique
+/* PBS !PBD? */ {{{PM_L_M_U_MM}},{{PM_L,ML,{},{0L}},{PM_L,{},{1.0,0.4},{0L}}},{}}, // one CPU one MEM, same biclique
+/* PBS !PBD? */ {{{PM_L_M_U_MM}},{{PM_L,ML,{},{0L}},{PM_L,{},{1.0,0.4},{1L}}},{}}, // one CPU one MEM, different biclique
                     // 2nd doesn't sell all required commodities
-/* PBS !RCF? */ {{{PM_L_M_U_ML}},{{PM_L,MM,{},{0}},{PM_S,LL,{},{0}}},{}}, // cheaper, same biclique
-/* PBS !RCF? */ {{{PM_L_M_U_ML}},{{PM_L,MM,{},{0}},{PM_S,LL,{},{1}}},{}}, // cheaper, different biclique
+/* PBS !RCF? */ {{{PM_L_M_U_ML}},{{PM_L,MM,{},{0L}},{PM_S,LL,{},{0L}}},{}}, // cheaper, same biclique
+/* PBS !RCF? */ {{{PM_L_M_U_ML}},{{PM_L,MM,{},{0L}},{PM_S,LL,{},{1L}}},{}}, // cheaper, different biclique
                    // 1st doesn't have enough effective capacity
                     // 2nd fits
-                {{{PM_L_M_U_ML}},{{PM_L,LL,{0.4},{0}},{PM_L,LL,{},{0}}},{{{0,0},{2}}}}, // same biclique
-                {{{PM_L_M_U_ML}},{{PM_L,LL,{0.4},{0}},{PM_L,LL,{},{1}}},{{{0,0},{2}}}}, // different biclique
+                {{{PM_L_M_U_ML}},{{PM_L,LL,{0.4},{0L}},{PM_L,LL,{},{0L}}},{{{0,0},{2}}}}, // same biclique
+                {{{PM_L_M_U_ML}},{{PM_L,LL,{0.4},{0L}},{PM_L,LL,{},{1L}}},{{{0,0},{2}}}}, // different biclique
                     // 2nd doesn't have enough leftover effective capacity
-/* PBS !PBD? */ {{{PM_L_M_U_ML}},{{PM_L,LL,{0.4},{0}},{PM_L,MM,{},{0}}},{}}, // CPU both, same biclique
-/* PBS !PBD? */ {{{PM_L_M_U_ML}},{{PM_L,LL,{0.4},{0}},{PM_L,MM,{},{1}}},{}}, // CPU both, different biclique
-/* PBS !PBD? */ {{{PM_L_M_U_MM}},{{PM_L,LL,{0.4},{0}},{PM_L,LM,{},{0}}},{}}, // one CPU one MEM, same biclique
-/* PBS !PBD? */ {{{PM_L_M_U_MM}},{{PM_L,LL,{0.4},{0}},{PM_L,LM,{},{1}}},{}}, // one CPU one MEM, different biclique
+/* PBS !PBD? */ {{{PM_L_M_U_ML}},{{PM_L,LL,{0.4},{0L}},{PM_L,MM,{},{0L}}},{}}, // CPU both, same biclique
+/* PBS !PBD? */ {{{PM_L_M_U_ML}},{{PM_L,LL,{0.4},{0L}},{PM_L,MM,{},{1L}}},{}}, // CPU both, different biclique
+/* PBS !PBD? */ {{{PM_L_M_U_MM}},{{PM_L,LL,{0.4},{0L}},{PM_L,LM,{},{0L}}},{}}, // one CPU one MEM, same biclique
+/* PBS !PBD? */ {{{PM_L_M_U_MM}},{{PM_L,LL,{0.4},{0L}},{PM_L,LM,{},{1L}}},{}}, // one CPU one MEM, different biclique
                     // 2nd doesn't have enough effective capacity
-     /* PBD? */ {{{PM_L_M_U_ML}},{{PM_L,LL,{0.4},{0}},{PM_L,{},{0.4},{0}}},{}}, // CPU both, same biclique
-     /* PBD? */ {{{PM_L_M_U_ML}},{{PM_L,LL,{0.4},{0}},{PM_L,{},{0.4},{1}}},{}}, // CPU both, different biclique
-     /* PBD? */ {{{PM_L_M_U_MM}},{{PM_L,LL,{0.4},{0}},{PM_L,{},{1.0,0.4},{0}}},{}}, // one CPU one MEM, same biclique
-     /* PBD? */ {{{PM_L_M_U_MM}},{{PM_L,LL,{0.4},{0}},{PM_L,{},{1.0,0.4},{1}}},{}}, // one CPU one MEM, different biclique
+     /* PBD? */ {{{PM_L_M_U_ML}},{{PM_L,LL,{0.4},{0L}},{PM_L,{},{0.4},{0L}}},{}}, // CPU both, same biclique
+     /* PBD? */ {{{PM_L_M_U_ML}},{{PM_L,LL,{0.4},{0L}},{PM_L,{},{0.4},{1L}}},{}}, // CPU both, different biclique
+     /* PBD? */ {{{PM_L_M_U_MM}},{{PM_L,LL,{0.4},{0L}},{PM_L,{},{1.0,0.4},{0L}}},{}}, // one CPU one MEM, same biclique
+     /* PBD? */ {{{PM_L_M_U_MM}},{{PM_L,LL,{0.4},{0L}},{PM_L,{},{1.0,0.4},{1L}}},{}}, // one CPU one MEM, different biclique
                     // 2nd doesn't sell all required commodities
-/* PBD !RCF? */ {{{PM_L_M_U_ML}},{{PM_L,LL,{0.4},{0}},{PM_S,{},{},{0}}},{}}, // cheaper, same biclique
-/* PBD !RCF? */ {{{PM_L_M_U_ML}},{{PM_L,LL,{0.4},{0}},{PM_S,{},{},{1}}},{}}, // cheaper, different biclique
+/* PBD !RCF? */ {{{PM_L_M_U_ML}},{{PM_L,LL,{0.4},{0L}},{PM_S,{},{},{0L}}},{}}, // cheaper, same biclique
+/* PBD !RCF? */ {{{PM_L_M_U_ML}},{{PM_L,LL,{0.4},{0L}},{PM_S,{},{},{1L}}},{}}, // cheaper, different biclique
                    // 1st doesn't sell all required commodities
                     // 2nd fits
-                {{{PM_L_M_U_LL}},{{PM_S,MM,{},{0}},{PM_L,{},{},{0}}},{{{0,0},{2}}}}, // cheaper, same biclique
-                {{{PM_L_M_U_LL}},{{PM_S,MM,{},{0}},{PM_L,{},{},{1}}},{{{0,0},{2}}}}, // cheaper, different biclique
-                {{{PM_L_M_U_LL}},{{PM_S,LL,{},{0}},{PM_L,MM,{},{0}}},{{{0,0},{2}}}}, // more expensive, same biclique
-                {{{PM_L_M_U_LL}},{{PM_S,LL,{},{0}},{PM_L,MM,{},{1}}},{{{0,0},{2}}}}, // more expensive, different biclique
+                {{{PM_L_M_U_LL}},{{PM_S,MM,{},{0L}},{PM_L,{},{},{0L}}},{{{0,0},{2}}}}, // cheaper, same biclique
+                {{{PM_L_M_U_LL}},{{PM_S,MM,{},{0L}},{PM_L,{},{},{1L}}},{{{0,0},{2}}}}, // cheaper, different biclique
+                {{{PM_L_M_U_LL}},{{PM_S,LL,{},{0L}},{PM_L,MM,{},{0L}}},{{{0,0},{2}}}}, // more expensive, same biclique
+                {{{PM_L_M_U_LL}},{{PM_S,LL,{},{0L}},{PM_L,MM,{},{1L}}},{{{0,0},{2}}}}, // more expensive, different biclique
                     // 2nd doesn't have enough leftover effective capacity
-/* PBS !RCF? */ {{{PM_L_M_U_LM}},{{PM_S,LL,{},{0}},{PM_L,MM,{},{0}}},{}}, // MEM, same biclique
-/* PBS !RCF? */ {{{PM_L_M_U_LM}},{{PM_S,LL,{},{0}},{PM_L,MM,{},{1}}},{}}, // MEM, different biclique
+/* PBS !RCF? */ {{{PM_L_M_U_LM}},{{PM_S,LL,{},{0L}},{PM_L,MM,{},{0L}}},{}}, // MEM, same biclique
+/* PBS !RCF? */ {{{PM_L_M_U_LM}},{{PM_S,LL,{},{0L}},{PM_L,MM,{},{1L}}},{}}, // MEM, different biclique
                     // 2nd doesn't have enough effective capacity
-/* PBD !RCF? */ {{{PM_L_M_U_LM}},{{PM_S,LL,{},{0}},{PM_L,{},{1.0,0.4},{0}}},{}}, // MEM, same biclique
-/* PBD !RCF? */ {{{PM_L_M_U_LM}},{{PM_S,LL,{},{0}},{PM_L,{},{1.0,0.4},{1}}},{}}, // MEM, different biclique
+/* PBD !RCF? */ {{{PM_L_M_U_LM}},{{PM_S,LL,{},{0L}},{PM_L,{},{1.0,0.4},{0L}}},{}}, // MEM, same biclique
+/* PBD !RCF? */ {{{PM_L_M_U_LM}},{{PM_S,LL,{},{0L}},{PM_L,{},{1.0,0.4},{1L}}},{}}, // MEM, different biclique
                     // 2nd doesn't sell all required commodities
-     /* RCF? */ {{{PM_L_M_U_LL}},{{PM_S,LL,{},{0}},{PM_S,LL,{},{0}}},{}}, // same biclique
-     /* RCF? */ {{{PM_L_M_U_LL}},{{PM_S,LL,{},{0}},{PM_S,LL,{},{1}}},{}}, // different biclique
+     /* RCF? */ {{{PM_L_M_U_LL}},{{PM_S,LL,{},{0L}},{PM_S,LL,{},{0L}}},{}}, // same biclique
+     /* RCF? */ {{{PM_L_M_U_LL}},{{PM_S,LL,{},{0L}},{PM_S,LL,{},{1L}}},{}}, // different biclique
 
                 // 1 VM, 1 PM, 1 ST, 2 edges
 
 
                 // 1 VM, 3 PMs, 3 STs, 2 edges
                 {{{{PM_SMALL,true ,true,1.0,1.0},{ST_SMALL,true ,true,1.0,1.0}}}, // best share-nothing move. M1 would select 3,4 instead
-                 {{PM_S,{10.0,10.0},{},{0}},{ST_S,{ 1.0, 1.0},{},{0}},
-                  {PM_S,{ 1.0, 1.0},{},{1}},{ST_S,{12.0,12.0},{},{1}},
-                  {PM_S,{ 4.0, 4.0},{},{2}},{ST_S,{ 3.0, 3.0},{},{2}}},
+                 {{PM_S,{10.0,10.0},{},{0L}},{ST_S,{ 1.0, 1.0},{},{0L}},
+                  {PM_S,{ 1.0, 1.0},{},{1L}},{ST_S,{12.0,12.0},{},{1L}},
+                  {PM_S,{ 4.0, 4.0},{},{2L}},{ST_S,{ 3.0, 3.0},{},{2L}}},
                  {{{0,0,1},{5,6}}}},
                 {{{{PM_SMALL,true ,true,1.0,1.0},{ST_SMALL,true ,true,1.0,1.0}}}, // best share-nothing move with overlap.
-                 {{PM_S,{10.0,10.0},{},{0}},{ST_S,{ 1.0, 1.0},{},{0}},
-                  {PM_S,{ 1.0, 1.0},{},{0}},{ST_S,{12.0,12.0},{},{0,1}},
-                  {PM_S,{ 4.0, 4.0},{},{1}},{ST_S,{ 3.0, 3.0},{},{1}}},
+                 {{PM_S,{10.0,10.0},{},{0L}},{ST_S,{ 1.0, 1.0},{},{0L}},
+                  {PM_S,{ 1.0, 1.0},{},{0L}},{ST_S,{12.0,12.0},{},{0L,1L}},
+                  {PM_S,{ 4.0, 4.0},{},{1L}},{ST_S,{ 3.0, 3.0},{},{1L}}},
                  {{{0,0,1},{3,2}}}},
                  {{{{PM_SMALL,true ,true,1.0,1.0},{ST_SMALL,true ,true,1.0,1.0}}}, // best share-nothing move with overlap.
-                  {{PM_S,{10.0,10.0},{},{0}},{ST_S,{ 1.0, 1.0},{},{0}},
-                   {PM_S,{ 4.0, 4.0},{},{0}},{ST_S,{ 3.0, 3.0},{},{0,1}},
-                   {PM_S,{ 1.0, 1.0},{},{1}},{ST_S,{ 6.0, 6.0},{},{1}}},
+                  {{PM_S,{10.0,10.0},{},{0L}},{ST_S,{ 1.0, 1.0},{},{0L}},
+                   {PM_S,{ 4.0, 4.0},{},{0L}},{ST_S,{ 3.0, 3.0},{},{0L,1L}},
+                   {PM_S,{ 1.0, 1.0},{},{1L}},{ST_S,{ 6.0, 6.0},{},{1L}}},
                   {{{0,0,1},{5,4}}}},
                  {{{{PM_SMALL,true ,true,1.0,1.0},{ST_SMALL,false,true,1.0,1.0}}}, // one shopping list is immovable.
-                  {{PM_S,{10.0,10.0},{},{0}},{ST_S,{ 7.0, 7.0},{},{0}},
-                   {PM_S,{ 4.0, 4.0},{},{0}},{ST_S,{ 3.0, 3.0},{},{0,1}},
-                   {PM_S,{ 1.0, 1.0},{},{1}},{ST_S,{ 6.0, 6.0},{},{1}}},
+                  {{PM_S,{10.0,10.0},{},{0L}},{ST_S,{ 7.0, 7.0},{},{0L}},
+                   {PM_S,{ 4.0, 4.0},{},{0L}},{ST_S,{ 3.0, 3.0},{},{0L,1L}},
+                   {PM_S,{ 1.0, 1.0},{},{1L}},{ST_S,{ 6.0, 6.0},{},{1L}}},
                   {{{0,0},{3}}}}
             };
 
@@ -421,8 +422,8 @@ public class PlacementTest {
             final Object[] parameters = sellerConfiguration[0];
             final Object[] quantities = sellerConfiguration[1];
             final Object[] utilUpperBounds = sellerConfiguration[2];
-            final Integer[] bicliques = Arrays.copyOf(sellerConfiguration[3],
-                                                      sellerConfiguration[3].length, Integer[].class);
+            final Long[] bicliques = Arrays.copyOf(sellerConfiguration[3],
+                                                      sellerConfiguration[3].length, Long[].class);
 
             // Add trader to economy
             Trader seller = e.addTrader((int)parameters[1], TraderState.ACTIVE, (Basket)parameters[0], Arrays.asList(bicliques));
