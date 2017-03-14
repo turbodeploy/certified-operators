@@ -154,9 +154,16 @@ public final class AnalysisServer {
                     ProtobufToAnalysis.populateCommodityResizeDependencyMap(endDiscMsg, currPartial);
                     ProtobufToAnalysis.populateRawCommodityMap(endDiscMsg, currPartial);
 
-                    instInfoAfterDisc.setProvisionEnabled(endDiscMsg.getEnableProvision());
-                    instInfoAfterDisc.setSuspensionEnabled(endDiscMsg.getEnableSuspension());
-                    instInfoAfterDisc.setResizeEnabled(endDiscMsg.getEnableResize());
+                    if (command.getMarketName().equals("Deploy")) {
+                        instInfoAfterDisc.setProvisionEnabled(false);
+                        instInfoAfterDisc.setSuspensionEnabled(false);
+                        instInfoAfterDisc.setResizeEnabled(false);
+                    }
+                    else {
+                        instInfoAfterDisc.setProvisionEnabled(endDiscMsg.getEnableProvision());
+                        instInfoAfterDisc.setSuspensionEnabled(endDiscMsg.getEnableSuspension());
+                        instInfoAfterDisc.setResizeEnabled(endDiscMsg.getEnableResize());
+                    }
                     instInfoAfterDisc.setMarketName(command.getMarketName());
                     instInfoAfterDisc.setMarketData(command.getMarketData());
 
