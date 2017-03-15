@@ -277,9 +277,17 @@ public final class ProtobufToAnalysis {
         }
 
         if (input.getState() == TraderStateTO.IDLE) {
-            input.getShoppingListsList().forEach(sl -> topology.addIdleVmSl(addShoppingList(topology, output, sl)));
+            for (ShoppingListTO sl : input.getShoppingListsList()) {
+                if (!sl.getCommoditiesBoughtList().isEmpty()) {
+                    topology.addIdleVmSl(addShoppingList(topology, output, sl));
+                }
+            }
         } else {
-            input.getShoppingListsList().forEach(sl -> addShoppingList(topology, output, sl));
+            for (ShoppingListTO sl : input.getShoppingListsList()) {
+                if (!sl.getCommoditiesBoughtList().isEmpty()) {
+                    addShoppingList(topology, output, sl);
+                }
+            }
         }
 
         return output;
