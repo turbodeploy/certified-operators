@@ -176,7 +176,7 @@ public class ActionClassifier {
             Trader currentSupplierCopy = move.getSource() != null ?
                             lookupTraderInSimulationEconomy(move.getSource()) : null;
             Trader newSupplierCopy = lookupTraderInSimulationEconomy(move.getDestination());
-            if (newSupplierCopy == null) {
+            if (newSupplierCopy == null || newSupplierCopy.isClone()) {
                 move.setExecutable(false);
                 return;
             }

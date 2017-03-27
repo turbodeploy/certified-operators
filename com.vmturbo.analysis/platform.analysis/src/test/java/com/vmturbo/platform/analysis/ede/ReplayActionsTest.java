@@ -100,8 +100,7 @@ public class ReplayActionsTest {
     public void testTranslateTrader() {
         ReplayActions replayActions = new ReplayActions();
         replayActions.setTraderOids(traderOids);
-        Trader newVm = replayActions.translateTrader(vm, second, second.getTopology(),
-                                                     "testTranslateTrader");
+        Trader newVm = replayActions.translateTrader(vm, second, "testTranslateTrader");
         assertEquals(vm.getEconomyIndex(), newVm.getEconomyIndex());
     }
 
@@ -120,8 +119,7 @@ public class ReplayActionsTest {
     public void testTranslateMarket() {
         ReplayActions replayActions = new ReplayActions();
         replayActions.setTraderOids(traderOids);
-        Trader newVm = replayActions.translateTrader(vm, second, second.getTopology(),
-                        "testTranslateMarket");
+        Trader newVm = replayActions.translateTrader(vm, second, "testTranslateMarket");
         Map<ShoppingList,Market> buying = first.getMarketsAsBuyer(vm);
         Map<ShoppingList,Market> newBuying = first.getMarketsAsBuyer(newVm);
         assertEquals(buying.keySet().size(), newBuying.keySet().size());
@@ -132,8 +130,7 @@ public class ReplayActionsTest {
         ReplayActions replayActions = new ReplayActions();
         replayActions.setTraderOids(traderOids);
         pm1.getCommoditySold(CPU).setCapacity(100);
-        Trader newPm1 = replayActions.translateTrader(pm1, second, second.getTopology(),
-                        "testTranslateCommoditySold");
+        Trader newPm1 = replayActions.translateTrader(pm1, second, "testTranslateCommoditySold");
         CommoditySold newCommSold = replayActions.translateCommoditySold(newPm1,
                                CPU,
                                pm1.getCommoditySold(CPU),
@@ -155,7 +152,7 @@ public class ReplayActionsTest {
         }
         Move move = new Move(first, pmShoppingList, pm2);
         actions.add(move);
-        replayActions.replayActions(second, second.getTopology());
+        replayActions.replayActions(second);
         assertEquals(1, replayActions.getActions().size());
     }
 

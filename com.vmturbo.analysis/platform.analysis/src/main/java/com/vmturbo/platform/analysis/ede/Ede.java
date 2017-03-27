@@ -12,12 +12,6 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
-import com.vmturbo.platform.analysis.ede.ActionClassifier;
-import com.vmturbo.platform.analysis.ede.BootstrapSupply;
-import com.vmturbo.platform.analysis.ede.Placement;
-import com.vmturbo.platform.analysis.ede.Provision;
-import com.vmturbo.platform.analysis.ede.Resizer;
-import com.vmturbo.platform.analysis.ede.Suspension;
 import com.vmturbo.platform.analysis.ledger.Ledger;
 import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
 import com.vmturbo.platform.analysis.utilities.StatsManager;
@@ -53,11 +47,11 @@ public final class Ede {
      * @see {@link #generateActions(Economy, boolean, boolean, boolean, boolean, boolean)}
      */
     public @NonNull List<@NonNull Action> generateActions(@NonNull Economy economy,
-                                                          boolean collapseActions,
+                                                          boolean classifyActions,
                                                           boolean isShopTogether,
                                                           boolean isProvision, boolean isSuspension,
                                                           boolean isResize, String mktName) {
-        return generateActions(economy, collapseActions, isShopTogether, isProvision, isSuspension,
+        return generateActions(economy, classifyActions, isShopTogether, isProvision, isSuspension,
                                isResize, false, mktName);
     }
 
@@ -67,11 +61,11 @@ public final class Ede {
      * @see {@link #generateActions(Economy, boolean, boolean, boolean, boolean, boolean, String)}
      */
     public @NonNull List<@NonNull Action> generateActions(@NonNull Economy economy,
-                                                          boolean collapseActions,
+                                                          boolean classifyActions,
                                                           boolean isShopTogether,
                                                           boolean isProvision, boolean isSuspension,
                                                           boolean isResize) {
-        return generateActions(economy, collapseActions, isShopTogether, isProvision, isSuspension,
+        return generateActions(economy, classifyActions, isShopTogether, isProvision, isSuspension,
                                isResize, false, "unspecified|");
     }
 
@@ -79,7 +73,7 @@ public final class Ede {
      * Create a new set of actions for a snapshot of the economy.
      *
      * @param economy The snapshot of the economy which we analyze and take decisions.
-     * @param collapseActions True if we are running a Plan and false otherwise.
+     * @param classifyActions True if we we want to classify actions into non-executable.
      * @param isShopTogether True if we want to enable SNM and false otherwise.
      * @param isProvision True if we need to trigger provision algorithm and false otherwise
      * @param isSuspension True if we need to trigger suspension algorithm and false otherwise
@@ -90,12 +84,12 @@ public final class Ede {
      * @see {@link Action#collapsed(List)}
      */
     public @NonNull List<@NonNull Action> generateActions(@NonNull Economy economy,
-                                                          boolean collapseActions,
+                                                          boolean classifyActions,
                                                           boolean isShopTogether,
                                                           boolean isProvision,
                                                           boolean isSuspension,
                                                           boolean isResize, boolean collapse) {
-        return generateActions(economy, collapseActions, isShopTogether, isProvision, isSuspension,
+        return generateActions(economy, classifyActions, isShopTogether, isProvision, isSuspension,
                                isResize, collapse, "unspecified|");
     }
 
@@ -103,7 +97,7 @@ public final class Ede {
      * Create a new set of actions for a snapshot of the economy.
      *
      * @param economy The snapshot of the economy which we analyze and take decisions.
-     * @param classifyActions True if we are running a Plan and false otherwise.
+     * @param classifyActions True if we we want to classify actions into non-executable.
      * @param isShopTogether True if we want to enable SNM and false otherwise.
      * @param isProvision True if we need to trigger provision algorithm and false otherwise
      * @param isSuspension True if we need to trigger suspension algorithm and false otherwise
@@ -120,25 +114,25 @@ public final class Ede {
                                                           boolean isShopTogether,
                                                           boolean isProvision, boolean isSuspension,
                                                           boolean isResize, boolean collapse, String mktData) {
+        String analysisLabel = "Plan ";
+        logger.info(analysisLabel + "Started.");
         @NonNull List<Action> actions = new ArrayList<>();
-        String marketLabel = "Plan ";
-        logger.info(marketLabel + "Started.");
-        if (getReplayActions() != null) {
-            getReplayActions().replayActions(economy, economy.getTopology());
-            actions.addAll(getReplayActions().getActions());
-            logger.info(marketLabel + "completed replaying with " +
-                                       getReplayActions().getActions().size() + " actions.");
-        }
         ActionClassifier classifier = null;
         if (classifyActions) {
             try {
                 classifier = new ActionClassifier(economy);
             }
             catch (ClassNotFoundException | IOException e) {
-                logger.error(marketLabel + "Could not copy economy.", e);
+                logger.error(analysisLabel + "Could not copy economy.", e);
                 return actions;
             }
         }
+        if (getReplayActions() != null) {
+            getReplayActions().replayActions(economy);
+            actions.addAll(getReplayActions().getActions());
+            logger.info(analysisLabel + "completed replaying with " + actions.size() + " actions.");
+        }
+        int oldActionCount = actions.size();
 
         //Parse market stats data coming from Market1, add prepare to write to stats file.
         String data[] = StatsUtils.getTokens(mktData, "|");
@@ -154,8 +148,8 @@ public final class Ede {
         economy.composeMarketSubsetForPlacement();
         // generate moves for IDLE VMs
         actions.addAll(Placement.prefPlacementDecisions(economy, economy.getIdleVms()));
-        int oldActionCount = actions.size();
-        logger.info(marketLabel + "completed idleVM placement with " + oldActionCount + " actions.");
+        logger.info(analysisLabel + "completed idleVM placement with " +
+                    (actions.size() - oldActionCount) + " actions.");
 
         // Start by provisioning enough traders to satisfy all the demand
         // Save first call to before() to calculate total plan time
@@ -163,7 +157,7 @@ public final class Ede {
         if (isProvision) {
             actions.addAll(BootstrapSupply.bootstrapSupplyDecisions(economy));
         }
-        logger.info(marketLabel + "completed bootstrap with " + (actions.size() - oldActionCount)
+        logger.info(analysisLabel + "completed bootstrap with " + (actions.size() - oldActionCount)
                     + " actions.");
         // time to run bootstrap
         statsUtils.after();
@@ -174,7 +168,7 @@ public final class Ede {
         // run placement algorithm to balance the environment
         actions.addAll(Placement.runPlacementsTillConverge(economy, ledger, isShopTogether,
                                                            PLACEMENT_PHASE));
-        logger.info(marketLabel + "completed initial placement with " + (actions.size() - oldActionCount)
+        logger.info(analysisLabel + "completed initial placement with " + (actions.size() - oldActionCount)
                     + " actions.");
         // time to run initial placement
         statsUtils.after();
@@ -184,7 +178,7 @@ public final class Ede {
         if (isResize) {
             actions.addAll(Resizer.resizeDecisions(economy, ledger));
         }
-        logger.info(marketLabel + "completed resizing with " + (actions.size() - oldActionCount)
+        logger.info(analysisLabel + "completed resizing with " + (actions.size() - oldActionCount)
                     + " actions.");
         // resize time
         statsUtils.after();
@@ -193,7 +187,7 @@ public final class Ede {
         statsUtils.before();
         actions.addAll(Placement.runPlacementsTillConverge(economy, ledger, isShopTogether,
                                                            PLACEMENT_PHASE));
-        logger.info(marketLabel + "completed placement with " + (actions.size() - oldActionCount)
+        logger.info(analysisLabel + "completed placement with " + (actions.size() - oldActionCount)
                     + " actions.");
         // placement time
         statsUtils.after();
@@ -203,14 +197,17 @@ public final class Ede {
         // trigger provision, suspension and resize algorithm only when needed
         if (isProvision) {
             actions.addAll(Provision.provisionDecisions(economy, ledger, isShopTogether, this));
+            logger.info(analysisLabel + "completed provisioning with " +
+                        (actions.size() - oldActionCount) + " actions.");
             // if provision generated some actions, run placements
             if (actions.size() > oldActionCount) {
+                oldActionCount = actions.size();
                 actions.addAll(Placement.runPlacementsTillConverge(economy, ledger, isShopTogether,
                                                                    PLACEMENT_PHASE));
+                logger.info(analysisLabel + "completed post provisioning placement with " +
+                                (actions.size() - oldActionCount) + " actions.");
             }
         }
-        logger.info(marketLabel + "completed provisioning with " + (actions.size() - oldActionCount)
-                    + " actions.");
         // provisioning time
         statsUtils.after();
 
@@ -219,7 +216,8 @@ public final class Ede {
         if (isSuspension) {
             Suspension suspension = new Suspension();
             if (getReplayActions() != null) {
-                getReplayActions().translateTraders(economy, economy.getTopology());
+                // initialize the rolled back trader list from last run
+                getReplayActions().translateRolledbackTraders(economy, economy.getTopology());
                 suspension.setRolledBack(getReplayActions().getRolledBackSuspensionCandidates());
             }
             // find if any seller is the sole provider in any market, if so, it should not
@@ -230,7 +228,7 @@ public final class Ede {
                 getReplayActions().getRolledBackSuspensionCandidates().addAll(suspension.getRolledBack());
             }
         }
-        logger.info(marketLabel + "completed suspending with " + (actions.size() - oldActionCount)
+        logger.info(analysisLabel + "completed suspending with " + (actions.size() - oldActionCount)
                     + " actions.");
         // suspension time
         statsUtils.after();
@@ -245,7 +243,7 @@ public final class Ede {
         if (classifyActions && classifier != null) {
             classifier.classify(actions);
         }
-        logger.info(marketLabel + "completed with " + actions.size() + " actions.");
+        logger.info(analysisLabel + "completed with " + actions.size() + " actions.");
         // total time to run plan
         statsUtils.after(begin);
         // file total actions

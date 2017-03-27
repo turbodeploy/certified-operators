@@ -35,6 +35,8 @@ public class Placement {
     // the maximum number of placements to be 1000, when reaching this limit, we force stop
     // the placements. 1000 is a random number, it does not have any significant meaning.
     public static int MAX_NUM_PLACEMENT = 1000;
+    public static int globalCounter = 0;
+
 
     /**
      * Returns a list of recommendations to optimize the placement of all traders in the economy.
@@ -318,7 +320,7 @@ public class Placement {
             List<Action> placeActions = isShopTogether
                             ? breakDownCompoundMove(Placement.shopTogetherDecisions(economy))
                             : placementDecisions(economy, shoppingLists);
-            counter++;
+            counter++; globalCounter++;
             keepRunning = !(placeActions.isEmpty()
                             || placeActions.stream().allMatch(a -> a instanceof Reconfigure)
                             || (useExpenseMetric && areSavingsLessThanThreshold(economy)));
@@ -328,7 +330,7 @@ public class Placement {
             }
 
         }
-        logger.info(callerPhase + " Total Placement Iterations: " + counter);
+        logger.info(callerPhase + " Total Placement Iterations: " + counter + " " + globalCounter);
         return actions;
     }
 

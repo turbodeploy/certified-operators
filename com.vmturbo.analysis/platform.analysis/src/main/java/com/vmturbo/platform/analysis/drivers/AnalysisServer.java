@@ -30,6 +30,7 @@ import com.vmturbo.platform.analysis.ledger.PriceStatement;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisCommand;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTopology;
+import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.StartDiscoveredTopology;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.EconomySettingsTO;
 import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.translators.AnalysisToProtobuf;
@@ -120,13 +121,11 @@ public final class AnalysisServer {
             switch (command.getCommandTypeCase()) {
                 case START_DISCOVERED_TOPOLOGY:
                     AnalysisInstanceInfo instInfo = new AnalysisInstanceInfo();
+                    StartDiscoveredTopology discovered = command.getStartDiscoveredTopology();
                     analysisInstanceInfoMap.put(command.getTopologyId(), instInfo);
-                    instInfo.setShopTogetherEnabled(command.getStartDiscoveredTopology()
-                                                    .getEnableShopTogether());
-                    instInfo.setClassifyActions(command.getStartDiscoveredTopology()
-                                                .getClassifyActions());
-                    instInfo.setReplayActions(command.getStartDiscoveredTopology()
-                                                .getReplayActions());
+                    instInfo.setShopTogetherEnabled(discovered.getEnableShopTogether());
+                    instInfo.setClassifyActions(discovered.getClassifyActions());
+                    instInfo.setReplayActions(discovered.getReplayActions());
                     instInfo.getLastComplete().setTopologyId(command.getTopologyId());
                     instInfo.setMarketName(command.getMarketName());
                     instInfo.setMarketData(command.getMarketData());
@@ -284,37 +283,34 @@ public final class AnalysisServer {
         // Run one round of placement measuring time-to-process
         long start = System.nanoTime();
         Economy economy = (Economy)lastComplete.getEconomy();
-        logger.info(economy.toString());
         PriceStatement startPriceStatement = new PriceStatement().computePriceIndex(economy);
         @NonNull List<@NonNull Action> actions;
         AnalysisResults results;
         if (lastComplete.getEconomy().getTradersForHeadroom().isEmpty()) {
+            // if there are no templates to be added this is not a headroom plan
             ReplayActions lastDecisions = replayActionsMap.get(mktName);
             Ede ede = new Ede();
-            if (instInfo.getReplayActions()) {
+            if (instInfo.isReplayActions()) {
                 ede.setReplayActions((lastDecisions != null) ? lastDecisions : new ReplayActions());
             }
-            actions = ede.generateActions(economy,
-                                                instInfo.getClassifyActions(),
-                                                instInfo.isShopTogetherEnabled(),
-                                                instInfo.isProvisionEnabled(),
-                                                instInfo.isSuspensionEnabled(),
-                                                instInfo.isResizeEnabled(), true, mktData);
+            actions = ede.generateActions(economy, instInfo.isClassifyActions(),
+                                          instInfo.isShopTogetherEnabled(),
+                                          instInfo.isProvisionEnabled(),
+                                          instInfo.isSuspensionEnabled(),
+                                          instInfo.isResizeEnabled(), true, mktData);
             long stop = System.nanoTime();
-            // need this for oids to be added for provisioned traders
             results = AnalysisToProtobuf.analysisResults(actions, lastComplete.getTraderOids(),
-                                                      lastComplete.getShoppingListOids(), stop - start, lastComplete,
-                                                      startPriceStatement, true);
-            if (instInfo.getReplayActions()) {
+                               lastComplete.getShoppingListOids(), stop - start, lastComplete,
+                               startPriceStatement, true);
+            if (instInfo.isReplayActions()) {
                 ReplayActions newReplayActions = ede.getReplayActions();
+                // the oids have to be updated after analysisResults
                 newReplayActions.setTraderOids(lastComplete.getTraderOids());
                 newReplayActions.setActions(actions);
                 replayActionsMap.put(mktName, newReplayActions);
             }
         } else {
-            // if there are no templates to be added this is not a headroom plan
-            actions = new Ede().generateHeadroomActions(economy,
-                                                        instInfo.isShopTogetherEnabled(),
+            actions = new Ede().generateHeadroomActions(economy, instInfo.isShopTogetherEnabled(),
                                                         instInfo.isProvisionEnabled(),
                                                         instInfo.isSuspensionEnabled(),
                                                         instInfo.isResizeEnabled(), true);
@@ -366,13 +362,13 @@ public final class AnalysisServer {
         public void setClassifyActions(boolean classifyActions) {
             this.classifyActions = classifyActions;
         }
-        public boolean getClassifyActions() {
+        public boolean isClassifyActions() {
             return classifyActions;
         }
         public void setReplayActions(boolean replayActions) {
             this.replayActions = replayActions;
         }
-        public boolean getReplayActions() {
+        public boolean isReplayActions() {
             return replayActions;
         }
         public void setShopTogetherEnabled(boolean isShopTogetherEnabled) {

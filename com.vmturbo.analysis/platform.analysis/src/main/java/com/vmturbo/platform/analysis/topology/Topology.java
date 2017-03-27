@@ -301,15 +301,15 @@ public final class Topology implements Serializable {
      * been generated with {@link IdentityGenerator} to give a globally unique OID.
      *
      * @param provisionedTrader The provisioned {@link Trader}
-     * @param aliasId The alias OID that the trader should be associated with
+     * @param newOid The alias OID that the trader should be associated with
      * @return the old OID if any
      */
-    public long addProvisionedTrader(@NonNull Trader provisionedTrader, long aliasId) {
+    public long addProvisionedTrader(@NonNull Trader provisionedTrader, long newOid) {
         long oldId = -1;
         if (traderOids_.containsKey(provisionedTrader)) {
             oldId = traderOids_.get(provisionedTrader);
         }
-        traderOids_.put(provisionedTrader, aliasId);
+        traderOids_.put(provisionedTrader, newOid);
         return oldId;
     }
 

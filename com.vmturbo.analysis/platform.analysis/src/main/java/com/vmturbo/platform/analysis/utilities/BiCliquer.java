@@ -67,6 +67,7 @@ public class BiCliquer {
     /**
      * Compute the biclique cover based on the edges added so far.
      * Lock {@code this} instance from accepting new edges.
+     * @param oidToUuidMap BiMap for Oid to Uuid mapping
      * @throws IllegalStateException when invoked more than once.
      */
     public void compute(BiMap<Long, String> oidToUuidMap) {
@@ -109,6 +110,11 @@ public class BiCliquer {
         }
     }
 
+    /**
+     * Generate the BiClique ids
+     *
+     * @param oidToUuidMap BiMap for Oid to Uuid mapping
+     */
     private void genCliqueIds(BiMap<Long, String> oidToUuidMap) {
         for (Entry<Set<String>, Set<String>> clique : bicliques.entrySet()) {
             long cliqueNum = getMinOid(clique, oidToUuidMap);

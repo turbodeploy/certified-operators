@@ -13,6 +13,7 @@ import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.Activate;
+import com.vmturbo.platform.analysis.actions.CompoundMove;
 import com.vmturbo.platform.analysis.actions.Deactivate;
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.actions.ProvisionByDemand;
@@ -23,7 +24,6 @@ import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
-import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.topology.Topology;
@@ -66,9 +66,9 @@ public class ReplayActions {
      * Replay Actions from earlier run on the new {@link Economy}
      *
      * @param economy The {@link Economy} in which actions are to be replayed
-     * @param topology The {@link Topology} for the given {@link Economy}
      */
-    public void replayActions(Economy economy, Topology topology) {
+    public void replayActions(Economy economy) {
+        Topology topology = economy.getTopology();
         LinkedList<Action> actions = new LinkedList<>();
         actions_.forEach(a -> {
             try {
@@ -76,18 +76,14 @@ public class ReplayActions {
                     Move oldAction = (Move) a;
                     Move m = new Move(economy,
                          translateShoppingList(oldAction.getTarget(), economy, topology),
-                         translateTrader(oldAction.getDestination(), economy, topology, "Move"));
+                         translateTrader(oldAction.getDestination(), economy, "Move"));
+                    // move will fail if supplier has changed handling actions already taken
                     m.take();
                     actions.add(m);
                 } else if (a instanceof Resize) {
                     Resize oldAction = (Resize) a;
                     Trader newSellingTrader = translateTrader(oldAction.getSellingTrader(),
-                                                              economy, topology, "Resize");
-                    CommoditySold newCommSold = translateCommoditySold(
-                       newSellingTrader,
-                       oldAction.getResizedCommoditySpec(), oldAction.getResizedCommodity(),
-                       economy, topology);
-
+                                                              economy, "Resize");
                     Resize r = new Resize(economy, newSellingTrader,
                      oldAction.getResizedCommoditySpec(),
                      newSellingTrader.getCommoditySold(oldAction.getResizedCommoditySpec()),
@@ -99,9 +95,8 @@ public class ReplayActions {
                     ProvisionByDemand oldAction = (ProvisionByDemand) a;
                     ProvisionByDemand pbd = new ProvisionByDemand(economy,
                        translateShoppingList(oldAction.getModelBuyer(), economy, topology),
-                       translateTrader(oldAction.getModelSeller(), economy, topology, "ProvisionByDemand"));
+                       translateTrader(oldAction.getModelSeller(), economy, "ProvisionByDemand"));
                     pbd.take();
-                    logger.info("ProvisionByDemand " + pbd.getProvisionedSeller().getDebugInfoNeverUseInCode());
                     Long oid = oldAction.getOid();
                     topology.addProvisionedTrader(pbd.getProvisionedSeller(), oid);
                     topology.getEconomy().getMarketsAsBuyer(pbd.getProvisionedSeller()).keySet()
@@ -110,9 +105,8 @@ public class ReplayActions {
                 } else if (a instanceof ProvisionBySupply) {
                     ProvisionBySupply oldAction = (ProvisionBySupply) a;
                     ProvisionBySupply pbs = new ProvisionBySupply(economy,
-                                 translateTrader(oldAction.getModelSeller(), economy, topology, "ProvisionBySupply"));
+                                 translateTrader(oldAction.getModelSeller(), economy, "ProvisionBySupply"));
                     pbs.take();
-                    logger.info("ProvisionBySupply " + pbs.getProvisionedSeller().getDebugInfoNeverUseInCode());
                     Long oid = oldAction.getOid();
                     topology.addProvisionedTrader(pbs.getProvisionedSeller(), oid);
                     topology.getEconomy().getMarketsAsBuyer(pbs.getProvisionedSeller()).keySet()
@@ -121,20 +115,39 @@ public class ReplayActions {
                 } else if (a instanceof Activate) {
                     Activate oldAction = (Activate) a;
                     Activate act = new Activate(economy,
-                         translateTrader(oldAction.getTarget(), economy, topology, "Activate1"),
+                         translateTrader(oldAction.getTarget(), economy, "Activate1"),
                          oldAction.getSourceMarket(),
-                         translateTrader(oldAction.getModelSeller(), economy, topology, "Activate2"));
+                         translateTrader(oldAction.getModelSeller(), economy, "Activate2"));
                     act.take();
                     actions.add(act);
                 } else if (a instanceof Deactivate) {
                     Deactivate oldAction = (Deactivate) a;
                     Deactivate deact = new Deactivate(economy,
-                           translateTrader(oldAction.getTarget(), economy, topology, "Deactivate"),
+                           translateTrader(oldAction.getTarget(), economy, "Deactivate"),
                            oldAction.getSourceMarket());
                     deact.take();
                     actions.add(deact);
                 } else if (a instanceof Reconfigure) {
+                    Reconfigure oldAction = (Reconfigure) a;
+                    Reconfigure reconf = new Reconfigure(economy,
+                               translateShoppingList(oldAction.getTarget(), economy, topology));
                     // nothing to do
+                    reconf.take();
+                    actions.add(reconf);
+                } else if (a instanceof CompoundMove) {
+                        CompoundMove oldAction = (CompoundMove) a;
+                        List<Move> oldMoves = oldAction.getConstituentMoves();
+                        List<ShoppingList> shoppingLists = new LinkedList<>();
+                        List<Trader> destinationTraders = new LinkedList<>();
+                        for (Move move : oldMoves) {
+                            shoppingLists.add(translateShoppingList(move.getTarget(),
+                                                                    economy, topology));
+                            destinationTraders.add(translateTrader(move.getDestination(),
+                                                                   economy, "Move"));
+                        }
+                        CompoundMove compound = new CompoundMove(economy, shoppingLists, destinationTraders);
+                        compound.take();
+                        actions.add(compound);
                 } else {
                     logger.info("uncovered action " + a.toString());
                 }
@@ -152,10 +165,10 @@ public class ReplayActions {
      * @param newEconomy The {@link Economy} in which actions are to be replayed
      * @param newTopology The {@link Topology} for the given {@link Economy}
      */
-    public void translateTraders(Economy newEconomy, Topology newTopology) {
+    public void translateRolledbackTraders(Economy newEconomy, Topology newTopology) {
         Set<Trader> newTraders = new HashSet<>();
         rolledBackSuspensionCandidates_.forEach(t -> {
-            Trader newTrader = translateTrader(t, newEconomy, newTopology, "translateTraders");
+            Trader newTrader = translateTrader(t, newEconomy, "translateTraders");
             if (newTrader != null) {
                 newTraders.add(newTrader);
             }
@@ -169,12 +182,12 @@ public class ReplayActions {
      * @param trader The trader for which we want to find the corresponding trader
      *               in new {@link Economy}
      * @param newEconomy The {@link Economy} in which actions are to be replayed
-     * @param newTopology The {@link Topology} for the given {@link Economy}
      * @param callerName A tag used by caller, useful in logging
-     * @return Trader in new Economy
+     * @return Trader in new Economy or null if it fails to translate it
      */
     public @Nullable Trader translateTrader(Trader trader, Economy newEconomy,
-                                            Topology newTopology, String callerName) {
+                                            String callerName) {
+        Topology newTopology = newEconomy.getTopology();
         Long oid = traderOids_.get(trader);
         Trader newTrader = newTopology.getTraderOids().inverse().get(oid);
         if (newTrader == null) {
@@ -185,40 +198,18 @@ public class ReplayActions {
     }
 
     /**
-     * Translate the given {@link Market} to the one in the new {@link Economy}
-     *
-     * @param newTrader The trader in new Market
-     * @param oldMarket The Market to be translated
-     * @param newEconomy The {@link Economy} in which actions are to be replayed
-     * @param newTopology The {@link Topology} for the given {@link Economy}
-     * @return Market in new Economy
-     */
-    public @Nullable Market translateMarket(Trader newTrader, Market oldMarket,
-                                            Economy newEconomy, Topology newTopology) {
-        Basket basket = oldMarket.getBasket();
-        Basket basketSold = newTrader.getBasketSold();
-        List<Market> marketsAsSeller = newEconomy.getMarketsAsSeller(newTrader);
-        for (Market market : marketsAsSeller) {
-            if (basket.equals(market.getBasket())) {
-                return market;
-            }
-        }
-        return (marketsAsSeller.size() > 0) ? marketsAsSeller.get(0) : null;
-    }
-
-    /**
      * Translate the given ShoppingList to the new Economy
      *
      * @param oldTarget The ShoppingList in the old Economy
      * @param newEconomy The {@link Economy} in which actions are to be replayed
      * @param newTopology The {@link Topology} for the given {@link Economy}
-     * @return The ShoppingList in the new Economy
+     * @return The ShoppingList in the new Economy or null if it fails to translate it
      */
     public @Nullable ShoppingList translateShoppingList(ShoppingList oldTarget,
                                         Economy newEconomy, Topology newTopology) {
         Basket basket = oldTarget.getBasket();
         Trader buyer = oldTarget.getBuyer();
-        Trader newBuyer = translateTrader(buyer, newEconomy, newTopology, "translateShoppingList");
+        Trader newBuyer = translateTrader(buyer, newEconomy, "translateShoppingList");
         if (newBuyer != null) {
             Set<ShoppingList> shoppingLists = newEconomy.getMarketsAsBuyer(newBuyer).keySet();
             for (ShoppingList shoppingList : shoppingLists) {
@@ -238,25 +229,14 @@ public class ReplayActions {
      * @param oldResizedCommodity The Commodity sold by Trader in old Economy
      * @param newEconomy The {@link Economy} in which actions are to be replayed
      * @param newTopology The {@link Topology} for the given {@link Economy}
-     * @return CommoditySold in the new Economy
+     * @return CommoditySold in the new Economy or null if it fails to translate it
      */
     public @Nullable CommoditySold translateCommoditySold(Trader newSellingTrader,
                                         @Nullable CommoditySpecification oldResizedCommoditySpec,
                                         @Nullable CommoditySold oldResizedCommodity,
                                         Economy newEconomy, Topology newTopology) {
         CommoditySpecification newResizedCommoditySpec = oldResizedCommoditySpec;
-        int newCommSoldIndex = newSellingTrader.getBasketSold().indexOf(newResizedCommoditySpec);
         CommoditySold sold = newSellingTrader.getCommoditySold(newResizedCommoditySpec);
         return sold;
-    }
-
-    /**
-     * Collapse Actions. It is called after merging additional actions from current round.
-     */
-    public void collapseActions() {
-        logger.info("Action count before collapse " + actions_.size());
-        List<Action> collapsed = Action.collapsed(actions_);
-        actions_ = collapsed;
-        logger.info("Action count after collapse " + actions_.size());
     }
 }

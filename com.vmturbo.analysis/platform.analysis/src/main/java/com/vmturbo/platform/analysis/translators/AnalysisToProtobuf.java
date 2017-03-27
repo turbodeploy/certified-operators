@@ -400,6 +400,7 @@ public final class AnalysisToProtobuf {
                             // and add the oid into BiMap traderOids_
                             .setProvisionedSeller(topology.addProvisionedTrader(
                                             provDemand.getProvisionedSeller()));
+            // set oid for use in the next round for replaying of actions
             provDemand.setOid(topology.getTraderOids().get(provDemand.getProvisionedSeller()));
             // create shopping list OIDs for the provisioned shopping lists
             topology.getEconomy()
@@ -447,6 +448,7 @@ public final class AnalysisToProtobuf {
                                 provSupply.getProvisionedSeller()))
                 .setMostExpensiveCommodity(findMostExpensiveCommodity(provSupply
                                 .getModelSeller()).getBaseType());
+            // set oid for use in the next round for replaying of actions
             provSupply.setOid(topology.getTraderOids().get(provSupply.getProvisionedSeller()));
             // create shopping list OIDs for the provisioned shopping lists
             topology.getEconomy()
@@ -551,15 +553,7 @@ public final class AnalysisToProtobuf {
             Trader trader = economy.getTraders().get(traderIndex);
             // for inactive traders we don't care much about price index, so setting it to 0
             // if the inactive trader is a clone created in M2, skip it
-            if (!trader.getState().isActive() && traderToOidMap.containsKey(trader)) {
-                payloadBuilder.setOid(traderToOidMap.get(trader));
-                double startPriceIndex = (traderIndex < startPriceStatementSize) ? startTraderPriceStmts
-                                .get(traderIndex).getPriceIndex() : 0;
-                payloadBuilder.setPriceindexCurrent(Double.isInfinite(startPriceIndex)
-                                ? MAX_PRICE_INDEX : startPriceIndex);
-                payloadBuilder.setPriceindexProjected(0);
-                piBuilder.addPayload(payloadBuilder.build());
-            } else if (trader.getState() == TraderState.ACTIVE) {
+            if (trader.getState().isActive()) {
                 payloadBuilder.setOid(traderToOidMap.get(trader));
                 double startPriceIndex = (traderIndex < startPriceStatementSize) ? startTraderPriceStmts
                                 .get(traderIndex).getPriceIndex() : 0;
@@ -568,6 +562,16 @@ public final class AnalysisToProtobuf {
                 payloadBuilder.setPriceindexProjected(Double.isInfinite(endTraderPriceStmt.getPriceIndex())
                                 ? MAX_PRICE_INDEX : endTraderPriceStmt.getPriceIndex());
                 piBuilder.addPayload(payloadBuilder.build());
+            } else {
+                if (!trader.isClone()) {
+                    payloadBuilder.setOid(traderToOidMap.get(trader));
+                    double startPriceIndex = (traderIndex < startPriceStatementSize) ? startTraderPriceStmts
+                                    .get(traderIndex).getPriceIndex() : 0;
+                    payloadBuilder.setPriceindexCurrent(Double.isInfinite(startPriceIndex)
+                                    ? MAX_PRICE_INDEX : startPriceIndex);
+                    payloadBuilder.setPriceindexProjected(0);
+                    piBuilder.addPayload(payloadBuilder.build());
+                }
             }
             traderIndex++;
         }
