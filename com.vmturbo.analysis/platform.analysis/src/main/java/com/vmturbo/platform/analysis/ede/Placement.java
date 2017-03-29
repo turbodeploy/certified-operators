@@ -37,7 +37,6 @@ public class Placement {
     public static int MAX_NUM_PLACEMENT = 1000;
     public static int globalCounter = 0;
 
-
     /**
      * Returns a list of recommendations to optimize the placement of all traders in the economy.
      * With a preference given to the shoppingLists in the list "sls"
@@ -48,19 +47,22 @@ public class Placement {
      *
      * @param economy - the economy whose traders' placement we want to optimize
      * @param sls - list of shoppingLists that denotes buyers that are to shop before the others
+     * @param placeJustPassedBuyers - boolean to run placements only on the buyers passed
      */
     public static @NonNull List<@NonNull Action> placementDecisions(@NonNull Economy economy,
-                    List<ShoppingList> sls) {
+                    List<ShoppingList> sls, boolean placeJustPassedBuyers) {
 
         @NonNull List<Action> actions = prefPlacementDecisions(economy, sls);
-        // iterate over all markets, i.e., all sets of providers selling a specific basket
-        for (Market market : economy.getMarketsForPlacement()) {
-            // iterate over all buyers in this market that havnt already shopped
-            for (@NonNull ShoppingList shoppingList : market.getBuyers()) {
-                if (sls.contains(shoppingList)) {
-                    continue;
+        if (!placeJustPassedBuyers) {
+            // iterate over all markets, i.e., all sets of providers selling a specific basket
+            for (Market market : economy.getMarketsForPlacement()) {
+                // iterate over all buyers in this market that havnt already shopped
+                for (@NonNull ShoppingList shoppingList : market.getBuyers()) {
+                    if (sls.contains(shoppingList)) {
+                        continue;
+                    }
+                    actions.addAll(generatePlacementDecisions(economy, shoppingList));
                 }
-                actions.addAll(generatePlacementDecisions(economy, shoppingList));
             }
         }
         return actions;
@@ -79,9 +81,9 @@ public class Placement {
     public static @NonNull List<@NonNull Action> prefPlacementDecisions(@NonNull Economy economy,
                                                                         List<ShoppingList> sls) {
         @NonNull List<Action> actions = new ArrayList<>();
-        // run placement on specific buyers in a selected market
-        for (ShoppingList sl : sls) {
-            actions.addAll(generatePlacementDecisions(economy, sl));
+        // iterate over all buyers passed
+        for (@NonNull ShoppingList shoppingList : sls) {
+            actions.addAll(generatePlacementDecisions(economy, shoppingList));
         }
         return actions;
     }
@@ -96,7 +98,7 @@ public class Placement {
      * @param economy - the economy whose traders' placement we want to optimize
      */
     public static @NonNull List<@NonNull Action> placementDecisions(@NonNull Economy economy) {
-        return Placement.placementDecisions(economy, new ArrayList<>());
+        return Placement.placementDecisions(economy, new ArrayList<>(), false);
     }
 
     /**
@@ -171,7 +173,7 @@ public class Placement {
      * @param economy - the economy whose traders' placement we want to optimize
      */
     public static @NonNull List<@NonNull Action> shopTogetherDecisions(@NonNull Economy economy) {
-        return Placement.shopTogetherDecisions(economy, new ArrayList<>());
+        return Placement.shopTogetherDecisions(economy, new ArrayList<>(), false);
     }
 
     /**
@@ -185,10 +187,11 @@ public class Placement {
      *
      * @param economy - the economy whose traders' placement we want to optimize
      * @param shopFirstShoppingLists - list of shoppingLists that denotes buyers that
-     * are to shop before the others
+     *                                 are to shop before the others
+     * @param placeJustPassedBuyers - boolean to run placements only on the buyers passed
      */
     public static @NonNull List<@NonNull Action> shopTogetherDecisions(@NonNull Economy economy,
-                                List<ShoppingList> shopFirstShoppingLists) {
+                                List<ShoppingList> shopFirstShoppingLists, boolean placeJustPassedBuyers) {
         @NonNull List<@NonNull Action> output = new ArrayList<>();
 
         List<Trader> specialTraders = new ArrayList<>();
@@ -196,8 +199,10 @@ public class Placement {
             shopFirstShoppingLists.forEach(sl -> specialTraders.add(sl.getBuyer()));
             // place selected list of buyers
             output.addAll(generateShopTogetherDecisions(economy, specialTraders));
-            output.addAll(generateShopTogetherDecisions(economy, economy.getTraders().stream()
-                            .filter(trader -> !specialTraders.contains(trader)).collect(Collectors.toList())));
+            if (!placeJustPassedBuyers) {
+                output.addAll(generateShopTogetherDecisions(economy, economy.getTraders().stream()
+                                .filter(trader -> !specialTraders.contains(trader)).collect(Collectors.toList())));
+            }
         } else {
             output.addAll(generateShopTogetherDecisions(economy, economy.getTraders()));
         }
@@ -274,14 +279,14 @@ public class Placement {
      * @param economy
      * @param ledger - the {@link Ledger} with the expenses and revenues of all the traders
      *        and commodities in the economy
-     * @param isShopTogether
+     * @param isShopTogether - flag specifies if we want to use SNM or normal placement
      * @param callerPhase - tag to identify phase it is being called from
      * @return a list of recommendations about trader placement
      */
     public static @NonNull List<@NonNull Action> runPlacementsTillConverge(Economy economy,
                     Ledger ledger, boolean isShopTogether, String callerPhase) {
         return runPlacementsTillConverge(economy, new ArrayList<ShoppingList>(), ledger,
-                                         isShopTogether, callerPhase);
+                                         isShopTogether, false, callerPhase);
     }
 
     /**
@@ -291,13 +296,15 @@ public class Placement {
      * @param shoppingLists - list of shoppingLists that denotes buyers that are to shop before the others
      * @param ledger - the {@link Ledger} with the expenses and revenues of all the traders
      *        and commodities in the economy
-     * @param isShopTogether
+     * @param isShopTogether - flag specifies if we want to use SNM or normal placement
+     * @param placeJustPassedBuyers - run placements on just the {@link ShoppingList}s passed if
+     *                                true and on all {@link ShoppingList}s if false
      * @param callerPhase - tag to identify phase it is being called from
      * @return a list of recommendations about trader placement
      */
     public static @NonNull List<@NonNull Action> runPlacementsTillConverge(Economy economy,
                     List<ShoppingList> shoppingLists, Ledger ledger, boolean isShopTogether,
-                    String callerPhase) {
+                    boolean placeJustPassedBuyers, String callerPhase) {
         @NonNull
         List<Action> actions = new ArrayList<@NonNull Action>();
         // generate placement actions
@@ -318,9 +325,11 @@ public class Placement {
                 break;
             }
             List<Action> placeActions = isShopTogether
-                            ? breakDownCompoundMove(Placement.shopTogetherDecisions(economy))
-                            : placementDecisions(economy, shoppingLists);
-            counter++; globalCounter++;
+                            ? breakDownCompoundMove(Placement.shopTogetherDecisions(economy,
+                                            shoppingLists, placeJustPassedBuyers))
+                            : placementDecisions(economy, shoppingLists, placeJustPassedBuyers);
+            counter++;
+            globalCounter++;
             keepRunning = !(placeActions.isEmpty()
                             || placeActions.stream().allMatch(a -> a instanceof Reconfigure)
                             || (useExpenseMetric && areSavingsLessThanThreshold(economy)));

@@ -236,7 +236,7 @@ public class Provision {
                                                                 , Trader mostProfitableTrader
                                                                 , Trader provisionedTrader ) {
 
-        ledger.calculateExpRevForSeller(economy, mostProfitableTrader);
+        ledger.calculateExpRevForTrader(economy, mostProfitableTrader);
         // check if the RoI of the mostProfitableTrader after cloning is less than before cloning
         // and that at least one nonGuaranteedBuyer has moved into the new host
         return ledger.getTraderIncomeStatements().get(mostProfitableTrader.getEconomyIndex())

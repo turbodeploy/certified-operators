@@ -144,6 +144,30 @@ public interface CommoditySoldSettings {
     @NonNull CommoditySoldSettings setUtilizationUpperBound(double utilizationUpperBound);
 
     /**
+     * Sets the value of the <b>utilization upper bound</b> field.
+     *
+     * <p>
+     *  Has no observable side-effects except setting the above field.
+     * </p>
+     *
+     * @param utilizationUpperBound the new value for the field. Must be in the interval [0,1].
+     * @return {@code this}
+     */
+    @NonNull CommoditySoldSettings setOrigUtilizationUpperBound(double utilizationUpperBound);
+
+    /**
+     * Returns the utilization upper bound for {@code this} commodity.
+     *
+     * <p>
+     *  Our system should never produce a recommendation that causes the utilization of a commodity
+     *  sold to exceed this limit, but external factors like manual moves using other tools or just
+     *  changes in the load might. It may be used in price calculations.
+     * </p>
+     */
+    @Pure
+    double getOrigUtilizationUpperBound(@ReadOnly CommoditySoldSettings this);
+
+    /**
      * Sets the value of the <b>price function</b> field.
      *
      * <p>

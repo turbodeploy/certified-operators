@@ -198,7 +198,7 @@ public final class ProtobufToAnalysis {
         destination.setCapacityLowerBound(source.getCapacityLowerBound());
         destination.setCapacityUpperBound(source.getCapacityUpperBound());
         destination.setCapacityIncrement(source.getCapacityIncrement());
-        destination.setUtilizationUpperBound(source.getUtilizationUpperBound());
+        destination.setUtilizationUpperBound(source.getUtilizationUpperBound()).setOrigUtilizationUpperBound(source.getUtilizationUpperBound());
         destination.setPriceFunction(priceFunction(source.getPriceFunction()));
     }
 

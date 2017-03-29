@@ -17,6 +17,7 @@ final class CommoditySoldWithSettings extends CommoditySold implements Commodity
     private double capacityUpperBound_ = Double.MAX_VALUE;
     private double capacityIncrement_ = 1;
     private double utilizationUpperBound_ = 1.0;
+    private double origUtilizationUpperBound_ = 1.0;
     private @NonNull PriceFunction priceFunction_ = PriceFunction.Cache.createStandardWeightedPriceFunction(1.0);
 
     // Constructors
@@ -125,6 +126,21 @@ final class CommoditySoldWithSettings extends CommoditySold implements Commodity
     public @NonNull CommoditySoldSettings setPriceFunction(@NonNull PriceFunction priceFunction) {
         priceFunction_ = priceFunction;
         return this;
+    }
+
+    @Override
+    public @NonNull CommoditySoldSettings
+                    setOrigUtilizationUpperBound(double origUtilizationUpperBound) {
+          checkArgument(0.0 < origUtilizationUpperBound && origUtilizationUpperBound <= 1.0,
+                        "origUtilizationUpperBound = " + origUtilizationUpperBound);
+          origUtilizationUpperBound_ = origUtilizationUpperBound;
+          return this;
+    }
+
+    @Override
+    @Pure
+    public double getOrigUtilizationUpperBound(@ReadOnly CommoditySoldWithSettings this) {
+        return origUtilizationUpperBound_;
     }
 
 } // end class CommoditySoldWithSettings
