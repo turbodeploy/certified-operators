@@ -37,7 +37,6 @@ public class EstimateSupply {
     private List<Action> actions_;
     List<Trader> suspendReverseList = new ArrayList<>();
     List<Action> deactActions_ = new ArrayList<>();
-    int[] counter = new int[] {0, 0, 0, 0};
 
     private Map<Market, Set<Trader>> suspensionCandidatesMap_ = new HashMap<>();
 
@@ -69,26 +68,8 @@ public class EstimateSupply {
         }
         // Revert the suspendable field to true for all traders added by adjustSupply
         suspendReverseList.stream().forEach(seller -> seller.getSettings().setSuspendable(true));
-        logger.info("PMClone:" + counter[0]
-                    + " PMSuspened:"
-                    + counter[1]
-                    + " STClone:"
-                    + counter[2]
-                    + " STSuspened:"
-                    + counter[3] + " ");
         logger.info("Plan Completed Estimate Supply");
 
-    }
-
-    public void adjustSupply (Economy economy, boolean isProvision) {
-        for (Market market : economy.getMarkets().stream()
-                        .sorted((m1, m2) -> m1.getBuyers().size() - m2.getBuyers().size())
-                        .collect(Collectors.toList())) {
-            if (!isEligibleMarket(market)) {
-                continue;
-            }
-            adjustSupply(market, isProvision);
-        }
     }
 
     /**
@@ -261,23 +242,17 @@ public class EstimateSupply {
                 action = (new ProvisionBySupply(economy_, newSeller)).take();
                 logger.info("CHURN :" + " adding trader " + ((ProvisionBySupply)action).getProvisionedSeller().getDebugInfoNeverUseInCode()
                             + " basedOn " + newSeller.getDebugInfoNeverUseInCode());
-                // action.take();
                 ledger_.addTraderIncomeStatement(((ProvisionBySupply)action)
                                 .getProvisionedSeller());
             }
             action.getActionTarget().getSettings().setSuspendable(false);
             actions_.add(action);
             suspendReverseList.add(action.getActionTarget());
-            if (newSeller.getDebugInfoNeverUseInCode().contains("Machine")) {
-                counter[0]++;
-            } else {
-                counter[2]++;
-            }
             logger.info("        Added seller:" + action.getActionTarget().getDebugInfoNeverUseInCode());
             // Update capacity and revenues of superSeller
             superSeller.updateCapacityAndRevenues(newSeller, true);
             // Calculate expenses and revenues of the new seller
-            ledger_.calculateExpRevForSeller(economy_, action.getActionTarget());
+            ledger_.calculateExpRevForTrader(economy_, action.getActionTarget());
             // Decide to clone more or stop cloning
             canClone = superSeller.getCurrROI() > superSeller.getDesiredROI(true);
             logger.info("        currROI: " + superSeller.getCurrROI());
@@ -313,23 +288,18 @@ public class EstimateSupply {
             Deactivate deactivateAction = new Deactivate(economy_, suspendCandidate, market);
             deactivateAction.take();
 
-            //logger.info("CHURN : deactivating trader " + suspendCandidate.getDebugInfoNeverUseInCode());
             // Update capacity and revenues of superSeller
             superSeller.updateCapacityAndRevenues(suspendCandidate, false);
-            ledger_.calculateExpRevForSeller(economy_, suspendCandidate);
+            ledger_.calculateExpRevForTrader(economy_, suspendCandidate);
             // stop suspend if ROI value is too high after suspend
             double desiredROI = (superSeller.getDesiredROI(true) / 2
                                  + superSeller.getDesiredROI(false) / 2);
             if (Math.abs(superSeller.getCurrROI() - desiredROI) > Math.abs(oldROI - desiredROI)) {
                 deactivateAction.rollback();
+                suspendedSet.remove(suspendCandidate);
                 return;
             }
             deactActions_.add(deactivateAction);
-            if (suspendCandidate.getDebugInfoNeverUseInCode().contains("Machine")) {
-                counter[1]++;
-            } else {
-                counter[3]++;
-            }
             logger.info("        Suspend Seller:" + suspendCandidate.getDebugInfoNeverUseInCode());
             // Calculate expenses and revenues of the suspended seller
             // Decide to clone more or stop cloning
@@ -426,8 +396,6 @@ class SuperSeller {
         }
 
         double rev=util * commResource.getPriceFunction().unitPrice(util);
-        //logger.info("                     "+commResource.getCommoditySpecification().getDebugInfoNeverUseInCode() +
-        //            "-- new Rev:" + rev +"util:" + util);
         return rev;
     }
 
