@@ -253,4 +253,9 @@ public class ProvisionBySupply extends ActionImpl {
     public Long getOid() {
         return oid_;
     }
+
+    @Override
+    public ActionType getType() {
+        return ActionType.PROVISION_BY_SUPPLY;
+    }
 } // end ProvisionBySupply class

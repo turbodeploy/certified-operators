@@ -300,4 +300,9 @@ public class ProvisionByDemand extends ActionImpl {
     public Long getOid() {
         return oid_;
     }
+
+    @Override
+    public ActionType getType() {
+        return ActionType.PROVISION_BY_DEMAND;
+    }
 } // end ProvisionByDemand class

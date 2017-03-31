@@ -11,7 +11,6 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
 
 import com.google.common.hash.Hashing;
-
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -127,5 +126,10 @@ public class Deactivate extends StateChangeBase { // inheritance for code reuse
         return Hashing.md5().newHasher().putInt(getEconomy().hashCode())
                         .putInt(getTarget().hashCode()).putInt(getSourceMarket().hashCode()).hash()
                         .asInt();
+    }
+
+    @Override
+    public ActionType getType() {
+        return ActionType.DEACTIVATE;
     }
 } // end Deactivate class

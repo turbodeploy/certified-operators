@@ -1,5 +1,8 @@
 package com.vmturbo.platform.analysis.actions;
 
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
+
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
@@ -10,15 +13,11 @@ import org.checkerframework.dataflow.qual.Pure;
 
 import com.google.common.collect.Lists;
 import com.google.common.hash.Hashing;
-
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ede.Resizer;
-
-import static com.google.common.base.Preconditions.checkArgument;
-import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
 
 /**
  * An action to resize a {@link CommoditySold commodity sold} of a {@link Trader trader}.
@@ -289,5 +288,10 @@ public class Resize extends ActionImpl {
         return Hashing.md5().newHasher().putInt(getSellingTrader().hashCode())
                         .putInt(getResizedCommoditySpec().hashCode()).putDouble(getOldCapacity())
                         .putDouble(getNewCapacity()).hash().asInt();
+    }
+
+    @Override
+    public ActionType getType() {
+        return ActionType.RESIZE;
     }
 } // end Resize class

@@ -326,4 +326,9 @@ public class Move extends MoveBase implements Action { // inheritance for code r
         }
         return this;
     }
+
+    @Override
+    public ActionType getType() {
+        return ActionType.MOVE;
+    }
 } // end Move class

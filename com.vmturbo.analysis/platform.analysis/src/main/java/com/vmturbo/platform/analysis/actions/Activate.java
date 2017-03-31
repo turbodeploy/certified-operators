@@ -1,5 +1,8 @@
 package com.vmturbo.platform.analysis.actions;
 
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
+
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
@@ -8,14 +11,10 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
 
 import com.google.common.hash.Hashing;
-
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
-
-import static com.google.common.base.Preconditions.checkArgument;
-import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
 
 /**
  * An action to activate a deactivated {@link Trader trader}.
@@ -137,5 +136,10 @@ public class Activate extends StateChangeBase { // inheritance for code reuse
         return Hashing.md5().newHasher().putInt(getEconomy().hashCode())
                         .putInt(getTarget().hashCode()).putInt(getSourceMarket().hashCode())
                         .putInt(getModelSeller().hashCode()).hash().asInt();
+    }
+
+    @Override
+    public ActionType getType() {
+        return ActionType.ACTIVATE;
     }
 } // end Activate class

@@ -1,6 +1,7 @@
 package com.vmturbo.platform.analysis.actions;
 
 import static com.google.common.base.Preconditions.checkArgument;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -16,9 +17,9 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Pure;
 
-import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.google.common.collect.Lists;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 
 /**
@@ -199,4 +200,8 @@ public class CompoundMove extends ActionImpl {
         return sb.toString();
     }
 
+    @Override
+    public ActionType getType() {
+        return ActionType.COMPOUND_MOVE;
+    }
 } // end CompoundMove class

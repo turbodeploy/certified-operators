@@ -1,5 +1,7 @@
 package com.vmturbo.platform.analysis.actions;
 
+import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
+
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
@@ -7,14 +9,10 @@ import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
 
-import com.vmturbo.platform.analysis.economy.ShoppingList;
-
 import com.google.common.hash.Hashing;
-
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
-
-import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
 
 /**
  * An action to reconfigure a {@link ShoppingList}.
@@ -141,4 +139,8 @@ public class Reconfigure extends MoveBase implements Action { // inheritance for
                         .asInt();
     }
 
+    @Override
+    public ActionType getType() {
+        return ActionType.RECONFIGURE;
+    }
 } // end Reconfigure class

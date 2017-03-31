@@ -22,6 +22,13 @@ public class ActionImpl implements Action {
 
     private boolean executable_ = true;
 
+    private ActionType type_;
+
+    @Override
+    public ActionType getType() {
+        return ActionType.UNKNOWN;
+    }
+
     @Override
     public boolean setExecutable(boolean executable) {
         return executable_ = executable;

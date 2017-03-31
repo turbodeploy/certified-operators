@@ -1,0 +1,104 @@
+package com.vmturbo.platform.analysis.utilities;
+
+import static org.junit.Assert.assertEquals;
+
+import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.Map;
+
+import org.checkerframework.checker.nullness.qual.NonNull;
+import org.junit.Before;
+import org.junit.Test;
+
+import com.google.common.collect.BiMap;
+import com.google.common.collect.HashBiMap;
+import com.vmturbo.platform.analysis.actions.Action;
+import com.vmturbo.platform.analysis.actions.Move;
+import com.vmturbo.platform.analysis.economy.Basket;
+import com.vmturbo.platform.analysis.economy.CommoditySpecification;
+import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.Market;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
+import com.vmturbo.platform.analysis.economy.Trader;
+import com.vmturbo.platform.analysis.economy.TraderState;
+import com.vmturbo.platform.analysis.topology.Topology;
+
+public class ActionStatsTest {
+    private static final CommoditySpecification CPU = new CommoditySpecification(0);
+    private static final Basket PMtoVM = new Basket(CPU,
+                                new CommoditySpecification(1), // MEM
+                                new CommoditySpecification(2), // Datastore commodity with key 1
+                                new CommoditySpecification(3));// Datastore commodity with key 2
+    private static final Basket STtoVM = new Basket(
+                                new CommoditySpecification(4), // Storage Amount (no key)
+                                new CommoditySpecification(5));// DSPM access commodity with key A
+
+    private @NonNull Economy first;
+    private @NonNull Topology firstTopology;
+    private @NonNull Trader vm;
+    private @NonNull Trader pm1;
+    private @NonNull Trader pm2;
+
+    private @NonNull BiMap<@NonNull Trader, @NonNull Long> traderOids = HashBiMap.create();
+
+    @Before
+    public void setUp() throws Exception {
+        first = new Economy();
+        vm = first.addTrader(0, TraderState.ACTIVE, new Basket(), PMtoVM, STtoVM, STtoVM);
+        pm1 = first.addTrader(1, TraderState.ACTIVE, PMtoVM);
+        pm1.setDebugInfoNeverUseInCode("PhysicalMachine|4C4C4544-0059-4D10-8030-B3C04F46433");
+        pm2 = first.addTrader(1, TraderState.ACTIVE, PMtoVM);
+        Trader st1 = first.addTrader(2, TraderState.ACTIVE, STtoVM);
+        Trader st2 = first.addTrader(2, TraderState.ACTIVE, STtoVM);
+        traderOids.put(vm, 1L);
+        traderOids.put(pm1, 2L);
+        traderOids.put(pm2, 3L);
+        traderOids.put(st1, 4L);
+        traderOids.put(st2, 5L);
+        ShoppingList[] shoppingLists = first.getMarketsAsBuyer(vm)
+                                            .keySet().toArray(new ShoppingList[3]);
+        shoppingLists[0].move(pm1);
+        shoppingLists[1].move(st1);
+        shoppingLists[2].move(st2);
+        pm1.getCommoditySold(CPU).setCapacity(100);
+        first.getCommodityBought(shoppingLists[0],CPU).setQuantity(42);
+
+        firstTopology = new Topology();
+        first.setTopology(firstTopology);
+        Field traderOidField = Topology.class.getDeclaredField("traderOids_");
+        traderOidField.setAccessible(true);
+        traderOidField.set(firstTopology, traderOids);
+        Field unmodifiableTraderOidField = Topology.class
+                                                   .getDeclaredField("unmodifiableTraderOids_");
+        unmodifiableTraderOidField.setAccessible(true);
+        unmodifiableTraderOidField.set(firstTopology, traderOids);
+
+    }
+
+    @Test
+    public void testMoveStats() {
+        ArrayList<Action> actions = new ArrayList<>();
+        ActionStats actionStats = new ActionStats(actions);
+
+        Map<ShoppingList,Market> buying = first.getMarketsAsBuyer(vm);
+        ShoppingList pmShoppingList = null;
+        for (ShoppingList sl : buying.keySet()) {
+            pmShoppingList = sl;
+            break;
+        }
+
+        Move move = new Move(first, pmShoppingList, pm2);
+        actions.add(move);
+
+        String logPhase1 = actionStats.phaseLogEntry("Phase1");
+        assertEquals(true, logPhase1.contains("1 moves (PM:1"));
+
+        actions.add(move);
+        String logPhase2 = actionStats.phaseLogEntry("Phase2");
+        assertEquals(true, logPhase2.contains("1 moves (PM:1"));
+
+        String finalEntry = actionStats.finalLogEntry();
+        assertEquals(true, finalEntry.contains("2 moves (PM:2"));
+    }
+
+}

@@ -35,6 +35,8 @@ public interface Action {
     boolean setExecutable(boolean executable);
     boolean isExecutable();
 
+    ActionType getType();
+
     /**
      * Returns a String representation of {@code this} action suitable for transmission to the
      * "all-the-rest" server.
