@@ -130,6 +130,9 @@ message ShoppingListTO {
     // The list of commodities that are currently bought from this supplier or need to be bought by
     // some supplier if supplier is missing.
     repeated CommodityBoughtTO commodities_bought = 4;
+
+    // The cost of moving a shopping list to a new storage. Used for VM and Container shopping lists
+    optional float storage_move_cost = 5;
 }
 
 // A group of parameters effecting how a trader will be treated by the analysis engine.

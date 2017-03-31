@@ -116,6 +116,8 @@ final class QuoteMinimizer {
 
         if (seller == shoppingList_.getSupplier()) {
             currentQuote_ = quote[0];
+        } else {
+            quote[0] += shoppingList_.getMoveCost();
         }
 
         // keep the minimum between quotes

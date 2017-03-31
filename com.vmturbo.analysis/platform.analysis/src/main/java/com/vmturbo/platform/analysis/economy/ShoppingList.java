@@ -34,6 +34,7 @@ public final class ShoppingList implements Serializable {
                                                      // Must be same size as quantities_.
     private boolean movable_ = false; // Whether analysis is allowed to move this shopping list to
                                      // another supplier.
+    private float moveCost_ = 0; // Cost to move this shopping list to another supplier
     private final @NonNull Basket basket_; // The basket for this shopping list
 
     // Constructors
@@ -146,6 +147,16 @@ public final class ShoppingList implements Serializable {
         return movable_;
     }
 
+    /**
+     * Returns the moveCost for this {@link ShoppingList}.
+     *
+     * @return the cost to move this shopping list
+     */
+    @Pure
+    public float getMoveCost(@ReadOnly ShoppingList this) {
+        return moveCost_;
+    }
+
 
 
     /**
@@ -219,6 +230,23 @@ public final class ShoppingList implements Serializable {
     @Deterministic
     public @NonNull ShoppingList setMovable(boolean movable) {
         movable_ = movable;
+        return this;
+    }
+
+    /**
+     * Sets the value of the <b>moveCost</b> field.
+     *
+     * <p>
+     *  Has no observable side-effects except setting the above field.
+     * </p>
+     *
+     * @param moveCost the new value for the field.
+     * @return {@code this}
+     */
+    @Deterministic
+    public @NonNull ShoppingList setMoveCost(float moveCost) {
+        checkArgument(moveCost >= 0f, "value less than 0, moveCost = " + moveCost);
+        moveCost_ = moveCost;
         return this;
     }
 

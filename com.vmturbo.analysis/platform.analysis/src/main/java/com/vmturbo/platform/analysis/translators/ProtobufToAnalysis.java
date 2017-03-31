@@ -175,6 +175,7 @@ public final class ProtobufToAnalysis {
             : topology.addBasketBought(input.getOid(), buyer, basketBought);
 
         shoppingList.setMovable(input.getMovable());
+        shoppingList.setMoveCost(input.getStorageMoveCost());
 
         for (CommodityBoughtTO commodityBought : input.getCommoditiesBoughtList()) {
             int index = basketBought.indexOf(commoditySpecification(commodityBought.getSpecification()));
