@@ -237,7 +237,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
      */
     @Override
     @Pure
-    public @NonNull @ReadOnly List<@NonNull @ReadOnly ShoppingList> getIdleVms(@ReadOnly Economy this) {
+    public @NonNull @ReadOnly List<@NonNull @ReadOnly ShoppingList> getInactiveOrIdleTraders(@ReadOnly Economy this) {
         return unmodifiableIdleVmSls_;
     }
 

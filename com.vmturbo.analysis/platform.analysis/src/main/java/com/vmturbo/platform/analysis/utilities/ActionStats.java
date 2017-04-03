@@ -46,16 +46,19 @@ public class ActionStats {
     private static class ActionStatsData {
         long numProvisions = 0;
         long numSuspensions = 0;
+        long numActivations = 0;
         long numResizes = 0;
         long numMoves = 0;
 
         long numHostProvisions = 0;
         long numHostSuspensions = 0;
+        long numHostActivations = 0;
         long numCpuResizes = 0;
         long numHostMoves = 0;
 
         long numStorageProvisions = 0;
         long numStorageSuspensions = 0;
+        long numStorageActivations = 0;
         long numMemResizes = 0;
         long numStorageMoves = 0;
     }
@@ -164,6 +167,13 @@ public class ActionStats {
                 .append(data.numHostSuspensions)
                 .append(ST).append(data.numStorageSuspensions).append("),");
         }
+        if (data.numActivations > 0) {
+            stringBuilder
+            //" WWW activations (PM:YY1, ST:YY2), and")
+            .append(" ").append(data.numActivations).append(" activations").append(PM)
+                .append(data.numHostActivations)
+                .append(ST).append(data.numStorageActivations).append("),");
+        }
         if (data.numMoves > 0) {
             stringBuilder
             //" ZZZ moves");
@@ -244,12 +254,12 @@ public class ActionStats {
                     break;
                 case ACTIVATE :
                     Activate activate = (Activate) action;
-                    // count Activations??
+                    actionStatsData.numActivations++;
                     String activateTarget = activate.getActionTarget().getDebugInfoNeverUseInCode();
                     if (activateTarget.startsWith(PHYSICAL_MACHINE)) {
-                        actionStatsData.numHostSuspensions++;
+                        actionStatsData.numHostActivations++;
                     } else if (activateTarget.startsWith(STORAGE)) {
-                        actionStatsData.numStorageSuspensions++;
+                        actionStatsData.numStorageActivations++;
                     }
                     break;
                 case DEACTIVATE :

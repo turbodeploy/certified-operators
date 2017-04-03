@@ -222,7 +222,7 @@ public interface UnmodifiableEconomy {
      */
     @NonNull
     @ReadOnly
-    List<@NonNull @ReadOnly ShoppingList> getIdleVms();
+    List<@NonNull @ReadOnly ShoppingList> getInactiveOrIdleTraders();
 
     /**
      * @return list of {@link TraderTO}s

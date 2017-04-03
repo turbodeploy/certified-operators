@@ -148,8 +148,8 @@ public final class Ede {
         // create a subset list of markets that have atleast one buyer that can move
         economy.composeMarketSubsetForPlacement();
         // generate moves for IDLE VMs
-        actions.addAll(Placement.prefPlacementDecisions(economy, economy.getIdleVms()));
-        logger.info(actionStats.phaseLogEntry("idleVM placement"));
+        actions.addAll(Placement.prefPlacementDecisions(economy, economy.getInactiveOrIdleTraders()));
+        logger.info(actionStats.phaseLogEntry("inactive/idle Trader placement"));
 
         // Start by provisioning enough traders to satisfy all the demand
         // Save first call to before() to calculate total plan time
