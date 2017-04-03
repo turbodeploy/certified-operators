@@ -1,6 +1,7 @@
 package com.vmturbo.platform.analysis.ede;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -63,6 +64,11 @@ public class ReplayActionsTest {
         traderOids.put(pm2, 3L);
         traderOids.put(st1, 4L);
         traderOids.put(st2, 5L);
+        vm.setDebugInfoNeverUseInCode("VirtualMachine|1");
+        pm1.setDebugInfoNeverUseInCode("PhysicalMachine|2");
+        pm2.setDebugInfoNeverUseInCode("PhysicalMachine|3");
+        st1.setDebugInfoNeverUseInCode("Storage|4");
+        st2.setDebugInfoNeverUseInCode("Storage|5");
         ShoppingList[] shoppingLists = first.getMarketsAsBuyer(vm)
                                             .keySet().toArray(new ShoppingList[3]);
         shoppingLists[0].move(pm1);
@@ -154,6 +160,37 @@ public class ReplayActionsTest {
         actions.add(move);
         replayActions.replayActions(second);
         assertEquals(1, replayActions.getActions().size());
+    }
+
+    @Test
+    public void testReplayMoveAlreadyTaken() {
+        // simulate move happening in main market
+        List<Action> actions = new LinkedList<>();
+        ReplayActions replayActions = new ReplayActions();
+        replayActions.setTraderOids(traderOids);
+        replayActions.setActions(actions);
+        Map<ShoppingList,Market> buying = first.getMarketsAsBuyer(vm);
+        ShoppingList pmShoppingList = null;
+        for (ShoppingList sl : buying.keySet()) {
+            pmShoppingList = sl;
+            break;
+        }
+        Move move = new Move(first, pmShoppingList, pm2);
+        actions.add(move);
+        replayActions.replayActions(second);
+        assertEquals(1, replayActions.getActions().size());
+
+        // replay action which has already taken place
+        try {
+            @NonNull Economy third = cloneEconomy(second);
+            ReplayActions replayActionsSecond = new ReplayActions();
+            replayActionsSecond.setTraderOids(second.getTopology().getTraderOids());
+            replayActionsSecond.setActions(actions);
+            replayActionsSecond.replayActions(third);
+            assertEquals(0, replayActionsSecond.getActions().size());
+        } catch (ClassNotFoundException | IOException e) {
+            assertTrue(false);
+        }
     }
 
 }
