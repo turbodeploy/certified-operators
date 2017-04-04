@@ -46,8 +46,9 @@ public class ActionStatsTest {
         first = new Economy();
         vm = first.addTrader(0, TraderState.ACTIVE, new Basket(), PMtoVM, STtoVM, STtoVM);
         pm1 = first.addTrader(1, TraderState.ACTIVE, PMtoVM);
-        pm1.setDebugInfoNeverUseInCode("PhysicalMachine|4C4C4544-0059-4D10-8030-B3C04F46433");
+        pm1.setDebugInfoNeverUseInCode("PhysicalMachine|some-uuid-1");
         pm2 = first.addTrader(1, TraderState.ACTIVE, PMtoVM);
+        pm2.setDebugInfoNeverUseInCode("PhysicalMachine|some-uuid-2");
         Trader st1 = first.addTrader(2, TraderState.ACTIVE, STtoVM);
         Trader st2 = first.addTrader(2, TraderState.ACTIVE, STtoVM);
         traderOids.put(vm, 1L);

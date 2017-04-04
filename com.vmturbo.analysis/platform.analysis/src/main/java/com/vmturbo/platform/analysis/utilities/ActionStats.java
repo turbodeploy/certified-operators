@@ -5,6 +5,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 import java.time.Instant;
 import java.util.ArrayList;
 
+import org.apache.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.platform.analysis.actions.Action;
@@ -38,6 +39,8 @@ public class ActionStats {
     private static final String STORAGE = "Storage";
     private static final String PHYSICAL_MACHINE = "PhysicalMachine";
     private static final String VIRTUAL_MACHINE = "VirtualMachine";
+
+    static final Logger logger = Logger.getLogger(ActionStats.class);
 
     /**
      * Data object to hold the counts for various action types.
@@ -194,25 +197,11 @@ public class ActionStats {
             Action action = actions_.get(i);
             switch(action.getType()) {
                 case MOVE :
-                    actionStatsData.numMoves++;
-                    Move move = (Move) action;
-                    String srcDebug = move.getSource().getDebugInfoNeverUseInCode();
-                    if (srcDebug.startsWith(PHYSICAL_MACHINE)) {
-                        actionStatsData.numHostMoves++;
-                    } else if (srcDebug.startsWith(STORAGE)) {
-                        actionStatsData.numStorageMoves++;
-                    }
+                    incrementMoves(actionStatsData, (Move) action);
                     break;
                 case COMPOUND_MOVE :
-                    CompoundMove compoundMove = (CompoundMove) action;
-                    for (Move m : compoundMove.getConstituentMoves()) {
-                        actionStatsData.numMoves++;
-                        String moveSrcDebug = m.getSource().getDebugInfoNeverUseInCode();
-                        if (moveSrcDebug.startsWith(PHYSICAL_MACHINE)) {
-                            actionStatsData.numHostMoves++;
-                        } else if (moveSrcDebug.startsWith(STORAGE)) {
-                            actionStatsData.numStorageMoves++;
-                        }
+                    for (Move m : ((CompoundMove) action).getConstituentMoves()) {
+                        incrementMoves(actionStatsData, m);
                     }
                     break;
                 case RESIZE :
@@ -278,6 +267,31 @@ public class ActionStats {
                     break;
                 case UNKNOWN :
             }
+        }
+    }
+
+    /**
+     * Increment counts for moves
+     *
+     * @param actionStatsData The data object where the counts are accumulated
+     * @param move The {@link Move} action
+     */
+    private void incrementMoves(ActionStatsData actionStatsData, Move move) {
+        if (move == null || actionStatsData == null) {
+            return;
+        }
+        if (move.getDestination() == null) {
+            logger.error("Move action with a null destination. Move target: "
+                            + (move.getActionTarget() == null ? "nullTrader":
+                               move.getActionTarget().getDebugInfoNeverUseInCode()));
+            return;
+        }
+        actionStatsData.numMoves++;
+        String destinationDebug = move.getDestination().getDebugInfoNeverUseInCode();
+        if (destinationDebug.startsWith(PHYSICAL_MACHINE)) {
+            actionStatsData.numHostMoves++;
+        } else if (destinationDebug.startsWith(STORAGE)) {
+            actionStatsData.numStorageMoves++;
         }
     }
 }
