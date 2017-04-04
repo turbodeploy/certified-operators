@@ -71,7 +71,9 @@ public class StatsWriter extends Thread {
 
         try {
             stats.write(queue.take(), true);
-            linesWritten++;
+            synchronized (this) {
+                linesWritten++;
+            }
         }
         catch (InterruptedException e) {
             logger.info("Stats Consume interrupted ..");
@@ -84,7 +86,7 @@ public class StatsWriter extends Thread {
      * Used by unit Test StatsTest.
      * @return linesWritten
      */
-    public int getLinesWritten() {
+    public synchronized int getLinesWritten() {
         return linesWritten;
     }
 
