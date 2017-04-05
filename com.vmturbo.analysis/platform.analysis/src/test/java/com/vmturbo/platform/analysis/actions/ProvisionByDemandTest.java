@@ -21,6 +21,7 @@ import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
+import com.vmturbo.platform.analysis.economy.TraderSettings;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.ede.EdeCommon;
 import com.vmturbo.platform.analysis.topology.LegacyTopology;
@@ -51,8 +52,20 @@ public class ProvisionByDemandTest {
         if (isProvisionUseful) {
             assertTrue(Double.isInfinite(quoteBefore[0]));
         }
+        TraderSettings modelSellerSettings = modelSeller.getSettings();
+        modelSellerSettings.setMinDesiredUtil(0.65);
+        modelSellerSettings.setMinDesiredUtil(0.75);
         @NonNull
         ProvisionByDemand provision = (ProvisionByDemand)(new ProvisionByDemand(economy, modelBuyer, modelSeller)).take();
+        TraderSettings provisionedTraderSettings = provision.getActionTarget().getSettings();
+
+
+        // verify that the settings are updated correctly on the provisionedTrader
+        assertEquals(modelSellerSettings.getMaxDesiredUtil(), provisionedTraderSettings.getMaxDesiredUtil(), 0);
+        assertEquals(modelSellerSettings.getMinDesiredUtil(), provisionedTraderSettings.getMinDesiredUtil(), 0);
+        assertEquals(modelSellerSettings.isSuspendable(), provisionedTraderSettings.isSuspendable());
+        assertEquals(modelSellerSettings.isGuaranteedBuyer(), provisionedTraderSettings.isGuaranteedBuyer());
+        assertFalse(provisionedTraderSettings.isCloneable());
 
         // verify if all the modified commodities are added to commodityNewCapacityMap_
         assertEquals(provision.getCommodityNewCapacityMap().isEmpty(), !isProvisionUseful);

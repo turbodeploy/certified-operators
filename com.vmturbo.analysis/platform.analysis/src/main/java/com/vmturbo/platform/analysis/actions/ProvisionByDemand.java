@@ -130,6 +130,11 @@ public class ProvisionByDemand extends ActionImpl {
         provisionedSeller_ = getEconomy().addTraderByModelSeller(getModelSeller(), TraderState.ACTIVE,
             basketSold);
         provisionedSeller_.setCloneOf(modelSeller_);
+        // not making traders obtained through provisionByDemand cloneable=true
+        provisionedSeller_.getSettings().setSuspendable(getModelSeller().getSettings().isSuspendable());
+        provisionedSeller_.getSettings().setMinDesiredUtil(getModelSeller().getSettings().getMinDesiredUtil());
+        provisionedSeller_.getSettings().setMaxDesiredUtil(getModelSeller().getSettings().getMaxDesiredUtil());
+        provisionedSeller_.getSettings().setGuaranteedBuyer(getModelSeller().getSettings().isGuaranteedBuyer());
 
         // adding commodities to be bought by the provisionedSeller and resizing them
         getEconomy().getMarketsAsBuyer(modelSeller_).keySet().forEach(shoppingList -> {

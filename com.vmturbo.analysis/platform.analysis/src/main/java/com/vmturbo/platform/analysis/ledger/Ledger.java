@@ -139,7 +139,7 @@ public class Ledger {
      */
     public @NonNull Ledger removeTraderIncomeStatement(@NonNull Trader trader) {
         traderIncomeStatements_.remove(trader.getEconomyIndex());
-        commodityIncomeStatements_.remove(trader);
+        commodityIncomeStatements_.remove(trader.getEconomyIndex());
         return this;
     }
 
