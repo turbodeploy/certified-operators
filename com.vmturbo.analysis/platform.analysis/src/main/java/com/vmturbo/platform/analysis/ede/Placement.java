@@ -47,13 +47,13 @@ public class Placement {
      *
      * @param economy - the economy whose traders' placement we want to optimize
      * @param sls - list of shoppingLists that denotes buyers that are to shop before the others
-     * @param placeJustPassedBuyers - boolean to run placements only on the buyers passed
+     * @param preferentialPlacementOnly - boolean to run placements only on the buyers passed
      */
     public static @NonNull List<@NonNull Action> placementDecisions(@NonNull Economy economy,
-                    List<ShoppingList> sls, boolean placeJustPassedBuyers) {
+                    List<ShoppingList> sls, boolean preferentialPlacementOnly) {
 
         @NonNull List<Action> actions = prefPlacementDecisions(economy, sls);
-        if (!placeJustPassedBuyers) {
+        if (!preferentialPlacementOnly) {
             // iterate over all markets, i.e., all sets of providers selling a specific basket
             for (Market market : economy.getMarketsForPlacement()) {
                 // iterate over all buyers in this market that havnt already shopped
@@ -188,10 +188,10 @@ public class Placement {
      * @param economy - the economy whose traders' placement we want to optimize
      * @param shopFirstShoppingLists - list of shoppingLists that denotes buyers that
      *                                 are to shop before the others
-     * @param placeJustPassedBuyers - boolean to run placements only on the buyers passed
+     * @param preferentialPlacementOnly - boolean to run placements only on the buyers passed
      */
     public static @NonNull List<@NonNull Action> shopTogetherDecisions(@NonNull Economy economy,
-                                List<ShoppingList> shopFirstShoppingLists, boolean placeJustPassedBuyers) {
+                                List<ShoppingList> shopFirstShoppingLists, boolean preferentialPlacementOnly) {
         @NonNull List<@NonNull Action> output = new ArrayList<>();
 
         List<Trader> specialTraders = new ArrayList<>();
@@ -199,7 +199,7 @@ public class Placement {
             shopFirstShoppingLists.forEach(sl -> specialTraders.add(sl.getBuyer()));
             // place selected list of buyers
             output.addAll(generateShopTogetherDecisions(economy, specialTraders));
-            if (!placeJustPassedBuyers) {
+            if (!preferentialPlacementOnly) {
                 output.addAll(generateShopTogetherDecisions(economy, economy.getTraders().stream()
                                 .filter(trader -> !specialTraders.contains(trader)).collect(Collectors.toList())));
             }
@@ -297,19 +297,21 @@ public class Placement {
      * @param ledger - the {@link Ledger} with the expenses and revenues of all the traders
      *        and commodities in the economy
      * @param isShopTogether - flag specifies if we want to use SNM or normal placement
-     * @param placeJustPassedBuyers - run placements on just the {@link ShoppingList}s passed if
+     * @param preferentialPlacementOnly - run placements on just the {@link ShoppingList}s passed if
      *                                true and on all {@link ShoppingList}s if false
      * @param callerPhase - tag to identify phase it is being called from
      * @return a list of recommendations about trader placement
      */
     public static @NonNull List<@NonNull Action> runPlacementsTillConverge(Economy economy,
                     List<ShoppingList> shoppingLists, Ledger ledger, boolean isShopTogether,
-                    boolean placeJustPassedBuyers, String callerPhase) {
+                    boolean preferentialPlacementOnly, String callerPhase) {
         @NonNull
         List<Action> actions = new ArrayList<@NonNull Action>();
         // generate placement actions
         boolean keepRunning = true;
-        boolean useExpenseMetric = economy.getSettings().isUseExpenseMetricForTermination();
+        // we want to prevent computation of the expenseMetric when we perform preferentialPlacement
+        boolean useExpenseMetric = economy.getSettings().isUseExpenseMetricForTermination()
+                            && !preferentialPlacementOnly;
         if (useExpenseMetric) {
             initializeMarketExpenses(economy, ledger);
         }
@@ -326,8 +328,8 @@ public class Placement {
             }
             List<Action> placeActions = isShopTogether
                             ? breakDownCompoundMove(Placement.shopTogetherDecisions(economy,
-                                            shoppingLists, placeJustPassedBuyers))
-                            : placementDecisions(economy, shoppingLists, placeJustPassedBuyers);
+                                            shoppingLists, preferentialPlacementOnly))
+                            : placementDecisions(economy, shoppingLists, preferentialPlacementOnly);
             counter++;
             globalCounter++;
             keepRunning = !(placeActions.isEmpty()
