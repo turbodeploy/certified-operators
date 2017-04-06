@@ -67,11 +67,13 @@ public class OldSuspension {
                 continue;
             }
             ledger.calculateExpAndRevForSellersInMarket(economy, market);
+            // break if forceStop or if market has no activeSellers or suspCandidates or leastProfitableTrader
+            // or if we rollback because there are customers that cant move outside this leastProfitableTraders
             for (;;) {
                 if (economy.getForceStop()) {
                     return allActions;
                 }
-                // if there are no sellers in the market, the buyer is misconfigured
+                // skip markets that don't have suspendable active sellers
                 actions.clear();
                 if (market.getActiveSellers().isEmpty()
                                 || (es != null && es.getSuspensionCandidates(market) == null)) {

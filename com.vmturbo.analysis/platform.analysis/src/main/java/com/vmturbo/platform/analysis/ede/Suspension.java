@@ -7,9 +7,9 @@ import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import org.apache.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.Deactivate;
@@ -24,14 +24,12 @@ import com.vmturbo.platform.analysis.ledger.Ledger;
 
 public class Suspension {
 
-    private static final Logger logger = Logger.getLogger(Suspension.class);
-
     // a set to keep all traders that is the sole seller in any market.
     private @NonNull Set<@NonNull Trader> soleProviders = new HashSet<@NonNull Trader>();
     // a map to keep unprofitable sellers that should not be considered as suspension candidate in
     // any market. In general, those sellers have gone through the process in which it was selected
     // to deactivate, however, after deactivating it and run placement decisions, some customers on
-    // this trader can not move out of it. So it should not be selected again because we there will
+    // this trader can not move out of it. So it should not be selected again because there will
     // always be some customers staying on it.
     private @NonNull Set<@NonNull Trader> unprofitableSellersCouldNotSuspend =
                     new HashSet<@NonNull Trader>();
@@ -136,7 +134,8 @@ public class Suspension {
      * @param economy - the {@link Economy} which is being evaluated for suspension
      * @param update - set threshold to maxDesiredUtil if true or reset to original value if false
      */
-    public void adjustUtilThreshold (Economy economy, boolean update) {
+    @VisibleForTesting
+    void adjustUtilThreshold (Economy economy, boolean update) {
         if (update) {
             for (Trader seller : economy.getTraders()) {
                 double util = seller.getSettings().getMaxDesiredUtil();
