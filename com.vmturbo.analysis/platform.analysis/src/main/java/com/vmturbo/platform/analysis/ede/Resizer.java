@@ -174,7 +174,7 @@ public class Resizer {
             newCapacity -= proposedCapacityDecrement;
             // do not fall below 1 unit of capacity increment
             if (newCapacity < capacityIncrement) {
-                if (currentCapacity > capacityIncrement) {
+                if (currentCapacity >= 2 * capacityIncrement) {
                     newCapacity = capacityIncrement;
                 } else {
                     return currentCapacity;
