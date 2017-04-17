@@ -73,6 +73,7 @@ public class IncomeStatementTest {
         fixture_.setMaxDesiredRevenues(maxDesiredRevenues);
         assertEquals(maxDesiredRevenues, fixture_.getMaxDesiredRevenues(), 0);
     }
+
     @Test(expected = IllegalArgumentException.class)
     @Parameters({"-1","-2","-100","-2147483648"})
     @TestCaseName("Test #{index}: setRevenues({0})")
@@ -115,4 +116,62 @@ public class IncomeStatementTest {
         fixture_.setMaxDesiredRevenues(maxDesiredRevenues);
     }
 
+    @Test
+    @Parameters({"0","1","10","100","1000","2147483647"})
+    @TestCaseName("Test #{index}: getROI({0})")
+    public final void testGetROI_NormalInput(int revenues) {
+        fixture_.setRevenues(revenues);
+        fixture_.setExpenses(0);
+        assertEquals(fixture_.getROI(), fixture_.getRevenues(), 0);
+        fixture_.setExpenses(100);
+        assertEquals(fixture_.getROI(), fixture_.getRevenues()/fixture_.getExpenses(), 0);
+    }
+
+    @Test
+    @Parameters({"0","1","10","100","1000","2147483647"})
+    @TestCaseName("Test #{index}: getMinDesiredROI({0})")
+    public final void testGetMinDesiredROI_NormalInput(int minDesiredRevenues) {
+        fixture_.setMinDesiredRevenues(minDesiredRevenues);
+        fixture_.setMaxDesiredExpenses(0);
+        assertEquals(fixture_.getMinDesiredROI(), fixture_.getMinDesiredRevenues(), 0);
+        fixture_.setMaxDesiredExpenses(100);
+        assertEquals(fixture_.getMinDesiredROI(), fixture_.getMinDesiredRevenues()/fixture_.getMaxDesiredExpenses(), 0);
+    }
+
+    @Test
+    @Parameters({"0","1","10","100","1000","2147483647"})
+    @TestCaseName("Test #{index}: getMaxDesiredROI({0})")
+    public final void testGetMaxDesiredROI_NormalInput(int maxDesiredRevenues) {
+        fixture_.setMaxDesiredRevenues(maxDesiredRevenues);
+        fixture_.setMinDesiredExpenses(0);
+        assertEquals(fixture_.getMaxDesiredROI(), fixture_.getMaxDesiredRevenues(), 0);
+        fixture_.setMinDesiredExpenses(100);
+        assertEquals(fixture_.getMaxDesiredROI(), fixture_.getMaxDesiredRevenues()/fixture_.getMinDesiredExpenses(), 0);
+    }
+
+    @Test
+    @Parameters({"1","10","100","1000","2147483647"})
+    @TestCaseName("Test #{index}: resetIncomeStatement({0})")
+    public final void testResetIncomeStatement_NormalInput(int num) {
+        fixture_.setExpenses(num);
+        fixture_.setRevenues(num);
+        fixture_.setMaxDesiredExpenses(num);
+        fixture_.setMaxDesiredRevenues(num);
+        fixture_.setMinDesiredExpenses(num);
+        fixture_.setMinDesiredRevenues(num);
+        assertFalse(fixture_.getExpenses() == 0);
+        assertFalse(fixture_.getRevenues() == 0);
+        assertFalse(fixture_.getMaxDesiredExpenses() == 0);
+        assertFalse(fixture_.getMaxDesiredRevenues() == 0);
+        assertFalse(fixture_.getMinDesiredExpenses() == 0);
+        assertFalse(fixture_.getMinDesiredRevenues() == 0);
+
+        fixture_.resetIncomeStatement();
+        assertTrue(fixture_.getExpenses() == 0);
+        assertTrue(fixture_.getRevenues() == 0);
+        assertTrue(fixture_.getMaxDesiredExpenses() == 0);
+        assertTrue(fixture_.getMaxDesiredRevenues() == 0);
+        assertTrue(fixture_.getMinDesiredExpenses() == 0);
+        assertTrue(fixture_.getMinDesiredRevenues() == 0);
+    }
 } // end IncomeStatementTest class
