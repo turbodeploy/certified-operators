@@ -187,9 +187,11 @@ public class BootstrapSupply {
         } else {
             // when there is no seller in the market we could handle this through 3 approaches,
             // 1) TODO: provisionAction = new ProvisionByDemand(economy, shoppingList); OR
-            // 2) need templates
+            // 2) consider using templates
             // 3) generating reconfigure action for now
             actions.add(new Reconfigure(economy, shoppingList).take().setImportance(Double.POSITIVE_INFINITY));
+            // set movable false so that we dont generate duplicate reconfigure recommendations
+            shoppingList.setMovable(false);
             return actions;
         }
         actions.addAll(provisionRelatedActionList);
