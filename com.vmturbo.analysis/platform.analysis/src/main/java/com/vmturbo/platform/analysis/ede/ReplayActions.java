@@ -149,11 +149,15 @@ public class ReplayActions {
                         compound.take();
                         actions.add(compound);
                 } else {
-                    logger.info("uncovered action " + a.toString());
+                    logger.warn("uncovered action " + a.toString());
                 }
-                logger.info("replayed " + a.toString());
+                if (logger.isDebugEnabled()) {
+                    logger.debug("replayed " + a.toString());
+                }
             } catch(Exception e) {
-                logger.info("Could not replay " + a.toString());
+                if (logger.isDebugEnabled()) {
+                    logger.debug("Could not replay " + a.toString());
+                }
             }
         });
         actions_ = actions;

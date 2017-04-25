@@ -153,8 +153,9 @@ public class Placement {
             if (economy.getSettings().isUseExpenseMetricForTermination()) {
                 Market myMarket = economy.getMarket(shoppingList);
                 myMarket.setPlacementSavings(myMarket.getPlacementSavings() + savings);
-                if (myMarket.getExpenseBaseline() < myMarket.getPlacementSavings()) {
-                    logger.info("Total savings exceeds base expenses for buyer while shopping " +
+                if (logger.isDebugEnabled()
+                             && myMarket.getExpenseBaseline() < myMarket.getPlacementSavings()) {
+                    logger.debug("Total savings exceeds base expenses for buyer while shopping " +
                         shoppingList.getBuyer().getDebugInfoNeverUseInCode() + " Basket " +
                         shoppingList.getBasket());
                 }
@@ -341,7 +342,9 @@ public class Placement {
             }
 
         }
-        logger.info(callerPhase + " Total Placement Iterations: " + counter + " " + globalCounter);
+        if (logger.isDebugEnabled()) {
+            logger.debug(callerPhase + " Total Placement Iterations: " + counter + " " + globalCounter);
+        }
         return actions;
     }
 
@@ -390,8 +393,10 @@ public class Placement {
             double newBaseLine = market.getExpenseBaseline() - market.getPlacementSavings();
             if (newBaseLine < 0 || Double.isInfinite(newBaseLine)) {
                 calculateTotalExpensesForBuyersInMarket(economy, ledger, market);
-                logger.info("Total savings exceeds base expenses, recalculating market " +
-                            market.getBasket());
+                if (logger.isDebugEnabled()) {
+                    logger.debug("Total savings exceeds base expenses, recalculating market " +
+                                 market.getBasket());
+                }
             } else {
                 market.setExpenseBaseline(newBaseLine);
             }
