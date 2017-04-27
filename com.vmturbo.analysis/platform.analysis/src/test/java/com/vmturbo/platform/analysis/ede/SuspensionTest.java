@@ -16,6 +16,7 @@ import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.ledger.Ledger;
+import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 
 public class SuspensionTest {
     private static final int VM_TYPE = 0;
@@ -79,7 +80,7 @@ public class SuspensionTest {
         for (int index = 0; index<vmSl.getBasket().size(); index++) {
             vmSl.setQuantity(index, 10);
         }
-        // placing the VM on the 2nd PM. This leaves the 1st PM empty without customers and 
+        // placing the VM on the 2nd PM. This leaves the 1st PM empty without customers and
         // hence will subsequently be suspended
         for (ShoppingList buyer : economy.getMarkets().iterator().next().getBuyers()) {
             Action axn = (new Move(economy, buyer, seller));
@@ -136,6 +137,13 @@ public class SuspensionTest {
 
         // verify that the utilUpperBound has changed to origUtilDesiredUtil
         assertTrue(commSoldSett.getUtilizationUpperBound() == commSoldSett.getOrigUtilizationUpperBound());
+
+        // verify that UtilizationUpperBound does not change for commodity using constantPriceFunction
+        PriceFunction pfunc = PriceFunction.Cache.createConstantPriceFunction(1.0);
+        commSoldSett.setPriceFunction(pfunc);
+        suspension.adjustUtilThreshold(economy, true);
+        assertTrue(commSoldSett.getUtilizationUpperBound() == commSoldSett.getOrigUtilizationUpperBound());
+
     }
 
     @Test

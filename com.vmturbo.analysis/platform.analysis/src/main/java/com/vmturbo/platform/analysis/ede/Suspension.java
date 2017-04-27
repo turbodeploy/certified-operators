@@ -21,6 +21,7 @@ import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ledger.IncomeStatement;
 import com.vmturbo.platform.analysis.ledger.Ledger;
+import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 
 public class Suspension {
 
@@ -104,7 +105,7 @@ public class Suspension {
                 Market sampleMarket = economy.getMarketsAsSeller(trader).get(0);
                 List<ShoppingList> sls = new ArrayList<>();
                 for (Market mkt : economy.getMarketsAsSeller(trader)) {
-                    sls.addAll(mkt.getBuyers());
+                     sls.addAll(mkt.getBuyers());
                 }
                 suspendTrader(economy, sampleMarket, trader, actions);
                 // perform placement on just the buyers of the markets that the trader sells in
@@ -140,10 +141,10 @@ public class Suspension {
             for (Trader seller : economy.getTraders()) {
                 double util = seller.getSettings().getMaxDesiredUtil();
                 for (CommoditySold cs : seller.getCommoditiesSold()) {
-                    // skip if step priceFn
-                    if (cs.getSettings().getPriceFunction().unitPrice(util) == 1) {
-                        continue;
-                    } else {
+                    // skip if step and constant priceFns
+                    PriceFunction pf = cs.getSettings().getPriceFunction();
+                    double priceAtMaxUtil = pf.unitPrice(util);
+                    if (!((priceAtMaxUtil == pf.unitPrice(0.0)) || (priceAtMaxUtil == pf.unitPrice(1.0)))) {
                         cs.getSettings().setUtilizationUpperBound(util);
                     }
                 }
