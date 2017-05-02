@@ -254,6 +254,9 @@ public interface Action {
         if (collapsedActionsPerType.containsKey(Move.class)) {
             reorderedActions.addAll(collapsedActionsPerType.get(Move.class));
         }
+        if (collapsedActionsPerType.containsKey(CompoundMove.class)) {
+            reorderedActions.addAll(collapsedActionsPerType.get(CompoundMove.class));
+        }
         if (collapsedActionsPerType.containsKey(Resize.class)) {
             reorderedActions.addAll(collapsedActionsPerType.get(Resize.class));
         }

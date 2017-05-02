@@ -391,8 +391,8 @@ public class Placement {
                 break;
             }
             List<Action> placeActions = isShopTogether
-                            ? breakDownCompoundMove(Placement.shopTogetherDecisions(economy,
-                                            shoppingLists, preferentialPlacementOnly))
+                            ? Placement.shopTogetherDecisions(economy, shoppingLists,
+                                            preferentialPlacementOnly)
                             : placementDecisions(economy, shoppingLists, preferentialPlacementOnly);
             counter++;
             globalCounter++;
