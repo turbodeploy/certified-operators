@@ -12,6 +12,7 @@ import java.util.stream.Collectors;
 import org.apache.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 import com.google.common.collect.Sets;
 import com.vmturbo.platform.analysis.actions.Action;
@@ -226,52 +227,114 @@ public class Placement {
                     economy, List<Trader> traders) {
         @NonNull List<@NonNull Action> output = new ArrayList<>();
 
-        for (@NonNull @ReadOnly Trader buyer : traders) {
+        for (@NonNull @ReadOnly Trader buyingTrader : traders) {
             if (economy.getForceStop()) {
                 return output;
             }
-            final @NonNull @ReadOnly Set<Entry<@NonNull ShoppingList, @NonNull Market>> entries =
-                economy.getMarketsAsBuyer(buyer).entrySet();
-            final @NonNull @ReadOnly List<Entry<@NonNull ShoppingList, @NonNull Market>> movableEntries =
-                entries.stream().filter(entry->entry.getKey().isMovable()).collect(Collectors.toList());
-
-            // Only optimize active traders that are at least partially movable.
-            if (buyer.getState().isActive() && !movableEntries.isEmpty()) {
-                // Find the set of k-partite cliques where the trader can potentially be placed.
-                Set<Long> commonCliques = entries.stream()
-                    .map(entry->entry.getKey().isMovable() // if shopping list is movable
-                        ? entry.getValue().getCliques().keySet() // use the cliques of the market
-                        : (new TreeSet<>(entry.getKey().getSupplier() != null // else if shopping list is placed
-                                        ? entry.getKey().getSupplier().getCliques() // use clique that contain supplier
-                                        : Arrays.asList())) // else there is no valid placement.
-                    ).reduce(Sets::intersection).get();
-
-                // Compute current total quote.
-                final double currentTotalQuote = movableEntries.stream().mapToDouble(entry ->
-                    entry.getKey().getSupplier() == null // if unplaced or incorrectly placed
-                        || !entry.getValue().getBasket().isSatisfiedBy(entry.getKey().getSupplier()
-                                .getBasketSold())
-                    ? Double.POSITIVE_INFINITY // current total is infinite
-                    : EdeCommon.quote(economy, entry.getKey(), entry.getKey().getSupplier(),
-                                      Double.POSITIVE_INFINITY, false)[0]
-                ).sum(); // TODO: break early...
-
-                // Compute the best total quote.
-                CliqueMinimizer minimizer = commonCliques.stream().collect(
-                    ()->new CliqueMinimizer(economy,movableEntries), CliqueMinimizer::accept,
-                    CliqueMinimizer::combine);
-
-                // If buyer can improve its position, output action.
-                if (minimizer.getBestTotalQuote() < currentTotalQuote * economy.getSettings().getQuoteFactor()) {
-                    List<ShoppingList> shoppingLists = movableEntries.stream()
-                        .map(Entry::getKey).collect(Collectors.toList());
-                    output.add(new CompoundMove(economy, shoppingLists, minimizer.getBestSellers())
-                                   .take().setImportance(currentTotalQuote - minimizer
-                                   .getBestTotalQuote()));
+            final @NonNull @ReadOnly Set<Entry<@NonNull ShoppingList, @NonNull Market>>
+            slByMarket = economy.getMarketsAsBuyer(buyingTrader).entrySet();
+            final @NonNull @ReadOnly List<Entry<@NonNull ShoppingList, @NonNull Market>>
+            movableSlByMarket = slByMarket.stream()
+                                            .filter(entry -> entry.getKey().isMovable())
+                                            .collect(Collectors.toList());
+            if (!shouldConsiderTraderForShopTogether(buyingTrader, movableSlByMarket)) {
+                return output;
+            }
+            Set<Long> commonCliques = getCommonCliques(buyingTrader, slByMarket, movableSlByMarket);
+            CliqueMinimizer minimizer = computeBestQuote(economy, movableSlByMarket, commonCliques);
+            // If the best suppliers are not current ones, move shopping lists to best places
+            List<ShoppingList> shoppingLists = movableSlByMarket.stream().map(Entry::getKey)
+                            .collect(Collectors.toList());
+            List<Trader> currentSuppliers = shoppingLists.stream().map(ShoppingList::getSupplier)
+                            .collect(Collectors.toList());
+            if (minimizer != null && !currentSuppliers.equals(minimizer.getBestSellers())) {
+                double currentTotalQuote = computeCurrentQuote(economy, movableSlByMarket);
+                if (minimizer.getBestTotalQuote() < currentTotalQuote
+                                * economy.getSettings().getQuoteFactor()) {
+                    output.add(new CompoundMove(economy, shoppingLists, currentSuppliers,
+                                    minimizer.getBestSellers()).take()
+                                                    .setImportance(currentTotalQuote - minimizer
+                                                                    .getBestTotalQuote()));
                 }
             }
         }
         return output;
+    }
+
+    /**
+     * Compute the best quote for a trader.
+     *
+     * @param economy the economy the trader associates with
+     * @param movableSlByMarket the movable shopping list of a buyer and its participating market
+     * @return the {@link CliqueMinimizer} which contains best sellers and best quote
+     */
+    public static @Nullable CliqueMinimizer computeBestQuote(Economy economy,
+                    List<Entry<@NonNull ShoppingList, @NonNull Market>> movableSlByMarket,
+                    Set<Long> commonCliques) {
+        if (commonCliques.isEmpty()) {
+            return null;
+        }
+        // Compute the best total quote.
+        return commonCliques.stream().collect(() -> new CliqueMinimizer(economy, movableSlByMarket),
+                        CliqueMinimizer::accept, CliqueMinimizer::combine);
+    }
+
+    /**
+     * Find the common cliques for a given trader.
+     *
+     * @param buyingTrader the trader whose quote needs to be computed
+     * @param slByMarket the shopping list of a buyer and its participating market
+     * @param movableSlByMarket the movable shopping list of a buyer and its participating market
+     * @return the set containing common clique numbers
+     */
+    public static @NonNull Set<Long> getCommonCliques(Trader buyingTrader,
+                    Set<Entry<@NonNull ShoppingList, @NonNull Market>> slByMarket,
+                    List<Entry<@NonNull ShoppingList, @NonNull Market>> movableSlByMarket) {
+        // Find the set of k-partite cliques where the trader can potentially be placed.
+        return slByMarket.stream()
+                        .map(entry -> entry.getKey().isMovable() // if shopping list is movable
+                                        ? entry.getValue().getCliques().keySet() // use the cliques of the market
+                                        : (new TreeSet<>(entry.getKey().getSupplier() != null // else if shopping list is placed
+                                                        ? entry.getKey().getSupplier().getCliques() // use clique that contain supplier
+                                                        : Arrays.asList())) // else there is no valid placement.
+                        ).reduce(Sets::intersection).get();
+    }
+
+    /**
+     * Returns true if a trader is active and it has shopping lists that are movable.
+     *
+     * @param buyingTrader the trader to be considered
+     * @param movableSlByMarket a list of mapping of trader's shopping list and its buying market
+     * @return true if the given trader is active and it has at least one shopping list that is movable
+     */
+    public static boolean shouldConsiderTraderForShopTogether(@NonNull Trader buyingTrader,
+                    @NonNull List<Entry<@NonNull ShoppingList, @NonNull Market>> movableSlByMarket) {
+        if (!buyingTrader.getState().isActive() || movableSlByMarket.isEmpty()) {
+            return false;
+        } else {
+            return true;
+        }
+    }
+
+    /**
+     * Compute the current quote for a trader.
+     *
+     * @param economy the economy the trader associates with
+     * @param movableSlByMarket the movable shopping list of a buyer and its participating market
+     * @return the current quote given by current supplier
+     */
+    public static double computeCurrentQuote(Economy economy,
+                    List<Entry<@NonNull ShoppingList, @NonNull Market>> movableSlByMarket) {
+        // Compute current total quote.
+        return movableSlByMarket.stream().mapToDouble(entry -> entry.getKey().getSupplier() == null // if unplaced or incorrectly placed
+                        || !entry.getValue().getBasket()
+                                        .isSatisfiedBy(entry.getKey().getSupplier().getBasketSold())
+                                                        ? Double.POSITIVE_INFINITY // current total is infinite
+                                                        : EdeCommon.quote(economy, entry.getKey(),
+                                                                        entry.getKey().getSupplier(),
+                                                                        Double.POSITIVE_INFINITY,
+                                                                        false)[0])
+                        .sum(); // TODO: break early...
     }
 
     /**

@@ -155,7 +155,7 @@ public final class Ede {
         // Save first call to before() to calculate total plan time
         Instant begin = statsUtils.before();
         if (isProvision) {
-            actions.addAll(BootstrapSupply.bootstrapSupplyDecisions(economy));
+            actions.addAll(BootstrapSupply.bootstrapSupplyDecisions(economy, isShopTogether));
         }
         logger.info(actionStats.phaseLogEntry("bootstrap"));
         // time to run bootstrap

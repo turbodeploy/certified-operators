@@ -2,14 +2,21 @@ package com.vmturbo.platform.analysis.ede;
 
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.Map.Entry;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.apache.log4j.Logger;
+import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
-
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionImpl;
 import com.vmturbo.platform.analysis.actions.Activate;
+import com.vmturbo.platform.analysis.actions.CompoundMove;
 import com.vmturbo.platform.analysis.actions.GuaranteedBuyerHelper;
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.actions.ProvisionByDemand;
@@ -60,8 +67,174 @@ public class BootstrapSupply {
      *
      * @return list of actions that might include provision, move and reconfigure.
      */
-    public static @NonNull List<@NonNull Action> bootstrapSupplyDecisions(@NonNull Economy economy) {
-        List<@NonNull Action> allActions = new ArrayList<>();
+    public static @NonNull List<@NonNull Action> bootstrapSupplyDecisions(@NonNull Economy economy,
+                    boolean isShopTogether) {
+        List<@NonNull Action> allActions = isShopTogether ? shopTogetherBootstrap(economy)
+                        : nonShopTogetherBootstrap(economy);
+        GuaranteedBuyerHelper.processGuaranteedbuyerInfo(economy);
+        return allActions;
+    }
+
+    /**
+     * Guarantee enough supply to place all demand at utilization levels that comply to user-set upper limits,
+     * when shop-together is enabled.
+     *
+     * @param economy the {@Link Economy} for which we want to guarantee enough supply.
+     * @return a list of actions that needed to generate supply
+     */
+    private static @NonNull List<@NonNull Action> shopTogetherBootstrap(Economy economy) {
+        List<@NonNull Action> allActions = new ArrayList<@NonNull Action>();
+        for (@NonNull Trader buyer : economy.getTraders()) {
+            if (economy.getForceStop()) {
+                return allActions;
+            }
+            allActions.addAll(shopTogetherBootstrapForIndividualBuyer(economy, buyer));
+        }
+        return allActions;
+    }
+
+    /**
+     * Guarantee enough supply to place an individual buyer at utilization levels that
+     * comply to user-set upper limits, when shop-together is enabled.
+     *
+     * @param economy the {@Link Economy} for which we want to guarantee enough supply.
+     * @param buyingTrader the trader whose placement will be evaluated
+     * @return a list of actions that needed to generate supply
+     */
+    public static @NonNull List<@NonNull Action>
+                    shopTogetherBootstrapForIndividualBuyer(Economy economy, Trader buyingTrader) {
+        List<Action> allActions = new ArrayList<>();
+        final @NonNull @ReadOnly Set<Entry<@NonNull ShoppingList, @NonNull Market>> slByMarket =
+                        economy.getMarketsAsBuyer(buyingTrader).entrySet();
+        final @NonNull @ReadOnly List<Entry<@NonNull ShoppingList, @NonNull Market>> movableSlByMarket =
+                        slByMarket.stream().filter(entry -> entry.getKey().isMovable())
+                                        .collect(Collectors.toList());
+        if (!Placement.shouldConsiderTraderForShopTogether(buyingTrader, movableSlByMarket)) {
+            return allActions;
+        }
+        Set<Long> commonCliques = Placement.getCommonCliques(buyingTrader, slByMarket, movableSlByMarket);
+        CliqueMinimizer minimizer =
+                        Placement.computeBestQuote(economy, movableSlByMarket, commonCliques);
+        if (minimizer == null) {
+            return allActions;
+        }
+        if (!Double.isFinite(minimizer.getBestTotalQuote())) {
+            // if the best quote is not finite then we should provision sellers to accommodate
+            // shopping lists' requests
+            // TODO: we now use the first clique in the commonCliques set, it may not be
+            // the best decision
+            List<Action> provisionAndSubsequentMove = provisionSellersForShopTogetherBuyer(economy,
+                            movableSlByMarket, commonCliques.iterator().next());
+            allActions.addAll(provisionAndSubsequentMove);
+        } else {
+            List<ShoppingList> shoppingLists = new ArrayList<>();
+            boolean areAllBestSellerSameAsSupplier = true;
+            // find if the best seller same as supplier, as the movableSlByMarket
+            // is a list and will be passed to minimizers in order, the bestSeller field of
+            // cliqueMinimizer will also main the order corresponding to the movableSlByMarket
+            for (int i = 0; i < movableSlByMarket.size(); i++) {
+                ShoppingList sl = movableSlByMarket.get(i).getKey();
+                shoppingLists.add(sl);
+                if (!sl.getSupplier().equals(minimizer.getBestSellers().get(i))) {
+                    areAllBestSellerSameAsSupplier = false;
+                }
+            }
+            if (!areAllBestSellerSameAsSupplier) {
+                // if the best quote is finite and at least one shopping list has a best seller
+                // that is not its current supplier, trigger a shop together move
+                allActions.add(new CompoundMove(economy, shoppingLists,
+                                minimizer.getBestSellers()));
+            }
+        }
+        return allActions;
+    }
+
+    /**
+     * Provision sellers to satisfy the need for buyer that is shop together.
+     *
+     * @param economy economy the {@Link Economy} for which we want to guarantee enough supply.
+     * @param slByMarket the set of mapping for shopping lists to market
+     * @param movableSlByMarket the list of movable shopping lists to market
+     * @param commonClique the clique which restrains the sellers that the buyer can buy from
+     * @return a list of actions related to add supply
+     */
+    private static @NonNull List<@NonNull Action> provisionSellersForShopTogetherBuyer(
+                    Economy economy,
+                    @NonNull @ReadOnly List<Entry<@NonNull ShoppingList, @NonNull Market>> movableSlByMarket,
+                    long commonClique) {
+        List<Action> provisionedRelatedActions = new ArrayList<>();
+        // find the market in which the shoppinglist gets an infinite quote, then find a satisfying
+        // trader to provision
+        Map<@NonNull ShoppingList, @NonNull Trader> newSuppliers = new HashMap<>();
+        for (Entry<@NonNull ShoppingList, @NonNull Market> entry : movableSlByMarket) {
+            ShoppingList sl = entry.getKey();
+            Market market = entry.getValue();
+            @NonNull List<@NonNull Trader> sellers = market.getCliques().get(commonClique);
+            @NonNull Stream<@NonNull Trader> stream =
+                            sellers.size() < economy.getSettings().getMinSellersForParallelism()
+                                            ? sellers.stream() : sellers.parallelStream();
+            @NonNull
+            QuoteMinimizer minimizer = stream.collect(() -> new QuoteMinimizer(economy, sl),
+                            QuoteMinimizer::accept, QuoteMinimizer::combine);
+            // if for a given shoppinglist, the quote is infinity, we need to add supply for it
+            if (Double.isInfinite(minimizer.getBestQuote())) {
+                Trader sellerThatFits = findSellerThatFitsBuyer(sl, sellers, market);
+                Action action;
+                Trader newSeller;
+                // provision by supply
+                if (sellerThatFits != null) {
+                    // clone one of the sellers or reactivate an inactive seller that the VM can fit in
+                    if (sellerThatFits.getState() == TraderState.ACTIVE) {
+                        action = new ProvisionBySupply(economy, sellerThatFits).take();
+                        ((ActionImpl)action).setImportance(Double.POSITIVE_INFINITY);
+                        newSeller = ((ProvisionBySupply)action).getProvisionedSeller();
+                    } else {
+                        action = new Activate(economy, sellerThatFits, market, sellerThatFits)
+                                        .take();
+                        ((ActionImpl)action).setImportance(Double.POSITIVE_INFINITY);
+                        newSeller = sellerThatFits;
+                    }
+                } else { // provision by demand
+                    // TODO: maybe pick a better seller instead of the first one
+                    action = new ProvisionByDemand(economy, sl, sellers.get(0)).take();
+                    ((ActionImpl)action).setImportance(Double.POSITIVE_INFINITY);
+                    newSeller = ((ProvisionByDemand)action).getProvisionedSeller();
+                    // provisionByDemand does not place the provisioned trader. We try finding
+                    // best placement for it, if none exists, we create one supply for provisioned trader
+                    provisionedRelatedActions.addAll(shopTogetherBootstrapForIndividualBuyer(
+                                    economy, newSeller));
+                }
+                provisionedRelatedActions.add(action);
+                newSuppliers.put(sl, newSeller);
+            }
+        }
+        // do a compoundMove
+        List<@NonNull Trader> destinations = new ArrayList<>();
+        List<@NonNull ShoppingList> movableSlList = new ArrayList<>();
+        for(Entry<@NonNull ShoppingList, @NonNull Market> slPerMkt : movableSlByMarket) {
+            @NonNull ShoppingList sl = slPerMkt.getKey();
+             if (newSuppliers.containsKey(sl)) {
+                 destinations.add(newSuppliers.get(sl));
+             } else {
+                 destinations.add(sl.getSupplier());
+             }
+             movableSlList.add(sl);
+         }
+        provisionedRelatedActions
+                        .add(new CompoundMove(economy, movableSlList, destinations).take());
+        return provisionedRelatedActions;
+
+    }
+
+    /**
+     * Guarantee enough supply to place all demand at utilization levels that comply to user-set
+     * upper limits, when shop-together is disabled
+     *
+     * @param economy the {@Link Economy} for which we want to guarantee enough supply.
+     * @return a list of actions that needed to generate supply
+     */
+    private static @NonNull List<@NonNull Action> nonShopTogetherBootstrap(Economy economy) {
+        List<@NonNull Action> allActions = new ArrayList<@NonNull Action>();
         for (Market market : economy.getMarkets()) {
             if (economy.getForceStop()) {
                 return allActions;
@@ -112,7 +285,6 @@ public class BootstrapSupply {
                 }
             }
         }
-        GuaranteedBuyerHelper.processGuaranteedbuyerInfo(economy);
         return allActions;
     }
 

@@ -76,7 +76,13 @@ public class CompoundMove extends ActionImpl {
         Iterator<Trader> sourceIter = sources.iterator();
         Iterator<Trader> destinationIter = destinations.iterator();
         while (shoppingListIter.hasNext()) {
-            moves.add(new Move(economy, shoppingListIter.next(), sourceIter.next(), destinationIter.next()));
+            // create move action only if the source and destination are different
+            ShoppingList sl = shoppingListIter.next();
+            Trader source = sourceIter.next();
+            Trader destination = destinationIter.next();
+            if (destination != null && !destination.equals(source)) {
+                moves.add(new Move(economy, sl, source, destination));
+            }
         }
 
         moves_ = Collections.unmodifiableList(moves);
