@@ -221,12 +221,20 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
         Preconditions.checkArgument(!marketsPopulated);
 
         for (Market market : markets_.values()) {
-            sellersInvertedIndex_.getSatisfyingTraders(market.getBasket()).forEach(
-                seller -> market.addSeller((TraderWithSettings) seller)
-            );
+            populateMarketWithSellers(market);
         }
-
         marketsPopulated = true;
+    }
+
+    /**
+     * Add all satisfying sellers to the {@link Market} being evaluated.
+     *
+     * @param market for which sellers are to be populated
+     */
+    public void populateMarketWithSellers(Market market) {
+        sellersInvertedIndex_.getSatisfyingTraders(market.getBasket()).forEach(
+                seller -> market.addSeller((TraderWithSettings) seller)
+        );
     }
 
     /**

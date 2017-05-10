@@ -3,7 +3,9 @@ package com.vmturbo.platform.analysis.ede;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.apache.log4j.Logger;
@@ -11,6 +13,7 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ledger.Ledger;
 import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
@@ -274,10 +277,22 @@ public final class Ede {
         // balance entities in plan
         actions.addAll(generateActions(economy, isPlan, isShopTogether, isProvision, isSuspension, isResize));
         logger.info("Plan completed initial placement with " + actions.size() + " actions.");
+        int oldIndex = economy.getTraders().size();
         // add clones of sampleSE to the economy
         economy.getTradersForHeadroom().forEach(template -> ProtobufToAnalysis.addTrader(
                                         economy.getTopology(), template));
+
+        Set<Market> newMarkets = new HashSet<>();
+        for (int i=oldIndex; i<economy.getTraders().size(); i++) {
+            newMarkets.addAll(economy.getMarketsAsBuyer(economy.getTraders().get(i)).values());
+        }
+
+        for (Market market : newMarkets) {
+            economy.populateMarketWithSellers(market);
+        }
+
         int oldActionCount = actions.size();
+
         actions.addAll(generateActions(economy, isPlan, isShopTogether, isProvision, isSuspension, isResize));
         logger.info("Plan completed placement after adding demand with " + (actions.size() - oldActionCount)
                     + " actions.");

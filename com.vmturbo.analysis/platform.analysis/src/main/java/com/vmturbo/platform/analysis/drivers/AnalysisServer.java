@@ -7,7 +7,6 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-
 import javax.websocket.CloseReason;
 import javax.websocket.OnClose;
 import javax.websocket.OnError;
@@ -311,9 +310,7 @@ public final class AnalysisServer {
             }
         } else {
             actions = new Ede().generateHeadroomActions(economy, instInfo.isShopTogetherEnabled(),
-                                                        instInfo.isProvisionEnabled(),
-                                                        instInfo.isSuspensionEnabled(),
-                                                        instInfo.isResizeEnabled(), true);
+                                                        false, false, false, true);
             long stop = System.nanoTime();
             results = AnalysisToProtobuf.analysisResults(actions, lastComplete.getTraderOids(),
                                                       lastComplete.getShoppingListOids(), stop - start, lastComplete,
