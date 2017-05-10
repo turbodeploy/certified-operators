@@ -225,6 +225,7 @@ public final class Ede {
             List<@NonNull Action> collapsed = Action.collapsed(actions);
             // Reorder actions by type.
             actions = Action.groupActionsByTypeAndReorderBeforeSending(collapsed);
+            actionStats.setActionsList((ArrayList<Action>)actions);
         }
 
         // mark non-executable actions

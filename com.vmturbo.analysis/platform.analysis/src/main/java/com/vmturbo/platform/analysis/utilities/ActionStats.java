@@ -81,6 +81,16 @@ public class ActionStats {
     }
 
     /**
+     * Update the actions list associated with this instance of {@link ActionStats}.
+     *
+     * @param actions New actions array list
+     */
+    public void setActionsList(ArrayList<@NonNull Action> actions) {
+        actions_ = actions;
+        size_ = actions.size();
+    }
+
+    /**
      * Generates the log message with counts of various actions. It is called after
      * a phase completes.
      *
