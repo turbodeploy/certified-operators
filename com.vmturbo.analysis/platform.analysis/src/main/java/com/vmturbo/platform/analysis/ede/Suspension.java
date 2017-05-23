@@ -70,6 +70,8 @@ public class Suspension {
         // run suspension for 2 rounds
         while(round < 2) {
             ledger.calculateExpRevForTradersInEconomy(economy);
+            // adjust utilThreshold to maxDesiredUtil of the seller. Thereby preventing moves
+            // that force utilization to exceed maxDesiredUtil
             adjustUtilThreshold(economy, true);
             ledger_ = ledger;
 
@@ -104,13 +106,23 @@ public class Suspension {
                 actions.clear();
                 Market sampleMarket = economy.getMarketsAsSeller(trader).get(0);
                 List<ShoppingList> sls = new ArrayList<>();
+                List<ShoppingList> customersOfSuspCandidate = new ArrayList<>();
                 for (Market mkt : economy.getMarketsAsSeller(trader)) {
                      sls.addAll(mkt.getBuyers());
                 }
+                customersOfSuspCandidate.addAll(trader.getCustomers());
                 suspendTrader(economy, sampleMarket, trader, actions);
-                // perform placement on just the buyers of the markets that the trader sells in
-                actions.addAll(Placement.runPlacementsTillConverge(economy, sls, ledger,
+
+                // perform placement on just the customers on the suspensionCandidate
+                actions.addAll(Placement.runPlacementsTillConverge(economy, customersOfSuspCandidate, ledger,
                                 isShopTogether, true, "SUSPENSION"));
+
+                if (!trader.getCustomers().isEmpty()) {
+                    // if there are customers, extend placement to all buyers in the markets the
+                    // suspension candidate sells in, to help make room for the buyers of the suspension candidate
+                    actions.addAll(Placement.runPlacementsTillConverge(economy, sls, ledger,
+                                    isShopTogether, true, "SUSPENSION"));
+                }
 
                 // rollback actions if the trader still has customers
                 if (!trader.getCustomers().isEmpty()) {
