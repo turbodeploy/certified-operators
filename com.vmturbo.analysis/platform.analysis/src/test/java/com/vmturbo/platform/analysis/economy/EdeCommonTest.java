@@ -6,6 +6,8 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import com.vmturbo.platform.analysis.ede.EdeCommon;
+import com.vmturbo.platform.analysis.utilities.DoubleTernaryOperator;
+import com.vmturbo.platform.analysis.utilities.M2Utils;
 
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
@@ -107,15 +109,15 @@ public class EdeCommonTest {
     @SuppressWarnings("unused") // it is used reflectively
     private static Object[] parametersForTestQuote_quantityFunction_Double_boolean() {
         return new Object[][]{
-            {new DoubleBinaryOperator[]{(sold, bought) -> sold + bought, Math::max}, new double[]{4,9},
+            {new DoubleTernaryOperator[]{M2Utils.ADD_TWO_ARGS, M2Utils.MAX_TWO_ARGS}, new double[]{4,9},
                                         new double[] {5,9}, true},
-            {new DoubleBinaryOperator[]{(sold, bought) -> sold + bought, Math::max}, new double[]{7,9},
+            {new DoubleTernaryOperator[]{M2Utils.ADD_TWO_ARGS, M2Utils.MAX_TWO_ARGS}, new double[]{7,9},
                                         new double[] {5,9}, false},// large quantity for commodity1
-            {new DoubleBinaryOperator[]{(sold, bought) -> sold + bought, (sold, bought) -> sold + bought},
+            {new DoubleTernaryOperator[]{M2Utils.ADD_TWO_ARGS, M2Utils.ADD_TWO_ARGS},
                                         new double[]{9,4}, new double[] {9,4}, false},// large quantity for commodity1
-            {new DoubleBinaryOperator[]{(sold, bought) -> sold + bought, (sold, bought) -> sold + bought},
+            {new DoubleTernaryOperator[]{M2Utils.ADD_TWO_ARGS, M2Utils.ADD_TWO_ARGS},
                                         new double[]{4,4}, new double[] {9,4}, false},// large peakQuantity for commodity1
-            {new DoubleBinaryOperator[]{(sold, bought) -> sold + bought, (sold, bought) -> sold + bought},
+            {new DoubleTernaryOperator[]{M2Utils.ADD_TWO_ARGS, M2Utils.ADD_TWO_ARGS},
                                         new double[]{4,4}, new double[] {4,5}, true},
         };
     }
@@ -124,7 +126,7 @@ public class EdeCommonTest {
     @Test
     @Parameters
     @TestCaseName("Test #{index}: Quote({0},{1},{2},{3})")
-    public final void testQuote_quantityFunction_Double_boolean(DoubleBinaryOperator quantityFunction[], double quantity[],
+    public final void testQuote_quantityFunction_Double_boolean(DoubleTernaryOperator quantityFunction[], double quantity[],
                                                                 double peakQuantity[], boolean isCorrect) {
         Economy economy = new Economy();
         Basket basket = ST_SELL;

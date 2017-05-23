@@ -4,21 +4,22 @@ import static org.junit.Assert.*;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.DoubleBinaryOperator;
 import java.util.function.Function;
+
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.economy.Basket;
-import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
+import com.vmturbo.platform.analysis.utilities.DoubleTernaryOperator;
+
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
 import junitparams.naming.TestCaseName;
@@ -29,7 +30,7 @@ import junitparams.naming.TestCaseName;
 @RunWith(JUnitParamsRunner.class)
 public final class MoveTest {
     // Fields
-    private static final DoubleBinaryOperator MAX_DOUBLE = Math::max;
+    private static final DoubleTernaryOperator MAX_DOUBLE = (a, b, c) -> Math.max(a, b);
     private static final CommoditySpecification CPU = new CommoditySpecification(0);
     private static final CommoditySpecification DRS = new CommoditySpecification(1);
     private static final CommoditySpecification LAT1 = new CommoditySpecification(2);

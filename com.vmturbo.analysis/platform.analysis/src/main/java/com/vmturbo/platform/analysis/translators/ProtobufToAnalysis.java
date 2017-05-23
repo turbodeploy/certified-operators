@@ -4,7 +4,6 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.function.DoubleBinaryOperator;
 import java.util.function.LongFunction;
 import java.util.stream.Collectors;
 
@@ -46,6 +45,7 @@ import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO;
 import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO;
 import com.vmturbo.platform.analysis.topology.Topology;
+import com.vmturbo.platform.analysis.utilities.DoubleTernaryOperator;
 
 /**
  * A class containing methods to convert Protobuf messages to java classes used by analysis.
@@ -81,22 +81,24 @@ public final class ProtobufToAnalysis {
     // Methods for converting UpdatingFunctionDTOs.
 
     /**
-     * Converts a {@link UpdatingFunctionTO} to a {@link DoubleBinaryOperator quantity
+     * Converts a {@link UpdatingFunctionTO} to a {@link DoubleTernaryOperator quantity
      * updating function}.
      *
      * @param input The {@link UpdatingFunctionTO} to convert.
-     * @return The resulting {@link DoubleBinaryOperator quantity updating function}.
+     * @return The resulting {@link DoubleTernaryOperator quantity updating function}.
      */
-    public static @NonNull DoubleBinaryOperator updatingFunction(@NonNull UpdatingFunctionTO input) {
+    public static @NonNull DoubleTernaryOperator updatingFunction(@NonNull UpdatingFunctionTO input) {
         switch (input.getUpdatingFunctionTypeCase()) {
             case MAX:
-                return (DoubleBinaryOperator & Serializable) Math::max;
+                return (DoubleTernaryOperator & Serializable) (a, b, c) -> Math.max(a, b);
             case MIN:
-                return (DoubleBinaryOperator & Serializable) Math::min;
+                return (DoubleTernaryOperator & Serializable) (a, b, c) -> Math.min(a, b);
             case PROJECT_SECOND:
-                return (DoubleBinaryOperator & Serializable) (a, b) -> b;
+                return (DoubleTernaryOperator & Serializable) (a, b, c) -> b;
             case DELTA:
-                return (DoubleBinaryOperator & Serializable) (a, b) -> a + b;
+                return (DoubleTernaryOperator & Serializable) (a, b, c) -> a + b;
+            case AVG_ADD:
+                return (DoubleTernaryOperator & Serializable) (a, b, c) -> (a*c + b)/(c + 1);
             case UPDATINGFUNCTIONTYPE_NOT_SET:
             default:
                 throw new IllegalArgumentException("input = " + input);
@@ -373,11 +375,11 @@ public final class ProtobufToAnalysis {
             for (CommodityResizeDependency dependentCommodity : dependentCommodities) {
                 int dependentCommodityType = dependentCommodity.getDependentCommodityType();
                 UpdatingFunctionTO incrementFunctionTO = dependentCommodity.getIncrementFunction();
-                DoubleBinaryOperator binaryIncrementOperator = updatingFunction(incrementFunctionTO);
+                DoubleTernaryOperator incrementOperator = updatingFunction(incrementFunctionTO);
                 UpdatingFunctionTO decrementFunctionTO = dependentCommodity.getDecrementFunction();
-                DoubleBinaryOperator binaryDecrementOperator = updatingFunction(decrementFunctionTO);
+                DoubleTernaryOperator decrementOperator = updatingFunction(decrementFunctionTO);
                 resizeSpecs.add(new CommodityResizeSpecification(dependentCommodityType,
-                                               binaryIncrementOperator, binaryDecrementOperator));
+                                                     incrementOperator, decrementOperator));
             }
             resizeDependencyMap.put(commodityType, resizeSpecs);
 

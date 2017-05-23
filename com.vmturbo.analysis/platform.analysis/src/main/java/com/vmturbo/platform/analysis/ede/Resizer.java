@@ -24,6 +24,7 @@ import com.vmturbo.platform.analysis.ledger.IncomeStatement;
 import com.vmturbo.platform.analysis.ledger.Ledger;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 import com.vmturbo.platform.analysis.utilities.Bisection;
+import com.vmturbo.platform.analysis.utilities.DoubleTernaryOperator;
 
 /**
  * This class implements the resize decision logic.
@@ -315,11 +316,11 @@ public class Resizer {
                 double changeInCapacity = newCapacity - commoditySold.getCapacity();
                 if (changeInCapacity < 0) {
                     // resize down
-                    DoubleBinaryOperator decrementFunction =
+                    DoubleTernaryOperator decrementFunction =
                                             typeOfCommBought.getDecrementFunction();
                     double oldQuantityBought = shoppingList.getQuantities()[boughtIndex];
                     double decrementedQuantity = decrementFunction.applyAsDouble(
-                                                oldQuantityBought, newCapacity);
+                                                oldQuantityBought, newCapacity, 0);
                     double newQuantityBought = commSoldBySeller.getQuantity() -
                                                         (oldQuantityBought - decrementedQuantity);
                     checkArgument(newQuantityBought >= 0, "Expected new quantity bought %s to >= 0",
@@ -328,11 +329,11 @@ public class Resizer {
                     commSoldBySeller.setQuantity(newQuantityBought);
                 } else {
                     // resize up
-                    DoubleBinaryOperator incrementFunction =
+                    DoubleTernaryOperator incrementFunction =
                                     typeOfCommBought.getIncrementFunction();
                     double oldQuantityBought = shoppingList.getQuantities()[boughtIndex];
                     double incrementedQuantity = incrementFunction.applyAsDouble(
-                                                           oldQuantityBought, changeInCapacity);
+                                                           oldQuantityBought, changeInCapacity, 0);
                     shoppingList.getQuantities()[boughtIndex] = incrementedQuantity;
                     commSoldBySeller.setQuantity(commSoldBySeller.getQuantity() +
                                                  (incrementedQuantity - oldQuantityBought));

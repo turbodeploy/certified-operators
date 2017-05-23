@@ -27,6 +27,7 @@ import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.ede.ActionClassifier;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.topology.Topology;
+import com.vmturbo.platform.analysis.utilities.DoubleTernaryOperator;
 
 /**
  * A set of related markets and the traders participating in them.
@@ -45,7 +46,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     private final @NonNull List<@NonNull TraderWithSettings> traders_ = new ArrayList<>();
     // Map of quantity calculation functions by (sold) commodity specification. If an entry is
     // missing, the corresponding commodity specification is 'additive'.
-    private final @NonNull Map<@NonNull CommoditySpecification, @NonNull DoubleBinaryOperator>
+    private final @NonNull Map<@NonNull CommoditySpecification, @NonNull DoubleTernaryOperator>
         quantityFunctions_ = new TreeMap<>();
     // An aggregate of all the parameters configuring this economy's behavior.
     private final @NonNull EconomySettings settings_ = new EconomySettings();
@@ -71,7 +72,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     // Cached unmodifiable view of the idleVms_ list.
     private final @NonNull List<@NonNull ShoppingList> unmodifiableIdleVmSls_ = Collections.unmodifiableList(idleVmSls_);
     // Cached unmodifiable view of the quantityFunctions_ map.
-    private final @NonNull Map<@NonNull CommoditySpecification, @NonNull DoubleBinaryOperator>
+    private final @NonNull Map<@NonNull CommoditySpecification, @NonNull DoubleTernaryOperator>
         unmodifiableQuantityFunctions_ = Collections.unmodifiableMap(quantityFunctions_);
     // Cached unmodifiable view of the marketsForPlacement_ list.
     private final @NonNull List<@NonNull Market> unmodifiableMarketsForPlacement_ = Collections.unmodifiableList(marketsForPlacement_);
@@ -99,7 +100,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
 
     @Override
     @Pure
-    public @ReadOnly @NonNull Map<@NonNull CommoditySpecification, @NonNull DoubleBinaryOperator>
+    public @ReadOnly @NonNull Map<@NonNull CommoditySpecification, @NonNull DoubleTernaryOperator>
             getQuantityFunctions(@ReadOnly Economy this) {
         return unmodifiableQuantityFunctions_;
     }
@@ -111,7 +112,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
      * @see UnmodifiableEconomy#getQuantityFunctions()
      */
     @Pure
-    public @PolyRead @NonNull Map<@NonNull CommoditySpecification, @NonNull DoubleBinaryOperator>
+    public @PolyRead @NonNull Map<@NonNull CommoditySpecification, @NonNull DoubleTernaryOperator>
             getModifiableQuantityFunctions(@PolyRead Economy this) {
         return quantityFunctions_;
     }

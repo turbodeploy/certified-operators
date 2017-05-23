@@ -21,6 +21,7 @@ import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
+import com.vmturbo.platform.analysis.utilities.M2Utils;
 
 /**
  * An action to provision a new {@link Trader seller} using another {@link Trader seller} as the
@@ -119,7 +120,7 @@ public class ProvisionBySupply extends ActionImpl {
             if (!entry.getKey().isMovable()) {
                 shoppingList.move(entry.getKey().getSupplier());
                 Move.updateQuantities(getEconomy(), shoppingList, shoppingList.getSupplier(),
-                                (sold, bought) -> sold + bought);
+                                M2Utils.ADD_TWO_ARGS);
             }
 
             // Copy movable attribute

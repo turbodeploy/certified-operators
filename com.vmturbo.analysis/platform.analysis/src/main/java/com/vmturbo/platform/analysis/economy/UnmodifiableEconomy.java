@@ -3,13 +3,14 @@ package com.vmturbo.platform.analysis.economy;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.function.DoubleBinaryOperator;
+
 import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
 import org.checkerframework.dataflow.qual.SideEffectFree;
 
+import com.vmturbo.platform.analysis.utilities.DoubleTernaryOperator;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 
 /**
@@ -36,7 +37,7 @@ public interface UnmodifiableEconomy {
      * </p>
      */
     @Pure
-    public @ReadOnly @NonNull Map<@NonNull CommoditySpecification, @NonNull DoubleBinaryOperator>
+    public @ReadOnly @NonNull Map<@NonNull CommoditySpecification, @NonNull DoubleTernaryOperator>
         getQuantityFunctions(@ReadOnly UnmodifiableEconomy this);
 
     /**

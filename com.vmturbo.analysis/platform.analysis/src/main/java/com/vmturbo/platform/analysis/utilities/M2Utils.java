@@ -24,6 +24,10 @@ public class M2Utils {
         }
     }
 
+    public static DoubleTernaryOperator ADD_TWO_ARGS = (a, b, c) -> a + b;
+    public static DoubleTernaryOperator SUBRTRACT_TWO_ARGS = (a, b, c) -> Math.max(0, a - b);
+    public static DoubleTernaryOperator MAX_TWO_ARGS = (a, b, c) -> Math.max(a, b);
+
     /**
      * Load the specified file. The file is an EMF repository file saved by an Operations Manager.
      * This method uses a static {@link Logger} which name is the {@link EMF2MarketHandler} class name.

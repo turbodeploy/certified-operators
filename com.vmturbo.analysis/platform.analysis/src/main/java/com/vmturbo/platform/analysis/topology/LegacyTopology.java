@@ -4,7 +4,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.function.DoubleBinaryOperator;
 import java.util.stream.Collectors;
 
 import org.checkerframework.checker.javari.qual.PolyRead;
@@ -15,12 +14,13 @@ import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 import com.google.common.collect.Maps;
 import com.vmturbo.platform.analysis.economy.Basket;
-import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
+import com.vmturbo.platform.analysis.utilities.DoubleTernaryOperator;
 import com.vmturbo.platform.analysis.utilities.NumericIDAllocator;
 import com.vmturbo.platform.analysis.utilities.UnmodifiableNumericIDAllocator;
 
@@ -114,7 +114,7 @@ public final class LegacyTopology {
      * @param function a function that takes a list of Doubles as arguments and returns a Double.
      * The list of Doubles is the quantities bought.
      */
-    public void addQuantityFunction(String commodityType, DoubleBinaryOperator function) {
+    public void addQuantityFunction(String commodityType, DoubleTernaryOperator function) {
         int commodityId = commodityTypes_.allocate(commodityType);
         economy_.getModifiableQuantityFunctions().put(new CommoditySpecification(commodityId), function);
     }

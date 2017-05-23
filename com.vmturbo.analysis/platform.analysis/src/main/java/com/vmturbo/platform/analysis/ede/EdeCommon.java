@@ -1,7 +1,5 @@
 package com.vmturbo.platform.analysis.ede;
 
-import java.util.function.DoubleBinaryOperator;
-
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
 
@@ -13,6 +11,8 @@ import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
+import com.vmturbo.platform.analysis.utilities.DoubleTernaryOperator;
+import com.vmturbo.platform.analysis.utilities.M2Utils;
 
 /**
  * EdeCommon contains a number of methods that are common across decisions algorithms in the engine.
@@ -90,7 +90,7 @@ public final class EdeCommon {
                         Double.POSITIVE_INFINITY};
         boolean isCurrentSupplier = seller == shoppingList.getSupplier();
         final CommoditySold commSold = seller.getCommoditiesSold().get(soldIndex);
-        final DoubleBinaryOperator addition = (sold, bought) -> sold + bought;
+        final DoubleTernaryOperator addition = M2Utils.ADD_TWO_ARGS;
 
         // add quantities bought by buyer, to quantities already used at seller
         final double effectiveCapacity = commSold.getEffectiveCapacity();

@@ -8,8 +8,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.function.DoubleBinaryOperator;
-
 import org.apache.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -71,9 +69,6 @@ import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.Step;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessagePayload;
-import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO;
-import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO.Max;
-import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO.Min;
 import com.vmturbo.platform.analysis.topology.Topology;
 
 /**
@@ -115,26 +110,6 @@ public final class AnalysisToProtobuf {
         }
 
         return builder.build();
-    }
-
-    // Methods for converting UpdatingFunctionDTOs.
-
-    /**
-     * Converts a {@link DoubleBinaryOperator quantity updating function} to a
-     * {@link UpdatingFunctionTO}.
-     *
-     * @param input The {@link DoubleBinaryOperator quantity updating function} to convert.
-     * @return The resulting {@link UpdatingFunctionTO}.
-     */
-    public static @NonNull UpdatingFunctionTO updatingFunctionTO(@NonNull DoubleBinaryOperator input) {
-        // Warning: converting updating functions to TOs is not properly supported!
-        if (input == (DoubleBinaryOperator)Math::max) {
-            return UpdatingFunctionTO.newBuilder().setMax(Max.newBuilder()).build();
-        }  else if (input == (DoubleBinaryOperator)Math::min) {
-            return UpdatingFunctionTO.newBuilder().setMin(Min.newBuilder()).build();
-        } else {
-            throw new IllegalArgumentException("input = " + input);
-        }
     }
 
     // Methods for converting EconomyDTOs.

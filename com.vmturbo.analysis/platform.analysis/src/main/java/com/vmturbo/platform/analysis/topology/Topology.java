@@ -7,7 +7,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.DoubleBinaryOperator;
 
 import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
@@ -26,6 +25,7 @@ import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
+import com.vmturbo.platform.analysis.utilities.DoubleTernaryOperator;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 
 /**
@@ -185,7 +185,7 @@ public final class Topology implements Serializable {
      *
      * @see Economy#getModifiableQuantityFunctions()
      */
-    public @PolyRead @NonNull Map<@NonNull CommoditySpecification, @NonNull DoubleBinaryOperator>
+    public @PolyRead @NonNull Map<@NonNull CommoditySpecification, @NonNull DoubleTernaryOperator>
             getModifiableQuantityFunctions(@PolyRead Topology this) {
         return economy_.getModifiableQuantityFunctions();
     }

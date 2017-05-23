@@ -14,6 +14,7 @@ import java.util.stream.Stream;
 import org.apache.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
+
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionImpl;
 import com.vmturbo.platform.analysis.actions.Activate;
@@ -31,6 +32,7 @@ import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
+import com.vmturbo.platform.analysis.utilities.M2Utils;
 
 /*
  * This class contains the implementation for generating the provision actions to satisfy
@@ -441,7 +443,7 @@ public class BootstrapSupply {
                             if (!sl.isMovable()) {
                                 sl.move(minimizer.getBestSeller());
                                 Move.updateQuantities(economy, sl, minimizer.getBestSeller(),
-                                                (sold, bought) -> sold + bought);
+                                                M2Utils.ADD_TWO_ARGS);
                             }
                         }
             });

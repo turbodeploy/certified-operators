@@ -464,7 +464,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
             commSold.getSettings().setPriceFunction(pf);
          }
 
-        topology.addQuantityFunction(StorageLatency, Math::max);
+        topology.addQuantityFunction(StorageLatency, (a, b, c) -> ((a*c + b)/ (c + 1)));
 
         logger.info("Processing placement");
         for (Entry<ShoppingList, String> entry : placement.entrySet()) {

@@ -67,7 +67,7 @@ public class TopologyTest {
 
     @Test
     public final void testGetModifiableQuantityFunctions() {
-        MapTests.verifyModifiable(fixture_.getModifiableQuantityFunctions(), new CommoditySpecification(0), Math::max);
+        MapTests.verifyModifiable(fixture_.getModifiableQuantityFunctions(), new CommoditySpecification(0), (a, b, c) -> a);
     }
 
     @Test
