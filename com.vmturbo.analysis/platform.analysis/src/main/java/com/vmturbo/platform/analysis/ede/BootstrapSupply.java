@@ -230,13 +230,11 @@ public class BootstrapSupply {
                 }
             }
         }
-
         if (!newSuppliers.isEmpty()) {
             // do a compoundMove
             provisionedRelatedActions
                             .add(createCompoundMove(newSuppliers, movableSlByMarket, economy));
         }
-
         return provisionedRelatedActions;
     }
 
