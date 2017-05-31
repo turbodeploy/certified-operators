@@ -67,8 +67,11 @@ public class Suspension {
         List<@NonNull Action> allActions = new ArrayList<>();
         List<@NonNull Action> actions = new ArrayList<>();
         int round=0;
-        // run suspension for 2 rounds
-        while(round < 2) {
+        // run suspension for 3 rounds. We can have scenarios where, there are VMs that can move
+        // when buyers in a different market make room. In order to enable this, we retry suspensions
+        // after a round of economy-wide placements. We do this a third time for better packing as
+        // placements is the only expense here
+        while(round < 3) {
             ledger.calculateExpRevForTradersInEconomy(economy);
             // adjust utilThreshold to maxDesiredUtil of the seller. Thereby preventing moves
             // that force utilization to exceed maxDesiredUtil
@@ -105,24 +108,13 @@ public class Suspension {
             while ((trader = suspensionCandidateHeap_.poll()) != null) {
                 actions.clear();
                 Market sampleMarket = economy.getMarketsAsSeller(trader).get(0);
-                List<ShoppingList> sls = new ArrayList<>();
                 List<ShoppingList> customersOfSuspCandidate = new ArrayList<>();
-                for (Market mkt : economy.getMarketsAsSeller(trader)) {
-                     sls.addAll(mkt.getBuyers());
-                }
                 customersOfSuspCandidate.addAll(trader.getCustomers());
                 suspendTrader(economy, sampleMarket, trader, actions);
 
                 // perform placement on just the customers on the suspensionCandidate
                 actions.addAll(Placement.runPlacementsTillConverge(economy, customersOfSuspCandidate, ledger,
                                 isShopTogether, true, "SUSPENSION"));
-
-                if (!trader.getCustomers().isEmpty()) {
-                    // if there are customers, extend placement to all buyers in the markets the
-                    // suspension candidate sells in, to help make room for the buyers of the suspension candidate
-                    actions.addAll(Placement.runPlacementsTillConverge(economy, sls, ledger,
-                                    isShopTogether, true, "SUSPENSION"));
-                }
 
                 // rollback actions if the trader still has customers
                 if (!trader.getCustomers().isEmpty()) {
@@ -131,6 +123,7 @@ public class Suspension {
                     allActions.addAll(actions);
                 }
             }
+
             // reset threshold
             adjustUtilThreshold(economy, false);
 
