@@ -394,6 +394,8 @@ public final class AnalysisToProtobuf {
             List<Trader> sellers = new ArrayList<>();
             provDemand.getEconomy().getMarket(provDemand.getModelBuyer()).getActiveSellers()
                 .forEach(s -> {if (!s.isClone()) {sellers.add(s);}});
+            provDemand.getEconomy().getMarket(provDemand.getModelBuyer()).getInactiveSellers()
+                .forEach(s -> {if (!s.isClone()) {sellers.add(s);}});
             sellers.remove(provDemand.getProvisionedSeller());
 
             // send the commodity whose requested quantity can not be satisfied, its requested
