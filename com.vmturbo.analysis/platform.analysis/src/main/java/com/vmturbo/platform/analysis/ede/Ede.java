@@ -140,12 +140,25 @@ public final class Ede {
 
         //Parse market stats data coming from Market1, add prepare to write to stats file.
         String data[] = StatsUtils.getTokens(mktData, "|");
+        if (data.length == 0) {
+            // XL file name is in contextid-topologyid format
+            data = StatsUtils.getTokens(mktData, "-");
+            if (data.length == 0 || !data[0].equals("777777")) { // Real market context id
+                data = new String[1];
+                data[0] = "plan";
+            }
+        }
         StatsUtils statsUtils = new StatsUtils("m2stats-" + data[0], true);
         if (data.length == 3) {
-            statsUtils.append(data[1]);
+            statsUtils.append(data[1]); // date, Time, topo name , topo send time from M1
             statsUtils.after(Instant.parse(data[2]));
         } else {
-            statsUtils.append("NA,NA,NA,NA"); //currently 4 columns for topology related  data
+            //currently 4 columns for topology related data
+            statsUtils.appendDate(true, false);
+            statsUtils.appendTime(false, false);
+            statsUtils.append(mktData); // if not in expected parse format, should contain
+                                        // contextid-topologyid, different for each plan
+            statsUtils.append("NA"); // topology send time if unavailable
         }
 
         // create a subset list of markets that have atleast one buyer that can move
@@ -241,7 +254,8 @@ public final class Ede {
         // file total actions
         statsUtils.append(actions.size(), false, false);
         StatsWriter statsWriter = StatsManager.getInstance().init("m2stats-" + data[0]);
-        statsWriter.add(statsUtils.getdata());
+        statsWriter.add(statsUtils);
+
 
         if (logger.isDebugEnabled()) {
             // Log number of actions by type

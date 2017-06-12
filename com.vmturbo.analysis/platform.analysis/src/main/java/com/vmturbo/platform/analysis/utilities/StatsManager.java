@@ -1,8 +1,5 @@
 package com.vmturbo.platform.analysis.utilities;
 
-import java.util.HashMap;
-import java.util.Map;
-
 /**
  * A singleton class to manage StatsWriter instances.
  *
@@ -13,31 +10,37 @@ public class StatsManager {
 
     private StatsManager(){}
     private static StatsManager instance;
-    // Map of writers -- one for each market that is running or has run
-    private static final Map<String, StatsWriter> writersMap = new HashMap<>();
+    private StatsWriter sw = null;
 
     static {
         instance = new StatsManager();
     }
 
+    /**
+     * Original design assumed there would be a few markets and multiple
+     * threads writing to the stats file for a market.  But the use case
+     * as of now is multiple topology-id's for the same market (or context),
+     * therefore instead of multiple writers, we can choose to call StatsWriter
+     * with a false argument, which will create just one writer that knows
+     * which file to route the queued writes to.
+     *
+.    * @param filename
+     * @return
+     */
     public StatsWriter init(String filename) {
-        StatsWriter writerForThisFile = writersMap.get(filename);
-        if((writerForThisFile == null) || !writerForThisFile.isAlive()) {
-            StatsWriter sw = new StatsWriter(filename);
-            sw.start();
-            writersMap.put(filename, sw);
-            return sw;
+        synchronized (sw) {
+            if (sw == null) {
+                sw = new StatsWriter(filename, false);
+                sw.start();
+            } else {
+                sw.setFileName(filename);
+            }
         }
-        else {
-            return writerForThisFile;
-        }
+        return sw;
     }
 
     public static StatsManager getInstance() {
         return instance;
     }
 
-    public void remove(String filename) {
-
-    }
 }

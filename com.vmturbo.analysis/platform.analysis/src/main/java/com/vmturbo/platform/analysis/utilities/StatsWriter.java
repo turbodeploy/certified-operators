@@ -4,6 +4,8 @@ import java.util.concurrent.BlockingQueue;
 
 import org.apache.log4j.Logger;
 
+import com.google.common.annotations.VisibleForTesting;
+
 /**
  * A class to write data to file per market name.
  *
@@ -21,6 +23,14 @@ public class StatsWriter extends Thread {
     private int linesWritten = 0;
     private String fileName;
 
+    public String getFileName() {
+        return fileName;
+    }
+
+    public void setFileName(String fileName) {
+        this.fileName = fileName;
+    }
+
     @Override
     public void run() {
         while (!Thread.currentThread().isInterrupted()) {
@@ -35,8 +45,18 @@ public class StatsWriter extends Thread {
         }
     }
 
-    public StatsWriter(String statsFileName) {
-        stats = new StatsUtils(statsFileName, true);
+    /**
+     * StatsWriter constructor
+     *
+     * @param statsFileName stats file to write to
+     * @param isInternal if true, we initialize the stats file to write to;
+     * if not, it's already initialized by the caller
+     */
+    @VisibleForTesting
+    StatsWriter(String statsFileName, boolean isInternal) {
+        if(stats == null && isInternal) {
+            stats = new StatsUtils(statsFileName, true);
+        }
         fileName = statsFileName;
     }
 
@@ -70,7 +90,19 @@ public class StatsWriter extends Thread {
         }
 
         try {
-            stats.write(queue.take(), true);
+            // queue object is an instance of StatsUtils,
+            // which contains info on which file to write to
+            if (queue.peek() instanceof StatsUtils) {
+                StatsUtils su = (StatsUtils)queue.take();
+                su.flush(true);
+            } else {
+                if (stats != null) {
+                    stats.write(queue.take(), true);
+                } else {
+                    new StatsUtils(fileName, true).write(queue.take(), true);
+                }
+            }
+            // used for unit test only
             synchronized (this) {
                 linesWritten++;
             }
@@ -96,7 +128,6 @@ public class StatsWriter extends Thread {
      */
     @Override
     public void interrupt() {
-        StatsManager.getInstance().remove(fileName);
         Thread.currentThread().interrupt();
     }
 }

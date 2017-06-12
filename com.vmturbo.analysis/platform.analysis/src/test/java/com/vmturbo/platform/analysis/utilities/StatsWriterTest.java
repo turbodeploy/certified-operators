@@ -11,7 +11,7 @@ import org.junit.Test;
 
 public class StatsWriterTest {
 
-    StatsWriter writer = new StatsWriter("StatsUnitTest");
+    StatsWriter writer = new StatsWriter("StatsUnitTest", true);
     static final Logger logger = Logger.getLogger(StatsWriterTest.class);
 
     @Test
