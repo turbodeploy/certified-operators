@@ -253,7 +253,7 @@ public final class Ede {
         statsUtils.after(begin);
         // file total actions
         statsUtils.append(actions.size(), false, false);
-        StatsWriter statsWriter = StatsManager.getInstance().init("m2stats-" + data[0]);
+        StatsWriter statsWriter = StatsManager.getInstance().init();
         statsWriter.add(statsUtils);
 
 

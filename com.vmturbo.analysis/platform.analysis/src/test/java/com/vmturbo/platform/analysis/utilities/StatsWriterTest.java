@@ -11,7 +11,8 @@ import org.junit.Test;
 
 public class StatsWriterTest {
 
-    StatsWriter writer = new StatsWriter("StatsUnitTest", true);
+    StatsWriter writer = new StatsWriter();
+    StatsUtils su = new StatsUtils("StatsUnitTest", true);
     static final Logger logger = Logger.getLogger(StatsWriterTest.class);
 
     @Test
@@ -31,7 +32,8 @@ public class StatsWriterTest {
 
             @Override
             public void run() {
-                writer.add("I am Thread: " + id);
+                su.append("I am Thread: " + id);
+                writer.add(su);
             }
         }
 

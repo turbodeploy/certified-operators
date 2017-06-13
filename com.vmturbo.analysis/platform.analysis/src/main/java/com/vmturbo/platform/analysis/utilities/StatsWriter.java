@@ -19,17 +19,7 @@ public class StatsWriter extends Thread {
 
     private BlockingQueue<Object> queue = new ArrayBlockingQueue<Object>(1000);
     private static final Logger logger = Logger.getLogger(StatsWriter.class);
-    private StatsUtils stats;
     private int linesWritten = 0;
-    private String fileName;
-
-    public String getFileName() {
-        return fileName;
-    }
-
-    public void setFileName(String fileName) {
-        this.fileName = fileName;
-    }
 
     @Override
     public void run() {
@@ -48,24 +38,16 @@ public class StatsWriter extends Thread {
     /**
      * StatsWriter constructor
      *
-     * @param statsFileName stats file to write to
-     * @param isInternal if true, we initialize the stats file to write to;
-     * if not, it's already initialized by the caller
      */
     @VisibleForTesting
-    StatsWriter(String statsFileName, boolean isInternal) {
-        if(stats == null && isInternal) {
-            stats = new StatsUtils(statsFileName, true);
-        }
-        fileName = statsFileName;
-    }
+    StatsWriter() {}
 
     /**
      * Add data to queue to be written to file.
      *
      * @param data data to write
      */
-    public void add(Object data) {
+    public void add(StatsUtils data) {
         if (logger.isDebugEnabled()) {
             logger.debug("Stats Adding to queue ..");
         }
@@ -92,16 +74,9 @@ public class StatsWriter extends Thread {
         try {
             // queue object is an instance of StatsUtils,
             // which contains info on which file to write to
-            if (queue.peek() instanceof StatsUtils) {
-                StatsUtils su = (StatsUtils)queue.take();
-                su.flush(true);
-            } else {
-                if (stats != null) {
-                    stats.write(queue.take(), true);
-                } else {
-                    new StatsUtils(fileName, true).write(queue.take(), true);
-                }
-            }
+            StatsUtils su = (StatsUtils)queue.take();
+            su.flush(true);
+
             // used for unit test only
             synchronized (this) {
                 linesWritten++;

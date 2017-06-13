@@ -19,20 +19,19 @@ public class StatsManager {
     /**
      * Original design assumed there would be a few markets and multiple
      * threads writing to the stats file for a market.  But the use case
-     * as of now is multiple topology-id's for the same market (or context),
-     * therefore instead of multiple writers, we can choose to call StatsWriter
-     * with a false argument, which will create just one writer that knows
-     * which file to route the queued writes to.
+     * as of now is different contextid/topologyid combinations
+     * Real time context id is at present constant (777777)
+     * Each plan will have a different context id, and topology id
+     * therefore instead of multiple writers, we have a single StatsWriter
+     * that knows where to route queued writes to.
      *
 .    * @param filename
      * @return
      */
-    public synchronized StatsWriter init(String filename) {
+    public synchronized StatsWriter init() {
         if (sw == null || !sw.isAlive()) {
-            sw = new StatsWriter(filename, false);
+            sw = new StatsWriter();
             sw.start();
-        } else {
-            sw.setFileName(filename);
         }
         return sw;
     }
