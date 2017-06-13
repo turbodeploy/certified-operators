@@ -27,14 +27,12 @@ public class StatsManager {
 .    * @param filename
      * @return
      */
-    public StatsWriter init(String filename) {
-        synchronized (sw) {
-            if (sw == null) {
-                sw = new StatsWriter(filename, false);
-                sw.start();
-            } else {
-                sw.setFileName(filename);
-            }
+    public synchronized StatsWriter init(String filename) {
+        if (sw == null || !sw.isAlive()) {
+            sw = new StatsWriter(filename, false);
+            sw.start();
+        } else {
+            sw.setFileName(filename);
         }
         return sw;
     }
