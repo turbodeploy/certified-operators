@@ -89,11 +89,15 @@ public class BootstrapSupply {
      */
     private static @NonNull List<@NonNull Action> shopTogetherBootstrap(Economy economy) {
         List<@NonNull Action> allActions = new ArrayList<@NonNull Action>();
-        for (@NonNull Trader buyer : economy.getTraders()) {
+        int tradesSize = economy.getTraders().size();
+        // Go through all buyers
+        // We may need add some items in the economy.getTraders() list,
+        // so we can not use iterator to go through all items
+        for (int idx = 0; idx < tradesSize; idx++) {
             if (economy.getForceStop()) {
                 return allActions;
             }
-            allActions.addAll(shopTogetherBootstrapForIndividualBuyer(economy, buyer));
+            allActions.addAll(shopTogetherBootstrapForIndividualBuyer(economy, economy.getTraders().get(idx)));
         }
         // process shoppingLists in slsThatNeedProvBySupplyList and generate provisionBySupply
         for (Entry<ShoppingList, Long> entry : slsThatNeedProvBySupply.entrySet()) {
