@@ -34,6 +34,9 @@ message PriceIndexMessage {
 
     // Array of payload messages.
     repeated PriceIndexMessagePayload payload = 3;
+
+    // The time of the origianl topology created.
+    optional int64 source_topology_creation_time = 5;
 }
 
 // This is a null-response message.
