@@ -24,6 +24,11 @@ public class ActionClassifier {
     static final Logger logger = Logger.getLogger(ActionClassifier.class);
 
     final private @NonNull Economy simulationEconomy_;
+    private int executable_ = 0;
+
+    public int getExecutable() {
+        return executable_;
+    }
 
     public ActionClassifier(@NonNull Economy economy) throws IOException, ClassNotFoundException {
         simulationEconomy_ = economy.simulationClone();
@@ -88,6 +93,7 @@ public class ActionClassifier {
         logger.info("Classifier: " + executable + " " + nonExecutable + " " +
                         + executableMove + " " + nonExecutableMove + " " +
                         + executableResize + " " + nonExecutableResize);
+        executable_ = executable;
     }
 
     /**
