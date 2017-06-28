@@ -293,7 +293,7 @@ public final class AnalysisServer {
             // if there are no templates to be added this is not a headroom plan
             ReplayActions lastDecisions = replayActionsMap.get(mktName);
             Ede ede = new Ede();
-            if (instInfo.isReplayActions()) {
+            if (instInfo.isReplayActions() || instInfo.isRealTime()) {
                 ede.setReplayActions((lastDecisions != null) ? lastDecisions : new ReplayActions());
             }
             actions = ede.generateActions(economy, instInfo.isClassifyActions(),
