@@ -7,6 +7,8 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+
 import javax.websocket.CloseReason;
 import javax.websocket.OnClose;
 import javax.websocket.OnError;
@@ -21,6 +23,7 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.analysis.actions.Action;
+import com.vmturbo.platform.analysis.actions.Deactivate;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.EconomySettings;
 import com.vmturbo.platform.analysis.ede.Ede;
@@ -127,6 +130,7 @@ public final class AnalysisServer {
                     instInfo.setReplayActions(discovered.getReplayActions());
                     instInfo.getLastComplete().setTopologyId(command.getTopologyId());
                     instInfo.setMarketName(command.getMarketName());
+                    instInfo.setRealTime(discovered.getRealTime());
                     instInfo.setMarketData(command.getMarketData());
                     Topology currentPartial = instInfo.getCurrentPartial();
                     currentPartial.setTopologyId(command.getTopologyId());
@@ -293,19 +297,26 @@ public final class AnalysisServer {
                 ede.setReplayActions((lastDecisions != null) ? lastDecisions : new ReplayActions());
             }
             actions = ede.generateActions(economy, instInfo.isClassifyActions(),
-                                          instInfo.isShopTogetherEnabled(),
-                                          instInfo.isProvisionEnabled(),
-                                          instInfo.isSuspensionEnabled(),
-                                          instInfo.isResizeEnabled(), true, mktData);
+                            instInfo.isShopTogetherEnabled(),
+                            instInfo.isProvisionEnabled(),
+                            instInfo.isSuspensionEnabled(),
+                            instInfo.isResizeEnabled(), true, mktData,
+                            instInfo.isRealTime());
             long stop = System.nanoTime();
             results = AnalysisToProtobuf.analysisResults(actions, lastComplete.getTraderOids(),
                                lastComplete.getShoppingListOids(), stop - start, lastComplete,
                                startPriceStatement, true);
-            if (instInfo.isReplayActions()) {
+            if (instInfo.isReplayActions() || instInfo.isRealTime()) {
                 ReplayActions newReplayActions = ede.getReplayActions();
                 // the oids have to be updated after analysisResults
                 newReplayActions.setTraderOids(lastComplete.getTraderOids());
-                newReplayActions.setActions(actions);
+                if (instInfo.isReplayActions()) {
+                    newReplayActions.setActions(actions);
+                } else if (instInfo.isRealTime()) {
+                    // if replay is disabled, perform selective replay to deactivate entities in RT (OM-19855)
+                    newReplayActions.setActions(actions.stream().filter(action ->
+                        action instanceof Deactivate).collect(Collectors.toList()));
+                }
                 replayActionsMap.put(mktName, newReplayActions);
             }
         } else {
@@ -313,8 +324,8 @@ public final class AnalysisServer {
                                                         false, false, false, true);
             long stop = System.nanoTime();
             results = AnalysisToProtobuf.analysisResults(actions, lastComplete.getTraderOids(),
-                                                      lastComplete.getShoppingListOids(), stop - start, lastComplete,
-                                                      startPriceStatement, true);
+                                                      lastComplete.getShoppingListOids(), stop - start,
+                                                      lastComplete, startPriceStatement, true);
         }
 
         // if the analysis was forced to stop, send a planStopped message back
@@ -352,6 +363,8 @@ public final class AnalysisServer {
         String marketName_;
         // market data
         String marketData_;
+        // true if this run of analysis is for RT
+        boolean isRealTime;
 
         public boolean isShopTogetherEnabled() {
             return isShopTogetherEnabled;
@@ -412,6 +425,12 @@ public final class AnalysisServer {
         }
         public void setMarketData(String marketData) {
             marketData_ = marketData;
+        }
+        public boolean isRealTime() {
+            return isRealTime;
+        }
+        public void setRealTime(boolean isRealTime) {
+            this.isRealTime = isRealTime;
         }
     } // end AnalysisInstanceInfo class
 

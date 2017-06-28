@@ -12,6 +12,11 @@ import org.apache.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.platform.analysis.actions.Action;
+import com.vmturbo.platform.analysis.actions.Deactivate;
+import com.vmturbo.platform.analysis.actions.Move;
+import com.vmturbo.platform.analysis.actions.ProvisionByDemand;
+import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
+import com.vmturbo.platform.analysis.actions.Resize;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -137,7 +142,6 @@ public final class Ede {
             actions.addAll(getReplayActions().getActions());
             logger.info(actionStats.phaseLogEntry("replaying"));
         }
-
         //Parse market stats data coming from Market1, add prepare to write to stats file.
         String data[] = StatsUtils.getTokens(mktData, "|");
         if (data.length <= 1) {
@@ -161,8 +165,8 @@ public final class Ede {
             statsUtils.appendDate(true, false);
             statsUtils.appendTime(false, false);
             statsUtils.append(mktData); // if not in expected parse format, should contain
-                                       // contextid-topologyid, different for each plan
-            statsUtils.append("NA");  // topology send time if unavailable
+                                        // contextid-topologyid, different for each plan
+            statsUtils.append("NA"); // topology send time if unavailable
         }
 
         // create a subset list of markets that have atleast one buyer that can move
@@ -260,7 +264,6 @@ public final class Ede {
         StatsWriter statsWriter = StatsManager.getInstance().init();
         statsWriter.add(statsUtils);
 
-
         if (logger.isDebugEnabled()) {
             // Log number of actions by type
             actions.stream()
@@ -268,6 +271,53 @@ public final class Ede {
                             .forEach((k, v) -> logger
                                             .debug("    " + k.getSimpleName() + " : " + v.size()));
         }
+        return actions;
+    }
+
+    /**
+     * Create a new set of actions for a realtime-snapshot of the economy.
+     *
+     * @param economy The snapshot of the economy which we analyze and take decisions.
+     * @param classifyActions True if we we want to classify actions into non-executable.
+     * @param isShopTogether True if we want to enable SNM and false otherwise.
+     * @param isProvision True if we need to trigger provision algorithm and false otherwise
+     * @param isSuspension True if we need to trigger suspension algorithm and false otherwise
+     * @param isResize True if we need to trigger resize algorithm and false otherwise
+     * @param collapse whether to collapse the returned list of actions.
+     * @param mktData contains the market name and any stats to be written to the row
+     *          delimited by "|"
+     * @param isRealTime True for analysis of a realtime topology
+     * @return A list of actions suggested by the economic decisions engine.
+     *
+     * @see {@link Action#collapsed(List)}
+     */
+    public @NonNull List<@NonNull Action> generateActions(@NonNull Economy economy,
+                                                          boolean classifyActions,
+                                                          boolean isShopTogether,
+                                                          boolean isProvision, boolean isSuspension,
+                                                          boolean isResize, boolean collapse,
+                                                          String mktData, boolean isRealTime) {
+        @NonNull List<Action> actions = new ArrayList<>();
+        if (isRealTime) {
+            // run a round of analysis without provisions.
+            actions.addAll(generateActions(economy, classifyActions, isShopTogether, false, isSuspension,
+                            isResize, collapse, mktData));
+
+            // run another round of analysis on the new state of the economy with provisions enabled
+            // and resize disabled. We add only the provision recommendations to the list of actions generated.
+            // We neglect suspensions since there might be associated moves that we dont want to include
+            if (isProvision) {
+                actions.addAll(generateActions(economy, classifyActions, isShopTogether, isProvision,
+                                isSuspension, false, collapse, mktData).stream()
+                                .filter(action -> (action instanceof ProvisionByDemand ||
+                                                action instanceof ProvisionBySupply))
+                                .collect(Collectors.toList()));
+            }
+        } else {
+            actions.addAll(generateActions(economy, classifyActions, isShopTogether, isProvision,
+                            isSuspension, isResize, collapse, mktData));
+        }
+
         return actions;
     }
 
