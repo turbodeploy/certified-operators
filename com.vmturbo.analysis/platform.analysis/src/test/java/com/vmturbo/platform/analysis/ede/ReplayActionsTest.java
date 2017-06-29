@@ -72,8 +72,24 @@ public class ReplayActionsTest {
         ShoppingList[] shoppingLists = first.getMarketsAsBuyer(vm)
                                             .keySet().toArray(new ShoppingList[3]);
         shoppingLists[0].move(pm1);
+        shoppingLists[0].setQuantity(0, 42);
+        shoppingLists[0].setPeakQuantity(0, 42);
+        shoppingLists[0].setQuantity(1, 100);
+        shoppingLists[0].setPeakQuantity(1, 100);
+        shoppingLists[0].setQuantity(2, 1);
+        shoppingLists[0].setPeakQuantity(2, 1);
+        shoppingLists[0].setQuantity(3, 1);
+        shoppingLists[0].setPeakQuantity(3, 1);
         shoppingLists[1].move(st1);
+        shoppingLists[1].setQuantity(0, 1000);
+        shoppingLists[1].setPeakQuantity(0, 1000);
+        shoppingLists[1].setQuantity(0, 1);
+        shoppingLists[1].setPeakQuantity(0, 1);
         shoppingLists[2].move(st2);
+        shoppingLists[2].setQuantity(0, 1000);
+        shoppingLists[2].setPeakQuantity(0, 1000);
+        shoppingLists[2].setQuantity(0, 1);
+        shoppingLists[2].setPeakQuantity(0, 1);
         pm1.getCommoditySold(CPU).setCapacity(100);
         first.getCommodityBought(shoppingLists[0],CPU).setQuantity(42);
 

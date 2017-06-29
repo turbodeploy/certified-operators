@@ -1,5 +1,6 @@
 package com.vmturbo.platform.analysis.ede;
 
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -212,13 +213,19 @@ public class ReplayActions {
     public @Nullable ShoppingList translateShoppingList(ShoppingList oldTarget,
                                         Economy newEconomy, Topology newTopology) {
         Basket basket = oldTarget.getBasket();
+        double[] requestedQuantities = oldTarget.getQuantities();
+        double[] requestedPeakQuantities = oldTarget.getQuantities();
         Trader buyer = oldTarget.getBuyer();
         Trader newBuyer = translateTrader(buyer, newEconomy, "translateShoppingList");
         if (newBuyer != null) {
             Set<ShoppingList> shoppingLists = newEconomy.getMarketsAsBuyer(newBuyer).keySet();
             for (ShoppingList shoppingList : shoppingLists) {
-                if (shoppingList.getBasket().equals(basket)) {
+                if (shoppingList.getBasket().equals(basket)
+                                && Arrays.equals(shoppingList.getQuantities(), requestedQuantities)
+                                && Arrays.equals(shoppingList.getPeakQuantities(),
+                                                requestedPeakQuantities)) {
                     return shoppingList;
+
                 }
             }
         }
