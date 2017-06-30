@@ -5,13 +5,14 @@ import static com.google.common.base.Preconditions.checkArgument;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
-
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -141,21 +142,72 @@ public class CompoundMove extends ActionImpl {
     @Override
     @Pure
     public @Nullable @ReadOnly Action combine(@NonNull Action action) {
-        // Assume the argument is a CompoundMove of the same target, otherwise we are not supposed
-        // to get here. Also assume a consistent sequence of actions, i.e.
-        // this.getDestination() == action.getSource().
-        // TODO: do we need to combine with scalar moves?
-
+        // examples of compoundMoves and their combined result:
+        // 1. compoundMove1 contains move sl1 from t1 to t2, sl2 from t4 to t5, compoundMove2
+        // contains move sl1 from t2 to t3, sl2 from t5 to t6, then the result of compoundMove.combine
+        // will be a single compoundMove that contains move sl1 from t1 to t3,, sl2 from t4 to t6
+        // 2. compoundMove1 contains move sl1 from t1 to t2, compoundMove2 contains move sl2 from t3 to t4,
+        // then the result of compoundMove.combine will be a single compoundMove contains move sl1 from t1
+        // to t2 and move sl2 from t3 to t4.
+        checkArgument(action.getType() == ActionType.COMPOUND_MOVE);
         CompoundMove other = (CompoundMove)action;
-        checkArgument(moves_.size() == other.moves_.size());
+        List<@NonNull Move> combinedMoveResult = new ArrayList<>();
+        // create maps with shopping list to constitute move, it is a helper
+        // data structure to find matching shopping list of the two compoundMoves
+        Map<@NonNull ShoppingList, @NonNull Move> slPerMoveMap1 =
+                        new HashMap<@NonNull ShoppingList, @NonNull Move>();
+        Map<@NonNull ShoppingList, @NonNull Move> slPerMoveMap2 =
+                        new HashMap<@NonNull ShoppingList, @NonNull Move>();
+        moves_.forEach(m1 -> slPerMoveMap1.put(m1.getTarget(), m1));
+        other.getConstituentMoves().forEach(m2 -> slPerMoveMap2.put(m2.getTarget(), m2));
 
-        if (IntStream.range(0, moves_.size()).allMatch(i->moves_.get(i).getSource() == other.moves_.get(i).getDestination())) {
+        for (Entry<ShoppingList, Move> entry1 : slPerMoveMap1.entrySet()) {
+            @NonNull
+            ShoppingList sl1 = entry1.getKey();
+            @NonNull
+            Move move1 = entry1.getValue();
+            if (slPerMoveMap2.containsKey(sl1)) {
+                // a shopping list is found in both compoundMoves, we should merge them
+                @NonNull
+                Move move2 = slPerMoveMap2.get(sl1);
+                @Nullable
+                Move combined = (Move)move1.combine(move2);
+                // if merge result is null, meaning two moves canceled each other
+                if (combined != null) {
+                    // we put the combined move into the result list
+                    combinedMoveResult.add(combined);
+                }
+            } else {
+                // a shopping list is found in first compoundmove but not in the second compoundMove
+                // we keep the move and put into result list
+                combinedMoveResult.add(move1);
+            }
+        }
+        for (Entry<ShoppingList, Move> entry2 : slPerMoveMap2.entrySet()) {
+            @NonNull
+            ShoppingList sl2 = entry2.getKey();
+            @NonNull
+            Move move2 = entry2.getValue();
+            if (!slPerMoveMap1.containsKey(sl2)) {
+                // a shopping list is found in second compoundmove but not in the first compoundMove
+                // we keep it and put into result list
+                combinedMoveResult.add(move2);
+            }
+        }
+
+        if (combinedMoveResult.isEmpty()) {
             return null;
         } else {
-            return new CompoundMove(moves_.get(0).getEconomy(),
-                                    moves_.stream().map(Move::getTarget).collect(Collectors.toList()),
-                                    moves_.stream().map(Move::getSource).collect(Collectors.toList()),
-                              other.moves_.stream().map(Move::getDestination).collect(Collectors.toList()));
+            // NOTE: we should pass all four params instead of three in to compoundMove
+            // constructor, because the move is taken, so the source of the move is not
+            // the supplier of shopping list any more
+            return new CompoundMove(combinedMoveResult.get(0).getEconomy(),
+                            combinedMoveResult.stream().map(Move::getTarget)
+                                            .collect(Collectors.toList()),
+                            combinedMoveResult.stream().map(Move::getSource)
+                                            .collect(Collectors.toList()),
+                            combinedMoveResult.stream().map(Move::getDestination)
+                                            .collect(Collectors.toList()));
         }
     }
 
