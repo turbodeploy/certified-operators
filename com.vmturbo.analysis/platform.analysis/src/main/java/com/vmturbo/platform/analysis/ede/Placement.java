@@ -139,6 +139,25 @@ public class Placement {
 
         final double cheapestQuote = minimizer.getBestQuote();
         final Trader cheapestSeller = minimizer.getBestSeller();
+        boolean isDebugTrader = shoppingList.getBuyer().isDebugEnabled();
+        String buyerDebugInfo = shoppingList.getBuyer().getDebugInfoNeverUseInCode();
+        if (isDebugTrader) {
+            if (shoppingList.getSupplier() == null) {
+                logger.info("{" + buyerDebugInfo + "} Supplier is null.");
+            } else {
+                logger.info("{" + buyerDebugInfo
+                                + "} current supplier: " + shoppingList.getSupplier().getDebugInfoNeverUseInCode());
+            }
+            if (!shoppingList.isMovable()) {
+                logger.info("{" + buyerDebugInfo + "} Shopping list of " + shoppingList.getSupplier() + " is not movable.");
+            }
+            if (cheapestSeller == null) {
+                logger.info("{" + buyerDebugInfo + "} The cheapest supplier is null.");
+            } else {
+                logger.info("{" + buyerDebugInfo + "} The cheapest quote: "
+                                + cheapestQuote + " from the cheapest supplier: " + cheapestSeller.getDebugInfoNeverUseInCode());
+            }
+        }
         final double currentQuote = minimizer.getCurrentQuote();
 
         // move, and update economy and state
@@ -146,6 +165,12 @@ public class Placement {
             double savings = currentQuote - cheapestQuote;
             if (Double.isInfinite(savings)) {
                 savings = 0;
+                if (isDebugTrader) {
+                    if (shoppingList.getSupplier() != null) {
+                        logger.info("{" + buyerDebugInfo + "} The infinite quote is from supplier: "
+                                        + shoppingList.getSupplier().getDebugInfoNeverUseInCode());
+                    }
+                }
             }
             // create recommendation, add it to the result list and  update the economy to
             // reflect the decision

@@ -203,4 +203,7 @@ message TraderTO {
     // This field specifies weather a trader is a clone of a sampleSE from a template used
     // for headroom plans
     optional bool templateForHeadroom = 11 [default = false];
+
+    // This field specifies whether we will print debug info for a trader
+    optional bool debugEnabled = 12 [default = false];
 }

@@ -27,6 +27,10 @@ import org.checkerframework.dataflow.qual.Pure;
  * </p>
  */
 public abstract class Trader implements Serializable {
+    /**
+     *
+     */
+    private static final long serialVersionUID = 8356471354794423341L;
     // Fields
     private int economyIndex_;
     private int cloneOf_;
@@ -50,9 +54,10 @@ public abstract class Trader implements Serializable {
     private final @NonNull List<@NonNull Long> unmodifiableCliques_ = Collections.unmodifiableList(cliques_);
     // Cached unmodifiable view of the customers_ list.
     private final @NonNull List<@NonNull ShoppingList> unmodifiableCustomers_ = Collections.unmodifiableList(customers_);
+    // This field specifies whether we want to print debug info for the trader
+    private boolean debugEnabled = false;
 
     // Constructors
-
     /**
      * Constructs a new TraderWithSettings instance with the specified attributes.
      *
@@ -394,5 +399,19 @@ public abstract class Trader implements Serializable {
      */
     public boolean isClone() {
         return cloneOf_ != -1;
+    }
+
+    /**
+     * @return true if the trader is debug enabled
+     */
+    public boolean isDebugEnabled() {
+        return debugEnabled;
+    }
+
+    /**
+     * set the debugEnabled flag to true or false
+     */
+    public void setDebugEnabled(boolean debugEnabled) {
+        this.debugEnabled = debugEnabled;
     }
 } // end interface Trader

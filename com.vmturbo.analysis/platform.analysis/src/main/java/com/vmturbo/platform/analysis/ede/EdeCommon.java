@@ -1,5 +1,6 @@
 package com.vmturbo.platform.analysis.ede;
 
+import org.apache.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
 
@@ -19,6 +20,8 @@ import com.vmturbo.platform.analysis.utilities.M2Utils;
  *
  */
 public final class EdeCommon {
+
+    static final Logger logger = Logger.getLogger(EdeCommon.class);
 
     /**
      * Returns the quote offered by a seller for a shopping list bought by a buyer.
@@ -42,7 +45,8 @@ public final class EdeCommon {
         double quote[] = {0.0, 0.0, 0.0};
         Basket basket = shoppingList.getBasket();
         // go over all commodities in basket
-        for (int boughtIndex = 0, soldIndex = 0; boughtIndex < basket.size()
+        int boughtIndex = 0;
+        for (int soldIndex = 0; boughtIndex < basket.size()
                 && quote[0] < bestQuoteSoFar && Double.isFinite(quote[0]); boughtIndex++, soldIndex++) {
             CommoditySpecification basketCommSpec = basket.get(boughtIndex);
 
@@ -58,7 +62,13 @@ public final class EdeCommon {
                 quote[1] += tempQuote[1];
                 quote[2] += tempQuote[2];
             }
-
+        }
+        if(shoppingList.getSupplier() == seller) {
+            if(Double.isInfinite(quote[0])) {
+                CommoditySpecification basketCommSpec = basket.get(boughtIndex-1);
+                logger.info("{" + shoppingList.getBuyer().getDebugInfoNeverUseInCode()
+                                + "} The commodity causing the infinite quote: " + basketCommSpec.getDebugInfoNeverUseInCode());
+            }
         }
         return quote;
     }

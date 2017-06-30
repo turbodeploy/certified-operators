@@ -274,7 +274,7 @@ public final class ProtobufToAnalysis {
                                                     basketSold, input.getCliquesList());
         output.setDebugInfoNeverUseInCode(input.getDebugInfoNeverUseInCode());
         populateTraderSettings(input.getSettings(), output.getSettings());
-
+        output.setDebugEnabled(input.getDebugEnabled());
         for (CommoditySoldTO commoditySold : input.getCommoditiesSoldList()) {
             populateCommoditySold(commoditySold, output.getCommoditySold(commoditySpecification(commoditySold.getSpecification())));
         }
