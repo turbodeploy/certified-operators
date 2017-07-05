@@ -63,11 +63,13 @@ public final class EdeCommon {
                 quote[2] += tempQuote[2];
             }
         }
-        if(shoppingList.getSupplier() == seller) {
-            if(Double.isInfinite(quote[0])) {
-                CommoditySpecification basketCommSpec = basket.get(boughtIndex-1);
-                logger.info("{" + shoppingList.getBuyer().getDebugInfoNeverUseInCode()
-                                + "} The commodity causing the infinite quote: " + basketCommSpec.getDebugInfoNeverUseInCode());
+        if (seller.isDebugEnabled()) {
+            if(shoppingList.getSupplier() == seller) {
+                if(Double.isInfinite(quote[0])) {
+                    CommoditySpecification basketCommSpec = basket.get(boughtIndex-1);
+                    logger.info("{" + shoppingList.getBuyer().getDebugInfoNeverUseInCode()
+                                    + "} The commodity causing the infinite quote: " + basketCommSpec.getDebugInfoNeverUseInCode());
+                }
             }
         }
         return quote;
