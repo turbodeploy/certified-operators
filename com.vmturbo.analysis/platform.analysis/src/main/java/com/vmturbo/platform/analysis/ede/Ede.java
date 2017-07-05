@@ -12,11 +12,9 @@ import org.apache.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.platform.analysis.actions.Action;
-import com.vmturbo.platform.analysis.actions.Deactivate;
-import com.vmturbo.platform.analysis.actions.Move;
+import com.vmturbo.platform.analysis.actions.Activate;
 import com.vmturbo.platform.analysis.actions.ProvisionByDemand;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
-import com.vmturbo.platform.analysis.actions.Resize;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -310,7 +308,8 @@ public final class Ede {
                 actions.addAll(generateActions(economy, classifyActions, isShopTogether, isProvision,
                                 isSuspension, false, collapse, mktData).stream()
                                 .filter(action -> (action instanceof ProvisionByDemand ||
-                                                action instanceof ProvisionBySupply))
+                                                action instanceof ProvisionBySupply ||
+                                                action instanceof Activate))
                                 .collect(Collectors.toList()));
             }
         } else {
