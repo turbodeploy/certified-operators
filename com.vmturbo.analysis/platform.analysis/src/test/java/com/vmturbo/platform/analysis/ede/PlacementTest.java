@@ -410,6 +410,8 @@ public class PlacementTest {
 
     private static Object[] testCase(Object[][][] buyerConfigurations, Object[][][] sellerConfigurations, Object[][][] moves) {
         Economy e = new Economy();
+        // setting quoteFactor to 0.999
+        e.getSettings().setQuoteFactor(0.999);
 
         // Add buyers
         for (@SuppressWarnings("unused") Object[][] dummy : buyerConfigurations) {

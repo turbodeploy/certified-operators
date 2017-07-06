@@ -29,7 +29,7 @@ public final class EconomySettings implements Serializable {
      */
     // 0.999 corresponding to a 0.1% improvement seemed reasonable but there is no particular reason
     // not to use another value.
-    public static final double DEFAULT_QUOTE_FACTOR = 0.999;
+    public static final double DEFAULT_QUOTE_FACTOR = 0.9;
 
     private int minSellersForParallelism_ = DEFAULT_MIN_SELLERS_FOR_PARALLELISM;
     private double quoteFactor_ = DEFAULT_QUOTE_FACTOR;
