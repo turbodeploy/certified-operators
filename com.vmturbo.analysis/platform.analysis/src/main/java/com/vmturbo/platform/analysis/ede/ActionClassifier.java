@@ -133,8 +133,10 @@ public class ActionClassifier {
         .forEach(a -> {
                           Deactivate s = (Deactivate) a;
                           Trader suspensionCandidate = s.getActionTarget();
-                          if (suspensionCandidate.getCustomers() == null ||
-                                          suspensionCandidate.getCustomers().isEmpty()) {
+                          Trader simSuspensionCandidate =
+                                          lookupTraderInSimulationEconomy(suspensionCandidate);
+                          if (simSuspensionCandidate == null ||
+                                          simSuspensionCandidate.getCustomers().isEmpty()) {
                               s.setExecutable(true);
                           }
                       });
