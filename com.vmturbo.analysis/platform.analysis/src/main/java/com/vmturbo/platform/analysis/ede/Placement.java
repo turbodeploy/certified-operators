@@ -263,7 +263,7 @@ public class Placement {
                                             .filter(entry -> entry.getKey().isMovable())
                                             .collect(Collectors.toList());
             if (!shouldConsiderTraderForShopTogether(buyingTrader, movableSlByMarket)) {
-                return output;
+                continue;
             }
             Set<Long> commonCliques = getCommonCliques(buyingTrader, slByMarket, movableSlByMarket);
             CliqueMinimizer minimizer = computeBestQuote(economy, movableSlByMarket, commonCliques);
