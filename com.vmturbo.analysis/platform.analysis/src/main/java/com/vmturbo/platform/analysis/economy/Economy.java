@@ -61,6 +61,8 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     private final @NonNull List<@NonNull Market> marketsForPlacement_ = new ArrayList<>();
     // list of IDLE VMs in the economy
     private final @NonNull List<@NonNull ShoppingList> idleVmSls_ = new ArrayList<>();
+    // list of shop together traders in the economy
+    private final @NonNull List<@NonNull Trader> shopTogetherTraders_ = new ArrayList<>();
     private final List<TraderTO> tradersForHeadroom_ = new ArrayList<>();
     private Topology topology_;
     // Cached data
@@ -71,6 +73,9 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     private final @NonNull List<@NonNull Trader> unmodifiableTraders_ = Collections.unmodifiableList(traders_);
     // Cached unmodifiable view of the idleVms_ list.
     private final @NonNull List<@NonNull ShoppingList> unmodifiableIdleVmSls_ = Collections.unmodifiableList(idleVmSls_);
+    // Cached unmodifiable view of the shopTogetherTraders_ list.
+    private final @NonNull List<@NonNull Trader> unmodifiableShopTogetherTraders_ =
+                    Collections.unmodifiableList(shopTogetherTraders_);
     // Cached unmodifiable view of the quantityFunctions_ map.
     private final @NonNull Map<@NonNull CommoditySpecification, @NonNull DoubleTernaryOperator>
         unmodifiableQuantityFunctions_ = Collections.unmodifiableMap(quantityFunctions_);
@@ -260,6 +265,16 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
         return idleVmSls_;
     }
 
+    /**
+     * returns a modifiable list of shop together traders
+     *
+     * @param this the economy that the shop together traders participate in
+     * @return a modifiable list of shop together traders
+     */
+    public List<Trader> getModifiableShopTogetherTraders() {
+        return shopTogetherTraders_;
+    }
+
     @Override
     @Pure
     public @NonNull @ReadOnly List<@NonNull Integer> getRawMaterials(@ReadOnly Economy this,
@@ -272,6 +287,19 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     public @NonNull @ReadOnly List<@NonNull CommodityResizeSpecification>
                     getResizeDependency(@ReadOnly Economy this, int processedCommodityType) {
         return commodityResizeDependency_.get(processedCommodityType);
+    }
+
+    /**
+     * returns an unmodifiable list of shop together traders
+     *
+     * @param this the economy that the shop together traders participate in
+     * @return an unmodifiable list of shop together traders
+     */
+    @Override
+    @Pure
+    public @NonNull @ReadOnly List<@NonNull @ReadOnly Trader>
+                    getShopTogetherTraders(@ReadOnly Economy this) {
+        return unmodifiableShopTogetherTraders_;
     }
 
     /**

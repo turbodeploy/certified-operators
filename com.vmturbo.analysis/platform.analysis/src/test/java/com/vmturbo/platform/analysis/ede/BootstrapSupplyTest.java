@@ -67,8 +67,8 @@ public class BootstrapSupplyTest {
         assertTrue(bootStrapActionList.size() == 1);
         Action compoundMove = bootStrapActionList.get(0);
         assertEquals(ActionType.COMPOUND_MOVE, compoundMove.getType());
-        Move expect1 = new Move(economy, sl1, pm2);
-        Move expect2 = new Move(economy, sl2, st2);
+        Move expect1 = new Move(economy, sl1, pm1, pm2);
+        Move expect2 = new Move(economy, sl2, st1, st2);
         List<Move> moves = ((CompoundMove)compoundMove).getConstituentMoves();
         assertTrue(moves.size() == 2);
         // order of moves in compound move is not deterministic

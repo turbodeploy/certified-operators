@@ -52,19 +52,20 @@ public class Placement {
      */
     public static @NonNull List<@NonNull Action> placementDecisions(@NonNull Economy economy,
                     List<ShoppingList> sls, boolean preferentialPlacementOnly) {
-
         @NonNull List<Action> actions = prefPlacementDecisions(economy, sls);
+        @NonNull List<@NonNull ShoppingList> slsToPlace = new ArrayList<>();
         if (!preferentialPlacementOnly) {
             // iterate over all markets, i.e., all sets of providers selling a specific basket
             for (Market market : economy.getMarketsForPlacement()) {
-                // iterate over all buyers in this market that havnt already shopped
+                // iterate over all buyers in this market that havn't already shopped
                 for (@NonNull ShoppingList shoppingList : market.getBuyers()) {
                     if (sls.contains(shoppingList)) {
                         continue;
                     }
-                    actions.addAll(generatePlacementDecisions(economy, shoppingList));
+                    slsToPlace.add(shoppingList);
                 }
             }
+            actions.addAll(generatePlacementDecisions(economy, slsToPlace));
         }
         return actions;
     }
@@ -83,9 +84,7 @@ public class Placement {
                                                                         List<ShoppingList> sls) {
         @NonNull List<Action> actions = new ArrayList<>();
         // iterate over all buyers passed
-        for (@NonNull ShoppingList shoppingList : sls) {
-            actions.addAll(generatePlacementDecisions(economy, shoppingList));
-        }
+        actions.addAll(generatePlacementDecisions(economy, sls));
         return actions;
     }
 
@@ -103,6 +102,31 @@ public class Placement {
     }
 
     /**
+     * Returns a list of recommendations to optimize the placement of a trader either using shop
+     * together or shop alone algorithm depending on the trader's setting.
+     *
+     * @param economy - the economy whose traders' placement we want to optimize
+     * @param shoppingLists - The {@link ShoppingList} for which we try to find the best destination
+     * @return the placement actions
+     */
+    public static @NonNull List<@NonNull Action> generatePlacementDecisions(
+                    @NonNull Economy economy, @NonNull List<@NonNull ShoppingList> shoppingLists) {
+        @NonNull List<@NonNull Action> actions = new ArrayList<>();
+        @NonNull List<@NonNull Trader> shopTogetherTraderList = new ArrayList<>();
+        for (ShoppingList sl : shoppingLists) {
+            // if the sl is shop together, put it into a list, else, run non shop alone placement
+            Trader buyer = sl.getBuyer();
+            if (buyer.getSettings().isShopTogether()) {
+                shopTogetherTraderList.add(buyer);
+            } else {
+                actions.addAll(generateShopAlonePlacementDecisions(economy, sl));
+            }
+        }
+        actions.addAll(generateShopTogetherDecisions(economy, shopTogetherTraderList));
+        return actions;
+    }
+
+    /**
      * Returns a list of recommendations to optimize the placement of a trader with a
      * particular shoppingList
      *
@@ -112,19 +136,22 @@ public class Placement {
      *
      * @param economy - the economy whose traders' placement we want to optimize
      * @param shoppingList - The {@link ShoppingList} for which we try to find the best destination
+     * @return the placement actions
      */
-    public static @NonNull List<@NonNull Action> generatePlacementDecisions(@NonNull Economy economy,
-                                ShoppingList shoppingList) {
+    public static @NonNull List<@NonNull Action> generateShopAlonePlacementDecisions(
+                    @NonNull Economy economy, ShoppingList shoppingList) {
         @NonNull List<Action> actions = new ArrayList<>();
         if (economy.getForceStop()) {
             return actions;
         }
         // if there are no sellers in the market, the buyer is misconfigured
-        final @NonNull List<@NonNull Trader> sellers = economy.getMarket(shoppingList).getActiveSellers();
+        final @NonNull List<@NonNull Trader> sellers =
+                        economy.getMarket(shoppingList).getActiveSellers();
         if (!shoppingList.isMovable())
             return actions;
         if (sellers.isEmpty()) {
-            actions.add(new Reconfigure(economy, shoppingList).take().setImportance(Double.POSITIVE_INFINITY));
+            actions.add(new Reconfigure(economy, shoppingList).take()
+                            .setImportance(Double.POSITIVE_INFINITY));
             // To prevent regeneration of duplicate reconfigure actions
             shoppingList.setMovable(false);
             return actions;
@@ -134,7 +161,8 @@ public class Placement {
         final QuoteMinimizer minimizer =
             (sellers.size() < economy.getSettings().getMinSellersForParallelism()
                 ? sellers.stream() : sellers.parallelStream())
-            .collect(()->new QuoteMinimizer(economy,shoppingList),
+                                                        .collect(() -> new QuoteMinimizer(economy,
+                                                                        shoppingList),
                 QuoteMinimizer::accept, QuoteMinimizer::combine);
 
         final double cheapestQuote = minimizer.getBestQuote();
@@ -174,7 +202,7 @@ public class Placement {
             }
             // create recommendation, add it to the result list and  update the economy to
             // reflect the decision
-            actions.add(new Move(economy,shoppingList,cheapestSeller).take().setImportance(
+            actions.add(new Move(economy, shoppingList, cheapestSeller).take().setImportance(
                             savings));
             if (economy.getSettings().isUseExpenseMetricForTermination()) {
                 Market myMarket = economy.getMarket(shoppingList);
@@ -182,8 +210,8 @@ public class Placement {
                 if (logger.isDebugEnabled()
                              && myMarket.getExpenseBaseline() < myMarket.getPlacementSavings()) {
                     logger.debug("Total savings exceeds base expenses for buyer while shopping " +
-                        shoppingList.getBuyer().getDebugInfoNeverUseInCode() + " Basket " +
-                        shoppingList.getBasket());
+                                    shoppingList.getBuyer().getDebugInfoNeverUseInCode()
+                                    + " Basket " + shoppingList.getBasket());
                 }
             }
         }
@@ -373,9 +401,9 @@ public class Placement {
      * @return a list of recommendations about trader placement
      */
     public static @NonNull List<@NonNull Action> runPlacementsTillConverge(Economy economy,
-                    Ledger ledger, boolean isShopTogether, String callerPhase) {
+                    Ledger ledger, String callerPhase) {
         return runPlacementsTillConverge(economy, new ArrayList<ShoppingList>(), ledger,
-                                         isShopTogether, false, callerPhase);
+                        false, callerPhase);
     }
 
     /**
@@ -392,7 +420,7 @@ public class Placement {
      * @return a list of recommendations about trader placement
      */
     public static @NonNull List<@NonNull Action> runPlacementsTillConverge(Economy economy,
-                    List<ShoppingList> shoppingLists, Ledger ledger, boolean isShopTogether,
+                    List<ShoppingList> shoppingLists, Ledger ledger,
                     boolean preferentialPlacementOnly, String callerPhase) {
         @NonNull
         List<Action> actions = new ArrayList<@NonNull Action>();
@@ -415,10 +443,8 @@ public class Placement {
                                 + " rounds, forcing placement to stop now!");
                 break;
             }
-            List<Action> placeActions = isShopTogether
-                            ? Placement.shopTogetherDecisions(economy, shoppingLists,
-                                            preferentialPlacementOnly)
-                            : placementDecisions(economy, shoppingLists, preferentialPlacementOnly);
+            List<Action> placeActions =
+                            placementDecisions(economy, shoppingLists, preferentialPlacementOnly);
             counter++;
             globalCounter++;
             keepRunning = !(placeActions.isEmpty()

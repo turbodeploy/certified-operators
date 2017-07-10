@@ -320,6 +320,13 @@ public final class Topology implements Serializable {
         economy_.getModifiableIdleVmSls().add(shoppingList);
     }
 
+    /**
+     * adding a {@link trader} which should shop together to the shopTogetherTraders list in the economy
+     */
+    public void addShopTogetherTraders(@NonNull Trader trader) {
+        economy_.getModifiableShopTogetherTraders().add(trader);
+    }
+
     public long getTopologyId() {
         return topologyId_;
     }

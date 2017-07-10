@@ -125,7 +125,6 @@ public final class AnalysisServer {
                     AnalysisInstanceInfo instInfo = new AnalysisInstanceInfo();
                     StartDiscoveredTopology discovered = command.getStartDiscoveredTopology();
                     analysisInstanceInfoMap.put(command.getTopologyId(), instInfo);
-                    instInfo.setShopTogetherEnabled(discovered.getEnableShopTogether());
                     instInfo.setClassifyActions(discovered.getClassifyActions());
                     instInfo.setReplayActions(discovered.getReplayActions());
                     instInfo.getLastComplete().setTopologyId(command.getTopologyId());
@@ -188,10 +187,11 @@ public final class AnalysisServer {
                             } catch (Exception error) {
                                 // if exceptions occur when running analysis, send back a message
                                 // with analysis_failed=true
-                                logger.error("Exception thrown while sending back actions", error);
+                                logger.error("Exception thrown during topology analysis", error);
                                 StatsUtils statsUtils = new StatsUtils(
                                                 "m2stats-" + command.getMarketName(), true);
-                                statsUtils.write("Exception sending back actions: " + error + "\n",
+                                statsUtils.write("Exception thrown during topology analysis: "
+                                                + error + "\n",
                                                 true);
                                 // since running analysis throws exceptions, we send a failure
                                 // message with topology id back to notify ops manager
@@ -201,12 +201,14 @@ public final class AnalysisServer {
                             }
                             try (OutputStream stream = session.getBasicRemote().getSendStream()) {
                                 result.writeTo(stream);
-                            } catch (IOException ioException) {
+                            } catch (IOException | IllegalStateException exception) {
                                 // communication is disconnected between opsmanager and M2
                                 // we add the failed message to a list and once the connection
                                 // is re-established (the websocket framework we use will
                                 // automatically retry until connection is back), we send the
                                 // failed messages back to opsmanager
+                                // An illegalStateException can be thrown when the broken connection
+                                // is re-established and the message is send to the previous session
                                 previousFailedMsg.offer(result);
                                 logger.error("Sending back message " + result.getTopologyId()
                                                 + " failed due to IOException, queueing at"
@@ -297,7 +299,6 @@ public final class AnalysisServer {
                 ede.setReplayActions((lastDecisions != null) ? lastDecisions : new ReplayActions());
             }
             actions = ede.generateActions(economy, instInfo.isClassifyActions(),
-                            instInfo.isShopTogetherEnabled(),
                             instInfo.isProvisionEnabled(),
                             instInfo.isSuspensionEnabled(),
                             instInfo.isResizeEnabled(), true, mktData,
@@ -320,8 +321,7 @@ public final class AnalysisServer {
                 replayActionsMap.put(mktName, newReplayActions);
             }
         } else {
-            actions = new Ede().generateHeadroomActions(economy, instInfo.isShopTogetherEnabled(),
-                                                        false, false, false, true);
+            actions = new Ede().generateHeadroomActions(economy, false, false, false, true);
             long stop = System.nanoTime();
             results = AnalysisToProtobuf.analysisResults(actions, lastComplete.getTraderOids(),
                                                       lastComplete.getShoppingListOids(), stop - start,
@@ -351,8 +351,6 @@ public final class AnalysisServer {
         boolean classifyActions = false;
         // a flag to denote if we should replay Actions
         boolean replayActions = false;
-        // a flag to decide if move should use shop-together algorithm or not
-        boolean isShopTogetherEnabled = false;
         // a flag to decide if provision algorithm should run or not
         boolean isProvisionEnabled = true;
         // a flag to decide if suspension algorithm should run or not
@@ -366,9 +364,6 @@ public final class AnalysisServer {
         // true if this run of analysis is for RT
         boolean isRealTime;
 
-        public boolean isShopTogetherEnabled() {
-            return isShopTogetherEnabled;
-        }
         public void setClassifyActions(boolean classifyActions) {
             this.classifyActions = classifyActions;
         }
@@ -380,9 +375,6 @@ public final class AnalysisServer {
         }
         public boolean isReplayActions() {
             return replayActions;
-        }
-        public void setShopTogetherEnabled(boolean isShopTogetherEnabled) {
-            this.isShopTogetherEnabled = isShopTogetherEnabled;
         }
         public boolean isProvisionEnabled() {
             return isProvisionEnabled;

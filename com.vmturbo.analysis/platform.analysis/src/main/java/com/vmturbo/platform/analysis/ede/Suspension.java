@@ -16,6 +16,7 @@ import com.vmturbo.platform.analysis.actions.Deactivate;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySoldSettings;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.EconomyConstants;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -56,14 +57,11 @@ public class Suspension {
      * @param economy - the economy whose non-profitable traders we want to suspend while remaining
      *                  in the desired state
      * @param ledger - the class that contains exp/rev about all the traders and commodities in
-     *                  the ecomomy
-     * @param isShopTogether - flag specifies if we want to use SNM or normal placement between
-     *                  suspensions
-     *
+     *                  the economy
      * @return list of deactivate and move actions
      */
     public @NonNull List<@NonNull Action> suspensionDecisions(@NonNull Economy economy,
-                    @NonNull Ledger ledger, Ede ede, boolean isShopTogether) {
+                    @NonNull Ledger ledger, Ede ede) {
         List<@NonNull Action> allActions = new ArrayList<>();
         List<@NonNull Action> actions = new ArrayList<>();
         int round=0;
@@ -114,7 +112,7 @@ public class Suspension {
 
                 // perform placement on just the customers on the suspensionCandidate
                 actions.addAll(Placement.runPlacementsTillConverge(economy, customersOfSuspCandidate, ledger,
-                                isShopTogether, true, "SUSPENSION"));
+                                true, EconomyConstants.SUSPENSION_PHASE));
 
                 // rollback actions if the trader still has customers
                 if (!trader.getCustomers().isEmpty()) {
@@ -128,7 +126,8 @@ public class Suspension {
             adjustUtilThreshold(economy, false);
 
             // run economy wide placements after every round of suspension
-            allActions.addAll(Placement.runPlacementsTillConverge(economy, ledger, isShopTogether, "SUPPLY"));
+            allActions.addAll(Placement.runPlacementsTillConverge(economy, ledger,
+                            EconomyConstants.SUPPLY_PHASE));
             round++;
         }
         return allActions;

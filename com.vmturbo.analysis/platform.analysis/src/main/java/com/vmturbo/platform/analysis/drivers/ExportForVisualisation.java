@@ -54,7 +54,7 @@ public final class ExportForVisualisation {
                          topology.getCommodityTypes()::getName,topology.getTraderTypes()::getName);
 
             Ede ede = new Ede();
-            ede.generateActions((Economy)topology.getEconomy(), true, false, true, true, true,
+            ede.generateActions((Economy)topology.getEconomy(), true, true, true, true,
                                 "exportvisual"); // TODO: remove cast
             printEconomy(topology.getEconomy(), "Optimized",topology.getUuids()::get,topology.getNames()::get,
                          topology.getCommodityTypes()::getName,topology.getTraderTypes()::getName);

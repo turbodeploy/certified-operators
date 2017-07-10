@@ -24,6 +24,7 @@ final class TraderWithSettings extends Trader implements TraderSettings {
     private boolean guaranteedBuyer_ = false;
     private boolean canAcceptNewCustomers_ = false;
     private boolean isEligibleForResizeDown_ = true;
+    private boolean isShopTogether_ = false;
     private double maxDesiredUtilization_ = 1.0;
     private double minDesiredUtilization_ = 0.0;
 
@@ -128,6 +129,11 @@ final class TraderWithSettings extends Trader implements TraderSettings {
     }
 
     @Override
+    public boolean isShopTogether() {
+        return isShopTogether_;
+    }
+
+    @Override
     @Deterministic
     public @NonNull TraderWithSettings setSuspendable(boolean suspendable) {
         suspendable_ = suspendable;
@@ -181,4 +187,9 @@ final class TraderWithSettings extends Trader implements TraderSettings {
         return this;
     }
 
+    @Override
+    public @NonNull TraderSettings setIsShopTogether(boolean isShopTogether) {
+        isShopTogether_ = isShopTogether;
+        return this;
+    }
 } // end TraderWithSettings class

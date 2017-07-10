@@ -58,6 +58,11 @@ public interface TraderSettings {
     boolean isEligibleForResizeDown();
 
     /**
+     * Whether the associated {@link Trader} should shop together or not.
+     */
+    boolean isShopTogether();
+
+    /**
      * Sets the value of the <b>suspendable</b> field.
      *
      * <p>
@@ -142,4 +147,17 @@ public interface TraderSettings {
      * @return {@code this}
      */
     @NonNull TraderSettings setIsEligibleForResizeDown(boolean isEligibleForResizeDown);
+
+    /**
+     * Sets the value of the <b>isShopTogether</b> field.
+     *
+     * <p>
+     *  Has no observable side-effects except setting the above field.
+     * </p>
+     *
+     * @param shoptogether the new value for the field.
+     * @return {@code this}
+     */
+    @NonNull
+    TraderSettings setIsShopTogether(boolean isShopTogether);
 } // end TraderSettings interface

@@ -100,7 +100,7 @@ public final class AddSupplyAndDemandThroughActions {
             do {
                 logger.info("Cycle " + (++nCycles));
                 Ede ede = new Ede();
-                actions = ede.generateActions(economy, true, false, true, true, true,
+                actions = ede.generateActions(economy, true, true, true, true,
                                               "addsupplydemand"); // TODO: remove cast to Economy!
                 logger.info(actions.size() + " actions");
                 for (Action action : actions) {

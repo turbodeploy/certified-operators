@@ -241,6 +241,7 @@ public final class ProtobufToAnalysis {
         destination.setGuaranteedBuyer(source.getGuaranteedBuyer());
         destination.setCanAcceptNewCustomers(source.getCanAcceptNewCustomers());
         destination.setIsEligibleForResizeDown(source.getIsEligibleForResizeDown());
+        destination.setIsShopTogether(source.getIsShopTogether());
     }
 
     /**
@@ -291,6 +292,10 @@ public final class ProtobufToAnalysis {
                     addShoppingList(topology, output, sl);
                 }
             }
+        }
+        // adds the shop together trader to a list in economy
+        if (input.getSettings().getIsShopTogether()) {
+            topology.addShopTogetherTraders(output);
         }
 
         return output;

@@ -14,6 +14,7 @@ import com.vmturbo.platform.analysis.actions.Activate;
 import com.vmturbo.platform.analysis.actions.GuaranteedBuyerHelper;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.EconomyConstants;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -32,7 +33,6 @@ import com.vmturbo.platform.analysis.ledger.Ledger;
  */
 public class Provision {
 
-    private static final String PROVISION_PHASE = "Provision Phase";
     static final Logger logger = Logger.getLogger(Provision.class);
 
     /**
@@ -55,7 +55,6 @@ public class Provision {
      */
     public static @NonNull List<@NonNull Action> provisionDecisions(@NonNull Economy economy
                                                                     , @NonNull Ledger ledger
-                                                                    , boolean isShopTogether
                                                                     , Ede ede) {
 
         List<@NonNull Action> allActions = new ArrayList<>();
@@ -63,8 +62,8 @@ public class Provision {
             EstimateSupply es = new EstimateSupply(economy, ledger, true);
 
             allActions.addAll(es.getActions());
-            allActions.addAll(Placement.runPlacementsTillConverge(economy, ledger, isShopTogether,
-                            PROVISION_PHASE));
+            allActions.addAll(Placement.runPlacementsTillConverge(economy, ledger,
+                            EconomyConstants.PROVISION_PHASE));
         }
         for (Market market : economy.getMarkets()) {
             // if the traders in the market are not eligible for provision, skip this market

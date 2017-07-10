@@ -72,10 +72,11 @@ public class BootstrapSupply {
      *
      * @return list of actions that might include provision, move and reconfigure.
      */
-    public static @NonNull List<@NonNull Action> bootstrapSupplyDecisions(@NonNull Economy economy,
-                    boolean isShopTogether) {
-        List<@NonNull Action> allActions = isShopTogether ? shopTogetherBootstrap(economy)
-                        : nonShopTogetherBootstrap(economy);
+    public static @NonNull List<@NonNull Action>
+                    bootstrapSupplyDecisions(@NonNull Economy economy) {
+        List<@NonNull Action> allActions = new ArrayList<@NonNull Action>();
+        allActions.addAll(shopTogetherBootstrap(economy));
+        allActions.addAll(nonShopTogetherBootstrap(economy));
         GuaranteedBuyerHelper.processGuaranteedbuyerInfo(economy);
         return allActions;
     }
@@ -89,7 +90,7 @@ public class BootstrapSupply {
      */
     private static @NonNull List<@NonNull Action> shopTogetherBootstrap(Economy economy) {
         List<@NonNull Action> allActions = new ArrayList<@NonNull Action>();
-        int tradesSize = economy.getTraders().size();
+        int tradesSize = economy.getShopTogetherTraders().size();
         // Go through all buyers
         // We may need add some items in the economy.getTraders() list,
         // so we can not use iterator to go through all items
@@ -97,7 +98,7 @@ public class BootstrapSupply {
             if (economy.getForceStop()) {
                 return allActions;
             }
-            allActions.addAll(shopTogetherBootstrapForIndividualBuyer(economy, economy.getTraders().get(idx)));
+            allActions.addAll(shopTogetherBootstrapForIndividualBuyer(economy, economy.getShopTogetherTraders().get(idx)));
         }
         // process shoppingLists in slsThatNeedProvBySupplyList and generate provisionBySupply
         for (Entry<ShoppingList, Long> entry : slsThatNeedProvBySupply.entrySet()) {
@@ -178,7 +179,7 @@ public class BootstrapSupply {
                 // if the best quote is finite and at least one shopping list has a best seller
                 // that is not its current supplier, trigger a shop together move
                 allActions.add(new CompoundMove(economy, shoppingLists,
-                                minimizer.getBestSellers()));
+                                minimizer.getBestSellers()).take());
             }
         }
         return allActions;
@@ -323,6 +324,11 @@ public class BootstrapSupply {
             }
             List<Trader> sellers = market.getActiveSellers();
             for (@NonNull ShoppingList shoppingList : market.getBuyers()) {
+                // below is the provision logic for non shop together traders, if the trader
+                // should shop together, skip the logic
+                if (shoppingList.getBuyer().getSettings().isShopTogether()) {
+                    continue;
+                }
                 // find the bestQuote
                 final QuoteMinimizer minimizer =
                                 (sellers.size() < economy.getSettings().getMinSellersForParallelism()

@@ -16,6 +16,7 @@ import com.vmturbo.platform.analysis.actions.Activate;
 import com.vmturbo.platform.analysis.actions.ProvisionByDemand;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.EconomyConstants;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ledger.Ledger;
@@ -38,8 +39,6 @@ public final class Ede {
 
     // Constructor
 
-    private static final String PLACEMENT_PHASE = "Placement Phase";
-
     /**
      * Constructs the Economic Decisions Engine, with an empty initial State
      */
@@ -55,10 +54,9 @@ public final class Ede {
      */
     public @NonNull List<@NonNull Action> generateActions(@NonNull Economy economy,
                                                           boolean classifyActions,
-                                                          boolean isShopTogether,
                                                           boolean isProvision, boolean isSuspension,
                                                           boolean isResize, String mktName) {
-        return generateActions(economy, classifyActions, isShopTogether, isProvision, isSuspension,
+        return generateActions(economy, classifyActions, isProvision, isSuspension,
                                isResize, false, mktName);
     }
 
@@ -69,10 +67,9 @@ public final class Ede {
      */
     public @NonNull List<@NonNull Action> generateActions(@NonNull Economy economy,
                                                           boolean classifyActions,
-                                                          boolean isShopTogether,
                                                           boolean isProvision, boolean isSuspension,
                                                           boolean isResize) {
-        return generateActions(economy, classifyActions, isShopTogether, isProvision, isSuspension,
+        return generateActions(economy, classifyActions, isProvision, isSuspension,
                                isResize, false, "unspecified|");
     }
 
@@ -81,7 +78,6 @@ public final class Ede {
      *
      * @param economy The snapshot of the economy which we analyze and take decisions.
      * @param classifyActions True if we we want to classify actions into non-executable.
-     * @param isShopTogether True if we want to enable SNM and false otherwise.
      * @param isProvision True if we need to trigger provision algorithm and false otherwise
      * @param isSuspension True if we need to trigger suspension algorithm and false otherwise
      * @param isResize True if we need to trigger resize algorithm and false otherwise
@@ -92,11 +88,10 @@ public final class Ede {
      */
     public @NonNull List<@NonNull Action> generateActions(@NonNull Economy economy,
                                                           boolean classifyActions,
-                                                          boolean isShopTogether,
                                                           boolean isProvision,
                                                           boolean isSuspension,
                                                           boolean isResize, boolean collapse) {
-        return generateActions(economy, classifyActions, isShopTogether, isProvision, isSuspension,
+        return generateActions(economy, classifyActions, isProvision, isSuspension,
                                isResize, collapse, "unspecified|");
     }
 
@@ -105,7 +100,6 @@ public final class Ede {
      *
      * @param economy The snapshot of the economy which we analyze and take decisions.
      * @param classifyActions True if we we want to classify actions into non-executable.
-     * @param isShopTogether True if we want to enable SNM and false otherwise.
      * @param isProvision True if we need to trigger provision algorithm and false otherwise
      * @param isSuspension True if we need to trigger suspension algorithm and false otherwise
      * @param isResize True if we need to trigger resize algorithm and false otherwise
@@ -118,7 +112,6 @@ public final class Ede {
      */
     public @NonNull List<@NonNull Action> generateActions(@NonNull Economy economy,
                                                           boolean classifyActions,
-                                                          boolean isShopTogether,
                                                           boolean isProvision, boolean isSuspension,
                                                           boolean isResize, boolean collapse, String mktData) {
         String analysisLabel = "Analysis ";
@@ -177,7 +170,7 @@ public final class Ede {
         // Save first call to before() to calculate total plan time
         Instant begin = statsUtils.before();
         if (isProvision) {
-            actions.addAll(BootstrapSupply.bootstrapSupplyDecisions(economy, isShopTogether));
+            actions.addAll(BootstrapSupply.bootstrapSupplyDecisions(economy));
         }
         logger.info(actionStats.phaseLogEntry("bootstrap"));
         // time to run bootstrap
@@ -186,8 +179,8 @@ public final class Ede {
         statsUtils.before();
         Ledger ledger = new Ledger(economy);
         // run placement algorithm to balance the environment
-        actions.addAll(Placement.runPlacementsTillConverge(economy, ledger, isShopTogether,
-                                                           PLACEMENT_PHASE));
+        actions.addAll(Placement.runPlacementsTillConverge(economy, ledger,
+                        EconomyConstants.PLACEMENT_PHASE));
         logger.info(actionStats.phaseLogEntry("placement"));
         // time to run initial placement
         statsUtils.after();
@@ -201,8 +194,8 @@ public final class Ede {
         statsUtils.after();
 
         statsUtils.before();
-        actions.addAll(Placement.runPlacementsTillConverge(economy, ledger, isShopTogether,
-                                                           PLACEMENT_PHASE));
+        actions.addAll(Placement.runPlacementsTillConverge(economy, ledger,
+                        EconomyConstants.PLACEMENT_PHASE));
         logger.info(actionStats.phaseLogEntry("placement"));
         // placement time
         statsUtils.after();
@@ -211,12 +204,12 @@ public final class Ede {
         // trigger provision, suspension and resize algorithm only when needed
         int oldActionCount = actions.size();
         if (isProvision) {
-            actions.addAll(Provision.provisionDecisions(economy, ledger, isShopTogether, this));
+            actions.addAll(Provision.provisionDecisions(economy, ledger, this));
             logger.info(actionStats.phaseLogEntry("provisioning"));
             // if provision generated some actions, run placements
             if (actions.size() > oldActionCount) {
-                actions.addAll(Placement.runPlacementsTillConverge(economy, ledger, isShopTogether,
-                                                                   PLACEMENT_PHASE));
+                actions.addAll(Placement.runPlacementsTillConverge(economy, ledger,
+                                EconomyConstants.PLACEMENT_PHASE));
                 logger.info(actionStats.phaseLogEntry("post provisioning placement"));
             }
         }
@@ -234,7 +227,7 @@ public final class Ede {
             // find if any seller is the sole provider in any market, if so, it should not
             // be considered as suspension candidate
             suspension.findSoleProviders(economy);
-            actions.addAll(suspension.suspensionDecisions(economy, ledger, this, isShopTogether));
+            actions.addAll(suspension.suspensionDecisions(economy, ledger, this));
             if (getReplayActions() != null) {
                 getReplayActions().getRolledBackSuspensionCandidates().addAll(suspension.getRolledBack());
             }
@@ -277,7 +270,6 @@ public final class Ede {
      *
      * @param economy The snapshot of the economy which we analyze and take decisions.
      * @param classifyActions True if we we want to classify actions into non-executable.
-     * @param isShopTogether True if we want to enable SNM and false otherwise.
      * @param isProvision True if we need to trigger provision algorithm and false otherwise
      * @param isSuspension True if we need to trigger suspension algorithm and false otherwise
      * @param isResize True if we need to trigger resize algorithm and false otherwise
@@ -291,21 +283,20 @@ public final class Ede {
      */
     public @NonNull List<@NonNull Action> generateActions(@NonNull Economy economy,
                                                           boolean classifyActions,
-                                                          boolean isShopTogether,
                                                           boolean isProvision, boolean isSuspension,
                                                           boolean isResize, boolean collapse,
                                                           String mktData, boolean isRealTime) {
         @NonNull List<Action> actions = new ArrayList<>();
         if (isRealTime) {
             // run a round of analysis without provisions.
-            actions.addAll(generateActions(economy, classifyActions, isShopTogether, false, isSuspension,
+            actions.addAll(generateActions(economy, classifyActions, false, isSuspension,
                             isResize, collapse, mktData));
 
             // run another round of analysis on the new state of the economy with provisions enabled
             // and resize disabled. We add only the provision recommendations to the list of actions generated.
             // We neglect suspensions since there might be associated moves that we dont want to include
             if (isProvision) {
-                actions.addAll(generateActions(economy, classifyActions, isShopTogether, isProvision,
+                actions.addAll(generateActions(economy, classifyActions, isProvision,
                                 isSuspension, false, collapse, mktData).stream()
                                 .filter(action -> (action instanceof ProvisionByDemand ||
                                                 action instanceof ProvisionBySupply ||
@@ -313,7 +304,7 @@ public final class Ede {
                                 .collect(Collectors.toList()));
             }
         } else {
-            actions.addAll(generateActions(economy, classifyActions, isShopTogether, isProvision,
+            actions.addAll(generateActions(economy, classifyActions, isProvision,
                             isSuspension, isResize, collapse, mktData));
         }
 
@@ -324,7 +315,6 @@ public final class Ede {
      * Run a capacity plan using the economic scheduling engine and generate a new set of actions.
      *
      * @param economy The snapshot of the economy which we analyze and take decisions.
-     * @param isShopTogether True if we want to enable SNM and false otherwise.
      * @param isProvision True if we need to trigger provision algorithm and false otherwise
      * @param isSuspension True if we need to trigger suspension algorithm and false otherwise
      * @param isResize True if we need to trigger resize algorithm and false otherwise
@@ -335,14 +325,14 @@ public final class Ede {
      * @see {@link Action#collapsed(List)}
      */
     public @NonNull List<@NonNull Action> generateHeadroomActions(@NonNull Economy economy,
-                                                          boolean isShopTogether, boolean isProvision, boolean isSuspension,
+                    boolean isProvision, boolean isSuspension,
                                                           boolean isResize, boolean collapse) {
         boolean isPlan = true;
         // create a subset list of markets that have at least one buyer that can move
         economy.composeMarketSubsetForPlacement();
         @NonNull List<Action> actions = new ArrayList<>();
         // balance entities in plan
-        actions.addAll(generateActions(economy, isPlan, isShopTogether, isProvision, isSuspension, isResize));
+        actions.addAll(generateActions(economy, isPlan, isProvision, isSuspension, isResize));
         logger.info("Plan completed initial placement with " + actions.size() + " actions.");
         int oldIndex = economy.getTraders().size();
         // add clones of sampleSE to the economy
@@ -360,7 +350,7 @@ public final class Ede {
 
         int oldActionCount = actions.size();
 
-        actions.addAll(generateActions(economy, isPlan, isShopTogether, isProvision, isSuspension, isResize));
+        actions.addAll(generateActions(economy, isPlan, isProvision, isSuspension, isResize));
         logger.info("Plan completed placement after adding demand with " + (actions.size() - oldActionCount)
                     + " actions.");
         return actions;

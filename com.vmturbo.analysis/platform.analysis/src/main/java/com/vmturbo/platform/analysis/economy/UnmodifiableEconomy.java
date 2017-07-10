@@ -226,6 +226,13 @@ public interface UnmodifiableEconomy {
     List<@NonNull @ReadOnly ShoppingList> getInactiveOrIdleTraders();
 
     /**
+     * @return An unmodifiable list of shop together VMs
+     */
+    @NonNull
+    @ReadOnly
+    List<@NonNull @ReadOnly Trader> getShopTogetherTraders();
+
+    /**
      * @return list of {@link TraderTO}s
      */
     List<TraderTO> getTradersForHeadroom();
