@@ -156,6 +156,9 @@ message TraderSettingsTO {
 
     // This field specifies if we can do resize down in the real time market
     optional bool isEligibleForResizeDown = 7;
+
+    // This field specifies if a trader should shop together or not
+    optional bool isShopTogether = 8;
 }
 
 // The different states a trader can be in. The intention is to make this a boolean once we confirm

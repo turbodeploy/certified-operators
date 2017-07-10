@@ -22,21 +22,17 @@ import "PriceIndexDTOs.proto";
 
 // The message to send before any trader of a new full topology.
 message StartDiscoveredTopology {
-    // The flag to indicate if the flag to indicate if shoptogether placement decisions for
-    // the economy should be used
-    required bool enableShopTogether = 1;
-
     // The flag to indicate if we should classify Actions
-    required bool classifyActions = 2;
+    required bool classifyActions = 1;
 
-    // The flag to indicate if we should replay Actions
-    required bool replayActions = 3;
+    // The flag to indicate if we we should replay Actions
+    required bool replayActions = 2;
+
+    // Economy Settings
+    required EconomySettingsTO economySettings = 3;
 
     // The flag to indicate if this analysis run is for realtime
     required bool realTime = 4;
-
-    // Economy Settings
-    required EconomySettingsTO economySettings = 5;
 }
 
 // The message to force a running plan to stop
