@@ -1,20 +1,19 @@
 package com.vmturbo.platform.analysis.actions;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 
 import org.apache.log4j.Logger;
 import org.junit.Test;
 
 import com.vmturbo.platform.analysis.economy.Basket;
-import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.ede.ActionClassifier;
@@ -211,7 +210,7 @@ public class ExecutableActionsTest {
             classifier.classify(actions);
             // resize up non-executable, resize down executable
             assertTrue(actions.size() == 1);
-            assertTrue(classifier.getExecutable() == 0);
+            assertTrue(classifier.getExecutable() == 1);
             logger.info(classifier.getExecutable());
         }
         catch (Exception e) {
