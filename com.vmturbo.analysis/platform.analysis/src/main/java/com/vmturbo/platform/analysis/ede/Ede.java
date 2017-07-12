@@ -169,21 +169,21 @@ public final class Ede {
         // Start by provisioning enough traders to satisfy all the demand
         // Save first call to before() to calculate total plan time
         Instant begin = statsUtils.before();
-        Ledger ledger = new Ledger(economy);
         if (isProvision) {
             actions.addAll(BootstrapSupply.bootstrapSupplyDecisions(economy));
-            logger.info(actionStats.phaseLogEntry("bootstrap"));
-            // time to run bootstrap
-            statsUtils.after();
-
-            statsUtils.before();
-            // run placement algorithm to balance the environment
-            actions.addAll(Placement.runPlacementsTillConverge(economy, ledger,
-                                                               EconomyConstants.PLACEMENT_PHASE));
-            logger.info(actionStats.phaseLogEntry("placement"));
-            // time to run initial placement
-            statsUtils.after();
         }
+        logger.info(actionStats.phaseLogEntry("bootstrap"));
+        // time to run bootstrap
+        statsUtils.after();
+
+        statsUtils.before();
+        Ledger ledger = new Ledger(economy);
+        // run placement algorithm to balance the environment
+        actions.addAll(Placement.runPlacementsTillConverge(economy, ledger,
+                        EconomyConstants.PLACEMENT_PHASE));
+        logger.info(actionStats.phaseLogEntry("placement"));
+        // time to run initial placement
+        statsUtils.after();
 
         statsUtils.before();
         if (isResize) {

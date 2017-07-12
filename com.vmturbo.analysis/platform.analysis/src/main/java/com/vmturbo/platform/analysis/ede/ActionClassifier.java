@@ -43,7 +43,7 @@ public class ActionClassifier {
         // Step 1 - mark actions we know to be non-executable
         markProvisionsNonExecutable(actions);
         markSuspensionsNonEmptyTradersNonExecutable(actions);
-        markResizeUpsExecutable(actions);
+        markResizeUpsNonExecutable(actions);
 
         // Step 2 - mark actions we know to be executable
         markResizeDownsExecutable(actions);
@@ -158,21 +158,16 @@ public class ActionClassifier {
     }
 
     /**
-     * Mark resize ups as executable.
-     *
-     * Resize decisions are taken before any other action, so they are executable at the
-     * source, and all further moves guarantee they can fit in the destination, so they are
-     * executable there as well. Should we change the order, we need to change this and use
-     * the code in RB-15408
+     * Mark resize ups as non-executable
      *
      * @param actions The list of actions to be classified.
      */
-    private void markResizeUpsExecutable(@NonNull List<Action> actions) {
+    private void markResizeUpsNonExecutable(@NonNull List<Action> actions) {
         actions.stream().filter(a -> a instanceof Resize)
         .forEach(a -> {
                           Resize r = (Resize) a;
                           if (r.getNewCapacity() > r.getOldCapacity()) {
-                              r.setExecutable(true);
+                              r.setExecutable(false);
                           }
                       });
     }
