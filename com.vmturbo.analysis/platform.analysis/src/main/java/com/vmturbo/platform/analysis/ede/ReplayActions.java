@@ -157,7 +157,7 @@ public class ReplayActions {
                 }
             } catch(Exception e) {
                 if (logger.isDebugEnabled()) {
-                    logger.debug("Could not replay " + a.toString());
+                    logger.debug("Could not replay " + a.toString(), e);
                 }
             }
         });
@@ -229,7 +229,7 @@ public class ReplayActions {
                 }
             }
         }
-        return null;
+        throw new IllegalArgumentException("Unable to translate shopping list " + basket.toString());
     }
 
     /**
