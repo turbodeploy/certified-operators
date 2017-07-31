@@ -197,7 +197,7 @@ public class Ledger {
             double commSoldUtil = commSold.getQuantity()/commSold.getEffectiveCapacity();
             if (commSoldUtil != 0) {
                 PriceFunction pf = commSold.getSettings().getPriceFunction();
-                double revFromComm = pf.unitPrice(commSoldUtil) * commSoldUtil;
+                double revFromComm = pf.unitPrice(commSoldUtil, seller, commSold, economy) * commSoldUtil;
                 if (topRev[0] < revFromComm) {
                     topRev[1] = topRev[0];
                     topRev[0] = revFromComm;
@@ -217,8 +217,10 @@ public class Ledger {
                 if (cs != null) {
                     PriceFunction pf = cs.getSettings().getPriceFunction();
                     tempCurrMinMaxRev[0] = tempCurrMinMaxRev[0] + topRev[i];
-                    tempCurrMinMaxRev[1] = tempCurrMinMaxRev[1] + pf.unitPrice(sellerMinDesUtil);
-                    tempCurrMinMaxRev[2] = tempCurrMinMaxRev[2] + pf.unitPrice(sellerMaxDesUtil);
+                    tempCurrMinMaxRev[1] = tempCurrMinMaxRev[1] + pf.unitPrice(sellerMinDesUtil
+                                                                           , seller, cs, economy);
+                    tempCurrMinMaxRev[2] = tempCurrMinMaxRev[2] + pf.unitPrice(sellerMaxDesUtil
+                                                                           , seller, cs, economy);
                 }
             }
         });
@@ -338,6 +340,7 @@ public class Ledger {
             resetTraderIncomeStatement(buyer);
             List<CommoditySold> commSoldList = buyer.getCommoditiesSold();
             for (int commSoldIndex = 0; commSoldIndex < commSoldList.size(); commSoldIndex++) {
+                // cs is the CommoditySold by the buyer
                 CommoditySold cs = commSoldList.get(commSoldIndex);
                 // compute rev/exp for resizable commodities
                 if (!cs.getSettings().isResizable()) {
@@ -358,9 +361,9 @@ public class Ledger {
                     continue;
                 }
 
-                commSoldIS.setRevenues(pf.unitPrice(commSoldUtil)*commSoldUtil);
-                commSoldIS.setMaxDesiredRevenues(pf.unitPrice(maxDesUtil)*maxDesUtil);
-                commSoldIS.setMinDesiredRevenues(pf.unitPrice(minDesUtil)*minDesUtil);
+                commSoldIS.setRevenues(pf.unitPrice(commSoldUtil, buyer, cs, economy)*commSoldUtil);
+                commSoldIS.setMaxDesiredRevenues(pf.unitPrice(maxDesUtil, buyer, cs, economy)*maxDesUtil);
+                commSoldIS.setMinDesiredRevenues(pf.unitPrice(minDesUtil, buyer, cs, economy)*minDesUtil);
 
                 List<Integer> typeOfCommsBought = economy.getRawMaterials(buyer.getBasketSold()
                                                              .get(commSoldIndex).getBaseType());
@@ -399,12 +402,14 @@ public class Ledger {
 
                             commSoldIS.setExpenses(commSoldIS.getExpenses()
                                           + priceFunction.unitPrice(commSoldBySeller.getQuantity()
-                                                 /commSoldBySeller.getEffectiveCapacity())
-                                                     *commBoughtUtil);
+                                                 /commSoldBySeller.getEffectiveCapacity(), supplier
+                                                 , commSoldBySeller, economy) *commBoughtUtil);
                             commSoldIS.setMaxDesiredExpenses(commSoldIS.getMaxDesiredExpenses()
-                                          + priceFunction.unitPrice(maxDesUtil) * commBoughtUtil);
+                                          + priceFunction.unitPrice(maxDesUtil, supplier
+                                                 , commSoldBySeller, economy) * commBoughtUtil);
                             commSoldIS.setMinDesiredExpenses(commSoldIS.getMinDesiredExpenses()
-                                          + priceFunction.unitPrice(minDesUtil) * commBoughtUtil);
+                                          + priceFunction.unitPrice(minDesUtil, supplier
+                                                 , commSoldBySeller, economy) * commBoughtUtil);
                         }
                     }
                 }

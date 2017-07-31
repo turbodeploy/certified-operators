@@ -334,7 +334,8 @@ public final class AnalysisToProtobuf {
                             " buyer=" + move.getActionTarget().getDebugInfoNeverUseInCode());
             }
             moveTO.setDestination(traderOid.get(newSupplier));
-            moveTO = explainMoveAction(move.getSource(), newSupplier, traderOid, move, moveTO);
+            moveTO = explainMoveAction(move.getSource(), newSupplier, traderOid, move, moveTO,
+                                       topology.getEconomy());
             builder.setMove(moveTO);
 
         } else if (input instanceof Reconfigure) {
@@ -358,7 +359,7 @@ public final class AnalysisToProtobuf {
                             .setTraderToActivate(traderOid.get(activate.getTarget()))
                             .setModelSeller(traderOid.get(activate.getModelSeller()))
                             .setMostExpensiveCommodity(findMostExpensiveCommodity(activate
-                                            .getModelSeller()).getBaseType())
+                                            .getModelSeller(), topology.getEconomy()).getBaseType())
                 .addAllTriggeringBasket(specificationTOs(activate.getSourceMarket().getBasket())));
         } else if (input instanceof Deactivate) {
             Deactivate deactivate = (Deactivate)input;
@@ -424,7 +425,7 @@ public final class AnalysisToProtobuf {
                 .setProvisionedSeller(topology.addProvisionedTrader(
                                 provSupply.getProvisionedSeller()))
                 .setMostExpensiveCommodity(findMostExpensiveCommodity(provSupply
-                                .getModelSeller()).getBaseType());
+                                .getModelSeller(), topology.getEconomy()).getBaseType());
             // set oid for use in the next round for replaying of actions
             provSupply.setOid(topology.getTraderOids().get(provSupply.getProvisionedSeller()));
             // create shopping list OIDs for the provisioned shopping lists
@@ -575,19 +576,21 @@ public final class AnalysisToProtobuf {
      * Finds the commodity with the highest price for a given trader.
      *
      * @param modelSeller the model seller used in provision or activation
+     * @param economy that the commodities are traded in
      * @return the {@link CommoditySpecification} of the most expensive commodity
      */
-    private static CommoditySpecification findMostExpensiveCommodity(Trader modelSeller) {
+    private static CommoditySpecification findMostExpensiveCommodity(Trader modelSeller,
+                                                                     UnmodifiableEconomy economy) {
         double mostExpensivePrice = 0;
         CommoditySpecification mostExpensiveComm = null;
         // we find the most expensive commodity at the start state to explain the provisionBySupply
         for (CommoditySold c : modelSeller.getCommoditiesSold()) {
             double usedPrice = c.getSettings().getPriceFunction().unitPrice(c.getStartQuantity() /
-                            c.getEffectiveCapacity());
+                            c.getEffectiveCapacity(), modelSeller, c, economy);
             double peakPrice = c.getSettings().getPriceFunction().unitPrice(Math.max(0,
                             c.getStartPeakQuantity() - c.getStartQuantity())
                                / (c.getEffectiveCapacity() - c.getSettings().getUtilizationUpperBound()
-                                               * c.getStartQuantity()));
+                                               * c.getStartQuantity()), modelSeller, c, economy);
             double greaterPrice = usedPrice > peakPrice ? usedPrice : peakPrice;
             if (mostExpensivePrice < greaterPrice) {
                 mostExpensivePrice = greaterPrice;
@@ -624,11 +627,12 @@ public final class AnalysisToProtobuf {
      * @param traderOid A map for {@link Trader}s to their OIDs
      * @param move the move action to explain
      * @param moveTO the DTO for the move action to explain
+     * @param economy that the actions re generated in
      * @return The resulting {@link MoveTO.Builder}.
      */
     private static MoveTO.Builder explainMoveAction(Trader oldSupplier, Trader newSupplier,
                     @NonNull BiMap<@NonNull Trader, @NonNull Long> traderOid, Move move,
-                    MoveTO.Builder moveTO) {
+                    MoveTO.Builder moveTO, UnmodifiableEconomy economy) {
         if (oldSupplier == null) {
             // when the source does not exist, move is actually initial placement.
             moveTO.setMoveExplanation(MoveExplanation.newBuilder().setInitialPlacement(
@@ -674,8 +678,10 @@ public final class AnalysisToProtobuf {
                         double peakQuantityBought = move.getTarget().getPeakQuantity(i);
                         // calculate the price at the old and new supplier and get the quote
                         // difference
-                        double oldQuote = calculateQuote(oldCommSold, quantityBought, peakQuantityBought);
-                        double newQuote = calculateQuote(newCommSold, quantityBought, peakQuantityBought);
+                        double oldQuote = calculateQuote(oldCommSold, quantityBought, peakQuantityBought,
+                                                         oldSupplier, economy);
+                        double newQuote = calculateQuote(newCommSold, quantityBought, peakQuantityBought,
+                                                         newSupplier, economy);
                         double quoteDiff = newQuote - oldQuote;
 
                         // if the difference in quote is positive, or it is not bigger than
@@ -740,20 +746,23 @@ public final class AnalysisToProtobuf {
      * @param commSold The {@link CommoditySold} to compute the quote
      * @param quantityBought The quantity bought of the commodity
      * @param peakQuantityBought The peak quantity bought of the commodity
+     * @param seller is the seller that sells the commSold
+     * @param economy that the commodities are traded in
      * @return quote for the given {@link CommoditySold}
      */
     private static double calculateQuote(CommoditySold commSold, double quantityBought,
-                    double peakQuantityBought) {
+                    double peakQuantityBought, Trader seller, UnmodifiableEconomy economy) {
         PriceFunction pf = commSold.getSettings().getPriceFunction();
         double startQuantity = commSold.getStartQuantity();
         double startPeakQuantity = commSold.getStartPeakQuantity();
         double effectiveCapacity = commSold.getEffectiveCapacity();
         double excessQuantity = peakQuantityBought - quantityBought;
 
-        double usedPrice = pf.unitPrice(startQuantity / effectiveCapacity);
+        double usedPrice = pf.unitPrice(startQuantity / effectiveCapacity, seller, commSold, economy);
         double peakPrice = pf.unitPrice(Math.max(0, startPeakQuantity - startQuantity)/
                                         (effectiveCapacity - commSold.getSettings()
-                                                        .getUtilizationUpperBound()*startQuantity));
+                                                        .getUtilizationUpperBound()*startQuantity)
+                                                        , seller, commSold, economy);
 
         return ((((quantityBought == 0) ? 0 : quantityBought * usedPrice) +
                         excessQuantity > 0 ? excessQuantity * peakPrice : 0)) / effectiveCapacity;

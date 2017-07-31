@@ -81,7 +81,8 @@ public class Resizer {
                             double newRevenue = desiredROI * expenses;
                             double currentRevenue = incomeStatement.getRevenues();
                             double desiredCapacity =
-                               calculateDesiredCapacity(commoditySold, currentRevenue, newRevenue);
+                               calculateDesiredCapacity(commoditySold, currentRevenue, newRevenue
+                                                        , seller, economy);
                             CommoditySold rawMaterial = findSellerCommodity(economy, seller,
                                                                             soldIndex);
                             double newEffectiveCapacity =
@@ -263,7 +264,8 @@ public class Resizer {
      * @throws Exception If it cannot find the new capacity.
      */
     private static double calculateDesiredCapacity(CommoditySold resizeCommodity,
-                                                   double currentRevenue, double newRevenue) {
+                                                   double currentRevenue, double newRevenue,
+                                                   Trader seller, Economy economy) {
         double currentQuantity = resizeCommodity.getQuantity();
         PriceFunction priceFunction = resizeCommodity.getSettings().getPriceFunction();
 
@@ -272,7 +274,8 @@ public class Resizer {
         double intervalMax = Math.nextAfter(1.0, 0.0);
 
         // solve revenueFunction(u) = newRevenue for u in (intervalMin,intervalMax)
-        DoubleUnaryOperator revenueFunction = (u) -> u * priceFunction.unitPrice(u) - newRevenue;
+        DoubleUnaryOperator revenueFunction = (u) -> u * priceFunction.unitPrice(u,
+                                                         seller, resizeCommodity, economy) - newRevenue;
         // pass in a function to calculate error in capacity for utilization interval (x,y)
         DoubleBinaryOperator errorFunction = (x, y) -> currentQuantity / x - currentQuantity / y;
         // we will change capacity in steps of capacity increment so we can stop when error in

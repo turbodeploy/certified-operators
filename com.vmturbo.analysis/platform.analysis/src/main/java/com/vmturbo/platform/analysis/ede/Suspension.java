@@ -147,8 +147,9 @@ public class Suspension {
                 for (CommoditySold cs : seller.getCommoditiesSold()) {
                     // skip if step and constant priceFns
                     PriceFunction pf = cs.getSettings().getPriceFunction();
-                    double priceAtMaxUtil = pf.unitPrice(util);
-                    if (!((priceAtMaxUtil == pf.unitPrice(0.0)) || (priceAtMaxUtil == pf.unitPrice(1.0)))) {
+                    double priceAtMaxUtil = pf.unitPrice(util, seller, cs, economy);
+                    if (!((priceAtMaxUtil == pf.unitPrice(0.0, seller, cs, economy)) ||
+                                    (priceAtMaxUtil == pf.unitPrice(1.0, seller, cs, economy)))) {
                         cs.getSettings().setUtilizationUpperBound(util);
                     }
                 }

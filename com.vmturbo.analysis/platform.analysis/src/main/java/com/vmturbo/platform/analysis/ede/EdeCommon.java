@@ -119,9 +119,9 @@ public final class EdeCommon {
 
         // calculate the price per unit for quantity and peak quantity
         final PriceFunction pf = commSold.getSettings().getPriceFunction();
-        final double priceUsed = pf.unitPrice(newQuantity/effectiveCapacity);
+        final double priceUsed = pf.unitPrice(newQuantity/effectiveCapacity, seller, commSold, economy);
         final double pricePeak = pf.unitPrice(Math.max(0, newPeakQuantity-newQuantity)
-                               / (effectiveCapacity - utilUpperBound*newQuantity));
+                               / (effectiveCapacity - utilUpperBound*newQuantity), seller, commSold, economy);
 
         // calculate quote
         // TODO: decide what to do if peakQuantity is less than quantity
@@ -129,10 +129,10 @@ public final class EdeCommon {
                         excessQuantity*pricePeak : 0)) / effectiveCapacity;
 
         if (forTraderIncomeStmt && costCurrentMinMax[0] != 0) {
-            costCurrentMinMax[1] = pf.unitPrice(seller.getSettings().getMinDesiredUtil())
-                                                *boughtQnty / effectiveCapacity;
-            costCurrentMinMax[2] = pf.unitPrice(seller.getSettings().getMaxDesiredUtil())
-                                                *boughtQnty / effectiveCapacity;
+            costCurrentMinMax[1] = pf.unitPrice(seller.getSettings().getMinDesiredUtil(), seller
+                                                , commSold, economy)*boughtQnty / effectiveCapacity;
+            costCurrentMinMax[2] = pf.unitPrice(seller.getSettings().getMaxDesiredUtil(), seller
+                                                , commSold, economy)*boughtQnty / effectiveCapacity;
         } else {
             costCurrentMinMax[1] = costCurrentMinMax[2] = 0;
         }

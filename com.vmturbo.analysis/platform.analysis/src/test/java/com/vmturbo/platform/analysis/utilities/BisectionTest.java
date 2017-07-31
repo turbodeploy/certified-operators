@@ -23,7 +23,7 @@ public class BisectionTest {
         double intervalEnd = 0.99;
         int maxIterations = 53;
         try {
-            DoubleUnaryOperator func = (u) -> u * pfunc.unitPrice(u) - target;
+            DoubleUnaryOperator func = (u) -> u * pfunc.unitPrice(u, null, null, null) - target;
             DoubleBinaryOperator errorFunction = (x, y) -> currentQuantity / x - currentQuantity / y;
             double root = Bisection.solve(capacityIncrement, errorFunction, maxIterations, func, intervalBegin, intervalEnd);
             double newCapacity = currentQuantity / root;

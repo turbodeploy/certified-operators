@@ -41,12 +41,12 @@ public class CacheTest {
         PriceFunction pf3b = Cache.createStandardWeightedPriceFunction(CONST2);
         assertNotSame(pf3b, pf3a);
 
-        PriceFunction uod = u -> u * u;
+        PriceFunction uod = (u, seller, commSold, economy) -> u * u;
         PriceFunction pf4a = Cache.createPriceFunction(uod);
         PriceFunction pf4b = Cache.createPriceFunction(uod);
         assertSame(pf4a, pf4b);
 
-        PriceFunction pf4c = Cache.createPriceFunction(u -> u * u);
+        PriceFunction pf4c = Cache.createPriceFunction((u, seller, commSold, economy) -> u * u);
         // although the function is the same, these are two distinct instances
         assertNotSame(pf4b, pf4c);
     }
@@ -64,7 +64,7 @@ public class CacheTest {
      * Test that the values returned by the constant price function are as expected
      */
     public void testValuesConst(double u, double ut, double p) {
-        assertEquals(CONST, pfConst.unitPrice(u/ut), delta);
+        assertEquals(CONST, pfConst.unitPrice(u/ut, null, null, null), delta);
     }
 
     @SuppressWarnings("unused")
@@ -88,7 +88,7 @@ public class CacheTest {
      * Test that the values returned by the step price function are as expected
      */
     public void testValuesStep(double u, double ut, double p) {
-        assertEquals(p, pfStep.unitPrice(u/ut), delta);
+        assertEquals(p, pfStep.unitPrice(u/ut, null, null, null), delta);
     }
 
     @SuppressWarnings("unused")
@@ -111,7 +111,7 @@ public class CacheTest {
      * Test that the values returned by the standard weighted price function are as expected
      */
     public void testValuesStandardWeighted(double u, double factor) {
-        assertEquals(factor * WEIGHT, pfStd.unitPrice(u), delta);
+        assertEquals(factor * WEIGHT, pfStd.unitPrice(u, null, null, null), delta);
     }
 
     @SuppressWarnings("unused")
@@ -123,7 +123,7 @@ public class CacheTest {
         };
     }
 
-    private static final PriceFunction uod = u -> 0.7 + u + u * u;
+    private static final PriceFunction uod = (u, seller, commSold, economy) -> 0.7 + u + u * u;
     private static final PriceFunction pfCustom = Cache.createPriceFunction(uod);
 
     /**
@@ -133,7 +133,7 @@ public class CacheTest {
     @Parameters
     @TestCaseName("Test #{index}: Custom price function with value {0}")
     public void testCustom(double d) {
-        assertEquals(pfCustom.unitPrice(d), uod.unitPrice(d), delta);
+        assertEquals(pfCustom.unitPrice(d, null, null, null), uod.unitPrice(d, null, null, null), delta);
     }
 
     @SuppressWarnings("unused") // it is used reflectively
@@ -145,7 +145,7 @@ public class CacheTest {
     @Parameters
     @TestCaseName("Test #{index}: {1} function")
     public void testMaxPrice(PriceFunction pf, String name) {
-        assertTrue(pf.unitPrice(ONE) <= Cache.MAX_UNIT_PRICE);
+        assertTrue(pf.unitPrice(ONE, null, null, null) <= Cache.MAX_UNIT_PRICE);
     }
 
     @SuppressWarnings("unused")
