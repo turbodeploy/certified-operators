@@ -7,6 +7,8 @@ import java.util.Map;
 import java.util.function.LongFunction;
 import java.util.stream.Collectors;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.platform.analysis.actions.Action;
@@ -17,6 +19,7 @@ import com.vmturbo.platform.analysis.actions.ProvisionByDemand;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
 import com.vmturbo.platform.analysis.actions.Reconfigure;
 import com.vmturbo.platform.analysis.actions.Resize;
+import com.vmturbo.platform.analysis.drivers.AnalysisServer;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommodityResizeSpecification;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
@@ -56,7 +59,7 @@ import com.vmturbo.platform.analysis.utilities.DoubleTernaryOperator;
  */
 public final class ProtobufToAnalysis {
     // Methods for converting PriceFunctionDTOs.
-
+    private static final Logger logger = LogManager.getLogger(ProtobufToAnalysis.class);
     /**
      * Converts a {@link PriceFunctionTO} to a {@link PriceFunction}.
      *

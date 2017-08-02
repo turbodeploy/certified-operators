@@ -5,7 +5,8 @@ import static com.google.common.base.Preconditions.checkArgument;
 import java.time.Instant;
 import java.util.ArrayList;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.platform.analysis.actions.Action;
@@ -40,7 +41,7 @@ public class ActionStats {
     private static final String PHYSICAL_MACHINE = "PhysicalMachine";
     private static final String VIRTUAL_MACHINE = "VirtualMachine";
 
-    static final Logger logger = Logger.getLogger(ActionStats.class);
+    static final Logger logger = LogManager.getLogger(ActionStats.class);
 
     /**
      * Data object to hold the counts for various action types.

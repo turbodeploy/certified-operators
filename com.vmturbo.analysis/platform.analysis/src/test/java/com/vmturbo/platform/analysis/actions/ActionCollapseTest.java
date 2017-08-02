@@ -20,7 +20,7 @@ import com.vmturbo.platform.analysis.economy.TraderState;
 /**
  * A test case for the {@link Action} interface.
  */
-public class ActionTest {
+public class ActionCollapseTest {
 
     private static final Basket EMPTY = new Basket();
     private static final Basket BASKET = new Basket(new CommoditySpecification(0), new CommoditySpecification(1));
@@ -44,12 +44,12 @@ public class ActionTest {
 
         List<Action> actions = new ArrayList<>();
         // An empty list is collapsed to an empty list
-        List<Action> collapsed = Action.collapsed(actions);
+        List<Action> collapsed = ActionCollapse.collapsed(actions);
         assertTrue(collapsed.isEmpty());
 
         // List with one Move is collapsed to the same list
         actions.add(new Move(EC, p1, s1, s2));
-        collapsed = Action.collapsed(actions);
+        collapsed = ActionCollapse.collapsed(actions);
         assertEquals(collapsed, actions);
 
         // Move from S2 to S1 cancels Move from S1 to S2
@@ -57,13 +57,13 @@ public class ActionTest {
         // First verify the 'combine keys' of Move actions with the same shopping list are the same
         assertEquals(actions.get(0).getCombineKey(), actions.get(1).getCombineKey());
         // Now verify the actions are collapsed properly
-        collapsed = Action.collapsed(actions);
+        collapsed = ActionCollapse.collapsed(actions);
         assertTrue(collapsed.isEmpty());
         // Move from s1 to s2 to s3 collapsed to move from s1 to s3
         actions = new ArrayList<>();
         actions.add(new Move(EC, p1, s1, s2));
         actions.add(new Move(EC, p1, s2, s3));
-        collapsed = Action.collapsed(actions);
+        collapsed = ActionCollapse.collapsed(actions);
         // TODO: Add equals to Move
         //List<Action> expectedCollapsed = Lists.newArrayList(new Move(EC, p1, s1, s3));
         //assertEquals(expectedCollapsed, collapsed);
@@ -78,7 +78,7 @@ public class ActionTest {
         actions.add(new Move(EC, p1, s1, s2));
         actions.add(new Move(EC, p1, s2, s3));
         actions.add(new Move(EC, p1, s3, s1));
-        collapsed = Action.collapsed(actions);
+        collapsed = ActionCollapse.collapsed(actions);
         assertTrue(collapsed.isEmpty());
 
         // More shopping lists
@@ -90,17 +90,17 @@ public class ActionTest {
         assertNotEquals(actions.get(0).getCombineKey(), actions.get(1).getCombineKey());
 
         // Collapsing two moves of different shopping lists returns the same list
-        collapsed = Action.collapsed(actions);
+        collapsed = ActionCollapse.collapsed(actions);
         assertEquals(collapsed, actions);
 
         // Move one shopping list back. It should cancel the other move for the same shopping list.
         actions.add(new Move(EC, p1, s2, s1));
-        collapsed = Action.collapsed(actions);
+        collapsed = ActionCollapse.collapsed(actions);
         assertSame(collapsed.get(0), actions.get(1));
 
         // Move the other shopping lists back. Collapsed list should be empty.
         actions.add(new Move(EC, p2, s3, s1));
-        collapsed = Action.collapsed(actions);
+        collapsed = ActionCollapse.collapsed(actions);
         assertTrue(collapsed.isEmpty());
     }
 
@@ -117,7 +117,7 @@ public class ActionTest {
         // This also tests that the argument list is not modified.
         // An attempt to modify it (in collapsed) will throw UnsupportedOperationException
         actions = Collections.unmodifiableList(actions);
-        List<Action> collapsed = Action.collapsed(actions);
+        List<Action> collapsed = ActionCollapse.collapsed(actions);
         assertEquals(collapsed, actions);
     }
 
@@ -133,7 +133,7 @@ public class ActionTest {
         Resize r2 = new Resize(EC, t, new CommoditySpecification(0), cap2);
         Resize r3 = new Resize(EC, t, new CommoditySpecification(0), cap3);
         List<Action> actions = Lists.newArrayList(r1, r2, r3);
-        List<Action> collapsed = Action.collapsed(actions);
+        List<Action> collapsed = ActionCollapse.collapsed(actions);
         assertEquals(1, collapsed.size());
         Resize collapsedResize = (Resize)collapsed.get(0);
         assertEquals(cap3, collapsedResize.getNewCapacity(), 1e-5);
@@ -141,7 +141,7 @@ public class ActionTest {
         // Add another Resize so that the actions get cancelled
         Resize r4 = new Resize(EC, t, new CommoditySpecification(0), cap0);
         actions.add(r4);
-        collapsed = Action.collapsed(actions);
+        collapsed = ActionCollapse.collapsed(actions);
         assertTrue(collapsed.isEmpty());
     }
 
@@ -156,7 +156,7 @@ public class ActionTest {
         // Resize a different target
         Resize r2 = new Resize(EC, t2, new CommoditySpecification(1), 10);
         List<Action> actions = Lists.newArrayList(r1_0, r1_1, r2);
-        List<Action> collapsedActions = Action.collapsed(actions);
+        List<Action> collapsedActions = ActionCollapse.collapsed(actions);
         assertEquals(actions, collapsedActions);
     }
 
@@ -187,7 +187,7 @@ public class ActionTest {
                 r2c0_2, // will merge with r2c0_1
                 r2c1_2 // will cancel r2c1_1
                 );
-        List<Action> collapsedActions = Action.collapsed(actions);
+        List<Action> collapsedActions = ActionCollapse.collapsed(actions);
         // The expected actions are:
         // a Resize on t1 of commodity 0 to 20
         // a Resize on t2 of commodity 0 to 60
@@ -222,20 +222,20 @@ public class ActionTest {
         ProvisionByDemand provD1 = (ProvisionByDemand)new ProvisionByDemand(EC, s1, p1).take();
         Deactivate d2 = new Deactivate(EC, provD1.getProvisionedSeller(), EC.getMarket(BASKET));
         List<Action> sequence1 = new ArrayList<Action>(Arrays.asList(provD1, d2));
-        assertTrue(Action.collapsed(sequence1).isEmpty());
+        assertTrue(ActionCollapse.collapsed(sequence1).isEmpty());
         // suppose the sequence for actions are : ProvisionBySupply -> Move -> Deactivate
         ProvisionBySupply provS1 = (ProvisionBySupply)new ProvisionBySupply(EC, p1).take();
         Deactivate d3 = new Deactivate(EC, provS1.getProvisionedSeller(), EC.getMarket(BASKET));
         ShoppingList sl3 = EC.addBasketBought(provS1.getProvisionedSeller(), BASKET2);
         Move m3 = new Move(EC, sl3, dc1);
         List<Action> sequence2 = new ArrayList<Action>(Arrays.asList(provS1, m3, d3));
-        assertTrue(Action.collapsed(sequence2).isEmpty());
+        assertTrue(ActionCollapse.collapsed(sequence2).isEmpty());
         // suppose the sequence for actions are: ProvisionBySupply1 -> ProvisionBySupply2 -> Deactivate1
         ProvisionBySupply provS5 = (ProvisionBySupply)new ProvisionBySupply(EC, p2).take();
         ProvisionBySupply provS6 = (ProvisionBySupply)new ProvisionBySupply(EC, p2).take();
         Deactivate d5 = new Deactivate(EC, provS5.getProvisionedSeller(), EC.getMarket(BASKET));
         List<Action> sequence3 = new ArrayList<Action>(Arrays.asList(provS5, provS6, d5));
-        List<Action> results3 = Action.collapsed(sequence3);
+        List<Action> results3 = ActionCollapse.collapsed(sequence3);
         assertEquals(1, results3.size());
         assertEquals(provS6, results3.get(0));
         // suppose the sequence for actions are : ProvisionBySupply1 -> ProvisionByDemand2 -> Deactivate2
@@ -243,12 +243,12 @@ public class ActionTest {
         ProvisionByDemand provD8 = (ProvisionByDemand)new ProvisionByDemand(EC, s1, p1).take();
         Deactivate d6 = new Deactivate(EC, provD8.getProvisionedSeller(), EC.getMarket(BASKET));
         List<Action> sequence4 = new ArrayList<Action>(Arrays.asList(provS7, provD8, d6));
-        List<Action> results4 = Action.collapsed(sequence4);
+        List<Action> results4 = ActionCollapse.collapsed(sequence4);
         assertEquals(1, results4.size());
         assertEquals(provS7, results4.get(0));
         // suppose the sequence for actions with different traders
         List<Action> sequence5 = new ArrayList<Action>(Arrays.asList(provS1, m3, d5));
-        List<Action> results5 = Action.collapsed(sequence5);
+        List<Action> results5 = ActionCollapse.collapsed(sequence5);
         assertEquals(3, results5.size());
     }
 }

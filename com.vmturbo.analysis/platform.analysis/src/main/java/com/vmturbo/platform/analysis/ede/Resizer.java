@@ -7,7 +7,8 @@ import java.util.List;
 import java.util.function.DoubleBinaryOperator;
 import java.util.function.DoubleUnaryOperator;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -32,7 +33,7 @@ import com.vmturbo.platform.analysis.utilities.DoubleTernaryOperator;
  */
 public class Resizer {
 
-    static final Logger logger = Logger.getLogger(Resizer.class);
+    static final Logger logger = LogManager.getLogger(Resizer.class);
 
     // Maximum number of iterations for Bisection method to ensure we never loop indefinitely
     // For the interval (0,1) Bisection will halve the interval on each iteration. Double use

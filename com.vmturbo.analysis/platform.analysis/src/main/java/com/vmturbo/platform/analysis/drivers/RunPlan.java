@@ -6,9 +6,11 @@ import java.util.List;
 
 import javax.xml.parsers.ParserConfigurationException;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.platform.analysis.actions.Action;
+import com.vmturbo.platform.analysis.actions.ActionCollapse;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.ede.Ede;
 import com.vmturbo.platform.analysis.topology.LegacyTopology;
@@ -20,7 +22,7 @@ import com.vmturbo.platform.analysis.utilities.M2Utils;
  */
 public final class RunPlan {
     // Fields
-    private static final Logger logger = Logger.getLogger(RunPlan.class);
+    private static final Logger logger = LogManager.getLogger(RunPlan.class);
 
     // Methods
     public static void main(String[] args) {
@@ -49,7 +51,7 @@ public final class RunPlan {
                 logger.info("");
             }
             logger.info("Before collapse : " + actions.size());
-            List<Action> collapsedActions = Action.collapsed(actions);
+            List<Action> collapsedActions = ActionCollapse.collapsed(actions);
             logger.info("After collapse : " + collapsedActions.size());
         } catch (IOException | ParseException | ParserConfigurationException e) {
             logger.error(e.toString());

@@ -53,7 +53,7 @@ public class CollapseStateChangeTest {
     @Test
     public void testCollapseActionsDifferentBPs(String actionsString, String expectedCollapsedString) {
         List<Action> actions = stringToActionsDifferentBPs(actionsString);
-        List<Action> collapsed = Action.collapsed(actions);
+        List<Action> collapsed = ActionCollapse.collapsed(actions);
         String collapsedString = actionsToString(collapsed);
         assertEquals(expectedCollapsedString, collapsedString);
     }
@@ -137,7 +137,7 @@ public class CollapseStateChangeTest {
     public void testCollapseActionsSameBP(String actionsString, String expectedCollapsedString) {
         lastMoveTo = null;
         List<Action> actions = stringToActionsSameBP(actionsString);
-        List<Action> collapsed = Action.collapsed(actions);
+        List<Action> collapsed = ActionCollapse.collapsed(actions);
         String collapsedString = actionsToString(collapsed);
         assertEquals(expectedCollapsedString, collapsedString);
         // Verify that if there is a Move then it is from the source of the first Move in actions
@@ -331,7 +331,7 @@ public class CollapseStateChangeTest {
         List<Action> expectedCollapsed = Lists.newArrayList(
                 A1_1, A1_2, A1_5, A3_5
         );
-        List<Action> collapsedSequential = Action.collapsed(actionsSequential);
+        List<Action> collapsedSequential = ActionCollapse.collapsed(actionsSequential);
         assertEquals(expectedCollapsed, collapsedSequential);
 
         // Test 2 : Interleaved
@@ -341,7 +341,7 @@ public class CollapseStateChangeTest {
                 A1_3, A2_3, A3_3,
                 A1_4, A2_4, A3_4,
                 A1_5, A3_5);
-        List<Action> collapsedInterleaved = Action.collapsed(actionsInterleaved);
+        List<Action> collapsedInterleaved = ActionCollapse.collapsed(actionsInterleaved);
         assertEquals(expectedCollapsed, collapsedInterleaved);
     }
 
@@ -355,7 +355,7 @@ public class CollapseStateChangeTest {
         actions.add(new Deactivate(EC, vm1, EC.getMarket(EMPTY)));
         actions.add(new Activate(EC, vm1, EC.getMarket(EMPTY), vm2));
         actions.add(new Move(EC, bp0, pm2, pm1));
-        List<Action> collapsed = Action.collapsed(actions);
+        List<Action> collapsed = ActionCollapse.collapsed(actions);
         assertTrue(collapsed.isEmpty());
     }
 

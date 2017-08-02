@@ -11,8 +11,12 @@ import java.util.List;
 
 import javax.xml.parsers.ParserConfigurationException;
 
-import org.apache.log4j.Level;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.core.config.Configuration;
+import org.apache.logging.log4j.core.config.LoggerConfig;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Ignore;
@@ -43,11 +47,16 @@ public class M2UtilsTest {
      * verify that applications don't buy from VMs
      */
 
-    private static Logger loggerOff = Logger.getLogger("Test.OFF");
-    private static Logger loggerTrace = Logger.getLogger("Test.TRACE");
+    private static Logger loggerOff = LogManager.getLogger("Test.OFF");
+    private static Logger loggerTrace = LogManager.getLogger("Test.TRACE");
     static {
-        loggerOff.setLevel(Level.OFF);
-        loggerTrace.setLevel(Level.TRACE);
+        LoggerContext ctx = (LoggerContext)LogManager.getContext(false);
+        Configuration config = ctx.getConfiguration();
+        LoggerConfig loggerConfig1 = config.getLoggerConfig(loggerOff.getName());
+        loggerConfig1.setLevel(Level.OFF);
+        LoggerConfig loggerConfig2 = config.getLoggerConfig(loggerTrace.getName());
+        loggerConfig2.setLevel(Level.TRACE);
+        ctx.updateLoggers();
     }
 
     private static final String REPOS_PATH = "src/test/resources/data/repos/";

@@ -11,7 +11,8 @@ import java.util.Map.Entry;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
@@ -60,7 +61,7 @@ import com.vmturbo.platform.analysis.utilities.M2Utils;
  */
 public class BootstrapSupply {
 
-    static final Logger logger = Logger.getLogger(BootstrapSupply.class);
+    static final Logger logger = LogManager.getLogger(BootstrapSupply.class);
 
     static Map<ShoppingList, Long> slsThatNeedProvBySupply = new HashMap<ShoppingList, Long>();
 

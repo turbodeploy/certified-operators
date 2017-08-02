@@ -16,8 +16,9 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
-import org.apache.log4j.Level;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.xml.sax.SAXException;
 import org.xml.sax.helpers.AttributesImpl;
@@ -122,7 +123,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
      * The class logger is Logger.getLogger(EMF2MarketHandler.class)
      */
     public EMF2MarketHandler() {
-        this(Logger.getLogger(EMF2MarketHandler.class));
+        this(LogManager.getLogger(EMF2MarketHandler.class));
     }
 
     public LegacyTopology getTopology() {
@@ -192,7 +193,8 @@ final public class EMF2MarketHandler extends DefaultHandler {
     }
 
     private void printAttributes(String prefix, Attributes attributes, Level level) {
-        if (!logger.isEnabledFor(level)) return;
+        if (logger.isEnabled(level))
+            return;
         if (attributes == null) {
             logger.log(level, prefix + null);
             return;

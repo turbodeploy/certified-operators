@@ -9,7 +9,8 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -31,7 +32,7 @@ import com.vmturbo.platform.analysis.ledger.Ledger;
  */
 public class Placement {
 
-	static final Logger logger = Logger.getLogger(Placement.class);
+    static final Logger logger = LogManager.getLogger(Placement.class);
 
     // the maximum number of placements to be 1000, when reaching this limit, we force stop
     // the placements. 1000 is a random number, it does not have any significant meaning.

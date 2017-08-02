@@ -8,10 +8,12 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.platform.analysis.actions.Action;
+import com.vmturbo.platform.analysis.actions.ActionCollapse;
 import com.vmturbo.platform.analysis.actions.Activate;
 import com.vmturbo.platform.analysis.actions.ProvisionByDemand;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
@@ -44,7 +46,7 @@ public final class Ede {
      */
     public Ede() {}
 
-    static final Logger logger = Logger.getLogger(Ede.class);
+    static final Logger logger = LogManager.getLogger(Ede.class);
 
     /**
      * Generate Actions.
@@ -240,9 +242,9 @@ public final class Ede {
         statsUtils.after();
 
         if (collapse && !economy.getForceStop()) {
-            List<@NonNull Action> collapsed = Action.collapsed(actions);
+            List<@NonNull Action> collapsed = ActionCollapse.collapsed(actions);
             // Reorder actions by type.
-            actions = Action.groupActionsByTypeAndReorderBeforeSending(collapsed);
+            actions = ActionCollapse.groupActionsByTypeAndReorderBeforeSending(collapsed);
             actionStats.setActionsList((ArrayList<Action>)actions);
         }
 

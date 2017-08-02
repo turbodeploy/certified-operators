@@ -1,6 +1,7 @@
 package com.vmturbo.platform.analysis.ede;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
 
@@ -21,7 +22,7 @@ import com.vmturbo.platform.analysis.utilities.M2Utils;
  */
 public final class EdeCommon {
 
-    static final Logger logger = Logger.getLogger(EdeCommon.class);
+    private static final Logger logger = LogManager.getLogger(EdeCommon.class);
 
     /**
      * Returns the quote offered by a seller for a shopping list bought by a buyer.

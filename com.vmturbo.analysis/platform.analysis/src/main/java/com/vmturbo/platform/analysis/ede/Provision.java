@@ -4,7 +4,8 @@ package com.vmturbo.platform.analysis.ede;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.google.common.collect.Lists;
@@ -33,7 +34,7 @@ import com.vmturbo.platform.analysis.ledger.Ledger;
  */
 public class Provision {
 
-    static final Logger logger = Logger.getLogger(Provision.class);
+    static final Logger logger = LogManager.getLogger(Provision.class);
 
     /**
      * Return a list of recommendations to optimize the cloning of all eligible traders in the

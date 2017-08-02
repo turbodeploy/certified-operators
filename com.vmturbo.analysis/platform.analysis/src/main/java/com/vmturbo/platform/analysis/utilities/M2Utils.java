@@ -8,7 +8,8 @@ import java.text.ParseException;
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.parsers.SAXParserFactory;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.xml.sax.SAXException;
 import org.xml.sax.SAXParseException;
 
@@ -63,7 +64,7 @@ public class M2Utils {
      */
     public static LegacyTopology loadStream(InputStream stream)
             throws IOException, ParserConfigurationException, ParseException {
-        return loadStream(stream, Logger.getLogger(EMF2MarketHandler.class));
+        return loadStream(stream, LogManager.getLogger(EMF2MarketHandler.class));
     }
 
     /**

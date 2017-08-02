@@ -10,7 +10,8 @@ import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.Activate;
@@ -32,7 +33,7 @@ public class EstimateSupply {
     private Ledger ledger_;
     // Map of superSeller per market
     private Map<Market, SuperSeller> marketSuperSellers_;
-    static final Logger logger = Logger.getLogger(EstimateSupply.class);
+    static final Logger logger = LogManager.getLogger(EstimateSupply.class);
     // clone and suspend sellers list
     private List<Action> actions_;
     List<Trader> suspendReverseList = new ArrayList<>();
@@ -337,7 +338,7 @@ class SuperSeller {
     private Ledger ledger_;
     private boolean cloneable_;
     private boolean suspendable_;
-    static final Logger logger = Logger.getLogger(SuperSeller.class);
+    static final Logger logger = LogManager.getLogger(SuperSeller.class);
 
     public SuperSeller(Market market, Ledger ledger) {
         commSoldList_ = new ArrayList<>();

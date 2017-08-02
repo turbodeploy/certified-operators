@@ -11,7 +11,8 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.BiMap;
 
@@ -24,7 +25,7 @@ import com.google.common.collect.BiMap;
  */
 public class BiCliquer {
 
-    static final Logger logger = Logger.getLogger(BiCliquer.class);
+    static final Logger logger = LogManager.getLogger(BiCliquer.class);
 
     private boolean computed = false;
 

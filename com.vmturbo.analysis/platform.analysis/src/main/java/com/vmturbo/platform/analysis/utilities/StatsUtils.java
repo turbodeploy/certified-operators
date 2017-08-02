@@ -12,7 +12,8 @@ import java.time.Instant;
 import java.util.Date;
 import java.util.StringTokenizer;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
 /**
@@ -28,7 +29,7 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 
 public class StatsUtils {
 
-    static final Logger logger = Logger.getLogger(StatsUtils.class);
+    static final Logger logger = LogManager.getLogger(StatsUtils.class);
     // Delimiters used in CSV file
     private static final String FIELD_SEPARATOR = ",";
     private static final String RECORD_SEPARATOR = "\n";

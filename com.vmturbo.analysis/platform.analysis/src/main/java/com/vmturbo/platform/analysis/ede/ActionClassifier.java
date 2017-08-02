@@ -4,7 +4,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -21,7 +22,7 @@ import com.vmturbo.platform.analysis.economy.Trader;
 
 public class ActionClassifier {
 
-    static final Logger logger = Logger.getLogger(ActionClassifier.class);
+    static final Logger logger = LogManager.getLogger(ActionClassifier.class);
 
     final private @NonNull Economy simulationEconomy_;
     private int executable_ = 0;

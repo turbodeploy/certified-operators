@@ -8,7 +8,9 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.TreeMap;
-import org.apache.log4j.Logger;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
@@ -81,7 +83,7 @@ import com.vmturbo.platform.analysis.topology.Topology;
 public final class AnalysisToProtobuf {
 
 
-    private static final Logger logger = Logger.getLogger(AnalysisToProtobuf.class);
+    private static final Logger logger = LogManager.getLogger(AnalysisToProtobuf.class);
 
     private static final double MAX_PRICE_INDEX = 20000;
     private static final double MAX_REASON_COMMODITY = 2;

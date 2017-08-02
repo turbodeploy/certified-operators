@@ -7,7 +7,8 @@ import java.util.function.IntFunction;
 
 import javax.xml.parsers.ParserConfigurationException;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
@@ -31,7 +32,7 @@ import com.vmturbo.platform.analysis.utilities.M2Utils;
 public final class ExportForVisualisation {
     // Fields
 
-    private static final Logger logger = Logger.getLogger(ExportForVisualisation.class);
+    private static final Logger logger = LogManager.getLogger(ExportForVisualisation.class);
 
     // Methods
 

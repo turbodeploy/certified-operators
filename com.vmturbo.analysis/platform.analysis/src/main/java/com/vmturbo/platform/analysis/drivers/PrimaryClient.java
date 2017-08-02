@@ -12,7 +12,8 @@ import javax.websocket.OnMessage;
 import javax.websocket.OnOpen;
 import javax.websocket.Session;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
@@ -26,7 +27,7 @@ import com.vmturbo.platform.analysis.translators.AnalysisToProtobuf;
 @ClientEndpoint
 public class PrimaryClient {
     // Fields
-    private static final Logger logger = Logger.getLogger(PrimaryClient.class);
+    private static final Logger logger = LogManager.getLogger(PrimaryClient.class);
     private final @NonNull Session browserSession_;
     private final @NonNull LegacyTopology topology_;
 

@@ -4,10 +4,10 @@ import static org.junit.Assert.*;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.junit.Test;
 
 import com.vmturbo.platform.analysis.economy.Basket;
@@ -25,7 +25,7 @@ import com.vmturbo.platform.analysis.ledger.Ledger;
  * A test case for the {@link ActionClassifier} interface.
  */
 public class ExecutableActionsTest {
-    static final Logger logger = Logger.getLogger(ExecutableActionsTest.class);
+    static final Logger logger = LogManager.getLogger(ExecutableActionsTest.class);
 
     private static final Basket EMPTY = new Basket();
     private static final int TYPE_PM = 0;

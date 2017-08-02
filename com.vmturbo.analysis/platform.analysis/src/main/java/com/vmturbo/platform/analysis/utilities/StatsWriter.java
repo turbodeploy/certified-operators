@@ -2,7 +2,8 @@ package com.vmturbo.platform.analysis.utilities;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -18,7 +19,7 @@ import com.google.common.annotations.VisibleForTesting;
 public class StatsWriter extends Thread {
 
     private BlockingQueue<Object> queue = new ArrayBlockingQueue<Object>(1000);
-    private static final Logger logger = Logger.getLogger(StatsWriter.class);
+    private static final Logger logger = LogManager.getLogger(StatsWriter.class);
     private int linesWritten = 0;
 
     @Override

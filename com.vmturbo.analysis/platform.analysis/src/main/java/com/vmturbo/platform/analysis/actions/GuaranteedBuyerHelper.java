@@ -7,7 +7,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
@@ -24,7 +25,7 @@ import com.vmturbo.platform.analysis.economy.Trader;
  */
 public final class GuaranteedBuyerHelper {
 
-    private static final Logger logger = Logger.getLogger(GuaranteedBuyerHelper.class);
+    private static final Logger logger = LogManager.getLogger(GuaranteedBuyerHelper.class);
     // Methods
 
     /**

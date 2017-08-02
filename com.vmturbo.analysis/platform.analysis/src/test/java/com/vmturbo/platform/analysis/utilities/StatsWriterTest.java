@@ -5,7 +5,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.junit.Test;
 
 
@@ -13,7 +14,7 @@ public class StatsWriterTest {
 
     StatsWriter writer = new StatsWriter();
     StatsUtils su = new StatsUtils("StatsUnitTest", true);
-    static final Logger logger = Logger.getLogger(StatsWriterTest.class);
+    static final Logger logger = LogManager.getLogger(StatsWriterTest.class);
 
     @Test
     public void testMultipleWrites() {
