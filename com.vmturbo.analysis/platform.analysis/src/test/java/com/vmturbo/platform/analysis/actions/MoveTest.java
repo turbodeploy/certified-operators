@@ -19,6 +19,8 @@ import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.utilities.DoubleTernaryOperator;
+import com.vmturbo.platform.analysis.utilities.FunctionalOperator;
+import com.vmturbo.platform.analysis.utilities.FunctionalOperatorUtil;
 
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
@@ -279,13 +281,17 @@ public final class MoveTest {
     @Test // non-additive commodities
     public final void testMoveTake_NonAdditive() {
         Economy economy = new Economy();
-        economy.getModifiableQuantityFunctions().put(LAT1, MAX_DOUBLE);
-        economy.getModifiableQuantityFunctions().put(LAT2, MAX_DOUBLE);
         Trader vm1 = economy.addTrader(0, TraderState.ACTIVE, EMPTY);
         Trader vm2 = economy.addTrader(0, TraderState.ACTIVE, EMPTY);
         Trader vm3 = economy.addTrader(0, TraderState.ACTIVE, EMPTY);
         Trader pm1 = economy.addTrader(0, TraderState.ACTIVE, PM_ALL);
         Trader pm2 = economy.addTrader(0, TraderState.ACTIVE, PM_ALL);
+
+        FunctionalOperator max = FunctionalOperatorUtil.MAX_COMM;
+        pm1.getCommoditySold(LAT1).getSettings().setUpdatingFunction(max);
+        pm1.getCommoditySold(LAT2).getSettings().setUpdatingFunction(max);
+        pm2.getCommoditySold(LAT1).getSettings().setUpdatingFunction(max);
+        pm2.getCommoditySold(LAT2).getSettings().setUpdatingFunction(max);
 
         ShoppingList part1 = economy.addBasketBought(vm1, BASKET1);
         ShoppingList part2 = economy.addBasketBought(vm2, BASKET1);

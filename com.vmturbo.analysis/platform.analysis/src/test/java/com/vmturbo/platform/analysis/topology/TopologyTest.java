@@ -13,7 +13,6 @@ import org.junit.runner.RunWith;
 
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
-import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
@@ -41,7 +40,6 @@ public class TopologyTest {
         @NonNull Topology topology = new Topology();
         assertTrue(topology.getEconomy().getTraders().isEmpty());
         assertTrue(topology.getEconomy().getMarkets().isEmpty());
-        assertTrue(topology.getModifiableQuantityFunctions().isEmpty());
         assertTrue(topology.getTraderOids().isEmpty());
         assertTrue(topology.getShoppingListOids().isEmpty());
         assertTrue(topology.getDanglingShoppingLists().isEmpty());
@@ -63,11 +61,6 @@ public class TopologyTest {
     @Ignore
     public final void testAddBasketBoughtLongTraderBasketLong() {
         fail("Not yet implemented"); // TODO
-    }
-
-    @Test
-    public final void testGetModifiableQuantityFunctions() {
-        MapTests.verifyModifiable(fixture_.getModifiableQuantityFunctions(), new CommoditySpecification(0), (a, b, c) -> a);
     }
 
     @Test

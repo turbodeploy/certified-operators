@@ -8,7 +8,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
@@ -19,13 +18,11 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommodityResizeSpecification;
-import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
-import com.vmturbo.platform.analysis.utilities.DoubleTernaryOperator;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 
 /**
@@ -177,17 +174,6 @@ public final class Topology implements Serializable {
         }
 
         return shoppingList;
-    }
-
-    /**
-     * Returns a modifiable view of the map associating commodity specifications to quantity
-     * updating functions that is part of the internal economy.
-     *
-     * @see Economy#getModifiableQuantityFunctions()
-     */
-    public @PolyRead @NonNull Map<@NonNull CommoditySpecification, @NonNull DoubleTernaryOperator>
-            getModifiableQuantityFunctions(@PolyRead Topology this) {
-        return economy_.getModifiableQuantityFunctions();
     }
 
     /**

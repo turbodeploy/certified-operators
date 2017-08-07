@@ -27,6 +27,12 @@ message UpdatingFunctionTO {
     message Average {
     }
 
+    message UpdateExpenses {
+    }
+
+    message IgnoreConsumption {
+    }
+
     // Which one of the available functions this message contains.
     oneof updating_function_type {
         Max max = 1;
@@ -34,5 +40,7 @@ message UpdatingFunctionTO {
         ProjectSecond project_second = 3;
         Delta delta = 4;
         Average avg_add = 5;
+        UpdateExpenses update_expenses = 6;
+        IgnoreConsumption ignore_consumption = 7;
     }
 }

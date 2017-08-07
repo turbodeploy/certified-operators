@@ -27,7 +27,7 @@ import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.ede.ActionClassifier;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.topology.Topology;
-import com.vmturbo.platform.analysis.utilities.DoubleTernaryOperator;
+import com.vmturbo.platform.analysis.utilities.FunctionalOperator;
 
 /**
  * A set of related markets and the traders participating in them.
@@ -44,10 +44,6 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     private final @NonNull Map<@NonNull @ReadOnly Basket,@NonNull Market> markets_ = new TreeMap<>();
     // The list of all Traders participating in the Economy.
     private final @NonNull List<@NonNull TraderWithSettings> traders_ = new ArrayList<>();
-    // Map of quantity calculation functions by (sold) commodity specification. If an entry is
-    // missing, the corresponding commodity specification is 'additive'.
-    private final @NonNull Map<@NonNull CommoditySpecification, @NonNull DoubleTernaryOperator>
-        quantityFunctions_ = new TreeMap<>();
     // An aggregate of all the parameters configuring this economy's behavior.
     private final @NonNull EconomySettings settings_ = new EconomySettings();
     // Map of commodity resize dependency calculation by commodity type.
@@ -65,6 +61,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     private final @NonNull List<@NonNull Trader> shopTogetherTraders_ = new ArrayList<>();
     private final List<TraderTO> tradersForHeadroom_ = new ArrayList<>();
     private Topology topology_;
+    private float spent_ = 0;
     // Cached data
 
     // Cached unmodifiable view of the markets_.values() collection.
@@ -76,9 +73,6 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     // Cached unmodifiable view of the shopTogetherTraders_ list.
     private final @NonNull List<@NonNull Trader> unmodifiableShopTogetherTraders_ =
                     Collections.unmodifiableList(shopTogetherTraders_);
-    // Cached unmodifiable view of the quantityFunctions_ map.
-    private final @NonNull Map<@NonNull CommoditySpecification, @NonNull DoubleTernaryOperator>
-        unmodifiableQuantityFunctions_ = Collections.unmodifiableMap(quantityFunctions_);
     // Cached unmodifiable view of the marketsForPlacement_ list.
     private final @NonNull List<@NonNull Market> unmodifiableMarketsForPlacement_ = Collections.unmodifiableList(marketsForPlacement_);
 
@@ -102,25 +96,6 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     public Economy() {}
 
     // Methods
-
-    @Override
-    @Pure
-    public @ReadOnly @NonNull Map<@NonNull CommoditySpecification, @NonNull DoubleTernaryOperator>
-            getQuantityFunctions(@ReadOnly Economy this) {
-        return unmodifiableQuantityFunctions_;
-    }
-
-    /**
-     * Returns a modifiable map from {@link CommoditySpecification} to the corresponding quantity
-     * updating function, if there is one.
-     *
-     * @see UnmodifiableEconomy#getQuantityFunctions()
-     */
-    @Pure
-    public @PolyRead @NonNull Map<@NonNull CommoditySpecification, @NonNull DoubleTernaryOperator>
-            getModifiableQuantityFunctions(@PolyRead Economy this) {
-        return quantityFunctions_;
-    }
 
     /**
      * @return unmodifiable list of Markets that has at least one movable buyer
@@ -388,8 +363,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
         @NonNull Trader newTrader = addTrader(modelSeller.getType(), state, basketSold);
 
         Collection<Market> marketsToScan = basketSold.equals(modelSeller.getBasketSold()) ?
-            getMarketsAsSeller(modelSeller) :
-            markets_.values();
+            getMarketsAsSeller(modelSeller) : markets_.values();
 
         for (Market market : marketsToScan) {
             if (market.getBasket().isSatisfiedBy(basketSold)) {
@@ -635,7 +609,6 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
         markets_.clear();
         traders_.clear();
         sellersInvertedIndex_.clear();
-        quantityFunctions_.clear();
         settings_.clear();
         idleVmSls_.clear();
         commodityResizeDependency_.clear();
@@ -776,5 +749,15 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
      */
     public Topology getTopology() {
         return topology_;
+    }
+
+    @Override
+    public float getSpent() {
+        return spent_;
+    }
+
+    @Override
+    public void setSpent(float spent) {
+        this.spent_ = spent;
     }
 } // end class Economy

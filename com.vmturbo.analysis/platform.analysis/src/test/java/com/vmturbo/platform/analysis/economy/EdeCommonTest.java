@@ -1,14 +1,11 @@
 package com.vmturbo.platform.analysis.economy;
 
-import java.util.function.DoubleBinaryOperator;
-
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import com.vmturbo.platform.analysis.ede.EdeCommon;
-import com.vmturbo.platform.analysis.utilities.DoubleTernaryOperator;
-import com.vmturbo.platform.analysis.utilities.M2Utils;
-
+import com.vmturbo.platform.analysis.utilities.FunctionalOperator;
+import com.vmturbo.platform.analysis.utilities.FunctionalOperatorUtil;
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
 import junitparams.naming.TestCaseName;
@@ -109,16 +106,16 @@ public class EdeCommonTest {
     @SuppressWarnings("unused") // it is used reflectively
     private static Object[] parametersForTestQuote_quantityFunction_Double_boolean() {
         return new Object[][]{
-            {new DoubleTernaryOperator[]{M2Utils.ADD_TWO_ARGS, M2Utils.MAX_TWO_ARGS}, new double[]{4,9},
-                                        new double[] {5,9}, true},
-            {new DoubleTernaryOperator[]{M2Utils.ADD_TWO_ARGS, M2Utils.MAX_TWO_ARGS}, new double[]{7,9},
-                                        new double[] {5,9}, false},// large quantity for commodity1
-            {new DoubleTernaryOperator[]{M2Utils.ADD_TWO_ARGS, M2Utils.ADD_TWO_ARGS},
-                                        new double[]{9,4}, new double[] {9,4}, false},// large quantity for commodity1
-            {new DoubleTernaryOperator[]{M2Utils.ADD_TWO_ARGS, M2Utils.ADD_TWO_ARGS},
-                                        new double[]{4,4}, new double[] {9,4}, false},// large peakQuantity for commodity1
-            {new DoubleTernaryOperator[]{M2Utils.ADD_TWO_ARGS, M2Utils.ADD_TWO_ARGS},
-                                        new double[]{4,4}, new double[] {4,5}, true},
+            {new FunctionalOperator[]{FunctionalOperatorUtil.ADD_COMM, FunctionalOperatorUtil.MAX_COMM}, new double[]{4,9},
+                new double[] {5,9}, true},
+            {new FunctionalOperator[]{FunctionalOperatorUtil.ADD_COMM, FunctionalOperatorUtil.MAX_COMM}, new double[]{7,9},
+                    new double[] {5,9}, false},// large quantity for commodity1
+            {new FunctionalOperator[]{FunctionalOperatorUtil.ADD_COMM, FunctionalOperatorUtil.ADD_COMM},
+                        new double[]{9,4}, new double[] {9,4}, false},// large quantity for commodity1
+            {new FunctionalOperator[]{FunctionalOperatorUtil.ADD_COMM, FunctionalOperatorUtil.ADD_COMM},
+                            new double[]{4,4}, new double[] {9,4}, false},// large peakQuantity for commodity1
+            {new FunctionalOperator[]{FunctionalOperatorUtil.ADD_COMM, FunctionalOperatorUtil.ADD_COMM},
+                                new double[]{4,4}, new double[] {4,5}, true},
         };
     }
 
@@ -126,7 +123,7 @@ public class EdeCommonTest {
     @Test
     @Parameters
     @TestCaseName("Test #{index}: Quote({0},{1},{2},{3})")
-    public final void testQuote_quantityFunction_Double_boolean(DoubleTernaryOperator quantityFunction[], double quantity[],
+    public final void testQuote_quantityFunction_Double_boolean(FunctionalOperator quantityFunction[], double quantity[],
                                                                 double peakQuantity[], boolean isCorrect) {
         Economy economy = new Economy();
         Basket basket = ST_SELL;
@@ -137,8 +134,8 @@ public class EdeCommonTest {
         basketSold.forEach(item->{
             int indexOfItem = basketSold.indexOf(item);
             // change the capacity of the commSold to 12 of which 5 units are used
-            seller.getCommoditySold(item).setCapacity(commodityCapacity).setQuantity(commodityUsed).setPeakQuantity(commodityUsed);
-            economy.getModifiableQuantityFunctions().put(item, quantityFunction[indexOfItem]);
+            seller.getCommoditySold(item).setCapacity(commodityCapacity).setQuantity(commodityUsed).setPeakQuantity(commodityUsed)
+                .getSettings().setUpdatingFunction(quantityFunction[indexOfItem]);
             consumerShoppingList.setQuantity(indexOfItem, quantity[indexOfItem]).setPeakQuantity(indexOfItem, peakQuantity[indexOfItem]);
         });
 

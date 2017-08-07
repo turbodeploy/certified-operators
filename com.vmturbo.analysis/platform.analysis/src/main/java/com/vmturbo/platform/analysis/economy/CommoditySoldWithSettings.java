@@ -9,6 +9,7 @@ import org.checkerframework.dataflow.qual.Deterministic;
 import org.checkerframework.dataflow.qual.Pure;
 
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
+import com.vmturbo.platform.analysis.utilities.FunctionalOperator;
 
 final class CommoditySoldWithSettings extends CommoditySold implements CommoditySoldSettings {
     // Fields for CommoditySoldSettings
@@ -19,7 +20,7 @@ final class CommoditySoldWithSettings extends CommoditySold implements Commodity
     private double utilizationUpperBound_ = 1.0;
     private double origUtilizationUpperBound_ = 1.0;
     private @NonNull PriceFunction priceFunction_ = PriceFunction.Cache.createStandardWeightedPriceFunction(1.0);
-
+    private @NonNull FunctionalOperator updatingFunction_;
     // Constructors
 
     /**
@@ -141,6 +142,18 @@ final class CommoditySoldWithSettings extends CommoditySold implements Commodity
     @Pure
     public double getOrigUtilizationUpperBound(@ReadOnly CommoditySoldWithSettings this) {
         return origUtilizationUpperBound_;
+    }
+
+    @Override
+    @Pure
+    public FunctionalOperator getUpdatingFunction() {
+        return updatingFunction_;
+    }
+
+    @Override
+    public CommoditySoldSettings setUpdatingFunction(FunctionalOperator updatingFunction) {
+        updatingFunction_ = updatingFunction;
+        return this;
     }
 
 } // end class CommoditySoldWithSettings

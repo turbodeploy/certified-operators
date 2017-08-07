@@ -3,7 +3,6 @@ package com.vmturbo.platform.analysis.actions;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
 
-import java.util.function.DoubleBinaryOperator;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
@@ -21,8 +20,8 @@ import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
-import com.vmturbo.platform.analysis.utilities.DoubleTernaryOperator;
-import com.vmturbo.platform.analysis.utilities.M2Utils;
+import com.vmturbo.platform.analysis.utilities.FunctionalOperator;
+import com.vmturbo.platform.analysis.utilities.FunctionalOperatorUtil;
 
 /**
  * An action to move a {@link ShoppingList} from one supplier to another.
@@ -87,8 +86,8 @@ public class Move extends MoveBase implements Action { // inheritance for code r
         super.take();
         if (getSource() != getDestination()) {
             getTarget().move(destination_);
-            updateQuantities(getEconomy(), getTarget(), getSource(), M2Utils.SUBRTRACT_TWO_ARGS);
-            updateQuantities(getEconomy(), getTarget(), getDestination(), M2Utils.ADD_TWO_ARGS);
+            updateQuantities(getEconomy(), getTarget(), getSource(), FunctionalOperatorUtil.SUB_COMM);
+            updateQuantities(getEconomy(), getTarget(), getDestination(), FunctionalOperatorUtil.ADD_COMM);
         }
         return this;
     }
@@ -98,8 +97,8 @@ public class Move extends MoveBase implements Action { // inheritance for code r
         super.rollback();
         if (getSource() != getDestination()) {
             getTarget().move(getSource());
-            updateQuantities(getEconomy(), getTarget(), getDestination(), M2Utils.SUBRTRACT_TWO_ARGS);
-            updateQuantities(getEconomy(), getTarget(), getSource(), M2Utils.ADD_TWO_ARGS);
+            updateQuantities(getEconomy(), getTarget(), getDestination(), FunctionalOperatorUtil.SUB_COMM);
+            updateQuantities(getEconomy(), getTarget(), getSource(), FunctionalOperatorUtil.ADD_COMM);
         }
         return this;
     }
@@ -193,7 +192,7 @@ public class Move extends MoveBase implements Action { // inheritance for code r
     // TODO: should we cover moves of inactive traders?
     public static void updateQuantities(@NonNull UnmodifiableEconomy economy,
                     @NonNull ShoppingList shoppingList,
-            @Nullable Trader traderToUpdate, @NonNull DoubleTernaryOperator defaultCombinator) {
+            @Nullable Trader traderToUpdate, @NonNull FunctionalOperator defaultCombinator) {
         @NonNull Basket basketBought = economy.getMarket(shoppingList).getBasket();
 
         if (traderToUpdate != null) {
@@ -210,8 +209,7 @@ public class Move extends MoveBase implements Action { // inheritance for code r
                 } else {
                     final @NonNull CommoditySold commodity = traderToUpdate.getCommoditiesSold().get(soldIndex);
                     final double[] quantities = updatedQuantities(economy, defaultCombinator,
-                        shoppingList.getQuantity(boughtIndex), shoppingList.getPeakQuantity(boughtIndex),
-                        traderToUpdate, soldIndex, false);
+                        shoppingList, boughtIndex, traderToUpdate, soldIndex, false, true);
                     commodity.setQuantity(quantities[0]);
                     commodity.setPeakQuantity(quantities[1]);
                     ++soldIndex;
@@ -241,43 +239,46 @@ public class Move extends MoveBase implements Action { // inheritance for code r
      * @param traderToUpdate The seller whose commodities sold will be updated.
      * @param soldIndex is the index of the soldCommodity
      * @param incoming is a boolean flag that specifies if the trader is moving in(TRUE) or moving out
+     * @param take is true when the action is being taken and is false when we simulate the move while getting the quote
      *
      */
     @Pure // The contents of the array are deterministic but the address of the array isn't...
-    public static double[] updatedQuantities(@NonNull UnmodifiableEconomy economy, @NonNull DoubleTernaryOperator defaultCombinator,
-            double quantityBought, double peakQuantityBought, @NonNull Trader traderToUpdate, int soldIndex,
-            boolean incoming) {
+    public static double[] updatedQuantities(@NonNull UnmodifiableEconomy economy,
+                                             @NonNull FunctionalOperator defaultCombinator,
+                                             ShoppingList sl, int boughtIndex,
+                                             @NonNull Trader traderToUpdate, int soldIndex,
+                                             boolean incoming, boolean take) {
         final CommoditySpecification specificationSold = traderToUpdate.getBasketSold().get(soldIndex);
         final CommoditySold commoditySold = traderToUpdate.getCommoditiesSold().get(soldIndex);
 
-        DoubleTernaryOperator explicitCombinator = economy.getQuantityFunctions().get(specificationSold);
+        FunctionalOperator explicitCombinator = commoditySold.getSettings().getUpdatingFunction();
         if (explicitCombinator == null) { // if there is no explicit combinator, use default one.
-            return new double[]{defaultCombinator.applyAsDouble(commoditySold.getQuantity(), quantityBought, 0),
-                                defaultCombinator.applyAsDouble(commoditySold.getPeakQuantity(), peakQuantityBought, 0)};
+            return defaultCombinator.operate(sl, boughtIndex, commoditySold, traderToUpdate, economy, take);
         } if (incoming) {
             // include quantityBought to the current used of the corresponding commodity
-            return new double[]{explicitCombinator.applyAsDouble(commoditySold.getQuantity(), quantityBought, traderToUpdate.getCustomers().size()),
-                                explicitCombinator.applyAsDouble(commoditySold.getPeakQuantity(), peakQuantityBought, traderToUpdate.getCustomers().size())};
+            return explicitCombinator.operate(sl, boughtIndex, commoditySold, traderToUpdate, economy, take);
         } else {
             // this loop is used when we use a combinator that is "max" for example, when we move out of this trader, we wouldnt know the initial value
             // that was replaced by the current quantity. For example, max(5,12), we wont know what 12 replaced.
             // Find the quantities bought by all shopping lists and calculate the quantity sold.
-            double combinedQuantity = 0.0; // TODO: generalize default value
-            double combinedPeakQuantity = 0.0; // if/when needed.
-            int numCustomers = 0;
+
+            // set used and peakUsed to 0 when starting for the seller
+            double sellerOrigUsed = commoditySold.getQuantity();
+            double sellerOrigPeak = commoditySold.getPeakQuantity();
+            commoditySold.setQuantity(0).setPeakQuantity(0);
+
             for (ShoppingList customer : traderToUpdate.getCustomers()) {
                 // TODO: this needs to be changed to something that takes matching but unequal
                 // commodities into account.
                 int specIndex = economy.getMarket(customer).getBasket().indexOf(specificationSold);
                 if (specIndex >= 0) {
-                    combinedQuantity = explicitCombinator.applyAsDouble(combinedQuantity,
-                                                                        customer.getQuantity(specIndex), numCustomers);
-                    combinedPeakQuantity = explicitCombinator.applyAsDouble(combinedPeakQuantity,
-                                                                            customer.getPeakQuantity(specIndex), numCustomers);
+                    double[] tempUpdatedQnty = explicitCombinator.operate(customer, specIndex, commoditySold, traderToUpdate, economy, false);
+                    commoditySold.setQuantity(tempUpdatedQnty[0]).setPeakQuantity(tempUpdatedQnty[1]);
                 }
-                numCustomers++;
             }
-            return new double[]{combinedQuantity,combinedPeakQuantity};
+            double[] combinedQuantity = new double[]{commoditySold.getQuantity(), commoditySold.getPeakQuantity()};
+            commoditySold.setQuantity(sellerOrigUsed).setPeakQuantity(sellerOrigPeak);
+            return new double[]{combinedQuantity[0],combinedQuantity[1]};
         }
     }
 
@@ -350,7 +351,7 @@ public class Move extends MoveBase implements Action { // inheritance for code r
                                @NonNull ShoppingList target) {
         if (source != destination) {
             target.move(destination);
-            updateQuantities(economy, target, destination, M2Utils.ADD_TWO_ARGS);
+            updateQuantities(economy, target, destination, FunctionalOperatorUtil.ADD_COMM);
         }
         return this;
     }

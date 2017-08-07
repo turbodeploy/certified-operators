@@ -20,7 +20,6 @@ import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
-import com.vmturbo.platform.analysis.utilities.DoubleTernaryOperator;
 import com.vmturbo.platform.analysis.utilities.NumericIDAllocator;
 import com.vmturbo.platform.analysis.utilities.UnmodifiableNumericIDAllocator;
 
@@ -104,19 +103,6 @@ public final class LegacyTopology {
 
     public void populateMarketsWithSellers() {
         economy_.populateMarketsWithSellers();
-    }
-
-    /**
-     * Add a function that will be used to calculate the quantity sold by a
-     * {@link CommoditySpecification} of type {@code commodityType}
-     *
-     * @param commodityType The String type of the commodity
-     * @param function a function that takes a list of Doubles as arguments and returns a Double.
-     * The list of Doubles is the quantities bought.
-     */
-    public void addQuantityFunction(String commodityType, DoubleTernaryOperator function) {
-        int commodityId = commodityTypes_.allocate(commodityType);
-        economy_.getModifiableQuantityFunctions().put(new CommoditySpecification(commodityId), function);
     }
 
     /**

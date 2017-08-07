@@ -130,7 +130,6 @@ public class AnalysisClientMessageHandler implements ITransport.EventHandler<Ana
                         analysisServer.getAnalysisInstanceInfoMap().get(message.getTopologyId());
         Topology currPartial = instInfoAfterDisc.getCurrentPartial();
         currPartial.populateMarketsWithSellers();
-        ProtobufToAnalysis.populateUpdatingFunctions(endDiscMsg, currPartial);
         ProtobufToAnalysis.populateCommodityResizeDependencyMap(endDiscMsg,
                         currPartial);
         ProtobufToAnalysis.populateRawCommodityMap(endDiscMsg, currPartial);

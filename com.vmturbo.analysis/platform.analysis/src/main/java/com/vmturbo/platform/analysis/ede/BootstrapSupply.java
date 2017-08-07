@@ -33,7 +33,7 @@ import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
-import com.vmturbo.platform.analysis.utilities.M2Utils;
+import com.vmturbo.platform.analysis.utilities.FunctionalOperatorUtil;
 
 /*
  * This class contains the implementation for generating the provision actions to satisfy
@@ -261,14 +261,14 @@ public class BootstrapSupply {
         List<@NonNull ShoppingList> movableSlList = new ArrayList<>();
         for(Entry<@NonNull ShoppingList, @NonNull Market> slPerMkt : movableSlByMarket) {
             @NonNull ShoppingList sl = slPerMkt.getKey();
-             if (newSuppliers.containsKey(sl)) {
-                 destinations.add(newSuppliers.get(sl));
-             } else {
-                 destinations.add(sl.getSupplier());
-             }
-             movableSlList.add(sl);
-         }
-         return new CompoundMove(economy, movableSlList, destinations).take();
+            if (newSuppliers.containsKey(sl)) {
+                destinations.add(newSuppliers.get(sl));
+            } else {
+                destinations.add(sl.getSupplier());
+            }
+            movableSlList.add(sl);
+        }
+        return new CompoundMove(economy, movableSlList, destinations).take();
     }
 
     /**
@@ -454,7 +454,7 @@ public class BootstrapSupply {
                             if (!sl.isMovable()) {
                                 sl.move(minimizer.getBestSeller());
                                 Move.updateQuantities(economy, sl, minimizer.getBestSeller(),
-                                                M2Utils.ADD_TWO_ARGS);
+                                                      FunctionalOperatorUtil.ADD_COMM);
                             }
                         }
             });

@@ -2,17 +2,12 @@ package com.vmturbo.platform.analysis.ede;
 
 import static org.junit.Assert.*;
 
-import java.security.spec.ECField;
 import java.util.List;
-import java.util.Set;
-
 import org.junit.Test;
 
 import com.vmturbo.platform.analysis.actions.Action;
-import com.vmturbo.platform.analysis.actions.CompoundMove;
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.economy.Economy;
-import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
@@ -28,6 +23,8 @@ import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.Constant;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.StandardWeighted;
+import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO;
+import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO.Delta;
 
 public class PlacementIntegrationTest {
 
@@ -50,12 +47,14 @@ public class PlacementIntegrationTest {
         PriceFunctionTO standardPriceTO = PriceFunctionTO.newBuilder().setStandardWeighted(
                         StandardWeighted.newBuilder().setWeight(
                                         1).build()).build();
+        UpdatingFunctionTO ufTO = UpdatingFunctionTO.newBuilder().setDelta(Delta.newBuilder()
+                                                                           .build()).build();
         PriceFunctionTO constantPriceTO = PriceFunctionTO.newBuilder().setConstant(
                         Constant.newBuilder().setValue(0.1f).build()).build();
         CommoditySoldSettingsTO standardSettingTO = CommoditySoldSettingsTO.newBuilder()
-                        .setPriceFunction(standardPriceTO).build();
+                        .setPriceFunction(standardPriceTO).setUpdateFunction(ufTO).build();
         CommoditySoldSettingsTO constantSettingTO = CommoditySoldSettingsTO.newBuilder()
-                        .setPriceFunction(constantPriceTO).build();
+                        .setPriceFunction(constantPriceTO).setUpdateFunction(ufTO).build();
 
         CommoditySoldTO cpuSoldByPM1 = CommoditySoldTO.newBuilder().setSpecification(cpuSpecTO)
                         .setQuantity(1000).setPeakQuantity(1000)
@@ -133,11 +132,9 @@ public class PlacementIntegrationTest {
         Economy economy = (Economy)topology.getEconomy();
         economy.composeMarketSubsetForPlacement();
         List<Action> actions = Placement.placementDecisions(economy);
-        assertTrue(actions.size()==3);
+        assertTrue(actions.size()==2);
         assertTrue(actions.get(0) instanceof Move);
         assertEquals(shopAloneVM, actions.get(0).getActionTarget());
-        assertTrue(actions.get(2) instanceof CompoundMove);
-        assertEquals(shopTogetherVM, actions.get(2).getActionTarget());
 
     }
 }

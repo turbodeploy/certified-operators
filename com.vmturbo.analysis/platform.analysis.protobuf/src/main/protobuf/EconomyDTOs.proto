@@ -2,6 +2,7 @@ syntax = "proto2";
 package com.vmturbo.platform.analysis.protobuf;
 
 import "PriceFunctionDTOs.proto";
+import "UpdatingFunctionDTOs.proto";
 
 // The settings associated with the Economy.
 // The acceptable commodity utilization range used in resize engage criteria.
@@ -87,6 +88,9 @@ message CommoditySoldSettingsTO {
 
     // A function from quantity sold to the price charged for this quantity.
     optional PriceFunctionTO price_function = 6;
+
+    // A function from comm sold to the method used to update its quantity.
+    optional UpdatingFunctionTO update_function = 7;
 }
 
 // A commodity sold by a single trader. It includes the quantity(s) sold and a number of settings.

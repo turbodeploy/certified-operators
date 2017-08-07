@@ -23,24 +23,6 @@ import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 public interface UnmodifiableEconomy {
 
     /**
-     * Returns an unmodifiable map from {@link CommoditySpecification} to the corresponding quantity
-     * updating function, if there is one.
-     *
-     * <p>
-     *  Those functions are used to compute the quantity and peak quantity of a commodity sold by a
-     *  {@link Trader seller} as a function of the quantities and peak quantities bought by the
-     *  customers of that seller respectively.
-     * </p>
-     *
-     * <p>
-     *  They must be associative and commutative.
-     * </p>
-     */
-    @Pure
-    public @ReadOnly @NonNull Map<@NonNull CommoditySpecification, @NonNull DoubleTernaryOperator>
-        getQuantityFunctions(@ReadOnly UnmodifiableEconomy this);
-
-    /**
      * The {@link EconomySettings settings} parameterizing {@code this} economy's behavior.
      */
     @Pure
@@ -207,8 +189,8 @@ public interface UnmodifiableEconomy {
     void setForceStop(boolean forcePlanStop);
 
     /**
-    * @return An unmodifiable List of Markets that have at least one movable trader
-    */
+     * @return An unmodifiable List of Markets that have at least one movable trader
+     */
     @ReadOnly
     @NonNull
     List<@NonNull Market> getMarketsForPlacement();
@@ -236,4 +218,9 @@ public interface UnmodifiableEconomy {
      * @return list of {@link TraderTO}s
      */
     List<TraderTO> getTradersForHeadroom();
+
+    public @PolyRead float getSpent();
+
+    public void setSpent(float f);
+
 } // end UnmodifiableEconomy interface

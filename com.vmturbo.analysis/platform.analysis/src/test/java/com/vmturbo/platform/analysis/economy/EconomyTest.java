@@ -20,7 +20,8 @@ import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameter;
 import org.junit.runners.Parameterized.Parameters;
 
-import com.vmturbo.platform.analysis.utilities.DoubleTernaryOperator;
+import com.vmturbo.platform.analysis.utilities.FunctionalOperator;
+import com.vmturbo.platform.analysis.utilities.FunctionalOperatorUtil;
 import com.vmturbo.platform.analysis.utility.CollectionTests;
 import com.vmturbo.platform.analysis.utility.ListTests;
 import com.vmturbo.platform.analysis.utility.MapTests;
@@ -79,7 +80,7 @@ public class EconomyTest {
     private static final Market independentMarket = new Market(EMPTY);
     private static final TraderWithSettings independentTrader = new TraderWithSettings(0, 0, TraderState.ACTIVE, EMPTY);
     private static final ShoppingList independentShoppingList = new ShoppingList(independentTrader, EMPTY);
-    private static final @NonNull DoubleTernaryOperator DUMMY_FUNCTION = (a, b, c) -> a;
+    private static final @NonNull FunctionalOperator DUMMY_FUNCTION = FunctionalOperatorUtil.ADD_COMM;
 
     // TODO (Vaptistis): Eventually, all parameterized tests that share the same parameters can be
     // refactored in a single parameterized test, but until we implement copying of Economies the
@@ -237,22 +238,9 @@ public class EconomyTest {
             UnmodifiableEconomy economy = new Economy();
             assertTrue(economy.getMarkets().isEmpty());
             assertTrue(economy.getTraders().isEmpty());
-            assertTrue(economy.getQuantityFunctions().isEmpty());
             assertNotNull(economy.getSettings());
         }
 
-        @Test
-        public final void testGetModifiableQuantityFunctions() {
-            Economy economy = new Economy();
-            MapTests.verifyModifiable(economy.getModifiableQuantityFunctions(), CPU, DUMMY_FUNCTION);
-        }
-
-        @Test
-        public final void testGetQuantityFunctions() {
-            UnmodifiableEconomy economy = new Economy();
-            MapTests.verifyUnmodifiableValidOperations(economy.getQuantityFunctions(), CPU, DUMMY_FUNCTION);
-            MapTests.verifyUnmodifiableInvalidOperations(economy.getQuantityFunctions(), CPU, DUMMY_FUNCTION);
-        }
     } // end TestEconomy class
 
     public static class TraderAndPopulateTests {
@@ -615,7 +603,6 @@ public class EconomyTest {
             economy.clear();
             assertTrue(economy.getTraders().isEmpty());
             assertTrue(economy.getMarkets().isEmpty());
-            assertTrue(economy.getQuantityFunctions().isEmpty());
             // TODO: compare with newly constructed object when we implement equals.
         }
     } // end Clear class

@@ -6,6 +6,7 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
 
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
+import com.vmturbo.platform.analysis.utilities.FunctionalOperator;
 
 /**
  * The settings associated with and controlling the behavior of a single {@link CommoditySold}.
@@ -180,5 +181,30 @@ public interface CommoditySoldSettings {
      * @see #getPriceFunction()
      */
     @NonNull CommoditySoldSettings setPriceFunction(@NonNull PriceFunction priceFunction);
+
+    /**
+     * Sets the value of the <b>updating function</b> field.
+     *
+     * <p>
+     *  Has no observable side-effects except setting the above field.
+     * </p>
+     *
+     * @param updatingFunction the new value for the field.
+     * @return {@code this}
+     *
+     * @see #getUpdatingFunction()
+     */
+    @NonNull CommoditySoldSettings setUpdatingFunction(@NonNull FunctionalOperator updatingFunction);
+
+    /**
+     * Returns the updating function for {@code this} commodity.
+     *
+     * <p>
+     *  A updating function simulates a move and returns a potential used value of the commoditySold
+     * </p>
+     *
+     */
+    @Pure
+    @NonNull @PolyRead FunctionalOperator getUpdatingFunction(@PolyRead CommoditySoldSettings this);
 
 } // end CommoditySoldSettings interface

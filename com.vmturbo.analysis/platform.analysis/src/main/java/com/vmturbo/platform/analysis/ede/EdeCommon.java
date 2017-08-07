@@ -13,8 +13,8 @@ import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
-import com.vmturbo.platform.analysis.utilities.DoubleTernaryOperator;
-import com.vmturbo.platform.analysis.utilities.M2Utils;
+import com.vmturbo.platform.analysis.utilities.FunctionalOperator;
+import com.vmturbo.platform.analysis.utilities.FunctionalOperatorUtil;
 
 /**
  * EdeCommon contains a number of methods that are common across decisions algorithms in the engine.
@@ -103,12 +103,12 @@ public final class EdeCommon {
                         Double.POSITIVE_INFINITY};
         boolean isCurrentSupplier = seller == shoppingList.getSupplier();
         final CommoditySold commSold = seller.getCommoditiesSold().get(soldIndex);
-        final DoubleTernaryOperator addition = M2Utils.ADD_TWO_ARGS;
+        final FunctionalOperator addition = FunctionalOperatorUtil.ADD_COMM;
 
         // add quantities bought by buyer, to quantities already used at seller
         final double effectiveCapacity = commSold.getEffectiveCapacity();
-        final double[] newQuantities = Move.updatedQuantities(economy, addition,
-                        boughtQnty, peakQuantities[boughtIndex], seller, soldIndex, true);
+        final double[] newQuantities = Move.updatedQuantities(economy, addition, shoppingList,
+                        boughtIndex, seller, soldIndex, true, false);
         final double newQuantity = isCurrentSupplier ? commSold.getQuantity() : newQuantities[0];
         final double newPeakQuantity = isCurrentSupplier ? commSold.getPeakQuantity() : newQuantities[1];
         final double utilUpperBound = commSold.getSettings().getUtilizationUpperBound();

@@ -464,9 +464,7 @@ final public class EMF2MarketHandler extends DefaultHandler {
             commSold.getSettings().setUtilizationUpperBound(utilThreshold);
             PriceFunction pf = priceFunction(commSoldAttr);
             commSold.getSettings().setPriceFunction(pf);
-         }
-
-        topology.addQuantityFunction(StorageLatency, (a, b, c) -> ((a*c + b)/ (c + 1)));
+        }
 
         logger.info("Processing placement");
         for (Entry<ShoppingList, String> entry : placement.entrySet()) {
@@ -627,21 +625,21 @@ final public class EMF2MarketHandler extends DefaultHandler {
     PriceFunction priceFunction(Attributes commodity) {
         String type = commodity.xsitype();
         switch(type) {
-        case "Abstraction:StorageAmount":
-        case "Abstraction:StorageProvisioned":
-        case "Abstraction:VStorage":
-            return PriceFunction.Cache.createStepPriceFunction(commodity.value("utilThreshold", 1.0), 0.0, 20000.0);
-        case "Abstraction:Power":
-        case "Abstraction:Cooling":
-        case "Abstraction:Space":
-            return PriceFunction.Cache.createConstantPriceFunction(27.0);
-        case "Abstraction:SegmentationCommodity":
-        case "Abstraction:DrsSegmentationCommodity":
-        case "Abstraction:ClusterCommodity":
-        case "Abstraction:StorageClusterCommodity":
-            return PriceFunction.Cache.createConstantPriceFunction(0.0);
-        default:
-            return PriceFunction.Cache.createStandardWeightedPriceFunction(1.0);
+            case "Abstraction:StorageAmount":
+            case "Abstraction:StorageProvisioned":
+            case "Abstraction:VStorage":
+                return PriceFunction.Cache.createStepPriceFunction(commodity.value("utilThreshold", 1.0), 0.0, 20000.0);
+            case "Abstraction:Power":
+            case "Abstraction:Cooling":
+            case "Abstraction:Space":
+                return PriceFunction.Cache.createConstantPriceFunction(27.0);
+            case "Abstraction:SegmentationCommodity":
+            case "Abstraction:DrsSegmentationCommodity":
+            case "Abstraction:ClusterCommodity":
+            case "Abstraction:StorageClusterCommodity":
+                return PriceFunction.Cache.createConstantPriceFunction(0.0);
+            default:
+                return PriceFunction.Cache.createStandardWeightedPriceFunction(1.0);
         }
     }
 

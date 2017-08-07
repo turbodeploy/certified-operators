@@ -36,7 +36,6 @@ import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTop
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTopology.CommodityRawMaterialEntry;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTopology.CommodityResizeDependency;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTopology.CommodityResizeDependencyEntry;
-import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTopology.MapEntry;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.CommodityBoughtTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.CommoditySoldSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.CommoditySoldTO;
@@ -49,6 +48,8 @@ import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO;
 import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO;
 import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.utilities.DoubleTernaryOperator;
+import com.vmturbo.platform.analysis.utilities.FunctionalOperator;
+import com.vmturbo.platform.analysis.utilities.FunctionalOperatorUtil;
 
 /**
  * A class containing methods to convert Protobuf messages to java classes used by analysis.
@@ -102,6 +103,35 @@ public final class ProtobufToAnalysis {
                 return (DoubleTernaryOperator & Serializable) (a, b, c) -> a + b;
             case AVG_ADD:
                 return (DoubleTernaryOperator & Serializable) (a, b, c) -> (a*c + b)/(c + 1);
+            case UPDATINGFUNCTIONTYPE_NOT_SET:
+            default:
+                throw new IllegalArgumentException("input = " + input);
+        }
+    }
+
+    /**
+     * Converts a {@link UpdatingFunctionTO} to a {@link FunctionalOperator quantity
+     * updating function}.
+     *
+     * @param input The {@link UpdatingFunctionTO} to convert.
+     * @return The resulting {@link FunctionalOperator quantity updating function}.
+     */
+    public static @NonNull FunctionalOperator updatingFunctionalOperator(@NonNull UpdatingFunctionTO input) {
+        switch (input.getUpdatingFunctionTypeCase()) {
+            case MAX:
+                return FunctionalOperatorUtil.MAX_COMM;
+            case MIN:
+                return FunctionalOperatorUtil.MIN_COMM;
+            case PROJECT_SECOND:
+                return FunctionalOperatorUtil.RETURN_BOUGHT_COMM;
+            case DELTA:
+                return FunctionalOperatorUtil.ADD_COMM;
+            case AVG_ADD:
+                return FunctionalOperatorUtil.AVG_COMMS;
+            case IGNORE_CONSUMPTION:
+                return FunctionalOperatorUtil.IGNORE_CONSUMPTION;
+            case UPDATE_EXPENSES:
+                return FunctionalOperatorUtil.UPDATE_EXPENSES;
             case UPDATINGFUNCTIONTYPE_NOT_SET:
             default:
                 throw new IllegalArgumentException("input = " + input);
@@ -206,6 +236,7 @@ public final class ProtobufToAnalysis {
         destination.setCapacityIncrement(source.getCapacityIncrement());
         destination.setUtilizationUpperBound(source.getUtilizationUpperBound()).setOrigUtilizationUpperBound(source.getUtilizationUpperBound());
         destination.setPriceFunction(priceFunction(source.getPriceFunction()));
+        destination.setUpdatingFunction(updatingFunctionalOperator(source.getUpdateFunction()));
     }
 
     /**
@@ -347,21 +378,6 @@ public final class ProtobufToAnalysis {
     }
 
     // Methods for converting CommunicationDTOs.
-
-    /**
-     * Populates the quantity updating functions map of a {@link Topology} from information in an
-     * {@link EndDiscoveredTopology} message.
-     *
-     * @param source The {@link EndDiscoveredTopology} message from which to get the map entries.
-     * @param destination The {@link Topology} to put the entries to.
-     */
-    public static void populateUpdatingFunctions(@NonNull EndDiscoveredTopology source,
-                                                         @NonNull Topology destination) {
-        for (MapEntry entry : source.getUpdatingFunctionEntryList()) {
-            destination.getModifiableQuantityFunctions().put(commoditySpecification(entry.getKey()),
-                                                             updatingFunction(entry.getValue()));
-        }
-    }
 
     /**
      * Populates the commodity resize dependency map of a {@link Topology} from information in an
