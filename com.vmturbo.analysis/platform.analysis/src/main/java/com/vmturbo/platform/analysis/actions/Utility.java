@@ -4,7 +4,9 @@ import java.util.function.Function;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
 
+import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
+import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 
@@ -31,29 +33,32 @@ public final class Utility {
     }
 
     /**
-     * removes the effect of the used values of the commoditiesBought by the consumer on
-     * the used values of the commoditiesSold of the provisionedSeller
+     * For every commodity sold by a newly provisioned seller which may incur overhead, initialize 
+     * the used value to a computed overhead. Commodity overhead is computed through the model seller
+     * by subtracting the quantities bought by all its buyers from the total quantity if is selling
+     * 
      * @param modelSeller this is the {@link Trader} that the new clone is based out off
      * @param provisionedSeller is the newly cloned {@link Trader}
+     * @param economy that the Traders are a part of
      */
-    public static void adjustOverhead(Trader modelSeller, Trader provisionedSeller) {
-        for(ShoppingList sl : modelSeller.getCustomers()) {
-            int buyerIndex = 0;
-            for (CommoditySpecification commSpec : sl.getBasket()) {
-                int soldIndex = provisionedSeller.getBasketSold().indexOf(commSpec);
-                // The allocation commodities sold by the modelSeller is not going to be sold by 
-                // the clone (we create new ones for the clone to sell). Hence, we wont find these
-                // allocComms in the basketSold and we get a negative index (hence skipping them).
-                if (soldIndex >= 0) {
-                    provisionedSeller.getCommoditiesSold().get(soldIndex).setQuantity(
-                                    Math.max(provisionedSeller.getCommoditiesSold().get(soldIndex)
-                                    .getQuantity() - sl.getQuantity(buyerIndex), 0));
-                    provisionedSeller.getCommoditiesSold().get(soldIndex).setPeakQuantity(
-                                    provisionedSeller.getCommoditiesSold().get(soldIndex)
-                                    .getQuantity());
-                    buyerIndex++;
+    public static void adjustOverhead(Trader modelSeller, Trader provisionedSeller,
+            						  Economy economy) {
+        int soldIndex = 0;
+        for (CommoditySpecification specSold : provisionedSeller.getBasketSold()) {
+            CommoditySold cs = provisionedSeller.getCommoditiesSold().get(soldIndex);
+            if (economy.getCommsToAdjustOverhead().contains(specSold)) {
+                for(ShoppingList sl : modelSeller.getCustomers()) {
+                    int boughtIndex = sl.getBasket().indexOf(specSold);
+                    if (boughtIndex != -1) {
+                        cs.setQuantity(Math.max(cs.getQuantity() - sl.getQuantity(boughtIndex), 0))
+                                  .setPeakQuantity(cs.getQuantity());
+                    }
                 }
+            } else {
+                // set used and peakUsed for soldComm to 0
+                cs.setQuantity(0).setPeakQuantity(0);
             }
+            soldIndex++;
         }
     }
     

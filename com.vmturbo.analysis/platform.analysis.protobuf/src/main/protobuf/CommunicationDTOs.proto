@@ -95,6 +95,9 @@ message EndDiscoveredTopology {
     optional bool enableSuspension = 5;
     // A flag to indicate if resize algorithm should be triggered or not
     optional bool enableResize = 6;
+    // specifies what commodities to allow overhead for in clones
+    repeated CommoditySpecificationTO commToAllowOverheadInClone = 7;
+    
 }
 
 // A compound message to encapsulate any one of command messages.

@@ -18,6 +18,7 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommodityResizeSpecification;
+import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -323,6 +324,10 @@ public final class Topology implements Serializable {
 
     public boolean addTradersForHeadroom(TraderTO trader) {
         return economy_.getTradersForHeadroom().add(trader);
+    }
+    
+    public boolean addCommsToAdjustOverhead(CommoditySpecification cs) {
+        return economy_.getCommsToAdjustOverhead().add(cs);
     }
 
 } // end Topology class

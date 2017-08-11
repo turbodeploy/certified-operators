@@ -7,9 +7,11 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.DoubleBinaryOperator;
 import java.util.stream.Collectors;
@@ -24,6 +26,7 @@ import org.checkerframework.dataflow.qual.SideEffectFree;
 import com.google.common.base.Preconditions;
 import com.google.common.primitives.Longs;
 import com.vmturbo.platform.analysis.actions.Move;
+import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.ede.ActionClassifier;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.topology.Topology;
@@ -81,6 +84,8 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     // for satisfiability may be faster than scanning all commodities in a basket for very large baskets.
     // The number is not scientifically chosen but works well in practice.
     private final @NonNull InvertedIndex sellersInvertedIndex_ = new InvertedIndex(this, 32);
+
+    private final @NonNull Set<@NonNull CommoditySpecification> commsToAdjustOverhead_ = new HashSet();
 
     private boolean marketsPopulated = false;
 
@@ -760,4 +765,9 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     public void setSpent(float spent) {
         this.spent_ = spent;
     }
+
+    public Set<CommoditySpecification> getCommsToAdjustOverhead() {
+        return commsToAdjustOverhead_;
+    }
+
 } // end class Economy

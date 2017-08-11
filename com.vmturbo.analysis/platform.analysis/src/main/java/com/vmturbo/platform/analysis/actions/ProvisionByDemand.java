@@ -196,7 +196,7 @@ public class ProvisionByDemand extends ActionImpl {
 
         }
 
-        Utility.adjustOverhead(getModelSeller(), getProvisionedSeller());
+        Utility.adjustOverhead(getModelSeller(), getProvisionedSeller(), getEconomy());
         // if the trader being cloned is a provider for a gauranteedBuyer, then the clone should
         // be a provider for that guranteedBuyer as well
         if (shoppingLists.size() != 0) {

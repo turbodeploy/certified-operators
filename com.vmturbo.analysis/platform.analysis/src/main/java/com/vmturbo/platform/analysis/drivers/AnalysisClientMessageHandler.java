@@ -133,6 +133,7 @@ public class AnalysisClientMessageHandler implements ITransport.EventHandler<Ana
         ProtobufToAnalysis.populateCommodityResizeDependencyMap(endDiscMsg,
                         currPartial);
         ProtobufToAnalysis.populateRawCommodityMap(endDiscMsg, currPartial);
+        ProtobufToAnalysis.commToAdjustOverhead(endDiscMsg, currPartial);
 
         if (message.getMarketName().equals("Deploy")) {
             instInfoAfterDisc.setProvisionEnabled(false);

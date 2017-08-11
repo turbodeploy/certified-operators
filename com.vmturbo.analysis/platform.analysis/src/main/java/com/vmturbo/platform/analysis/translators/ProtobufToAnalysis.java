@@ -426,4 +426,13 @@ public final class ProtobufToAnalysis {
             rawCommodityMap.put(processedCommodityType, rawCommodityTypes);
         }
     }
+
+    public static void commToAdjustOverhead (@NonNull EndDiscoveredTopology source,
+                                              @NonNull Topology destination) {
+        for (CommoditySpecificationTO csTO : source.getCommToAllowOverheadInCloneList()) {
+            destination.addCommsToAdjustOverhead(commoditySpecification(csTO));
+        }
+
+    }
+
 } // end ProtobufToAnalysis class
