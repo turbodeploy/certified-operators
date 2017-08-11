@@ -253,7 +253,7 @@ public class EstimateSupply {
             // Update capacity and revenues of superSeller
             superSeller.updateCapacityAndRevenues(newSeller, true);
             // Calculate expenses and revenues of the new seller
-            ledger_.calculateExpRevForTrader(economy_, action.getActionTarget());
+            ledger_.calculateExpRevForTraderAndGetTopRevenue(economy_, action.getActionTarget());
             // Decide to clone more or stop cloning
             canClone = superSeller.getCurrROI() > superSeller.getDesiredROI(true);
             logger.info("        currROI: " + superSeller.getCurrROI());
@@ -291,7 +291,7 @@ public class EstimateSupply {
 
             // Update capacity and revenues of superSeller
             superSeller.updateCapacityAndRevenues(suspendCandidate, false);
-            ledger_.calculateExpRevForTrader(economy_, suspendCandidate);
+            ledger_.calculateExpRevForTraderAndGetTopRevenue(economy_, suspendCandidate);
             // stop suspend if ROI value is too high after suspend
             double desiredROI = (superSeller.getDesiredROI(true) / 2
                                  + superSeller.getDesiredROI(false) / 2);

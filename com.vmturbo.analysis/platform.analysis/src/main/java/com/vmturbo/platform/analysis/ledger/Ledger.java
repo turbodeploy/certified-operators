@@ -155,7 +155,7 @@ public class Ledger {
         List<Trader> sellers = market.getActiveSellers();
         (sellers.size() < economy.getSettings().getMinSellersForParallelism()
             ? sellers.stream() : sellers.parallelStream())
-            .forEach(seller -> calculateExpRevForTrader(economy, seller));
+            .forEach(seller -> calculateExpRevForTraderAndGetTopRevenue(economy, seller));
         return this;
     }
 
@@ -178,12 +178,15 @@ public class Ledger {
     }
 
     /**
-     * computes the {@link IncomeStatement} for a seller
+     * computes the {@link IncomeStatement} for a seller and returns the revenue of the
+     * richest commodity
      *
      * @param economy {@link Economy} where the <b>seller</b> trades
      * @param seller the {@link Trader} whose expenses and revenues are to be computed
+     *
+     * @return price of the {@link CommoditySold} that generates most revenue
      */
-    public void calculateExpRevForTrader(Economy economy, Trader seller) {
+    public double calculateExpRevForTraderAndGetTopRevenue(Economy economy, Trader seller) {
 
         IncomeStatement sellerIncomeStmt = getTraderIncomeStatements().get(seller.getEconomyIndex());
         sellerIncomeStmt.resetIncomeStatement();
@@ -230,6 +233,7 @@ public class Ledger {
                         .setMaxDesiredRevenues(tempCurrMinMaxRev[2] * sellerMaxDesUtil);
 
         calculateExpensesForSeller(economy, seller);
+        return topRev[0];
     }
 
     /**
@@ -239,7 +243,7 @@ public class Ledger {
      */
     public void calculateExpRevForTradersInEconomy (Economy economy) {
         for (Trader trader : economy.getTraders()) {
-            calculateExpRevForTrader(economy, trader);
+            calculateExpRevForTraderAndGetTopRevenue(economy, trader);
         }
     }
 

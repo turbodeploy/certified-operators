@@ -201,7 +201,7 @@ public class OldSuspension {
         }
         for (Trader t : affectedTraders) {
             // calculate the income statement for affected sellers, they may not in the current market
-            ledger.calculateExpRevForTrader(economy, t);
+            ledger.calculateExpRevForTraderAndGetTopRevenue(economy, t);
             IncomeStatement traderIS = ledger.getTraderIncomeStatements().get(t.getEconomyIndex());
             if (traderIS.getROI() > traderIS.getMaxDesiredROI()) {
                 // since the suspending the candidate leads to undesirable ROI for some traders
@@ -254,7 +254,7 @@ public class OldSuspension {
         // running suspension on their market
         for (Trader t : affectedTraders) {
             if (market.getActiveSellers().contains(t)) {
-                ledger.calculateExpRevForTrader(economy, t);
+                ledger.calculateExpRevForTraderAndGetTopRevenue(economy, t);
             }
         }
         return;
