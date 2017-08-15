@@ -317,10 +317,8 @@ public class BootstrapSupply {
                 return allActions;
             }
             // do not provision traders in markets where guaranteedBuyers are unplaced
-            // or when all the sellers are not cloneable
-            if (market.getActiveSellers().stream().allMatch(trader -> !trader.getSettings()
-                   .isCloneable()) || market.getBuyers().stream().allMatch(sl -> sl.getBuyer()
-                       .getSettings().isGuaranteedBuyer())) {
+            if (market.getBuyers().stream().allMatch(
+                            sl -> sl.getBuyer().getSettings().isGuaranteedBuyer())) {
                 continue;
             }
             List<Trader> sellers = market.getActiveSellers();
@@ -352,9 +350,7 @@ public class BootstrapSupply {
                     if (Double.isInfinite(minimizer.getBestQuote())) {
                         // Start by cloning the best provider that can fit the buyer. If none can fit
                         // the buyer, provision a new seller large enough to fit the demand.
-                        if (sellers.stream().filter(seller -> seller.getSettings().isCloneable()).count() != 0) {
-                            allActions.addAll(checkAndApplyProvision(economy, shoppingList, market));
-                        }
+                        allActions.addAll(checkAndApplyProvision(economy, shoppingList, market));
                     } else if (Double.isInfinite(minimizer.getCurrentQuote()) &&
                                     minimizer.getBestSeller() != shoppingList.getSupplier()) {
                         // If we have a seller that can fit the buyer getting an infiniteQuote,
@@ -421,6 +417,11 @@ public class BootstrapSupply {
         Action bootstrapAction;
         Trader provisionedSeller;
         List<Trader> activeSellers = market.getActiveSellers();
+        // returns if all the sellers are not cloneable
+        if (activeSellers.stream().filter(seller -> seller.getSettings().isCloneable())
+                        .count() == 0) {
+            return actions;
+        }
         Trader sellerThatFits = findTraderThatFitsBuyer (shoppingList, activeSellers, market);
         if (sellerThatFits != null) {
             // log shoppingLists that need ProvisionBySupply in slsThatNeedProvBySupply
