@@ -272,7 +272,8 @@ public class Move extends MoveBase implements Action { // inheritance for code r
                 // commodities into account.
                 int specIndex = economy.getMarket(customer).getBasket().indexOf(specificationSold);
                 if (specIndex >= 0) {
-                    double[] tempUpdatedQnty = explicitCombinator.operate(customer, specIndex, commoditySold, traderToUpdate, economy, false);
+                    double[] tempUpdatedQnty = explicitCombinator.operate(customer, specIndex,
+                                    commoditySold, traderToUpdate, economy, take);
                     commoditySold.setQuantity(tempUpdatedQnty[0]).setPeakQuantity(tempUpdatedQnty[1]);
                 }
             }
