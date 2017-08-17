@@ -53,13 +53,13 @@
         </pluginManagement>
     </build>
 
-<distributionManagement>
-  <repository>
+    <distributionManagement>
+        <repository>
             <id>vmturbo</id>
             <name>Internal Releases</name>
             <url>http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo</url>
 	    </repository>
-  <snapshotRepository>
+        <snapshotRepository>
             <id>snapshots</id>
             <name>Internal Snapshots</name>
             <url>http://build.vmturbo.com:8081/nexus/content/repositories/snapshots</url>
