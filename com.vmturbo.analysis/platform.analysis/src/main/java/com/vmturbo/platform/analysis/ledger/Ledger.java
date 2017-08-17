@@ -7,7 +7,10 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.Spliterator;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.StreamSupport;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -16,8 +19,11 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Deterministic;
 import org.checkerframework.dataflow.qual.Pure;
 
+import com.google.common.collect.Sets;
+
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
+import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
@@ -273,9 +279,7 @@ public class Ledger {
                     for (int i=0; i<3; i++) {
                         quote[i] = Double.POSITIVE_INFINITY;
                     }
-                    logger.warn("seller " + seller.getDebugInfoNeverUseInCode() + " placed on the "
-                            + "wrong provider " + sl.getSupplier().getDebugInfoNeverUseInCode() +
-                            " hence returning INFINITE expense");
+                    logWrongProvider(sl);
                 }
             }
             if (Double.isInfinite(quote[0])) {
@@ -314,9 +318,7 @@ public class Ledger {
                 for (int i=0; i<3; i++) {
                     quote[i] = Double.POSITIVE_INFINITY;
                 }
-                logger.warn("seller " + shoppingList.getBuyer().getDebugInfoNeverUseInCode() + " placed on the "
-                        + "wrong provider " + shoppingList.getSupplier().getDebugInfoNeverUseInCode() +
-                        " hence returning INFINITE expense");
+                logWrongProvider(shoppingList);
             }
         }
 
@@ -326,6 +328,25 @@ public class Ledger {
                             .setMinDesiredExpenses(buyerIncomeStmt.getMinDesiredExpenses() + quote[1])
                             .setMaxDesiredExpenses(buyerIncomeStmt.getMaxDesiredExpenses() + quote[2]);
         }
+    }
+
+    /**
+      * Log a wrong provider message stating which buyer is incorrectly buying from which seller due to
+      * which missing commodities.
+      *
+      * @param shoppingList The {@link ShoppingList} being bought from the wrong provider.
+      */
+    private void logWrongProvider(@NonNull final ShoppingList shoppingList) {
+        final Trader seller = shoppingList.getSupplier();
+        final Set<CommoditySpecification> bought = Sets.newHashSet(shoppingList.getBasket());
+        final Set<CommoditySpecification> sold = Sets.newHashSet(seller.getBasketSold());
+        final Set<CommoditySpecification> missing = Sets.difference(bought, sold);
+        final String missingMessage = missing.stream()
+            .map(commoditySpecification -> commoditySpecification.getDebugInfoNeverUseInCode())
+            .collect(Collectors.joining(",", "Missing=[", "]"));
+        logger.warn("Buyer " + shoppingList.getBuyer().getDebugInfoNeverUseInCode() + " placed on the "
+            + "wrong provider " + seller.getDebugInfoNeverUseInCode() + " " + missingMessage
+            + " hence returning INFINITE expense");
     }
 
     /**
