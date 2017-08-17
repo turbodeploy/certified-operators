@@ -10,6 +10,7 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import com.vmturbo.platform.analysis.actions.Action;
+import com.vmturbo.platform.analysis.actions.CompoundMove;
 import com.vmturbo.platform.analysis.actions.Deactivate;
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.actions.ProvisionByDemand;
@@ -179,30 +180,46 @@ public class ActionClassifier {
      * @param actions The list of actions to be classified.
      */
     private void classifyAndMarkMoves(@NonNull List<Action> actions) {
-        actions.stream().filter(a -> a instanceof Move).forEach(m -> {
-            Move move = (Move) m;
-
-            Trader currentSupplierCopy = move.getSource() != null ?
-                            lookupTraderInSimulationEconomy(move.getSource()) : null;
-            Trader newSupplierCopy = lookupTraderInSimulationEconomy(move.getDestination());
-            if (newSupplierCopy == null || newSupplierCopy.isClone()) {
-                move.setExecutable(false);
-                return;
-            }
-            ShoppingList targetCopy = findTargetInEconomyCopy(move.getTarget());
-            if (targetCopy == null) {
-                move.setExecutable(false);
-                return;
-            }
-
-            final double[] quote = EdeCommon.quote(simulationEconomy_, targetCopy, newSupplierCopy, Double.POSITIVE_INFINITY, false);
-            if (quote[0] < Double.POSITIVE_INFINITY) {
-                move.simulateChangeDestinationOnly(simulationEconomy_, currentSupplierCopy, newSupplierCopy, targetCopy);
-                move.setExecutable(true);
-            } else {
-                move.setExecutable(false);
+        actions.stream().forEach(a -> {
+            if (a instanceof Move) {
+                classifyAndMarkMove((Move)a);
+            } else if (a instanceof CompoundMove){
+                boolean isCompMoveExecutable = true;
+                for (Move mv : ((CompoundMove) a).getConstituentMoves()) {
+                    classifyAndMarkMove(mv);
+                    isCompMoveExecutable &= mv.isExecutable();
+                }
+                a.setExecutable(isCompMoveExecutable);
             }
         });
+    }
+
+    /**
+     * Mark move as executable if it can be successfully simulated in the clone of the Economy.
+     *
+     * @param m The {@link Move} to be classified.
+     */
+    private void classifyAndMarkMove (Move move) {
+        Trader currentSupplierCopy = move.getSource() != null ?
+                        lookupTraderInSimulationEconomy(move.getSource()) : null;
+        Trader newSupplierCopy = lookupTraderInSimulationEconomy(move.getDestination());
+        if (newSupplierCopy == null || newSupplierCopy.isClone()) {
+            move.setExecutable(false);
+            return;
+        }
+        ShoppingList targetCopy = findTargetInEconomyCopy(move.getTarget());
+        if (targetCopy == null) {
+            move.setExecutable(false);
+            return;
+        }
+
+        final double[] quote = EdeCommon.quote(simulationEconomy_, targetCopy, newSupplierCopy, Double.POSITIVE_INFINITY, false);
+        if (quote[0] < Double.POSITIVE_INFINITY) {
+            move.simulateChangeDestinationOnly(simulationEconomy_, currentSupplierCopy, newSupplierCopy, targetCopy);
+            move.setExecutable(true);
+        } else {
+            move.setExecutable(false);
+        }
     }
 
     /**
@@ -227,6 +244,10 @@ public class ActionClassifier {
         Basket basket = target.getBasket();
         Trader buyer = target.getBuyer();
         Trader buyerCopy = lookupTraderInSimulationEconomy(buyer);
+        // When classifying a move for a cloned entity, we wont find it in the simulationEconomy
+        if (buyerCopy == null) {
+            return null;
+        }
         Set<ShoppingList> shoppingLists = simulationEconomy_.getMarketsAsBuyer(buyerCopy).keySet();
         for (ShoppingList shoppingList: shoppingLists) {
             if (shoppingList.getBasket().equals(basket)) {
