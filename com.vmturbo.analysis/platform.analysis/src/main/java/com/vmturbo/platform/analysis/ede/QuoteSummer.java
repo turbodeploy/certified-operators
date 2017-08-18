@@ -5,6 +5,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.checkerframework.checker.javari.qual.ReadOnly;
@@ -115,7 +116,9 @@ final class QuoteSummer {
      *              for this shopping list, will be added in the sum.
      */
     public void accept(@NonNull @ReadOnly Entry<@NonNull ShoppingList, @NonNull Market> entry) {
-        @NonNull List<@NonNull Trader> sellers = entry.getValue().getCliques().get(clique_);
+        // consider only active sellers while performing SNM
+        @NonNull List<@NonNull Trader> sellers = entry.getValue().getCliques().get(clique_).stream()
+                .filter(seller -> seller.getState().isActive()).collect(Collectors.toList());
         @NonNull Stream<@NonNull Trader> stream = sellers.size() < economy_.getSettings().getMinSellersForParallelism()
             ? sellers.stream() : sellers.parallelStream();
         @NonNull QuoteMinimizer minimizer = stream.collect(()->new QuoteMinimizer(economy_,entry.getKey()),
