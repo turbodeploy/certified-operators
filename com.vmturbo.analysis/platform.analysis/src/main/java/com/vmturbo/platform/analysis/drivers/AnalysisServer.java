@@ -41,11 +41,12 @@ import com.vmturbo.platform.analysis.utilities.StatsUtils;
 
 
 /**
- * The handler to receive and process the {@link AnalysisCommand} from client
+ * AnalysisServer is a single instance, that handle incoming requests from client and sends
+ * responses back.
  */
-public class AnalysisClientMessageHandler implements AutoCloseable {
+public class AnalysisServer implements AutoCloseable {
 
-    private static final Logger logger = LogManager.getLogger(AnalysisClientMessageHandler.class);
+    private final Logger logger = LogManager.getLogger(getClass());
     // the maximum number of task queue allowed to process client message
     private static final int MAX_QUEUE_SIZE = 100;
     // the thread pool used for handling message sent from client side
@@ -66,11 +67,15 @@ public class AnalysisClientMessageHandler implements AutoCloseable {
      */
     private final Future<?> pollOutgoingTask;
 
-    public AnalysisClientMessageHandler(@Nonnull ExecutorService threadPool) {
+    public AnalysisServer(@Nonnull ExecutorService threadPool) {
         executorService = Objects.requireNonNull(threadPool);
         pollOutgoingTask = threadPool.submit(this::pollOutgoingMessages);
     }
 
+    /**
+     * Performes polling for new analysis results, ready for send. As soon as they arrive, this
+     * method will try to send them to analysis client.
+     */
     private void pollOutgoingMessages() {
         try {
             for (;;) {
@@ -83,6 +88,13 @@ public class AnalysisClientMessageHandler implements AutoCloseable {
         }
     }
 
+    /**
+     * Sends single analysis result using on of the transports available. If no transport is
+     * available, it will hang to await new transport to appear.
+     *
+     * @param result analysis result to send
+     * @throws InterruptedException in thread has been interrupted while sending or waiting
+     */
     private void sendSingleMessage(@Nonnull AnalysisResults result) throws InterruptedException {
         for (;;) {
             for (ITransport<AnalysisResults, AnalysisCommand> transport : endpoints) {
@@ -102,6 +114,12 @@ public class AnalysisClientMessageHandler implements AutoCloseable {
         }
     }
 
+    /**
+     * Registers new endpoint, able to request market analysis, so AnalysisServer will receive
+     * requests from this endpoint and send respoinses to it.
+     *
+     * @param endpoint new endpoint appeared
+     */
     public void registerEndpoint(@Nonnull ITransport<AnalysisResults, AnalysisCommand> endpoint) {
         endpoints.add(Objects.requireNonNull(endpoint));
         endpoint.addEventHandler(new EventHandler<AnalysisCommand>() {
@@ -120,9 +138,15 @@ public class AnalysisClientMessageHandler implements AutoCloseable {
         }
     }
 
+    /**
+     * Unregisters endpoint, when it is no longer needed (closed). This endpoint will no longer
+     * be used for sending responces.
+     *
+     * @param endpoint endpoint to unregister.
+     */
     private void unregisterEndpoint(
             @Nonnull ITransport<AnalysisResults, AnalysisCommand> endpoint) {
-        logger.info("Endpiont closed: " + endpoint);
+        logger.info("Endpoint closed: " + endpoint);
         endpoints.remove(Objects.requireNonNull(endpoint));
     }
 

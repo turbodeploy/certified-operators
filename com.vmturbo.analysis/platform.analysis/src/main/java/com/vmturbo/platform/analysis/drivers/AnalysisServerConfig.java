@@ -37,15 +37,15 @@ public class AnalysisServerConfig implements AutoCloseable {
     public AnalysisServerConfig(@Nonnull ServerContainer serverContainer)
             throws DeploymentException {
         final ThreadFactory threadFactory =
-                new ThreadFactoryBuilder().setNameFormat("analysis-server-%d").build();
+                new ThreadFactoryBuilder().setNameFormat("analysis-server-ws-%d").build();
         analysisServerThreadPool = Executors.newFixedThreadPool(NUM_OF_THREAD, threadFactory);
         analysisRequestProcessorThreadPool = Executors.newFixedThreadPool(NUM_OF_THREAD,
-                new ThreadFactoryBuilder().setNameFormat("analysis-client-message-processor-%d")
+                new ThreadFactoryBuilder().setNameFormat("analysis-server-ws-processor-%d")
                         .build());
 
         IdentityGenerator.initPrefix(IdentityGenerator.MAXPREFIX);
-        final AnalysisClientMessageHandler analysisServer =
-                new AnalysisClientMessageHandler(analysisRequestProcessorThreadPool);
+        final AnalysisServer analysisServer =
+                new AnalysisServer(analysisRequestProcessorThreadPool);
         final WebsocketServerTransportManager transportManager =
                 new WebsocketServerTransportManager(
                         new WebsocketServerTransportManager.TransportHandler() {
