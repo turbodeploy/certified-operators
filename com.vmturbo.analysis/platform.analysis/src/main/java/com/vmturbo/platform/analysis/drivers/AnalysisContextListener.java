@@ -20,31 +20,31 @@ public class AnalysisContextListener implements ServletContextListener {
 
     private static final Logger logger = LogManager.getLogger(AnalysisContextListener.class);
 
-    // the configuration used for creating analysis server endpoint
+    /** the configuration used for creating analysis server endpoint */
     private AnalysisServerConfig analysisServerConfig;
-
 
     @Override
     public synchronized void contextInitialized(ServletContextEvent sce) {
         if (analysisServerConfig == null) {
-            analysisServerConfig = new AnalysisServerConfig();
+            final ServerContainer serverContainer = (ServerContainer)sce.getServletContext()
+                    .getAttribute(ServerContainer.class.getName());
+            try {
+                analysisServerConfig = new AnalysisServerConfig(serverContainer);
+                logger.info("Analysis server websocket endpoint opened");
+            } catch (DeploymentException e) {
+                logger.error("Error opening analysis server websocket endpoint ", e);
+            }
         } else {
-            throw new IllegalArgumentException(
-                            "Analysis server configuration has already been created");
+            throw new IllegalStateException(
+                    "Analysis server configuration has already been created");
         }
-        try {
-            analysisServerConfig.init((ServerContainer)sce.getServletContext()
-                            .getAttribute(ServerContainer.class.getName()));
-        } catch (DeploymentException e) {
-            logger.error("Error opening analysis server websocket endpoint ", e);
-        }
-        logger.info("Analysis server websocket endpoint opened");
     }
 
     @Override
     public void contextDestroyed(ServletContextEvent sce) {
         if (analysisServerConfig != null) {
             analysisServerConfig.close();
+            analysisServerConfig = null;
         }
     }
 

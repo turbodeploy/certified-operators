@@ -1,22 +1,27 @@
 package com.vmturbo.platform.analysis.drivers;
 
-import java.util.HashSet;
+import java.util.Collections;
 import java.util.List;
-import java.util.Map.Entry;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.stream.Collectors;
+
+import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.ITransport;
+import com.vmturbo.communication.ITransport.EventHandler;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.Deactivate;
 import com.vmturbo.platform.analysis.economy.Economy;
@@ -24,73 +29,101 @@ import com.vmturbo.platform.analysis.economy.EconomySettings;
 import com.vmturbo.platform.analysis.ede.Ede;
 import com.vmturbo.platform.analysis.ede.ReplayActions;
 import com.vmturbo.platform.analysis.ledger.PriceStatement;
+import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisCommand;
+import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults;
+import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTopology;
+import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.StartDiscoveredTopology;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.EconomySettingsTO;
 import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.translators.AnalysisToProtobuf;
 import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
 import com.vmturbo.platform.analysis.utilities.StatsUtils;
 
-import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisCommand;
-import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults;
-import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.StartDiscoveredTopology;
-import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTopology;
-import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.EconomySettingsTO;
-
 
 /**
  * The handler to receive and process the {@link AnalysisCommand} from client
  */
-public class AnalysisClientMessageHandler implements ITransport.EventHandler<AnalysisCommand> {
+public class AnalysisClientMessageHandler implements AutoCloseable {
 
     private static final Logger logger = LogManager.getLogger(AnalysisClientMessageHandler.class);
-    // create a thread pool to process the message received from M2
-    private static int NUM_OF_THREAD = 5;
     // the maximum number of task queue allowed to process client message
     private static final int MAX_QUEUE_SIZE = 100;
     // the thread pool used for handling message sent from client side
-    private ExecutorService executorService =
-                    Executors.newFixedThreadPool(NUM_OF_THREAD, new ThreadFactoryBuilder()
-                                    .setNameFormat("analysis-client-message-processor-%d")
-                                    .build());
+    private final ExecutorService executorService;
+    // map that associates every topology with a instanceInfo that has the topology and some associated settings
+    private final Map<Long, AnalysisInstanceInfo> analysisInstanceInfoMap = new
+            ConcurrentHashMap<>();
+    // map that associates every market name with actions from last run
+    private final Map<String, ReplayActions> replayActionsMap = new ConcurrentHashMap<>();
+    // a queue to save the AnalysisResult message that was not sent to client side
+    private final Queue<AnalysisResults> resultsToSend = new ConcurrentLinkedQueue<>();
+    // websocket transport handler
+    private final Set<ITransport<AnalysisResults, AnalysisCommand>> endpoints =
+            Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private final Object newEndpointNotifier = new Object();
+    /**
+     * Task to poll outgoing message, when available to send using transports.
+     */
+    private final Future<?> pollOutgoingTask;
 
-    // the protobuf end point that is used to send and receive protobuf message
-    private AnalysisServerProtobufEndPoint protobufEndpoint;
-    // the analysis server websocket endpoint
-    private AnalysisServer analysisServer;
+    public AnalysisClientMessageHandler(@Nonnull ExecutorService threadPool) {
+        executorService = Objects.requireNonNull(threadPool);
+        pollOutgoingTask = threadPool.submit(this::pollOutgoingMessages);
+    }
 
-    public AnalysisClientMessageHandler(AnalysisServerProtobufEndPoint protobufEndpoint,
-                    AnalysisServer analysisServer) {
-        this.protobufEndpoint = protobufEndpoint;
-        this.analysisServer = analysisServer;
-        // resend the message that was not successfully sent to client side in previous session
+    private void pollOutgoingMessages() {
         try {
-            while(!analysisServer.getPreviousFailedMsg().isEmpty()) {
-                AnalysisResults failedMsg = analysisServer.getPreviousFailedMsg().poll();
-                sendResult(failedMsg);
+            for (;;) {
+                final AnalysisResults failedMsg = resultsToSend.poll();
+                sendSingleMessage(failedMsg);
             }
         } catch (InterruptedException e) {
-            logger.error("Can not send the failed message from previous session", e);
-            onClose();
+            logger.info("Thread interrupted, Can not send the failed message from previous " +
+                    "session", e);
         }
-
     }
 
-    @Override
-    public void onClose() {
-        logger.info("Endpiont closed: " + protobufEndpoint);
-        executorService.shutdown();
-        protobufEndpoint = null;
+    private void sendSingleMessage(@Nonnull AnalysisResults result) throws InterruptedException {
+        for (;;) {
+            for (ITransport<AnalysisResults, AnalysisCommand> transport : endpoints) {
+                try {
+                    transport.send(result);
+                    logger.info("Successfully send market results " + result.getTopologyId());
+                    return;
+                } catch (CommunicationException e) {
+                    logger.error("Communication error occurred, while sending market results " +
+                            result.getTopologyId(), e);
+                    transport.close();
+                }
+            }
+            synchronized (newEndpointNotifier) {
+                newEndpointNotifier.wait();
+            }
+        }
     }
 
-    @Override
-    public void onMessage(AnalysisCommand message) {
-        // Create a generic response handler for all messages received from client
-        // At this place, all messages are forwarded to remote market actor.
-        // Remote Market akka actor can decide from the type of the message what code to invoke
-        // in order to process the received messages
-        // This actor will return a response with a message that can be sent back to the
-        // websocket client who initiated the message communication
-        handleAllMessagesSentFromClient(message);
+    public void registerEndpoint(@Nonnull ITransport<AnalysisResults, AnalysisCommand> endpoint) {
+        endpoints.add(Objects.requireNonNull(endpoint));
+        endpoint.addEventHandler(new EventHandler<AnalysisCommand>() {
+            @Override
+            public void onMessage(AnalysisCommand message) {
+                handleAllMessagesSentFromClient(message);
+            }
 
+            @Override
+            public void onClose() {
+                unregisterEndpoint(endpoint);
+            }
+        });
+        synchronized (newEndpointNotifier) {
+            newEndpointNotifier.notify();
+        }
+    }
+
+    private void unregisterEndpoint(
+            @Nonnull ITransport<AnalysisResults, AnalysisCommand> endpoint) {
+        logger.info("Endpiont closed: " + endpoint);
+        endpoints.remove(Objects.requireNonNull(endpoint));
     }
 
     /**
@@ -127,7 +160,7 @@ public class AnalysisClientMessageHandler implements ITransport.EventHandler<Ana
      // Finish topology
         EndDiscoveredTopology endDiscMsg = message.getEndDiscoveredTopology();
         AnalysisInstanceInfo instInfoAfterDisc =
-                        analysisServer.getAnalysisInstanceInfoMap().get(message.getTopologyId());
+                        analysisInstanceInfoMap.get(message.getTopologyId());
         Topology currPartial = instInfoAfterDisc.getCurrentPartial();
         currPartial.populateMarketsWithSellers();
         ProtobufToAnalysis.populateCommodityResizeDependencyMap(endDiscMsg,
@@ -149,12 +182,12 @@ public class AnalysisClientMessageHandler implements ITransport.EventHandler<Ana
     }
 
     /**
-     * Sets {@link forceStop} true when receiving {@link ForcePlanStop}
+     * Sets {@link Economy#forceStop} true when receiving {@link com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.ForcePlanStop}
      */
     private void forceStopAnalysis(AnalysisCommand message) {
         logger.info("Received a message to stop running analysis");
         AnalysisInstanceInfo analysisInstance =
-                        analysisServer.getAnalysisInstanceInfoMap().get(message.getTopologyId());
+                        analysisInstanceInfoMap.get(message.getTopologyId());
         if (analysisInstance != null) {
             analysisInstance.getCurrentPartial().getEconomy().setForceStop(true);
             analysisInstance.getLastComplete().getEconomy().setForceStop(true);
@@ -163,21 +196,21 @@ public class AnalysisClientMessageHandler implements ITransport.EventHandler<Ana
     /**
      * Handles all messages coming from client side.
      *
-     * @param receivedMsg Message received from the client side
+     * @param message Message received from the client side
      */
     private void handleAllMessagesSentFromClient(AnalysisCommand message) {
         switch (message.getCommandTypeCase()) {
             case START_DISCOVERED_TOPOLOGY:
-                analysisServer.getAnalysisInstanceInfoMap().put(message.getTopologyId(),
+                analysisInstanceInfoMap.put(message.getTopologyId(),
                                 parseStartDiscoveredTopology(message));
                 break;
             case DISCOVERED_TRADER:
                 if (message.getDiscoveredTrader().getTemplateForHeadroom()) {
-                    analysisServer.getAnalysisInstanceInfoMap().get(message.getTopologyId())
+                    analysisInstanceInfoMap.get(message.getTopologyId())
                                     .getCurrentPartial().addTradersForHeadroom(message.getDiscoveredTrader());
                 } else {
                     ProtobufToAnalysis.addTrader(
-                                    analysisServer.getAnalysisInstanceInfoMap().get(message.getTopologyId())
+                                    analysisInstanceInfoMap.get(message.getTopologyId())
                                                     .getCurrentPartial(), message.getDiscoveredTrader());
                 }
                 break;
@@ -194,7 +227,6 @@ public class AnalysisClientMessageHandler implements ITransport.EventHandler<Ana
                                         .setAnalysisFailed(true).build());
                     } catch (InterruptedException e) {
                         logger.error("Shutting down thread pool when sending result back to client", e);
-                        executorService.shutdown();
                     }
                     return;
                 }
@@ -202,18 +234,15 @@ public class AnalysisClientMessageHandler implements ITransport.EventHandler<Ana
                     @Override
                     public void run() {
                         try {
-                        long topologyId = message.getTopologyId();
-                        // remove topologyInfo from the map if result is sent successfully
-                        AnalysisResults results;
-                        results = runAnalysis(topologyId);
-                        logger.info("Preparing to send back analysis result to client side");
-                        if (!sendResult(results)) {
-                            analysisServer.getPreviousFailedMsg().add(results);
-                        }
-                        analysisServer.getAnalysisInstanceInfoMap().remove(topologyId);
+                            long topologyId = message.getTopologyId();
+                            // remove topologyInfo from the map if result is sent successfully
+                            AnalysisResults results;
+                            results = runAnalysis(topologyId);
+                            logger.info("Preparing to send back analysis result to client side");
+                            sendResult(results);
+                            analysisInstanceInfoMap.remove(topologyId);
                         } catch (InterruptedException e) {
                             logger.error("Shutting down thread pool when sending result back to client", e);
-                            executorService.shutdown();
                         }
 
                     }
@@ -233,18 +262,10 @@ public class AnalysisClientMessageHandler implements ITransport.EventHandler<Ana
     /**
      * Sends the result message to the server side.
      */
-    private synchronized boolean sendResult(AnalysisResults result) throws InterruptedException {
-        boolean sentSuccessful = false;
-        try {
-            // get the latest registered protobuf endpoint and send result
-            analysisServer.getAnalysisTransportHandler().getRegisteredEndpoint().send(result);
-            sentSuccessful = true;
-            logger.info("Sending message to analysis client succeed");
-        } catch (NullPointerException | IllegalStateException | CommunicationException e) {
-            logger.error("Exception caught when sending the message to analysis client", e);
-        }
-        return sentSuccessful;
+    private void sendResult(@Nonnull AnalysisResults result) throws InterruptedException {
+        resultsToSend.add(Objects.requireNonNull(result));
     }
+
     /**
      * Run the analysis algorithm which generates actions.
      *
@@ -253,7 +274,7 @@ public class AnalysisClientMessageHandler implements ITransport.EventHandler<Ana
      */
     private @NonNull AnalysisResults runAnalysis(long topologyId) {
         AnalysisResults results;
-        AnalysisInstanceInfo instInfo = analysisServer.getAnalysisInstanceInfoMap().get(topologyId);
+        AnalysisInstanceInfo instInfo = analysisInstanceInfoMap.get(topologyId);
         Topology temp = instInfo.getLastComplete();
         Topology lastComplete = instInfo.getCurrentPartial();
         instInfo.setLastComplete(lastComplete);
@@ -307,7 +328,7 @@ public class AnalysisClientMessageHandler implements ITransport.EventHandler<Ana
                             startPriceStatement, true);
         } else {
             // if there are no templates to be added this is not a headroom plan
-            ReplayActions lastDecisions = analysisServer.getReplayActionsMap().get(mktName);
+            ReplayActions lastDecisions = replayActionsMap.get(mktName);
             Ede ede = new Ede();
             boolean isReplayOrRealTime = instInfo.isReplayActions() || instInfo.isRealTime();
             if (isReplayOrRealTime) {
@@ -333,11 +354,15 @@ public class AnalysisClientMessageHandler implements ITransport.EventHandler<Ana
                                     .filter(action -> action instanceof Deactivate)
                                     .collect(Collectors.toList()));
                 }
-                analysisServer.getReplayActionsMap().put(mktName, newReplayActions);
+                replayActionsMap.put(mktName, newReplayActions);
             }
 
         }
         return results;
     }
 
+    @Override
+    public void close() {
+        pollOutgoingTask.cancel(true);
+    }
 }

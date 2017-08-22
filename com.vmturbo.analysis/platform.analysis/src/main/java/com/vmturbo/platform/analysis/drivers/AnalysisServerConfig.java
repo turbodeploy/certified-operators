@@ -4,6 +4,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 
+import javax.annotation.Nonnull;
 import javax.websocket.DeploymentException;
 import javax.websocket.server.ServerContainer;
 import javax.websocket.server.ServerEndpointConfig;
@@ -11,12 +12,14 @@ import javax.websocket.server.ServerEndpointConfig.Configurator;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
-import com.vmturbo.platform.analysis.drivers.AnalysisWebsocketServerTransportHandler;
+import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.communication.WebsocketServerTransport;
+import com.vmturbo.communication.WebsocketServerTransportManager;
 
 /**
  * This class represents Spring configuration for analysis server.
- * @author weiduan
  *
+ * @author weiduan
  */
 public class AnalysisServerConfig implements AutoCloseable {
 
@@ -29,48 +32,48 @@ public class AnalysisServerConfig implements AutoCloseable {
     private final ExecutorService analysisServerThreadPool;
     // create a thread pool to process the message received from M2
     private static int NUM_OF_THREAD = 5;
+    private final ExecutorService analysisRequestProcessorThreadPool;
 
-    public AnalysisServerConfig() {
+    public AnalysisServerConfig(@Nonnull ServerContainer serverContainer)
+            throws DeploymentException {
         final ThreadFactory threadFactory =
-                        new ThreadFactoryBuilder().setNameFormat("analysis-server-%d").build();
+                new ThreadFactoryBuilder().setNameFormat("analysis-server-%d").build();
         analysisServerThreadPool = Executors.newFixedThreadPool(NUM_OF_THREAD, threadFactory);
-    }
+        analysisRequestProcessorThreadPool = Executors.newFixedThreadPool(NUM_OF_THREAD,
+                new ThreadFactoryBuilder().setNameFormat("analysis-client-message-processor-%d")
+                        .build());
 
-    /**
-     * Create the websocket endpoint with configuration.
-     *
-     * @param serverContainer websocket server container
-     * @throws DeploymentException if any error occurred while initializing.
-     */
-    public void init(ServerContainer serverContainer) throws DeploymentException {
-
-        final AnalysisWebsocketServerTransportHandler transportHandler =
-                        new AnalysisWebsocketServerTransportHandler();
-
-        final AnalysisServer analysisServer = new AnalysisServer(transportHandler,
-                        analysisServerThreadPool);
-        transportHandler.attachEndPoint(analysisServer);
+        IdentityGenerator.initPrefix(IdentityGenerator.MAXPREFIX);
+        final AnalysisClientMessageHandler analysisServer =
+                new AnalysisClientMessageHandler(analysisRequestProcessorThreadPool);
+        final WebsocketServerTransportManager transportManager =
+                new WebsocketServerTransportManager(
+                        new WebsocketServerTransportManager.TransportHandler() {
+                            @Override
+                            public void onNewTransport(WebsocketServerTransport transport) {
+                                final AnalysisServerProtobufEndPoint endpoint =
+                                        new AnalysisServerProtobufEndPoint(transport);
+                                analysisServer.registerEndpoint(endpoint);
+                            }
+                        }, analysisServerThreadPool);
 
         final Configurator configurator = new Configurator() {
             @Override
             public <T> T getEndpointInstance(Class<T> endpointClass) throws InstantiationException {
-                @SuppressWarnings("unchecked")
-                final T result = (T)analysisServer;
+                @SuppressWarnings("unchecked") final T result = (T)transportManager;
                 return result;
             }
         };
         // Add echo endpoint to analysis server container
         final ServerEndpointConfig endpointConfig =
-                        ServerEndpointConfig.Builder
-                                        .create(AnalysisServer.class,
-                                                        ANALYSIS_SERVER_PATH)
-                                        .configurator(configurator).build();
+                ServerEndpointConfig.Builder.create(WebsocketServerTransportManager.class,
+                        ANALYSIS_SERVER_PATH).configurator(configurator).build();
         serverContainer.addEndpoint(endpointConfig);
     }
 
     @Override
     public void close() {
         analysisServerThreadPool.shutdownNow();
+        analysisRequestProcessorThreadPool.shutdownNow();
     }
-
 }
