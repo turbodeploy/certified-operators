@@ -4,12 +4,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.stream.Collectors;
 
@@ -57,7 +57,7 @@ public class AnalysisServer implements AutoCloseable {
     // map that associates every market name with actions from last run
     private final Map<String, ReplayActions> replayActionsMap = new ConcurrentHashMap<>();
     // a queue to save the AnalysisResult message that was not sent to client side
-    private final Queue<AnalysisResults> resultsToSend = new ConcurrentLinkedQueue<>();
+    private final BlockingQueue<AnalysisResults> resultsToSend = new LinkedBlockingQueue<>();
     // websocket transport handler
     private final Set<ITransport<AnalysisResults, AnalysisCommand>> endpoints =
             Collections.newSetFromMap(new ConcurrentHashMap<>());
@@ -79,7 +79,7 @@ public class AnalysisServer implements AutoCloseable {
     private void pollOutgoingMessages() {
         try {
             for (;;) {
-                final AnalysisResults failedMsg = resultsToSend.poll();
+                final AnalysisResults failedMsg = resultsToSend.take();
                 sendSingleMessage(failedMsg);
             }
         } catch (InterruptedException e) {
