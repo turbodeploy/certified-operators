@@ -27,9 +27,9 @@ public final class EconomySettings implements Serializable {
     /**
      * The value returned by {@link #getQuoteFactor()} when called on a newly constructed instance.
      */
-    // 0.999 corresponding to a 0.1% improvement seemed reasonable but there is no particular reason
+    // 0.75 corresponding to a 25% improvement seemed reasonable but there is no particular reason
     // not to use another value.
-    public static final double DEFAULT_QUOTE_FACTOR = 0.9;
+    public static final double DEFAULT_QUOTE_FACTOR = 0.75;
 
     private int minSellersForParallelism_ = DEFAULT_MIN_SELLERS_FOR_PARALLELISM;
     private double quoteFactor_ = DEFAULT_QUOTE_FACTOR;
