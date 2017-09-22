@@ -89,7 +89,7 @@ public class BootstrapSupply {
      * @param economy the {@Link Economy} for which we want to guarantee enough supply.
      * @return a list of actions that needed to generate supply
      */
-    private static @NonNull List<@NonNull Action> shopTogetherBootstrap(Economy economy) {
+    protected static @NonNull List<@NonNull Action> shopTogetherBootstrap(Economy economy) {
         List<@NonNull Action> allActions = new ArrayList<@NonNull Action>();
         int tradesSize = economy.getShopTogetherTraders().size();
         // Go through all buyers
@@ -310,7 +310,7 @@ public class BootstrapSupply {
      * @param economy the {@Link Economy} for which we want to guarantee enough supply.
      * @return a list of actions that needed to generate supply
      */
-    private static @NonNull List<@NonNull Action> nonShopTogetherBootstrap(Economy economy) {
+    protected static @NonNull List<@NonNull Action> nonShopTogetherBootstrap(Economy economy) {
         List<@NonNull Action> allActions = new ArrayList<@NonNull Action>();
         for (Market market : economy.getMarkets()) {
             if (economy.getForceStop()) {
