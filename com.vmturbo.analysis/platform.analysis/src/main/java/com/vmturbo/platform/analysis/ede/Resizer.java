@@ -63,7 +63,8 @@ public class Resizer {
                 return actions;
             }
             Basket basketSold = seller.getBasketSold();
-            if (basketSold == null) {
+            // do not resize if the basketSold is NULL or if the entity is INACTIVE
+            if (basketSold == null || !seller.getState().isActive()) {
                 continue;
             }
             List<IncomeStatement> incomeStatements = ledger.getCommodityIncomeStatements(seller);
