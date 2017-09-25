@@ -14,7 +14,6 @@ import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.actions.ProvisionByDemand;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
 import com.vmturbo.platform.analysis.economy.Basket;
-import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -31,45 +30,27 @@ public class BootstrapSupplyTest {
     private static final int PM_TYPE = 1;
     private static final int ST_TYPE = 2;
 
-    // CommoditySpecifications to use in tests
-    private static final CommoditySpecification CPU = new CommoditySpecification(0);
-    private static final CommoditySpecification MEM = new CommoditySpecification(1);
-    private static final CommoditySpecification ST_AMT = new CommoditySpecification(2);
-
     @Test
     public void testShopTogetherBootstrapWithEnoughSupply() {
         Economy economy = new Economy();
         // create two pms, one is smaller another is bigger in terms of cpu capacity
-        Trader pm1 = economy.addTrader(PM_TYPE, TraderState.ACTIVE, new Basket(CPU, MEM),
-                        new HashSet<>(Arrays.asList(0l)));
-        pm1.getCommoditiesSold().get(pm1.getBasketSold().indexOf(CPU)).setCapacity(100);
-        Trader pm2 = economy.addTrader(PM_TYPE, TraderState.ACTIVE, new Basket(CPU, MEM),
-                        new HashSet<>(Arrays.asList(1l)));
-        pm2.getCommoditiesSold().get(pm1.getBasketSold().indexOf(CPU)).setCapacity(200);
+        Trader pm1 = TestUtils.createPM(economy, Arrays.asList(0l), 100, 100, false);
+        Trader pm2 = TestUtils.createPM(economy, Arrays.asList(1l), 200, 100, false);
         // create two storages with same configuration except the clique
         // st1 only associates with pm1 and st2 only associates with pm2
-        Trader st1 = economy.addTrader(ST_TYPE, TraderState.ACTIVE, new Basket(ST_AMT),
-                        new HashSet<>(Arrays.asList(0l)));
-        st1.getCommoditiesSold().get(st1.getBasketSold().indexOf(ST_AMT)).setCapacity(300);
-        Trader st2 = economy.addTrader(ST_TYPE, TraderState.ACTIVE, new Basket(ST_AMT),
-                        new HashSet<>(Arrays.asList(1l)));
-        st2.getCommoditiesSold().get(st2.getBasketSold().indexOf(ST_AMT)).setCapacity(300);
+        Trader st1 = TestUtils.createStorage(economy, Arrays.asList(0l), 300, false);
+        Trader st2 = TestUtils.createStorage(economy, Arrays.asList(1l), 300, false);
         // create a vm1 that is requesting higher cpu than its current supplier
-        Trader vm1 = economy.addTrader(VM_TYPE, TraderState.ACTIVE, new Basket());
-        ShoppingList sl1 = economy.addBasketBought(vm1, new Basket(CPU, MEM));
-        sl1.setQuantity(sl1.getBasket().indexOf(CPU), 150);
-        sl1.setMovable(true);
-        sl1.move(pm1);
-        pm1.getCommoditiesSold().get(pm1.getBasketSold().indexOf(CPU)).setQuantity(150);
-        ShoppingList sl2 = economy.addBasketBought(vm1, new Basket(ST_AMT));
-        sl2.setQuantity(sl2.getBasket().indexOf(ST_AMT), 100);
-        sl2.setMovable(true);
-        sl2.move(st1);
-        st1.getCommoditiesSold().get(st1.getBasketSold().indexOf(ST_AMT)).setQuantity(100);
+        Trader vm1 = TestUtils.createVM(economy);
+        ShoppingList sl1 = TestUtils.createAndPlaceShoppingList(economy,
+                        Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm1, new double[]{150, 0}, pm1);
+        ShoppingList sl2 = TestUtils.createAndPlaceShoppingList(economy,
+                        Arrays.asList(TestUtils.ST_AMT), vm1, new double[]{100}, st1);
         economy.populateMarketsWithSellers();
 
         List<Action> bootStrapActionList =
                         BootstrapSupply.shopTogetherBootstrapForIndividualBuyer(economy, vm1);
+
         assertTrue(bootStrapActionList.size() == 1);
         Action compoundMove = bootStrapActionList.get(0);
         assertEquals(ActionType.COMPOUND_MOVE, compoundMove.getType());
@@ -86,29 +67,20 @@ public class BootstrapSupplyTest {
     public void testShopTogetherBootstrapWithNewSupply() {
         Economy economy = new Economy();
         // create one pm with smaller capacity
-        Trader pm1 = economy.addTrader(PM_TYPE, TraderState.ACTIVE, new Basket(CPU, MEM),
-                        new HashSet<>(Arrays.asList(0l)));
-        pm1.getCommoditiesSold().get(pm1.getBasketSold().indexOf(CPU)).setCapacity(100);
+        Trader pm1 = TestUtils.createPM(economy, Arrays.asList(0l), 100, 100, false);
         // create one storages with adequate capacity
-        Trader st1 = economy.addTrader(ST_TYPE, TraderState.ACTIVE, new Basket(ST_AMT),
-                        new HashSet<>(Arrays.asList(0l)));
-        st1.getCommoditiesSold().get(st1.getBasketSold().indexOf(ST_AMT)).setCapacity(300);
+        Trader st1 = TestUtils.createStorage(economy, Arrays.asList(0l), 300, false);
         // create a vm that is requesting higher cpu than any seller in market
-        Trader vm1 = economy.addTrader(VM_TYPE, TraderState.ACTIVE, new Basket());
-        ShoppingList sl1 = economy.addBasketBought(vm1, new Basket(CPU, MEM));
-        sl1.setQuantity(sl1.getBasket().indexOf(CPU), 200);
-        sl1.setMovable(true);
-        sl1.move(pm1);
-        pm1.getCommoditiesSold().get(pm1.getBasketSold().indexOf(CPU)).setQuantity(200);
-        ShoppingList sl2 = economy.addBasketBought(vm1, new Basket(ST_AMT));
-        sl2.setQuantity(sl2.getBasket().indexOf(ST_AMT), 100);
-        sl2.setMovable(true);
-        sl2.move(st1);
-        st1.getCommoditiesSold().get(st1.getBasketSold().indexOf(ST_AMT)).setQuantity(100);
+        Trader vm1 = TestUtils.createVM(economy);
+        ShoppingList sl1 = TestUtils.createAndPlaceShoppingList(economy,
+                        Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm1, new double[]{200, 0}, pm1);
+        TestUtils.createAndPlaceShoppingList(economy,
+                        Arrays.asList(TestUtils.ST_AMT), vm1, new double[]{100}, st1);
         economy.populateMarketsWithSellers();
 
         List<Action> bootStrapActionList =
                         BootstrapSupply.shopTogetherBootstrapForIndividualBuyer(economy, vm1);
+
         assertTrue(bootStrapActionList.size() == 2);
         assertEquals(ActionType.PROVISION_BY_DEMAND, bootStrapActionList.get(0).getType());
         assertEquals(ActionType.COMPOUND_MOVE, bootStrapActionList.get(1).getType());
@@ -121,40 +93,23 @@ public class BootstrapSupplyTest {
     }
 
     /**
-     * Test the case where pm with smaller capacity than VM requirement
+     * Test cases where buyer fits in seller and buyer does not fit in seller.
      */
     @Test
-    public void test_CanBuyerFitInSeller_SmallerSeller(){
+    public void test_CanBuyerFitInSeller(){
         Economy economy = new Economy();
         // create one pm with smaller capacity than VM requirement
-        Trader pm1 = economy.addTrader(PM_TYPE, TraderState.ACTIVE, new Basket(CPU, MEM),
+        Trader pm1 = economy.addTrader(PM_TYPE, TraderState.ACTIVE, new Basket(TestUtils.CPU, TestUtils.MEM),
                         new HashSet<>(Arrays.asList(0l)));
-        pm1.getCommoditiesSold().get(pm1.getBasketSold().indexOf(CPU)).setCapacity(40);
+        pm1.getCommoditiesSold().get(pm1.getBasketSold().indexOf(TestUtils.CPU)).setCapacity(40);
         Trader vm1 = economy.addTrader(VM_TYPE, TraderState.ACTIVE, new Basket());
-        ShoppingList sl1 = economy.addBasketBought(vm1, new Basket(CPU, MEM));
-        sl1.setQuantity(sl1.getBasket().indexOf(CPU), 50);
-
-        boolean canBuyerFitInSeller = BootstrapSupply.canBuyerFitInSeller(sl1, pm1);
-
-        assertFalse(canBuyerFitInSeller);
-    }
-
-    /**
-     * Test the case where pm with bigger capacity than VM requirement
-     */
-    @Test
-    public void test_CanBuyerFitInSeller_LargerSeller(){
-        Economy economy = new Economy();
-        Trader pm1 = economy.addTrader(PM_TYPE, TraderState.ACTIVE, new Basket(CPU, MEM),
-                        new HashSet<>(Arrays.asList(0l)));
-        pm1.getCommoditiesSold().get(pm1.getBasketSold().indexOf(CPU)).setCapacity(40);
-        Trader vm1 = economy.addTrader(VM_TYPE, TraderState.ACTIVE, new Basket());
-        ShoppingList sl1 = economy.addBasketBought(vm1, new Basket(CPU, MEM));
-        sl1.setQuantity(sl1.getBasket().indexOf(CPU), 30);
-
-        boolean canBuyerFitInSeller = BootstrapSupply.canBuyerFitInSeller(sl1, pm1);
-
-        assertTrue(canBuyerFitInSeller);
+        ShoppingList sl1 = economy.addBasketBought(vm1, new Basket(TestUtils.CPU, TestUtils.MEM));
+        //Buyer does not fit in seller
+        sl1.setQuantity(sl1.getBasket().indexOf(TestUtils.CPU), 50);
+        assertFalse(BootstrapSupply.canBuyerFitInSeller(sl1, pm1));
+        //Buyer fits in seller
+        sl1.setQuantity(sl1.getBasket().indexOf(TestUtils.CPU), 30);
+        assertTrue(BootstrapSupply.canBuyerFitInSeller(sl1, pm1));
     }
 
     /**
@@ -165,20 +120,20 @@ public class BootstrapSupplyTest {
     @Test
     public void test_NonShopTogetherBootstrap_MoveWithAlreadyPlacedBuyer(){
         Economy economy = new Economy();
-        Trader pm1 = TestUtils.createPM(economy, Arrays.asList(0l), 100, false);
-        Trader pm2 = TestUtils.createPM(economy, Arrays.asList(0l), 200, false);
+        Trader pm1 = TestUtils.createPM(economy, Arrays.asList(0l), 100, 100, false);
+        Trader pm2 = TestUtils.createPM(economy, Arrays.asList(0l), 200, 100, false);
         Trader st1 = TestUtils.createStorage(economy, Arrays.asList(0l), 300, false);
         Trader st2 = TestUtils.createStorage(economy, Arrays.asList(0l), 300, false);
         Trader vm1 = TestUtils.createVM(economy);
         ShoppingList sl1 = TestUtils.createAndPlaceShoppingList(economy,
-                        Arrays.asList(CPU, MEM), vm1, CPU, 60, pm1);
+                        Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm1, new double[]{60, 0}, pm1);
         TestUtils.createAndPlaceShoppingList(economy,
-                        Arrays.asList(ST_AMT), vm1, ST_AMT, 100, st1);
+                        Arrays.asList(TestUtils.ST_AMT), vm1, new double[]{100}, st1);
         Trader vm2 = TestUtils.createVM(economy);
         ShoppingList sl2 = TestUtils.createAndPlaceShoppingList(economy,
-                        Arrays.asList(CPU, MEM), vm2, CPU, 60, pm1);
+                        Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm2, new double[]{60, 0}, pm1);
         TestUtils.createAndPlaceShoppingList(economy,
-                        Arrays.asList(ST_AMT), vm2, ST_AMT, 100, st1);
+                        Arrays.asList(TestUtils.ST_AMT), vm2, new double[]{100}, st1);
         economy.populateMarketsWithSellers();
 
         List<Action> bootStrapActionList =
@@ -199,13 +154,13 @@ public class BootstrapSupplyTest {
     @Test
     public void test_NonShopTogetherBootstrap_MoveWithUnplacedBuyer(){
         Economy economy = new Economy();
-        Trader pm1 = TestUtils.createPM(economy, Arrays.asList(0l), 100, false);
+        Trader pm1 = TestUtils.createPM(economy, Arrays.asList(0l), 100, 100, false);
         Trader st1 = TestUtils.createStorage(economy, Arrays.asList(0l), 300, false);
         Trader vm1 = TestUtils.createVM(economy);
         ShoppingList sl1 = TestUtils.createAndPlaceShoppingList(economy,
-                        Arrays.asList(CPU, MEM), vm1, CPU, 60, null);
+                        Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm1, new double[]{60, 0}, null);
         ShoppingList sl2 = TestUtils.createAndPlaceShoppingList(economy,
-                        Arrays.asList(ST_AMT), vm1, ST_AMT, 100, null);
+                        Arrays.asList(TestUtils.ST_AMT), vm1, new double[]{100}, null);
         economy.populateMarketsWithSellers();
 
         List<Action> bootStrapActionList =
@@ -224,7 +179,7 @@ public class BootstrapSupplyTest {
 
     /**
      * Case: Non Shop together : Pm1 connected to St1. Vm1 placed on pm1 and st1.
-     * Vm2 not placed anywhere.
+     * Vm2 not placed anywhere, and cannot fit in PM1 together with VM1
      * Expected result: Provision a new PM by supply
      * (because VM2's requirements are satisfied by PM1's total capacity)
      * and move Vm2 to that new machine.
@@ -235,7 +190,7 @@ public class BootstrapSupplyTest {
         int computeMoveActionIndex = -1, provisionActionIndex = -1;
         Economy economy = new Economy();
         Trader pm1 = TestUtils.createPM(economy,
-                        Arrays.asList(0l), 100, true);
+                        Arrays.asList(0l), 100, 100, true);
         pm1.setDebugInfoNeverUseInCode("PM1");
         Trader st1 = TestUtils.createStorage(economy,
                         Arrays.asList(0l), 300, false);
@@ -243,15 +198,15 @@ public class BootstrapSupplyTest {
         //Place vm1 on pm1 and st1.
         Trader vm1 = TestUtils.createVM(economy);
         TestUtils.createAndPlaceShoppingList(economy,
-                        Arrays.asList(CPU, MEM), vm1, CPU, 60, pm1);
+                        Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm1, new double[]{60, 0}, pm1);
         TestUtils.createAndPlaceShoppingList(economy,
-                        Arrays.asList(ST_AMT), vm1, ST_AMT, 100, st1);
+                        Arrays.asList(TestUtils.ST_AMT), vm1, new double[]{100}, st1);
         //Unplaced buyer
         Trader vm2 = TestUtils.createVM(economy);
         ShoppingList sl3 = TestUtils.createAndPlaceShoppingList(economy,
-                        Arrays.asList(CPU, MEM), vm2, CPU, 60, null);
+                        Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm2, new double[]{60, 0}, null);
         ShoppingList sl4 = TestUtils.createAndPlaceShoppingList(economy,
-                        Arrays.asList(ST_AMT), vm2, ST_AMT, 100, null);
+                        Arrays.asList(TestUtils.ST_AMT), vm2, new double[]{100}, null);
         economy.populateMarketsWithSellers();
 
         List<Action> bootStrapActionList =
@@ -307,22 +262,22 @@ public class BootstrapSupplyTest {
         boolean computeMoved = false, storageMoved = false, computeProvisioned = false;
         int computeMoveActionIndex = -1, provisionActionIndex = -1;
         Economy economy = new Economy();
-        Trader pm1 = TestUtils.createPM(economy, Arrays.asList(0l), 100, true);
+        Trader pm1 = TestUtils.createPM(economy, Arrays.asList(0l), 100, 100, true);
         pm1.setDebugInfoNeverUseInCode("PM1");
         Trader st1 = TestUtils.createStorage(economy, Arrays.asList(0l), 300, false);
         st1.setDebugInfoNeverUseInCode("DS1");
         //Place vm1 on pm1 and st1.
         Trader vm1 = TestUtils.createVM(economy);
         TestUtils.createAndPlaceShoppingList(economy,
-                        Arrays.asList(CPU, MEM), vm1, CPU, 60, pm1);
+                        Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm1, new double[]{60, 0}, pm1);
         TestUtils.createAndPlaceShoppingList(economy,
-                        Arrays.asList(ST_AMT), vm1, ST_AMT, 100, st1);
+                        Arrays.asList(TestUtils.ST_AMT), vm1, new double[]{100}, st1);
         //Unplaced buyer
         Trader vm2 = TestUtils.createVM(economy);
         ShoppingList sl3 = TestUtils.createAndPlaceShoppingList(economy,
-                        Arrays.asList(CPU, MEM), vm2, CPU, 110, null);
+                        Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm2, new double[]{110, 0}, null);
         ShoppingList sl4 = TestUtils.createAndPlaceShoppingList(economy,
-                        Arrays.asList(ST_AMT), vm2, ST_AMT, 100, null);
+                        Arrays.asList(TestUtils.ST_AMT), vm2, new double[]{100}, null);
         economy.populateMarketsWithSellers();
 
         List<Action> bootStrapActionList =
@@ -368,28 +323,76 @@ public class BootstrapSupplyTest {
     }
 
     /**
+     * Shop together : Create 2 VMs and place them both on PM1 and DS1.
+     * VM1 CPU qty = 60, VM2 CPU qty = 60. PM1 total CPU = 100.
+     * Expected result: Should move compute of one of the VMs to PM2.
+     */
+    @Test
+    public void test_shopTogetherBootstrap_MoveWithAlreadyPlacedBuyer(){
+        Economy economy = new Economy();
+        Trader pm1 = TestUtils.createPM(economy, Arrays.asList(0l), 100, 100, false);
+        pm1.setDebugInfoNeverUseInCode("PM1");
+        Trader st1 = TestUtils.createStorage(economy, Arrays.asList(0l), 300, false);
+        st1.setDebugInfoNeverUseInCode("DS1");
+        Trader pm2 = TestUtils.createPM(economy, Arrays.asList(1l), 200, 100, false);
+        pm2.setDebugInfoNeverUseInCode("PM2");
+        Trader st2 = TestUtils.createStorage(economy, Arrays.asList(1l), 300, false);
+        st2.setDebugInfoNeverUseInCode("DS2");
+        Trader vm1 = TestUtils.createVM(economy);
+        ShoppingList sl1 = TestUtils.createAndPlaceShoppingList(economy,
+                        Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm1, new double[]{60, 0}, pm1);
+        ShoppingList sl2 = TestUtils.createAndPlaceShoppingList(economy,
+                        Arrays.asList(TestUtils.ST_AMT), vm1, new double[]{100}, st1);
+        vm1.setDebugInfoNeverUseInCode("VM1");
+        Trader vm2 = TestUtils.createVM(economy);
+        ShoppingList sl3 = TestUtils.createAndPlaceShoppingList(economy,
+                        Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm2, new double[]{60, 0}, pm1);
+        ShoppingList sl4 = TestUtils.createAndPlaceShoppingList(economy,
+                        Arrays.asList(TestUtils.ST_AMT), vm2, new double[]{100}, st1);
+        vm2.setDebugInfoNeverUseInCode("VM2");
+        economy.getModifiableShopTogetherTraders().add(vm1);
+        economy.getModifiableShopTogetherTraders().add(vm2);
+        economy.populateMarketsWithSellers();
+
+        List<Action> bootStrapActionList =
+                        BootstrapSupply.shopTogetherBootstrap(economy);
+
+        assertTrue(bootStrapActionList.size() == 1);
+        assertEquals(ActionType.COMPOUND_MOVE, bootStrapActionList.get(0).getType());
+        Move expectedComputeMove1 = new Move(economy, sl1, pm1, pm2);
+        Move expectedStorageMove1 = new Move(economy, sl2, st1, st2);
+        Move expectedComputeMove2 = new Move(economy, sl3, pm1, pm2);
+        Move expectedStorageMove2 = new Move(economy, sl4, st1, st2);
+        List<Move> moves = ((CompoundMove)bootStrapActionList.get(0)).getConstituentMoves();
+        assertTrue( (moves.get(0).equals(expectedComputeMove1) && moves.get(1).equals(expectedStorageMove1))
+                       || (moves.get(0).equals(expectedStorageMove1) && moves.get(1).equals(expectedComputeMove1))
+                       || (moves.get(0).equals(expectedComputeMove2) && moves.get(1).equals(expectedStorageMove2))
+                       || (moves.get(0).equals(expectedStorageMove2) && moves.get(1).equals(expectedComputeMove2)));
+    }
+
+    /**
      * Case: Shop together : Pm1 connected to St1. Vm1 and Vm2 are placed on pm1 and st1.
      * Expected result: Provision a new PM by supply and move one of the VMs to that new machine.
      */
     @Test
     public void test_ShopTogetherBootstrap_ProvisionBySupply(){
         Economy economy = new Economy();
-        Trader pm1 = TestUtils.createPM(economy, Arrays.asList(0l), 100, true);
+        Trader pm1 = TestUtils.createPM(economy, Arrays.asList(0l), 100, 100, true);
         pm1.setDebugInfoNeverUseInCode("PM1");
         Trader st1 = TestUtils.createStorage(economy, Arrays.asList(0l), 300, true);
         st1.setDebugInfoNeverUseInCode("DS1");
         //Place vm1 on pm1 and st1.
         Trader vm1 = TestUtils.createVM(economy);
         ShoppingList sl1 = TestUtils.createAndPlaceShoppingList(economy,
-                        Arrays.asList(CPU, MEM), vm1, CPU, 60, pm1);
-        TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(ST_AMT), vm1, ST_AMT, 100, st1);
+                        Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm1, new double[]{60, 0}, pm1);
+        TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.ST_AMT), vm1, new double[]{100}, st1);
         vm1.setDebugInfoNeverUseInCode("VM1");
         //Place vm2 on pm1 and st1.
         Trader vm2 = TestUtils.createVM(economy);
         ShoppingList sl2 = TestUtils.createAndPlaceShoppingList(economy,
-                        Arrays.asList(CPU, MEM), vm2, CPU, 60, pm1);
+                        Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm2, new double[]{60, 0}, pm1);
         TestUtils.createAndPlaceShoppingList(economy,
-                        Arrays.asList(ST_AMT), vm2, ST_AMT, 100, st1);
+                        Arrays.asList(TestUtils.ST_AMT), vm2, new double[]{100}, st1);
         vm2.setDebugInfoNeverUseInCode("VM2");
         economy.populateMarketsWithSellers();
         economy.getModifiableShopTogetherTraders().add(vm1);
@@ -417,13 +420,13 @@ public class BootstrapSupplyTest {
      * Vm1 and Vm2 are placed on pm1 and st1, but within capacity.
      * Expected result: No actions are generated.
      */
-    //Commenting the test for now because this is not passing. But it should.
+    // TODO: turn on test after fixing OM-23902
     //@Test
     public void test_ShopTogetherBootstrap_NoActionsWhenNonInfiniteQuote(){
         Economy economy = new Economy();
-        Trader pm1 = TestUtils.createPM(economy, Arrays.asList(0l), 100, true);
+        Trader pm1 = TestUtils.createPM(economy, Arrays.asList(0l), 100, 100, true);
         pm1.setDebugInfoNeverUseInCode("PM1");
-        Trader pm2 = TestUtils.createPM(economy, Arrays.asList(1l), 100, true);
+        Trader pm2 = TestUtils.createPM(economy, Arrays.asList(1l), 100, 100, true);
         pm2.setDebugInfoNeverUseInCode("PM2");
         Trader st1 = TestUtils.createStorage(economy, Arrays.asList(0l), 300, true);
         st1.setDebugInfoNeverUseInCode("DS1");
@@ -432,16 +435,16 @@ public class BootstrapSupplyTest {
         //Place vm1 on pm1 and st1.
         Trader vm1 = TestUtils.createVM(economy);
         TestUtils.createAndPlaceShoppingList(economy,
-                        Arrays.asList(CPU, MEM), vm1, CPU, 10, pm1);
+                        Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm1, new double[]{10, 0}, pm1);
         TestUtils.createAndPlaceShoppingList(economy,
-                        Arrays.asList(ST_AMT), vm1, ST_AMT, 100, st1);
+                        Arrays.asList(TestUtils.ST_AMT), vm1, new double[]{100}, st1);
         vm1.setDebugInfoNeverUseInCode("VM1");
         //Place vm2 on pm1 and st1.
         Trader vm2 = TestUtils.createVM(economy);
         TestUtils.createAndPlaceShoppingList(economy,
-                        Arrays.asList(CPU, MEM), vm2, CPU, 10, pm1);
+                        Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm2, new double[]{10, 0}, pm1);
         TestUtils.createAndPlaceShoppingList(economy,
-                        Arrays.asList(ST_AMT), vm2, ST_AMT, 100, st1);
+                        Arrays.asList(TestUtils.ST_AMT), vm2, new double[]{100}, st1);
         vm2.setDebugInfoNeverUseInCode("VM2");
         economy.populateMarketsWithSellers();
         economy.getModifiableShopTogetherTraders().add(vm1);
@@ -458,13 +461,10 @@ public class BootstrapSupplyTest {
      */
     @Test
     public void test_NonShopTogetherBootstrap_NoActionsWhenNonInfiniteQuote(){
-        //Case: Non shop together : Pm1 connected to St1 and St2. Pm2 connected to St1 and St2.
-        //Vm1 and Vm2 are placed on pm1 and st1, but within capacity.
-        //Expected result: No actions are generated.
         Economy economy = new Economy();
-        Trader pm1 = TestUtils.createPM(economy, Arrays.asList(0l), 100, true);
+        Trader pm1 = TestUtils.createPM(economy, Arrays.asList(0l), 100, 100, true);
         pm1.setDebugInfoNeverUseInCode("PM1");
-        Trader pm2 = TestUtils.createPM(economy, Arrays.asList(0l), 100, true);
+        Trader pm2 = TestUtils.createPM(economy, Arrays.asList(0l), 100, 100, true);
         pm2.setDebugInfoNeverUseInCode("PM2");
         Trader st1 = TestUtils.createStorage(economy, Arrays.asList(0l), 300, true);
         st1.setDebugInfoNeverUseInCode("DS1");
@@ -473,21 +473,253 @@ public class BootstrapSupplyTest {
         //Place vm1 on pm1 and st1.
         Trader vm1 = TestUtils.createVM(economy);
         TestUtils.createAndPlaceShoppingList(economy,
-                        Arrays.asList(CPU, MEM), vm1, CPU, 50, pm1);
+                        Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm1, new double[]{50, 0}, pm1);
         TestUtils.createAndPlaceShoppingList(economy,
-                        Arrays.asList(ST_AMT), vm1, ST_AMT, 150, st1);
+                        Arrays.asList(TestUtils.ST_AMT), vm1, new double[]{150}, st1);
         vm1.setDebugInfoNeverUseInCode("VM1");
         //Place vm2 on pm1 and st1.
         Trader vm2 = TestUtils.createVM(economy);
         TestUtils.createAndPlaceShoppingList(economy,
-                        Arrays.asList(CPU, MEM), vm2, CPU, 50, pm1);
+                        Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm2, new double[]{50, 0}, pm1);
         TestUtils.createAndPlaceShoppingList(economy,
-                        Arrays.asList(ST_AMT), vm2, ST_AMT, 150, st1);
+                        Arrays.asList(TestUtils.ST_AMT), vm2, new double[]{150}, st1);
         vm2.setDebugInfoNeverUseInCode("VM2");
         economy.populateMarketsWithSellers();
 
         List<Action> bootStrapActionList = BootstrapSupply.nonShopTogetherBootstrap(economy);
 
         assertTrue(bootStrapActionList.size() == 0);
+    }
+
+    /**
+     * Create one PM and one storage. Place 2 VMs on this PM and Storage. PMs are not cloneable.
+     * 2VMs together exceed the CPU capacity of the PM.
+     * No provision actions should be produced because the PM is not cloneable.
+     */
+    // TODO: turn on test after fixing OM-24541
+    //@Test
+    public void test_bootstrapSupplyDecisions_NoProvisionActionsWhenNoCloneableSellers(){
+        Economy economy = new Economy();
+        Trader pm1 = TestUtils.createPM(economy, Arrays.asList(0l), 100, 100, false);
+        pm1.setDebugInfoNeverUseInCode("PM1");
+        Trader st1 = TestUtils.createStorage(economy, Arrays.asList(0l), 300, false);
+        st1.setDebugInfoNeverUseInCode("DS1");
+        //Place vm1 on pm1 and st1.
+        Trader vm1 = TestUtils.createVM(economy);
+        ShoppingList sl1 = TestUtils.createAndPlaceShoppingList(economy,
+                        Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm1, new double[]{60, 10}, pm1);
+        TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.ST_AMT), vm1, new double[]{100}, st1);
+        vm1.setDebugInfoNeverUseInCode("VM1");
+        //Place vm2 on pm1 and st1.
+        Trader vm2 = TestUtils.createVM(economy);
+        ShoppingList sl2 = TestUtils.createAndPlaceShoppingList(economy,
+                        Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm2, new double[]{60, 10}, pm1);
+        TestUtils.createAndPlaceShoppingList(economy,
+                        Arrays.asList(TestUtils.ST_AMT), vm2, new double[]{100}, st1);
+        vm2.setDebugInfoNeverUseInCode("VM2");
+        economy.populateMarketsWithSellers();
+        economy.getModifiableShopTogetherTraders().add(vm1);
+        economy.getModifiableShopTogetherTraders().add(vm2);
+
+        List<Action> bootStrapActionList = BootstrapSupply.bootstrapSupplyDecisions(economy);
+
+        assertTrue(bootStrapActionList.size() == 0);
+    }
+
+    /**
+     * Case: shop together : Pm1 connected to St1.
+     * Pm2 connected to St2. Pm2 is inactive.
+     * 2 VMs both on PM1 and St1 such that CPU capacity of Pm1 is exceeded.
+     * Expected result: Activate Pm2 followed by moving one of the VMs to Pm2 and St2.
+     */
+    // TODO: turn on test after fixing OM-24543
+    //@Test
+    public void test_bootstrapShopTogether_reactivateHost(){
+        Economy economy = new Economy();
+        Trader pm1 = TestUtils.createPM(economy, Arrays.asList(0l), 100, 100, false);
+        pm1.setDebugInfoNeverUseInCode("PM1");
+        Trader st1 = TestUtils.createStorage(economy, Arrays.asList(0l), 300, false);
+        st1.setDebugInfoNeverUseInCode("DS1");
+        //Create PM2 and inactivate it.
+        Trader pm2 = TestUtils.createPM(economy, Arrays.asList(1l), 200, 100, false);
+        pm2.setDebugInfoNeverUseInCode("PM2");
+        pm2.changeState(TraderState.INACTIVE);
+        Trader st2 = TestUtils.createStorage(economy, Arrays.asList(1l), 300, false);
+        st2.setDebugInfoNeverUseInCode("DS2");
+        Trader vm1 = TestUtils.createVM(economy);
+        ShoppingList sl1 = TestUtils.createAndPlaceShoppingList(economy,
+                        Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm1, new double[]{60, 0}, pm1);
+        ShoppingList sl2 = TestUtils.createAndPlaceShoppingList(economy,
+                        Arrays.asList(TestUtils.ST_AMT), vm1, new double[]{100}, st1);
+        vm1.setDebugInfoNeverUseInCode("VM1");
+        Trader vm2 = TestUtils.createVM(economy);
+        ShoppingList sl3 = TestUtils.createAndPlaceShoppingList(economy,
+                        Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm2, new double[]{60, 0}, pm1);
+        ShoppingList sl4 = TestUtils.createAndPlaceShoppingList(economy,
+                        Arrays.asList(TestUtils.ST_AMT), vm2, new double[]{100}, st1);
+        vm2.setDebugInfoNeverUseInCode("VM2");
+        economy.getModifiableShopTogetherTraders().add(vm1);
+        economy.getModifiableShopTogetherTraders().add(vm2);
+        economy.populateMarketsWithSellers();
+
+        List<Action> bootStrapActionList =
+                        BootstrapSupply.shopTogetherBootstrap(economy);
+
+        assertTrue(bootStrapActionList.size() == 2);
+        assertEquals(ActionType.ACTIVATE, bootStrapActionList.get(0).getType());
+        assertEquals(bootStrapActionList.get(0).getActionTarget(), pm2);
+        assertEquals(ActionType.COMPOUND_MOVE, bootStrapActionList.get(1).getType());
+        Move expectedComputeMove1 = new Move(economy, sl1, pm1, pm2);
+        Move expectedStorageMove1 = new Move(economy, sl2, st1, st2);
+        Move expectedComputeMove2 = new Move(economy, sl3, pm1, pm2);
+        Move expectedStorageMove2 = new Move(economy, sl4, st1, st2);
+        List<Move> moves = ((CompoundMove)bootStrapActionList.get(1)).getConstituentMoves();
+        assertTrue( (moves.get(0).equals(expectedComputeMove1) && moves.get(1).equals(expectedStorageMove1))
+                       || (moves.get(0).equals(expectedStorageMove1) && moves.get(1).equals(expectedComputeMove1))
+                       || (moves.get(0).equals(expectedComputeMove2) && moves.get(1).equals(expectedStorageMove2))
+                       || (moves.get(0).equals(expectedStorageMove2) && moves.get(1).equals(expectedComputeMove2)));
+    }
+
+    /**
+     * Case: Non shop together : Pm1 connected to St1 and St2.
+     * Pm2 connected to St1 and St2. Pm2 is inactive.
+     * 2 VMs both on PM1 and St1 such that CPU capacity of Pm1 is exceeded.
+     * Expected result: Activate Pm2 followed by moving one of the VMs to Pm2.
+     */
+    @Test
+    public void test_bootstrapNonShopTogether_reactivateHost(){
+        Economy economy = new Economy();
+        Trader pm1 = TestUtils.createPM(economy, Arrays.asList(0l), 100, 100, true);
+        pm1.setDebugInfoNeverUseInCode("PM1");
+        Trader st1 = TestUtils.createStorage(economy, Arrays.asList(0l), 300, true);
+        st1.setDebugInfoNeverUseInCode("DS1");
+        //Create PM2 and inactivate it.
+        Trader pm2 = TestUtils.createPM(economy, Arrays.asList(0l), 100, 100, true);
+        pm2.setDebugInfoNeverUseInCode("PM2");
+        pm2.changeState(TraderState.INACTIVE);
+        Trader st2 = TestUtils.createStorage(economy, Arrays.asList(0l), 300, true);
+        st2.setDebugInfoNeverUseInCode("DS2");
+        Trader vm1 = TestUtils.createVM(economy);
+        ShoppingList sl1 = TestUtils.createAndPlaceShoppingList(economy,
+                        Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm1, new double[]{60, 0}, pm1);
+        TestUtils.createAndPlaceShoppingList(economy,
+                        Arrays.asList(TestUtils.ST_AMT), vm1, new double[]{100}, st1);
+        vm1.setDebugInfoNeverUseInCode("VM1");
+        Trader vm2 = TestUtils.createVM(economy);
+        ShoppingList sl2 = TestUtils.createAndPlaceShoppingList(economy,
+                        Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm2, new double[]{60, 0}, pm1);
+        TestUtils.createAndPlaceShoppingList(economy,
+                        Arrays.asList(TestUtils.ST_AMT), vm2, new double[]{100}, st1);
+        vm2.setDebugInfoNeverUseInCode("VM2");
+        economy.populateMarketsWithSellers();
+
+        List<Action> bootStrapActionList =
+                        BootstrapSupply.nonShopTogetherBootstrap(economy);
+
+        assertTrue(bootStrapActionList.size() == 2);
+        assertEquals(ActionType.ACTIVATE, bootStrapActionList.get(0).getType());
+        assertEquals(bootStrapActionList.get(0).getActionTarget(), pm2);
+        assertEquals(ActionType.MOVE, bootStrapActionList.get(1).getType());
+        Move expectedComputeMove1 = new Move(economy, sl1, pm1, pm2);
+        Move expectedComputeMove2 = new Move(economy, sl2, pm1, pm2);
+        assertTrue( (bootStrapActionList.get(1).equals(expectedComputeMove1))
+                       || (bootStrapActionList.get(1).equals(expectedComputeMove2)) );
+    }
+
+    /**
+     * Place 3 VMs on 1 PM. PM CPU capacity = 100.
+     * VM CPU quantities = 40, 25, 80.
+     * Expected result: Provision 1 PM by supply and move VM3 there.
+     */
+    //Commenting out this test for now.
+    //Result of bootstrapSupplyDecisions seems to depend on the order of the VMs added to economy.
+    //@Test
+    public void test_bootstrapSupplyDecisions_3InfQuoteBuyersOn1Seller(){
+        Economy economy = new Economy();
+        Trader pm1 = TestUtils.createPM(economy, Arrays.asList(0l), 100, 100, true);
+        pm1.setDebugInfoNeverUseInCode("PM1");
+        Trader st1 = TestUtils.createStorage(economy, Arrays.asList(0l), 300, true);
+        st1.setDebugInfoNeverUseInCode("DS1");
+        //Place vm1 on pm1 and st1.
+        Trader vm1 = TestUtils.createVM(economy);
+        ShoppingList sl1 = TestUtils.createAndPlaceShoppingList(economy,
+                        Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm1, new double[]{40, 0}, pm1);
+        TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.ST_AMT), vm1, new double[]{100}, st1);
+        vm1.setDebugInfoNeverUseInCode("VM1");
+        //Place vm2 on pm1 and st1.
+        Trader vm2 = TestUtils.createVM(economy);
+        ShoppingList sl2 = TestUtils.createAndPlaceShoppingList(economy,
+                        Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm2, new double[]{25, 0}, pm1);
+        TestUtils.createAndPlaceShoppingList(economy,
+                        Arrays.asList(TestUtils.ST_AMT), vm2, new double[]{100}, st1);
+        vm2.setDebugInfoNeverUseInCode("VM2");
+        //Place vm3 on pm1 and st1.
+        Trader vm3 = TestUtils.createVM(economy);
+        ShoppingList sl3 = TestUtils.createAndPlaceShoppingList(economy,
+                        Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm3, new double[]{80, 0}, pm1);
+        TestUtils.createAndPlaceShoppingList(economy,
+                        Arrays.asList(TestUtils.ST_AMT), vm3, new double[]{50}, st1);
+        vm3.setDebugInfoNeverUseInCode("VM3");
+        economy.populateMarketsWithSellers();
+
+        List<Action> bootStrapActionList =
+                        BootstrapSupply.bootstrapSupplyDecisions(economy);
+
+        assertTrue(bootStrapActionList.size() == 2);
+        assertEquals(ActionType.PROVISION_BY_SUPPLY, bootStrapActionList.get(0).getType());
+        assertEquals(ActionType.MOVE, bootStrapActionList.get(1).getType());
+        //Assert that the provision by supply was modeled off pm1
+        ProvisionBySupply provisionBySupply = (ProvisionBySupply)bootStrapActionList.get(0);
+        assertEquals(pm1, provisionBySupply.getModelSeller());
+        Move expectedMove = new Move(economy, sl3, pm1, provisionBySupply.getProvisionedSeller());
+        assertTrue(bootStrapActionList.get(1).equals(expectedMove));
+    }
+
+    /**
+     * Tests both shop together and non shop together
+     * Case: When there are no sellers, then bootstrapSupplyDecisions should generate a reconfigure action.
+     */
+    //TODO: turn on test after fixing OM-24544
+    //@Test
+    public void test_bootstrapSupplyDecisions_reconfigureWhenNoSellers(){
+        Economy economy = new Economy();
+        Trader st1 = TestUtils.createStorage(economy, Arrays.asList(0l), 300, true);
+        st1.setDebugInfoNeverUseInCode("DS1");
+        //Place vm1 on st1.
+        Trader vm1 = TestUtils.createVM(economy);
+        TestUtils.createAndPlaceShoppingList(economy,
+                        Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm1, new double[]{40, 0}, null);
+        TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.ST_AMT), vm1, new double[]{100}, st1);
+        vm1.setDebugInfoNeverUseInCode("VM1");
+
+        List<Action> bootStrapActionList =
+                        BootstrapSupply.bootstrapSupplyDecisions(economy);
+
+        assertEquals(ActionType.RECONFIGURE, bootStrapActionList.get(0).getType());
+    }
+
+    /**
+     * Tests both shop together and non shop together
+     * Case: When there are only guaranteed buyers, then bootstrapSupply does not generate any actions.
+     */
+    @Test
+    public void test_bootstrapSupplyDecisions_noActionsWithOnlyGuaranteedBuyers(){
+        Economy economy = new Economy();
+        //Create PM1 and
+        Trader pm1 = TestUtils.createTrader(economy, TestUtils.PM_TYPE, Arrays.asList(0l),
+                        Arrays.asList(TestUtils.CPU, TestUtils.MEM, TestUtils.CPU_ALLOC, TestUtils.MEM_ALLOC),
+                        new double[]{100, 100, 100, 100}, true, false);
+        pm1.setDebugInfoNeverUseInCode("PM1");
+        Trader st1 = TestUtils.createStorage(economy, Arrays.asList(0l), 300, true);
+        st1.setDebugInfoNeverUseInCode("DS1");
+        //Create VDC1 but do not place anywhere.
+        Trader vdc1 = TestUtils.createVDC(economy);
+        ShoppingList vdcSl = TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.CPU_ALLOC, TestUtils.MEM_ALLOC), vdc1, new double[]{50,50}, null);
+        vdcSl.setMovable(false);
+        vdc1.setDebugInfoNeverUseInCode("VDC1");
+
+        List<Action> bootStrapActionList = BootstrapSupply.bootstrapSupplyDecisions(economy);
+
+        assertEquals(bootStrapActionList.size(), 0);
     }
 }
