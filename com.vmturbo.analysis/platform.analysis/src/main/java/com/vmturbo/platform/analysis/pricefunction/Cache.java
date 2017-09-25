@@ -65,6 +65,16 @@ class Cache {
         return pf;
     }
 
+    public static PriceFunction createInversePriceFunction(double constant) {
+        String key = String.format("InvPF-%.10f", constant);
+        PriceFunction pf = pfMap.get(key);
+        if (pf == null) {
+            pf = (u, seller, commSold, e) -> u > 1 ? Double.POSITIVE_INFINITY : 1/u;
+            pfMap.put(key, pf);
+        }
+        return pf;
+    }
+
     public static PriceFunction createPriceFunction(@NonNull PriceFunction function) {
         PriceFunction pf = customPfMap.get(function);
         if (pf == null) {

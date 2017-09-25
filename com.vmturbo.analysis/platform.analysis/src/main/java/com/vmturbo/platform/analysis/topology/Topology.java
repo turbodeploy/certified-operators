@@ -325,9 +325,13 @@ public final class Topology implements Serializable {
     public boolean addTradersForHeadroom(TraderTO trader) {
         return economy_.getTradersForHeadroom().add(trader);
     }
-    
+
     public boolean addCommsToAdjustOverhead(CommoditySpecification cs) {
         return economy_.getCommsToAdjustOverhead().add(cs);
+    }
+
+    public void setSpent (float cloudSpent) {
+        economy_.setSpent(cloudSpent);
     }
 
 } // end Topology class

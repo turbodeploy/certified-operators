@@ -75,6 +75,8 @@ public final class ProtobufToAnalysis {
             case STEP:
                 return PriceFunction.Cache.createStepPriceFunction(input.getStep().getStepAt(),
                     input.getStep().getPriceBelow(), input.getStep().getPriceAbove());
+            case INVERSE:
+                return PriceFunction.Cache.createInversePriceFunction(input.getInverse().getWeight());
             case PRICEFUNCTIONTYPE_NOT_SET:
             default:
                 throw new IllegalArgumentException("input = " + input);
@@ -434,4 +436,8 @@ public final class ProtobufToAnalysis {
 
     }
 
+    public static void populateCloudSpent (@NonNull EndDiscoveredTopology source,
+                    @NonNull Topology destination) {
+        destination.setSpent(source.getSpent());
+    }
 } // end ProtobufToAnalysis class

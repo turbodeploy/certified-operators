@@ -33,10 +33,15 @@ message PriceFunctionTO {
         optional float price_above = 3 [default = 1.0];
     }
 
+    message Inverse {
+        optional float weight = 1 [default = 1.0];
+    }
+
     // Which one of the available functions this message contains.
     oneof price_function_type {
         StandardWeighted standard_weighted = 1;
         Constant constant = 2;
         Step step = 3;
+        Inverse inverse = 4;
     }
 }

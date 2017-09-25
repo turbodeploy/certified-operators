@@ -97,7 +97,8 @@ message EndDiscoveredTopology {
     optional bool enableResize = 6;
     // specifies what commodities to allow overhead for in clones
     repeated CommoditySpecificationTO commToAllowOverheadInClone = 7;
-    
+    // cloud spent
+    required float spent = 8 [default = 0];
 }
 
 // A compound message to encapsulate any one of command messages.
