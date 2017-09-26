@@ -4,8 +4,12 @@ import static org.junit.Assert.*;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Random;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Test;
@@ -16,6 +20,7 @@ import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
@@ -45,6 +50,9 @@ public class LedgerTest {
     private static final Basket PM_A = new Basket(CPU_ANY, MEM, CLUSTER_A);
     private static final Basket VM = new Basket(V_CPU, V_MEM);
 
+
+    // Result type used in tests
+    private static enum RESULTYPE {MAX_DESIRED, MIN_DESIRED, NUMBER, PREVIOUS};
     // Methods
 
     @Test
@@ -109,6 +117,216 @@ public class LedgerTest {
         });
     }
 
+    @SuppressWarnings("unused")
+    private static Collection<Object[]> parametersForTestCalculateExpensesForSeller() {
+        // NumberOfBuyers,NumberOfSellers,NumberOfCommdities,ListOfCommosdityUtil,ExceptedResult
+        Random rand = new Random();
+        List<Object[]> objectList = new ArrayList<>(Arrays.asList(new Object[][] {
+                               {1, 1, 1, new double[] {0}, RESULTYPE.NUMBER, 0.0d, 0},
+                               {1, 1, 1, new double[] {0.8}, RESULTYPE.MAX_DESIRED, 0.0d, -1},
+                               {1, 1, 1, new double[] {0.2}, RESULTYPE.MIN_DESIRED, 0.0d, 1},
+                               {1, 2, 2, new double[] {1, 0.99}, RESULTYPE.NUMBER, 1E22, 0},
+                               {2, 2, 4, new double[] {0.55, 0.66,0.56,0.69}, RESULTYPE.MAX_DESIRED, 0.0d, 1},
+                               {2, 2, 4, new double[] {0.55, 0.66,0.56,0.69}, RESULTYPE.MIN_DESIRED, 0.0d, -1}
+        }));
+        // let utilization go up random between desire utilization range to check expense also go up
+        double util = 0.51d;
+        previousExp = 0d;
+        while (util < 0.7d) {
+            objectList.add(new Object[]{rand.nextInt(5) + 1, rand.nextInt(5) + 1, 1,
+                                        new double[] {util}, util == 0.51d ?
+                                                        RESULTYPE.NUMBER : RESULTYPE.PREVIOUS, 0.0d, -1});
+            // In avg, we go through 7.5 times.
+            util += rand.nextDouble() / 20.0f + 1.0E-4;
+        }
+        // let utilization go down random between desire utilization range to check expense also go down
+        // First, reset Utilization to 68% in the desireRange, and lower a random commodity utilization
+        util = 0.68;
+        double[] utilArray = new double[10];
+        Arrays.fill(utilArray, 0.68d);
+        while (util > 0.5d) {
+            // Pick up random commodity
+            int idx = rand.nextInt(10);
+            objectList.add(new Object[]{rand.nextInt(10) + 1, rand.nextInt(10) + 1, 10,
+                                        Arrays.copyOf(utilArray, utilArray.length), util == 0.68d ? RESULTYPE.NUMBER : RESULTYPE.PREVIOUS
+                                        , Double.MAX_VALUE, 1});
+            // In avg, we go through 11 times.
+            util -= rand.nextDouble() / 30.0f + 1.0E-4;
+            // Set new utilization
+            utilArray[idx] = util;
+        }
+        return objectList;
+    }
+
+
+    @SuppressWarnings("unused")
+    private static Object[] parametersForTestCalculateExpensesForSellerEdgeCases() {
+        return new Object[][] {
+            {true, 1, 1, new double[] {0}, RESULTYPE.NUMBER, Double.POSITIVE_INFINITY, 0},
+            {false, 2, 1, new double[] {0.5}, RESULTYPE.MIN_DESIRED, 0.0d, -1},
+            {false, 2, 1, new double[] {0.5}, RESULTYPE.MAX_DESIRED, 0.0d, 1},
+            {true, 2, 2, new double[] {0, 1}, RESULTYPE.NUMBER, Double.POSITIVE_INFINITY, 0},
+        };
+    }
+
+    static double previousExp = 0d;
+
+    @Test
+    @Parameters
+    @TestCaseName("Test #{index}: CalculateExpensesForSeller({0},{1},{2},{3},{4},{5},{6})")
+    /**
+     * Testing the expense for a seller of the in different senarios
+     *
+     * @param numOfBuyers Number of buyers need to create
+     * @param numOfSellers Number of sellers need to create
+     * @param numOfCommodities Number of commodities need to create
+     * @param util utilization of those commodities
+     * @param resultType which result we need to compare
+     * @param result the exactly result we need to compare
+     * @param compareTo 0 is equals, 1 is greater than, 2 is less than
+     *
+     */
+    public final void testCalculateExpensesForSeller(int numOfBuyers, int numOfSellers,
+                                                     int numOfCommodities, double[] util,
+                                                     RESULTYPE resultType, double result,
+                                                     int compareTo) {
+        Economy economy = new Economy();
+        Ledger ledger = new Ledger(economy);
+        Random rand = new Random();
+        // Create Commodities List
+        List<CommoditySpecification> commList = createCommodities(numOfCommodities);
+        // Add Basket
+        Basket basket = new Basket(commList);
+        // Create Sellers List
+        List<Trader> sellerList = IntStream.range(0, numOfSellers)
+                        .mapToObj(idx -> economy.addTrader(1, TraderState.ACTIVE, basket))
+                        .collect(Collectors.toCollection(() -> new ArrayList<Trader>()));
+        sellerList.forEach(seller -> ledger.addTraderIncomeStatement(seller));
+        Basket buyerBasket = new Basket(createCommodities(numOfCommodities).get(0));
+        // Create Buyer List
+        List<Trader> buyerList = IntStream.range(0, numOfBuyers)
+                        .mapToObj(idx -> economy.addTrader(2, TraderState.ACTIVE, buyerBasket))
+                        .collect(Collectors.toCollection(() -> new ArrayList<Trader>()));
+        for (Trader buyer : buyerList) {
+            // Create a shopping list for each seller
+            ShoppingList shoppingList = economy.addBasketBought(buyer, basket);
+            Trader seller = sellerList.get(rand.nextInt(sellerList.size()));
+            // Set max and min DesireUtil
+            seller.getSettings().setMaxDesiredUtil(0.7);
+            seller.getSettings().setMinDesiredUtil(0.5);
+            // Set supplier for each seller
+            shoppingList.move(seller);
+            // Set Commodity utilization to the percentage that we set
+            for (int idx = 0; idx < seller.getCommoditiesSold().size(); idx++) {
+                CommoditySold commSold = seller.getCommoditiesSold().get(idx);
+                commSold.setCapacity(commList.get(idx).getQualityUpperBound() / 2)
+                                .setQuantity(util[idx] * commSold.getCapacity())
+                                .setPeakQuantity(commSold.getQuantity());
+                shoppingList.setQuantity(idx, commSold.getQuantity()).setPeakQuantity(idx, commSold.getQuantity());
+            }
+            ledger.addTraderIncomeStatement(buyer);
+            ledger.calculateExpRevForTraderAndGetTopRevenue(economy, buyer);
+        }
+        // Get a random IncomeStatement
+        int economyIndex = buyerList.get(rand.nextInt(buyerList.size())).getEconomyIndex();
+        IncomeStatement selectedIncomeStatement =
+                        ledger.getTraderIncomeStatements().get(economyIndex);
+        compareResult(result, selectedIncomeStatement, compareTo, resultType);
+
+    }
+
+    private List<CommoditySpecification> createCommodities(int numOfComm){
+        Random rand = new Random();
+        return IntStream.range(0, numOfComm)
+                        .mapToObj(idx -> new CommoditySpecification(idx, 0, rand.nextInt(100000) + 10000))
+                        .collect(Collectors.toCollection(() -> new ArrayList<CommoditySpecification>()));
+    }
+
+    @Test
+    @Parameters
+    @TestCaseName("Test #{index}: CalculateExpensesForSellerEdgeCases({0},{1},{2},{3},{4},{5},{6})")
+    public final void testCalculateExpensesForSellerEdgeCases(boolean wrongProvider, int suppliers,
+                                                     int numOfCommodities, double[] util,
+                                                     RESULTYPE resultType, double result,
+                                                     int compareTo) {
+        Economy economy = new Economy();
+        Ledger ledger = new Ledger(economy);
+        Random rand = new Random();
+        // Create Commodities List
+        List<CommoditySpecification> commList = createCommodities(numOfCommodities);
+        // Add Basket
+        Basket basket = new Basket(commList);
+        // Create Sellers List
+        List<Trader> sellerList = IntStream.range(0, rand.nextInt(10) + suppliers)
+                        .mapToObj(idx -> economy.addTrader(1, TraderState.ACTIVE, basket))
+                        .collect(Collectors.toCollection(() -> new ArrayList<Trader>()));
+        sellerList.forEach(seller -> ledger.addTraderIncomeStatement(seller));
+        Basket buyerBasket = new Basket(createCommodities(numOfCommodities).get(0));
+        Basket wrongBasket = new Basket(createCommodities(numOfCommodities));
+        // Create Buyer List
+        List<Trader> buyerList = IntStream.range(0, rand.nextInt(10) + 1)
+                        .mapToObj(idx -> economy.addTrader(2, TraderState.ACTIVE, buyerBasket))
+                        .collect(Collectors.toCollection(() -> new ArrayList<Trader>()));
+        for (Trader buyer : buyerList) {
+            // Create a shopping list for each seller
+            ShoppingList shoppingList = economy.addBasketBought(buyer, wrongProvider ? wrongBasket : basket);
+            ShoppingList shoppingList2 = null;
+            Trader seller = sellerList.get(0);
+            // Set max and min DesireUtil
+            seller.getSettings().setMaxDesiredUtil(0.8);
+            seller.getSettings().setMinDesiredUtil(0.3);
+            // Set supplier for each seller
+            if (suppliers != 0) {
+                shoppingList.move(seller);
+            }
+            if (suppliers > 1) {
+                shoppingList2 =
+                              economy.addBasketBought(buyer, wrongProvider ? wrongBasket : basket);
+                shoppingList2.move(sellerList.get(1));
+            }
+            // Set Commodity utilization to the percentage that we set
+            for (int idx = 0; idx < seller.getCommoditiesSold().size(); idx++) {
+                CommoditySold commSold = seller.getCommoditiesSold().get(idx);
+                commSold.setCapacity(commList.get(idx).getQualityUpperBound() / 2)
+                                .setQuantity(util[idx] * commSold.getCapacity())
+                                .setPeakQuantity(commSold.getQuantity());
+                shoppingList.setQuantity(idx, commSold.getQuantity())
+                                .setPeakQuantity(idx, commSold.getQuantity());
+                if (suppliers > 1) {
+                    shoppingList2.setQuantity(idx, 0).setPeakQuantity(idx, 0);
+                }
+            }
+            ledger.addTraderIncomeStatement(buyer);
+            ledger.calculateExpRevForTraderAndGetTopRevenue(economy, buyer);
+        }
+        int economyIndex = buyerList.get(rand.nextInt(buyerList.size())).getEconomyIndex();
+        IncomeStatement selectedIncomeStatement =
+                        ledger.getTraderIncomeStatements().get(economyIndex);
+        compareResult(result, selectedIncomeStatement, compareTo, resultType);
+    }
+
+    public void compareResult(double result, IncomeStatement selectedIncomeStatement, int compareTo, RESULTYPE resultType){
+        // Get Expense from that IncomeStatement
+        double exp = selectedIncomeStatement.getExpenses();
+        if (resultType == RESULTYPE.PREVIOUS) {
+            result = previousExp;
+        } else if (resultType != RESULTYPE.NUMBER) {
+            result = resultType == RESULTYPE.MAX_DESIRED
+                            ? selectedIncomeStatement.getMaxDesiredExpenses()
+                            : selectedIncomeStatement.getMinDesiredExpenses();
+        }
+        // The compareTo is a flag that decide how
+        // we compare the result
+        if (compareTo == 0) {
+            assertEquals(result, exp, 0d);
+        } else if (compareTo < 0) {
+            assertTrue(exp > result);
+        } else {
+            assertTrue(exp < result);
+        }
+        previousExp = exp;
+    }
+
     @SuppressWarnings("unused") // it is used reflectively
     private static Object[] parametersForTestCalculateExpensesAndRevenues() {
         return new Object[][] {
@@ -126,9 +344,9 @@ public class LedgerTest {
         Economy economy = new Economy();
 
         List<CommoditySpecification> commSpecSold = new ArrayList<>();
-        commSpecSold.add(new CommoditySpecification(0, 4, 10));
-        commSpecSold.add(new CommoditySpecification(1, 10, 20));
-        commSpecSold.add(new CommoditySpecification(2, 5, 5));
+        commSpecSold.add(new CommoditySpecification(0));
+        commSpecSold.add(new CommoditySpecification(1));
+        commSpecSold.add(new CommoditySpecification(2));
 
         Basket basketSold = new Basket(commSpecSold);
 
