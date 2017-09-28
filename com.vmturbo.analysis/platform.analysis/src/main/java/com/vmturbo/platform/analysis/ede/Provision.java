@@ -275,8 +275,8 @@ public class Provision {
         return ledger.getTraderIncomeStatements().get(mostProfitableTrader.getEconomyIndex())
                         .getROI() < origRoI && !provisionedTrader.getCustomers().isEmpty() &&
                         provisionedTrader.getCustomers().stream().anyMatch(sl -> !sl.getBuyer()
-			                                .getSettings().isGuaranteedBuyer()) &&
-                        origMostProfitableCommRev < newMostProfitableCommRev;
+                                            .getSettings().isGuaranteedBuyer()) &&
+                        origMostProfitableCommRev > newMostProfitableCommRev;
     }
 
     /**
