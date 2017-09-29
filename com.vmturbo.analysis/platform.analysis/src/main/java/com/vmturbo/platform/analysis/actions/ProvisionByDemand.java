@@ -128,7 +128,7 @@ public class ProvisionByDemand extends ActionImpl {
                             newCommSpecMap, getModelSeller().getBasketSold()) : getModelSeller()
                                 .getBasketSold();
         provisionedSeller_ = getEconomy().addTraderByModelSeller(getModelSeller(), TraderState.ACTIVE,
-            basketSold);
+                                        basketSold, getModelSeller().getCliques());
         provisionedSeller_.setCloneOf(modelSeller_);
         // traders cloned through provisionByDemand are marked non-cloneable by default
         provisionedSeller_.getSettings().setSuspendable(getModelSeller().getSettings().isSuspendable());

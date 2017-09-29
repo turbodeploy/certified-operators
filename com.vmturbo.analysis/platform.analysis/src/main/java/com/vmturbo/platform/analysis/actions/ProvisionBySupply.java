@@ -102,7 +102,7 @@ public class ProvisionBySupply extends ActionImpl {
             GuaranteedBuyerHelper.transformBasket(commToReplaceMap, getModelSeller().getBasketSold()) :
             getModelSeller().getBasketSold();
         provisionedSeller_ = getEconomy().addTraderByModelSeller(getModelSeller(), TraderState.ACTIVE,
-            basketSold);
+                                        basketSold, getModelSeller().getCliques());
         provisionedSeller_.setCloneOf(modelSeller_);
         // Copy trader settings
         provisionedSeller_.getSettings().setCloneable(getModelSeller().getSettings().isCloneable());

@@ -267,7 +267,8 @@ public class EconomyTest {
             assertEquals(1, getActiveSellerCountForBuyerMarkets(cpuBuyer));
             assertEquals(0, getActiveSellerCountForBuyerMarkets(memBuyer));
 
-            economy.addTraderByModelSeller(modelSeller, TraderState.ACTIVE, cpuBasket);
+            economy.addTraderByModelSeller(modelSeller, TraderState.ACTIVE, cpuBasket,
+                            modelSeller.getCliques());
             assertEquals(2, getActiveSellerCountForBuyerMarkets(cpuBuyer));
             assertEquals(0, getActiveSellerCountForBuyerMarkets(memBuyer));
         }
@@ -278,7 +279,8 @@ public class EconomyTest {
             assertEquals(1, getActiveSellerCountForBuyerMarkets(cpuBuyer));
             assertEquals(0, getActiveSellerCountForBuyerMarkets(memBuyer));
 
-            economy.addTraderByModelSeller(modelSeller, TraderState.ACTIVE, memBasket);
+            economy.addTraderByModelSeller(modelSeller, TraderState.ACTIVE, memBasket,
+                            modelSeller.getCliques());
             assertEquals(1, getActiveSellerCountForBuyerMarkets(cpuBuyer));
             assertEquals(1, getActiveSellerCountForBuyerMarkets(memBuyer));
         }

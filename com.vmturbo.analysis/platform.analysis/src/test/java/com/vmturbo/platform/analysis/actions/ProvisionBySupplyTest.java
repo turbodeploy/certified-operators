@@ -263,4 +263,20 @@ public class ProvisionBySupplyTest {
         assertEquals(expect, provisionBySupply1.hashCode() == provisionBySupply2.hashCode());
     }
 
+    @Test
+    public final void testTake_checkModelSellerWithCliques() {
+        List<Long> cliques = new ArrayList<>(Arrays.asList(0l));
+        Economy e = new Economy();
+        Basket b1 = new Basket(new CommoditySpecification(100));
+        Basket b2 = new Basket(new CommoditySpecification(200));
+        Trader t1 = e.addTrader(0, TraderState.ACTIVE, b1, b2);
+        Trader t2 = e.addTrader(0, TraderState.ACTIVE, b2, cliques);
+        ShoppingList shop1 = e.addBasketBought(t1, b2);
+        shop1.move(t2);
+        e.populateMarketsWithSellers();
+
+        Action action = new ProvisionBySupply(e, t2).take();
+        // check cliques are cloned
+        assertEquals(cliques, ((ProvisionBySupply)action).getProvisionedSeller().getCliques());
+    }
 } // end ProvisionBySupplyTest class

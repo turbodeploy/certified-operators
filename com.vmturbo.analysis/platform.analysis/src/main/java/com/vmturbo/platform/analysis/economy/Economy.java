@@ -362,10 +362,16 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
      * the new trader's basket sold.
      *
      * @param modelSeller The seller whose properties match the trader to be added.
+     * @param state state of the new seller
+     * @param basketSold basket sold of the new seller
+     * @param cliques a set of cliques the new seller is part of
+     * @return the new seller
      */
     public @NonNull Trader addTraderByModelSeller(@NonNull Trader modelSeller,
-                                                  @NonNull TraderState state, @NonNull Basket basketSold) {
-        @NonNull Trader newTrader = addTrader(modelSeller.getType(), state, basketSold);
+                    @NonNull TraderState state, @NonNull Basket basketSold,
+                    @NonNull Collection<@NonNull Long> cliques) {
+        @NonNull
+        Trader newTrader = addTrader(modelSeller.getType(), state, basketSold, cliques);
 
         Collection<Market> marketsToScan = basketSold.equals(modelSeller.getBasketSold()) ?
             getMarketsAsSeller(modelSeller) : markets_.values();

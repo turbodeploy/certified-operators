@@ -7,8 +7,10 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -255,5 +257,22 @@ public class ProvisionByDemandTest {
                     boolean expect) {
         assertEquals(expect, provisionByDemand1.equals(provisionByDemand2));
         assertEquals(expect, provisionByDemand1.hashCode() == provisionByDemand2.hashCode());
+    }
+
+    @Test
+    public final void testTake_checkModelSellerWithCliques() {
+        List<Long> cliques = new ArrayList<>(Arrays.asList(0l));
+        Economy e = new Economy();
+        Basket b1 = new Basket(new CommoditySpecification(100));
+        Basket b2 = new Basket(new CommoditySpecification(200));
+        Trader t1 = e.addTrader(0, TraderState.ACTIVE, b1, b2);
+        Trader t2 = e.addTrader(0, TraderState.ACTIVE, b2, cliques);
+        ShoppingList shop1 = e.addBasketBought(t1, b2);
+        shop1.move(t2);
+        e.populateMarketsWithSellers();
+
+        Action action = new ProvisionByDemand(e, shop1, t2).take();
+        // check cliques are cloned
+        assertEquals(cliques, ((ProvisionByDemand)action).getProvisionedSeller().getCliques());
     }
 } // end ProvisionByDemandTest class
