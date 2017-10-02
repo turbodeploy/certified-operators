@@ -30,6 +30,17 @@ public class ActionCollapse {
     // the function to get economy index of a given trader
     private static final Function<Trader, String> ECONOMY_INDEX =
                     t -> String.valueOf(t.getEconomyIndex());
+    // Reorder actions in following order.
+    private static ActionType[] ACTIONS_REORDER_SEQUENCE = {
+                        ActionType.PROVISION_BY_SUPPLY,
+                        ActionType.PROVISION_BY_DEMAND,
+                        ActionType.ACTIVATE,
+                        ActionType.MOVE,
+                        ActionType.COMPOUND_MOVE,
+                        ActionType.RESIZE,
+                        ActionType.DEACTIVATE,
+                        ActionType.RECONFIGURE,
+                    };
 
     /**
      * Collapses a list of {@link Action}s by combining "combinable" actions.
@@ -52,10 +63,10 @@ public class ActionCollapse {
             List<Action> perTargetList = perTargetMap.compute(target,
                             (t, l) -> l == null ? new LinkedList<>() : l);
             int perTargetLastIndex = perTargetList.size() - 1;
-            if (action instanceof Activate) {
+            if (action.getType() ==  ActionType.ACTIVATE) {
                 Action lastAction = perTargetList.isEmpty() ? null
                                 : perTargetList.get(perTargetLastIndex);
-                if (lastAction instanceof Deactivate) {
+                if (lastAction != null && lastAction.getType() == ActionType.DEACTIVATE) {
                     // Activate after Deactivate cancels it
                     perTargetList.remove(perTargetLastIndex);
                     combined.remove(lastAction);
@@ -131,71 +142,16 @@ public class ActionCollapse {
     @Deterministic
     public static @NonNull List<@NonNull Action> groupActionsByTypeAndReorderBeforeSending(
                     @NonNull @ReadOnly List<@NonNull @ReadOnly Action> collapsedActions) {
+        Map<ActionType, List<Action>> groupByActionTypeMap =
+                        collapsedActions.stream().collect(Collectors.groupingBy(Action::getType));
         @NonNull
         List<@NonNull Action> reorderedActions = new ArrayList<@NonNull Action>();
-        List<Action> provisionBySupply = new ArrayList<>();
-        List<Action> provisionByDemand = new ArrayList<>();
-        List<Action> activate = new ArrayList<>();
-        List<Action> move = new ArrayList<>();
-        List<Action> compoundMove = new ArrayList<>();
-        List<Action> resize = new ArrayList<>();
-        List<Action> deactivate = new ArrayList<>();
-        List<Action> reconfigure = new ArrayList<>();
-        for (Action action : collapsedActions) {
-            if (action instanceof ProvisionBySupply) {
-                provisionBySupply.add(action);
-            } else if (action instanceof ProvisionByDemand) {
-                provisionByDemand.add(action);
-            } else if (action instanceof Activate) {
-                activate.add(action);
-            } else if (action instanceof Move) {
-                move.add(action);
-            } else if (action instanceof CompoundMove) {
-                compoundMove.add(action);
-            } else if (action instanceof Resize) {
-                resize.add(action);
-            } else if (action instanceof Deactivate) {
-                deactivate.add(action);
-            } else if (action instanceof Reconfigure) {
-                reconfigure.add(action);
+        for (ActionType actionType : ACTIONS_REORDER_SEQUENCE) {
+            List<Action> actionList = groupByActionTypeMap.get(actionType);
+            if (actionList != null) {
+                reorderedActions.addAll(actionList);
             }
         }
-        reorderedActions.addAll(provisionBySupply);
-        reorderedActions.addAll(provisionByDemand);
-        reorderedActions.addAll(activate);
-        reorderedActions.addAll(move);
-        reorderedActions.addAll(compoundMove);
-        reorderedActions.addAll(resize);
-        reorderedActions.addAll(deactivate);
-        reorderedActions.addAll(reconfigure);
-
         return reorderedActions;
-    }
-
-    /**
-     * Filter {@link Move} actions that set the initial placement for a trader and
-     * remove them from the {@link Action} list which will go through collapsing.
-     *
-     * <p>
-     * The state for the argument being passed in could change.
-     * </p>
-     *
-     * @param actions The {@link Action} list that will be processed to filter out initial moves
-     *
-     * @return The {@link Move} that sets the initial placement for a trader
-     */
-    public static @NonNull List<@NonNull Action>
-                    preProcessBeforeCollapse(@NonNull List<@NonNull Action> actions) {
-        // initial move actions are special move actions with null as source trader
-        // they are equivalent as Start in legacy market and needs to be sent
-        // before resize
-        List<Action> initialMove = new ArrayList<@NonNull Action>();
-        initialMove = actions.stream()
-                        .filter(m -> m instanceof Move && ((Move)m).getSource() == null)
-                        .collect(Collectors.toList());
-        // remove all initial moves from the action list because otherwise collapsing may
-        // merge initial move with regular move if both have same action target
-        actions.removeAll(initialMove);
-        return initialMove;
     }
 }

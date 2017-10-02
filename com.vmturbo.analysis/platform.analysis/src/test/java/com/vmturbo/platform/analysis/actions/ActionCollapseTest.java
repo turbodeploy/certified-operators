@@ -1,6 +1,9 @@
 package com.vmturbo.platform.analysis.actions;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -10,12 +13,14 @@ import java.util.List;
 import org.junit.Test;
 
 import com.google.common.collect.Lists;
+
 import com.vmturbo.platform.analysis.economy.Basket;
-import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
+import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 
 /**
  * A test case for the {@link Action} interface.
@@ -23,24 +28,24 @@ import com.vmturbo.platform.analysis.economy.TraderState;
 public class ActionCollapseTest {
 
     private static final Basket EMPTY = new Basket();
-    private static final Basket BASKET = new Basket(new CommoditySpecification(0), new CommoditySpecification(1));
-    private static final Basket BASKET2 = new Basket(new CommoditySpecification(2));
-    private static final Economy EC = new Economy();
+    private static final Basket CPU_MEM_BASKET = new Basket(TestUtils.CPU, TestUtils.MEM);
+    private static final Basket ST_BASKET = new Basket(TestUtils.ST_AMT);
     private static final int TYPE_PM = 0;
     private static final int TYPE_VM = 1;
     private static final int TYPE_DC = 2;
 
     @Test
-    public final void testCollapsed_MovesOnly() {
+    public final void testCollapsed_movesOnly() {
+        Economy economy = new Economy();
         // Sellers
-        Trader s1 = EC.addTrader(TYPE_PM, TraderState.ACTIVE, BASKET);
-        Trader s2 = EC.addTrader(TYPE_PM, TraderState.ACTIVE, BASKET);
-        Trader s3 = EC.addTrader(TYPE_PM, TraderState.ACTIVE, BASKET);
+        Trader s1 = economy.addTrader(TYPE_PM, TraderState.ACTIVE, CPU_MEM_BASKET);
+        Trader s2 = economy.addTrader(TYPE_PM, TraderState.ACTIVE, CPU_MEM_BASKET);
+        Trader s3 = economy.addTrader(TYPE_PM, TraderState.ACTIVE, CPU_MEM_BASKET);
         // Buyers
-        Trader b1 = EC.addTrader(TYPE_VM, TraderState.ACTIVE, EMPTY);
+        Trader b1 = economy.addTrader(TYPE_VM, TraderState.ACTIVE, EMPTY);
         // Shopping lists
-        ShoppingList p1 = EC.addBasketBought(b1, BASKET);
-        ShoppingList p2 = EC.addBasketBought(b1, BASKET);
+        ShoppingList p1 = economy.addBasketBought(b1, CPU_MEM_BASKET);
+        ShoppingList p2 = economy.addBasketBought(b1, CPU_MEM_BASKET);
 
         List<Action> actions = new ArrayList<>();
         // An empty list is collapsed to an empty list
@@ -48,12 +53,12 @@ public class ActionCollapseTest {
         assertTrue(collapsed.isEmpty());
 
         // List with one Move is collapsed to the same list
-        actions.add(new Move(EC, p1, s1, s2));
+        actions.add(new Move(economy, p1, s1, s2));
         collapsed = ActionCollapse.collapsed(actions);
         assertEquals(collapsed, actions);
 
         // Move from S2 to S1 cancels Move from S1 to S2
-        actions.add(new Move(EC, p1, s2, s1));
+        actions.add(new Move(economy, p1, s2, s1));
         // First verify the 'combine keys' of Move actions with the same shopping list are the same
         assertEquals(actions.get(0).getCombineKey(), actions.get(1).getCombineKey());
         // Now verify the actions are collapsed properly
@@ -61,8 +66,8 @@ public class ActionCollapseTest {
         assertTrue(collapsed.isEmpty());
         // Move from s1 to s2 to s3 collapsed to move from s1 to s3
         actions = new ArrayList<>();
-        actions.add(new Move(EC, p1, s1, s2));
-        actions.add(new Move(EC, p1, s2, s3));
+        actions.add(new Move(economy, p1, s1, s2));
+        actions.add(new Move(economy, p1, s2, s3));
         collapsed = ActionCollapse.collapsed(actions);
         // TODO: Add equals to Move
         //List<Action> expectedCollapsed = Lists.newArrayList(new Move(EC, p1, s1, s3));
@@ -75,16 +80,16 @@ public class ActionCollapseTest {
 
         // Move from S1 to S2 to S3 to S1 collapsed to no action
         actions = new ArrayList<>();
-        actions.add(new Move(EC, p1, s1, s2));
-        actions.add(new Move(EC, p1, s2, s3));
-        actions.add(new Move(EC, p1, s3, s1));
+        actions.add(new Move(economy, p1, s1, s2));
+        actions.add(new Move(economy, p1, s2, s3));
+        actions.add(new Move(economy, p1, s3, s1));
         collapsed = ActionCollapse.collapsed(actions);
         assertTrue(collapsed.isEmpty());
 
         // More shopping lists
         actions = new ArrayList<>();
-        actions.add(new Move(EC, p1, s1, s2));
-        actions.add(new Move(EC, p2, s1, s3));
+        actions.add(new Move(economy, p1, s1, s2));
+        actions.add(new Move(economy, p2, s1, s3));
 
         // First verify the 'combine keys' are different
         assertNotEquals(actions.get(0).getCombineKey(), actions.get(1).getCombineKey());
@@ -94,25 +99,29 @@ public class ActionCollapseTest {
         assertEquals(collapsed, actions);
 
         // Move one shopping list back. It should cancel the other move for the same shopping list.
-        actions.add(new Move(EC, p1, s2, s1));
+        actions.add(new Move(economy, p1, s2, s1));
         collapsed = ActionCollapse.collapsed(actions);
         assertSame(collapsed.get(0), actions.get(1));
 
         // Move the other shopping lists back. Collapsed list should be empty.
-        actions.add(new Move(EC, p2, s3, s1));
+        actions.add(new Move(economy, p2, s3, s1));
         collapsed = ActionCollapse.collapsed(actions);
         assertTrue(collapsed.isEmpty());
     }
 
-    @Test // Create 10 non-combinable moves, collapse and verify we get the same list in the same order
-    public final void testCollapsed_MaintainsOrderOfMoves() {
+    /*
+     * Create 10 non-combinable moves, collapse and verify we get the same list in the same order.
+     */
+    @Test
+    public final void testCollapsed_maintainsOrderOfMoves() {
+        Economy economy = new Economy();
         List<Action> actions = Lists.newArrayList();
-        Trader b = EC.addTrader(TYPE_VM, TraderState.ACTIVE, EMPTY);
+        Trader b = economy.addTrader(TYPE_VM, TraderState.ACTIVE, EMPTY);
         for (int i = 0; i < 10; i++) {
-            Trader s1 = EC.addTrader(TYPE_PM, TraderState.ACTIVE, BASKET);
-            Trader s2 = EC.addTrader(TYPE_PM, TraderState.ACTIVE, BASKET);
-            ShoppingList p = EC.addBasketBought(b, BASKET);
-            actions.add(new Move(EC, p, s1, s2));
+            Trader s1 = economy.addTrader(TYPE_PM, TraderState.ACTIVE, CPU_MEM_BASKET);
+            Trader s2 = economy.addTrader(TYPE_PM, TraderState.ACTIVE, CPU_MEM_BASKET);
+            ShoppingList p = economy.addBasketBought(b, CPU_MEM_BASKET);
+            actions.add(new Move(economy, p, s1, s2));
         }
         // This also tests that the argument list is not modified.
         // An attempt to modify it (in collapsed) will throw UnsupportedOperationException
@@ -121,17 +130,21 @@ public class ActionCollapseTest {
         assertEquals(collapsed, actions);
     }
 
-    @Test // Test combining Resize actions of the same trader and same commodity specification
-    public final void testCollapsed_Resize1() {
+    /*
+     * Test combining Resize actions of the same trader and same commodity specification.
+     */
+    @Test
+    public final void testCollapsed_resize1() {
+        Economy economy = new Economy();
         double cap0 = 20;
         double cap1= 10;
         double cap2 = 50;
         double cap3 = 40;
-        Trader t = EC.addTrader(TYPE_VM,  TraderState.ACTIVE, BASKET);
+        Trader t = economy.addTrader(TYPE_VM,  TraderState.ACTIVE, CPU_MEM_BASKET);
         t.getCommoditiesSold().get(0).setCapacity(cap0);
-        Resize r1 = new Resize(EC, t, new CommoditySpecification(0), cap1);
-        Resize r2 = new Resize(EC, t, new CommoditySpecification(0), cap2);
-        Resize r3 = new Resize(EC, t, new CommoditySpecification(0), cap3);
+        Resize r1 = new Resize(economy, t, new CommoditySpecification(0), cap1);
+        Resize r2 = new Resize(economy, t, new CommoditySpecification(0), cap2);
+        Resize r3 = new Resize(economy, t, new CommoditySpecification(0), cap3);
         List<Action> actions = Lists.newArrayList(r1, r2, r3);
         List<Action> collapsed = ActionCollapse.collapsed(actions);
         assertEquals(1, collapsed.size());
@@ -139,43 +152,51 @@ public class ActionCollapseTest {
         assertEquals(cap3, collapsedResize.getNewCapacity(), 1e-5);
         assertEquals(cap0, collapsedResize.getOldCapacity(), 1e-5);
         // Add another Resize so that the actions get cancelled
-        Resize r4 = new Resize(EC, t, new CommoditySpecification(0), cap0);
+        Resize r4 = new Resize(economy, t, new CommoditySpecification(0), cap0);
         actions.add(r4);
         collapsed = ActionCollapse.collapsed(actions);
         assertTrue(collapsed.isEmpty());
     }
 
-    @Test // Test combining Resize actions of different trader/commodity specification combinations
-    public final void testCollapsed_Resize2() {
-        Trader t1 = EC.addTrader(TYPE_VM,  TraderState.ACTIVE, BASKET);
-        Trader t2 = EC.addTrader(TYPE_VM,  TraderState.ACTIVE, BASKET);
+    /*
+     * Test combining Resize actions of different trader/commodity specification combinations.
+     */
+    @Test
+    public final void testCollapsed_resize2() {
+        Economy economy = new Economy();
+        Trader t1 = economy.addTrader(TYPE_VM,  TraderState.ACTIVE, CPU_MEM_BASKET);
+        Trader t2 = economy.addTrader(TYPE_VM,  TraderState.ACTIVE, CPU_MEM_BASKET);
         // Resize the commodity of a target
-        Resize r1_0 = new Resize(EC, t1, new CommoditySpecification(0), 10);
+        Resize r1_0 = new Resize(economy, t1, new CommoditySpecification(0), 10);
         // Resize a different commodity on the same target
-        Resize r1_1 = new Resize(EC, t1, new CommoditySpecification(1), 10);
+        Resize r1_1 = new Resize(economy, t1, new CommoditySpecification(1), 10);
         // Resize a different target
-        Resize r2 = new Resize(EC, t2, new CommoditySpecification(1), 10);
+        Resize r2 = new Resize(economy, t2, new CommoditySpecification(1), 10);
         List<Action> actions = Lists.newArrayList(r1_0, r1_1, r2);
         List<Action> collapsedActions = ActionCollapse.collapsed(actions);
         assertEquals(actions, collapsedActions);
     }
 
-    @Test // Collapse a few Resize actions on two targets and two commodity types
-    public final void testCollapsed_Resize3() {
-        Trader t1 = EC.addTrader(TYPE_VM,  TraderState.ACTIVE, BASKET);
-        Trader t2 = EC.addTrader(TYPE_VM,  TraderState.ACTIVE, BASKET);
+    /*
+     * Collapse a few Resize actions on two targets and two commodity types.
+     */
+    @Test
+    public final void testCollapsed_resize3() {
+        Economy economy = new Economy();
+        Trader t1 = economy.addTrader(TYPE_VM,  TraderState.ACTIVE, CPU_MEM_BASKET);
+        Trader t2 = economy.addTrader(TYPE_VM,  TraderState.ACTIVE, CPU_MEM_BASKET);
         CommoditySpecification C0 = new CommoditySpecification(0);
         CommoditySpecification C1 = new CommoditySpecification(1);
         double t2c1InitialCapacity = 100;
         t2.getCommoditySold(C1).setCapacity(t2c1InitialCapacity);
-        Resize r1c0_1 = new Resize(EC, t1, C0, 10);
-        Resize r1c0_2 = new Resize(EC, t1, C0, 20);
-        Resize r1c1_1 = new Resize(EC, t1, C1, 30);
-        Resize r1c1_2 = new Resize(EC, t1, C1, 40);
-        Resize r2c0_1 = new Resize(EC, t2, C0, 50);
-        Resize r2c0_2 = new Resize(EC, t2, C0, 60);
-        Resize r2c1_1 = new Resize(EC, t2, C1, 50);
-        Resize r2c1_2 = new Resize(EC, t2, C1, t2c1InitialCapacity);
+        Resize r1c0_1 = new Resize(economy, t1, C0, 10);
+        Resize r1c0_2 = new Resize(economy, t1, C0, 20);
+        Resize r1c1_1 = new Resize(economy, t1, C1, 30);
+        Resize r1c1_2 = new Resize(economy, t1, C1, 40);
+        Resize r2c0_1 = new Resize(economy, t2, C0, 50);
+        Resize r2c0_2 = new Resize(economy, t2, C0, 60);
+        Resize r2c1_1 = new Resize(economy, t2, C1, 50);
+        Resize r2c1_2 = new Resize(economy, t2, C1, t2c1InitialCapacity);
         List<Action> actions = Lists.newArrayList(
                 r1c0_1,
                 r2c1_1,
@@ -210,38 +231,42 @@ public class ActionCollapseTest {
         assertEquals(40, collapsed3.getNewCapacity(), 1e-5);
     }
 
-    @Test // Collapse actions with same target which end with Deactivate action
-    public final void testCollapsed_EndWithDeactivate() {
-        Trader v1 = EC.addTrader(TYPE_VM, TraderState.ACTIVE, EMPTY, BASKET);
-        Trader p1 = EC.addTrader(TYPE_PM, TraderState.ACTIVE, BASKET, BASKET2);
-        Trader p2 = EC.addTrader(TYPE_PM, TraderState.INACTIVE, BASKET, BASKET2);
-        Trader dc1 = EC.addTrader(TYPE_DC, TraderState.ACTIVE, BASKET2);
-        ShoppingList s1 = EC.addBasketBought(v1, BASKET);
+    /*
+     * Collapse actions with same target which end with Deactivate action.
+     */
+    @Test
+    public final void testCollapsed_endWithDeactivate() {
+        Economy economy = new Economy();
+        Trader v1 = economy.addTrader(TYPE_VM, TraderState.ACTIVE, EMPTY, CPU_MEM_BASKET);
+        Trader p1 = economy.addTrader(TYPE_PM, TraderState.ACTIVE, CPU_MEM_BASKET, ST_BASKET);
+        Trader p2 = economy.addTrader(TYPE_PM, TraderState.INACTIVE, CPU_MEM_BASKET, ST_BASKET);
+        Trader dc1 = economy.addTrader(TYPE_DC, TraderState.ACTIVE, ST_BASKET);
+        ShoppingList s1 = economy.addBasketBought(v1, CPU_MEM_BASKET);
 
         // suppose the sequence for actions are : ProvisionByDemand -> Deactivate
-        ProvisionByDemand provD1 = (ProvisionByDemand)new ProvisionByDemand(EC, s1, p1).take();
-        Deactivate d2 = new Deactivate(EC, provD1.getProvisionedSeller(), EC.getMarket(BASKET));
+        ProvisionByDemand provD1 = (ProvisionByDemand)new ProvisionByDemand(economy, s1, p1).take();
+        Deactivate d2 = new Deactivate(economy, provD1.getProvisionedSeller(), economy.getMarket(CPU_MEM_BASKET));
         List<Action> sequence1 = new ArrayList<Action>(Arrays.asList(provD1, d2));
         assertTrue(ActionCollapse.collapsed(sequence1).isEmpty());
         // suppose the sequence for actions are : ProvisionBySupply -> Move -> Deactivate
-        ProvisionBySupply provS1 = (ProvisionBySupply)new ProvisionBySupply(EC, p1).take();
-        Deactivate d3 = new Deactivate(EC, provS1.getProvisionedSeller(), EC.getMarket(BASKET));
-        ShoppingList sl3 = EC.addBasketBought(provS1.getProvisionedSeller(), BASKET2);
-        Move m3 = new Move(EC, sl3, dc1);
+        ProvisionBySupply provS1 = (ProvisionBySupply)new ProvisionBySupply(economy, p1).take();
+        Deactivate d3 = new Deactivate(economy, provS1.getProvisionedSeller(), economy.getMarket(CPU_MEM_BASKET));
+        ShoppingList sl3 = economy.addBasketBought(provS1.getProvisionedSeller(), ST_BASKET);
+        Move m3 = new Move(economy, sl3, dc1);
         List<Action> sequence2 = new ArrayList<Action>(Arrays.asList(provS1, m3, d3));
         assertTrue(ActionCollapse.collapsed(sequence2).isEmpty());
         // suppose the sequence for actions are: ProvisionBySupply1 -> ProvisionBySupply2 -> Deactivate1
-        ProvisionBySupply provS5 = (ProvisionBySupply)new ProvisionBySupply(EC, p2).take();
-        ProvisionBySupply provS6 = (ProvisionBySupply)new ProvisionBySupply(EC, p2).take();
-        Deactivate d5 = new Deactivate(EC, provS5.getProvisionedSeller(), EC.getMarket(BASKET));
+        ProvisionBySupply provS5 = (ProvisionBySupply)new ProvisionBySupply(economy, p2).take();
+        ProvisionBySupply provS6 = (ProvisionBySupply)new ProvisionBySupply(economy, p2).take();
+        Deactivate d5 = new Deactivate(economy, provS5.getProvisionedSeller(), economy.getMarket(CPU_MEM_BASKET));
         List<Action> sequence3 = new ArrayList<Action>(Arrays.asList(provS5, provS6, d5));
         List<Action> results3 = ActionCollapse.collapsed(sequence3);
         assertEquals(1, results3.size());
         assertEquals(provS6, results3.get(0));
         // suppose the sequence for actions are : ProvisionBySupply1 -> ProvisionByDemand2 -> Deactivate2
-        ProvisionBySupply provS7 = (ProvisionBySupply)new ProvisionBySupply(EC, p2).take();
-        ProvisionByDemand provD8 = (ProvisionByDemand)new ProvisionByDemand(EC, s1, p1).take();
-        Deactivate d6 = new Deactivate(EC, provD8.getProvisionedSeller(), EC.getMarket(BASKET));
+        ProvisionBySupply provS7 = (ProvisionBySupply)new ProvisionBySupply(economy, p2).take();
+        ProvisionByDemand provD8 = (ProvisionByDemand)new ProvisionByDemand(economy, s1, p1).take();
+        Deactivate d6 = new Deactivate(economy, provD8.getProvisionedSeller(), economy.getMarket(CPU_MEM_BASKET));
         List<Action> sequence4 = new ArrayList<Action>(Arrays.asList(provS7, provD8, d6));
         List<Action> results4 = ActionCollapse.collapsed(sequence4);
         assertEquals(1, results4.size());
@@ -250,5 +275,44 @@ public class ActionCollapseTest {
         List<Action> sequence5 = new ArrayList<Action>(Arrays.asList(provS1, m3, d5));
         List<Action> results5 = ActionCollapse.collapsed(sequence5);
         assertEquals(3, results5.size());
+    }
+
+    /*
+     * The action order should be provision-> move-> resize-> suspension -> reconfigure.
+     */
+    @Test
+    public void testGroupActionsByTypeAndReorderBeforeSending_correctOrder() {
+        Economy economy = new Economy();
+        // Create traders and shopping lists.
+        Trader p1 = economy.addTrader(TYPE_PM, TraderState.ACTIVE, CPU_MEM_BASKET, ST_BASKET);
+        Trader p2 = economy.addTrader(TYPE_PM, TraderState.ACTIVE, CPU_MEM_BASKET, ST_BASKET);
+        Trader p3 = economy.addTrader(TYPE_PM, TraderState.INACTIVE, CPU_MEM_BASKET, ST_BASKET);
+        Trader v1 = economy.addTrader(TYPE_VM, TraderState.ACTIVE, EMPTY, CPU_MEM_BASKET);
+        Trader v2 = economy.addTrader(TYPE_VM, TraderState.ACTIVE, EMPTY, CPU_MEM_BASKET);
+        ShoppingList s1 = economy.addBasketBought(v1, CPU_MEM_BASKET);
+
+        // Create actions.
+        ProvisionBySupply provisionBySupply = new ProvisionBySupply(economy, p1);
+        ProvisionByDemand provisionByDemand = new ProvisionByDemand(economy, s1, p1);
+        Move move = new Move(economy, s1, v2);
+        Activate activate = new Activate(economy, p3, economy.getMarket(CPU_MEM_BASKET), p2);
+        Resize resize = new Resize(economy, p2, new CommoditySpecification(0),10, 20);
+        Deactivate deactivate = new Deactivate(economy, provisionBySupply.getProvisionedSeller(),
+                        economy.getMarket(CPU_MEM_BASKET));
+        Reconfigure reconfigure = new Reconfigure(economy, s1);
+
+        // Act : Random insertion order.
+        List<Action> actionsAfterReorder = ActionCollapse.groupActionsByTypeAndReorderBeforeSending
+                        (Arrays.asList(deactivate, move, provisionByDemand, reconfigure, activate,
+                                        resize , provisionBySupply));
+
+        // Assert
+        assertEquals(provisionBySupply, actionsAfterReorder.get(0));
+        assertEquals(provisionByDemand ,actionsAfterReorder.get(1));
+        assertEquals(activate, actionsAfterReorder.get(2));
+        assertEquals(move, actionsAfterReorder.get(3));
+        assertEquals(resize, actionsAfterReorder.get(4));
+        assertEquals(deactivate, actionsAfterReorder.get(5));
+        assertEquals(reconfigure, actionsAfterReorder.get(6));
     }
 }
