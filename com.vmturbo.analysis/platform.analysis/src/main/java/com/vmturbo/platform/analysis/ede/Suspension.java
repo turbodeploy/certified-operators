@@ -205,4 +205,9 @@ public class Suspension {
         return unprofitableSellersCouldNotSuspend;
     }
 
+    @VisibleForTesting
+    public Set<Trader> getSoleProviders() {
+        return soleProviders;
+    }
+
 }

@@ -1,10 +1,14 @@
 package com.vmturbo.platform.analysis.ede;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.IntStream;
+
 import org.junit.Test;
+
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.Deactivate;
 import com.vmturbo.platform.analysis.actions.Move;
@@ -17,6 +21,7 @@ import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.ledger.Ledger;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
+import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 
 public class SuspensionTest {
     private static final int VM_TYPE = 0;
@@ -25,8 +30,8 @@ public class SuspensionTest {
     private static final double UTILIZATION_UPPER_BOUND = 0.9;
 
     // CommoditySpecifications to use in tests
-    private static final CommoditySpecification CPU = new CommoditySpecification(0);
-    private static final CommoditySpecification MEM = new CommoditySpecification(1);
+    private static final CommoditySpecification CPU = TestUtils.CPU;
+    private static final CommoditySpecification MEM = TestUtils.MEM;
 
     // Baskets to use in tests
     private static final Basket EMPTY = new Basket();
@@ -34,7 +39,7 @@ public class SuspensionTest {
 
 
     @Test
-    public void testDontSuspendNonSuspendableTraders () {
+    public void test_suspensionDecisions_dontSuspendNonSuspendableTraders() {
         Economy economy = new Economy();
         // adding 2 non-suspendable traders
         economy.addTrader(PM_TYPE, TraderState.ACTIVE, PM_SMALL);
@@ -54,9 +59,9 @@ public class SuspensionTest {
 
 
     @Test
-    public void testDontSuspendWhenNoActiveSellers() {
+    public void test_suspensionDecisions_dontSuspendWhenNoActiveSellers() {
         Economy economy = new Economy();
-        // adding 2 non-suspendable traders
+        // adding 1 non-suspendable traders
         economy.addTrader(PM_TYPE, TraderState.ACTIVE, PM_SMALL);
 
         Suspension suspension = new Suspension();
@@ -66,7 +71,7 @@ public class SuspensionTest {
     }
 
     @Test
-    public void testSuspensionActions () {
+    public void test_suspensionDecisions_suspensionActions() {
         Economy economy = new Economy();
         // adding 2 non-suspendable traders
         economy.addTrader(PM_TYPE, TraderState.ACTIVE, PM_SMALL);
@@ -101,7 +106,7 @@ public class SuspensionTest {
     }
 
     @Test
-    public void testSuspensionNoActions() {
+    public void test_suspensionDecisions_noActions() {
         Economy economy = new Economy();
         Trader seller  = economy.addTrader(PM_TYPE, TraderState.ACTIVE, PM_SMALL);
         seller.getSettings().setSuspendable(true);
@@ -120,7 +125,7 @@ public class SuspensionTest {
     }
 
     @Test
-    public void testAdjustUtilThreshold() {
+    public void test_adjustUtilThreshold() {
         Economy economy = new Economy();
         Trader seller = economy.addTrader(VM_TYPE, TraderState.ACTIVE, PM_SMALL);
 
@@ -148,7 +153,7 @@ public class SuspensionTest {
     }
 
     @Test
-    public void testSuspendTrader () {
+    public void test_suspendTrader() {
         Economy economy = new Economy();
         // add buyer and seller to create a market
         economy.addTrader(VM_TYPE, TraderState.ACTIVE, EMPTY, new Basket(CPU));
@@ -162,5 +167,243 @@ public class SuspensionTest {
         // verify that we have 1 deactivate action when suspendTrader is called
         assertTrue(actions.size() == 1);
         assertTrue(actions.get(0) instanceof Deactivate);
+    }
+
+    /*
+     * No seller and hence no sole provider.
+     */
+    @Test
+    public void test_findSoleProviders_noSeller() {
+        //Arrange
+        Economy economy = getEconomyWithGivenSellersAndBuyers(0, 1);
+        economy.populateMarketsWithSellers();
+
+        //Act
+        Suspension suspension = new Suspension();
+        suspension.findSoleProviders(economy);
+
+        //Assert
+        assertTrue(suspension.getSoleProviders().isEmpty());
+    }
+
+    /*
+     * No buyer and hence no sole provider.
+     */
+    @Test
+    public void test_findSoleProviders_noBuyer() {
+        //Arrange
+        Economy economy = getEconomyWithGivenSellersAndBuyers(1, 0);
+        economy.populateMarketsWithSellers();
+
+        //Act
+        Suspension suspension = new Suspension();
+        suspension.findSoleProviders(economy);
+
+        //Assert
+        assertTrue(suspension.getSoleProviders().isEmpty());
+    }
+
+    /*
+     * One active seller and buyer. Hence one sole provider.
+     */
+    @Test
+    public void test_findSoleProviders_oneActiveSeller() {
+        //Arrange
+        Economy economy = getEconomyWithGivenSellersAndBuyers(1, 1);
+        economy.populateMarketsWithSellers();
+
+        //Act
+        Suspension suspension = new Suspension();
+        suspension.findSoleProviders(economy);
+
+        //Assert
+        assertEquals(1, suspension.getSoleProviders().size());
+    }
+
+    /*
+     * Inactive seller and hence no sole provider.
+     */
+    @Test
+    public void test_findSoleProviders_inactiveSeller() {
+        //Arrange
+        Economy economy = getEconomyWithGivenSellersAndBuyers(0, 1);
+        economy.addTrader(PM_TYPE, TraderState.INACTIVE, PM_SMALL);
+        economy.populateMarketsWithSellers();
+
+        //Act
+        Suspension suspension = new Suspension();
+        suspension.findSoleProviders(economy);
+
+        //Assert
+        assertTrue(suspension.getSoleProviders().isEmpty());
+    }
+
+    /*
+     * Inactive buyer and hence no sole provider.
+     */
+    @Test
+    public void test_findSoleProviders_inActiveBuyer() {
+        //Arrange
+        Economy economy = getEconomyWithGivenSellersAndBuyers(1, 0);
+        economy.addTrader(VM_TYPE, TraderState.INACTIVE, EMPTY, new Basket(CPU));
+        economy.populateMarketsWithSellers();
+
+        //Act
+        Suspension suspension = new Suspension();
+        suspension.findSoleProviders(economy);
+
+        //Assert
+        assertEquals(0, suspension.getSoleProviders().size());
+    }
+
+    /*
+     * More than one seller and hence no sole provider.
+     */
+    @Test
+    public void test_findSoleProviders_moreThanOneActiveSeller() {
+        //Arrange
+        Economy economy = getEconomyWithGivenSellersAndBuyers(2, 1);
+        economy.populateMarketsWithSellers();
+
+        //Act
+        Suspension suspension = new Suspension();
+        suspension.findSoleProviders(economy);
+
+        //Assert
+        assertTrue(suspension.getSoleProviders().isEmpty());
+    }
+
+    /*
+     * One seller and two buyers. Hence one sole provider.
+     */
+    @Test
+    public void test_findSoleProviders_withTwoBuyers() {
+        //Arrange
+        Economy economy = getEconomyWithGivenSellersAndBuyers(1, 2);
+        Trader gurreanteedBuyer = economy.addTrader(VM_TYPE, TraderState.ACTIVE, EMPTY, new Basket(CPU));
+        gurreanteedBuyer.getSettings().setGuaranteedBuyer(true);
+        economy.populateMarketsWithSellers();
+
+        //Act
+        Suspension suspension = new Suspension();
+        suspension.findSoleProviders(economy);
+
+        //Assert
+        assertEquals(1, suspension.getSoleProviders().size());
+    }
+
+    /*
+     * Two seller and two buyers. Hence no sole provider.
+     */
+    @Test
+    public void test_findSoleProviders_withMultipleSelleraAndBuyers() {
+        //Arrange
+        Economy economy = getEconomyWithGivenSellersAndBuyers(2, 2);
+        Trader gurreanteedBuyer = economy.addTrader(VM_TYPE, TraderState.ACTIVE, EMPTY, new Basket(CPU));
+        gurreanteedBuyer.getSettings().setGuaranteedBuyer(true);
+        economy.populateMarketsWithSellers();
+
+        //Act
+        Suspension suspension = new Suspension();
+        suspension.findSoleProviders(economy);
+
+        //Assert
+        assertTrue(suspension.getSoleProviders().isEmpty());
+    }
+
+    /*
+     * One seller and one guaranteed buyer. Hence sole provider.
+     */
+    @Test
+    public void test_findSoleProviders_withGuaranteedBuyer() {
+        //Arrange
+        Economy economy = getEconomyWithGivenSellersAndBuyers(1, 0);
+        Trader buyer = economy.addTrader(VM_TYPE, TraderState.ACTIVE, EMPTY, new Basket(CPU));
+        buyer.getSettings().setGuaranteedBuyer(true);
+        economy.populateMarketsWithSellers();
+
+        //Act
+        Suspension suspension = new Suspension();
+        suspension.findSoleProviders(economy);
+
+        //Assert
+        assertTrue(suspension.getSoleProviders().isEmpty());
+    }
+
+    /*
+     * One seller and two buyers but one guaranteed. Hence one sole provider.
+     */
+    @Test
+    public void test_findSoleProviders_withTwoBuyersAndOneGurranteed() {
+        //Arrange
+        Economy economy = getEconomyWithGivenSellersAndBuyers(1, 1);
+        Trader gurreanteedBuyer = economy.addTrader(VM_TYPE, TraderState.ACTIVE, EMPTY, new Basket(CPU));
+        gurreanteedBuyer.getSettings().setGuaranteedBuyer(true);
+        economy.populateMarketsWithSellers();
+
+        //Act
+        Suspension suspension = new Suspension();
+        suspension.findSoleProviders(economy);
+
+        //Assert
+        assertEquals(1, suspension.getSoleProviders().size());
+    }
+
+    @Test
+    public void test_findSoleProviders_withMoreThanOneActiveSeller() {
+        //Arrange
+        Economy economy = getEconomyWithGivenSellersAndBuyers(2, 1);
+        economy.populateMarketsWithSellers();
+
+        //Act
+        Suspension suspension = new Suspension();
+        suspension.findSoleProviders(economy);
+
+        //Assert
+        assertEquals(0, suspension.getSoleProviders().size());
+    }
+
+    /*
+     * Set one seller s.t it is a sole provider in only one market.
+     * Two sellers : {PM1 selling (CPU,MEM) + Storage}, {PM2 -> selling (CPU,MEM)}, and two buyers {VM1 buying (CPU,MEM)}, {VM1 buying (Storage)}
+     * Hence, PM1 sole provider of storage.
+     */
+    @Test
+    public void test_findSoleProviders_SellerSoleProviderInOneMarket() {
+        //Arrange
+        Economy economy = new Economy();
+
+        //sellers
+        Basket cpuMemStorageBasket= new Basket(CPU, MEM, TestUtils.ST_AMT);
+        Basket storageBasket = new Basket(TestUtils.ST_AMT);
+        Trader soleProviderForStorage = economy.addTrader(PM_TYPE, TraderState.ACTIVE, cpuMemStorageBasket, EMPTY);
+        economy.addTrader(PM_TYPE, TraderState.ACTIVE, PM_SMALL, EMPTY);
+        //buyers
+        Trader buyerVM1 = economy.addTrader(VM_TYPE, TraderState.ACTIVE, EMPTY);
+        economy.addBasketBought(buyerVM1, PM_SMALL);
+        Trader buyerVM2 = economy.addTrader(VM_TYPE, TraderState.ACTIVE, EMPTY);
+        economy.addBasketBought(buyerVM2, storageBasket);
+        economy.populateMarketsWithSellers();
+
+        //Act
+        Suspension suspension = new Suspension();
+        suspension.findSoleProviders(economy);
+
+        //Assert
+        assertEquals(1, suspension.getSoleProviders().size());
+        assertTrue(suspension.getSoleProviders().contains(soleProviderForStorage));
+    }
+
+
+   /*
+    * Creates an economy with given number of sellers (PMs) and buyers (VMs).
+    */
+    private Economy getEconomyWithGivenSellersAndBuyers(int numSellers, int numBuyers) {
+        Economy economy = new Economy();
+        //Add sellers
+        IntStream.range(0, numSellers).forEach($ -> economy.addTrader(PM_TYPE, TraderState.ACTIVE, PM_SMALL));
+        //Add buyers
+        IntStream.range(0, numBuyers).forEach($ -> economy.addTrader(VM_TYPE, TraderState.ACTIVE, EMPTY, new Basket(CPU)));
+        return economy;
     }
 }
