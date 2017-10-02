@@ -1,0 +1,117 @@
+package com.vmturbo.api.component.external.api.mapper;
+
+import static org.junit.Assert.*;
+
+import org.junit.Test;
+
+import com.google.common.collect.ImmutableList;
+import com.vmturbo.api.dto.ServiceEntityApiDTO;
+import com.vmturbo.common.protobuf.search.Search.Entity;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
+import com.vmturbo.common.protobuf.search.Search.SearchFilter;
+import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter;
+import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.TraversalDirection;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+
+/**
+ * Test cases for {@link SearchMapper}.
+ * @author shai
+ *
+ */
+public class SearchMapperTest {
+
+    static final String FOO = "foo";
+    static final String BAR = "bar";
+    static final String VM = "VirtualMachine";
+
+    @Test
+    public void testNameFilter() {
+        PropertyFilter fooSearch = SearchMapper.nameFilter(FOO);
+        assertEquals("displayName", fooSearch.getPropertyName());
+        assertEquals(FOO, fooSearch.getStringFilter().getStringPropertyRegex());
+    }
+
+    @Test
+    public void testNameFilterWithMatch() {
+        PropertyFilter fooSearch = SearchMapper.nameFilter(FOO, false);
+        assertEquals("displayName", fooSearch.getPropertyName());
+        assertEquals(FOO, fooSearch.getStringFilter().getStringPropertyRegex());
+        assertFalse(fooSearch.getStringFilter().getMatch());
+    }
+
+    @Test
+    public void testEntityFilter() {
+        PropertyFilter vmSearch = SearchMapper.entityTypeFilter(VM);
+        assertEquals("entityType", vmSearch.getPropertyName());
+        assertEquals(ServiceEntityMapper.fromUIEntityType(VM),
+            vmSearch.getNumericFilter().getValue());
+    }
+
+    @Test
+    public void testPropertyFilter() {
+        PropertyFilter fooBar = SearchMapper.stringFilter(BAR, FOO);
+        assertEquals(BAR, fooBar.getPropertyName());
+        assertEquals(FOO, fooBar.getStringFilter().getStringPropertyRegex());
+    }
+
+    @Test
+    public void testTraverseToType() {
+        TraversalFilter traversalFilter =
+                        SearchMapper.traverseToType(TraversalDirection.CONSUMES, VM);
+        assertEquals(TraversalDirection.CONSUMES, traversalFilter.getTraversalDirection());
+        assertEquals(SearchMapper.numericPropertyFilter("entityType",
+            ServiceEntityMapper.fromUIEntityType(VM)),
+            traversalFilter.getStoppingCondition().getStoppingPropertyFilter());
+    }
+
+    @Test
+    public void testSearchProperty() {
+        PropertyFilter fooBar = SearchMapper.stringFilter(BAR, FOO);
+        SearchFilter searchFilter = SearchMapper.searchFilterProperty(fooBar);
+        assertEquals(fooBar, searchFilter.getPropertyFilter());
+    }
+
+    @Test
+    public void testSearchTraversal() {
+        TraversalFilter traversalFilter =
+                        SearchMapper.traverseToType(TraversalDirection.CONSUMES, VM);
+        SearchFilter searchFilter = SearchMapper.searchFilterTraversal(traversalFilter);
+        assertEquals(traversalFilter, searchFilter.getTraversalFilter());
+
+    }
+
+    private static long oid = 123456;
+    private static int state = EntityState.MAINTENANCE_VALUE; // MAINTENANCE
+    private static String displayName = "foo";
+    private static int vmType = EntityType.VIRTUAL_MACHINE_VALUE;
+
+    @Test
+    public void testSeDTO() {
+        Entity entity = Entity.newBuilder()
+                    .setOid(oid)
+                    .setState(state)
+                    .setDisplayName(displayName)
+                    .setType(vmType)
+                    .build();
+        ServiceEntityApiDTO seDTO = SearchMapper.seDTO(entity);
+        assertEquals(displayName, seDTO.getDisplayName());
+        assertEquals(String.valueOf(oid), seDTO.getUuid());
+        assertEquals("MAINTENANCE", seDTO.getState());
+        assertEquals(ServiceEntityMapper.UIEntityType.VIRTUAL_MACHINE.getValue(), seDTO.getClassName());
+    }
+
+    /**
+     * This test verifies that changes in the types specified in {@link ServiceEntityMapper}
+     * will not affect {@link SearchMapper#SEARCH_ALL_TYPES} (and if they do affect then the
+     * test will fail).
+     */
+    @Test
+    public void testSearchAllTypes() {
+        ImmutableList<String> EXPECTED_TYPES = ImmutableList.of(
+            "VirtualMachine", "PhysicalMachine", "Storage", "DiskArray",
+            "DataCenter", "VirtualDataCenter", "Application", "VirtualApplication",
+            "Container", "StorageController", "IOModule", "Switch", "Chassis", "Network");
+        assertEquals(EXPECTED_TYPES, SearchMapper.SEARCH_ALL_TYPES);
+    }
+}

@@ -1,0 +1,34 @@
+syntax = "proto2";
+package action;
+
+option java_package = "com.vmturbo.common.protobuf.action";
+
+import "action/ActionDTO.proto";
+
+// A description of the severity for an entity.
+// Entity Severity is calculated by finding the most severe action among
+// all currently recommended actions that affect a given service entity.
+message EntitySeverity {
+    // The ID of the entity whose severity this is.
+    optional int64 entity_id = 1;
+
+    // The severity of the corresponding entity.
+    optional Severity severity = 2;
+}
+
+
+// A message used to address multiple actions within a topology context.
+message MultiEntityRequest {
+    // The topology context the actions belongs to.
+    // There is one real-time topology context, and a context per-plan.
+    optional int64 topology_context_id = 1;
+
+    // The IDs of the entities being addressed.
+    repeated int64 entity_ids = 2;
+}
+
+// A service responsible for retrieving entity severities.
+service EntitySeverityService {
+    // Get severity information for service entities by the service entity ids
+    rpc GetEntitySeverities(MultiEntityRequest) returns (stream EntitySeverity);
+}

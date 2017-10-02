@@ -1,0 +1,53 @@
+
+<div id="" style="width:600px;" class="">
+
+  <h3 style="color:#6688AA;">"<%= @on_demand_report.title %>"</h3>
+  <h3 style="color:#6688AA;">Subscriptions</h3>
+
+  <h3 style="color:#777">Existing</h3>
+
+  <table class="thinline" border="0" cellspacing="0">
+    <tr>
+      <th>&nbsp;</th><th>&nbsp;</th><th>Send to E-Mail</th><th>Period</th><th>Day Type</th><th>Run Report For</th>
+    </tr>
+      <% for @s in @report_subscriptions do %>
+        <% next unless @entity_from_uuid[@s.obj_uuid] %>
+        <tr>
+          <td><%= link_to "Delete", {:controller => 'report_subscriptions', :action => 'destroy', :id => @s}, :confirm => "Really Delete?" %></td>
+          <td><%= link_to "Edit", {:controller => 'report_subscriptions', :action => 'edit', :id => @s, :usermode => 'true'} %></td>
+          <td><%= @s.email.to_s %></td>
+          <td><%= @s.period.to_s %></td>
+          <td><%= @s.day_type.to_s %></td>
+          <td><%= @entity_from_uuid[@s.obj_uuid].display_name%></td>
+        </tr>
+      <% end %>
+  </table>
+
+  <p class="spacer">&nbsp;</p>
+
+  <h3 style="color:#777">Add New Subscriptions</h3>
+
+
+  <fieldset>
+
+    <% form_tag(:action => 'create_on_demand') do %>
+      <table border="0" cellspacing="4">
+        <tr> <td colspan="2"><%= submit_tag "Save" %></td> </tr>
+        <tr> <th valign="top">Send to E-Mail</th> <td><%= text_field_tag "report_subscription[email]", "", {:style => "width:2.5in;"} %></td> </tr>
+        <tr> <th valign="top">Period</th> <td><%= select_tag "report_subscription[period]", options_for_select(%W(Daily Weekly Monthly).collect{|p| [p,p]}), {:style => "width:1.0in;"} %></td> </tr>
+        <tr> <th valign="top">Day Type</th> <td><%= select_tag "report_subscription[day_type]", options_for_select([[nil,nil]]+%W(Mon Tue Wed Thu Fri Sat Sun).collect{|p| [p,p]}), {:style => "width:1.0in;"} %>
+              <br /><span style="font-size: x-small;">Use with Weekly</span></td> </tr>
+        <tr>
+          <th valign="top">Run Report For</th>
+          <td valign="top">
+            <% for @entity in @entities do %>
+                <%= check_box_tag "entity_uuids[#{@entity.uuid}]", true %> &nbsp; <%= @entity.display_name.to_s %> <br />
+            <% end %>
+          </td>
+        </tr>
+      </table>
+      <%= hidden_field_tag "on_demand_report_id", @on_demand_report.id %>
+    <% end %>
+  </fieldset>
+
+</div>

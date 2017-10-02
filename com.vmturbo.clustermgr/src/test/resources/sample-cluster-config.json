@@ -1,0 +1,102 @@
+{
+  "component_instances": {
+    "mediation-aix_1": {
+      "componentType": "mediation-aix",
+      "node": "default",
+      "properties": {
+        "probeCategory": "HYPERVISOR",
+        "probeType": "AIX",
+        "serverAddress": "ws://opsmgr:8080/vmturbo/remoteMediation",
+        "silentRetryTime": "0",
+        "sslKeystorePassword": " ",
+        "sslKeystorePath": " ",
+        "userName": "vmtRemoteMediation",
+        "userPassword": "vmtRemoteMediation"
+      }
+    },
+    "mediation-compellent_1": {
+      "componentType": "mediation-compellent",
+      "node": "default",
+      "properties": {
+        "probeCategory": "STORAGE",
+        "probeType": "Dell Compellent",
+        "serverAddress": "ws://opsmgr:8080/vmturbo/remoteMediation",
+        "silentRetryTime": "0",
+        "sslKeystorePassword": " ",
+        "sslKeystorePath": " ",
+        "userName": "vmtRemoteMediation",
+        "userPassword": "vmtRemoteMediation"
+      }
+    },
+    "mediation-hyperv_1": {
+      "componentType": "mediation-hyperv",
+      "node": "default",
+      "properties": {
+        "probeCategory": "HYPERVISOR",
+        "probeType": "Hyper-V",
+        "serverAddress": "ws://opsmgr:8080/vmturbo/remoteMediation",
+        "silentRetryTime": "0",
+        "sslKeystorePassword": " ",
+        "sslKeystorePath": " ",
+        "userName": "vmtRemoteMediation",
+        "userPassword": "vmtRemoteMediation"
+      }
+    },
+    "mediation-openstack_1": {
+      "componentType": "mediation-openstack",
+      "node": "default",
+      "properties": {
+        "probeCategory": "Cloud Management",
+        "probeType": "OpenStack",
+        "serverAddress": "ws://opsmgr:8080/vmturbo/remoteMediation",
+        "silentRetryTime": "0",
+        "sslKeystorePassword": " ",
+        "sslKeystorePath": " ",
+        "userName": "vmtRemoteMediation",
+        "userPassword": "vmtRemoteMediation"
+      }
+    }
+  },
+  "component_types": {
+    "mediation-aix": {
+      "probeCategory": "HYPERVISOR",
+      "probeType": "AIX",
+      "serverAddress": "ws://opsmgr:8080/vmturbo/remoteMediation",
+      "silentRetryTime": "0",
+      "sslKeystorePassword": " ",
+      "sslKeystorePath": " ",
+      "userName": "vmtRemoteMediation",
+      "userPassword": "vmtRemoteMediation"
+    },
+    "mediation-compellent": {
+      "probeCategory": "STORAGE",
+      "probeType": "Dell Compellent",
+      "serverAddress": "ws://opsmgr:8080/vmturbo/remoteMediation",
+      "silentRetryTime": "0",
+      "sslKeystorePassword": " ",
+      "sslKeystorePath": " ",
+      "userName": "vmtRemoteMediation",
+      "userPassword": "vmtRemoteMediation"
+    },
+    "mediation-hyperv": {
+      "probeCategory": "HYPERVISOR",
+      "probeType": "Hyper-V",
+      "serverAddress": "ws://opsmgr:8080/vmturbo/remoteMediation",
+      "silentRetryTime": "0",
+      "sslKeystorePassword": " ",
+      "sslKeystorePath": " ",
+      "userName": "vmtRemoteMediation",
+      "userPassword": "vmtRemoteMediation"
+    },
+    "mediation-openstack": {
+      "probeCategory": "Cloud Management",
+      "probeType": "OpenStack",
+      "serverAddress": "ws://opsmgr:8080/vmturbo/remoteMediation",
+      "silentRetryTime": "0",
+      "sslKeystorePassword": " ",
+      "sslKeystorePath": " ",
+      "userName": "vmtRemoteMediation",
+      "userPassword": "vmtRemoteMediation"
+    }
+  }
+}

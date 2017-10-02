@@ -1,0 +1,49 @@
+
+<div id="w20_edit_<%=@obj.ctrlr_name.singularize%>" style="padding:10px;">
+
+<table class="w20_edit" cellspacing="1" border="0">
+<tr><td>
+  <%= form_remote_tag( :url => url_for( :id => @obj, :action => "w20_update_#{@obj.ctrlr_name.singularize}", :props => @properties.join('/') ),
+                       :update => "w20_#{@obj.ctrlr_name.singularize}_div" ) %>
+
+    <% 
+        attr_info = @obj.class.attr_type_info() 
+        proc_names = {'string' => 'text_field', 'text' => 'text_area', 'boolean' => 'check_box'}
+        proc_names.default = 'text_field'
+    %>
+
+    <table class="w20_edit_props" cellspacing="1" border="0">
+        <% for prop in @properties do %>
+            <tr> 
+            <td class="ipedit_label"><%= prop.to_s.humanize %><%= attr_info[prop][:modifier] == 'money' ? "&nbsp;$" : ""%></td> 
+            <% if attr_info[prop][:datatype].to_s.include?('date') %>
+              <td><input id="<%=prop.to_s%>" name="obj[<%=prop.to_s%>]" size="10" maxlength="10" type="text" value="<%= @obj.send(prop).nil? ? '' : @obj.send(prop).to_date_image %>"/>
+                <%=image_tag "calendar.gif", :onclick => "showChooser(this, '#{prop.to_s}', 'chooserSpan_#{prop.to_s}', 1950, 2050, 'Y-m-d', false);"%> 
+                <span id="chooserSpan_<%=prop.to_s%>" class="dateChooser select-free" style="display: none; visibility: hidden; margin-top:-40px; margin-left:320px; width: 160px; "></span>
+              </td>
+            <% elsif attr_info[prop][:values].to_s.length > 0 %>
+              <td>
+                <select name="obj[<%=prop.to_s%>]">
+                  <%= options_for_select (attr_info[prop][:values].split(/, */), nil) %>
+                </select>
+              </td>
+            <% else %>
+              <td><%= self.send(proc_names[attr_info[prop][:datatype]], :obj, prop, :class => 'ipedit') %></td> 
+            <% end %>
+            </tr>
+        <% end %>
+    </table>
+
+    <p>
+        <%=submit_tag "Save" %>  
+        <%=link_to_remote( submit_tag("Cancel"), 
+                        :url => url_for( :id => @obj, :action => "w20_show_#{@obj.ctrlr_name.singularize}", :props => @properties.join('/') ),
+                        :update => "w20_#{@obj.ctrlr_name.singularize}_div" ) %>
+    </p>
+
+  </form>
+</td></tr>
+</table>
+
+</div>
+

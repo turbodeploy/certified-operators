@@ -1,0 +1,312 @@
+syntax = "proto2";
+package setting;
+
+option java_package = "com.vmturbo.common.protobuf.setting";
+
+// The SettingSpec defines a specification for a setting that will be used in the
+// system. A SettingSpec can be of 2 different types: EntitySettingSpec or GlobalSettingSpec (check
+// the specific message docs for the details).
+// A SettingSec should have a name, that will be used as an identifier. It will also have a
+// SettingCategoryPath used to classify it, and a SettingValueType to specify which values
+// are allowed for this setting.
+message SettingSpec {
+
+    // Name of the setting specification.
+    // This is used as an identifier for this class. Two SettingSpec instances with the same name
+    //should not exist.
+    optional string name = 1;
+
+    // The display name for the specification.
+    // This is NOT used as an identifier, so multiple specs can have the same display name
+    // (although to avoid confusion they should have different category paths).
+    optional string display_name = 9;
+
+    // Used to classify a setting spec into categories (and nested categories, like a path).
+    //Example: the VM_Move_Automation setting spec can be under the Action_Policies category.
+    optional SettingCategoryPath path = 2;
+
+    // A SettingSpec can be of 2 different types:
+    // - EntitySettingSpec, used to define settings that are related to entities. In this case
+    //      every entity can have its own setting value.
+    // - GlobalSettingSpec, used to define settings that are global for the system. In this case
+    //      there is only one value possible for the whole system.
+    oneof settingType {
+        EntitySettingSpec entity_setting_spec = 3;
+        GlobalSettingSpec global_setting_spec = 4;
+    }
+
+    // The settingValueType is used to specify the type of values that a SettingSpec can have.
+    oneof settingValueType {
+        BooleanSettingValueType boolean_setting_value_type = 5;
+        NumericSettingValueType numeric_setting_value_type = 6;
+        StringSettingValueType string_setting_value_type = 7;
+        EnumSettingValueType enum_setting_value_type = 8;
+    }
+
+}
+
+// SettingCategoryPath is used to classify a SettingSpec into categories (and sub categories, if
+// needed, like a path).
+// Example: the VMMoveAutomation setting spec can be under the ActionAutomation category.
+// the HighAvailability setting spec can be under the OperationalConstrains category.
+// Each one of those categories is represented by a node (with the respective name).
+// If needed, we can further subdivide a category in subcategories. In this case, there will be
+// subnode (with its respecting name) under the main category node.
+message SettingCategoryPath {
+
+    // the node used as a root
+    optional SettingCategoryPathNode root_path_node = 1;
+
+    // SettingCategoryPathNode is used to create a node in a SettingCategoryPath. A root node is used as a path
+    // starting point.
+    message SettingCategoryPathNode {
+        // name of the node
+        optional string node_name = 1;
+
+        // link to the following node in the path
+        optional SettingCategoryPathNode child_node = 2;
+    }
+}
+
+// GlobalSettingSpec, used to define settings that are global for the system. In this case
+// there is only one value possible for the whole system.
+message GlobalSettingSpec {}
+
+// EntitySettingSpec, used to define settings that are related to entities. In this case
+// every entity can have its own setting value.
+message EntitySettingSpec {
+
+    // tiebreaker to use in order to resolve a conflict when multiple settings are applied to the
+    // same entity
+    optional SettingTiebreaker tiebreaker = 1;
+
+    // scope of this setting, which entities can have it
+    optional EntitySettingScope entity_setting_scope = 2;
+}
+
+// SettingTiebreaker defines the strategy used to resolve conflicts when an entity has more than one
+// setting value to be applied. We always want to pick the most conservative value. Sometimes the
+// most conservative value is the bigger one, sometimes is the smaller one.
+// The creator of the setting spec need to define which one of the possible options is the most
+// conservative one.
+//
+// Example:
+// 2 value for HA setting on a host: 80 and 90. 80 is more conservative (smaller of the 2).
+// 2 value for setting about the number of polling cycle to wait, before removing objects: 2 and 5.
+// in this other case, 5 is the more conservative (bigger of the 2).
+//
+// Bigger and smaller are used for any type of setting spec. They refers to the compareTo
+// method for the related java object. Example:
+// For boolean, TRUE is bigger than FALSE.
+// For Enum, the natural order implemented by compareTo is the order in which the constants are
+// declared
+// For String, the lexicographic ordering is used.
+enum SettingTiebreaker {
+    BIGGER = 1;
+    SMALLER = 2;
+}
+
+// EntitySettingScope is associated with an EntitySettingSpec, in order to indicates which
+// type of entities are allowed to have this setting.
+// The class keeps a list of entities allowed. It can also specifies that all entity types are allowed.
+message EntitySettingScope {
+    oneof scope {
+        EntityTypeSet entity_type_set = 1;
+        AllEntityType all_entity_type = 2;
+    }
+
+    // Set of entity types that are allowed in this scope.
+    message EntityTypeSet {
+        repeated int32 entity_type = 1;
+    }
+
+    // This message allows all the entity types to be used as scope (which means that there is
+    // no scope in reality)
+    message AllEntityType {}
+}
+
+// BooleanSettingValueType is used to indicate that a setting is carrying a Boolean type of value.
+message BooleanSettingValueType {
+    // The default value for this setting.
+    optional bool default = 1;
+}
+
+// NumericSettingValueType is used to indicate that a setting is carrying a numberic
+// type of value. The class can specify a minimum and a maximum number; the value should be in that
+// range in order to be accepted.
+// if min/max is not specified, then we can assume that there is no min/max (except the memory limit
+// given by the float variable itself)
+message NumericSettingValueType {
+    // Minimum number that the value can assume.
+    optional float min = 1;
+
+    // Maximum number that the value can assume.
+    optional float max = 2;
+
+    // The default value for this setting.
+    optional float default = 3;
+}
+
+// StringSettingValueType is used to indicate that a setting is carrying a String type of value.
+// The class can specify a regex that will be used against the string value, in order to validate it
+message StringSettingValueType {
+    // regex used to validate against the setting value
+    optional string validation_regex = 1;
+
+    // The default value for this setting. 
+    optional string default = 2;
+}
+
+// EnumSettingValueType is used to indicate that a setting is carrying an enumeration
+// type of value. The class will be created by specifying the allowed value that this setting value
+// can accept.
+message EnumSettingValueType {
+    // holds the possible values accepted by this setting
+    // Entries in this list should be unique.
+    // TODO check if the ordering when deserializing might be a problem
+    repeated string enum_values = 1;
+
+    // The default value for this setting.
+    // The value must be one of enum_values.
+    optional string default = 2;
+}
+
+// Used to deserialize a collection of Specs from a single JSON file
+message SettingSpecCollection {
+    repeated SettingSpec setting_specs = 1;
+}
+
+// A Setting adjusts the behavior of some object or collection of objects in the system.
+// The semantics of the setting are specified via the SettingSpec that the setting references.
+message Setting {
+    // The reference by name to the SettingSpec that specifies the semantics of this setting.
+    optional string setting_spec_name = 1;
+
+    // The value of the setting. May be one of a number of options.
+    // BooleanSettingValue must be paired with a SettingSpec that has a BooleanSettingValueType,
+    // NumericSettingValue must be paired with a SettingSpec that has a NumericSettingValueType,
+    // StringSettingValue must be paired with a SettingSpec that has a StringSettingValueType,
+    // and EnumSettingValue must be paired with a SettingSpec that has a EnumSettingValueType.
+    //
+    // Not complying with the above restrictions results in a Setting that is considered malformed
+    // and may produce errors.
+    oneof value {
+        BooleanSettingValue boolean_setting_value = 7;
+        NumericSettingValue numeric_setting_value = 8;
+        StringSettingValue string_setting_value = 9;
+        EnumSettingValue enum_setting_value = 10;
+    }
+}
+
+// Contains the value of a boolean setting.
+message BooleanSettingValue {
+    optional bool value = 1;
+}
+
+// Contains the value of a numeric setting.
+message NumericSettingValue {
+    optional float value = 1;
+}
+
+// Contains the value of a string setting.
+message StringSettingValue {
+    optional string value = 1;
+}
+
+// Contains the value of a setting that must be one of the options in an enumeration.
+message EnumSettingValue {
+    optional string value = 1;
+}
+
+// A SettingPolicy binds a group of settings to one or more groups of entities that those settings
+// should apply to. A SettingPolicy may also be a default, in which case there is no specific scope
+// and the SettingPolicy will affect entities of a given type to which no other SettingPolicy applies.
+// Note that the DefaultScope vs GroupScope resolution mechanism differs from the
+// "most conservative" conflict resolution mechanism described elsewhere.
+message SettingPolicy {
+    // The id of the SettingPolicy.
+    optional int64 id = 1;
+
+    // The name of the SettingPolicy, used to name it in the UI.
+    // The name should be unique.
+    optional string name = 2;
+
+    // The settings that should be applied to the entities in the scope.
+    //
+    // These settings may only be associated with SettingSpecs that are of an EntitySettingSpec type.
+    // It makes no sense to apply a GlobalSettingSpec to a SettingPolicy.
+    //
+    // The entity_type on the SettingSpecs associated with each of these Settings should match
+    // the entity_type on the SettingPolicy.
+    repeated Setting settings = 3;
+
+    // The type of the entities to which the SettingPolicy applies.
+    // If the SettingPolicy is a default, it applies to all entities of that type for which
+    // there is no other SettingPolicy that applies.
+    //
+    // Consider the following simple example with the following default and user-created SettingPolicy for
+    // VirtualMachines:
+    // default : {
+    //   vmMove: MANUAL
+    //   resize: MANUAL
+    // }
+    //
+    // sqlVmSettingPolicy : {
+    //   vmMove: AUTOMATE
+    // }
+    //
+    // Now consider a virtual machine in the scope of the "sqlVmSettingPolicy". This VM will have moves
+    // automated and resize set to manual.
+    // In contrast, a virtual machine NOT in the scope of the the "sqlVmSettingPolicy" will have both
+    // moves and resizes as manually executable.
+    optional int32 entity_type = 4;
+
+    // Whether the setting_policy is enabled or not.
+    optional bool enabled = 5 [default = true];
+
+    // The type of the SettingPolicy.
+    oneof type {
+        // A DefaultType SettingPolicy applies to all entities of the given type for which no
+        // other seting_policy applies. See detailed comments above.
+        DefaultType default = 6;
+
+        // A ScopeType SettingPolicy applies to a scope specified by the groups of entities
+        // in the scope.
+        ScopeType scope = 7;
+    }
+}
+
+// A DefaultType SettingPolicy applies to all entities of the given type for which no
+// other seting_policy applies. See detailed comments above.
+message DefaultType { }
+
+// A ScopeType SettingPolicy in is bound to all of the entities
+// belonging to the groups whose ids are members of the ScopeType's groups.
+// A Setting is applied to an entity the same regardless if it is a member of 1, 2, or n of
+// the groups in the scope. A setting will not be applied to an entity if it is not in the scope.
+// The entity_type of the groups in the scope should match the entity_type of the SettingPolicy.
+message ScopeType {
+    // The ids of the groups to which a SettingPolicy should be bound.
+    repeated int64 groups = 1;
+}
+
+// Used to request a single SettingSpec
+message SingleSettingSpecRequest {
+    // name of the Spec being requested
+    optional string setting_spec_name = 1;
+}
+
+// Used to request all the single SettingSpecs
+message AllSettingSpecRequest {}
+
+
+// Service responsible for setting operations
+service SettingService {
+    // Get a setting spec
+    rpc GetSettingSpec (SingleSettingSpecRequest) returns (SettingSpec);
+
+    // Get all setting specs
+    rpc GetAllSettingSpec (AllSettingSpecRequest) returns (stream SettingSpec);
+}
+
+

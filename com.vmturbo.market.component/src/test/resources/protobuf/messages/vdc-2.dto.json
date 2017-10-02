@@ -1,0 +1,40 @@
+{
+  "entityType": 1,
+  "oid": 100,
+  "displayName": "CDV-1",
+  "commoditySoldList": [
+    {
+      "commodityType": {
+        "type": 50,
+        "key": "P1"
+      },
+      "used": 5000.0,
+      "peak": 8000.0,
+      "capacity": 100000.0,
+      "effectiveCapacityPercentage": 80.0,
+      "reservedCapacity": 0.0,
+      "isThin": true
+    }
+  ],
+  "commodityBoughtMap" : {
+    "100" : {
+      "commodityBought": [
+        {
+          "commodityType": {
+            "type": 50,
+            "key": "P1"
+          },
+          "used": 5000.0,
+          "peak": 8000.0
+        }
+      ]
+    }
+  },
+  "entityState": "POWERED_ON",
+  "entityPropertyMap" : {
+    "common_dto.EntityDTO.VirtualDatacenterData.vdc_type_props" : "role: PRODUCER\nnestedConsumer: true\n",
+    "common_dto.EntityDTO.VirtualDatacenterData.pmUuid" : "[UID-PM1-111-111, UID-PM2-222-222, UID-PM3-333-333]",
+    "common_dto.EntityDTO.VirtualDatacenterData.vmUuid" : "[UID-VM1-000-111, UID-VM2-000-222, UID-VM3-000-333]",
+    "shopTogether" : "false"
+  }
+}

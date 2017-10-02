@@ -1,0 +1,59 @@
+
+
+mysql: 
+  adapter: mysql
+  database: vmtdb
+  username: vmtplatform
+  password: vmturbo
+  host: localhost
+  port: 3306
+  encoding: utf8
+  collation: utf8_unicode_ci
+
+mssqlserver: 
+  adapter: sqlserver
+  database: vmtdb
+  mode: dblib
+  dataserver: dell1.corp.vmturbo.com
+  username: vmtplatform
+  password: vmturbo
+
+jdevelopment: 
+  adapter: jdbcmysql
+  database: vmtdb
+  username: vmtplatform
+  password: vmturbo
+  host: localhost
+  port: 3306
+  encoding: utf8
+  collation: utf8_unicode_ci
+
+jproduction: 
+  adapter: jdbcmysql
+  database: vmtdb
+  username: vmtplatform
+  password: vmturbo
+  host: localhost
+  port: 3306
+  encoding: utf8
+  collation: utf8_unicode_ci
+
+development: 
+  adapter: mysql
+  database: vmtdb
+  username: vmtplatform
+  password: vmturbo
+  host: localhost
+  port: 3306
+  encoding: utf8
+  collation: utf8_unicode_ci
+
+production: 
+  adapter: mysql
+  database: vmtdb
+  username: vmtplatform
+  password: vmturbo
+  host: localhost
+  port: 3306
+  encoding: utf8
+  collation: utf8_unicode_ci

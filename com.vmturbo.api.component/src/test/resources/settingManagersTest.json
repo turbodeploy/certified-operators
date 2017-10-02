@@ -1,0 +1,11 @@
+{
+  "managersByUuid" : {
+    "automationmanager": {
+      "displayName": "Action Mode Settings",
+      "defaultCategory": "Automation",
+      "settings": [
+        "moveVM"
+      ]
+    }
+  }
+}

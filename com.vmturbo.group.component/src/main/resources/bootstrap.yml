@@ -1,0 +1,23 @@
+spring:
+  application:
+    name: group
+  cloud:
+    consul:
+      host: ${consul_host}
+      port: 8500
+      discovery:
+        instanceId: ${instance_id}
+        healthCheckPath: /api/v2/health
+        healthCheckInterval: 30s
+      config:
+        enabled: true
+        prefix: vmturbo/components
+        defaultContext: ${spring.application.name}/defaults
+        profileSeparator: /
+  profiles:
+    active: instances/${instance_id}/properties
+server:
+  port: 8080
+  grpcPort: 9001
+management:
+  context-path: /service

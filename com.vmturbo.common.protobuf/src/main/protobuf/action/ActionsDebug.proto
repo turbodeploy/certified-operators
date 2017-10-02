@@ -1,0 +1,20 @@
+syntax = "proto2";
+package action;
+
+option java_package = "com.vmturbo.common.protobuf.action";
+
+import "action/ActionDTO.proto";
+
+// Services for debugging actions.
+// These services should only be available in development and testing environments, never
+// in production.
+service ActionsDebugService {
+    // Override the live action plan currently maintained by the action orchestrator
+    // with one specified by this RPC.
+    //
+    // This RPC is disabled by default and should never be enabled in production configurations.
+    // When disabled, the service is simply not present in the component implementation and is
+    // not callable. When enabled and the action plan is processed successfully, returns the same response
+    // as GetActionCounts after the new action plan has been processed.
+    rpc OverrideActionPlan (ActionPlan) returns (GetActionCountsResponse);
+}

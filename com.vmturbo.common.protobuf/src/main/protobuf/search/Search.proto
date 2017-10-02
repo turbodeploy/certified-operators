@@ -1,0 +1,150 @@
+syntax = "proto2";
+package search;
+
+option java_package = "com.vmturbo.common.protobuf.search";
+
+
+// A search definition that needs to be performed on a topology, represented as a DAG.
+message SearchParameters {
+
+    // The filter on an entity property that will be used as a starting point.
+    // Needed to avoid starting with a traversal filter, that will end up applying the traversal
+    // to every entity in the topology, causing performance issues.
+    optional PropertyFilter starting_filter = 2;
+
+    // After the starting property filter, this is the ordered sequence of filters that needs to
+    // be applied to the topology. Every filter will be applied to the result of the previous one.
+    repeated SearchFilter search_filter = 3;
+
+}
+
+// A filter that needs to be applied to the topology, in order to return a subset of the entities.
+message SearchFilter {
+
+    // There are 2 types of filters.
+    // - traversal filter: used to traverse graph relationship
+    // - property filter: used to specify specific criteria on properties of the element
+    oneof filterType {
+        TraversalFilter traversal_filter = 1;
+        PropertyFilter property_filter = 2;
+    }
+
+    // Filter used to traverse graph relationship.
+    message TraversalFilter {
+
+        // Direction used for the traversal.
+        optional TraversalDirection traversal_direction = 1;
+
+        // Condition used to stop the graph traversal.
+        optional StoppingCondition stopping_condition= 2;
+
+        // Graph traversal stopping condition.
+        message StoppingCondition {
+
+            // There are 2 types of stopping condition:
+            // - stop when you have reached the number of hops requested
+            //      example: if you want to get all the providers of an entity, you can create a
+            //      "consumes" traversal with 1 as a number of hop. This is because you want to
+            //      traverse the relationship only 1 time. If you want the providers of the providers
+            //      you can have 2 hops instead.
+            // - Do not care about how many hops you are traversing, but stop only when a property
+            //      condition is met, or you reach a leaf.
+            oneof stoppingConditionType {
+                int32 number_hops = 1;
+                PropertyFilter stopping_property_filter = 2;
+            }
+        }
+
+        // Direction of the traversal along the DAG.
+        enum TraversalDirection {
+            // Right now we are supporting only one single directed edge/relationship.
+            // Host           ---- Produces ---> VirtualMachine
+            // VirtualMachine <--- Consumes ---- Host
+            // where Consumes is the opposite direction (on the same edge) of Produces and
+            // indicates that the Consumer is buying a commodity from the Producer.
+            CONSUMES = 0;
+            PRODUCES = 1;
+        }
+    }
+
+}
+
+// Filter used to specify specific criteria on a property of the element.
+message PropertyFilter {
+
+    // Name of the property that we want to compare
+    optional string property_name = 1;
+
+    // Type of the property that we want to compare
+    oneof propertyType {
+        StringFilter string_filter = 2;
+        NumericFilter numeric_filter = 3;
+    }
+
+    message StringFilter {
+        // Regular expression used against the property's value.
+        optional string string_property_regex = 1;
+
+        // If true, the regex should match.
+        // If false, the regex should NOT match.
+        optional bool match = 2 [default = true];
+    }
+
+    message NumericFilter {
+        // Operator used to compare the numeric property value and the requested value.
+        optional ComparisonOperator comparison_operator = 1;
+
+        // Requested value for the numeric property filtering.
+        optional int64 value = 2;
+    }
+}
+
+enum ComparisonOperator {
+    // Equal to
+    EQ = 0;
+
+    // Not equal to
+    NE = 1;
+
+    // Greater than
+    GT = 2;
+
+    // Greater or equal than
+    GTE = 3;
+
+    // Less than
+    LT = 4;
+
+    // Less or equal than
+    LTE = 5;
+}
+
+message SearchRequest {
+    repeated SearchParameters searchParameters = 1;
+}
+
+message SearchResponse {
+    // The OIDs of entities from the search result
+    repeated int64 entities = 1;
+}
+
+message Entity {
+
+    required int32 type = 1;
+
+    required int64 oid = 2;
+
+    optional string displayName = 3;
+
+    optional int32 state = 4;
+
+}
+
+// A service responsible for search operations.
+service SearchService {
+    // Search for entities based on the search parameters and return entity OID
+    rpc SearchEntityOids(SearchRequest) returns (SearchResponse);
+
+    // Search for entities based on the search parameters and return entity objects
+    rpc SearchEntities(SearchRequest) returns (stream Entity);
+}

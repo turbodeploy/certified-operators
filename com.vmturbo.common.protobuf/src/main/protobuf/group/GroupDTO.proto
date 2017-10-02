@@ -1,0 +1,285 @@
+syntax = "proto2";
+package group;
+
+option java_package = "com.vmturbo.common.protobuf.group";
+
+import "search/Search.proto";
+
+// A group is a set of entities that can be treated collectively for the
+// purpose of settings, policies, statistics, and other operations.
+message Group {
+    // The origin represents how the group came to be in the system.
+    enum Origin {
+        // A user group was explicitly created by the user, and is owned by
+        // the turbonomic system.
+        USER = 1;
+
+        // A discovered group exists in the user's topology, and was imported and interpreted
+        // as part of a discovery.
+        DISCOVERED = 2;
+    }
+
+    // The unique numeric identifier of the group.
+    optional int64 id = 1;
+
+    // The properties describing the group.
+    optional GroupInfo info = 2;
+
+    // The origin of this group.
+    optional Origin origin = 6 [default = USER];
+
+    // The ID of the target that discovered the group.
+    // This field is only set for groups where Origin == DISCOVERED.
+    optional int64 target_id = 3;
+}
+
+// The customizeable properties of a group.
+message GroupInfo {
+    // The name of the group.
+    optional string name = 1;
+
+    // The type of entity in the group. A group can only have entities of
+    // a single type.
+    optional int32 entity_type = 2;
+
+    // Groups may be either static or dynamic.
+    // Whether it is static or dynamic determines when its members are resolved and updated.
+    oneof selection_criteria {
+        // A static group's members are fixed at the time they are created and that membership
+        // may only be updated by an explicit call to update the group.
+        StaticGroupMembers static_group_members = 3;
+
+        // A wrapper layer to respent a list of search parameters
+        SearchParametersCollection search_parameters_collection = 5;
+    }
+}
+
+// A cluster is closely related to a group, and is most relevant when working with on-prem
+// environments - especially vSphere. It's essentially the unit of management for large
+// vSphere environments.
+//
+// TODO (roman, July 27 2017): In the future we will likely want to rearchitect the model
+// away from "cluster" terminology to "management unit" terminology, where groups of entities
+// that act as the units of management for an environment - e.g. Clusters for vSphere, Business
+// Units for cloud environments - can be represented in a common fashion.
+message Cluster {
+    // The unique numeric identifier of the cluster.
+    optional int64 id = 1;
+
+    // The ID of the target that discovered the cluster.
+    optional int64 target_id = 3;
+
+    // The properties describing the cluster.
+    optional ClusterInfo info = 2;
+}
+
+message ClusterInfo {
+
+    enum Type {
+        // A compute cluster is comprised of physical machines.
+        COMPUTE = 1;
+        // A storage cluster is comprised of storages.
+        STORAGE = 2;
+    }
+
+    // The name of the cluster.
+    optional string name = 1;
+
+    optional Type cluster_type = 2;
+
+    // The entities belonging to the cluster.
+    optional StaticGroupMembers members = 3;
+}
+
+
+// Info for creating policy, which will be uploaded to group component
+message DiscoveredPolicyInfo {
+
+    // Name of constraint which was used for creating of Policy info
+    required string policyName = 1;
+
+    // Id of sellers group. It will be replaced to OID in group component
+    required string sellersGroupStringId = 2;
+
+    // Id of buyers. It will be replaced to OID in group component
+    required string buyersGroupStringId = 3;
+
+    // Constraint type of Policy. This value is obtained from field(which is enum) of ConstraintInfo
+    required int32 constraintType = 4;
+}
+
+message SearchParametersCollection {
+    // A dynamic group's members are defined by a set of search criteria, and its members may
+    // change as the entities in the topology change so that members enter and leave the group
+    // based on their properties and relationships.
+    repeated search.SearchParameters searchParameters = 1;
+}
+
+// Contains the membership for a static (fixed membership) group.
+message StaticGroupMembers {
+    // The OIDs of the members of the static group.
+    repeated int64 static_member_oids = 1;
+}
+
+message UpdateGroupRequest {
+    optional int64 id = 1;
+    optional GroupInfo new_info = 2;
+}
+
+message UpdateGroupResponse {
+    optional Group updated_group = 1;
+}
+
+message CreateGroupResponse {
+    optional Group group = 1;
+}
+
+message GetGroupResponse {
+    // If present, the group associated with the input ID.
+    // If not present, the requested group does not exist.
+    optional Group group = 1;
+}
+
+message GroupID {
+    optional int64 id = 1;
+}
+
+message DeleteGroupResponse {
+    optional bool deleted = 1;
+}
+
+// Specify the criteria for the groups to return.
+// All filters/conditions are AND-ed together. If no filters/conditions
+// are set, the call will return all groups.
+message GetGroupsRequest {
+
+    // Return only groups with these IDs.
+    repeated int64 id = 1;
+
+    // Return only groups where the name matches this filter.
+    optional NameFilter name_filter = 2;
+
+    // Return only groups with the specific origin.
+    optional Group.Origin origin_filter = 3;
+}
+
+message GetMembersRequest {
+    // The group ID to get members for.
+    optional int64 id = 1;
+}
+
+message GetMembersResponse {
+    repeated int64 member_id = 1;
+}
+
+message StoreDiscoveredCollectionsRequest {
+    // The ID of the target that discovered the groups.
+    //
+    // ALL old groups and clusters associated with this target ID
+    // will either be updated (if they are re-discovered) or deleted .
+    //
+    // We use the (target_id, GroupInfo.name) tuple to determine equality
+    // between discovered groups. So within a particular target, discovered GroupInfos
+    // with the name of an existing discovered GroupInfo will update the group.
+    optional int64 target_id = 1;
+
+    // The most recent groups discovered by the target.
+    repeated GroupInfo discovered_group = 2;
+
+    // The most recent clusters discovered by the target.
+    repeated ClusterInfo discovered_cluster = 3;
+
+
+    // Infos for Policies creating and uploading to group component
+    repeated DiscoveredPolicyInfo discovered_policy_infos = 4;
+}
+
+message StoreDiscoveredCollectionsResponse {}
+
+
+// A filter on the name of a group (or cluster).
+message NameFilter {
+    // The regex to compare the name against.
+    optional string name_regex = 1;
+
+    // Whether to negate the result of the regex.
+    optional bool negate_match = 2 [default = false];
+}
+
+// Specify the criteria for the clusters to return.
+// All filters/conditions are AND-ed together. If no filters/conditions
+// are set, the call will return all clusters.
+message GetClustersRequest {
+    // Return only clusters with the provided ID.
+    // If empty, return clusters of any ID.
+    repeated int64 id = 1;
+
+    // If set, return only clusters the names of which match a filter.
+    optional NameFilter name_filter = 2;
+
+    // If set, return only clusters of the provided type.
+    optional ClusterInfo.Type type_filter = 3;
+}
+
+// A service responsible for group operations.
+service GroupService {
+    // Create a group
+    rpc CreateGroup(GroupInfo) returns (CreateGroupResponse);
+
+    // Get a group
+    rpc GetGroup(GroupID) returns (GetGroupResponse);
+
+    // Get all user groups
+    rpc GetGroups(GetGroupsRequest) returns (stream Group);
+
+    // Update a group
+    rpc UpdateGroup(UpdateGroupRequest) returns (UpdateGroupResponse);
+
+    // Delete a group
+    rpc DeleteGroup(GroupID) returns (DeleteGroupResponse);
+
+    // Get the members of a group
+    rpc GetMembers(GetMembersRequest) returns (GetMembersResponse);
+
+}
+
+// This service provides the interface to store all group and policy related information
+// (i.e. groups, clusters, policies) discovered in the customer's topology.
+// It should provide an atomic RPC to store updated information from a discovery.
+//
+// TODO (roman, July 27): If this becomes the single entry point for "uploading" discovered
+// groups and policies, we probably need a better name.
+service DiscoveredCollectionsService {
+    // Stores groups and clusters discovered in the customer's topology.
+    //
+    // Only the Topology Processor should use this method to record the groups
+    // that it discovered.
+    //
+    // Each call to this method is atomic - either all groups will be added, overriding
+    // existing groups, or none of them will be.
+    rpc StoreDiscoveredCollections(StoreDiscoveredCollectionsRequest) returns (StoreDiscoveredCollectionsResponse);
+}
+
+message GetClusterRequest {
+    // The ID of the cluster to look for.
+    optional int64 cluster_id = 1;
+}
+
+message GetClusterResponse {
+    // If present, the cluster associated with
+    // the ID in the request.
+    optional Cluster cluster = 1;
+}
+
+// The cluster service is responsible for cluster operations.
+service ClusterService {
+    // Get a single cluster.
+    // If the cluster is not found, return an empty response instead of throwing an error.
+    rpc GetCluster(GetClusterRequest) returns (GetClusterResponse);
+
+    // Get clusters that match a certain set of criteria.
+    //
+    // Since cluster membership is static, you can also use this method
+    // to get the members of a cluster.
+    rpc GetClusters(GetClustersRequest) returns (stream Cluster);
+}

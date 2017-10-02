@@ -1,0 +1,34 @@
+syntax = "proto2";
+package action;
+
+option java_package = "com.vmturbo.common.protobuf.action";
+
+// Sent as an update when an action is in progress.
+message ActionProgress {
+    // The ID of the action whose status is described by this message.
+    required int64 actionId = 1;
+
+    // current action progress represented as a percentage (0..100)
+    required int32 progressPercentage = 2;
+
+    // action state description, for example ("Moving VM...")
+    optional string description = 3;
+}
+
+// Sent as an update when an action completes successfully.
+message ActionSuccess {
+    // The ID of the action whose status is described by this message.
+    required int64 actionId = 1;
+
+    // A description of what was successfully completed.
+    optional string successDescription = 2;
+}
+
+// Sent as an update when an action completes and fails.
+message ActionFailure {
+    // The ID of the action whose status is described by this message.
+    required int64 actionId = 1;
+
+    // A description of the error that caused the failure.
+    optional string errorDescription = 2;
+}

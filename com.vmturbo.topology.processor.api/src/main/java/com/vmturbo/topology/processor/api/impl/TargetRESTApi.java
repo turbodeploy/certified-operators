@@ -1,0 +1,211 @@
+package com.vmturbo.topology.processor.api.impl;
+
+import java.time.LocalDateTime;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
+import javax.annotation.Nonnull;
+
+import com.google.common.collect.ImmutableList;
+
+import io.swagger.annotations.ApiModelProperty;
+
+import com.vmturbo.topology.processor.api.AccountValue;
+import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
+import com.vmturbo.topology.processor.api.TopologyProcessorException;
+import com.vmturbo.topology.processor.api.dto.InputField;
+import com.vmturbo.topology.processor.api.dto.TargetInputFields;
+
+/**
+ * Common class for Java objects representing request and response objects
+ * for the TargetController REST API calls.
+ * <p/>
+ * These objects are meant to be serializable by Gson. Include
+ * an empty constructor for all objects and subobjects that sets
+ * all fields to null (so that unset fields do not appear in the resulting JSON).
+ * This is not strictly necessary, but recommended to avoid unsafe operations.
+ * See: http://stackoverflow.com/questions/18645050/is-default-no-args-constructor-mandatory-for-gson
+ */
+public class TargetRESTApi {
+    /**
+     * Response to a GET to the target/ route.
+     */
+    public static class GetAllTargetsResponse {
+        private final List<TargetInfo> targets;
+
+        protected GetAllTargetsResponse() {
+            targets = null;
+        }
+
+        public GetAllTargetsResponse(final List<TargetInfo> targets) {
+            this.targets = targets;
+        }
+
+        @ApiModelProperty(value = "Return the list of per-target information.")
+        public List<TargetInfo> getTargets() {
+            return ImmutableList.copyOf(targets);
+        }
+
+        @ApiModelProperty(hidden = true)
+        public Map<Long, TargetInfo> targetsById() {
+            return targets.stream()
+                    .filter(element -> element.getSpec() != null)
+                    .collect(Collectors.toMap(
+                            TargetInfo::getTargetId,
+                            Function.identity()));
+        }
+    }
+
+    /**
+     * Java representation of the JSON object to
+     * send when retrieving target info.
+     */
+    public static class TargetInfo implements com.vmturbo.topology.processor.api.TargetInfo {
+        /**
+         * The OID of the target. Using Long instead of a primitive type
+         * so that it's nullable.
+         */
+        private final Long targetId;
+        private final TargetSpec spec;
+        private final Boolean probeRegistered;
+        private final List<String> errors;
+        private final String status;
+        private final LocalDateTime lastValidationTime;
+
+        protected TargetInfo() {
+            targetId = null;
+            spec = null;
+            probeRegistered = null;
+            errors = null;
+            status = null;
+            lastValidationTime = null;
+        }
+
+        public TargetInfo(final Long id, final List<String> errors, final TargetSpec spec,
+                        final Boolean probeRegistered, String status, LocalDateTime lastValidationTime) {
+            this.targetId = id;
+            this.spec = spec;
+            this.probeRegistered = probeRegistered;
+            this.errors = errors;
+            this.status = status;
+            this.lastValidationTime = lastValidationTime;
+        }
+
+        @ApiModelProperty(value = "If non-null, the id of the target. If null, errors should be non-null.")
+        public Long getTargetId() {
+            return targetId;
+        }
+
+        @ApiModelProperty(value = "If non-null, the spec for this target. If null, errors should be non-null.")
+        public TargetSpec getSpec() {
+            return spec;
+        }
+
+        @ApiModelProperty(value = "If non-null, whether the probe this target is attached to is registered. If null, errors should be non-null.")
+        public boolean getProbeRegistered() {
+            return probeRegistered;
+        }
+
+        @ApiModelProperty(value = "If non-empty, the error(s) encountered during the operation. If empty, id and spec should be non-null.")
+        public List<String> getErrors() {
+            return errors;
+        }
+
+        @Override
+        public long getId() {
+            return targetId;
+        }
+
+        @Override
+        public long getProbeId() {
+            return spec.getProbeId();
+        }
+
+        @Override
+        public Set<AccountValue> getAccountData() {
+            return spec.getAccountData();
+        }
+
+        @Override
+        public LocalDateTime getLastValidationTime() {
+            return lastValidationTime;
+        }
+
+        @Override
+        public String getStatus() {
+            return status;
+        }
+    }
+
+    /**
+     * Java representation of the JSON object
+     * to send when adding a target.
+     *
+     * <p>The specification for a target.
+     * Provides all the necessary information to
+     * create a target and perform operations.
+     */
+    public static class TargetSpec extends TargetInputFields {
+
+        @ApiModelProperty(value = "Probe to which the target belongs.")
+        private final Long probeId;
+
+
+        protected TargetSpec() {
+            probeId = null;
+        }
+
+        public TargetSpec(@Nonnull final Long probeId,
+                        @Nonnull final List<InputField> accountFields) {
+            super(accountFields);
+            this.probeId = Objects.requireNonNull(probeId);
+        }
+
+        public TargetSpec(@Nonnull final TopologyProcessorDTO.TargetSpec targetSpec) {
+            super(targetSpec.getAccountValueList().stream()
+                            .map(accountValue -> new InputField(accountValue))
+                            .collect(Collectors.toList()));
+            this.probeId = targetSpec.getProbeId();
+        }
+
+        public Long getProbeId() {
+            return probeId;
+        }
+
+        /**
+         * creates target spec DTO object.
+         *
+         * @return DTO representation of target spec
+         * @throws TopologyProcessorException if required fields are not when parsed from JSON.
+         */
+        public TopologyProcessorDTO.TargetSpec toDto() throws TopologyProcessorException {
+            if (probeId == null || getInputFields() == null) {
+                throw new TopologyProcessorException("Missing JSON fields.");
+            }
+
+            return TopologyProcessorDTO.TargetSpec.newBuilder().setProbeId(probeId)
+                            .addAllAccountValue(getInputFields().stream()
+                                            .map(InputField::toAccountValue)
+                                            .collect(Collectors.toList()))
+                            .build();
+        }
+
+        public Map<String, InputField> getInputFieldsByName() {
+            return getInputFields().stream().collect(Collectors
+                            .toMap(inputField -> inputField.getName(), Function.identity()));
+        }
+
+        @Override
+        public String toString() {
+            final StringBuilder sb = new StringBuilder();
+            sb.append("Target probe:").append(probeId);
+            sb.append(super.toString());
+            return sb.toString();
+        }
+    }
+}

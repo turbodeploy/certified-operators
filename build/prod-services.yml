@@ -1,0 +1,232 @@
+version: '2'
+
+# Service definitions for extension in production environments. For details see
+# https://docs.docker.com/compose/extends/#extending-services
+# See also common-services.yml
+services:
+  rsyslog-prod:
+    extends:
+      file: common-services.yml
+      service: common-service
+    image: turbonomic/syslog
+    volumes:
+      - syslogdata:/home/vmtsyslog
+    restart: always
+
+  consul-prod:
+    extends:
+      file: common-services.yml
+      service: common-service
+    image: turbonomic/com.vmturbo.consul
+    command: ["vmt-server", "-client=0.0.0.0"]
+    environment:
+      - CONSUL_BIND_INTERFACE=eth0
+      - "constraint:node==/node-4/"
+    networks:
+      default:
+        ipv4_address: 10.10.10.10
+    volumes:
+      - consuldata:/consul/data
+    mem_limit: 50M
+    restart: always
+
+  db-prod:
+    extends:
+      file: common-services.yml
+      service: common-service
+    image: turbonomic/db
+    stop_grace_period: '30m'
+    volumes:
+      - mysqldata:/var/lib/mysql
+      - mysql_log:/var/log
+      - mysql_var:/var/run
+    restart: always
+
+  auth-prod:
+    extends:
+      file: common-services.yml
+      service: prod-component
+    image: turbonomic/auth
+    environment:
+      component_type: auth
+      instance_id: auth-1
+      consul_host: consul
+      JAVA_OPTS: "-Xmx512M -verbose:gc -XX:+PrintGCDateStamps"
+    volumes:
+      - auth:/home/turbonomic/data
+    mem_limit: 768M
+    restart: always
+
+  clustermgr-prod:
+    extends:
+      file: common-services.yml
+      service: prod-component
+    image: turbonomic/com.vmturbo.clustermgr
+    environment:
+      component_type: clustermgr
+      instance_id: clustermgr-1
+      node_name: default
+      consul_host: consul
+      JAVA_OPTS: "-Xmx384M -verbose:gc -XX:+PrintGCDateStamps"
+    volumes:
+      - clustermgr:/home/turbonomic/data
+    mem_limit: 512M
+    restart: always
+
+  api-prod:
+    extends:
+      file: common-services.yml
+      service: prod-component
+    image: turbonomic/com.vmturbo.api.component
+    ports:
+      - "443:9443"
+    environment:
+      component_type: api
+      instance_id: api-1
+      consul_host: consul
+      realtimeTopologyContextId: 777777
+    volumes:
+      - api:/home/turbonomic/data
+      - /tmp/certs:/tmp/certs
+    restart: always
+
+  market-prod:
+    extends:
+      file: common-services.yml
+      service: prod-component
+    image: turbonomic/market-component
+    environment:
+      component_type: market
+      instance_id: market-1
+      instances.market-1.identityGeneratorPrefix: 2
+      consul_host: consul
+    volumes:
+      - market:/home/turbonomic/data
+    restart: always
+
+  action-orchestrator-prod:
+    extends:
+      file: common-services.yml
+      service: prod-component
+    image: turbonomic/action-orchestrator
+    environment:
+      component_type: action-orchestrator
+      instance_id: action-orchestrator-1
+      consul_host: consul
+      realtimeTopologyContextId: 777777
+    volumes:
+      - action-orchestrator:/home/turbonomic/data
+    restart: always
+
+  topology-processor-prod:
+    extends:
+      file: common-services.yml
+      service: prod-component
+    image: turbonomic/topology-processor
+    environment:
+      component_type: topology-processor
+      instance_id: topology-processor-1
+      instances.topology-processor-1.identityGeneratorPrefix: 1
+      node_name: default
+      consul_host: consul
+      realtimeTopologyContextId: 777777
+    volumes:
+      - topology-processor:/home/turbonomic/data
+    restart: always
+
+  arangodb-prod:
+    extends:
+      file: common-services.yml
+      service: common-service
+    image: turbonomic/arangodb
+    environment:
+      ARANGO_ROOT_PASSWORD: "root"
+    volumes:
+      - arangodb:/var/lib/arangodb3
+      - arangodb-apps:/var/lib/arangodb3-apps
+      - arangodb-dump:/home/arangodb/arangodb-dump
+    mem_limit: 1024M
+    stop_grace_period: '30m'
+    restart: always
+
+  repository-prod:
+    extends:
+      file: common-services.yml
+      service: prod-component
+    image: turbonomic/com.vmturbo.repository-component
+    environment:
+      component_type: repository
+      instance_id: repository-1
+      REPOSITORY_ARANGODB_HOST: arangodb
+      realtimeTopologyContextId: 777777
+    volumes:
+      - repository:/home/turbonomic/data
+    restart: always
+
+  group-prod:
+    extends:
+      file: common-services.yml
+      service: prod-component
+    image: turbonomic/com.vmturbo.group
+    volumes:
+      - group:/home/turbonomic/data
+    environment:
+      consul_host: consul
+      component_type: group
+      instance_id: group-1
+    restart: always
+
+  history-prod:
+    extends:
+      file: common-services.yml
+      service: prod-component
+    image: turbonomic/com.vmturbo.history
+    volumes:
+      - history:/home/turbonomic/data
+    environment:
+      consul_host: consul
+      component_type: history
+      instance_id: history-1
+      realtimeTopologyContextId: 777777
+      logging.level.com.vmturbo.history: info # change to debug to enable more debugging output
+    restart: always
+
+  plan-orchestrator-prod:
+    extends:
+      file: common-services.yml
+      service: prod-component
+    image: turbonomic/com.vmturbo.plan.orchestrator
+    volumes:
+      - plan-orchestrator:/home/turbonomic/data
+    environment:
+      consul_host: consul
+      component_type: plan-orchestrator
+      instance_id: plan-orchestrator-1
+      realtimeTopologyContextId: 777777
+    restart: always
+
+  mediation-vcenter-prod:
+    extends:
+      file: common-services.yml
+      service: prod-component
+    image: turbonomic/com.vmturbo.mediation.vcenter.component
+    environment:
+      consul_host: consul
+      component_type: mediation-vcenter
+      instance_id: mediation-vcenter-1
+    volumes:
+      - mediation-vcenter:/home/turbonomic/data
+    restart: always
+
+  mediation-hyperv-prod:
+    extends:
+      file: common-services.yml
+      service: prod-component
+    image: turbonomic/com.vmturbo.mediation.hyperv.component
+    environment:
+      consul_host: consul
+      component_type: mediation-hyperv
+      instance_id: mediation-hyperv-1
+    volumes:
+      - mediation-hyperv:/home/turbonomic/data
+    restart: always

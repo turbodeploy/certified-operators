@@ -1,0 +1,246 @@
+
+<%
+   # default vis control to show all
+   unless @show_item
+     @show_item = {}
+     @show_item.default = true
+   end
+
+   @ft_view_section = {}
+%>
+
+<!-- BEGIN-UID.user_ctrls -->
+
+<!-- END-UID.user_ctrls -->
+
+<% @ft_view_section[:ft_prop_title] = capture { %>
+<% if @show_item[:ft_prop_title] then %>
+<div class="show_iname">
+   <%= @audit_log_entry.iname %>
+</div>
+<% end %>
+<% } %>
+
+
+
+<% @ft_view_section[:snapshot_time] = capture { %>
+<% if @show_item[:snapshot_time] then %>
+
+  <!-- Snapshot Time -->
+
+  <div class="show_attr_group attr_group_audit_log_entry_snapshot_time ">      <!-- div10 -->
+    <div class="show_attr_label"> Snapshot Time </div>                    <!-- div11 -->
+    <div class="show_attr_value single_line"> <%= auto_link(@audit_log_entry.snapshot_time.to_s) %>&nbsp;</div>   <!-- div12h -->
+  </div>   <!-- div10 end -->
+<% end %>
+<% } %>
+
+
+
+<% @ft_view_section[:action_name] = capture { %>
+<% if @show_item[:action_name] then %>
+
+  <!-- Action Name -->
+
+  <div class="show_attr_group attr_group_audit_log_entry_action_name ">      <!-- div10 -->
+    <div class="show_attr_label"> Action Name </div>                    <!-- div11 -->
+    <div class="show_attr_value single_line"> <%= auto_link(@audit_log_entry.action_name.to_s) %>&nbsp;</div>   <!-- div12h -->
+  </div>   <!-- div10 end -->
+<% end %>
+<% } %>
+
+
+
+<% @ft_view_section[:category] = capture { %>
+<% if @show_item[:category] then %>
+
+  <!-- Category -->
+
+  <div class="show_attr_group attr_group_audit_log_entry_category ">      <!-- div10 -->
+    <div class="show_attr_label"> Category </div>                    <!-- div11 -->
+    <div class="show_attr_value single_line"> <%= auto_link(@audit_log_entry.category.to_s) %>&nbsp;</div>   <!-- div12h -->
+  </div>   <!-- div10 end -->
+<% end %>
+<% } %>
+
+
+
+<% @ft_view_section[:user_name] = capture { %>
+<% if @show_item[:user_name] then %>
+
+  <!-- User Name -->
+
+  <div class="show_attr_group attr_group_audit_log_entry_user_name ">      <!-- div10 -->
+    <div class="show_attr_label"> User Name </div>                    <!-- div11 -->
+    <div class="show_attr_value single_line"> <%= auto_link(@audit_log_entry.user_name.to_s) %>&nbsp;</div>   <!-- div12h -->
+  </div>   <!-- div10 end -->
+<% end %>
+<% } %>
+
+
+
+<% @ft_view_section[:target_object_class] = capture { %>
+<% if @show_item[:target_object_class] then %>
+
+  <!-- Target Object Class -->
+
+  <div class="show_attr_group attr_group_audit_log_entry_target_object_class ">      <!-- div10 -->
+    <div class="show_attr_label"> Target Object Class </div>                    <!-- div11 -->
+    <div class="show_attr_value single_line"> <%= auto_link(@audit_log_entry.target_object_class.to_s) %>&nbsp;</div>   <!-- div12h -->
+  </div>   <!-- div10 end -->
+<% end %>
+<% } %>
+
+
+
+<% @ft_view_section[:target_object_name] = capture { %>
+<% if @show_item[:target_object_name] then %>
+
+  <!-- Target Object Name -->
+
+  <div class="show_attr_group attr_group_audit_log_entry_target_object_name ">      <!-- div10 -->
+    <div class="show_attr_label"> Target Object Name </div>                    <!-- div11 -->
+    <div class="show_attr_value single_line"> <%= auto_link(@audit_log_entry.target_object_name.to_s) %>&nbsp;</div>   <!-- div12h -->
+  </div>   <!-- div10 end -->
+<% end %>
+<% } %>
+
+
+
+<% @ft_view_section[:target_object_uuid] = capture { %>
+<% if @show_item[:target_object_uuid] then %>
+
+  <!-- Target Object Uuid -->
+
+  <div class="show_attr_group attr_group_audit_log_entry_target_object_uuid ">      <!-- div10 -->
+    <div class="show_attr_label"> Target Object Uuid </div>                    <!-- div11 -->
+    <div class="show_attr_value single_line"> <%= auto_link(@audit_log_entry.target_object_uuid.to_s) %>&nbsp;</div>   <!-- div12h -->
+  </div>   <!-- div10 end -->
+<% end %>
+<% } %>
+
+
+
+<% @ft_view_section[:source_class] = capture { %>
+<% if @show_item[:source_class] then %>
+
+  <!-- Source Class -->
+
+  <div class="show_attr_group attr_group_audit_log_entry_source_class ">      <!-- div10 -->
+    <div class="show_attr_label"> Source Class </div>                    <!-- div11 -->
+    <div class="show_attr_value single_line"> <%= auto_link(@audit_log_entry.source_class.to_s) %>&nbsp;</div>   <!-- div12h -->
+  </div>   <!-- div10 end -->
+<% end %>
+<% } %>
+
+
+
+<% @ft_view_section[:source_name] = capture { %>
+<% if @show_item[:source_name] then %>
+
+  <!-- Source Name -->
+
+  <div class="show_attr_group attr_group_audit_log_entry_source_name ">      <!-- div10 -->
+    <div class="show_attr_label"> Source Name </div>                    <!-- div11 -->
+    <div class="show_attr_value single_line"> <%= auto_link(@audit_log_entry.source_name.to_s) %>&nbsp;</div>   <!-- div12h -->
+  </div>   <!-- div10 end -->
+<% end %>
+<% } %>
+
+
+
+<% @ft_view_section[:source_uuid] = capture { %>
+<% if @show_item[:source_uuid] then %>
+
+  <!-- Source Uuid -->
+
+  <div class="show_attr_group attr_group_audit_log_entry_source_uuid ">      <!-- div10 -->
+    <div class="show_attr_label"> Source Uuid </div>                    <!-- div11 -->
+    <div class="show_attr_value single_line"> <%= auto_link(@audit_log_entry.source_uuid.to_s) %>&nbsp;</div>   <!-- div12h -->
+  </div>   <!-- div10 end -->
+<% end %>
+<% } %>
+
+
+
+<% @ft_view_section[:destination_class] = capture { %>
+<% if @show_item[:destination_class] then %>
+
+  <!-- Destination Class -->
+
+  <div class="show_attr_group attr_group_audit_log_entry_destination_class ">      <!-- div10 -->
+    <div class="show_attr_label"> Destination Class </div>                    <!-- div11 -->
+    <div class="show_attr_value single_line"> <%= auto_link(@audit_log_entry.destination_class.to_s) %>&nbsp;</div>   <!-- div12h -->
+  </div>   <!-- div10 end -->
+<% end %>
+<% } %>
+
+
+
+<% @ft_view_section[:destination_name] = capture { %>
+<% if @show_item[:destination_name] then %>
+
+  <!-- Destination Name -->
+
+  <div class="show_attr_group attr_group_audit_log_entry_destination_name ">      <!-- div10 -->
+    <div class="show_attr_label"> Destination Name </div>                    <!-- div11 -->
+    <div class="show_attr_value single_line"> <%= auto_link(@audit_log_entry.destination_name.to_s) %>&nbsp;</div>   <!-- div12h -->
+  </div>   <!-- div10 end -->
+<% end %>
+<% } %>
+
+
+
+<% @ft_view_section[:destination_uuid] = capture { %>
+<% if @show_item[:destination_uuid] then %>
+
+  <!-- Destination Uuid -->
+
+  <div class="show_attr_group attr_group_audit_log_entry_destination_uuid ">      <!-- div10 -->
+    <div class="show_attr_label"> Destination Uuid </div>                    <!-- div11 -->
+    <div class="show_attr_value single_line"> <%= auto_link(@audit_log_entry.destination_uuid.to_s) %>&nbsp;</div>   <!-- div12h -->
+  </div>   <!-- div10 end -->
+<% end %>
+<% } %>
+
+
+
+<% @ft_view_section[:details] = capture { %>
+<% if @show_item[:details] then %>
+
+  <!-- Details -->
+
+  <div class="show_attr_group attr_group_audit_log_entry_details ">      <!-- div10 -->
+    <div class="show_attr_label"> Details </div>                    <!-- div11 -->
+    <div class="show_attr_value multiline"> <%= rc_format((@audit_log_entry.details.to_s)) %> </div>   <!-- div12g -->
+  </div>   <!-- div10 end -->
+<% end %>
+<% } %>
+
+
+<% @ft_view_section_order = []
+   @ft_view_section_order << :ft_prop_title
+   @ft_view_section_order << :snapshot_time
+   @ft_view_section_order << :action_name
+   @ft_view_section_order << :category
+   @ft_view_section_order << :user_name
+   @ft_view_section_order << :target_object_class
+   @ft_view_section_order << :target_object_name
+   @ft_view_section_order << :target_object_uuid
+   @ft_view_section_order << :source_class
+   @ft_view_section_order << :source_name
+   @ft_view_section_order << :source_uuid
+   @ft_view_section_order << :destination_class
+   @ft_view_section_order << :destination_name
+   @ft_view_section_order << :destination_uuid
+   @ft_view_section_order << :details
+%>
+
+<!-- BEGIN-UID.user_ordering -->
+
+<!-- END-UID.user_ordering -->
+
+<% for s in @ft_view_section_order %>
+   <%= @ft_view_section[s].to_s %>
+<% end %>
+

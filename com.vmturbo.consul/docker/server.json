@@ -1,0 +1,9 @@
+{
+  "disable_update_check": true,
+  "leave_on_terminate": false,
+  "skip_leave_on_interrupt": false,
+  "server": true,
+  "ui": false,
+  "log_level": "INFO",
+  "client_addr": "0.0.0.0"
+}

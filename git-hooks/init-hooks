@@ -1,0 +1,56 @@
+#!/bin/bash
+
+# Setup symlinks so that git uses the hooks in git-hooks instead
+# of hooks in the default location. Moves existing hooks
+# to personal/.
+
+
+ROOT_DIR=$(git rev-parse --show-toplevel)
+# Default hooks directory
+DEF_HOOK_DIR=${ROOT_DIR}/.git/hooks
+# Directory that this script is in
+GIT_HOOKS_DIR=${ROOT_DIR}/git-hooks
+# Directory for personal hook scripts
+PERSONAL_DIR=${GIT_HOOKS_DIR}/personal
+
+# File to keep track of whether we ran init-hooks
+# already so we can run multiple times harmlessly.
+# Keep it in sync with rm-hooks
+STATE_FILE=${GIT_HOOKS_DIR}/initialized
+
+# Make sure the personal folder still exists
+mkdir -p ${PERSONAL_DIR}
+
+# All the local git hook names
+HOOK_NAMES=$(cat ${GIT_HOOKS_DIR}/hook-names)
+
+if [ "${PLATFORM}" == "docker" ]; then
+   echo "Not initializing hooks because PLATFORM == docker"
+else
+   if [ -f ${STATE_FILE} ]; then
+      echo "Looks like init-hooks already ran. If you want to force initialization, please run rm-hooks first."
+      exit 1
+   fi
+   # Do validation in a separate loop so we don't leave the initialization halfway.
+   for hook in ${HOOK_NAMES}; do
+      # If there is a pre-existing hook, copy it to the personal directory
+      if [ ! -h ${DEF_HOOK_DIR}/${hook} -a -f ${DEF_HOOK_DIR}/${hook} ]; then
+         DEST=${PERSONAL_DIR}/${hook}-local
+         if [ -f ${DEST} ]; then
+            echo "${DEST} already exists in ${PERSONAL_DIR}! Please rename it with a different suffix, or delete it, and run init-hooks again."
+            exit 1
+         fi
+         (set -x; mv -n ${DEF_HOOK_DIR}/${hook} ${DEST})
+      fi
+   done
+
+   for hook in ${HOOK_NAMES}; do
+      # Create a symlink to the common hook wrapper, overwriting existing symlinks
+      # if necessary.
+      ln -s -f ${GIT_HOOKS_DIR}/hooks-wrapper ${DEF_HOOK_DIR}/${hook}
+   done
+
+   # Initialize the state file.
+   touch ${STATE_FILE}
+fi
+

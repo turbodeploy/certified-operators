@@ -1,0 +1,19 @@
+
+<!-- BEGIN-UID.user_ctrls -->
+<!-- END-UID.user_ctrls -->
+
+<div id="add_to_associations_list">
+   <%= form_tag( :controller => 'entities', :action => :update_associations, :id => @entity ) %>
+       <%= submit_tag 'Add Selected' %>
+       <p class="select_list">&nbsp;</p>
+       <% for entity_assn in @entity_assns %>
+           <p class="select_list"> <%= check_box_tag("entity_assn_ids[]",entity_assn.id) %> <%= entity_assn.sname %> </p>
+       <% end %>
+       <p class="select_list">&nbsp;</p>
+       <%= submit_tag 'Add Selected' %>
+   </form> <!-- end form_tag -->
+</div>
+
+<!-- BEGIN-UID.user_divs -->
+<!-- END-UID.user_divs -->
+

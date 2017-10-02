@@ -1,0 +1,168 @@
+
+<%
+   # default vis control to show all
+   unless @show_item
+     @show_item = {}
+     @show_item.default = true
+   end
+
+   @ft_view_section = {}
+
+   @edit_ctrl_cols = @edit_ctrl_cols || 80
+
+   @text_ctrl_rows = @text_ctrl_rows || 8
+   @text_ctrl_cols = @text_ctrl_cols || (@edit_ctrl_cols - 1)
+%>
+
+<!-- BEGIN-UID.user_vis_ctrls -->
+
+<%
+  if @report_subscription.standard_report || @report_subscription.custom_report then
+    @show_item[:standard_report] = false
+    @show_item[:custom_report]   = false
+  end
+
+  @report_subscription.period = 'Daily' if @report_subscription.period.to_s.empty?
+%>
+
+<!-- END-UID.user_vis_ctrls -->
+
+<%= error_messages_for 'report_subscription' %>
+
+<!--[form:report_subscription]-->
+<table class="aform_table">
+
+<% @ft_view_section[:email] = capture { %>
+<% if @show_item[:email] then %>
+<tr class="aform_row">
+<td class="label">&nbsp;<label for="report_subscription_email">Email&nbsp;Address</label></td>
+<td class="value">&nbsp;<%= text_field 'report_subscription', 'email', :size => @edit_ctrl_cols.to_s, :maxlength => "80", :id => "focus" %></td>
+</tr>
+<% end %>
+<% } %>
+
+<% @ft_view_section[:period] = capture { %>
+<% if @show_item[:period] then %>
+<tr class="aform_row">
+<td class="label">&nbsp;<label for="report_subscription_period">Period</label></td>
+<td class="value">&nbsp;<%= select 'report_subscription', 'period', "-- select --,Daily,Weekly,Monthly".split(/, */) %></td>
+</tr>
+<% end %>
+<% } %>
+
+<% @ft_view_section[:day_type] = capture { %>
+<% if @show_item[:day_type] then %>
+<tr class="aform_row">
+<td class="label">&nbsp;<label for="report_subscription_day_type">Day&nbsp;Type&nbsp;(Use with Weekly)</label></td>
+<td class="value">&nbsp;<%= text_field 'report_subscription', 'day_type', :size => @edit_ctrl_cols.to_s, :maxlength => "80" %></td>
+</tr>
+<% end %>
+<% } %>
+
+
+<% @ft_view_section[:standard_report] = capture { %>
+<% if @show_item[:standard_report] then %>
+
+    <!-- Standard Report -->
+
+<tr class="aform_row">
+<td class="label">&nbsp;<label for="report_subscription_standard_report">Standard Report</label></td>
+
+<% @report_subscription.standard_report = StandardReport.find(params[:standard_report_id]) if params[:standard_report_id] %>
+
+<td class="value">&nbsp;<select id="standard_report" name="report_subscription[standard_report_standard_report_id]">
+<%
+   rows = @standard_report_choices || StandardReport.choices_for(@report_subscription,'standard_report')
+   if rows
+%>
+      <option value="" <%= @report_subscription.standard_report.nil? ? 'selected="selected"' : ""%>>-- select --</option>
+<%
+      for row in rows
+%>
+         <option value="<%=row.id%>" <%= (@report_subscription.standard_report && @report_subscription.standard_report.id) == row.id ? 'selected="selected"' : ""%>><%= row.sname %></option>
+<%
+      end
+   end
+%>
+</select>
+</td>
+</tr>
+<% end %>
+<% } %>
+
+<% @ft_view_section[:custom_report] = capture { %>
+<% if @show_item[:custom_report] then %>
+
+    <!-- Custom Report -->
+
+<tr class="aform_row">
+<td class="label">&nbsp;<label for="report_subscription_custom_report">Custom Report</label></td>
+
+<% @report_subscription.custom_report = UserReport.find(params[:user_report_id]) if params[:user_report_id] %>
+
+<td class="value">&nbsp;<select id="custom_report" name="report_subscription[custom_report_user_report_id]">
+<%
+   rows = @custom_report_choices || UserReport.choices_for(@report_subscription,'custom_report')
+   if rows
+%>
+      <option value="" <%= @report_subscription.custom_report.nil? ? 'selected="selected"' : ""%>>-- select --</option>
+<%
+      for row in rows
+%>
+         <option value="<%=row.id%>" <%= (@report_subscription.custom_report && @report_subscription.custom_report.id) == row.id ? 'selected="selected"' : ""%>><%= row.sname %></option>
+<%
+      end
+   end
+%>
+</select>
+</td>
+</tr>
+<% end %>
+<% } %>
+
+
+
+
+<%     @ft_view_section_order = []
+       @ft_view_section_order << :email
+       @ft_view_section_order << :period
+       @ft_view_section_order << :day_type
+       @ft_view_section_order << :standard_report
+       @ft_view_section_order << :custom_report
+%>
+
+<!-- BEGIN-UID.user_section_ordering -->
+
+<% @ft_view_section[:day_type] = capture { %>
+<% if @show_item[:day_type] then %>
+<tr class="aform_row">
+<td class="label">&nbsp;<label for="report_subscription_day_type">Day&nbsp;of&nbsp;Week&nbsp;<br />
+    <span style="font-size:x-small; font-weight: normal;">&nbsp;Use with Weekly</span>
+  </label></td>
+<td class="value">&nbsp;<%= select 'report_subscription', 'day_type',
+                            options_for_select(['-- select --'] + %W(Mon Tue Wed Thu Fri Sat Sun)) %></td>
+</tr>
+<% end %>
+<% } %>
+
+
+
+
+<!-- END-UID.user_section_ordering -->
+
+<% for s in @ft_view_section_order %>
+   <%= @ft_view_section[s].to_s %>
+<% end %>
+
+
+<!-- BEGIN-UID.user_fields -->
+
+<%= hidden_field "report_subscription", "standard_report_standard_report_id" %>
+<%= hidden_field "report_subscription","custom_report_user_report_id" %>
+
+<!-- END-UID.user_fields -->
+
+</table>
+
+
+<!--[eoform:report_subscription]-->

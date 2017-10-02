@@ -1,0 +1,230 @@
+syntax = "proto2";
+
+package group;
+
+option java_package = "com.vmturbo.common.protobuf.group";
+
+import "group/GroupDTO.proto";
+
+enum MergeType {
+    CLUSTER = 0;
+    STORAGE_CLUSTER = 1;
+    DATACENTER = 2;
+}
+
+message InputGroup {
+    optional int64 group_id = 1;
+}
+
+message PolicyGrouping {
+    oneof group_or_cluster {
+        Group group = 1;
+        Cluster cluster = 2;
+    }
+}
+
+message Policy {
+    optional int64 id = 1;
+
+    // Name of the policy
+    optional string name = 2;
+
+    // Shows if the policy is enabled
+    optional bool enabled = 3 [default = true];
+
+    // Commodity type used for the policy
+    optional string commodity_type = 4;
+
+    oneof policy_detail {
+        AtMostNPolicy at_most_n = 15;
+        AtMostNBoundPolicy at_most_n_bound = 16;
+        BindToComplementaryGroupPolicy bind_to_complementary_group = 17;
+        BindToGroupPolicy bind_to_group = 18;
+        BindToGroupAndLicencePolicy bind_to_group_and_license = 19;
+        BindToGroupAndGeoRedundancyPolicy bind_to_group_and_geo_redundancy = 20;
+        MergePolicy merge = 21;
+        MustRunTogetherPolicy must_run_together = 22;
+    }
+
+    // Defines a limit on the number of entities from the consumer group that can run on each
+    // provider in the provider group without limiting the consumers to run only on the entities
+    // in the provider group.
+    // Common use case: VM->VM anti-affinity
+    message AtMostNPolicy {
+        // Indicate the max entities at the same time that can run on any entity in the providers group.
+        optional float capacity = 1;
+        optional PolicyGrouping consumer_group = 2;
+        optional PolicyGrouping provider_group = 3;
+    }
+
+    // Limits the entities in the consumer group to run only on the entities in the provider group
+    // and limit the number of entities that can run on each of the providers.
+    // Common use case: VM->VM anti-affinity
+    message AtMostNBoundPolicy {
+        // Indicate the max workload entities at the same time per placement entites.
+        optional float capacity = 1;
+        optional PolicyGrouping consumer_group = 2;
+        optional PolicyGrouping provider_group = 3;
+    }
+
+    // Entities in the consumer group can not run on any entity in the provider group.
+    // Common use case: VM->Host or VM->Storage anti-affinity.
+    message BindToComplementaryGroupPolicy {
+        optional PolicyGrouping consumer_group = 1;
+        optional PolicyGrouping provider_group = 2;
+    }
+
+    // Limits the entities in the consumer group to run only on the entities in the provider group.
+    // Common use case: VM->Host or VM->Storage affinity.
+    message BindToGroupPolicy {
+        optional PolicyGrouping consumer_group = 1;
+        optional PolicyGrouping provider_group = 2;
+    }
+
+    // Limits the entities in the consumer group to run only on the entities in the provider group
+    // and makes it more expensive for workloads not in the consumer group to run on providers in the provider group.
+    message BindToGroupAndLicencePolicy {
+        optional PolicyGrouping consumer_group = 1;
+        optional PolicyGrouping provider_group = 2;
+    }
+
+    // ??? - Seems to have something to do with timezones.
+    message BindToGroupAndGeoRedundancyPolicy {
+        optional PolicyGrouping consumer_group = 1;
+        optional PolicyGrouping provider_group = 2;
+    }
+
+    // Merges all the given provider groups to be viewed as a single liquidity pool. For example
+    // when merging clusters workloads would be able to move across the boundaries of those clusters.
+    message MergePolicy {
+        optional MergeType merge_type = 1;
+
+        // List of Groups to merge
+        repeated PolicyGrouping merge_groups = 2;
+    }
+
+    // Requires that all entities in the consumer group must run together on a single provider in
+    // the provider group.
+    // Common use case: VM->VM affinity.
+    message MustRunTogetherPolicy {
+        optional PolicyGrouping consumer_group = 1;
+        optional PolicyGrouping provider_group = 2;
+    }
+}
+
+// InputPolicy corresponds to PolicyApiInputDTO.
+// It is a simpler DTO in that the consumer_group and provider_group fields
+// just contain the IDs rather than all the group details.
+// Another difference is `PolicyApiInputDTO` does not have the ID field.
+// `InputPolicy` requires the id field because the Arango serializer uses
+// the id field as the key.
+message InputPolicy {
+    optional int64 id = 1;
+
+    // Name of the policy
+    optional string name = 2;
+
+    // Shows if the policy is enabled
+    optional bool enabled = 3 [default = true];
+
+    // Commodity type used for the policy
+    optional string commodity_type = 4;
+
+    // The ID of the target that discovered the policy
+    optional int64 target_id = 5;
+
+    oneof policy_detail {
+        AtMostNPolicy at_most_n = 15;
+        AtMostNBoundPolicy at_most_n_bound = 16;
+        BindToComplementaryGroupPolicy bind_to_complementary_group = 17;
+        BindToGroupPolicy bind_to_group = 18;
+        BindToGroupAndLicencePolicy bind_to_group_and_license = 19;
+        BindToGroupAndGeoRedundancyPolicy bind_to_group_and_geo_redundancy = 20;
+        MergePolicy merge = 21;
+        MustRunTogetherPolicy must_run_together = 22;
+    }
+
+    message AtMostNPolicy {
+        optional float capacity = 1;
+        optional InputGroup consumer_group = 2;
+        optional InputGroup provider_group = 3;
+    }
+
+    message AtMostNBoundPolicy {
+        // Indicate the max workload entities at the same time per placement entites.
+        optional float capacity = 1;
+        optional InputGroup consumer_group = 2;
+        optional InputGroup provider_group = 3;
+    }
+
+    message BindToComplementaryGroupPolicy {
+        optional InputGroup consumer_group = 1;
+        optional InputGroup provider_group = 2;
+    }
+
+    message BindToGroupPolicy {
+        optional InputGroup consumer_group = 1;
+        optional InputGroup provider_group = 2;
+    }
+
+    message BindToGroupAndLicencePolicy {
+        optional InputGroup consumer_group = 1;
+        optional InputGroup provider_group = 2;
+    }
+
+    message BindToGroupAndGeoRedundancyPolicy {
+        optional InputGroup consumer_group = 1;
+        optional InputGroup provider_group = 2;
+    }
+
+    message MergePolicy {
+        optional MergeType merge_type = 1;
+
+        // List of Groups to merge
+        repeated InputGroup merge_groups = 2;
+    }
+
+    message MustRunTogetherPolicy {
+        optional InputGroup consumer_group = 1;
+        optional InputGroup provider_group = 2;
+    }
+}
+
+message PolicyRequest {
+    optional int64 policy_id = 1;
+}
+
+message PolicyResponse {
+    optional Policy policy = 1;
+}
+
+message PolicyCreateRequest {
+    optional InputPolicy input_policy = 1;
+}
+
+message PolicyCreateResponse {
+    optional int64 policy_id = 1;
+}
+
+message PolicyEditRequest {
+    optional int64 policy_id = 1;
+    optional InputPolicy input_policy = 2;
+}
+
+message PolicyEditResponse {
+}
+
+message PolicyDeleteRequest {
+    optional int64 policy_id = 1;
+}
+
+message PolicyDeleteResponse {
+}
+
+service PolicyService {
+    rpc GetPolicy(PolicyRequest) returns (PolicyResponse) {}
+    rpc GetAllPolicies(PolicyRequest) returns (stream PolicyResponse) {}
+    rpc CreatePolicy(PolicyCreateRequest) returns (PolicyCreateResponse) {}
+    rpc EditPolicy(PolicyEditRequest) returns (PolicyEditResponse) {}
+    rpc DeletePolicy(PolicyDeleteRequest) returns (PolicyDeleteResponse) {}
+}

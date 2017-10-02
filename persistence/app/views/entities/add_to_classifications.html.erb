@@ -1,0 +1,28 @@
+
+<!-- BEGIN-UID.user_ctrls -->
+
+<!-- END-UID.user_ctrls -->
+
+<div id="add_new_to_classifications" style="float:right; width:60%;">
+   <% dest = url_for :controller => 'entities', :action => 'update_classifications', :id => @entity.id %>
+   <%= form_tag( :controller => 'classifications', :action => 'new', :redirect => dest ) %>
+       <%= submit_tag 'Add New...' %>
+   </form> <!-- end form_tag -->
+</div>
+
+<div id="add_to_classifications_list">
+   <%= form_tag( :controller => 'entities', :action => :update_classifications, :id => @entity ) %>
+       <%= submit_tag 'Add Selected' %>
+       <p class="select_list">&nbsp;</p>
+       <% for classification in @classifications %>
+           <p class="select_list"> <%= check_box_tag("classification_ids[]",classification.id) %> <%= classification.sname %> </p>
+       <% end %>
+       <p class="select_list">&nbsp;</p>
+       <%= submit_tag 'Add Selected' %>
+   </form> <!-- end form_tag -->
+</div>
+
+<!-- BEGIN-UID.user_divs -->
+
+<!-- END-UID.user_divs -->
+

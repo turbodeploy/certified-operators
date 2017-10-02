@@ -1,0 +1,22 @@
+{
+  "settingSpecs": [
+    {
+      "name": "moveVM",
+      "displayName" : "Move",
+      "entitySettingSpec": {
+        "tiebreaker": "SMALLER",
+        "entitySettingScope": {
+          "entityTypeSet": {
+            "entityType": [
+              10
+            ]
+          }
+        }
+      },
+      "enumSettingValueType": {
+        "enumValues" : [ "DISABLED", "RECOMMEND", "MANUAL", "AUTOMATIC" ],
+        "default" : "MANUAL"
+      }
+    }
+  ]
+}

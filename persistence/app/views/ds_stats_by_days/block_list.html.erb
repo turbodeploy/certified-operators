@@ -1,0 +1,144 @@
+
+<!-- start toplinks -->
+
+<table style="margin-bottom:15px;" border="0" width="100%">
+<tr>
+<td width="60%" valign="top">
+
+<p>
+ <%= js_button_to "Tabular View", params.merge(:controller => 'ds_stats_by_days', :action => 'list') %>
+<select onchange="javascript: location = this[this.selectedIndex].value;">
+    <option value="#">Select an action...</option>
+    <option value="#">----------------</option>
+    <option value="<%=url_for(:controller => 'ds_stats_by_days', :action => 'new')%>"> Add new Ds Stats By Day </option>
+    <% unless session['user'] && !session['user'].is_admin? %>
+        <option value="#">----------------</option>
+        <option value="<%=url_for(params.merge(:controller => 'ds_stats_by_days', :action => 'download_csv'))%>"> Download CSV </option>
+        <option value="<%=url_for(:controller => 'ds_stats_by_days', :action => 'csv_upload')%>"> Upload CSV </option>
+    <% end %>
+
+<!-- BEGIN-UID.user_actions -->
+
+<!-- END-UID.user_actions -->
+
+    </select>
+</p>
+
+</td>
+
+<td width="40%" valign="top">
+</td>
+</tr>
+</table>
+
+<!-- end toplinks -->
+
+<% listtext_op = session['list_text_toggles'] ? "show text" : "hide text" %>
+<%= link_to listtext_op, {:controller => 'fast_ops', :action => 'toggle_list_text_toggle'}, :style => 'font-size:8pt;' %> |
+<% listimage_op = session['list_image_toggles'] ? "show images" : "hide images" %>
+<%= link_to listimage_op, {:controller => 'fast_ops', :action => 'toggle_list_image_toggle'}, :style => 'font-size:8pt;' %>
+
+<% @ds_stats_by_days.each { |obj| %>
+
+    <div class="obj_block">
+    <hr/>
+<div class="block_line_item">
+    <div class="block_label">Snapshot Time:</div>
+    <% text = obj.snapshot_time.to_s %>
+    <% text = rc_format((text)) %>
+<div class="block_value">
+    <%= link_to text, url_show(obj) %>
+</div>
+</div>
+<div class="block_line_item">
+    <div class="block_label">Uuid:</div>
+    <% text = obj.uuid.to_s %>
+    <% text = rc_format((text)) %>
+<div class="block_value">
+    <%= text %> 
+</div>
+</div>
+<div class="block_line_item">
+    <div class="block_label">Producer Uuid:</div>
+    <% text = obj.producer_uuid.to_s %>
+    <% text = rc_format((text)) %>
+<div class="block_value">
+    <%= text %> 
+</div>
+</div>
+<div class="block_line_item">
+    <div class="block_label">Property Type:</div>
+    <% text = obj.property_type.to_s %>
+    <% text = rc_format((text)) %>
+<div class="block_value">
+    <%= text %> 
+</div>
+</div>
+<div class="block_line_item">
+    <div class="block_label">Property Subtype:</div>
+    <% text = obj.property_subtype.to_s %>
+    <% text = rc_format((text)) %>
+<div class="block_value">
+    <%= text %> 
+</div>
+</div>
+<div class="block_line_item">
+    <div class="block_label">Capacity:</div>
+    <% text = obj.capacity.to_s %>
+    <% text = rc_format((text)) %>
+<div class="block_value">
+    <%= text %> 
+</div>
+</div>
+<div class="block_line_item">
+    <div class="block_label">Avg Value:</div>
+    <% text = obj.avg_value.to_s %>
+    <% text = rc_format((text)) %>
+<div class="block_value">
+    <%= text %> 
+</div>
+</div>
+<div class="block_line_item">
+    <div class="block_label">Min Value:</div>
+    <% text = obj.min_value.to_s %>
+    <% text = rc_format((text)) %>
+<div class="block_value">
+    <%= text %> 
+</div>
+</div>
+<div class="block_line_item">
+    <div class="block_label">Max Value:</div>
+    <% text = obj.max_value.to_s %>
+    <% text = rc_format((text)) %>
+<div class="block_value">
+    <%= text %> 
+</div>
+</div>
+<div class="block_line_item">
+    <div class="block_label">Std Dev:</div>
+    <% text = obj.std_dev.to_s %>
+    <% text = rc_format((text)) %>
+<div class="block_value">
+    <%= text %> 
+</div>
+</div>
+    </div>
+
+<% } %>
+
+<p class="spacer">&nbsp;</p>
+
+<p>
+ <%= js_button_to "Tabular View", params.merge(:controller => 'ds_stats_by_days', :action => 'list') %>
+<select onchange="javascript: location = this[this.selectedIndex].value;">
+    <option value="#">Select an action...</option>
+    <option value="#">----------------</option>
+    <option value="<%=url_for(:controller => 'ds_stats_by_days', :action => 'new')%>"> Add new Ds Stats By Day </option>
+    <% unless session['user'] && !session['user'].is_admin? %>
+        <option value="#">----------------</option>
+        <option value="<%=url_for(params.merge(:controller => 'ds_stats_by_days', :action => 'download_csv'))%>"> Download CSV </option>
+        <option value="<%=url_for(:controller => 'ds_stats_by_days', :action => 'csv_upload')%>"> Upload CSV </option>
+    <% end %>
+    </select>
+</p>
+

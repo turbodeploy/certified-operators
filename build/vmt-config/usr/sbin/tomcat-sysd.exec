@@ -1,0 +1,4 @@
+#!/bin/sh
+
+/usr/sbin/tomcat-sysd.oom &
+exit 0

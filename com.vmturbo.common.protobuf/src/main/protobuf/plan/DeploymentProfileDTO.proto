@@ -1,0 +1,155 @@
+syntax = "proto2";
+package plan;
+
+option java_package = "com.vmturbo.common.protobuf.plan";
+
+import "ProfileDTO.proto";
+// Deployment profile is used for Deploy operation, it contains Probe need information for Deploy
+// purpose such as Datacenter, cluster location. And Deployment profile will be attached to Templates to
+// know what kind of entity will be deployed. The relationship between templates with deployment profile
+// is many to many.
+message DeploymentProfile {
+    // Id of deployment profile
+    optional int64 id = 1;
+
+    // Target id of deployment profile, if it is user created deployment profile, it will not be provided.
+    optional int64 target_id = 2;
+
+    // Contians full information about deployment profile
+    optional DeploymentProfileInfo deploy_info = 3;
+
+    // A list of templates which deployment profile associate with
+    repeated int64 template_ids = 4;
+}
+
+message DeploymentProfileInfo {
+    // Name of deployment profile, right now, for discovered deployment profile, the name could be
+    // duplicate even in one target, we use probe sent unique deployment profile Id to be identifier
+    // when uploading discovered deployment profile.
+    optional string name = 1;
+
+    // Represent if deployment profile is discovered or not
+    optional bool discovered = 2;
+
+    // Contains information to deploy
+    repeated DeploymentProfileContextData context_data = 3;
+
+    // Contains all the related scopes, and it allow deployment profile without any scope.
+    repeated Scope scopes = 4;
+
+    // Probe send the Id of deployment profile, we can use it differentiate discoverd deployment profile
+    optional string probe_deployment_profile_id = 5;
+
+    // Context data needed to actually invoke deploy - such as URIs
+    message DeploymentProfileContextData {
+        // Key of context data
+        required string key = 1;
+        // Value of context data
+        required string value = 2;
+    }
+
+    // It contains two type of Scope, AND logic Scope and OR logic Scope. For AND Scope, it needs match
+    // all of the Scope, such as datacenter, network etc.. For OR Scope, it only needs match one of Scopes.
+    // And rigth now, OR Scope is used for cloud Probe.
+    message Scope {
+        // Id of scope
+        repeated int64 ids = 1;
+        // Relation type of Scope
+        optional ScopeAccessType scope_access_type = 2;
+    }
+    // It contains two access types: AND and OR. AND means need match all Scope it contains, OR means
+    // only need to match one of them.
+    enum ScopeAccessType {
+        And = 0;
+        Or = 1;
+    }
+}
+
+// Request for get all deployment profiles
+message GetDeploymentProfilesRequest {
+}
+
+// Request for get one deployment profile
+message GetDeploymentProfileRequest {
+    // Id of the requesed deployment profile
+    optional int64 deployment_profile_id = 1;
+}
+
+// Request for create a new deployment profile
+message CreateDeploymentProfileRequest {
+    // Deployment profile inforation which need to created
+    optional DeploymentProfileInfo deploy_info = 1;
+}
+
+// Request for update a existing deployment profile
+message EditDeploymentProfileRequest {
+    // Id of existing deployment profile, if id not found, it will throw exception
+    optional int64 deployment_profile_id = 1;
+    // Deployment profile information which need to updated
+    optional DeploymentProfileInfo deploy_info = 2;
+}
+
+// Request for delete a deployment profile
+message DeleteDeploymentProfileRequest {
+    // Id of deployment profile need to deleted
+    optional int64 deployment_profile_id = 1;
+}
+
+service DeploymentProfileService {
+    // Get all deployment profiles
+    rpc GetDeploymentProfiles(GetDeploymentProfilesRequest) returns (stream DeploymentProfile);
+
+    // Get the deployment profile by id, if id not found, it will return empty instance.
+    rpc GetDeploymentProfile(GetDeploymentProfileRequest) returns (DeploymentProfile);
+
+    // Create a new deployment profile
+    rpc CreateDeploymentProfile(CreateDeploymentProfileRequest) returns (DeploymentProfile);
+
+    // Update the existing deployment profile with new deployment profile
+    rpc EditDeploymentProfile(EditDeploymentProfileRequest) returns (DeploymentProfile);
+
+    // Delete a deployment profile
+    rpc DeleteDeploymentProfile(DeleteDeploymentProfileRequest) returns (DeploymentProfile);
+}
+
+// Response for set target's templates and deployment profiles RPC call.
+message SetDiscoveredTemplateDeploymentProfileResponse {
+}
+
+// Contains A dsicovered entity profile(template) and a list of deployment profile attached to it.
+message EntityProfileToDeploymentProfile {
+    // Contains discovered Entity profile (template) data.
+    optional common_dto.EntityProfileDTO entity_profile = 1;
+
+    // A list of discovered deployment profile which attach to above entity profile.
+    repeated DeploymentProfileInfo deployment_profile = 2;
+}
+
+// Request for set target's templates and deployment profiles RPC call.
+message SetTargetDiscoveredTemplateDeploymentProfileRequest {
+    // Target id the discovered templates deployment profiles are reported for.
+    required int64 target_id = 1;
+
+    // Contains many to many relationship between templates with deployment profiles. It covers both
+    // cases: templates have no deployment profile and templates have deployment profile.
+    repeated EntityProfileToDeploymentProfile entity_profile_to_deployment_profile = 2;
+
+    // Store discovered deployment profiles which have no referenced templates.
+    repeated DeploymentProfileInfo deployment_profile_wihtout_templates = 3;
+}
+
+// Request for set discovered templates and deployment profiles within one discover.
+message SetDiscoveredTemplateDeploymentProfileRequest {
+    // list of set templates and deployment profiles request by different target id.
+    repeated SetTargetDiscoveredTemplateDeploymentProfileRequest target_request = 1;
+}
+
+// Template to deployment profile relationship is many to many. In order to represent relationship,
+// it needs to cover three case, templates have no deployment profile, template have deployment profile
+// and deployment profile have no templates.
+service DiscoveredTemplateDeploymentProfileService {
+    // Sets the specified discovered templates and deployment profiles for the specified target.
+    // Target-related templates and deployment profiles, not specified in this request will be removed.
+    rpc SetDiscoveredTemplateDeploymentProfile (SetDiscoveredTemplateDeploymentProfileRequest)
+    returns (SetDiscoveredTemplateDeploymentProfileResponse);
+}

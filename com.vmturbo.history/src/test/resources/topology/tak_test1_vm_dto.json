@@ -1,0 +1,251 @@
+
+  {
+    "entityType": 10,
+    "oid": "71799586836273",
+    "displayName": "tak_test1",
+    "commoditySoldList": [
+      {
+        "commodityType": {
+          "type": 26,
+          "key": ""
+        },
+        "used": 0,
+        "peak": 0,
+        "capacity": 2600,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 53,
+          "key": ""
+        },
+        "used": 0,
+        "peak": 0,
+        "capacity": 2097152,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 56,
+          "key": "VirtualMachine::421df0fa-f96b-ccec-a115-24871fbb413c"
+        },
+        "used": 1,
+        "peak": 0,
+        "capacity": 1000000000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      }
+    ],
+    "commodityBoughtMap": {
+      "71799586835426": {
+        "commodityBought": [
+          {
+            "commodityType": {
+              "type": 50,
+              "key": "ResourcePool::vsphere-dc1.eng.vmturbo.com-ResourcePool-resgroup-39"
+            },
+            "used": 0,
+            "peak": 0,
+            "active": true
+          },
+          {
+            "commodityType": {
+              "type": 2,
+              "key": "ResourcePool::vsphere-dc1.eng.vmturbo.com-ResourcePool-resgroup-39"
+            },
+            "used": 0,
+            "peak": 0,
+            "active": true
+          }
+        ]
+      },
+      "71799586834736": {
+        "commodityBought": [
+          {
+            "commodityType": {
+              "type": 64,
+              "key": ""
+            },
+            "used": 0,
+            "peak": 0,
+            "active": false
+          },
+          {
+            "commodityType": {
+              "type": 22,
+              "key": ""
+            },
+            "used": 0,
+            "peak": 0,
+            "active": false
+          },
+          {
+            "commodityType": {
+              "type": 51,
+              "key": "PhysicalMachine::Virtual_ESX_42384da5-dd87-e1bd-d3af-5bcf8568dea1"
+            },
+            "used": 1,
+            "peak": 0,
+            "active": true
+          },
+          {
+            "commodityType": {
+              "type": 6,
+              "key": ""
+            },
+            "used": 20480,
+            "peak": 0,
+            "active": true
+          },
+          {
+            "commodityType": {
+              "type": 8,
+              "key": ""
+            },
+            "used": 20480,
+            "peak": 0,
+            "active": true
+          }
+        ]
+      },
+      "71799586835424": {
+        "commodityBought": [
+          {
+            "commodityType": {
+              "type": 40,
+              "key": ""
+            },
+            "used": 0,
+            "peak": 0,
+            "active": true
+          },
+          {
+            "commodityType": {
+              "type": 36,
+              "key": "Storage::55fc29bd-90414194-4ecf-005056b8001c"
+            },
+            "used": 1,
+            "peak": 0,
+            "active": true
+          },
+          {
+            "commodityType": {
+              "type": 0,
+              "key": "domain-c38-cluster-commodity"
+            },
+            "used": 1,
+            "peak": 0,
+            "active": true
+          },
+          {
+            "commodityType": {
+              "type": 5,
+              "key": ""
+            },
+            "used": 0,
+            "peak": 0,
+            "active": true
+          },
+          {
+            "commodityType": {
+              "type": 21,
+              "key": ""
+            },
+            "used": 0,
+            "peak": 0,
+            "active": true
+          },
+          {
+            "commodityType": {
+              "type": 33,
+              "key": ""
+            },
+            "used": 0,
+            "peak": 0,
+            "active": false
+          },
+          {
+            "commodityType": {
+              "type": 41,
+              "key": ""
+            },
+            "used": 0,
+            "peak": 0,
+            "active": false
+          },
+          {
+            "commodityType": {
+              "type": 28,
+              "key": ""
+            },
+            "used": 2600,
+            "peak": 0,
+            "active": true
+          },
+          {
+            "commodityType": {
+              "type": 47,
+              "key": ""
+            },
+            "used": 0,
+            "peak": 0,
+            "active": true
+          },
+          {
+            "commodityType": {
+              "type": 57,
+              "key": "Network::vsphere-dc1.eng.vmturbo.com-Network-network-15"
+            },
+            "used": 1,
+            "peak": 0,
+            "active": true
+          },
+          {
+            "commodityType": {
+              "type": 45,
+              "key": ""
+            },
+            "used": 2097152,
+            "peak": 0,
+            "active": true
+          },
+          {
+            "commodityType": {
+              "type": 39,
+              "key": ""
+            },
+            "used": 0,
+            "peak": 0,
+            "active": true
+          },
+          {
+            "commodityType": {
+              "type": 55,
+              "key": "DataCenter::vsphere-dc1.eng.vmturbo.com-Datacenter-datacenter-2"
+            },
+            "used": 1,
+            "peak": 0,
+            "active": true
+          }
+        ]
+      }
+    },
+    "entityState": "POWERED_OFF",
+    "entityPropertyMap": {
+      "common_dto.EntityDTO.VirtualMachineData.vmState": "connected: true\n",
+      "common_dto.EntityDTO.VirtualMachineRelatedData.io": "[id: \"ETH-vm-72\"\ndisplayName: \"vm-72\"\nmacAddress: \"00-50-56-9d-27-91\"\n]",
+      "shopTogether": "true",
+      "LocalName": "vm-72"
+    },
+    "providerPolicy": {
+      "isAvailableAsProvider": true
+    }
+  }

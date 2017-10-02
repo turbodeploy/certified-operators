@@ -1,0 +1,25 @@
+
+<div class="query_view" id="query_view">
+
+   <p><%= show_hide "Show/Hide Available Reports", "queries"%></p>
+    
+   <div id="queries" class="queries">
+     <h3>Available Reports</h3>
+
+     <p>Click on a title to view its results</p>
+     
+     <div id="query_list" class="query_list">
+         <% @queries.each { |name,spec| %>
+             <div class="query_item">
+                 <%= link_to_remote(spec[:title], :url => {:action => 'render_query_results', :query => name}, :update => 'q_results' ) %>
+             </div>
+         <% } %>
+     </div>
+   </div>
+
+	<div class="q_results" id="q_results">
+		&nbsp;
+	</div>
+
+</div>
+

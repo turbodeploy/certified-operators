@@ -1,0 +1,137 @@
+
+Working with JSON
+
+You can use a JSON parser to create JSON text from objects and arrays, 
+and to create objects and arrays from JSON text. A JSON parser is 
+provided on the JSON site at http://www.json.org/json.js. You can 
+copy this JavaScript file and reference it in your page by including 
+this code in the head section of the page:
+
+     <script type="text/javascript" src="json.js"></script>
+
+It defines two functions:
+
+- toJSONString() 
+
+- parseJSON() 
+
+The toJSONString() method is added to the JavaScript Object and Array 
+definitions, and it enables you to convert a JavaScript object or array 
+to JSON text. The object or array doesn't need to be preformulated as 
+a literal in order to use this method. For example, the following code 
+for the member object uses the Object constructor:
+
+     <script type="text/javascript">
+     var member = new Object();
+     member.name = "Jobo";
+     member.address = "325 Smith Rd";
+     member.isRegistered = true;
+     member = member.toJSONString();
+     alert("The member object as a JSON data structure: \n" + member);
+     </script>
+
+---------------------------------------------------------------
+
+Using parseJSON()
+
+If your web server is providing both the JSON data and the requesting 
+page, using eval() is fine. If security is a concern, though, use a 
+JSON parser. A JSON parser will act only on JSON text and won't execute 
+any other JavaScript.
+
+In this case, you use responseText, but you use the parseJSON() method 
+to convert the JSON text string into a JavaScript object.
+
+     var jsonResp = request.responseText;
+     jsonResp = jsonResp.parseJSON();
+
+In order to access the parseJSON() function, you also need to include 
+a script tag referencing the json.js file.
+
+     <script type="text/javascript" src="json.js"></script>
+
+----------------------------------------------------------------
+
+Code Example
+
+     <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+     "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+     <html xmlns="http://www.w3.org/1999/xhtml">
+     <head>
+     <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
+     <title>Checking Courses</title>
+
+     <script type="text/javascript">
+         function getDoc()
+         {
+         var request;
+         if (window.XMLHttpRequest) {
+           request = new XMLHttpRequest();
+         }
+         else if (window.ActiveXObject) {
+           request = new ActiveXObject("Microsoft.XMLHTTP");
+         }
+         if(request) {
+           request.open("GET", "classes.txt", true);
+           request.onreadystatechange = function()
+
+           if ((request.readyState == 4) && (request.status == 200)) {
+             var jsonResp = request.responseText;
+             jsonResp = eval("(" + jsonResp + ")");
+
+             findClass(jsonResp);
+           }
+
+         }
+
+         request.send(null);
+         }
+
+         function findClass(jsonResp) {
+           for (i=0; i < jsonResp.data.length; i++) {
+             var title = jsonResp.data[i].title;
+             var req = jsonResp.data[i].req;
+             var myEl = document.createElement('p');
+             var newText = title + " is the name of a course in the Computer Science department.";
+             var myTx = document.createTextNode(newText);
+             myEl.appendChild(myTx);
+             var course = document.getElementById('title');
+             course.appendChild(myEl);
+
+               if (req == 'yes') {
+                 var addlText = " This is a required course.";
+                 var addlText2 = document.createTextNode(addlText);
+                 myEl.appendChild(addlText2);
+               }
+
+               else {
+                 var addlText = " This is not a required course.";
+                 var addlText2 = document.createTextNode(addlText);
+                 myEl.appendChild(addlText2);
+               }
+           }
+
+         }
+     </script>
+     </head>
+
+     <body>
+
+     <h1>Checking courses</h1>
+         <form>
+         <input type = "button" id="reqDoc" value = "Check courses" />
+         </form>
+
+     <script type="text/javascript">
+      var myDoc = document.getElementById('reqDoc');
+      myDoc.onclick = getDoc;
+     </script>
+
+     <div id="title"></div>
+
+     </body>
+     </html>
+
+
+
+

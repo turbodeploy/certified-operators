@@ -1,0 +1,94 @@
+<html>
+<head>
+  <META HTTP-EQUIV="Pragma" CONTENT="no-cache"> <META HTTP-EQUIV="Cache-Control" CONTENT="no-cache"> 
+  <%= stylesheet_link_tag 'styles', :media => 'all' %>
+  <%= stylesheet_link_tag 'styles_print', :media => 'print' %>
+
+  <title>Search Results</title>
+</head>
+
+<body class="search_results">
+
+<p class="notice"><%= flash[:notice] %></p>
+    <%= link_to('<p>Home</p>', url_user_home() , :class => 'homelink') %>
+
+<!-- BEGIN-UID.user_divs -->
+
+<!-- END-UID.user_divs -->
+
+<table class="show_layout" cellspacing="0" border="0">
+<tr><td class="banner">
+<div class="banner">
+    <p class="page_title">Search Results</p>
+</div>
+</td></tr>
+
+<tr><td class="body">
+<div class="body">
+      <div class="columns">
+        <hr/>
+
+        <table class="show_layout" cellspacing="0" border="0">
+        <tr><td class="lhs">
+        <div class="lhs">
+        </div>
+        </td>
+
+        <td class="lhs2">
+        <div class="lhs2">
+        </div>
+        </td>
+
+        <td class="rhs">
+        <div class="rhs">
+
+<center>
+<p class="search_form">
+<%= form_tag( :controller => 'full_text_search', :action => 'search' ) %> 
+<%= submit_tag "Search Again" %> <%= text_field_tag 'search_text', @search_text, :size => 20 %>
+</form> <!-- end form_tag -->
+</p>
+</center>
+
+    <h3>Search Results</h3>
+    <p>Found &quot;<%=@search_text%>&quot; in the following places</p>
+
+
+    <table class="master" width="100%">
+        <tr> 
+            <th>Item Type</th>
+            <th>Item Name / Field Name</th>
+            <th>Text</th>  
+        </tr>
+        <%
+            @results.each { |ref|
+                obj = ref[:obj]
+        %>
+               <tr> <td> <%=obj.display_name%> </td>  
+                    <td> <%= link_to obj.iname, url_show(obj), :target => 'results_pane' %> / <%=ref[:field]%> </td>  
+                    <td> <%=obj.send(ref[:field]).to_s.gsub(/#{@search_text}/i,'<b><i>\0</i></b>')%> </td> 
+                    </tr>
+        <%
+            }
+        %>
+    </table>
+
+        </div>
+        </td></tr>
+        </table>
+
+      </div>
+
+</div>
+</td></tr>
+
+<tr><td class="footer">
+<div class="footer">
+  <%= yield :footer %>
+</div>
+</td></tr>
+</table>
+
+</body>
+</html>
+

@@ -1,0 +1,43 @@
+syntax = "proto2";
+
+package repository;
+
+option java_package = "com.vmturbo.common.protobuf.repository";
+
+import "topology/TopologyDTO.proto";
+
+message DeleteTopologyRequest {
+    // the id of the topology to delete
+    optional int64 topology_id = 1;
+    // For plan topology, the topologyContextId=planId.
+    optional int64 topology_context_id = 2;
+}
+
+message RepositoryOperationResponse {
+    required RepositoryOperationResponseCode response_code = 1;
+
+    optional string error = 2;
+}
+
+message RetrieveTopologyRequest {
+    // The id of the topology to retrieve
+    required int64 topology_id = 1;
+}
+
+message RetrieveTopologyResponse {
+    repeated topology.TopologyEntityDTO entities = 1;
+}
+
+service RepositoryService {
+    rpc DeleteTopology(DeleteTopologyRequest) returns (RepositoryOperationResponse);
+    rpc RetrieveTopology(RetrieveTopologyRequest) returns (stream RetrieveTopologyResponse);
+}
+
+enum RepositoryOperationResponseCode {
+    // Operation completed successfully
+    OK = 1;
+
+    // Operation failed
+    FAILED = 2;
+}
+

@@ -1,0 +1,75 @@
+
+<p id="top_section_label">Wasted Resources</p>
+
+<hr />
+
+<p id="section_label">Over-Provisioned</p>
+
+<ul>
+
+  <li>
+    Virtual Machines
+    <ul>
+
+      <li>
+        <%= link_to "Dormant / Powered-off", :action => 'bottom_10_vms', :prop_type => 'VCPU',
+                        :prop_subtype => 'utilization', :low_val => '0.0', :cutoff => '0.006' %>
+      </li>
+
+    </ul>
+
+<p style="margin:0; line-height: 6pt;">&nbsp;</p>
+
+    <ul>
+
+      <li>
+        <%= link_to "Week of low CPU usage", :action => 'bottom_10_vms', :prop_type => 'VCPU',
+                        :prop_subtype => 'utilization', :low_val => '0.006', :cutoff => '0.20', :n_days => '7' %>
+      </li>
+
+      <li>
+        <%= link_to "Week of low Mem usage", :action => 'bottom_10_vms', :prop_type => 'VMem',
+                        :prop_subtype => 'utilization', :low_val => '0.006', :cutoff => '0.20', :n_days => '7' %>
+      </li>
+
+    </ul>
+
+<p style="margin:0; line-height: 6pt;">&nbsp;</p>
+
+
+    <ul>
+
+      <li>
+        <%= link_to "Month of low CPU usage", :action => 'bottom_10_vms', :prop_type => 'VCPU',
+                        :prop_subtype => 'utilization', :low_val => '0.006', :cutoff => '0.20', :n_days => '30' %>
+      </li>
+
+      <li>
+        <%= link_to "Month of low Mem usage", :action => 'bottom_10_vms', :prop_type => 'VMem',
+                        :prop_subtype => 'utilization', :low_val => '0.006', :cutoff => '0.20', :n_days => '30' %>
+      </li>
+
+    </ul>
+  </li>
+
+</ul>
+
+<p style="margin:0; line-height: 6pt;">&nbsp;</p>
+
+<p id="section_label">Under-Utilized</p>
+
+<ul>
+
+  <li>
+    Datastores
+    <ul>
+
+      <li>
+        <%= link_to "Under 10% used", :action => 'bottom_10_dss', :prop_type => 'StorageAmount',
+                        :prop_subtype => 'utilization', :cutoff => '0.10' %>
+      </li>
+
+    </ul>
+  </li>
+
+</ul>

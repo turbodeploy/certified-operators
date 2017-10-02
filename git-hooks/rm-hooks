@@ -1,0 +1,35 @@
+#!/bin/bash
+
+# Remove symlinks created by init-hooks.
+
+ROOT_DIR=$(git rev-parse --show-toplevel)
+DEF_HOOK_DIR=${ROOT_DIR}/.git/hooks
+# Directory that this script is in
+GIT_HOOKS_DIR=${ROOT_DIR}/git-hooks
+
+# All the local git hook names
+HOOK_NAMES=$(cat ${GIT_HOOKS_DIR}/hook-names)
+
+# File to keep track of whether we ran init-hooks
+# already so we can run multiple times harmlessly.
+# Keep it in sync with rm-hooks
+STATE_FILE=${GIT_HOOKS_DIR}/initialized
+
+if [ ! -f ${STATE_FILE} ]; then
+   read -p "Looks like init-hooks hasn't run yet. Do you still want to remove the hooks in .git/hooks? " -n 1 -r
+   echo
+   if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+      exit 1
+   fi
+fi
+
+for hook in ${HOOK_NAMES}; do
+   if [ -h ${DEF_HOOK_DIR}/${hook} ]; then
+      (set -x; rm ${DEF_HOOK_DIR}/${hook})
+   fi
+done
+
+rm -f ${STATE_FILE}
+
+echo "Hooks Removed!"
+echo "If you still want to use your personal hooks, copy them from the git-hooks/personal directory."

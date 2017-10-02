@@ -1,0 +1,8 @@
+# This represents a "factory-configured" list of the VmtComponent types we know of a-priori. This property is used
+#      to initialize the Consul key/value store. Going foward, new VmtComponent types may be added via the API.
+test-component-1:
+  property-1: value-1
+  property-2: value-2
+test-component-2:
+  property-3: value-3
+test-component-3: #test case with no properties

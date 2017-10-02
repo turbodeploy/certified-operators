@@ -1,0 +1,81 @@
+
+<%
+   # default vis control to show all
+   unless @show_item
+     @show_item = {}
+     @show_item.default = true
+   end
+
+   @ft_view_section = {}
+%>
+
+<!-- BEGIN-UID.user_ctrls -->
+
+<!-- END-UID.user_ctrls -->
+
+<% @ft_view_section[:ft_prop_title] = capture { %>
+<% if @show_item[:ft_prop_title] then %>
+<div class="show_iname">
+   <%= @entity_attr.iname %>
+</div>
+<% end %>
+<% } %>
+
+
+
+<% @ft_view_section[:name] = capture { %>
+<% if @show_item[:name] then %>
+
+  <!-- Name -->
+
+  <div class="show_attr_group attr_group_entity_attr_name ">      <!-- div10 -->
+    <div class="show_attr_label"> Name </div>                    <!-- div11 -->
+    <div class="show_attr_value single_line"> <%= auto_link(@entity_attr.name.to_s) %>&nbsp;</div>   <!-- div12h -->
+  </div>   <!-- div10 end -->
+<% end %>
+<% } %>
+
+
+
+<% @ft_view_section[:value] = capture { %>
+<% if @show_item[:value] then %>
+
+  <!-- Value -->
+
+  <div class="show_attr_group attr_group_entity_attr_value ">      <!-- div10 -->
+    <div class="show_attr_label"> Value </div>                    <!-- div11 -->
+    <div class="show_attr_value single_line"> <%= auto_link(@entity_attr.value.to_s) %>&nbsp;</div>   <!-- div12h -->
+  </div>   <!-- div10 end -->
+<% end %>
+<% } %>
+
+
+
+<% @ft_view_section[:multi_values] = capture { %>
+<% if @show_item[:multi_values] then %>
+
+  <!-- Multi Values -->
+
+  <div class="show_attr_group attr_group_entity_attr_multi_values ">      <!-- div10 -->
+    <div class="show_attr_label"> Multi Values </div>                    <!-- div11 -->
+    <div class="show_attr_value multiline"> <%= rc_format((@entity_attr.multi_values.to_s)) %> </div>   <!-- div12g -->
+  </div>   <!-- div10 end -->
+<% end %>
+<% } %>
+
+
+<% @ft_view_section_order = []
+   @ft_view_section_order << :ft_prop_title
+   @ft_view_section_order << :name
+   @ft_view_section_order << :value
+   @ft_view_section_order << :multi_values
+%>
+
+<!-- BEGIN-UID.user_ordering -->
+
+<!-- END-UID.user_ordering -->
+
+<% for s in @ft_view_section_order %>
+   <%= @ft_view_section[s].to_s %>
+<% end %>
+

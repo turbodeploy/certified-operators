@@ -1,0 +1,86 @@
+package com.vmturbo.protoc.spring.rest.test.echo;
+
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.util.List;
+
+import org.junit.Before;
+import org.junit.runner.RunWith;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.annotation.DirtiesContext.ClassMode;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
+import org.springframework.test.context.web.AnnotationConfigWebContextLoader;
+import org.springframework.test.context.web.WebAppConfiguration;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.context.WebApplicationContext;
+
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
+
+import com.vmturbo.components.api.ComponentGsonFactory;
+import com.vmturbo.protoc.spring.rest.testServices.Echo;
+import com.vmturbo.protoc.spring.rest.testServices.EchoREST;
+import com.vmturbo.protoc.spring.rest.testServices.EchoREST.EchoResponse;
+import com.vmturbo.protoc.spring.rest.testServices.EchoREST.EchoServiceController.EchoServiceResponse;
+import com.vmturbo.protoc.spring.rest.testServices.EchoServiceGrpc.EchoServiceImplBase;
+
+public class AbstractEchoServiceTest {
+    protected static MockMvc mockMvc;
+
+    protected EchoServiceImplBase testService;
+
+    @Autowired
+    protected WebApplicationContext wac;
+
+    @Before
+    public void setup() {
+        mockMvc = MockMvcBuilders.webAppContextSetup(wac).build();
+
+        testService = wac.getBean(EchoServiceImplBase.class);
+    }
+
+
+    protected Gson gson = ComponentGsonFactory.createGson();
+
+    protected final EchoREST.EchoRequest inputRequest1 = EchoREST.EchoRequest
+            .fromProto(Echo.EchoRequest.newBuilder()
+                    .setEchoThis("echoThis1")
+                    .setExtraOptional("extraOptional1")
+                    .build());
+    protected final EchoREST.EchoRequest inputRequest2 = EchoREST.EchoRequest
+            .fromProto(Echo.EchoRequest.newBuilder()
+                    .setEchoThis("echoThis2")
+                    .setExtraOptional("extraOptional2")
+                    .build());
+
+    protected String postAndExpect(String route,
+                                 String serializedRequest,
+                                 HttpStatus expectedStatus) throws Exception {
+        final MvcResult result = mockMvc.perform(post(route)
+                .contentType(MediaType.APPLICATION_JSON_UTF8_VALUE)
+                .content(serializedRequest)
+                .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
+                .andExpect(status().is(expectedStatus.value()))
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON_UTF8))
+                .andReturn();
+        return result.getResponse().getContentAsString();
+    }
+
+    protected EchoREST.EchoServiceController.EchoServiceResponse<EchoREST.EchoResponse> parseEchoResponse(String serializedJson) {
+        return gson.fromJson(serializedJson,
+                new TypeToken<EchoServiceResponse<EchoResponse>>(){}.getType());
+    }
+
+    protected EchoREST.EchoServiceController.EchoServiceResponse<List<EchoResponse>> parseListEchoResponse(String serializedJson) {
+        return gson.fromJson(serializedJson,
+                new TypeToken<EchoREST.EchoServiceController.EchoServiceResponse<List<EchoREST.EchoResponse>>>(){}.getType());
+    }
+}

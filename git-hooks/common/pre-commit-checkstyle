@@ -1,0 +1,102 @@
+#!/usr/bin/python
+
+##########
+# Run the checkstyle command on all modified Java files staged for commit.
+# Expectations:
+#     CHECKSTYLE_JAR set to the path to the checkstyle-<version>-all.jar file
+#     One of:
+#        - CHECKSTYLE_CONFIG_PATH set to the checkstyle configuration to use
+#        - checkstyle.xml exists in the repository
+##########
+
+import subprocess
+import os
+import sys
+import re
+
+def find_checkstyle_xml(repo_home):
+  print "Searching for checkstyle.xml in " + repo_home
+  filesStr = subprocess.check_output(["find", repo_home, "-name", "checkstyle.xml"])
+  files = filesStr.split('\n')
+  return files[0] if len(files) > 0 else None
+  
+def format_checkstyle_output(output):
+  regex = re.compile('\[.*\] (/.*\.java):(\S*): (.*)')
+  formatted_lines = []
+  lines = output.split('\n')
+
+  last_file = ""
+  for line in lines:
+    lineMatch = regex.match(line)
+    if lineMatch:
+      file = lineMatch.group(1)
+      if file != last_file:
+        formatted_lines.append(file)
+        last_file = file
+      # You could have a regex with an optional group, but it's hard
+      # enough to read already!
+      lineAndCol = lineMatch.group(2).replace(":", " Col:")
+      msg = lineMatch.group(3)
+      formatted_lines.append("        Line: {} {}".format(lineAndCol, msg) )
+  return "\n".join(formatted_lines)
+
+def main():
+  changed_files = subprocess.check_output(["git", "diff", "--cached", "--name-only", "--diff-filter=ACM"])
+  java_changes = [f for f in changed_files.split('\n') if f.endswith(".java")]
+  if len(java_changes) == 0:
+    return 0
+
+  # If the CHECKSTYLE_INCLUDE is set, filter out any files that
+  # don't contain substrings specified in CHECKSTYLE_INCLUDE.
+  include = os.getenv("CHECKSTYLE_INCLUDE")
+  if include:
+    include_substr = [f.strip() for f in include.split(';')]
+    java_changes = [f for f in java_changes if any(substr in f for substr in include_substr)]
+
+  # If the CHECKSTYLE_EXCLUDE is set, filter out any files that
+  # contain substrings specified in CHECKSTYLE_EXCLUDE.
+  exclude = os.getenv("CHECKSTYLE_EXCLUDE")
+  if exclude:
+    exclude_substr = [f.strip() for f in exclude.split(';')]
+    java_changes = [f for f in java_changes if not any(substr in f for substr in exclude_substr)]
+
+  if len(java_changes) == 0:
+    return 0
+
+  repo_home = subprocess.check_output(["git", "rev-parse", "--show-toplevel"]).rstrip('\n')
+  try:
+    checkstyle_jar = os.getenv("CHECKSTYLE_JAR")
+    if not checkstyle_jar:
+        print "Please set the CHECKSTYLE_JAR environment variable."
+        print "Download the checkstyle-<version>-all.jar from https://sourceforge.net/projects/checkstyle/files/checkstyle/"
+        return 1
+
+    checkstyle_config = os.getenv("CHECKSTYLE_CONFIG_PATH")
+    if not checkstyle_config:
+      checkstyle_config = find_checkstyle_xml(repo_home)
+      if not checkstyle_config:
+        print "No checkstyle.xml found in repository. Set CHECKSTYLE_CONFIG_PATH to the full path to the checkstyle config file."
+        return 1
+
+    command = ["java", "-jar", checkstyle_jar, "-c", checkstyle_config] + java_changes
+    print "Running checkstyle command:"
+    print " ".join(command)
+
+    output = subprocess.check_output(command)
+    formatted_output = format_checkstyle_output(output)
+    if len(formatted_output) > 0:
+      print "ENCOUNTERED CHECKSTYLE ERRORS:"
+      print formatted_output
+      print "*****"
+      print "COMMIT REJECTED! CHECK YO STYLE SON! Please fix checkstyle errors before committing."
+      print "****"
+      return 1
+    else:
+      print "CHECKSTYLE PASSED! GOOD JOB!"
+    return 0
+  except subprocess.CalledProcessError as err:
+    print err.output
+    return err.returncode
+
+if __name__ == "__main__":
+  sys.exit(main())

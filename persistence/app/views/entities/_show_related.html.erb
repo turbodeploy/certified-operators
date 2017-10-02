@@ -1,0 +1,230 @@
+
+<%
+   # default vis control to show all
+   unless @show_item
+     @show_item = {}
+     @show_item.default = true
+   end
+
+   @ft_view_section = {}
+%>
+
+
+<!-- BEGIN-UID.user_ctrls -->
+
+<!-- END-UID.user_ctrls -->
+
+
+<% @ft_view_section[:associations] = capture { %>
+<% if @show_item[:associations] then %>
+
+  <!-- Associations -->
+
+  <a name="associations"></a>
+
+  <div id="show_rel_associations" class="show_rel show_rel_associations">                                                 <!-- div28 -->
+    <div id="show_rel_associations_label" class="rel_label"> Associations &nbsp; <%= show_hide('show/hide','show_rel_associations_value')%> </div>        <!-- div29 -->
+
+    <div id="show_rel_associations_value" class="rel_value">                                                                           <!-- div30 -->
+        <ul style="margin-left:20px;">
+        <% for entity_assn in (@associations || []) %>
+        <li>
+        <% text = entity_assn.name.to_s %>
+        <% text = (auto_link(text)) %>
+        <% text = "&nbsp;" if text.length == 0 %>
+        <%= link_to entity_assn.iname, url_show(entity_assn), :class => "identity_link" %> 
+        </li>
+        <% end %>
+        </ul> 
+
+    </div>          <!-- div31 -->
+  </div>            <!-- div32 -->
+<% end %>
+<% } %>
+
+
+
+<% @ft_view_section[:attrs] = capture { %>
+<% if @show_item[:attrs] then %>
+
+  <!-- Attributes -->
+
+  <a name="attrs"></a>
+
+  <div id="show_rel_attrs" class="show_rel show_rel_attrs">                                                 <!-- div28 -->
+    <div id="show_rel_attrs_label" class="rel_label"> Attributes &nbsp; <%= show_hide('show/hide','show_rel_attrs_value')%> </div>        <!-- div29 -->
+
+    <div id="show_rel_attrs_value" class="rel_value">                                                                           <!-- div30 -->
+        <ul style="margin-left:20px;">
+        <% for entity_attr in (@attrs || []) %>
+        <li>
+        <% text = entity_attr.name.to_s %>
+        <% text = (auto_link(text)) %>
+        <% text = "&nbsp;" if text.length == 0 %>
+        <%= link_to entity_attr.iname, url_show(entity_attr), :class => "identity_link" %> 
+        </li>
+        <% end %>
+        </ul> 
+
+    </div>          <!-- div31 -->
+  </div>            <!-- div32 -->
+<% end %>
+<% } %>
+
+
+
+<% @ft_view_section[:member_associations] = capture { %>
+<% if @show_item[:member_associations] then %>
+
+  <!-- Member Associations -->
+
+  <a name="member_associations"></a>
+
+  <div id="show_rel_member_associations" class="show_rel show_rel_member_associations">                                                <!-- div33 -->
+    <div id="show_rel_member_associations_label" class="rel_label"> Member Associations &nbsp; <%= show_hide('show/hide','show_rel_member_associations_value')%></div>            <!-- div34 -->
+
+    <div id="show_rel_member_associations_value" class="rel_value">                                           <!-- div35 -->
+
+
+         <ul style="margin-left:20px;">
+
+<% if @member_associations != nil %>
+<% for entity_assn in (@member_associations.kind_of? Array) ? @member_associations : [ @member_associations ] %>
+         <li>
+        <% text = entity_assn.name.to_s %>
+        <% text = (auto_link(text)) %>
+        <% text = "&nbsp;" if text.length == 0 %>
+        <%= link_to entity_assn.iname, url_show(entity_assn), :class => 'identity_link' %> 
+        </li>
+<% end %>
+<% end %>
+         </ul> 
+
+    </div>           <!-- end div35 -->
+  </div>               <!-- end div33 -->
+<% end %>
+<% } %>
+
+
+
+<% @ft_view_section[:classifications] = capture { %>
+<% if @show_item[:classifications] then %>
+
+  <!-- Classifications -->
+
+  <a name="classifications"></a>
+
+  <div id="show_rel_classifications" class="show_rel show_rel_classifications">                                                <!-- div33 -->
+    <div id="show_rel_classifications_label" class="rel_label"> Classifications &nbsp; <%= show_hide('show/hide','show_rel_classifications_value')%></div>            <!-- div34 -->
+
+    <div id="show_rel_classifications_value" class="rel_value">                                           <!-- div35 -->
+
+
+         <ul style="margin-left:20px;">
+
+<% if @classifications != nil %>
+<% for classification in (@classifications.kind_of? Array) ? @classifications : [ @classifications ] %>
+         <li>
+        <% text = classification.name.to_s %>
+        <% text = (auto_link(text)) %>
+        <% text = "&nbsp;" if text.length == 0 %>
+        <%= link_to classification.iname, url_show(classification), :class => 'identity_link' %> 
+        </li>
+<% end %>
+<% end %>
+         </ul> 
+
+    </div>           <!-- end div35 -->
+  </div>               <!-- end div33 -->
+<% end %>
+<% } %>
+
+
+<% @ft_view_section_order = []
+   @ft_view_section_order << :associations
+   @ft_view_section_order << :attrs
+   @ft_view_section_order << :member_associations
+   @ft_view_section_order << :classifications
+%>
+
+<!-- BEGIN-UID.user_ordering -->
+
+<% @ft_view_section[:associations] = capture { %>
+<% if @show_item[:associations] then %>
+
+  <!-- Associations -->
+
+  <a name="associations"></a>
+
+  <div id="show_rel_associations" class="show_rel show_rel_associations">                                                 <!-- div28 -->
+    <div id="show_rel_associations_label" class="rel_label"> Associations &nbsp; <%= show_hide('show/hide','show_rel_associations_value')%> </div>        <!-- div29 -->
+
+    <div id="show_rel_associations_value" class="rel_value">                                                                           <!-- div30 -->
+        <ul style="margin-left:20px;">
+        <% for entity_assn in (@associations || []) %>
+        <li>
+        <%= entity_assn.iname %>
+	<ul style="list-style-type:none; margin-left:0;">
+	<% for e in entity_assn.members do %>
+	  <li><%= link_to e.iname, url_show(e) %></li>
+	<% end %>
+	</ul>
+        </li>
+        <% end %>
+        </ul>
+
+    </div>          <!-- div31 -->
+  </div>            <!-- div32 -->
+<% end %>
+<% } %>
+
+
+
+<% @ft_view_section[:member_associations] = capture { %>
+<% if @show_item[:member_associations] then %>
+
+  <!-- Member Associations -->
+
+  <a name="member_associations"></a>
+
+  <div id="show_rel_member_associations" class="show_rel show_rel_member_associations">                                                <!-- div33 -->
+    <div id="show_rel_member_associations_label" class="rel_label"> Member of Associations &nbsp; <%= show_hide('show/hide','show_rel_member_associations_value')%></div>            <!-- div34 -->
+
+    <div id="show_rel_member_associations_value" class="rel_value">                                           <!-- div35 -->
+
+
+         <ul style="margin-left:20px;">
+
+<% if @member_associations != nil %>
+<% for entity_assn in (@member_associations.kind_of? Array) ? @member_associations : [ @member_associations ] %>
+         <li>
+        <% text = "#{link_to(entity_assn.entity.iname, url_show(entity_assn.entity), :class => 'identity_link')} > #{entity_assn.name.to_s}" %>
+        <% text = (auto_link(text)) %>
+        <% text = "&nbsp;" if text.length == 0 %>
+        <%= text %>
+        </li>
+<% end %>
+<% end %>
+         </ul>
+
+    </div>           <!-- end div35 -->
+  </div>               <!-- end div33 -->
+<% end %>
+<% } %>
+
+
+
+
+<% @ft_view_section_order = []
+   # @ft_view_section_order << :classifications
+   # @ft_view_section_order << :attrs
+   @ft_view_section_order << :associations
+   @ft_view_section_order << :member_associations
+%>
+
+<!-- END-UID.user_ordering -->
+
+<% for s in @ft_view_section_order %>
+   <%= @ft_view_section[s].to_s %>
+<% end %>
+

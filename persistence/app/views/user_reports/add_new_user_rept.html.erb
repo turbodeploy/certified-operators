@@ -1,0 +1,38 @@
+
+<h3>New Custom Report</h3>
+
+<h5 style="margin:4px 30px;">Begin by selecting the type of report</h5>
+
+<div style="margin-left:30px; width:50%;">
+     <table class="thinline vmt_thinline" border="0" cellspacing="0" cellpadding="5">
+    <tr><th>&nbsp;</th><th>Report Type</th><th>Description</th></tr>
+    <% for t in  @available_tables %>
+      <tr>
+        <td><%= js_button_to "Select", :action => 'add_new_user_rept', :table => t[0]  %></td>
+        <td style="white-space: nowrap;"><%= t[1] %></td>
+        <td><%= t[2] %></td>
+      </tr>
+    <% end %>
+  </table>
+
+  <p>&nbsp;</p>
+</div>
+
+<h5 style="margin:4px 30px;">... or by copying an existing report</h5>
+
+<div style="margin-left:30px; width:50%;">
+     <table class="thinline vmt_thinline" border="0" cellspacing="0" cellpadding="5">
+    <tr><th>&nbsp;</th><th>Existing Report</th><th>Category</th><th>Description</th></tr>
+    <% for r in  @available_repts %>
+      <tr>
+        <td><%= js_button_to "Copy", :action => 'add_new_user_rept', :rept_id => r.id  %></td>
+        <td style="white-space: nowrap;"><%= r.title %></td>
+        <td style="white-space: nowrap;"><%= r.category %></td>
+        <td><%= r.description %></td>
+      </tr>
+    <% end %>
+  </table>
+
+  <p>&nbsp;</p>
+</div>
+

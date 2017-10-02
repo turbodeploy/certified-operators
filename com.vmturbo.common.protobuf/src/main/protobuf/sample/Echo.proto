@@ -1,0 +1,59 @@
+syntax="proto2";
+package sample;
+
+option java_package = "com.vmturbo.common.protobuf.sample";
+
+// These are the message and service definitions for the Echo Service
+// that the sample component provides.
+// See: http://www.grpc.io/docs/tutorials/basic/java.html
+
+// --- IMPORTANT NOTE: ---
+// This is the public interface to your component, and as such it should be documented thoroughly.
+// A new engineer should be able to figure out how to "use" your service based on the messages
+// and services here without looking at your component's implementation!!!
+
+// A request message. gRPC calls have exactly one input message
+// and one output message. For future flexibility and extensibility
+// it is often a good idea to have a generic "Request" and "Response"
+// message for every call.
+//
+// This is used in EchoService::SingleEcho below.
+message EchoRequest {
+
+    // The string the Echo Service should echo.
+    optional string echo = 1;
+}
+
+// This is the request message for EchoService::MultiEcho.
+message MultiEchoRequest {
+    // An echo request to issue.
+    optional EchoRequest request = 1;
+
+    // The number of times to request the echo.
+    // See EchoService::MultiEcho.
+    optional int32 times = 2;
+}
+
+// This is the response message from EchoService calls.
+message EchoResponse {
+
+    // The echo the client asked for in the request.
+    optional string echo = 1;
+}
+
+
+// All functionality belonging to a single theme should be in a single service (similar
+// to regular Java interfaces). Don't limit yourself to one service per component (unless that
+// component only provides one item of functionality).
+service EchoService {
+
+    // The SingleEcho call makes a single request and gets a single response.
+    // The "echo" in the request and response will be the same.
+    rpc SingleEcho(EchoRequest) returns (EchoResponse);
+
+    // The MultiEcho call makes a single request, but receives multiple responses.
+    // The number of response elements will be equal to MultiEchoRequest::times.
+    // The "echo" in each response will be the same as the one in the request.
+    rpc MultiEcho(MultiEchoRequest) returns (stream EchoResponse);
+}
+

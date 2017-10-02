@@ -1,0 +1,16 @@
+// This file contains mappings to help XL fake the existence
+// of Setting Managers that manage categories of settings in OpsMgr.
+//
+// See the comments on SettingsMapper#SettingManagerMapping for more
+// information.
+{
+  "managersByUuid" : {
+    "automationmanager": {
+      "displayName": "Action Mode Settings",
+      "defaultCategory": "Automation",
+      "settings": [
+        "moveVM"
+      ]
+    }
+  }
+}

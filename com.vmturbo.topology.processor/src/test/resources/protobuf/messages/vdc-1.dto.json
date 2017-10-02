@@ -1,0 +1,41 @@
+{
+  "entityType": "VIRTUAL_DATACENTER",
+  "id": "XXX-XXX-000-999",
+  "displayName": "CDV-1",
+  "commoditiesSold": [
+    {
+      "commodityType": "MEM_ALLOCATION",
+      "key": "P1",
+      "used": 5000.0,
+      "capacity": 100000.0,
+      "peak": 8000.0
+    }
+  ],
+  "powerState": "POWERED_ON",
+  "providerPolicy": {
+    "availableForPlacement": false
+  },
+  "virtual_datacenter_data": {
+    "pmUuid": [
+      "UID-PM1-111-111",
+      "UID-PM2-222-222",
+      "UID-PM3-333-333"
+    ],
+    "vmUuid": [
+      "UID-VM1-000-111",
+      "UID-VM2-000-222",
+      "UID-VM3-000-333"
+    ],
+    "vdc_type_props": {
+      "role": "PRODUCER",
+      "nestedConsumer": true
+    }
+  },
+  "entityProperties": [
+    {
+      "name": "A Key",
+      "namespace": "A namespace",
+      "value": "A Value"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+
+<%
+  @ft_subject = "Report Subscription".pluralize
+  @ft_activity = "Import from CSV"
+%>
+
+<h3>Import CSV File of Report Subscription Information</h3>
+
+<p style="font-weight:bold; margin:0px;">Please use this CSV Header Row</p>
+<p style="margin:0px;color:navy;"> <table border="1"><tr><td><%=ReportSubscription.csv_header_row.gsub(",","</td><td>")%></td></tr></table></p>
+
+<blockquote>
+Note: CSV Upload will add or update database rows matching Report Subscription <%="email".pluralize%> 
+from the CSV file. Empty CSV columns are ignored, preserving the current value of the column for that row in the database. 
+</blockquote>
+
+<%= form_tag( { :action => 'upload_csv' }, { :enctype => 'multipart/form-data' } ) %>
+  <p>
+    <b>CSV File:</b><br />
+    <input type="file" name="csv_file" size="50"/>
+  </p>
+
+  <p><input type="submit" name="save" value="Upload"/></p>
+</form> <!-- end form_tag -->
+

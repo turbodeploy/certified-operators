@@ -1,0 +1,72 @@
+{
+  "fileToGenerate": ["TestDTO.proto"],
+  "protoFile": [{
+    "name": "TestDTO.proto",
+    "package": "com.vmturbo.protoc.spring.rest.testImport",
+    "messageType": [{
+      "name": "Bar",
+      "field": [{
+        "name": "yay",
+        "number": 1,
+        "label": "LABEL_OPTIONAL",
+        "type": "TYPE_ENUM",
+        "typeName": ".com.vmturbo.protoc.spring.rest.testImport.Bar.AnotherEnum",
+        "jsonName": "yay"
+      }],
+      "enumType": [{
+        "name": "AnotherEnum",
+        "value": [{
+          "name": "YAY",
+          "number": 1
+        }]
+      }]
+    }],
+    "sourceCodeInfo": {
+      "location": [{
+        "span": [0, 0, 8, 1]
+      }, {
+        "path": [12],
+        "span": [0, 0, 18]
+      }, {
+        "path": [2],
+        "span": [1, 8, 49]
+      }, {
+        "path": [4, 0],
+        "span": [3, 0, 8, 1]
+      }, {
+        "path": [4, 0, 1],
+        "span": [3, 8, 11]
+      }, {
+        "path": [4, 0, 4, 0],
+        "span": [4, 4, 6, 5]
+      }, {
+        "path": [4, 0, 4, 0, 1],
+        "span": [4, 9, 20]
+      }, {
+        "path": [4, 0, 4, 0, 2, 0],
+        "span": [5, 8, 16]
+      }, {
+        "path": [4, 0, 4, 0, 2, 0, 1],
+        "span": [5, 8, 11]
+      }, {
+        "path": [4, 0, 4, 0, 2, 0, 2],
+        "span": [5, 14, 15]
+      }, {
+        "path": [4, 0, 2, 0],
+        "span": [7, 4, 33]
+      }, {
+        "path": [4, 0, 2, 0, 4],
+        "span": [7, 4, 12]
+      }, {
+        "path": [4, 0, 2, 0, 6],
+        "span": [7, 13, 24]
+      }, {
+        "path": [4, 0, 2, 0, 1],
+        "span": [7, 25, 28]
+      }, {
+        "path": [4, 0, 2, 0, 3],
+        "span": [7, 31, 32]
+      }]
+    }
+  }]
+}

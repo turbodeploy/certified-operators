@@ -1,0 +1,714 @@
+syntax = "proto2";
+package action;
+
+option java_package = "com.vmturbo.common.protobuf.action";
+
+import "topology/TopologyDTO.proto";
+
+message ProbeActionPolicy {
+    // Entity type which the policy is applied to
+    optional int32 entity_type = 1;
+
+    // Action policy elements (for every supported action type)
+    repeated ActionPolicyElement policy_element = 2;
+
+    // Policy applied to a particular action type
+    message ActionPolicyElement {
+        // Action type
+        //required ActionItemDTO.ActionType actionType = 1;
+        optional ActionType action_type = 1;
+
+        // Action execution capability
+        optional ActionCapability action_capability = 2;
+    }
+
+    // Defines how action can be executed by the probe
+    enum ActionCapability {
+        // The action does not make sense for the probe. Actions of this type should not be shown
+        // to the user.
+        NOT_SUPPORTED = 1;
+
+        // The probe does not support executing the action, but it may still make sense to display
+        // actions of this type to the user. For example, VSTORAGE resize is not supported in VCenter,
+        // but many users still wish to see actions of this type.
+        NOT_EXECUTABLE = 2;
+
+        // The probe supports execution of the action. Actions of this type are displayed to the user.
+        SUPPORTED = 3;
+    }
+}
+
+message Explanation {
+   oneof action_explanation_type {
+       MoveExplanation move = 1;
+       ResizeExplanation resize = 2;
+       ActivateExplanation activate = 3;
+       DeactivateExplanation deactivate = 4;
+       ReconfigureExplanation reconfigure = 5;
+       ProvisionExplanation provision = 6;
+   }
+   // A list of explanations for move action.
+    message MoveExplanation {
+        oneof move_explanation_type {
+            Compliance compliance = 1;
+            Congestion congestion = 2;
+            Evacuation evacuation = 3;
+            InitialPlacement initialPlacement = 4;
+            Performance performance = 5;
+        }
+        // A move explanation suggesting unavailability of commodities.
+        message Compliance {
+            // A list of commodities' base type which are missing in current supplier.
+            repeated int32 missing_commodities = 1;
+        }
+
+        // A move explanation suggesting commodity congestion.
+        message Congestion {
+            // A list of commodities' base type which are cheaper at the destination.
+            repeated int32 congested_commodities = 1;
+        }
+
+        // A move explanation suggesting evacuation of buyers.
+        message Evacuation {
+            // A trader which was suspended so buyers of it should move out.
+            required int64 suspended_entity = 1;
+        }
+
+        // A move explanation suggesting initial placement of buyer.
+        message InitialPlacement {}
+
+        // A move explanation suggesting an overall performance improvement.
+        message Performance {}
+    }
+
+    // A resize explanation contains start and end utilization of the resize commodity.
+    message ResizeExplanation {
+        required float start_utilization = 1;
+        required float end_utilization = 2;
+    }
+
+    // An activate explanation contains the base type of the most expensive commodity.
+    message ActivateExplanation {
+        required int32 most_expensive_commodity = 1;
+    }
+
+    // Deactivate explanation will always be improve overall efficiency.
+    message DeactivateExplanation {}
+
+    // Reconfigure explanation contains the base type of the reconfigure commodity.
+    message ReconfigureExplanation {
+        repeated int32 reconfigure_commodity = 1;
+    }
+
+    message ProvisionExplanation {
+        oneof provision_explanation_type {
+            ProvisionBySupplyExplanation provision_by_supply_explanation = 1;
+            ProvisionByDemandExplanation provision_by_demand_explanation = 2;
+        }
+        // Provision by supply explanation contains the base type of the most expensive commodity.
+        message ProvisionBySupplyExplanation {
+            required int32 most_expensive_commodity = 1;
+        }
+
+        // Provision by demand explanation
+        message ProvisionByDemandExplanation {
+            // The OID of the entity which has a shopping list that can't be satisfied by any provider.
+            required int64 buyer_id = 1;
+
+            // A list of entries keep information about commodities whose capacity needs to be changed to accommodate
+            // the demand and their new capacity.
+            repeated CommodityNewCapacityEntry commodity_new_capacity_entry = 2;
+
+            // A list of entries keep commodities whose requested quantity can not be satisfied and
+            // the max amount from any provider in market.
+            repeated CommodityMaxAmountAvailableEntry commodity_max_amount_available = 5;
+
+            // An entry in commodity to new capacity map. The key is base type of a commodity whose
+            // capacity needs to be changed to satisfy the demand. The value is the new capacity for
+            // that commodity.
+            message CommodityNewCapacityEntry {
+                required int32 commodity_base_type = 1;
+                required float new_capacity = 2;
+            }
+
+            // An entry in commodity to max amount available from sellers map. The key is base type of a
+            // commodity whose requested quantity can not be satisfied. The value is the max amount that
+            // from any provider in market and the requested amount from the buyer.
+            message CommodityMaxAmountAvailableEntry {
+                required int32 commodity_base_Type = 1;
+                required float max_amount_available = 2;
+                required float requested_amount = 3;
+            }
+        }
+    }
+
+}
+
+// Move a topology entity from source
+// to destination.
+message Move {
+    // ID of the entity that's getting moved.
+    required int64 target_id = 1;
+
+    // ID of the entity that's the current location of the target.
+    required int64 source_id = 2;
+
+    // ID of the entity that's the new location of the target.
+    required int64 destination_id = 3;
+}
+
+// Resize a commodity on a specific
+// entity.
+message Resize {
+    // ID of the entity where the resize should take place.
+    required int64 target_id = 1;
+
+    // The commodity that's being resized.
+    optional topology.CommodityType commodityType = 2;
+
+    // The expected old capacity.
+    optional float old_capacity = 3;
+
+    // The recommended capacity.
+    optional float new_capacity = 4;
+}
+
+// Activate an existing deactivated entity.
+message Activate {
+    // ID of the entity to activate.
+    required int64 target_id = 1;
+
+    // The in-demand commodities that triggered the activation
+    // recommendation. These are guaranteed to be a subset of
+    // the commodities sold by the entity.
+    repeated topology.CommodityType triggering_commodities = 2;
+}
+
+// Deactivate an existing active entity.
+message Deactivate {
+    // ID of the entity to deactivate.
+    required int64 target_id = 1;
+
+    // The not-in-demand commodities that triggered the deactivation
+    // recommendation. These are guaranteed to be a subset of
+    // the commodities sold by the entity.
+    repeated topology.CommodityType triggering_commodities = 2;
+}
+
+// Represents an action to reconfigure an entity shopping list of a trader that contains a mix of
+// commodities no trader is able to provide.
+// An example of a Reconfigure action is when a VM is configured to run with some network (say "VLAN-1")
+// but the host it is currently running on doesn't have this network configured (i.e. doesn't provide
+// access to that network). From a market perspective, the VM is buying a NetworkCommodity with key "VLAN-1"
+// but the host doesn't sell this commodity. The Reconfigure action tells the user that s/he needs to
+// (re)configure the host to provide access to that network. It should be possible to automate the execution
+// of this action, but I am not sure we have. Similarly when a VM is configured to use some storage that is
+// not mounted on the host that the VM is currently running on. For both configuration issues, another remedy
+// is to move the VM to a host that does have access to the network/storage.
+message Reconfigure {
+    // The OID of the entity to reconfigure.
+    required int64 target_id = 1;
+
+    // The OID of the current supplier. Assumed null if missing. It is included for the cases where
+    // a trader is buying a particular shopping list from a supplier that isn't supplying the
+    // complete list and no supplier can supply the complete list.
+    optional int64 source_id = 2;
+
+    // TODO (davidblinn, July 2016): We also need to record the shopping list that caused the change.
+}
+
+// An action to provision an entity that matches another entity already existing in the system.
+message Provision {
+    // The OID of an entity to clone.
+    required int64 entity_to_clone_id = 1;
+
+	// The OID of the newly provisioned entity (that does not yet exist in the system).
+	// TODO: Make this non-negative per feedback from Jerry. Need to coordinate this with the market folks.
+    optional sint64 provisioned_seller = 2;
+}
+
+// Contains the information describing the recommendation for what
+// action should be executed in the environment.
+message ActionInfo {
+    // You can infer the ActionType enum to describe this action
+    // based on which oneof field is set.
+    oneof action_type {
+        Move move = 1;
+        Reconfigure reconfigure = 2;
+        Provision provision = 3;
+        Resize resize = 4;
+        Activate activate = 5;
+        Deactivate deactivate = 6;
+    }
+}
+
+message Action {
+    // ID for the action.
+    required int64 id = 1;
+
+    required ActionInfo info = 2;
+
+    // The importance signifies a relative weight of the action. The one with the higher
+    // importance should be taken first.
+    required double importance = 3;
+
+    // The explanation for the action
+    required Explanation explanation = 4;
+
+    // Indicates whether the market considers the action to be executable based on its dependency
+    // ordering of actions. There is a high liklihood of non-executable actions not succeeding
+    // because another action should be executed first.
+    optional bool executable = 5;
+}
+
+// Actions the market recommends.
+message ActionPlan {
+    // The ID of the plan.
+    required int64 id = 1;
+
+    // The ID of the topology this action plan applies to.
+    optional int64 topology_id = 2;
+
+    // The ID of the topology context. Used to differentiate, for example, between real and plan contexts.
+    // If not set, it is an error.
+    optional int64 topology_context_id = 3;
+
+    // The order of the actions is important, and the recommendations
+    // are based on actions executing in the order they appear
+    // in this list.
+    repeated Action action = 17;
+}
+
+// ActionMode must be nested in a message type because the DISABLED variant otherwise clashes
+// with the DISABLED variant in ActionState
+// The ActionMode determines the automation status of a class of actions.
+enum ActionMode {
+    // The recommendation and execution of this action is disabled. The user
+    // credited with disabling a disabled action is the user that created the policy
+    // that assigned this mode to the action.
+    DISABLED = 0;
+
+    // The recommendation will be shown to the user in the UI but cannot be executed
+    // by the system.
+    RECOMMEND = 1;
+
+    // The recommendation will be shown to the user in the UI and can be optionally
+    // executed or dismissed. The user credited with accepting or rejecting the action
+    // is the user that made the decision, not the user that set the policy.
+    MANUAL = 2;
+
+    // The recommendation will be automatically executed by the system. The user credited
+    // with executing an automated action is the user that created the policy that
+    // assigned this mode to the action.
+    AUTOMATIC = 3;
+}
+
+// The ActionType describes what type of action should be performed.
+enum ActionType {
+    // An unknown action type
+    NONE = 0;
+
+    // Start a service entity. May be recommended by the market as a move from nothing to something.
+    START = 1;
+
+    // Move a service entity from one provider to another.
+    MOVE = 2;
+
+    // Suspend a service entity. Suspended service entities may be subsequently restarted via a START command.
+    SUSPEND = 3;
+
+    // Provision a new service entity.
+    PROVISION = 4;
+
+    // Supply a service entity with a new configuration.
+    RECONFIGURE = 5;
+
+    // Resize (either up or down) a service entity.
+    RESIZE = 6;
+
+    // Activate a non-active service entity.
+    ACTIVATE = 7;
+
+    // Deactivate an active service entity.
+    DEACTIVATE = 8;
+}
+
+// The ActionState describes the current state of an action.
+// The possible state transitions are:
+//
+// READY
+//   |-> CLEARED
+//   |-> QUEUED ---------> IN_PROGRESS
+//                             |-------> SUCCEEDED
+//                             |-------> FAILED
+enum ActionState {
+    // An action that is READY is one that has not yet been decided by the system.
+    // Changes in policy that affect actions in the READY state will be applied to those actions
+    // and potentially cause them to be decided at that point.
+    READY = 0;
+
+    // An action that has been CLEARED is one that was at one time recommended by the market but
+    // is now no longer. Actions in DISABLED mode are not immediately CLEARED. Instead, they
+    // stay in the READY state but are not shown in the UI or executed.
+    CLEARED = 1;
+
+    // Actions in the QUEUED state have been accepted (ie by a user or policy), but cannot be executed
+    // because, for instance, the target associated with the action is busy processing many other
+    // actions and would be overwhelmed by sending additional requests.
+    QUEUED = 2;
+
+    // An action that is currently being executed.
+    IN_PROGRESS = 3;
+
+    // A completed action that has completed successfully.
+    SUCCEEDED = 4;
+
+    // A completed action that has completed but had errors.
+    FAILED = 5;
+}
+
+// The ActionDecision provides information about why OperationsManager
+// decided to execute or not to execute a particular action.
+message ActionDecision {
+
+    // The time at which the decision was made. Milliseconds since the unix epoch.
+    optional int64 decisionTime = 1;
+
+    // An action may be undecided, executed, or cleared.
+    oneof decision {
+        ExecutionDecision execution_decision = 2;
+        ClearingDecision clearing_decision = 3;
+    }
+
+    // Explains why an action was executed and who accepted the action to execute it.
+    message ExecutionDecision {
+        enum Reason {
+            MANUALLY_ACCEPTED = 1;
+            AUTOMATICALLY_ACCEPTED = 2;
+        }
+
+        // The reason why the action was decided to be executed.
+        required Reason reason = 1;
+
+        // Executed actions may only be attributed to users.
+        // When manually accepted, this will be the ID of the user who manually accepted it.
+        // When automatically accepted, this will be the ID of the user who configured the
+        // setting to automatically accept it.
+        required int64 userId = 2;
+    }
+
+    // Explains why an action was not executed and what in the system caused it
+    // to not be executed.
+    message ClearingDecision {
+        enum Reason {
+            NO_LONGER_RECOMMENDED = 1;
+            PROBE_UNABLE_TO_EXECUTE = 2;
+        }
+
+        // The reason why the action was decided NOT to be executed.
+        required Reason reason = 1;
+
+        // Describes what in the system in the system caused the action not to be executed.
+        oneof attributionId {
+            // When NO_LONGER_RECOMMENDED, this will be the ID of the first action plan
+            // after the initial recommendation that did not recommend the action anymore.
+            int64 actionPlanId = 2;
+
+            // When PROBE_UNABLE_TO_EXECUTE, this will be the ID of that probe.
+            int64 probeId = 3;
+        }
+    }
+}
+
+// Severity categories express the urgency a user should apply in addressing a particular
+// action recommendation. In the context of an entity, severity is calculated as the most severe
+// action for all actions that apply to a particular service entity.
+enum Severity {
+    NORMAL = 1;     // Indicates a normal state. An entity in a normal state is considered healthy.
+    MINOR = 2;      // The action will improve the situation in the user's environment,
+                    // but if not addressed, unlikely to have serious consequences.
+    MAJOR = 3;      // The action has some urgency.
+    CRITICAL = 4;   // The most critical category, these actions should be addressed immediately.
+}
+
+// The state of an action step.
+// Composite or multi-step actions may have multiple execution steps.
+message ExecutionStep {
+    enum Status {
+        // Indicates the operation is waiting for earlier steps to complete before
+        // it can be executed.
+        QUEUED = 1;
+
+        // Indicates the operation is in progress.
+        IN_PROGRESS = 2;
+
+        // Indicates the operation has completed and succeeded.
+        SUCCESS = 3;
+
+        // Indicates the operation has completed and failed.
+        FAILED = 4;
+    }
+
+    // The time at which this step of the action was queued to be executed.
+    // If an action is ready to execute as soon as it is queued, the transition will be immediate.
+    // Milliseconds since the unix epoch.
+    optional int64 enqueueTime = 1;
+
+    // The time at which this step of the action started execution.
+    // Milliseconds since the unix epoch.
+    optional int64 startTime = 2;
+
+    // The time at which this step of the action completed.
+    // Initialized to null, and set to the current time when the action completes.
+    optional int64 completionTime = 3;
+
+    // The status of this step in the action's execution.
+    optional Status status = 4;
+
+    // Any errors that occurred with the action step. The list will be empty if there have been no errors.
+    repeated string errors = 5;
+
+    // The ID of the target assigned to execute the action.
+    optional int64 targetId = 6;
+
+    // The progress of the execution step. A percentage (0-100). Only meaningful for steps that are IN_PROGRESS.
+    optional int32 progressPercentage = 7;
+
+    // A description of what the probe is currently executing as part of this step (ie "Moving VM...").
+    // Only meaningful on actiosn that are IN_PROGRESS.
+    optional string progressDescription = 8;
+}
+
+// An ActionSpec maintains the state of an action in the system.
+// It contains information necessary to execute the action as well as the
+// execution state of the action.
+message ActionSpec {
+    // The recommended steps to take in the environment.
+    optional Action recommendation = 1;
+
+    // The execution step associated with an action that is being executed.
+    // If the action has not begun to be executed, will be empty.
+    //
+    // TODO: composite or multi-step actions may require more than one step to complete execution.
+    // TODO: (per Roman) Perhaps this can be an "optional ActionExecutionSpec" then, where the
+    // TODO: ActionExecutionSpec will currently just have an optional ExecutionStep for the current execution step?
+    optional ExecutionStep executionStep = 2;
+
+    // The time at which this action was recommended.
+    // Milliseconds since the unix epoch.
+    optional int64 recommendationTime = 3;
+
+    // The explanation of the action to be displayed to the user.
+    // An explanation describes the purpose of the action and how it will improve the user's
+    // environment in understandable terms.
+    optional string explanation = 4;
+
+    // The ActionDecision provides information about why OperationsManager
+    // decided to execute or not to execute a particular action.
+    // Not provided if no decision has been made.
+    optional ActionDecision decision = 5;
+
+    // The mode of the action. The action mode is established by checking the policy for the action
+    // when it is received by the action orchestrator.
+    optional ActionMode actionMode = 6;
+
+    // The state of the action. The state of an action may change due to certain user actions or system events.
+    // The initial state is determined by the action mode.
+    optional ActionState actionState = 7;
+
+    // The ID of the action plan to which this action's recommendation belongs.
+    optional int64 actionPlanId = 8;
+
+    // Whether the action is ready to be executed. Actions that require other actions to successfully execute
+    // before they can be executed are not considered executable. Actions that are already being executed
+    // or have been executed are not considered executable.
+    optional bool isExecutable = 9;
+
+    // The category of the action. It is consumed by UI to indicate if the effect of the action is
+    // assure performance, improve efficiency, prevention or compliance.
+    optional string category = 10;
+}
+
+// A filter to be supplied with action queries.
+message ActionQueryFilter {
+    // If true, include only externally visible actions in the response.
+    // If false, include only non-externally visible actions.
+    // If not present, the field is not used to filter.
+    // Right now the visibility logic is baked into the Action Orchestrator
+    // via this boolean. In the future we may want to offer a more flexible
+    // query interface (e.g. support getting actions that match a particular
+    // set of modes/states/decisions).
+    optional bool visible = 1;
+
+    // Include only actions in the given states.
+    repeated ActionState states = 2;
+
+    // Include only actions that involve any of these entities.
+    optional InvolvedEntities involvedEntities = 3;
+
+    message InvolvedEntities {
+        // The oids of the involved entities.
+        repeated int64 oids = 11;
+    }
+}
+
+// A message used to address a single action within a topology context.
+message SingleActionRequest {
+    // The topology context the action belongs to.
+    // There is one real-time topology context, and a context per-plan.
+    optional int64 topology_context_id = 1;
+
+    // The ID of the action being addressed.
+    optional int64 action_id = 2;
+}
+
+// A message used to address multiple actions within a topology context.
+message MultiActionRequest {
+    // The topology context the actions belongs to.
+    // There is one real-time topology context, and a context per-plan.
+    optional int64 topology_context_id = 1;
+
+    // The IDs of the actions being addressed.
+    repeated int64 action_ids = 2;
+}
+
+// A message used to retrieve all actions within a topology context.
+message FilteredActionRequest {
+    // The topology context for which to retrieve actions.
+    // There is one real-time topology context, and a context per-plan.
+    optional int64 topology_context_id = 1;
+
+    // A filter to be applied to the actions retrieved. If no filter is supplied
+    // all actions are returned.
+    optional ActionQueryFilter filter = 2;
+}
+
+// The response to an AcceptAction request.
+message AcceptActionResponse {
+    // The spec for the action that was successfully accepted.
+    // Only present if the action was successfully accepted.
+    optional ActionSpec action_spec = 1;
+
+    // An error describing why the action could not be accepted.
+    // Only present if the action could not be accepted.
+    optional string error = 2;
+}
+
+message ActionOrchestratorAction {
+    // The ID of the action in the system.
+    optional int64 action_id = 1;
+
+    // The description of the action in the system. May not be present
+    // if a client requests information about an unknown action id.
+    optional ActionSpec action_spec = 2;
+}
+
+// A request for information about topology contexts known to the action service.
+message TopologyContextInfoRequest {
+    // Currently empty.
+}
+
+// Information about the actions within a given topology context.
+message TopologyContextResponse {
+    // The topology context the actions belongs to.
+    // There is one real-time topology context, and a context per-plan.
+    optional int64 topology_context_id = 1;
+
+    // The number of actions known for this context.
+    optional int32 action_count = 2;
+}
+
+// The request message to delete all actions associated with a topology context.
+message DeleteActionsRequest {
+    // The topology context for which to delete actions.
+    // This may be the context for a live or plan topology context.
+    optional int64 topology_context_id = 1;
+}
+
+// The response message to delete all actions associated with a topology context.
+// An error may be thrown if the context is not found or the operation fails.
+message DeleteActionsResponse {
+    // The topology context for which actions were deleted.
+    optional int64 topology_context_id = 1;
+
+    // The number of actions deleted.
+    optional int32 action_count = 2;
+}
+
+// The request message to GetActionCounts.
+// Allows the user to specify criteria that will affect the number
+// of actions in the response.
+message GetActionCountsRequest {
+    // The topology context for which to retrieve actions.
+    // There is one real-time topology context, and a context per-plan.
+    optional int64 topology_context_id = 1;
+
+    // A filter to be applied to the actions retrieved. If no filter is supplied
+    // all actions are returned.
+    optional ActionQueryFilter filter = 2;
+}
+
+// The response message to GetActionCounts.
+message GetActionCountsResponse {
+
+    // If necessary, this can be extracted into another message (e.g. if we want
+    // TopologyContextResponse to return organized action count information too.
+    // At the time of this writing (Feb 23, 2017) there are no users of TopologyContextResponse,
+    // so deferring the extraction for later).
+
+    // The number of actions of a specific type that match the criteria in
+    // the request.
+    message TypeCount {
+
+        // The type of the action this message pertains to.
+        optional ActionType type = 1;
+
+        // The number of actions of the type that match the request criteria.
+        optional int64 count = 2;
+    }
+
+    // The total number of actions matching the criteria in the request.
+    optional int64 total = 1;
+
+    // The actions in the request organized by type.
+    // Each ActionType will appear at most once in this list, so the maximum size of the list
+    // is the number of distinct ActionType values.
+    // The order of the list (w.r.t. TypeCount.type) is not guaranteed.
+    repeated TypeCount counts_by_type = 2;
+}
+
+// A service responsible for getting information about accepting actions and getting action information.
+service ActionsService {
+    // Accepts an action, queueing it for execution.
+    //
+    // The action execution is asynchronous, and this method returns as soon as
+    // the Action Orchestrator processes the accept.
+    //
+    // It currently only makes sense to execute actions belonging to the real-time topology context.
+    rpc AcceptAction(SingleActionRequest) returns (AcceptActionResponse);
+
+    // Get information about an action. If you want information about multiple
+    // actions use getActions instead of using this method multiple times.
+    rpc GetAction(SingleActionRequest) returns (ActionOrchestratorAction);
+
+    // Get information about all actions the Action Orchestrator knows about for an a given context.
+    rpc GetAllActions(FilteredActionRequest) returns (stream ActionOrchestratorAction);
+
+    // Get information about multiple actions in a topology context.
+    // If an ID present in the IDs in the MultiActionRequest
+    rpc GetActions(MultiActionRequest) returns (stream ActionOrchestratorAction);
+
+    // Get information for the topology contexts and their associated actions known to this service.
+    rpc GetTopologyContextInfo(TopologyContextInfoRequest) returns (stream TopologyContextResponse);
+
+    // Delete all actions associated with a particular topology context.
+    rpc DeleteActions(DeleteActionsRequest) returns (DeleteActionsResponse);
+
+    // Get information about the counts of actions that match a set of criteria.
+    // The purpose of the method is to avoid retrieving the actual action objects when only the
+    // number of actions is required, thereby saving time and resources.
+    //
+    // Returns a NOT_FOUND status if the ActionService doesn't know about the
+    // GetActionCountsRequest.topology_context_id.
+    rpc GetActionCounts(GetActionCountsRequest) returns (GetActionCountsResponse);
+}

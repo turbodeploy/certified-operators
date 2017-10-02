@@ -1,0 +1,36 @@
+#!/bin/bash
+user=$1
+passw=$2
+
+/usr/sbin/useradd -d /home/${user} -g wheel -m -r -s /bin/bash ${user}
+if [[ $? != 0 ]]; then
+    exit 1
+fi
+
+echo "${user}:${passw}" | /usr/sbin/chpasswd
+if [[ $? != 0 ]]; then
+    exit 1
+fi
+
+cat <<EOF >/home/${user}/.bashrc
+if [ -f /etc/bashrc ]; then
+    . /etc/bashrc
+fi
+
+alias l='ls -la'
+alias c=clear
+alias more=less
+alias m=less
+
+LESS="-i -j4 -M -X -J"
+export LESS
+PAGER=less
+export PAGER
+
+PATH="/usr/local/bin:\$PATH"
+
+export PS1="[\w]
+=> "
+EOF
+chown ${user}:wheel /home/${user}/.bashrc
+

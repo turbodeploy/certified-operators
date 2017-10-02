@@ -1,0 +1,46 @@
+
+<%
+  number_pattern = /^[0-9]+(\.[0-9]+)?(E.*)?$/
+%>
+
+<% if @show_links %>
+  <div style="text-align: right; margin:0 20px -16px 0;">
+                    <%= link_to "Printable", {:controller => 'user_reports', :action => 'view', :id => @user_report, :format => 'html'},
+                                          :style => "text-decoration:underline; font-family:Arial; font-size:8pt;" %>
+                    &nbsp;
+                    <%= link_to "PDF", {:controller => 'user_reports', :action => 'as_pdf', :id => @user_report},
+                                          :style => "text-decoration:underline; font-family:Arial; font-size:8pt;" %>
+                    &nbsp;
+                    <%= link_to "CSV", {:controller => 'user_reports', :action => 'as_csv', :id => @user_report, :format => 'csv'},
+                                          :style => "text-decoration:underline; font-family:Arial; font-size:8pt;" %>
+                    &nbsp;
+                    <%= link_to "XML", {:controller => 'user_reports', :action => 'as_xml', :id => @user_report, :format => 'xml'},
+                                          :style => "text-decoration:underline; font-family:Arial; font-size:8pt;" %>
+  </div>
+<% end %>
+
+<p style="color:#6688AA; font-weight:bold; font-size:large; margin:8px 0;"><%= @user_report.title.to_s %></p>
+
+<% unless @user_report.description.to_s.empty? %>
+<p style="margin:10px 0 16px 20px;"><i>Description</i> &mdash; <%= @user_report.description.to_s %></p>
+<% end %>
+
+<table class="thinline vmt_thinline" border="0" cellspacing="0">
+  <tr>
+    <% for f in @arr_fields %>
+      <th><%= f.titleize.gsub("Property Value","Value") %></th>
+    <% end %>
+  </tr>
+  <% for @row in @rows do %>
+    <tr>
+      <% for f in @arr_fields do %>
+        <% val = @row.send(f) %>
+        <td style="text-align:<%= val =~ number_pattern ? "right" : "left" %>;"> <%= val%> </td>
+      <% end %>
+    </tr>
+  <% end %>
+</table>
+
+<% if @rows.size == 0 then %>
+  <p>No rows match</p>
+<% end %>

@@ -1,0 +1,49 @@
+
+  {
+    "entityType": 33,
+    "oid": "71799586836370",
+    "displayName": "GuestLoad[tak_test1]",
+    "commodityBoughtMap": {
+      "71799586836273": {
+        "commodityBought": [
+          {
+            "commodityType": {
+              "type": 26,
+              "key": ""
+            },
+            "used": 0,
+            "peak": 0,
+            "active": true
+          },
+          {
+            "commodityType": {
+              "type": 56,
+              "key": "VirtualMachine::421df0fa-f96b-ccec-a115-24871fbb413c"
+            },
+            "used": 1,
+            "peak": 0,
+            "active": true
+          },
+          {
+            "commodityType": {
+              "type": 53,
+              "key": ""
+            },
+            "used": 0,
+            "peak": 0,
+            "active": true
+          }
+        ]
+      }
+    },
+    "entityState": "POWERED_ON",
+    "entityPropertyMap": {
+      "origin": "PROXY",
+      "common_dto.EntityDTO.ApplicationData.type": "GuestLoad",
+      "shopTogether": "false",
+      "LocalName": "vm-72"
+    },
+    "providerPolicy": {
+      "isAvailableAsProvider": true
+    }
+  }

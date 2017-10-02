@@ -1,0 +1,64 @@
+{
+    "variables": {
+        "iso_name": "CentOS-7-x86_64-DVD-1511.iso",
+        "ssh_timeout": "20m"
+    },
+    "builders": [
+        {
+            "type": "vmware-iso",
+            "guest_os_type": "centos-64",
+            "headless": "false",
+            "format": "ova",
+            "output_directory": "turbonomic_xl",
+            "iso_url": "http://mirrors.sonic.net/centos/7/isos/x86_64/CentOS-7-x86_64-Minimal-1611.iso",
+            "iso_checksum": "71a7aa147877b413497cdff5b1e0aa5bc0c9484f",
+            "iso_checksum_type": "sha1",
+            "vm_name": "turbonomic_xl",
+            "vmdk_name": "turbonomic_xl",
+            "http_directory": "http",
+            "boot_wait": "10s",
+            "shutdown_command": "shutdown -h now",
+            "floppy_files": [
+                "http/ks.cfg"
+            ],
+            "boot_command": "<tab> text ks=hd:fd0:/ks.cfg <enter><wait>",
+            "disk_size": 204800,
+            "vmx_data": {
+                "virtualHW.version": "9",
+                "ethernet0.present": "true",
+                "ethernet0.virtualDev": "e1000",
+                "memsize": "16384",
+                "numvcpus": "4",
+                "cpuid.coresPerSocket": "1"
+            },
+            "ssh_username": "root",
+            "ssh_password": "vmturbo",
+            "ssh_timeout": "3600s",
+            "ssh_port": 22,
+            "ssh_pty": true
+        }
+    ],
+    "provisioners": [
+        {
+            "type": "file",
+            "source": "initial_setup",
+            "destination": "/root"
+        },
+        {
+            "type": "file",
+            "source": "binaries/netedit",
+            "destination": "/opt/netedit"
+        },
+        {
+            "type": "shell",
+            "execute_command": "bash '{{ .Path }}'",
+            "scripts": [
+                "scripts/base.sh",
+                "scripts/packages.sh",
+                "scripts/vmware.sh",
+                "scripts/docker.sh",
+                "scripts/cleanup.sh"
+            ]
+        }
+    ]
+}

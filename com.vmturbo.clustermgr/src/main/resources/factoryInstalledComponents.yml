@@ -1,0 +1,197 @@
+# This represents a "factory-configured" list of the VmtComponent types we know of a-priori. This property is used
+#      to initialize the Consul key/value store. Going forward, new VmtComponent types may be added via the API.
+action-orchestrator:
+  marketHost: 'market'
+  topologyProcessorHost: 'topology-processor'
+  dbHost: 'db'
+  dbPort: 3306
+  authHost: 'auth'
+  authPort: 8080
+  # TODO: Remove from source control and instead get these values from the auth component.
+  dbUsername: 'root'
+  dbSchemaName: 'action'
+  sqlDialect: 'MARIADB'
+  grpcPingIntervalSeconds: 300
+  websocket.pong.timeout: 30000
+  mariadbHealthCheckIntervalSeconds: 60
+
+market:
+  topologyProcessorHost: 'topology-processor'
+  grpcPingIntervalSeconds: 300
+  identityGeneratorPrefix: 2
+  websocket.pong.timeout: 30000
+
+topology-processor:
+  # START - database-related properties.
+  dbHost: 'db'
+  dbPort: 3306
+  authHost: 'auth'
+  authPort: 8080
+  # TODO: Remove from source control and instead get these values from the auth component.
+  dbUsername: 'root'
+  # This should be in sync with the schema in the Topology Processor's pom.xml
+  dbSchemaName: 'topology_processor'
+  sqlDialect: 'MARIADB'
+  mariadbHealthCheckIntervalSeconds: 60
+  # END - database-related properties
+
+  # 30 seconds to match the hardcoded timeout value on the probe side.
+  # 4 keep-alive messages are sent by the client during this interval.
+  discoveryTimeoutSeconds: 30
+  validationTimeoutSeconds: 30
+  topologyBroadcastIntervalMinutes: 10
+  kvStoreRetryIntervalMillis: 1000
+  actionTimeoutSeconds: 30
+  groupHost: 'group'
+  grpcPingIntervalSeconds: 300
+  identityGeneratorPrefix: 1
+  repositoryHost: 'repository'
+  # Urgent metrics are collected every 10 minutes, the offline every 3 days
+  collectionIntervalUrgentSec: 600
+  collectionIntervalOfflineSec: 259200
+  anonymized: 'true'
+  bridgeHost: 'clustermgr'
+  bridgePort: 8120
+  discoveredGroupUploadIntervalSeconds: 10
+  # The interval at which to attempt to reload assigned IDs
+  # after topology processor startup.
+  assignedIdReloadReattemptIntervalSeconds: 10
+  planOrchestratorHost: 'plan-orchestrator'
+
+repository:
+  marketHost: 'market'
+  topologyProcessorHost: 'topology-processor'
+  actionOrchestratorHost: 'action-orchestrator'
+  grpcPingIntervalSeconds: 300
+  websocket.pong.timeout: 30000
+  arangodbHealthCheckIntervalSeconds: 60
+
+group:
+  repositoryHost: 'repository'
+  # TODO: Remove from source control and instead get these values from the auth component.
+  arangodbPort: 8529
+  arangodbHost: arangodb
+  arangodbUser: root
+  arangodbPass: root
+  arangodbHealthCheckIntervalSeconds: 60
+  mariadbHealthCheckIntervalSeconds: 60
+  grpcPingIntervalSeconds: 300
+  identityGeneratorPrefix: 4
+  # START - database-related properties.
+  dbHost: 'db'
+  dbPort: 3306
+  authHost: 'auth'
+  authPort: 8080
+  # TODO: Remove from source control and instead get these values from the auth component.
+  dbUsername: 'root'
+  # This should be in sync with the schema in the component's pom.xml
+  # Because 'group' is a keyword in SQL, name the schema 'group_component'
+  dbSchemaName: 'group_component'
+  sqlDialect: 'MARIADB'
+  mariadbHealthCheckIntervalSeconds: 60
+  # END - database-related properties
+
+api:
+  clusterMgrHost: 'clustermgr'
+  topologyProcessorHost: 'topology-processor'
+  actionOrchestratorHost: 'action-orchestrator'
+  repositoryHost: 'repository'
+  authHost: 'auth'
+  planOrchestratorHost: 'plan-orchestrator'
+  groupHost: 'group'
+  historyHost: 'history'
+  identityGeneratorPrefix: 5
+  kvStoreRetryIntervalMillis: 1000
+  keystoreFile: '/home/turbonomic/data/keystore.p12'
+  keystoreType: 'PKCS12'
+  keystoreAlias: 'vmt'
+  grpcPingIntervalSeconds: 300
+  websocket.pong.timeout: 30000
+  targetValidationTimeoutSeconds: 120
+  targetValidationPollIntervalSeconds: 2
+  supplyChainFetcherTimeoutSeconds: 360
+  publicVersionString: 7-beta-6
+  groupBuildUseCaseFile: 'groupBuilderUsecases.json'
+  settingManagersFile: 'settingManagers.json'
+
+auth:
+  kvStoreRetryIntervalMillis: 1000
+  dbHost: 'db'
+  dbPort: 3306
+  dbSchemaName: 'auth'
+  sqlDialect: 'MARIADB'
+  mariadbHealthCheckIntervalSeconds: 60
+  grpcPingIntervalSeconds: 300
+  identityGeneratorPrefix: 7
+
+mediation-vcenter:
+  serverAddress: 'ws://topology-processor:8080/remoteMediation'
+  silentRetryTime: 0
+  connRetryIntervalSeconds: 10
+  sslKeystorePassword: ' '
+  sslKeystorePath: ' '
+  userName: vmtRemoteMediation
+  userPassword: vmtRemoteMediation
+  grpcPingIntervalSeconds: 300
+  websocket.pong.timeout: 30000
+
+mediation-hyperv:
+  serverAddress: 'ws://topology-processor:8080/remoteMediation'
+  silentRetryTime: 0
+  connRetryIntervalSeconds: 10
+  sslKeystorePassword: ' '
+  sslKeystorePath: ' '
+  userName: vmtRemoteMediation
+  userPassword: vmtRemoteMediation
+  grpcPingIntervalSeconds: 300
+  websocket.pong.timeout: 30000
+
+plan-orchestrator:
+  dbHost: 'db'
+  dbPort: '3306'
+  authHost: 'auth'
+  authPort: 8080
+  historyHost: 'history'
+  groupHost: 'group'
+  grpcPingIntervalSeconds: 300
+  # TODO: Remove from source control and instead get these values from the auth component.
+  dbUsername: 'root'
+  dbSchemaName: 'plan'
+  sqlDialect: 'MARIADB'
+  mariadbHealthCheckIntervalSeconds: 60
+  actionOrchestratorHost: 'action-orchestrator'
+  topologyProcessorHost: 'topology-processor'
+  repositoryHost: 'repository'
+  historyHost: 'history'
+  # cron spec for running cluster rollup at 1AM daily: second (0-60) ,minute (0-59), hour(0-23),
+  #     day of month(1-31), month(1-12), day of week(0-7, 7=sun)
+  clusterRollupSchedule: "0 0 1 * * *"
+  grpcPingIntervalSeconds: 300
+  identityGeneratorPrefix: 3
+  websocket.pong.timeout: 30000
+  templateSpecFile: "defaultTemplateSpec.json"
+
+history:
+  topologyProcessorHost: 'topology-processor'
+  writeTopologyChunkSize: 1000
+  userName: vmtplatform
+  requestHost: '%'
+  adapter: mysql
+  hostName: db
+  portNumber: 3306
+  databaseName: vmtdb
+  readonlyUserName: vmtreader
+  readonlyPassword: vmturbo
+  queryTimeoutSeconds: 120
+  migrationTimeoutSeconds: 600
+  marketHost: market
+  numRetainedMinutes: 120
+  numRetainedHours: 72
+  numRetainedDays: 60
+  mariadbHealthCheckIntervalSeconds: 60
+  # note: excluded commodities are case-insensitive, but in mixed case here for readability
+  # and to match exactly the values from discovery
+  excludedCommodities: ApplicationCommodity CLUSTERCommodity DATACENTERCommodity DATASTORECommodity DSPMAccessCommodity NETWORKCommodity
+  topologyProcessorHost: topology-processor
+  grpcPingIntervalSeconds: 300
+  websocket.pong.timeout: 30000

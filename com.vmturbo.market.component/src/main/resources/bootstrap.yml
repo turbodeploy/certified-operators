@@ -1,0 +1,29 @@
+# bootstrap.yml is loaded before application.yml
+spring:
+  application:
+    name: market
+  cloud:
+    consul:
+      host: ${consul_host}
+      port: 8500
+      discovery:
+        instanceId: ${instance_id}
+        healthCheckPath: /api/v2/health
+        healthCheckInterval: 30s
+      config:
+        # Configure the Spring-Cloud Configuration for this application.
+        # Instance specific values are stored in
+        #    "vmturbo/components/${spring.application.name}/instances/${instance_id}/properties/key"
+        # Default values (used if instance-specific values are not found) reside in
+        #    "vmturbo/components/${spring.application.name}/defaults/properties/key"
+        enabled: true
+        prefix: vmturbo/components
+        defaultContext: ${spring.application.name}/defaults
+        profileSeparator: /
+  profiles:
+    active: instances/${instance_id}/properties
+server:
+  port: 8080
+  grpcPort: 9001
+management:
+  context-path: /service

@@ -1,0 +1,161 @@
+package com.vmturbo.repository.search;
+
+import java.util.Collection;
+import java.util.Map;
+import java.util.Objects;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.arangodb.ArangoCursor;
+import com.google.common.base.MoreObjects;
+import com.google.common.collect.ImmutableMap;
+
+import javaslang.collection.Iterator;
+import javaslang.collection.List;
+import javaslang.collection.Seq;
+import javaslang.collection.Stream;
+import javaslang.concurrent.Future;
+
+import com.vmturbo.proactivesupport.DataMetricTimer;
+import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
+import com.vmturbo.repository.graph.executor.AQL;
+import com.vmturbo.repository.graph.executor.AQLs;
+
+/**
+ * A {@link SearchStageComputation} for running ArangoDB queries.
+ */
+public class ArangoDBSearchComputation implements SearchStageComputation<SearchComputationContext,
+                                                                         Collection<String>,
+                                                                         Collection<String>> {
+
+    private static final Logger LOG = LoggerFactory.getLogger(ArangoDBSearchComputation.class);
+    private static final int INPUT_CHUNK_SIZE = 50000;
+
+    private final AQL aqlQuery;
+
+    private final static Map<String, Function<SearchComputationContext, Object>> bindValuesMapper =
+            ImmutableMap.of("graph", SearchComputationContext::graphName,
+                            "allKeyword", SearchComputationContext::allKeyword,
+                            "@serviceEntityCollection", SearchComputationContext::entityCollectionName);
+
+    public ArangoDBSearchComputation(final AQL query) {
+        aqlQuery = Objects.requireNonNull(query, "AQL cannot be null");
+    }
+
+    /**
+     * Execute the AQL query and return the results inside a {@link Future}.
+     *
+     * @param context The context for the query.
+     * @param inputs The inputs for the query.
+     * @return A {@link Future}.
+     */
+    private Future<Collection<String>> executeAQL(final SearchComputationContext context,
+                                                  final Collection<String> inputs) {
+        return Future.of(context.executorService(), () -> {
+            final String queryString = AQLs.getQuery(aqlQuery);
+            final Collection<String> vars = AQLs.getBindVars(aqlQuery);
+            final Map<String, Object> bindVars = vars.stream()
+                    .filter(v -> !v.equals("inputs")) // `inputs` does not come from the context. Skip it.
+                    .collect(Collectors.toMap(Function.identity(), v -> bindValuesMapper.get(v).apply(context)));
+            bindVars.put("inputs", inputs);
+
+            LOG.info("pipeline ({}) running {} with first 10 inputs {}",
+                    context.traceID(),
+                    queryString,
+                    Stream.ofAll(inputs).take(10).toJavaList());
+            LOG.debug("pipeline ({}) running {} with bindVars {}", context.traceID(), queryString, bindVars);
+
+            final ArangoCursor<String> dbResults =
+                    context.arangoDB().db(context.databaseName()).query(queryString, bindVars, null, String.class);
+
+            return dbResults.asListRemaining();
+        });
+    }
+
+    @Override
+    public Collection<String> apply(final SearchComputationContext context,
+                                    final Collection<String> ids) {
+        try(final DataMetricTimer ignored = context.summary().startTimer()) {
+            // Chunk the input
+            final Iterator<List<String>> idChunks = List.ofAll(ids).grouped(INPUT_CHUNK_SIZE);
+
+            // Turn each chunk into a future
+            final Iterator<Future<Collection<String>>> futures = idChunks.map(
+                    idChunk -> executeAQL(context, idChunk.toJavaList()));
+
+            // Combine the futures into one
+            final Future<Seq<Collection<String>>> combineResults = Future.sequence(context.executorService(), futures);
+
+            // Flatten the results
+            final Future<java.util.List<String>> results = combineResults
+                    .map(seqColl -> seqColl.flatMap(coll -> coll).toJavaList());
+
+            results.onFailure(err -> LOG.error("Exception encountered when running a search query " + aqlQuery, err));
+
+            return results.get();
+        }
+    }
+
+    /**
+     * Perform an extra step to convert the list of IDs to actual {@link ServiceEntityRepoDTO} objects.
+     *
+     * The converted {@link ServiceEntityRepoDTO} objects do not contain the commodities data.
+     *
+     * This should be used as the second parameter of {@link SearchPipeline#run(Object, Function)}.
+     */
+    public static Function<Collection<String>, SearchStage<SearchComputationContext,
+                                                           Collection<String>,
+                                                           ArangoCursor<ServiceEntityRepoDTO>>> toEntities =
+            ids -> () -> (ctx, in) -> {
+                final String query = "FOR se IN @@serviceEntityCollection\n" +
+                                     "FILTER se._id IN @inputs\n" +
+                                     "RETURN { uuid: se.uuid," +
+                                               "oid: se.oid," +
+                                               "displayName: se.displayName," +
+                                               "state: se.state," +
+                                               "severity: se.severity," +
+                                               "entityType: se.entityType" +
+                                             "}";
+
+                final Map<String, Object> bindVars = ImmutableMap.of(
+                        "@serviceEntityCollection", ctx.entityCollectionName(),
+                        "inputs", ids);
+
+                final Future<ArangoCursor<ServiceEntityRepoDTO>> cursor =
+                        Future.of(ctx.executorService(), () -> {
+                            LOG.info("pipeline ({}) converting to entities using {}", ctx.traceID(), query);
+
+                            return ctx.arangoDB()
+                                    .db(ctx.databaseName())
+                                    .query(query, bindVars, null, ServiceEntityRepoDTO.class);
+                        });
+
+                cursor.onFailure(err ->
+                        LOG.error("Encountered exception while getting to ServiceEntities", err));
+
+                return cursor.get();
+            };
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof ArangoDBSearchComputation)) return false;
+        ArangoDBSearchComputation that = (ArangoDBSearchComputation) o;
+        return Objects.equals(aqlQuery, that.aqlQuery);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(aqlQuery);
+    }
+
+    @Override
+    public String toString() {
+        return MoreObjects.toStringHelper(this)
+                .add("aqlQuery", aqlQuery)
+                .toString();
+    }
+}

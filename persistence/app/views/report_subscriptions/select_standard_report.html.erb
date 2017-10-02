@@ -1,0 +1,21 @@
+
+<!-- BEGIN-UID.user_ctrls -->
+
+<!-- END-UID.user_ctrls -->
+
+<div id="select_standard_report">
+    <%= form_tag( :controller => 'report_subscriptions', :action => :update_standard_report, :id => @report_subscription ) %>
+       <%= submit_tag 'Select' %>
+       <p class="select_list">&nbsp;</p>
+       <% for standard_report in @standard_reports %>
+           <p class="select_list"> <%= radio_button_tag("standard_report_id",standard_report.id) %> <%= standard_report.sname %> </p>
+       <% end %>
+       <p class="select_list">&nbsp;</p>
+       <%= submit_tag 'Select' %>
+    </form> <!-- end form_tag -->
+</div>
+
+<!-- BEGIN-UID.user_divs -->
+
+<!-- END-UID.user_divs -->
+

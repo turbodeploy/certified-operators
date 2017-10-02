@@ -1,0 +1,64 @@
+= Distributed Cache Server Component
+
+== Introduction
+The server component acts as a proxy to Infinispan. The client does not need to know this component is communicating
+with Infinispan. So, this component abstracts away the actual implementation of the distributed cache. In future, a
+different cache implementation can be swapped in without any modifications to any of the clients.
+
+[ditaa]
+....
+ +-------------------+           +-----------------------+           +-------------------+
+ | Distributed Cache |<--------->| VMT Distributed Cache |<--------->| Infinispan Server |
+ |       Client      |           |       Component       |           +-------------------+
+ +-------------------+           +-----------------------+
+....
+
+=== VMT Distributed Cache Component
+The compoenent exposes a REST interface on port `9000`.
+
+== Docker Image
+For convenience, the Docker image built by this project contains two processes. One is the Infinispan server, the other
+one is the server component. In reality, they do not need to coexist in the same image.
+
+[ditaa]
+....
+                            +---------------------------------------+
+                            |            Docker Container           |
+                            |                                       |
+                            |       +-----------------------+       |
+                            |       | VMT Distributed Cache |       |
+                            |       |       Component       |       |
+                            |       +-----------------------+       |
+                            |                   ^                   |
+                            |                   |                   |
+                            |                   v                   |
+                            |         +-------------------+         |
+                            |         | Infinispan Server |         |
+                            |         +-------------------+         |
+                            |                                       |
+                            +---------------------------------------+
+....
+
+== Running locally
+You will need to have `consul` and `Infinispan server` running first. Then execute the following command.
+
+[source,sh]
+----
+mvn spring-boot:run -Dspring.cloud.consul.host=127.0.0.1 \
+                    -Dinstance_id=dc1 \
+                    -Dcomponent_type=distcache \
+                    -Ddistcache_infinispan_host=${ISPN_IP} # <1>
+----
+<1> The IP of the infinispan server.
+
+== Configurations
+The following properties are supported.
+
+ - `distcache.infinispan.host`
+ - `distcache.infinispan.port`
+ - `distcache.infinispan.socket-timeout-millis`
+ - `distcache.infinispan.connection-timeout-millis`
+
+== Swagger
+Swagger is enabled. When the server component is running, you can browser the swagger documentation
+at http://localhost:9000/swagger-ui.html.

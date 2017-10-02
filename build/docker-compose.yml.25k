@@ -1,0 +1,179 @@
+#
+# Docker Container Settings for Turbonomic XL 1.0.0 - for 25K Service Entities.
+# A VM size of 24G is recommended.
+#
+version: '2'
+
+networks:
+  default:
+    ipam:
+      driver: default
+      config:
+      - subnet: 10.10.10.0/24
+        gateway: 10.10.10.1
+
+volumes:
+  consuldata: &localdriver
+    driver: local
+  syslogdata: *localdriver
+  mysqldata: *localdriver
+  mysql_var: *localdriver
+  mysql_log: *localdriver
+  arangodb: *localdriver
+  arangodb-apps: *localdriver
+  arangodb-dump: *localdriver
+  clustermgr: *localdriver
+  api: *localdriver
+  auth: *localdriver
+  market: *localdriver
+  action-orchestrator: *localdriver
+  topology-processor: *localdriver
+  repository: *localdriver
+  group: *localdriver
+  history: *localdriver
+  plan-orchestrator: *localdriver
+  mediation-vcenter: *localdriver
+  mediation-hyperv: *localdriver
+
+services:
+  rsyslog:
+    extends:
+      file: prod-services.yml
+      service: rsyslog-prod
+
+  consul:
+    extends:
+      file: prod-services.yml
+      service: consul-prod
+    depends_on:
+      - rsyslog
+
+  db:
+    extends:
+      file: prod-services.yml
+      service: db-prod
+    mem_limit: 2048M
+    depends_on:
+      - rsyslog
+
+  auth:
+    extends:
+      file: prod-services.yml
+      service: auth-prod
+    depends_on:
+      - consul
+      - db
+
+  clustermgr:
+    extends:
+      file: prod-services.yml
+      service: clustermgr-prod
+    depends_on:
+      - consul
+
+  api:
+    extends:
+      file: prod-services.yml
+      service: api-prod
+    environment:
+      JAVA_OPTS: "-Xmx768M"
+    mem_limit: 1024m
+    depends_on:
+      - clustermgr
+
+  market:
+    extends:
+      file: prod-services.yml
+      service: market-prod
+    environment:
+      JAVA_OPTS: "-Xmx1536M"
+    mem_limit: 2048M
+    depends_on: &clustermgrdep
+      - clustermgr
+
+  action-orchestrator:
+    extends:
+      file: prod-services.yml
+      service: action-orchestrator-prod
+    environment:
+      JAVA_OPTS: "-Xmx384M"
+    mem_limit: 512M
+
+  topology-processor:
+    extends:
+      file: prod-services.yml
+      service: topology-processor-prod
+    environment:
+      JAVA_OPTS: "-Xmx1536M"
+    mem_limit: 2048M
+    depends_on:
+      - db
+      - clustermgr
+
+  arangodb:
+    extends:
+      file: prod-services.yml
+      service: arangodb-prod
+
+  repository:
+    extends:
+      file: prod-services.yml
+      service: repository-prod
+    environment:
+      JAVA_OPTS: "-Xmx2048M"
+    mem_limit: 2560M
+    depends_on:
+      - arangodb
+      - clustermgr
+
+  group:
+    extends:
+      file: prod-services.yml
+      service: group-prod
+    environment:
+      JAVA_OPTS: "-Xmx512M"
+    mem_limit: 768M
+    depends_on:
+      - arangodb
+      - clustermgr
+      - db
+
+  history:
+    extends:
+      file: prod-services.yml
+      service: history-prod
+    environment:
+      JAVA_OPTS: "-Xmx1536M"
+    mem_limit: 2048M
+    depends_on:
+      - db
+      - clustermgr
+
+  plan-orchestrator:
+    extends:
+      file: prod-services.yml
+      service: plan-orchestrator-prod
+    environment:
+      JAVA_OPTS: "-Xmx768M"
+    mem_limit: 1024M
+    depends_on:
+      - db
+      - clustermgr
+
+  mediation-vcenter:
+    extends:
+      file: prod-services.yml
+      service: mediation-vcenter-prod
+    environment:
+      JAVA_OPTS: "-Xmx1536M"
+    mem_limit: 2048M
+    depends_on: *clustermgrdep
+
+  mediation-hyperv:
+    extends:
+      file: prod-services.yml
+      service: mediation-hyperv-prod
+    environment:
+      JAVA_OPTS: "-Xmx1536M"
+    mem_limit: 2048M
+    depends_on: *clustermgrdep

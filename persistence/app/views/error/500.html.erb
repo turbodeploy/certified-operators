@@ -1,0 +1,88 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+       "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+
+<head>
+  <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+  <title>We're sorry, but something went wrong (500)</title>
+	<style type="text/css">
+		body { background-color: #fff; color: #000; text-align: center; font-family: arial, sans-serif; }
+		div.dialog {
+			width: 25em;
+			padding: 0 4em;
+			margin: 4em auto 0 auto;
+			border: 1px solid #ccc;
+			border-right-color: #999;
+			border-bottom-color: #999;
+			color: #666;
+		}
+		div.error-details {
+			width: 25em;
+			text-align: left;
+		}
+		div.error-trace {
+			margin-left: 2em;
+			margin-right: 2em;
+			text-align: left;
+		}
+		h1 { 
+			font-size: 100%; 
+			color: #f00; 
+			line-height: 1.5em; 
+		}
+	</style>
+	<script>
+		function changeVisibility(divName){
+			var div = document.getElementById(divName);
+			var visibility = div.style.visibility=="hidden" ? "visible" : "hidden";
+			div.style.visibility = visibility;
+		}
+		
+	</script>
+</head>
+
+<body>
+  <!-- This file lives in public/500.html -->
+
+	  <div >
+	  	<center>
+	  		<div class="dialog">
+	    		<h1>The Reporter encountered an error when displaying the requested report.</h1>
+	    		<p>
+			    	Please contact VMTurbo Technical Support for further assistance: 
+			    	<% if @cur_exception %>
+						<% @err_msg = URI.escape(@cur_exception.message.to_s, Regexp.new("[^#{URI::PATTERN::UNRESERVED}]")) unless !@cur_exception.message %>
+						<% @err_trc = URI.escape(@cur_exception.backtrace.to_s, Regexp.new("[^#{URI::PATTERN::UNRESERVED}]")) unless !@cur_exception.backtrace %>
+						<a href="mailto:support@vmturbo.com?subject=Feedback%20from%20VMTurbo%20User:%20<%=h @err_msg.to_s  unless !@err_msg %>&body=<%=h '%0A%0A%0AError Trace:%0A'+@err_trc.to_s %>">
+							support@vmturbo.com
+						</a>
+					<% else %>
+						<a href="mailto:support@vmturbo.com?subject=Feedback%20from%20VMTurbo%20User">
+							support@vmturbo.com
+						</a>
+			    	<% end %>
+		    	</p>
+		  	</div>
+		</center>
+		<input type="button" value="Details" onclick="changeVisibility('error-details-box')" style="text-align: left"/>
+	  </div>
+  
+  <div id="error-details-box" class="error-trace" style="visibility: hidden;">
+  	<p>
+  		<% if @cur_exception %>
+			Error: <%=h @cur_exception.message %><br/>
+			Complete details of this error may be found in the error log in logs/production.log.<br/>
+			<input type="button" value="Error Trace" onclick="changeVisibility('error-trace-box')" />
+		<% else %>
+			Error details unavailable.
+    	<% end %>
+    </p>
+    <p id="error-trace-box" class="error-trace" style="visibility: hidden;">
+	    <% if @cur_exception %>
+	    	<small><%=h @cur_exception.backtrace %></small>
+   		<% end %>
+    </p>
+  </div>
+</body>
+</html>

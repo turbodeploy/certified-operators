@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <artifactId>Turbonomic-XL</artifactId>
+        <groupId>com.vmturbo</groupId>
+        <version>7.0.b7-SNAPSHOT</version>
+        <relativePath>../build/pom.xml</relativePath>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+
+    <artifactId>com.vmturbo.components.baseimage</artifactId>
+    <profiles>
+        <profile>
+            <id>docker</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.jacoco</groupId>
+                        <artifactId>jacoco-maven-plugin</artifactId>
+                    </plugin>
+                    <plugin>
+                        <groupId>com.spotify</groupId>
+                        <artifactId>docker-maven-plugin</artifactId>
+                        <configuration>
+                            <dockerDirectory>${project.basedir}/docker</dockerDirectory>
+                            <imageName>turbonomic/vmt-component-base</imageName>
+                            <imageTags>
+                                <imageTag>${project.version}</imageTag>
+                                <imageTag>${buildNumber}</imageTag>
+                                <imageTag>latest</imageTag>
+                            </imageTags>
+                            <labels>
+                                <label>com.vmturbo.version=${project.version}</label>
+                                <label>com.vmturbo.build=${buildNumber}</label>
+                            </labels>
+                            <!-- include the support files - entrypoint.sh and collect_diags.sh -->
+                            <resources>
+                                <resource>
+                                    <targetPath>/</targetPath>
+                                    <directory>${project.basedir}/docker</directory>
+                                    <include>**/*</include>
+                                </resource>
+                            </resources>
+                            <runs>
+                                <run>chmod 755 /collect_diags.sh /entrypoint.sh</run>
+                            </runs>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <id>build-docker-image</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>build</goal>
+                                </goals>
+                            </execution>
+                            <execution>
+                                <id>tag-docker-image</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>tag</goal>
+                                </goals>
+                                <configuration>
+                                    <image>turbonomic/vmt-component-base</image>
+                                    <newName>registry.eng.vmturbo.com:5000/turbonomic/vmt-component-base</newName>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>push-docker-image</id>
+                                <phase>deploy</phase>
+                                <goals>
+                                    <goal>push</goal>
+                                </goals>
+                                <configuration>
+                                    <imageName>registry.eng.vmturbo.com:5000/turbonomic/vmt-component-base</imageName>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+
+</project>

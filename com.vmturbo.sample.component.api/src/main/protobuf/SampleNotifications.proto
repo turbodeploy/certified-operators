@@ -1,0 +1,26 @@
+syntax="proto2";
+package sample.api;
+
+// The default behaviour is to have the java package identical to
+// the protobuf package.
+//
+// Our standard with the *.api packages is to match the java_package to the actual java
+// package in which the protobuf file is.
+option java_package = "com.vmturbo.sample.api";
+
+import "sample/Echo.proto";
+
+// This is the notification message that is sent from the sample component
+// to any connected SampleComponentClient.
+message SampleNotification {
+    // The ID of the notification broadcast this notification belongs to.
+    // Each notification's broadcast has a unique ID for logging/debugging purposes.
+    required int64 broadcast_id = 1;
+
+    // The way our websocket communication works allows just one type of protobuf
+    // message per websocket channel, so all possible notifications are here
+    // in a oneof field.
+    oneof type {
+        sample.EchoResponse echo_response = 2;
+    }
+}

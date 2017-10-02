@@ -1,0 +1,156 @@
+
+<%
+   # default vis control to show all
+   unless @show_item
+     @show_item = {}
+     @show_item.default = true
+   end
+
+   @ft_view_section = {}
+%>
+
+<!-- BEGIN-UID.user_ctrls -->
+
+<!-- END-UID.user_ctrls -->
+
+<% @ft_view_section[:ft_prop_title] = capture { %>
+<% if @show_item[:ft_prop_title] then %>
+<div class="show_iname">
+   <%= @notification.iname %>
+</div>
+<% end %>
+<% } %>
+
+
+
+<% @ft_view_section[:clear_time] = capture { %>
+<% if @show_item[:clear_time] then %>
+
+  <!-- Clear Time -->
+
+  <div class="show_attr_group attr_group_notification_clear_time ">      <!-- div10 -->
+    <div class="show_attr_label"> Clear Time </div>                    <!-- div11 -->
+    <div class="show_attr_value single_line"> <%= auto_link(@notification.clear_time.to_s) %>&nbsp;</div>   <!-- div12h -->
+  </div>   <!-- div10 end -->
+<% end %>
+<% } %>
+
+
+
+<% @ft_view_section[:last_notify_time] = capture { %>
+<% if @show_item[:last_notify_time] then %>
+
+  <!-- Last Notify Time -->
+
+  <div class="show_attr_group attr_group_notification_last_notify_time ">      <!-- div10 -->
+    <div class="show_attr_label"> Last Notify Time </div>                    <!-- div11 -->
+    <div class="show_attr_value single_line"> <%= auto_link(@notification.last_notify_time.to_s) %>&nbsp;</div>   <!-- div12h -->
+  </div>   <!-- div10 end -->
+<% end %>
+<% } %>
+
+
+
+<% @ft_view_section[:severity] = capture { %>
+<% if @show_item[:severity] then %>
+
+  <!-- Severity -->
+
+  <div class="show_attr_group attr_group_notification_severity ">      <!-- div10 -->
+    <div class="show_attr_label"> Severity </div>                    <!-- div11 -->
+    <div class="show_attr_value single_line"> <%= auto_link(@notification.severity.to_s) %>&nbsp;</div>   <!-- div12h -->
+  </div>   <!-- div10 end -->
+<% end %>
+<% } %>
+
+
+
+<% @ft_view_section[:category] = capture { %>
+<% if @show_item[:category] then %>
+
+  <!-- Category -->
+
+  <div class="show_attr_group attr_group_notification_category ">      <!-- div10 -->
+    <div class="show_attr_label"> Category </div>                    <!-- div11 -->
+    <div class="show_attr_value single_line"> <%= auto_link(@notification.category.to_s) %>&nbsp;</div>   <!-- div12h -->
+  </div>   <!-- div10 end -->
+<% end %>
+<% } %>
+
+
+
+<% @ft_view_section[:name] = capture { %>
+<% if @show_item[:name] then %>
+
+  <!-- Name -->
+
+  <div class="show_attr_group attr_group_notification_name ">      <!-- div10 -->
+    <div class="show_attr_label"> Name </div>                    <!-- div11 -->
+    <div class="show_attr_value single_line"> <%= auto_link(@notification.name.to_s) %>&nbsp;</div>   <!-- div12h -->
+  </div>   <!-- div10 end -->
+<% end %>
+<% } %>
+
+
+
+<% @ft_view_section[:uuid] = capture { %>
+<% if @show_item[:uuid] then %>
+
+  <!-- Uuid -->
+
+  <div class="show_attr_group attr_group_notification_uuid ">      <!-- div10 -->
+    <div class="show_attr_label"> Uuid </div>                    <!-- div11 -->
+    <div class="show_attr_value single_line"> <%= auto_link(@notification.uuid.to_s) %>&nbsp;</div>   <!-- div12h -->
+  </div>   <!-- div10 end -->
+<% end %>
+<% } %>
+
+
+
+<% @ft_view_section[:importance] = capture { %>
+<% if @show_item[:importance] then %>
+
+  <!-- Importance -->
+
+  <div class="show_attr_group attr_group_notification_importance ">      <!-- div10 -->
+    <div class="show_attr_label"> Importance </div>                    <!-- div11 -->
+    <div class="show_attr_value single_line"> <%= auto_link(@notification.importance.to_s) %>&nbsp;</div>   <!-- div12h -->
+  </div>   <!-- div10 end -->
+<% end %>
+<% } %>
+
+
+
+<% @ft_view_section[:description] = capture { %>
+<% if @show_item[:description] then %>
+
+  <!-- Description -->
+
+  <div class="show_attr_group attr_group_notification_description ">      <!-- div10 -->
+    <div class="show_attr_label"> Description </div>                    <!-- div11 -->
+    <div class="show_attr_value multiline"> <%= rc_format((@notification.description.to_s)) %> </div>   <!-- div12g -->
+  </div>   <!-- div10 end -->
+<% end %>
+<% } %>
+
+
+<% @ft_view_section_order = []
+   @ft_view_section_order << :ft_prop_title
+   @ft_view_section_order << :clear_time
+   @ft_view_section_order << :last_notify_time
+   @ft_view_section_order << :severity
+   @ft_view_section_order << :category
+   @ft_view_section_order << :name
+   @ft_view_section_order << :uuid
+   @ft_view_section_order << :importance
+   @ft_view_section_order << :description
+%>
+
+<!-- BEGIN-UID.user_ordering -->
+
+<!-- END-UID.user_ordering -->
+
+<% for s in @ft_view_section_order %>
+   <%= @ft_view_section[s].to_s %>
+<% end %>
+

@@ -1,0 +1,44 @@
+{
+  "changes": [
+    {
+      "index": 1,
+      "scope": [
+        {
+          "className": "Market",
+          "displayName": "Global Environment",
+          "uuid": "Market"
+        }
+      ],
+      "type": "SCOPE"
+    },
+    {
+      "index": 2,
+      "projectionDays": [
+        0
+      ],
+      "type": "PROJECTION_PERIODS"
+    },
+    {
+      "description": "5 DT-Demo2",
+      "index": 3,
+      "projectionDays": [
+        0
+      ],
+      "targets": [
+        {
+          "uuid": "37f77f46944f635f076fcf18d43f74f3e563f28b"
+        }
+      ],
+      "type": "ADDED",
+      "value": "5"
+    }
+  ],
+  "displayName": "ADD_WORKLOAD",
+  "owners": [
+    {
+      "showSharedUserSC": false,
+      "username": "administrator",
+      "uuid": "_4T_7kwY-Ed-WUKbEYSVIDw"
+    }
+  ]
+}

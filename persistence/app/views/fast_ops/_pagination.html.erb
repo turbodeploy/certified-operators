@@ -1,0 +1,62 @@
+
+    <% if @page_no %>
+      <div>
+        <% @n_pages = ((@count-1+@page_size)/@page_size).to_i %>
+        <div class="pagination" style="margin-bottom:12px;margin-top:12px;float:left">
+            <span class="rs_page_nos">Page: <%=@count == @page_size ? "All" : @page_no.to_s %> of <%=@n_pages%> (<%=number_with_delimiter(@count)%> Items)
+            <span class="rs_navs">
+            <% if @page_no > 1 then%>
+              <%= link_to_remote( "Previous", 
+        			:url => {:action => @action, :query => @query[:name], :order_by => params[:order_by], :direction => params[:direction], :page => @page_no.to_i-1},
+    				:update => 'q_results' ) %> 
+            <% else %>
+              Previous
+            <% end %>
+            |
+            <% if @page_size*@page_no < @count %>
+              <%= link_to_remote( "Next", 
+        			:url => {:action => @action, :query => @query[:name], :order_by => params[:order_by], :direction => params[:direction], :page => @page_no.to_i+1},
+    				:update => 'q_results' ) %>
+            <% else %>
+              Next
+            <% end %>
+            &nbsp; &nbsp; &nbsp; 
+
+            <% 
+                saved_page_size = @page_size
+                @page_size = @def_page_size if @page_size == @count 
+            %>
+
+            <%= link_to_remote( "First", 
+          			:url => {:action => @action, :query => @query[:name], :order_by => params[:order_by], :direction => params[:direction], :page => 1, :page_length => @page_size},
+    			    :update => 'q_results' ) %>
+            |
+            <%= link_to_remote( "Middle", 
+          			:url => {:action => @action, :query => @query[:name], :order_by => params[:order_by], :direction => params[:direction], :page => (@n_pages+1)/2, :page_length => @page_size},
+    			    :update => 'q_results' ) %>
+            |
+            <%= link_to_remote( "Last", 
+          			:url => {:action => @action, :query => @query[:name], :order_by => params[:order_by], :direction => params[:direction], :page => @n_pages, :page_length => @page_size},
+    			    :update => 'q_results' ) %>
+          <% if @count.to_i < 1200 then %>
+            &nbsp; &nbsp; &nbsp;
+            <%= link_to_remote( "All", 
+          			:url => {:action => @action, :query => @query[:name], :order_by => params[:order_by], :direction => params[:direction], :page => 1, :page_length => @count},
+    			    :update => 'q_results' ) %>
+          <% end %>
+            </span></span>
+
+            <% 
+                @page_size = saved_page_size
+            %>
+        </div>
+        <div style="float:left; padding-top:6px; margin-left:30px;">
+            <% form_remote_tag(:url => {:action => @action, :query => @query[:name], :order_by => params[:order_by], :direction => params[:direction], :page_length => @page_size},
+    			    :update => 'q_results', :method => "GET") do %>
+              Page: <%= text_field_tag "page", "", :style => "width:30px;" %>
+              <%= submit_tag "&raquo;" %>
+            <% end %>
+        </div>
+      </div>
+    <% end %>
+

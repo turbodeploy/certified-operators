@@ -1,0 +1,451 @@
+{
+  "entityType": 14,
+  "oid": "71799586835424",
+  "displayName": "hp-esx8.eng.vmturbo.com",
+  "commoditySoldList": [
+    {
+      "commodityType": {
+        "type": 36,
+        "key": "Storage::55fc29bd-90414194-4ecf-005056b8001c"
+      },
+      "used": 1,
+      "peak": 0,
+      "capacity": 1000000000,
+      "effectiveCapacityPercentage": 100,
+      "reservedCapacity": 0,
+      "isThin": true,
+      "accesses": "71799586834736",
+      "active": true
+    },
+    {
+      "commodityType": {
+        "type": 40,
+        "key": ""
+      },
+      "used": 2715.266666666667,
+      "peak": 2783,
+      "capacity": 5200,
+      "effectiveCapacityPercentage": 100,
+      "reservedCapacity": 0,
+      "isThin": true,
+      "active": true
+    },
+    {
+      "commodityType": {
+        "type": 0,
+        "key": "domain-c38-cluster-commodity"
+      },
+      "used": 1,
+      "peak": 0,
+      "capacity": 1000000000,
+      "effectiveCapacityPercentage": 100,
+      "reservedCapacity": 0,
+      "isThin": true,
+      "active": true
+    },
+    {
+      "commodityType": {
+        "type": 36,
+        "key": "Storage::425c13f6-de228eee"
+      },
+      "used": 1,
+      "peak": 0,
+      "capacity": 1000000000,
+      "effectiveCapacityPercentage": 100,
+      "reservedCapacity": 0,
+      "isThin": true,
+      "accesses": "71799586835088",
+      "active": true
+    },
+    {
+      "commodityType": {
+        "type": 5,
+        "key": ""
+      },
+      "used": 0,
+      "peak": 0,
+      "capacity": 20000,
+      "effectiveCapacityPercentage": 100,
+      "reservedCapacity": 0,
+      "isThin": true,
+      "active": true
+    },
+    {
+      "commodityType": {
+        "type": 21,
+        "key": ""
+      },
+      "used": 1331658.5333333334,
+      "peak": 1332312,
+      "capacity": 4193780,
+      "effectiveCapacityPercentage": 100,
+      "reservedCapacity": 0,
+      "isThin": true,
+      "active": true
+    },
+    {
+      "commodityType": {
+        "type": 59,
+        "key": "ISO-PhysicalMachine::Virtual_ESX_42384da5-dd87-e1bd-d3af-5bcf8568dea1"
+      },
+      "used": 1,
+      "peak": 0,
+      "capacity": 1000000000,
+      "effectiveCapacityPercentage": 100,
+      "reservedCapacity": 0,
+      "isThin": true,
+      "active": true
+    },
+    {
+      "commodityType": {
+        "type": 33,
+        "key": ""
+      },
+      "used": 0,
+      "peak": 0,
+      "capacity": 5000000,
+      "effectiveCapacityPercentage": 100,
+      "reservedCapacity": 0,
+      "isThin": true,
+      "active": false
+    },
+    {
+      "commodityType": {
+        "type": 41,
+        "key": ""
+      },
+      "used": 0,
+      "peak": 0,
+      "capacity": 4193780,
+      "effectiveCapacityPercentage": 100,
+      "reservedCapacity": 0,
+      "isThin": true,
+      "active": false
+    },
+    {
+      "commodityType": {
+        "type": 50,
+        "key": "PhysicalMachine::Virtual_ESX_42384da5-dd87-e1bd-d3af-5bcf8568dea1"
+      },
+      "used": 0,
+      "peak": 0,
+      "capacity": 4193780,
+      "effectiveCapacityPercentage": 100,
+      "reservedCapacity": 0,
+      "isThin": true,
+      "active": true
+    },
+    {
+      "commodityType": {
+        "type": 36,
+        "key": "Storage::d2846622-8ba1911c"
+      },
+      "used": 1,
+      "peak": 0,
+      "capacity": 1000000000,
+      "effectiveCapacityPercentage": 100,
+      "reservedCapacity": 0,
+      "isThin": true,
+      "accesses": "71799586834816",
+      "active": true
+    },
+    {
+      "commodityType": {
+        "type": 28,
+        "key": ""
+      },
+      "used": 0,
+      "peak": 0,
+      "capacity": 5200,
+      "effectiveCapacityPercentage": 100,
+      "reservedCapacity": 0,
+      "isThin": true,
+      "active": true
+    },
+    {
+      "commodityType": {
+        "type": 2,
+        "key": "PhysicalMachine::Virtual_ESX_42384da5-dd87-e1bd-d3af-5bcf8568dea1"
+      },
+      "used": 0,
+      "peak": 0,
+      "capacity": 5200,
+      "effectiveCapacityPercentage": 100,
+      "reservedCapacity": 0,
+      "isThin": true,
+      "active": true
+    },
+    {
+      "commodityType": {
+        "type": 31,
+        "key": ""
+      },
+      "used": 0,
+      "peak": 0,
+      "capacity": 20000,
+      "effectiveCapacityPercentage": 100,
+      "reservedCapacity": 0,
+      "isThin": true,
+      "active": true
+    },
+    {
+      "commodityType": {
+        "type": 57,
+        "key": "Network::vsphere-dc1.eng.vmturbo.com-Network-network-15"
+      },
+      "used": 1,
+      "peak": 0,
+      "capacity": 1000000000,
+      "effectiveCapacityPercentage": 100,
+      "reservedCapacity": 0,
+      "isThin": true,
+      "active": true
+    },
+    {
+      "commodityType": {
+        "type": 45,
+        "key": ""
+      },
+      "used": 0,
+      "peak": 0,
+      "capacity": 4193780,
+      "effectiveCapacityPercentage": 100,
+      "reservedCapacity": 0,
+      "isThin": true,
+      "active": true
+    },
+    {
+      "commodityType": {
+        "type": 47,
+        "key": ""
+      },
+      "used": 2165.633333333333,
+      "peak": 13847,
+      "capacity": 384000,
+      "effectiveCapacityPercentage": 100,
+      "reservedCapacity": 0,
+      "isThin": true,
+      "active": true
+    },
+    {
+      "commodityType": {
+        "type": 39,
+        "key": ""
+      },
+      "used": 88.4,
+      "peak": 901,
+      "capacity": 1920000,
+      "effectiveCapacityPercentage": 100,
+      "reservedCapacity": 0,
+      "isThin": true,
+      "active": true
+    },
+    {
+      "commodityType": {
+        "type": 36,
+        "key": "Storage::5887c729-0ef7bd71-ac05-005056b80033"
+      },
+      "used": 1,
+      "peak": 0,
+      "capacity": 1000000000,
+      "effectiveCapacityPercentage": 100,
+      "reservedCapacity": 0,
+      "isThin": true,
+      "accesses": "71799586834880",
+      "active": true
+    },
+    {
+      "commodityType": {
+        "type": 36,
+        "key": "Storage::55fc28ca-730da951-b285-005056b80033"
+      },
+      "used": 1,
+      "peak": 0,
+      "capacity": 1000000000,
+      "effectiveCapacityPercentage": 100,
+      "reservedCapacity": 0,
+      "isThin": true,
+      "accesses": "71799586835008",
+      "active": true
+    },
+    {
+      "commodityType": {
+        "type": 55,
+        "key": "DataCenter::vsphere-dc1.eng.vmturbo.com-Datacenter-datacenter-2"
+      },
+      "used": 1,
+      "peak": 0,
+      "capacity": 1000000000,
+      "effectiveCapacityPercentage": 100,
+      "reservedCapacity": 0,
+      "isThin": true,
+      "active": true
+    }
+  ],
+  "commodityBoughtMap": {
+    "71799586834736": {
+      "commodityBought": [
+        {
+          "commodityType": {
+            "type": 64,
+            "key": ""
+          },
+          "used": 0.36666666666666664,
+          "peak": 0,
+          "active": false
+        },
+        {
+          "commodityType": {
+            "type": 22,
+            "key": ""
+          },
+          "used": 0.7333333333333333,
+          "peak": 0,
+          "active": false
+        }
+      ]
+    },
+    "71799586834208": {
+      "commodityBought": [
+        {
+          "commodityType": {
+            "type": 24,
+            "key": ""
+          },
+          "used": 1,
+          "peak": 0,
+          "active": true
+        },
+        {
+          "commodityType": {
+            "type": 55,
+            "key": "DataCenter::DataCenter::vsphere-dc1.eng.vmturbo.com-Datacenter-datacenter-2"
+          },
+          "used": 1,
+          "peak": 0,
+          "active": true
+        },
+        {
+          "commodityType": {
+            "type": 20,
+            "key": ""
+          },
+          "used": 1,
+          "peak": 0,
+          "active": true
+        },
+        {
+          "commodityType": {
+            "type": 18,
+            "key": ""
+          },
+          "used": 1,
+          "peak": 0,
+          "active": true
+        }
+      ]
+    },
+    "71799586835088": {
+      "commodityBought": [
+        {
+          "commodityType": {
+            "type": 64,
+            "key": ""
+          },
+          "used": 0,
+          "peak": 0,
+          "active": false
+        },
+        {
+          "commodityType": {
+            "type": 22,
+            "key": ""
+          },
+          "used": 0.5666666666666667,
+          "peak": 0,
+          "active": false
+        }
+      ]
+    },
+    "71799586834816": {
+      "commodityBought": [
+        {
+          "commodityType": {
+            "type": 64,
+            "key": ""
+          },
+          "used": 0,
+          "peak": 0,
+          "active": false
+        },
+        {
+          "commodityType": {
+            "type": 22,
+            "key": ""
+          },
+          "used": 0.5,
+          "peak": 0,
+          "active": false
+        }
+      ]
+    },
+    "71799586835008": {
+      "commodityBought": [
+        {
+          "commodityType": {
+            "type": 64,
+            "key": ""
+          },
+          "used": 0.6,
+          "peak": 0,
+          "active": false
+        },
+        {
+          "commodityType": {
+            "type": 22,
+            "key": ""
+          },
+          "used": 0.4666666666666667,
+          "peak": 0,
+          "active": false
+        }
+      ]
+    },
+    "71799586834880": {
+      "commodityBought": [
+        {
+          "commodityType": {
+            "type": 64,
+            "key": ""
+          },
+          "used": 0.13333333333333333,
+          "peak": 0,
+          "active": false
+        },
+        {
+          "commodityType": {
+            "type": 22,
+            "key": ""
+          },
+          "used": 0.6666666666666666,
+          "peak": 0,
+          "active": false
+        }
+      ]
+    }
+  },
+  "entityState": "POWERED_ON",
+  "entityPropertyMap": {
+    "common_dto.EntityDTO.PhysicalMachineData.numCpuSockets": "1",
+    "common_dto.EntityDTO.PhysicalMachineData.numCpuCores": "2",
+    "common_dto.EntityDTO.PhysicalMachineData.numCpuThreads": "2",
+    "common_dto.EntityDTO.PhysicalMachineData.cpuCoreMhz": "2600",
+    "common_dto.EntityDTO.PhysicalMachineRelatedData.io": "[id: \"NIC-key-vim.host.PhysicalNic-vmnic0\"\ndisplayName: \"vmnic0\"\nspeed: 128000.0\nmacAddress: \"00-50-56-b8-00-33\"\n, id: \"NIC-key-vim.host.PhysicalNic-vmnic1\"\ndisplayName: \"vmnic1\"\nspeed: 128000.0\nmacAddress: \"00-50-56-b8-00-34\"\n, id: \"NIC-key-vim.host.PhysicalNic-vmnic2\"\ndisplayName: \"vmnic2\"\nspeed: 128000.0\nmacAddress: \"00-50-56-b8-00-35\"\n]",
+    "shopTogether": "false",
+    "LocalName": "host-35",
+    "common_dto.EntityDTO.PhysicalMachineData.pmState": "maintenance: false\n"
+  },
+  "providerPolicy": {
+    "isAvailableAsProvider": true
+  }
+}

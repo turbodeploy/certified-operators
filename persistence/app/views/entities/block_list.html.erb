@@ -1,0 +1,109 @@
+
+<!-- start toplinks -->
+
+<table style="margin-bottom:15px;" border="0" width="100%">
+<tr>
+<td width="60%" valign="top">
+
+<p>
+ <%= js_button_to "Tabular View", params.merge(:controller => 'entities', :action => 'list') %>
+<select onchange="javascript: location = this[this.selectedIndex].value;">
+    <option value="#">Select an action...</option>
+    <option value="#">----------------</option>
+    <option value="<%=url_for(:controller => 'entities', :action => 'new')%>"> Add new Entity </option>
+    <% unless session['user'] && !session['user'].is_admin? %>
+        <option value="#">----------------</option>
+        <option value="<%=url_for(params.merge(:controller => 'entities', :action => 'download_csv'))%>"> Download CSV </option>
+        <option value="<%=url_for(:controller => 'entities', :action => 'csv_upload')%>"> Upload CSV </option>
+    <% end %>
+
+<!-- BEGIN-UID.user_actions -->
+
+<!-- END-UID.user_actions -->
+
+    </select>
+</p>
+
+</td>
+
+<td width="40%" valign="top">
+</td>
+</tr>
+</table>
+
+<!-- end toplinks -->
+
+<% listtext_op = session['list_text_toggles'] ? "show text" : "hide text" %>
+<%= link_to listtext_op, {:controller => 'fast_ops', :action => 'toggle_list_text_toggle'}, :style => 'font-size:8pt;' %> |
+<% listimage_op = session['list_image_toggles'] ? "show images" : "hide images" %>
+<%= link_to listimage_op, {:controller => 'fast_ops', :action => 'toggle_list_image_toggle'}, :style => 'font-size:8pt;' %>
+
+<% @entities.each { |obj| %>
+
+    <div class="obj_block">
+    <hr/>
+<div class="block_line_item">
+    <div class="block_label">Name:</div>
+    <% text = obj.name.to_s %>
+    <% text = rc_format((text)) %>
+<div class="block_value">
+    <%= link_to text, url_show(obj) %>
+</div>
+</div>
+<div class="block_line_item">
+    <div class="block_label">Display Name:</div>
+    <% text = obj.display_name.to_s %>
+    <% text = rc_format((text)) %>
+<div class="block_value">
+    <%= text %> 
+</div>
+</div>
+<div class="block_line_item">
+    <div class="block_label">Uuid:</div>
+    <% text = obj.uuid.to_s %>
+    <% text = rc_format((text)) %>
+<div class="block_value">
+    <%= text %> 
+</div>
+</div>
+<div class="block_line_item">
+    <div class="block_label">Creation Class:</div>
+    <% text = obj.creation_class.to_s %>
+    <% text = rc_format((text)) %>
+<div class="block_value">
+    <%= text %> 
+</div>
+</div>
+<div class="block_line_item">
+    <div class="block_label">Created At:</div>
+    <% text = obj.created_at.nil? ? "" : obj.created_at.to_datetime_image %>
+<div class="block_value">
+    <%= text %> 
+</div>
+</div>
+<div class="block_line_item">
+    <div class="block_label">Updated At:</div>
+<div class="block_value">
+    <%= text %> 
+</div>
+</div>
+    </div>
+
+<% } %>
+
+<p class="spacer">&nbsp;</p>
+
+<p>
+ <%= js_button_to "Tabular View", params.merge(:controller => 'entities', :action => 'list') %>
+<select onchange="javascript: location = this[this.selectedIndex].value;">
+    <option value="#">Select an action...</option>
+    <option value="#">----------------</option>
+    <option value="<%=url_for(:controller => 'entities', :action => 'new')%>"> Add new Entity </option>
+    <% unless session['user'] && !session['user'].is_admin? %>
+        <option value="#">----------------</option>
+        <option value="<%=url_for(params.merge(:controller => 'entities', :action => 'download_csv'))%>"> Download CSV </option>
+        <option value="<%=url_for(:controller => 'entities', :action => 'csv_upload')%>"> Upload CSV </option>
+    <% end %>
+    </select>
+</p>
+

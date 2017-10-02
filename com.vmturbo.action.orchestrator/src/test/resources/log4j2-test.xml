@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration name="ComponentConfig" status="error">
+    <Appenders>
+        <Console name="stdout">
+            <PatternLayout>
+                <Pattern>ttt %d %5p [%t] [%c]\t: %m%n%throwable</Pattern>
+            </PatternLayout>
+        </Console>
+    </Appenders>
+
+    <Loggers>
+        <Logger name="com.vmturbo" level="info" />
+        <Logger name="org.flywaydb.core" level="warn" />
+        <Logger name="org.springframework" level="warn" />
+        <Logger name="org.jooq" level="warn" />
+        <Root level="info">
+            <AppenderRef ref="stdout"/>
+        </Root>
+    </Loggers>
+</Configuration>

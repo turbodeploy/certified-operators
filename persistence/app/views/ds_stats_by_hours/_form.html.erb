@@ -1,0 +1,145 @@
+
+<%
+   # default vis control to show all
+   unless @show_item
+     @show_item = {}
+     @show_item.default = true
+   end
+
+   @ft_view_section = {}
+
+   @edit_ctrl_cols = @edit_ctrl_cols || 80
+
+   @text_ctrl_rows = @text_ctrl_rows || 8
+   @text_ctrl_cols = @text_ctrl_cols || (@edit_ctrl_cols - 1)
+%>
+
+<!-- BEGIN-UID.user_vis_ctrls -->
+
+<!-- END-UID.user_vis_ctrls -->
+
+<%= error_messages_for 'ds_stats_by_hour' %>
+
+<!--[form:ds_stats_by_hour]-->
+<table class="aform_table">
+
+<% @ft_view_section[:snapshot_time] = capture { %>
+<% if @show_item[:snapshot_time] then %>
+<tr class="aform_row">
+<td class="label">&nbsp;<label for="ds_stats_by_hour_snapshot_time">Snapshot Time&nbsp;</label></td>
+<td class="value">&nbsp;<%= text_field 'ds_stats_by_hour', 'snapshot_time', :size => "14", :id => "focus" %></td>
+</tr>
+<% end %>
+<% } %>
+
+<% @ft_view_section[:uuid] = capture { %>
+<% if @show_item[:uuid] then %>
+<tr class="aform_row">
+<td class="label">&nbsp;<label for="ds_stats_by_hour_uuid">Uuid&nbsp;</label></td>
+<td class="value">&nbsp;<%= text_field 'ds_stats_by_hour', 'uuid', :size => [80,@edit_ctrl_cols].min, :maxlength => "80" %></td>
+</tr>
+<% end %>
+<% } %>
+
+<% @ft_view_section[:producer_uuid] = capture { %>
+<% if @show_item[:producer_uuid] then %>
+<tr class="aform_row">
+<td class="label">&nbsp;<label for="ds_stats_by_hour_producer_uuid">Producer Uuid&nbsp;</label></td>
+<td class="value">&nbsp;<%= text_field 'ds_stats_by_hour', 'producer_uuid', :size => [80,@edit_ctrl_cols].min, :maxlength => "80" %></td>
+</tr>
+<% end %>
+<% } %>
+
+<% @ft_view_section[:property_type] = capture { %>
+<% if @show_item[:property_type] then %>
+<tr class="aform_row">
+<td class="label">&nbsp;<label for="ds_stats_by_hour_property_type">Property Type&nbsp;</label></td>
+<td class="value">&nbsp;<%= text_field 'ds_stats_by_hour', 'property_type', :size => [36,@edit_ctrl_cols].min, :maxlength => "36" %></td>
+</tr>
+<% end %>
+<% } %>
+
+<% @ft_view_section[:property_subtype] = capture { %>
+<% if @show_item[:property_subtype] then %>
+<tr class="aform_row">
+<td class="label">&nbsp;<label for="ds_stats_by_hour_property_subtype">Property Subtype&nbsp;</label></td>
+<td class="value">&nbsp;<%= text_field 'ds_stats_by_hour', 'property_subtype', :size => [36,@edit_ctrl_cols].min, :maxlength => "36" %></td>
+</tr>
+<% end %>
+<% } %>
+
+<% @ft_view_section[:capacity] = capture { %>
+<% if @show_item[:capacity] then %>
+<tr class="aform_row">
+<td class="label">&nbsp;<label for="ds_stats_by_hour_capacity">Capacity&nbsp;</label></td>
+<td class="value">&nbsp;<%= text_field 'ds_stats_by_hour', 'capacity', :size => "14" %></td>
+</tr>
+<% end %>
+<% } %>
+
+<% @ft_view_section[:avg_value] = capture { %>
+<% if @show_item[:avg_value] then %>
+<tr class="aform_row">
+<td class="label">&nbsp;<label for="ds_stats_by_hour_avg_value">Avg Value&nbsp;</label></td>
+<td class="value">&nbsp;<%= text_field 'ds_stats_by_hour', 'avg_value', :size => "14" %></td>
+</tr>
+<% end %>
+<% } %>
+
+<% @ft_view_section[:min_value] = capture { %>
+<% if @show_item[:min_value] then %>
+<tr class="aform_row">
+<td class="label">&nbsp;<label for="ds_stats_by_hour_min_value">Min Value&nbsp;</label></td>
+<td class="value">&nbsp;<%= text_field 'ds_stats_by_hour', 'min_value', :size => "14" %></td>
+</tr>
+<% end %>
+<% } %>
+
+<% @ft_view_section[:max_value] = capture { %>
+<% if @show_item[:max_value] then %>
+<tr class="aform_row">
+<td class="label">&nbsp;<label for="ds_stats_by_hour_max_value">Max Value&nbsp;</label></td>
+<td class="value">&nbsp;<%= text_field 'ds_stats_by_hour', 'max_value', :size => "14" %></td>
+</tr>
+<% end %>
+<% } %>
+
+<% @ft_view_section[:std_dev] = capture { %>
+<% if @show_item[:std_dev] then %>
+<tr class="aform_row">
+<td class="label">&nbsp;<label for="ds_stats_by_hour_std_dev">Std Dev&nbsp;</label></td>
+<td class="value">&nbsp;<%= text_field 'ds_stats_by_hour', 'std_dev', :size => "14" %></td>
+</tr>
+<% end %>
+<% } %>
+
+<%     @ft_view_section_order = []
+       @ft_view_section_order << :snapshot_time
+       @ft_view_section_order << :uuid
+       @ft_view_section_order << :producer_uuid
+       @ft_view_section_order << :property_type
+       @ft_view_section_order << :property_subtype
+       @ft_view_section_order << :capacity
+       @ft_view_section_order << :avg_value
+       @ft_view_section_order << :min_value
+       @ft_view_section_order << :max_value
+       @ft_view_section_order << :std_dev
+%>
+
+<!-- BEGIN-UID.user_section_ordering -->
+
+<!-- END-UID.user_section_ordering -->
+
+<% for s in @ft_view_section_order %>
+   <%= @ft_view_section[s].to_s %>
+<% end %>
+
+
+<!-- BEGIN-UID.user_fields -->
+
+<!-- END-UID.user_fields -->
+
+</table>
+
+
+<!--[eoform:ds_stats_by_hour]-->

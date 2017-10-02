@@ -1,0 +1,69 @@
+{
+    "VirtualMachine" : {
+        "criteria" : [
+            {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "vmsByName"},
+            {"inputType": "*", "elements": "PhysicalMachine:PRODUCES:1", "filterCategory": "entity", "filterType": "vmsByPMName"},
+            {"inputType": "*", "elements": "Storage:PRODUCES", "filterCategory": "entity", "filterType": "vmsByStorage"},
+            {"inputType": "*", "elements": "Application:CONSUMES", "filterCategory": "entity", "filterType": "vmsByApplication"}
+        ]
+    },
+
+    "VirtualDataCenter" : {
+        "criteria" : [
+            {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "vdcsByName"}
+        ]
+    },
+
+    "PhysicalMachine" : {
+        "criteria" : [
+            {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "pmsByName"}
+        ]
+    },
+
+    "Storage" : {
+        "criteria": [
+            {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "storageByName"},
+            {"inputType": "*", "elements": "VirtualMachine:CONSUMES", "filterCategory": "entity", "filterType": "storageByVMs"}
+        ]
+    },
+
+    "Application" : {
+        "criteria" : [{"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "appsByName"}]
+    },
+
+    "ApplicationServer" : {
+        "criteria" : [{"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "appSrvsByName"}]
+    },
+
+    "Database" : {
+        "criteria" : [{"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "databaseByName"}]
+    },
+
+    "VirtualApplication" : {
+        "criteria" : [{"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "vappsByName"}]
+    },
+
+    "Cluster" : {
+        "criteria" : [{"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "clustersByName"}]
+    },
+
+    "Group" : {
+        "criteria" : [{"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "groupsByName"}]
+    },
+
+    "StorageCluster" : {
+        "criteria" : [{"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "storageClustersByName"}]
+    },
+
+    "DiskArray" : {
+        "criteria" : [{"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "diskarrayByName"}]
+    },
+
+    "StorageController" : {
+        "criteria" : [{"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "storagecontrollerByName"}]
+    },
+
+    "Switch" : {
+        "criteria" : [{"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "switchByName"}]
+    }
+}

@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- All component projects should have this parent.
+        It contains common configuration and dependencies. -->
+    <parent>
+        <groupId>com.vmturbo</groupId>
+        <artifactId>com.vmturbo.components</artifactId>
+        <version>7.0.b7-SNAPSHOT</version>
+        <relativePath>../com.vmturbo.components/pom.xml</relativePath>
+    </parent>
+
+    <artifactId>sample</artifactId>
+
+    <!-- These properties are important for static swagger documentation generation. -->
+    <properties>
+        <!-- This is the folder the component is in. -->
+        <swagger.locations>com.vmturbo.sample.component</swagger.locations>
+        <!-- This is the name of the component. -->
+        <swagger.component.name>Sample Component</swagger.component.name>
+    </properties>
+
+    <!-- TODO (roman, Feb 7 2016): All these plugins are required in order for a component
+         to work, so we should move them up to the common pom.xml -->
+    <build>
+        <plugins>
+            <!-- This is for test report generation. -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+            </plugin>
+            <!-- This is to allow you to run the spring boot app in-place, instead of in the
+                 docker component.
+                 TODO (roman, Feb 7 2017): Not clear if anyone actually uses this, because
+                 running a non-dockerized component can be difficult, especially with all the
+                 security stuff in place. -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <attach>false</attach>
+                </configuration>
+            </plugin>
+            <!-- This is the plugin that will build the docker image for the component as
+                 part of "mvn install". The configuration for the plugin is in
+                 com.vmturbo.components/pom.xml -->
+            <plugin>
+                <groupId>com.spotify</groupId>
+                <artifactId>docker-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+
+    <dependencies>
+        <!-- The sample-api dependency is required because the websocket URL that the
+             SampleComponentClient connects to is defined in that project, as well as the protobuf
+             notification messages. -->
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>sample-api</artifactId>
+        </dependency>
+
+        <!-- This is required for all components that support notifications.
+             TODO (roman, Feb 7 2017): Should this also be pulled up to
+                 com.vmturbo.components/pom.xml?-->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-websocket</artifactId>
+        </dependency>
+    </dependencies>
+
+</project>

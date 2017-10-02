@@ -1,0 +1,49 @@
+syntax = "proto2";
+package topology;
+
+option java_package = "com.vmturbo.common.protobuf.topology";
+
+message EntityIdentityMetadata {
+    // The entity type the metadata applies to.
+    required string entity_type = 1;
+
+    // The names of the non-volatile identifying properties.
+    repeated string non_volatile_properties = 2;
+
+    // The names of the volatile identifying properties.
+    repeated string volatile_properties = 3;
+
+    // The names of the heuristic properties.
+    repeated string heuristic_properties = 4;
+
+    // The heuristic threshold.
+    required int32 heuristic_threshold = 5;
+}
+
+message ProbeIdentityMetadata {
+    // The ID of the probe.
+    required int64 probe_id = 1;
+
+    // The per-entity-type identity metadata for entities the probe can discover.
+    repeated EntityIdentityMetadata entity_identity_metadata = 2;
+
+    // The error message.
+    optional string error = 3;
+}
+
+message GetProbeIdentityMetadataRequest {
+    // The ID of the probe.
+    required int64 probe_id = 1;
+}
+
+message GetAllProbeIdentityMetadataRequest {
+
+}
+
+service IdentityService {
+    // Get the identity metadata provided by a probe.
+    rpc GetProbeIdentityMetadata(GetProbeIdentityMetadataRequest) returns (ProbeIdentityMetadata);
+    // Get the identity metadata provided by all probes.
+    rpc GetAllProbeIdentityMetadata(GetAllProbeIdentityMetadataRequest) returns (stream ProbeIdentityMetadata);
+}
+

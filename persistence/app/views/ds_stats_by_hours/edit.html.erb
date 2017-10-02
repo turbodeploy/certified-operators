@@ -1,0 +1,111 @@
+
+<%
+   # default vis control to show all
+   unless @show_item
+     @show_item = {}
+     @show_item.default = true
+   end
+
+   view_params = { :form_name => 'ds_stats_by_hours/form' }
+   @ft_view_section = {}
+%>
+<% unless @embedded %>
+
+<div class="buttons_etc buttons_etc_top">
+<table width="100%" border="0" cellspacing="0" style="margin-top:-5px;margin-bottom:30px;">
+<tr>
+<td width="60%" valign="top">
+<%= js_button_to 'Normal View', :controller => 'ds_stats_by_hours', :action => 'show', :id => @ds_stats_by_hour %> 
+<select onchange="javascript: location = this[this.selectedIndex].value;">
+    <option value="#">Select an action...</option>
+    <option value="#">----------------</option>
+    <option value="<%=url_for(:controller => 'ds_stats_by_hours', :action => 'list')%>"> <%="Table of Ds Stats By Hour".pluralize%> </option>
+    <option value="<%=url_for(:controller => 'ds_stats_by_hours', :action => 'block_list')%>"> <%="List of Ds Stats By Hour".pluralize%> </option>
+    <option value="#">----------------</option>
+    <option value="<%=url_for(:controller => 'ds_stats_by_hours', :action => 'new')%>"> Add new Ds Stats By Hour </option>
+
+    <option value="#">----------------</option>
+
+<!-- BEGIN-UID.user_actions -->
+
+<!-- END-UID.user_actions -->
+
+    </select>
+</td>
+<td class="context" width="40%">
+   <%=context_links(@ds_stats_by_hour)%>
+</td>
+</tr>
+</table>
+</div>
+
+<% end %>
+
+<!-- BEGIN-UID.user_mods -->
+
+<!-- END-UID.user_mods -->
+
+<fieldset>
+<LEGEND>Properties</LEGEND>
+
+<%= form_tag(:controller => 'ds_stats_by_hours', :action => 'update', :id => @ds_stats_by_hour) %>
+  <p class="submit_top">&nbsp;<%= submit_tag 'Save Changes' %> </p>
+  <%= render :partial => view_params[:form_name] %>
+  <p class="submit_bottom">&nbsp;<%= submit_tag 'Save Changes' %> </p>
+</form> <!-- end form_tag -->
+
+</fieldset>
+
+<p class="spacer">&nbsp;</p>
+
+<div class="edit_view edit_view_ds_stats_by_hour">              <!-- div1 -->
+
+<!-- BEGIN-UID.user_related_items -->
+<h3 class="rel_items_heading">Related Items</h3>
+<!-- END-UID.user_related_items -->
+
+<% @ft_view_section = {} %>
+
+<% @ft_view_section_order = []
+%>
+
+<!-- BEGIN-UID.user_ordering -->
+
+<!-- END-UID.user_ordering -->
+
+<% for s in @ft_view_section_order %>
+   <%= @ft_view_section[s].to_s %>
+<% end %>
+
+
+</div>                           <!-- end div1 -->
+
+<% unless @embedded %>
+
+<div class="buttons_etc buttons_etc_bottom">
+<table width="100%" border="0" cellspacing="0" style="margin-bottom:-5px;margin-top:30px;">
+<tr>
+<td width="60%" valign="top">
+<%= js_button_to 'Normal View', :controller => 'ds_stats_by_hours', :action => 'show', :id => @ds_stats_by_hour %> 
+<select onchange="javascript: location = this[this.selectedIndex].value;">
+    <option value="#">Select an action...</option>
+    <option value="#">----------------</option>
+    <option value="<%=url_for(:controller => 'ds_stats_by_hours', :action => 'list')%>"> <%="Table of Ds Stats By Hour".pluralize%> </option>
+    <option value="<%=url_for(:controller => 'ds_stats_by_hours', :action => 'block_list')%>"> <%="List of Ds Stats By Hour".pluralize%> </option>
+    <option value="#">----------------</option>
+    <option value="<%=url_for(:controller => 'ds_stats_by_hours', :action => 'new')%>"> Add new Ds Stats By Hour </option>
+
+    <option value="#">----------------</option>
+
+
+
+    </select>
+</td>
+<td class="context" width="40%">
+   <%=context_links(@ds_stats_by_hour)%>
+</td>
+</tr>
+</table>
+</div>
+
+<% end %>

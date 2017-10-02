@@ -1,0 +1,77 @@
+{
+  "entityType": "VIRTUAL_MACHINE",
+  "id": "52cc3b60-005e-40e6-a365-65ae34b29bbf",
+  "displayName": "cirros1",
+  "commoditiesSold": [
+    {
+      "commodityType": "VCPU",
+      "key": "P1",
+      "used": 50.0,
+      "capacity": 2000.0,
+      "peak": 80.0
+    },
+    {
+      "commodityType": "VCPU",
+      "key": "P2",
+      "used": 50.0,
+      "capacity": 2000.0,
+      "peak": 80.0
+    },
+    {
+      "commodityType": "VMEM",
+      "used": 50.0,
+      "capacity": 2000.0,
+      "peak": 80.0
+    }
+  ],
+  "commoditiesBought": [
+    {
+      "providerId": "OpenStackSDK:hp-dl386.eng.vmturbo.com:PM:hp-dl380.eng.vmturbo.com",
+      "bought": [
+        {
+          "commodityType": "MEM"
+        }
+      ],
+      "providerType": "PHYSICAL_MACHINE"
+    },
+    {
+      "providerId": "OpenStackSDK:hp-dl386.eng.vmturbo.com:PM:hp-dl380.eng.vmturbo.com",
+      "bought": [
+        {
+          "commodityType": "CPU"
+        }
+      ],
+      "providerType": "PHYSICAL_MACHINE"
+    },
+    {
+      "providerId": "OpenStackSDK:hp-dl386.eng.vmturbo.com:PM:hp-dl380.eng.vmturbo.com",
+      "bought": [
+        {
+          "commodityType": "BALLOONING",
+          "active": false
+        }
+      ],
+      "providerType": "PHYSICAL_MACHINE"
+    },
+    {
+      "providerId": "OpenStackSDK:hp-dl386.eng.vmturbo.com:STORAGE:hp-dl380.eng.vmturbo.com",
+      "bought": [
+        {
+          "commodityType": "STORAGE_AMOUNT",
+          "key": "Group::OpenStackSDK:hp-dl386.eng.vmturbo.com:STORAGE_GROUP:local",
+          "used": 1.0
+        }
+      ],
+      "providerType": "STORAGE"
+    }
+  ],
+  "powerState": "POWERED_ON",
+  "virtual_machine_data": {
+    "ipAddress": [
+      "10.0.1.15"
+    ],
+    "vmState": {
+      "connected": true
+    }
+  }
+}

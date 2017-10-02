@@ -1,0 +1,154 @@
+
+<%
+   # default vis control to show all
+   unless @show_item
+     @show_item = {}
+     @show_item.default = true
+   end
+
+   view_params = { :form_name => 'entity_assns/form' }
+   @ft_view_section = {}
+%>
+<% unless @embedded %>
+
+<div class="buttons_etc buttons_etc_top">
+<table width="100%" border="0" cellspacing="0" style="margin-top:-5px;margin-bottom:30px;">
+<tr>
+<td width="60%" valign="top">
+<%= js_button_to 'Normal View', :controller => 'entity_assns', :action => 'show', :id => @entity_assn %> 
+<select onchange="javascript: location = this[this.selectedIndex].value;">
+    <option value="#">Select an action...</option>
+    <option value="#">----------------</option>
+    <option value="<%=url_for(:controller => 'entity_assns', :action => 'list')%>"> <%="Table of Entity Assn".pluralize%> </option>
+    <option value="<%=url_for(:controller => 'entity_assns', :action => 'block_list')%>"> <%="List of Entity Assn".pluralize%> </option>
+
+    <option value="#">----------------</option>
+
+<!-- BEGIN-UID.user_actions -->
+
+<!-- END-UID.user_actions -->
+
+    </select>
+</td>
+<td class="context" width="40%">
+   <%=context_links(@entity_assn)%>
+</td>
+</tr>
+</table>
+</div>
+
+<% end %>
+
+<!-- BEGIN-UID.user_mods -->
+
+<!-- END-UID.user_mods -->
+
+<fieldset>
+<LEGEND>Properties</LEGEND>
+
+<%= form_tag(:controller => 'entity_assns', :action => 'update', :id => @entity_assn) %>
+  <p class="submit_top">&nbsp;<%= submit_tag 'Save Changes' %> </p>
+  <%= render :partial => view_params[:form_name] %>
+  <p class="submit_bottom">&nbsp;<%= submit_tag 'Save Changes' %> </p>
+</form> <!-- end form_tag -->
+
+</fieldset>
+
+<p class="spacer">&nbsp;</p>
+
+<div class="edit_view edit_view_entity_assn">              <!-- div1 -->
+
+<!-- BEGIN-UID.user_related_items -->
+
+<!-- END-UID.user_related_items -->
+
+<% @ft_view_section = {} %>
+
+<% @ft_view_section[:members] = capture { %>
+<% if @show_item[:members] then %>
+
+  <!-- Members -->
+
+  <a name="members"></a>
+
+  <div id="show_rel_members" class="show_rel show_rel_members">                                                 <!-- div28 -->
+    <div class="detail_quick_add detail_quick_add_entity" id="quick_add_entity_assn_members" style="float:right;">
+        <%= show_hide "Quick-add Entities by name", 'quick_add_members' %>
+        <div id="quick_add_members" style="display:none; margin-bottom:4px; padding:8px;">
+            enter one name per line
+            <%=form_tag :controller => 'entity_assns', :action => 'quick_add_members', :id => @entity_assn.id %>
+                <%=text_area_tag 'names', {}, :style=>"width:2in; height:0.5in;"%> <br />
+                <%=submit_tag 'Add Entities'%>
+            </form>
+        </div>
+    </div>
+
+    <div id="show_rel_members_label" class="rel_label"> Members &nbsp; <%= show_hide('show/hide','show_rel_members_value')%> </div>        <!-- div29 -->
+
+    <div id="show_rel_members_value" class="rel_value">                                                                           <!-- div30 -->
+        <ul style="margin-left:20px;">
+        <% for entity in (@members || []) %>
+        <li>
+
+        <%= link_to image_tag("blue_x.jpg",{:border=>"0", :title => 'Remove'}), {:controller => 'entity_assns', :action => 'remove_from_members', :id => @entity_assn.id, :entity_id => entity.id} %>
+        &nbsp; <%= link_to image_tag("pencil.jpg",{:border=>"0", :title => 'Edit'}), {:controller => entity.ctrlr_name, :action => 'edit', :id => entity.id, 
+                                       :return_to_controller => 'entity_assns', :return_to_action => 'edit', :return_to_id => @entity_assn.id} %> 
+        &nbsp &nbsp;
+        <% text = entity.name.to_s %>
+        <% text = (auto_link(text)) %>
+        <% text = "&nbsp;" if text.length == 0 %>
+        <%= link_to entity.iname, url_show(entity), :class => "identity_link" %> 
+        </li>
+        <% end %>
+        </ul> 
+        <p class="add_new_link">
+        <%= link_to 'Add Entity', :controller => 'entity_assns', :action => 'add_to_members', :id => @entity_assn.id, :obj_context => @entity_assn.iname %> 
+        </p>
+
+    </div>          <!-- div31 -->
+  </div>            <!-- div32 -->
+<% end %>
+<% } %>
+
+<% @ft_view_section_order = []
+   @ft_view_section_order << :members
+%>
+
+<!-- BEGIN-UID.user_ordering -->
+
+<!-- END-UID.user_ordering -->
+
+<% for s in @ft_view_section_order %>
+   <%= @ft_view_section[s].to_s %>
+<% end %>
+
+
+</div>                           <!-- end div1 -->
+
+<% unless @embedded %>
+
+<div class="buttons_etc buttons_etc_bottom">
+<table width="100%" border="0" cellspacing="0" style="margin-bottom:-5px;margin-top:30px;">
+<tr>
+<td width="60%" valign="top">
+<%= js_button_to 'Normal View', :controller => 'entity_assns', :action => 'show', :id => @entity_assn %> 
+<select onchange="javascript: location = this[this.selectedIndex].value;">
+    <option value="#">Select an action...</option>
+    <option value="#">----------------</option>
+    <option value="<%=url_for(:controller => 'entity_assns', :action => 'list')%>"> <%="Table of Entity Assn".pluralize%> </option>
+    <option value="<%=url_for(:controller => 'entity_assns', :action => 'block_list')%>"> <%="List of Entity Assn".pluralize%> </option>
+
+    <option value="#">----------------</option>
+
+
+
+    </select>
+</td>
+<td class="context" width="40%">
+   <%=context_links(@entity_assn)%>
+</td>
+</tr>
+</table>
+</div>
+
+<% end %>

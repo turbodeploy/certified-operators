@@ -1,0 +1,19 @@
+spring:
+  application:
+    name: repository
+  cloud:
+    consul:
+      enabled: false
+      config:
+        enabled: false
+        fail-fast: false
+      discovery:
+        enabled: false
+
+server:
+  port: 8080
+  grpcPort: 9001
+
+multipart:
+  max-file-size: 100MB
+  max-request-size: 100MB

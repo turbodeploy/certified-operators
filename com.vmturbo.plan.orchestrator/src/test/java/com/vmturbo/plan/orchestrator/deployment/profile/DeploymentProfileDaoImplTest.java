@@ -1,0 +1,124 @@
+package com.vmturbo.plan.orchestrator.deployment.profile;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
+import java.util.Optional;
+import java.util.Set;
+
+import org.flywaydb.core.Flyway;
+import org.jooq.DSLContext;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
+
+import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfile;
+import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfileInfo;
+import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.plan.orchestrator.plan.DiscoveredNotSupportedOperationException;
+import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
+import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
+
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(
+    classes = {TestSQLDatabaseConfig.class}
+)
+@TestPropertySource(properties = {"originalSchemaName=plan"})
+public class DeploymentProfileDaoImplTest {
+
+    @Autowired
+    protected TestSQLDatabaseConfig dbConfig;
+
+    private Flyway flyway;
+
+    private DeploymentProfileDaoImpl deploymentProfileDao;
+
+    @Before
+    public void setup() throws Exception {
+        IdentityGenerator.initPrefix(0);
+        prepareDatabase();
+    }
+
+    private void prepareDatabase() throws Exception {
+        flyway = dbConfig.flyway();
+        final DSLContext dsl = dbConfig.dsl();
+        deploymentProfileDao = new DeploymentProfileDaoImpl(dsl);
+        flyway.clean();
+        flyway.migrate();
+    }
+
+    @After
+    public void teardown() {
+        flyway.clean();
+    }
+
+    @Test
+    public void testCreateDeploymentProfile() {
+        DeploymentProfileInfo deploymentProfileInfo = DeploymentProfileInfo.newBuilder()
+            .setName("test-deployment-profile")
+            .build();
+        DeploymentProfile result = deploymentProfileDao.createDeploymentProfile(deploymentProfileInfo);
+        assertEquals(result.getDeployInfo(), deploymentProfileInfo);
+    }
+
+    @Test
+    public void testGetDeploymentProfile() {
+        DeploymentProfileInfo deploymentProfileInfo = DeploymentProfileInfo.newBuilder()
+            .setName("test-deployment-profile")
+            .build();
+        DeploymentProfile createdDeploymentProfile = deploymentProfileDao.createDeploymentProfile(deploymentProfileInfo);
+        Optional<DeploymentProfile> retrievedDeploymentProfile = deploymentProfileDao.getDeploymentProfile(createdDeploymentProfile.getId());
+
+        assertEquals(retrievedDeploymentProfile.get(), createdDeploymentProfile);
+    }
+
+    @Test
+    public void testGetAllDeploymentProfile() {
+        DeploymentProfileInfo firstDeploymentProfile = DeploymentProfileInfo.newBuilder()
+            .setName("first-deployment-profile")
+            .build();
+        DeploymentProfileInfo secondDeploymentProfile = DeploymentProfileInfo.newBuilder()
+            .setName("second-deployment-profile")
+            .build();
+
+        DeploymentProfile createdFirst = deploymentProfileDao.createDeploymentProfile(firstDeploymentProfile);
+        DeploymentProfile createdSecond = deploymentProfileDao.createDeploymentProfile(secondDeploymentProfile);
+        Set<DeploymentProfile> retrievedDeployments = deploymentProfileDao.getAllDeploymentProfiles();
+        assertTrue(retrievedDeployments.size() == 2);
+        assertTrue(retrievedDeployments.stream()
+            .anyMatch(deploymentProfile -> deploymentProfile.getId() == createdFirst.getId()));
+        assertTrue(retrievedDeployments.stream()
+            .anyMatch(deploymentProfile -> deploymentProfile.getId() == createdSecond.getId()));
+    }
+
+    @Test
+    public void testEditTemplate() throws NoSuchObjectException, DiscoveredNotSupportedOperationException {
+        DeploymentProfileInfo firstDeploymentProfile = DeploymentProfileInfo.newBuilder()
+            .setName("first-deployment-profile")
+            .build();
+        DeploymentProfileInfo secondDeploymentProfile = DeploymentProfileInfo.newBuilder()
+            .setName("second-deployment-profile")
+            .build();
+        DeploymentProfile createdFirst = deploymentProfileDao.createDeploymentProfile(firstDeploymentProfile);
+        DeploymentProfile newDeploymentProfile = deploymentProfileDao.editDeploymentProfile(createdFirst.getId(),
+            secondDeploymentProfile);
+        Optional<DeploymentProfile> retrievedDeploymentProfile = deploymentProfileDao.getDeploymentProfile(createdFirst.getId());
+        assertEquals(retrievedDeploymentProfile.get(), newDeploymentProfile);
+        assertEquals(retrievedDeploymentProfile.get().getDeployInfo(), secondDeploymentProfile);
+    }
+
+    @Test
+    public void testDeleteDeploymentProfile() throws NoSuchObjectException, DiscoveredNotSupportedOperationException {
+        DeploymentProfileInfo deploymentProfileInfo = DeploymentProfileInfo.newBuilder()
+            .setName("test-deployment-profile")
+            .build();
+        DeploymentProfile createdDeploymentProfile = deploymentProfileDao.createDeploymentProfile(deploymentProfileInfo);
+        DeploymentProfile deletedDeploymentProfile = deploymentProfileDao.deleteDeploymentProfile(createdDeploymentProfile.getId());
+        assertEquals(deletedDeploymentProfile, createdDeploymentProfile);
+    }
+}

@@ -1,0 +1,70 @@
+
+
+<%
+  color_for = Proc.new { |severity|
+    case
+    when severity == "CRITICAL"
+      "darkred"
+    when severity == "MAJOR"
+      "orangered"
+    when severity == "MINOR"
+      "orange"
+    when severity == "WARNING"
+      "sandybrown"
+    else
+      "black"
+    end
+  }
+
+%>
+
+
+<p id="top_section_label">Problems and Suggestions</p>
+
+<hr />
+
+
+<h3 id="section_label">
+  <%= @class_name.to_s %> Problems
+</h3>
+
+<% if @problems.size == 0 then %>
+
+  <p>There are no current <%= @class_name %> problems</p>
+
+<% else %>
+
+  <%
+  fields = %W(obj_uid obj_display_name problem_name explanation)
+%>
+
+  <table class="compact" cellspacing="0" cellpadding="6" style="margin-left: 10px;">
+
+    <tr style="
+        background:url(/persistence/images/vslice_vmt_pod_banner.jpg);
+        ">
+      <th>Severity &amp; Category</th>
+      <th><%= @class_name.to_s %> Name</th>
+      <th>Suggested Action</th>
+    </tr>
+
+    <%
+    prob_arr = []
+    for p in @problems do
+      prob_arr << [p['severity'],p['obj_display_name'],p['problem_name'],p['obj_uuid'],p['explanation']]
+    end
+    prob_arr = prob_arr.sort
+  %>
+
+    <% for prob in prob_arr do %>
+        <tr>
+          <td><span style="font-weight: bold; color:<%=color_for.call(prob[0])%>"><%= prob[0] %></span>
+            <br /><%= prob[2] %></td>
+          <td>
+            <%= link_to prob[1], :action => "summary_#{@e_code}", :"#{@e_code}_uuid" => prob[3] %>
+          </td>
+          <td><%= prob[4] %></td>
+        </tr>
+      <% end %>
+    </table>
+    <% end %>

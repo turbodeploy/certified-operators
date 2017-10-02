@@ -1,0 +1,54 @@
+
+<% @action = 'render_query_results' unless @action %>
+
+<div class="query_results" id="query_results">
+    <hr />
+
+    <h3><%= @query[:title]%></h3>
+
+    <% if @cols && @cols.size > 0 then %>
+        <%= render :partial => 'fast_ops/pagination' %>    
+        
+        <table class="thinline" cellspacing="0">
+
+          <%
+            add_link = @rows.size > 0 && @rows.first.attributes.keys.include?('id')
+            
+            sort_dir = Hash.new("ASC")
+            sort_dir[params[:order_by].to_s] = params[:direction].to_s == "ASC" ? "DESC" : "ASC"
+            
+            dir_ind = Hash.new("")
+            dir_ind[params[:order_by].to_s] = params[:direction].to_s == "ASC" ? " &uarr;" : " &darr;"
+          %>
+
+          <tr>
+            <% if add_link then %>
+              <th>&nbsp;</th>
+            <% end %>
+
+            <th>
+                <%= @cols.collect{|col| link_to_remote(col.titleize,
+                    :url => {:action => @action, :query => @query[:name], :order_by => col.to_s, :direction => sort_dir[col], :page => 1, :page_length => @page_size},
+                    :update => 'q_results' ) + dir_ind[col]}.join("</th><th>") %>
+            </th>
+        	</tr>
+
+        	<% for row in @rows do%>
+       	    <tr>
+              <% if add_link then %>
+                <th style="text-align:center">
+                  <%= link_to (@link_params[:link_name] || @link_params[:action]),
+                        url_for(@link_params.merge({:id => row.id})) %>
+                </th>
+              <% end %>
+                
+              <td><%= @cols.collect{|col| row.get_attr_val(col).to_s}.join("</td><td>") %></td>
+            </tr>
+        	<% end %>
+
+        </table>
+      
+        <%= render :partial => 'fast_ops/pagination' %>    
+    <% end %>
+</div>
+

@@ -1,0 +1,132 @@
+
+<p id="top_section_label">Home Page</p>
+
+<hr />
+
+
+<h4 id="section_label">Informational Links</h4>
+<ul style="margin-bottom: 10px; margin-left: 20px;">
+  <li><%= link_to "Inventory", :action => 'inventory' %></li>
+  <li><%= link_to "Hot Spots", :action => 'hot_spots' %></li>
+  <li><%= link_to "Wasted Resources", :action => 'wasted_resources' %></li>
+</ul>
+
+
+<h4 id="section_label">Resource Utilization Summaries</h4>
+<table class="compact" border="0" cellspacing="0" cellpadding="3" style="margin-left: 12px;">
+  <tr>
+    <th colspan="6" style="text-align: center;
+        background:url(/persistence/images/vslice_vmt_pod_banner.jpg);
+        ">Hosts</th>
+  </tr>
+  <tr>
+    <th>Problems</th><th colspan="5"><%= link_to "#{@pm_problems.size.to_s} Suggestions", :action => 'show_problems', :klass => 'PhysicalMachine' %></th>
+  </tr>
+  <tr>
+    <th>Utilization</th>
+    <% for p in 0..4 do %>
+      <td style="font-size: x-small"><%= p*20 %>-<%= (p+1)*20 %>&#37;</td>
+    <% end %>
+  </tr>
+
+  <% for prop in @pm_props do %>
+    <tr>
+      <td class="row_label" style="font-weight: bold; white-space:nowrap;"><%= prop_dname prop %></td>
+      <% for p in 0..4 do %>
+        <td style="text-align: right">
+          <% n = @pm_entity_info.select{|e|
+            e.property_type == prop &&
+            e.max_value.to_f >= p*0.20 &&
+            e.max_value.to_f < (p+1)*0.20}.size %>
+          <% if n > 0 then %>
+            <%= link_to n.to_s, :controller => 'mobi', :action => 'bottom_10_hosts', :prop_type => prop,
+                              :prop_subtype => 'utilization', :direction => 'DESC', :low_val => (p*0.20).to_s,
+                              :cutoff => ((p+1)*0.20).to_s %>
+          <% else %>
+            -
+          <% end %>
+        </td>
+      <% end %>
+    </tr>
+  <% end %>
+
+</table>
+
+
+<p style="margin:0; line-height: 6pt;">&nbsp;</p>
+
+<table class="compact" border="0" cellspacing="0" cellpadding="3" style="margin-left: 12px;">
+  <tr>
+    <th colspan="6" style="text-align: center;
+        background:url(/persistence/images/vslice_vmt_pod_banner.jpg);
+        ">Virtual Machines</th>
+  </tr>
+  <tr>
+    <th>Problems</th><th colspan="5"><%= link_to "#{@vm_problems.size.to_s} Suggestions", :action => 'show_problems', :klass => 'VirtualMachine' %></th>
+  </tr>
+  <tr>
+    <th>Utilization</th>
+    <% for p in 0..4 do %>
+      <td style="font-size: x-small"><%= p*20 %>-<%= (p+1)*20 %>&#37;</td>
+    <% end %>
+  </tr>
+
+  <% for prop in @vm_props do %>
+    <tr>
+      <td class="row_label" style="font-weight: bold; white-space:nowrap;"><%= prop_dname prop %></td>
+      <% for p in 0..4 do %>
+        <td style="text-align: right"><% n = @vm_entity_info.select{|e|
+            e.property_type == prop &&
+            e.max_value.to_f >= p*0.20 &&
+            e.max_value.to_f < (p+1)*0.20}.size %>
+          <% if n > 0 then %>
+            <%= link_to n.to_s, :controller => 'mobi', :action => 'bottom_10_vms', :prop_type => prop,
+                              :prop_subtype => 'utilization', :direction => 'DESC', :low_val => (p*0.20).to_s,
+                              :cutoff => ((p+1)*0.20).to_s %>
+          <% else %>
+            -
+          <% end %>
+        </td>
+      <% end %>
+    </tr>
+  <% end %>
+</table>
+
+
+<p style="margin:0; line-height: 6pt;">&nbsp;</p>
+
+<table class="compact" border="0" cellspacing="0" cellpadding="3" style="margin-left: 12px;">
+  <tr>
+    <th colspan="6" style="text-align: center;
+        background:url(/persistence/images/vslice_vmt_pod_banner.jpg);
+        ">DataStores</th>
+  </tr>
+  <tr>
+    <th>Problems</th><th colspan="5"><%= link_to "#{@ds_problems.size.to_s} Suggestions", :action => 'show_problems', :klass => 'Storage' %></th>
+  </tr>
+  <tr>
+    <th>Utilization</th>
+    <% for p in 0..4 do %>
+      <td style="font-size: x-small"><%= p*20 %>-<%= (p+1)*20 %>&#37;</td>
+    <% end %>
+  </tr>
+  <% for prop in @ds_props do %>
+    <tr>
+      <td class="row_label" style="font-weight: bold; white-space:nowrap;"><%= prop_dname prop %></td>
+      <% for p in 0..4 do %>
+        <td style="text-align: right"><% n = @ds_entity_info.select{|e|
+            e.property_type == prop &&
+            e.max_value.to_f >= p*0.20 &&
+            e.max_value.to_f < (p+1)*0.20}.size %>
+        <% if n > 0 then %>
+            <%= link_to n.to_s, :controller => 'mobi', :action => 'bottom_10_dss', :prop_type => prop,
+                            :prop_subtype => 'utilization', :direction => 'DESC', :low_val => (p*0.20).to_s,
+                            :cutoff => ((p+1)*0.20).to_s %>
+          <% else %>
+            -
+          <% end %>
+        </td>
+      <% end %>
+    </tr>
+  <% end %>
+</table>

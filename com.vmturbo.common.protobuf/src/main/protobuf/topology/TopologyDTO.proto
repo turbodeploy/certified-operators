@@ -1,0 +1,188 @@
+syntax = "proto2";
+package topology;
+
+option java_package = "com.vmturbo.common.protobuf.topology";
+
+message TopologyEntityDTO {
+
+    // type of entity
+    required int32 entityType = 1;
+
+    // object identifier
+    required int64 oid = 2;
+
+    // name to display in the UI
+    optional string displayName = 3;
+
+    // list of commodities sold
+    repeated CommoditySoldDTO commoditySoldList = 4;
+
+    // map of commodities bought, indexed by provider oid
+    map<int64, CommodityBoughtList> commodityBoughtMap = 5;
+
+    message CommodityBoughtList {
+        repeated CommodityBoughtDTO commodityBought = 1;
+    }
+
+    // entity state
+    optional EntityState entityState = 6 [default = POWERED_ON];
+
+    // entity properties in free (string <-> string) form, used for probe-defined values.
+    map<string, string> entityPropertyMap = 7;
+
+    // entity's policies, when acting as a provider
+    optional ProviderPolicy providerPolicy = 8;
+
+    message ProviderPolicy {
+        // if the entity could be a potential provider for new consumer
+        optional bool isAvailableAsProvider = 1 [default = true];
+    }
+}
+
+// Message to hold original topology broadcast message.
+message Topology {
+    // The ID of the topology
+    required int64 topology_id = 1;
+
+    oneof segment {
+        Start start = 2;
+        Data data = 3;
+        End end = 4;
+    }
+
+    // Marker message, declaring the start of topology broadcast
+    message Start {
+        // The basic information of topology
+        optional TopologyInfo topology_info = 1;
+    };
+    // Message to hold real data of the topology - it is the chunk
+    message Data {
+        // The entities in the topology
+        repeated TopologyEntityDTO entities = 1;
+    }
+    // Message to appear at the very end of topology broadcast
+    message End {
+        // Total number of entities sent (can be used for integrity checks)
+        required uint64 total_count = 1;
+    }
+}
+
+// Message to hold topology, projected by market.
+message ProjectedTopology {
+    // GeneratedId of the topology created after the plan
+    required int64 topology_id = 1;
+
+    oneof segment {
+        Start start = 2;
+        Data data = 3;
+        End end = 4;
+    }
+
+    // Marker message, declaring the start of topology broadcast
+    message Start {
+        // The basic information of the source topology
+        optional TopologyInfo source_topology_info = 1;
+    };
+    // Message to hold real data of the topology - it is the chunk
+    message Data {
+        // The entities in the topology
+        repeated TopologyEntityDTO entities = 1;
+    }
+    // Message to appear at the very end of topology broadcast
+    message End {
+        // Total number of entities sent (can be used for integrity checks)
+        required uint64 total_count = 1;
+    }
+}
+
+// Message to hold basic fields of topology
+message TopologyInfo {
+    // The ID of the topology
+    optional int64 topology_id = 1;
+
+    // For a plan it is the plan ID, for real time topology it is a number that uniquely identifies the source topology processor
+    optional int64 topology_context_id = 2;
+
+    // The time of the topology created.
+    optional int64 creation_time = 3;
+
+    // The type of topology
+    optional TopologyType topology_type = 4 [default = REALTIME];
+}
+
+enum EntityState {
+    POWERED_ON = 0;
+    POWERED_OFF = 1;
+    SUSPENDED = 2;
+    MAINTENANCE = 3;
+    FAILOVER = 4;
+    UNKNOWN = 5;
+}
+
+enum TopologyType {
+    REALTIME = 0;
+    PLAN = 1;
+}
+
+message CommodityType {
+    // type of commodity
+    required int32 type = 1;
+
+    // the key of this commodity type
+    optional string key = 2;
+}
+
+message CommodityBoughtDTO {
+
+    required CommodityType commodityType = 1;
+
+    optional double used = 2 [default = 0.0];
+
+    optional double peak = 3 [default = 0.0];
+
+    // Whether the commodity is active or not
+    optional bool active = 4 [default = true];
+}
+
+message CommoditySoldDTO {
+
+    required CommodityType commodityType = 1;
+
+    optional double used = 2 [default = 0.0];
+
+    optional double peak = 3 [default = 0.0];
+
+    optional double capacity = 4 [default = 100];
+
+    optional double effectiveCapacityPercentage = 5 [default = 100];
+
+    optional double reservedCapacity = 6 [default = 0.0];
+
+    optional bool isResizeable = 7 [default = true];
+
+    optional bool isThin = 8 [default = true];
+
+    // For DSPM_ACCESS commodity this is the id of the PhysicalMachine associated with the Storage
+    // that sells this commodity. For DATASTORE commodity this is the id of the Storage associated
+    // with the PhysicalMachine that sells this commodity.
+    optional int64 accesses = 9;
+
+    // Whether the commodity is active or not
+    optional bool active = 10 [default = true];
+}
+
+// A request to assemble the current topology and broadcast it to all listeners for the topology.
+message TopologyBroadcastRequest {
+    // Currently no properties.
+}
+
+// The response to a request to broadcast the topology.
+message TopologyBroadcastResponse {
+    // Currently no properties.
+    // TODO: Make topology broadcasts a first-class object similar to all TP operations (discovery, action, etc).
+}
+
+service TopologyService {
+    // Request that the topology processor broadcast the latest topology to all its listeners.
+    rpc RequestTopologyBroadcast(TopologyBroadcastRequest) returns (TopologyBroadcastResponse);
+}

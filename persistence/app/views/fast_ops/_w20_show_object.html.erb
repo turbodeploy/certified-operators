@@ -1,0 +1,34 @@
+
+<div class="w20_show" id="w20_show_<%=@obj.ctrlr_name.singularize%>" style="padding:10px;">
+
+<table class="w20_show" cellspacing="1" border="0">
+<tr><td>
+
+    <% 
+        attr_info = @obj.class.attr_type_info() 
+    %>
+
+    <div>
+        <table class="w20_show_props" border="0" cellspacing="1">
+            <% for prop in @properties do %>
+                <tr> 
+                <td  class="ipedit_label"><%= prop.to_s.humanize %></td> 
+                <% if attr_info[prop][:datatype] == 'text' %>
+                  <td class="ipedit_value"><%= rc_format((@obj.send(prop).to_s)) %></td> 
+                <% else %>
+                  <td class="ipedit_value"><%= attr_info[prop][:modifier] == 'money' ? number_to_currency(@obj.send(prop)) : @obj.send(prop).to_s %></td> 
+                <% end %>
+                </tr>
+            <% end %>
+        </table>
+    </div>
+
+    <div>
+        <%= link_to_remote( submit_tag("Edit"), {:url => url_for(:id => @obj, :action => "w20_edit_#{@obj.ctrlr_name.singularize}", :props => @properties.join('/') ),
+                                      :update => "w20_#{@obj.ctrlr_name.singularize}_div" } ) %>
+    </div>
+</td></tr>
+</table>
+
+</div>
+

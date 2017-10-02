@@ -1,0 +1,74 @@
+syntax="proto2";
+package topology;
+
+option java_package = "com.vmturbo.common.protobuf.topology";
+
+message SetDiscoveryScheduleRequest {
+
+    // Id of the target.
+    required int64 target_id = 1;
+
+    // The new discovery interval for the target. If this is not set, the discovery interval will be
+    // synced to the broadcast interval.
+    optional int64 interval_minutes = 2;
+}
+
+message GetDiscoveryScheduleRequest {
+
+    // Id of the target.
+    required int64 target_id = 1;
+}
+
+message SetBroadcastScheduleRequest {
+
+    // The interval at which broadcasts should occur, in minutes.
+    required int64 interval_minutes = 1;
+}
+
+message GetBroadcastScheduleRequest {
+}
+
+// Information about the schedule of a recurring operation.
+message ScheduleInfo {
+
+    // The interval at which the scheduled operation occurs, in minutes.
+    optional int64 interval_minutes = 1;
+
+    // The milliseconds until the next time the scheduled operation will occur.
+    optional int64 time_to_next_millis = 2;
+}
+
+message DiscoveryScheduleResponse {
+    optional ScheduleInfo info = 1;
+
+    // If this discovery schedule is synched to the overall broadcast schedule.
+    optional bool synched_to_broadcast_schedule = 2;
+}
+
+message BroadcastScheduleResponse {
+
+    // Information about the broadcast schedule of the live topology. If this is not set, then the
+    // Topology Processor is not broadcasting the topology at any interval.
+    optional ScheduleInfo info = 1;
+}
+
+service ScheduleService {
+
+    // Set the interval at which the Topology Processor issues discovery requests to a particular
+    // target.
+    rpc SetDiscoverySchedule(SetDiscoveryScheduleRequest) returns (DiscoveryScheduleResponse);
+
+    // Get the interval at which the Topology Processor issues discovery requests to a particular
+    // target.
+    // Returns a NOT_FOUND error if the specified target does not exist in the Topology Processor.
+    rpc GetDiscoverySchedule(GetDiscoveryScheduleRequest) returns (DiscoveryScheduleResponse);
+
+    // Set the interval at which the Topology Processor broadcasts the current version of the
+    // discovered topology.
+    // See the TopologyDTO.Topology message for the structure of the topology broadcast.
+    rpc SetBroadcastSchedule(SetBroadcastScheduleRequest) returns (BroadcastScheduleResponse);
+
+    // Get the interval at which the topology processor broadcasts the current topology. It can be
+    // retrieved only when the broadcast schedule is present.
+    rpc GetBroadcastSchedule(GetBroadcastScheduleRequest) returns (BroadcastScheduleResponse);
+}

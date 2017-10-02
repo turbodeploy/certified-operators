@@ -1,0 +1,298 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <artifactId>Turbonomic-XL</artifactId>
+        <groupId>com.vmturbo</groupId>
+        <version>7.0.b7-SNAPSHOT</version>
+        <relativePath>../build</relativePath>
+    </parent>
+
+    <artifactId>com.vmturbo.components</artifactId>
+    <description>The parent POM of all components.</description>
+    <packaging>pom</packaging>
+
+    <build>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+            </resource>
+        </resources>
+    </build>
+
+    <properties>
+        <!-- START properties for static swagger documentation generation -->
+
+        <!-- The ;-separated locations for swagger-annotated Java objects in the component.
+             Components should override this property with the locations of the REST controllers. -->
+        <swagger.locations>none</swagger.locations>
+
+        <!-- The component's display name as it should be displayed in swagger docs -->
+        <swagger.component.name>Name Not Set</swagger.component.name>
+
+        <!-- The base path on which the component serves the API. Should begin with a slash. -->
+        <swagger.basepath>/</swagger.basepath>
+
+        <base.generated.docs.dir>${project.build.directory}/generated-docs/${project.version}</base.generated.docs.dir>
+        <swagger.conf.directory>${base.generated.docs.dir}/swagger</swagger.conf.directory>
+        <generated.asciidoc.directory>${base.generated.docs.dir}/asciidoc</generated.asciidoc.directory>
+        <asciidoctor.input.directory>${generated.asciidoc.directory}</asciidoctor.input.directory>
+        <asciidoctor.html.output.directory>${base.generated.docs.dir}/html</asciidoctor.html.output.directory>
+        <!-- This doesn't handle multi-level modules, but we don't really have
+             multi-level modules that define components at the time of this
+             writing (November 2016) so this is ok. -->
+        <aggregate.adoc.dir>../com.vmturbo.components.common/src/main/resources</aggregate.adoc.dir>
+        <adoc.name>component-swagger</adoc.name>
+        <!-- END properties for static swagger documentation generation -->
+    </properties>
+
+    <profiles>
+        <profile>
+            <id>docker</id>
+            <build>
+                <pluginManagement>
+                    <plugins>
+                        <plugin>
+                            <groupId>org.jacoco</groupId>
+                            <artifactId>jacoco-maven-plugin</artifactId>
+                        </plugin>
+                        <plugin>
+                            <groupId>com.spotify</groupId>
+                            <artifactId>docker-maven-plugin</artifactId>
+                            <configuration>
+                                <imageName>turbonomic/${project.artifactId}</imageName>
+                                <imageTags>
+                                    <imageTag>${project.version}</imageTag>
+                                    <imageTag>${buildNumber}</imageTag>
+                                    <imageTag>latest</imageTag>
+                                </imageTags>
+                                <labels>
+                                    <label>com.vmturbo.version=${project.version}</label>
+                                    <label>com.vmturbo.build=${buildNumber}</label>
+                                </labels>
+                                <baseImage>turbonomic/vmt-component-base:${project.version}</baseImage>
+                                <entryPoint>["/entrypoint.sh", "${project.build.finalName}.jar"]</entryPoint>
+                                <resources>
+                                    <resource>
+                                        <targetPath>/</targetPath>
+                                        <directory>${project.build.directory}</directory>
+                                        <include>${project.build.finalName}.jar</include>
+                                    </resource>
+                                </resources>
+                            </configuration>
+                            <executions>
+                                <execution>
+                                    <id>build-docker-image</id>
+                                    <phase>package</phase>
+                                    <goals>
+                                        <goal>build</goal>
+                                    </goals>
+                                </execution>
+                                <execution>
+                                    <id>tag-docker-image</id>
+                                    <phase>package</phase>
+                                    <goals>
+                                        <goal>tag</goal>
+                                    </goals>
+                                    <configuration>
+                                        <image>turbonomic/${project.artifactId}</image>
+                                        <newName>registry.eng.vmturbo.com:5000/turbonomic/${project.artifactId}</newName>
+                                    </configuration>
+                                </execution>
+                                    <execution>
+                                        <id>push-docker-image</id>
+                                        <phase>deploy</phase>
+                                        <goals>
+                                            <goal>push</goal>
+                                        </goals>
+                                        <configuration>
+                                            <imageName>registry.eng.vmturbo.com:5000/turbonomic/${project.artifactId}</imageName>
+                                        </configuration>
+                                    </execution>
+                                </executions>
+                            </plugin>
+                        </plugins>
+                    </pluginManagement>
+                </build>
+        </profile>
+        <profile>
+            <id>release</id>
+            <build>
+                <plugins>
+                    <!-- generate swagger.json from the annotated controllers -->
+                    <plugin>
+                        <groupId>com.github.kongchen</groupId>
+                        <artifactId>swagger-maven-plugin</artifactId>
+                        <version>${swagger.plugin.version}</version>
+                        <configuration>
+                            <apiSources>
+                                <apiSource>
+                                    <springmvc>true</springmvc>
+                                    <schemes>http,https</schemes>
+                                    <basePath>${swagger.basepath}</basePath>
+                                    <locations>${swagger.locations}</locations>
+                                    <info>
+                                        <title>${swagger.component.name}</title>
+                                        <version>${api.version}</version>
+                                        <description>REST API to access the ${swagger.component.name} functionality.</description>
+                                    </info>
+                                    <swaggerDirectory>${swagger.conf.directory}</swaggerDirectory>
+                                </apiSource>
+                            </apiSources>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <phase>prepare-package</phase>
+                                <goals>
+                                    <goal>generate</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+
+                    <!-- Use the swagger2markup plugin to generate asciidoc -->
+                    <plugin>
+                        <groupId>io.github.robwin</groupId>
+                        <artifactId>swagger2markup-maven-plugin</artifactId>
+                        <version>${swagger2markup.plugin.version}</version>
+                        <configuration>
+                            <inputDirectory>${swagger.conf.directory}</inputDirectory>
+                            <outputDirectory>${generated.asciidoc.directory}</outputDirectory>
+                            <pathsGroupedBy>TAGS</pathsGroupedBy>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <phase>prepare-package</phase>
+                                <goals>
+                                    <goal>process-swagger</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+
+                    <!-- Run the generated asciidoc through Asciidoctor to generate
+                         HTML5 docs -->
+                    <plugin>
+                        <groupId>org.asciidoctor</groupId>
+                        <artifactId>asciidoctor-maven-plugin</artifactId>
+                        <version>${asciidoctor.plugin.version}</version>
+                        <!-- Configure generic document generation settings -->
+                        <configuration>
+                            <sourceDirectory>${aggregate.adoc.dir}</sourceDirectory>
+                            <sourceDocumentName>${adoc.name}.adoc</sourceDocumentName>
+                            <attributes>
+                                <toc>left</toc>
+                                <toclevels>3</toclevels>
+                                <generated>${generated.asciidoc.directory}</generated>
+                            </attributes>
+                        </configuration>
+                        <!-- Since each execution can only handle one backend, run
+                             separate executions for each desired output type -->
+                        <executions>
+                            <execution>
+                                <id>output-html</id>
+                                <phase>prepare-package</phase>
+                                <goals>
+                                    <goal>process-asciidoc</goal>
+                                </goals>
+                                <configuration>
+                                    <backend>html5</backend>
+                                    <outputDirectory>${asciidoctor.html.output.directory}</outputDirectory>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+
+                    <!-- Rename the generated HTML5 file. Unfortunately asciidoctor-maven-plugin doesn't
+                         let us change the name of the file before generating it, so we use a separate
+                         plugin to do that. -->
+                    <plugin>
+                        <groupId>com.coderplus.maven.plugins</groupId>
+                        <artifactId>copy-rename-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>rename-file</id>
+                                <phase>install</phase>
+                                <goals>
+                                    <goal>rename</goal>
+                                </goals>
+                                <configuration>
+                                    <sourceFile>${asciidoctor.html.output.directory}/${adoc.name}.html</sourceFile>
+                                    <destinationFile>${asciidoctor.html.output.directory}/${project.artifactId}.html</destinationFile>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.components.common</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>grpc-extensions</artifactId>
+        </dependency>
+        <!-- Common test utilities. -->
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>components-api-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-1.2-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-slf4j-impl</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-logging</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>ch.qos.logback</groupId>
+                    <artifactId>logback-classic</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <!-- testing -->
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.hamcrest</groupId>
+            <artifactId>hamcrest-all</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-stream-test-support</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>

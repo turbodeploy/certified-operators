@@ -1,0 +1,43 @@
+syntax = "proto2";
+package topology;
+
+option java_package = "com.vmturbo.common.protobuf.topology";
+
+import "group/GroupDTO.proto";
+import "CommonDTO.proto";
+
+message GetDiscoveredGroupsRequest {
+    // The target to get discovered group information for.
+    // If not set, retrieve discovered group information for all targets.
+    optional int64 target_id = 1;
+}
+
+// Information about a group discovered in one of the targets.
+message DiscoveredGroupInfo {
+
+    // The original group, as returned by the probe when doing a discovery
+    // on the target.
+    optional common_dto.GroupDTO discovered_group = 1;
+
+    // If the discovered group was interpreted as a cluster, this is the spec for
+    // the resulting cluster in the XL system.
+    optional .group.ClusterInfo interpreted_cluster = 2;
+
+    // If the discovered group was interpreted as a regular group, this is the spec
+    // for the group in the XL system.
+    optional .group.GroupInfo interpreted_group = 3;
+}
+
+// Represents all the groups discovered by a specific target.
+message TargetDiscoveredGroups {
+    repeated DiscoveredGroupInfo group = 1;
+}
+
+message GetDiscoveredGroupsResponse {
+    // The most recent groups discovered by each target.
+    map<int64, TargetDiscoveredGroups> groups_by_target_id = 1;
+}
+
+service DiscoveredGroupService {
+    rpc GetDiscoveredGroups(GetDiscoveredGroupsRequest) returns (GetDiscoveredGroupsResponse);
+}

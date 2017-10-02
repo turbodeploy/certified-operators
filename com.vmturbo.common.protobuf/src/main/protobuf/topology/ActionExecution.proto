@@ -1,0 +1,34 @@
+syntax = "proto2";
+package topology;
+
+option java_package = "com.vmturbo.common.protobuf.topology";
+
+import "action/ActionDTO.proto";
+
+message ExecuteActionRequest {
+    // The ID of the action being executed.
+    // The Action Orchestrator is responsible
+    // for managing ID's.
+    optional int64 action_id = 1;
+
+    // The ID of the target on which the action
+    // should be executed. All entities involved
+    // in the action should exist on this target.
+    optional int64 target_id = 2;
+
+    // The action information.
+    optional action.ActionInfo action_info = 3;
+}
+
+message ExecuteActionResponse {}
+
+service ActionExecutionService {
+    // Start executing an action. The call returns
+    // once the action is started. Updates about the
+    // progress, success, or failure of the action come
+    // in asynchronously over the notification system.
+    //
+    // TODO (roman, Feb 6 2017): Consider returning updates
+    // in a stream here, instead of over the message bus.
+    rpc ExecuteAction(ExecuteActionRequest) returns (ExecuteActionResponse);
+}

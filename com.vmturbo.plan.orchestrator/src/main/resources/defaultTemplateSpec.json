@@ -1,0 +1,225 @@
+{
+  "VIRTUAL_MACHINE" : {
+    "id" : 1,
+    "name" : "Virtual Machine Template Spec",
+    "resources" : [
+      {
+        "category" : {
+          "name" : "Compute"
+        },
+        "fields" : [
+          {
+            "name" : "numOfCpu",
+            "displayName" : "Cores",
+            "valueType" : "NUMERIC",
+            "description" : "Number of CPU"
+          },
+          {
+            "name" : "cpuSpeed",
+            "displayName" : "VCPU",
+            "valueType" : "NUMERIC",
+            "units" : "MHz",
+            "description" : "CPU Speed"
+          },
+          {
+            "name" : "cpuConsumedFactor",
+            "displayName" : "Utilization",
+            "units" : "%",
+            "divisor" : "100f",
+            "valueType" : "NUMERIC",
+            "description" : "CPU Consumed Factor"
+          },
+          {
+            "name" : "memorySize",
+            "displayName" : "Size",
+            "units" : "MB",
+            "divisor" : "1024f",
+            "valueType" : "NUMERIC",
+            "description" : "Memory Size"
+          },
+          {
+            "name" : "memoryConsumedFactor",
+            "displayName" : "Utilization",
+            "units" : "%",
+            "divisor" : "100f",
+            "valueType" : "NUMERIC",
+            "description" : "Memory Consumed Factor"
+          },
+          {
+            "name" : "ioThroughputConsumed",
+            "displayName" : "Throughput",
+            "units" : "MB/s",
+            "divisor" : "1024f",
+            "valueType" : "NUMERIC",
+            "description" : "IO Throughput Consumed"
+          },
+          {
+            "name" : "networkThroughputConsumed",
+            "displayName" : "Throughput",
+            "units" : "MB/s",
+            "divisor" : "1024f",
+            "valueType" : "NUMERIC",
+            "description" : "Network Throughput Consumed"
+          },
+          {
+            "name" : "ioThroughput",
+            "displayName" : "Throughput",
+            "units" : "MB/s",
+            "divisor" : "1024f",
+            "valueType" : "NUMERIC",
+            "description" : "IO Throughput"
+          },
+          {
+            "name" : "networkThroughput",
+            "displayName" : "Throughput",
+            "units" : "MB/s",
+            "divisor" : "1024f",
+            "valueType" : "NUMERIC",
+            "description" : "Network Throughput"
+          }
+        ]
+      },
+      {
+        "category" : {
+          "name" : "Storage"
+        }
+      ,
+        "fields" : [
+          {
+            "name" : "diskSize",
+            "displayName" : "Size",
+            "units" : "GB",
+            "divisor" : "1024f",
+            "valueType" : "NUMERIC",
+            "description" : "Disk size"
+          },
+          {
+            "name" : "diskIopsConsumed",
+            "displayName" : "IOPS Consumed",
+            "valueType" : "NUMERIC",
+            "description" : "Disk IOPS Consumed"
+          },
+          {
+            "name" : "diskConsumedFactor",
+            "displayName" : "Utilization",
+            "units" : "%",
+            "divisor" : "100f",
+            "valueType" : "NUMERIC",
+            "description" : "Disk Consumed Factor"
+          },
+          {
+            "name" : "diskIops",
+            "displayName" : "IOPS",
+            "valueType" : "NUMERIC",
+            "description" : "Disk IOPS"
+          }
+        ]
+      }
+    ]
+  },
+  "PHYSICAL_MACHINE" : {
+    "id" : 2,
+    "name" : "Physical Machine Template Spec",
+    "resources" : [
+      {
+        "category" : {
+          "name" : "Compute"
+        },
+        "fields" : [
+          {
+            "name" : "numOfCores",
+            "displayName" : "Cores",
+            "valueType" : "NUMERIC",
+            "description" : "Number of Cores"
+          },
+          {
+            "name" : "cpuSpeed",
+            "displayName" : "CPU",
+            "valueType" : "NUMERIC",
+            "units" : "MHz",
+            "description" : "CPU Speed"
+          },
+          {
+            "name" : "ioThroughputSize",
+            "displayName" : "Size",
+            "units" : "MB/s",
+            "divisor" : "1024f",
+            "valueType" : "NUMERIC",
+            "description" : "IO Throughput Size"
+          },
+          {
+            "name" : "memorySize",
+            "displayName" : "Size",
+            "units" : "MB",
+            "divisor" : "1024f",
+            "valueType" : "NUMERIC",
+            "description" : "Memory Size"
+          },
+          {
+            "name" : "networkThroughputSize",
+            "displayName" : "Size",
+            "units" : "MB/s",
+            "divisor" : "1024f",
+            "valueType" : "NUMERIC",
+            "description" : "Network Throughput Size"
+          }
+        ]
+      },
+      {
+        "category" : {
+          "name" : "Infrastructure"
+        },
+        "fields" : [
+          {
+            "name" : "powerSize",
+            "displayName" : "Size",
+            "valueType" : "NUMERIC",
+            "description" : "Power Size",
+            "defaultValue" : "1.0f"
+          },
+          {
+            "name" : "spaceSize",
+            "displayName" : "Size",
+            "valueType" : "NUMERIC",
+            "description" : "Space Size",
+            "defaultValue" : "1.0f"
+          },
+          {
+            "name" : "coolingSize",
+            "displayName" : "Size",
+            "valueType" : "NUMERIC",
+            "description" : "Cooling Size",
+            "defaultValue" : "1.0f"
+          }
+        ]
+      }
+    ]
+  },
+  "STORAGE" : {
+    "id" : 3,
+    "name" : "Storage Template Spec",
+    "resources" : [
+      {
+        "category" : {
+          "name" : "Storage"
+        },
+        "fields" : [
+          {
+            "name" : "diskIops",
+            "displayName" : "IOPS",
+            "valueType" : "NUMERIC",
+            "description" : "Disk IOPS"
+          },
+          {
+            "name" : "diskSize",
+            "displayName" : "Size",
+            "valueType" : "NUMERIC",
+            "units" : "GB",
+            "divisor" : "1024f",
+            "description" : "Disk Size"
+          }
+        ]
+      }
+    ]
+  }
+}

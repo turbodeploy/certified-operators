@@ -1,0 +1,83 @@
+package com.vmturbo.topology.processor.identity;
+
+import java.util.List;
+import java.util.Map;
+
+import javax.annotation.Nonnull;
+
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.components.common.diagnostics.Diagnosable;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
+import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
+
+/**
+ * The Identity Provider is responsible for management of OID's for all
+ * relevant objects in the Topology processor. The identity provider
+ * implementation decides what properties of object descriptors to use
+ * to determine equivalence.
+ *
+ * <p>The most important function is OID assignment for entities. The OIDs
+ * assigned here propagate throughout the system, and the Identity Provider
+ * is the source of truth for entity identity information.
+ *
+ * <p>ID assignment for targets, probes, discoveries, actions etc. also
+ * happens here.
+ */
+public interface IdentityProvider extends Diagnosable {
+
+    /**
+     * Get the target ID for the target described by a given spec.
+     *
+     * @param targetSpec The spec describing the target.
+     * @return The OID to use to identify the target.
+     */
+    long getTargetId(@Nonnull TargetSpec targetSpec);
+
+    /**
+     * Get the probe ID for the probe described by a probeInfo.
+     *
+     * @param probeInfo The object describing the probe.
+     * @return The OID to use to identify the probe.
+     */
+    long getProbeId(@Nonnull ProbeInfo probeInfo);
+
+    /**
+     * Get the entity ID for the entities discovered by a specific probe
+     * and described by the given DTO.
+     *
+     * @param probeId The probe that discovered the entity.
+     * @param entityDTOs A list of the descriptors of the entities' properties.
+     * @return A map from the assigned OID to the descriptor it was assigned to. Not all entities
+     *         in the input are guaranteed to have an ID - for example, if the probe that discovered
+     *         an entity didn't provide identity metadata for the entity type, the entity won't get
+     *         an ID.
+     * @throws IdentityUninitializedException If the initialization of the identity provider
+     *      is not complete.
+     */
+    Map<Long, EntityDTO> getIdsForEntities(long probeId, @Nonnull List<EntityDTO> entityDTOs)
+            throws IdentityUninitializedException;
+
+    /**
+     * Get an entity ID for a clone of an entity in the topology.
+     *
+     * @param inputEntity The entity to clone.
+     * @return The OID to use to identify the clone.
+     */
+    long getCloneId(@Nonnull TopologyEntityDTO inputEntity);
+
+    /**
+     * Generate an ID for a new operation.
+     *
+     * @return The OID to use to identify the operation.
+     */
+    long getOperationId();
+
+    /**
+     * Generate an ID for a new topology for topologies broadcast to the reset of
+     * the services in the system.
+     *
+     * @return The OID to use to identify a topology.
+     */
+    long getTopologyId();
+}

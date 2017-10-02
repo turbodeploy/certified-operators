@@ -1,0 +1,48 @@
+syntax = "proto2";
+
+package repository;
+
+option java_package = "com.vmturbo.common.protobuf.repository";
+
+// Request the supply chain. A supply chain request may optionally specify a contextId and
+// startingVertexId.
+message SupplyChainRequest {
+    // The ID of the topology context whose supply chains are being requested.
+    // If no context is supplied, returns the supply chain for the current live context.
+    optional int64 context_id = 1;
+
+    // The OIDs of the vertices to start from when constructing the supply chain.
+    // The supply chains from each individual OID are merged into a single result.
+    // If no starting vertex is specified, the global supply chain is retrieved.
+    repeated int64 starting_entity_oid = 2;
+}
+
+// The response to a supply chain request consists of a series of supply chain nodes
+// that express graph of connections in the supply chain.
+message SupplyChainNode {
+    // The entity type in this node of the supply chain. A node in
+    // the chain may contain only one type of entity.
+    optional string entity_type = 1;
+
+    // The depth of this node.
+    optional int32 supply_chain_depth = 2;
+
+    // list of entity types that provide resources to the the entity types
+    // at this node in the supply chain.
+    repeated string connected_provider_types = 3;
+
+    // list of entity types that consume resources from the entity types
+    // at this node in the supply chain.
+    repeated string connected_consumer_types = 4;
+
+    // The OIDs of entities belonging to this node.
+    repeated int64 member_oids = 5;
+}
+
+// A service for fetching information about supply chains.
+// The supply chain is a concept that expresses the links between entities in a topology.
+service SupplyChainService {
+    // Retrieve the supply chain.
+    // The response streams back each node in the supply chain graph.
+    rpc GetSupplyChain(SupplyChainRequest) returns (stream SupplyChainNode);
+}

@@ -1,0 +1,152 @@
+
+<%
+   # default vis control to show all
+   unless @show_item
+     @show_item = {}
+     @show_item.default = true
+   end
+
+   @ft_view_section = {}
+%>
+
+<!-- BEGIN-UID.user_ctrls -->
+
+<!-- END-UID.user_ctrls -->
+
+<% @ft_view_section[:ft_prop_title] = capture { %>
+<% if @show_item[:ft_prop_title] then %>
+<div class="show_iname">
+   <%= @standard_report.iname %>
+</div>
+<% end %>
+<% } %>
+
+
+
+<% @ft_view_section[:filename] = capture { %>
+<% if @show_item[:filename] then %>
+
+  <!-- Filename -->
+
+  <div class="show_attr_group attr_group_standard_report_filename ">      <!-- div10 -->
+    <div class="show_attr_label"> Filename </div>                    <!-- div11 -->
+    <div class="show_attr_value single_line"> <%= auto_link(@standard_report.filename.to_s) %>&nbsp;</div>   <!-- div12h -->
+  </div>   <!-- div10 end -->
+<% end %>
+<% } %>
+
+
+
+<% @ft_view_section[:title] = capture { %>
+<% if @show_item[:title] then %>
+
+  <!-- Title -->
+
+  <div class="show_attr_group attr_group_standard_report_title ">      <!-- div10 -->
+    <div class="show_attr_label"> Title </div>                    <!-- div11 -->
+    <div class="show_attr_value single_line"> <%= auto_link(@standard_report.title.to_s) %>&nbsp;</div>   <!-- div12h -->
+  </div>   <!-- div10 end -->
+<% end %>
+<% } %>
+
+
+
+<% @ft_view_section[:category] = capture { %>
+<% if @show_item[:category] then %>
+
+  <!-- Category -->
+
+  <div class="show_attr_group attr_group_standard_report_category ">      <!-- div10 -->
+    <div class="show_attr_label"> Category </div>                    <!-- div11 -->
+    <div class="show_attr_value single_line"> <%= auto_link(@standard_report.category.to_s) %>&nbsp;</div>   <!-- div12h -->
+  </div>   <!-- div10 end -->
+<% end %>
+<% } %>
+
+
+
+<% @ft_view_section[:short_desc] = capture { %>
+<% if @show_item[:short_desc] then %>
+
+  <!-- Short Desc -->
+
+  <div class="show_attr_group attr_group_standard_report_short_desc ">      <!-- div10 -->
+    <div class="show_attr_label"> Short Desc </div>                    <!-- div11 -->
+    <div class="show_attr_value single_line"> <%= auto_link(@standard_report.short_desc.to_s) %>&nbsp;</div>   <!-- div12h -->
+  </div>   <!-- div10 end -->
+<% end %>
+<% } %>
+
+
+
+<% @ft_view_section[:description] = capture { %>
+<% if @show_item[:description] then %>
+
+  <!-- Description -->
+
+  <div class="show_attr_group attr_group_standard_report_description ">      <!-- div10 -->
+    <div class="show_attr_label"> Description </div>                    <!-- div11 -->
+    <div class="show_attr_value multiline"> <%= rc_format((@standard_report.description.to_s)) %> </div>   <!-- div12g -->
+  </div>   <!-- div10 end -->
+<% end %>
+<% } %>
+
+
+
+<% @ft_view_section[:period] = capture { %>
+<% if @show_item[:period] then %>
+
+  <!-- Period -->
+
+  <div class="show_attr_group attr_group_standard_report_period ">      <!-- div10 -->
+    <div class="show_attr_label"> Period </div>                    <!-- div11 -->
+    <div class="show_attr_value single_line"> <%= auto_link(@standard_report.period.to_s) %>&nbsp;</div>   <!-- div12h -->
+  </div>   <!-- div10 end -->
+<% end %>
+<% } %>
+
+
+
+<% @ft_view_section[:day_type] = capture { %>
+<% if @show_item[:day_type] then %>
+
+  <!-- Day Type -->
+
+  <div class="show_attr_group attr_group_standard_report_day_type ">      <!-- div10 -->
+    <div class="show_attr_label"> Day Type </div>                    <!-- div11 -->
+    <div class="show_attr_value single_line"> <%= auto_link(@standard_report.day_type.to_s) %>&nbsp;</div>   <!-- div12h -->
+  </div>   <!-- div10 end -->
+<% end %>
+<% } %>
+
+
+<% @ft_view_section_order = []
+   @ft_view_section_order << :ft_prop_title
+   @ft_view_section_order << :filename
+   @ft_view_section_order << :title
+   @ft_view_section_order << :category
+   @ft_view_section_order << :short_desc
+   @ft_view_section_order << :description
+   @ft_view_section_order << :period
+   @ft_view_section_order << :day_type
+%>
+
+<!-- BEGIN-UID.user_ordering -->
+
+<% @ft_view_section_order = []
+   @ft_view_section_order << :ft_prop_title
+   @ft_view_section_order << :filename
+   @ft_view_section_order << :title
+   @ft_view_section_order << :category
+   @ft_view_section_order << :period
+   @ft_view_section_order << :day_type
+   @ft_view_section_order << :short_desc
+   @ft_view_section_order << :description
+%>
+
+<!-- END-UID.user_ordering -->
+
+<% for s in @ft_view_section_order %>
+   <%= @ft_view_section[s].to_s %>
+<% end %>
+

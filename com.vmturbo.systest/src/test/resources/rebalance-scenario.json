@@ -1,0 +1,21 @@
+{
+  "type": "CUSTOM",
+  "changes": [
+    {
+      "index": 1,
+      "type": "SCOPE",
+      "scope": [
+        {
+          "uuid": "Market",
+          "displayName": "Global Environment",
+          "className": "Market"
+        }
+      ]
+    },
+    {
+      "index": 2,
+      "type": "PROJECTION_PERIODS",
+      "projectionDays": []
+    }
+  ]
+}

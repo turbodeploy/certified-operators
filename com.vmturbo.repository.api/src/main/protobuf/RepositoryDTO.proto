@@ -1,0 +1,29 @@
+syntax = "proto2";
+package com.vmturbo.repository.api;
+
+import "topology/TopologyDTO.proto";
+
+message RepositoryNotification {
+
+    // The ID of the notification broadcast this notification belongs to.
+    // Each notification's broadcast has a unique ID for logging/debugging purposes.
+    required int64 broadcast_id = 1;
+
+    oneof type {
+        AvailableTopology new_projected_topology_available = 2;
+        FailedTopology failed_projected_topology = 3;
+        AvailableTopology new_source_topology_available = 4;
+        FailedTopology failed_source_topology = 5;
+    }
+}
+
+message AvailableTopology {
+    required int64 topology_id = 1;
+    required int64 context_id = 2;
+}
+
+message FailedTopology {
+    required int64 topology_id = 1;
+    required int64 context_id = 2;
+    required string failure_description = 3;
+}

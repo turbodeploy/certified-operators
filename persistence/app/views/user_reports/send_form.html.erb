@@ -1,0 +1,20 @@
+
+<div style="background:white; margin-bottom: 8px; padding:20px;" class="">
+
+
+  <h3>Send Report PDF Via E-Mail</h3>
+
+  <p><span style="font-weight: bold;">Report:</span> <%= @user_report.title.to_s %></p>
+
+  <% form_remote_tag(
+      :url => url_for(:controller => 'user_reports', :action => 'send_via_email', :id => @user_report.id),
+      :update => 'resultset') do %>
+
+    <p style="font-weight: bold;">Send to addresses (comma separated):</p>
+    <p><%= text_field_tag 'email_addresses', '', :size => 80 %></p>
+    <p><%= submit_tag "Send" %></p>
+
+  <% end %>
+
+
+</div>

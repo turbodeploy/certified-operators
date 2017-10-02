@@ -1,0 +1,43 @@
+version: '2'
+
+# Define common service definitions for extension. For details see
+# https://docs.docker.com/compose/extends/#extending-services
+services:
+  # A dev-component is a common service definition for a component that will be run in a development environment.
+  # It contains common security configurations, tmpfs, and an environment variable that signals the component
+  # should print its logs to stdout so that they can be seen on the console directly when bringing up the component.
+  # Definitions for development-environment services should consider inheriting from the dev-component service.
+  dev-component:
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges
+    read_only: true
+    tmpfs:
+      - /tmp
+    environment:
+      LOG_TO_STDOUT: "true"
+
+  # A prod-component is a common service definition for a component that will be run in a development environment.
+  # It contains common security configurations and tmpfs.
+  # Definitions for development-environment services should consider extending the prod-component service.
+  prod-component:
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges
+    read_only: true
+    tmpfs:
+      - /tmp
+
+  # A common-service is a common service definition for a service that is not a fully-fledged component in the
+  # XL system. For example, services such as consul, MariaDB, ArangoDB, etc. do not implement the component
+  # interface. These sorts of services should consider extending the common-service service.
+  common-service:
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges
+    read_only: true
+    tmpfs:
+      - /tmp

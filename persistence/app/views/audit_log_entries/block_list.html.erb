@@ -1,0 +1,183 @@
+
+<!-- start toplinks -->
+
+<table style="margin-bottom:15px;" border="0" width="100%">
+<tr>
+<td width="60%" valign="top">
+
+<p>
+ <%= js_button_to "Tabular View", params.merge(:controller => 'audit_log_entries', :action => 'list') %>
+<select onchange="javascript: location = this[this.selectedIndex].value;">
+    <option value="#">Select an action...</option>
+    <option value="#">----------------</option>
+    <option value="<%=url_for(:controller => 'audit_log_entries', :action => 'new')%>"> Add new Audit Log Entry </option>
+    <% unless session['user'] && !session['user'].is_admin? %>
+        <option value="#">----------------</option>
+        <option value="<%=url_for(params.merge(:controller => 'audit_log_entries', :action => 'download_csv'))%>"> Download CSV </option>
+        <option value="<%=url_for(:controller => 'audit_log_entries', :action => 'csv_upload')%>"> Upload CSV </option>
+    <% end %>
+
+<!-- BEGIN-UID.user_actions -->
+
+<!-- END-UID.user_actions -->
+
+    </select>
+</p>
+
+</td>
+
+<td width="40%" valign="top">
+</td>
+</tr>
+</table>
+
+<!-- end toplinks -->
+
+<% listtext_op = session['list_text_toggles'] ? "show text" : "hide text" %>
+<%= link_to listtext_op, {:controller => 'fast_ops', :action => 'toggle_list_text_toggle'}, :style => 'font-size:8pt;' %> |
+<% listimage_op = session['list_image_toggles'] ? "show images" : "hide images" %>
+<%= link_to listimage_op, {:controller => 'fast_ops', :action => 'toggle_list_image_toggle'}, :style => 'font-size:8pt;' %>
+
+<% @audit_log_entries.each { |obj| %>
+
+    <div class="obj_block">
+    <hr/>
+<div class="block_line_item">
+    <div class="block_label">Snapshot Time:</div>
+    <% text = obj.snapshot_time.to_s %>
+    <% text = rc_format((text)) %>
+<div class="block_value">
+    <%= link_to text, url_show(obj) %>
+</div>
+</div>
+<div class="block_line_item">
+    <div class="block_label">Action Name:</div>
+    <% text = obj.action_name.to_s %>
+    <% text = rc_format((text)) %>
+<div class="block_value">
+    <%= text %> 
+</div>
+</div>
+<div class="block_line_item">
+    <div class="block_label">Category:</div>
+    <% text = obj.category.to_s %>
+    <% text = rc_format((text)) %>
+<div class="block_value">
+    <%= text %> 
+</div>
+</div>
+<div class="block_line_item">
+    <div class="block_label">User Name:</div>
+    <% text = obj.user_name.to_s %>
+    <% text = rc_format((text)) %>
+<div class="block_value">
+    <%= text %> 
+</div>
+</div>
+<div class="block_line_item">
+    <div class="block_label">Target Object Class:</div>
+    <% text = obj.target_object_class.to_s %>
+    <% text = rc_format((text)) %>
+<div class="block_value">
+    <%= text %> 
+</div>
+</div>
+<div class="block_line_item">
+    <div class="block_label">Target Object Name:</div>
+    <% text = obj.target_object_name.to_s %>
+    <% text = rc_format((text)) %>
+<div class="block_value">
+    <%= text %> 
+</div>
+</div>
+<div class="block_line_item">
+    <div class="block_label">Target Object Uuid:</div>
+    <% text = obj.target_object_uuid.to_s %>
+    <% text = rc_format((text)) %>
+<div class="block_value">
+    <%= text %> 
+</div>
+</div>
+<div class="block_line_item">
+    <div class="block_label">Source Class:</div>
+    <% text = obj.source_class.to_s %>
+    <% text = rc_format((text)) %>
+<div class="block_value">
+    <%= text %> 
+</div>
+</div>
+<div class="block_line_item">
+    <div class="block_label">Source Name:</div>
+    <% text = obj.source_name.to_s %>
+    <% text = rc_format((text)) %>
+<div class="block_value">
+    <%= text %> 
+</div>
+</div>
+<div class="block_line_item">
+    <div class="block_label">Source Uuid:</div>
+    <% text = obj.source_uuid.to_s %>
+    <% text = rc_format((text)) %>
+<div class="block_value">
+    <%= text %> 
+</div>
+</div>
+<div class="block_line_item">
+    <div class="block_label">Destination Class:</div>
+    <% text = obj.destination_class.to_s %>
+    <% text = rc_format((text)) %>
+<div class="block_value">
+    <%= text %> 
+</div>
+</div>
+<div class="block_line_item">
+    <div class="block_label">Destination Name:</div>
+    <% text = obj.destination_name.to_s %>
+    <% text = rc_format((text)) %>
+<div class="block_value">
+    <%= text %> 
+</div>
+</div>
+<div class="block_line_item">
+    <div class="block_label">Destination Uuid:</div>
+    <% text = obj.destination_uuid.to_s %>
+    <% text = rc_format((text)) %>
+<div class="block_value">
+    <%= text %> 
+</div>
+</div>
+<div class="block_line_item">
+    <div class="block_label">Details:</div>
+    <% text = obj.details.to_s %>
+    <% text = rc_format((text)) %>
+<div class="block_value">
+          <% if session['list_text_toggles'] then %>
+             <%= show_hide "show/hide","details_attr_#{obj.id}"%>
+             <div class="cell_text_popup" id="details_attr_<%=obj.id%>" style="display:none;">
+                <%= text %>
+             </div>
+          <% else %>
+             <%= text %>
+          <% end %>
+</div>
+</div>
+    </div>
+
+<% } %>
+
+<p class="spacer">&nbsp;</p>
+
+<p>
+ <%= js_button_to "Tabular View", params.merge(:controller => 'audit_log_entries', :action => 'list') %>
+<select onchange="javascript: location = this[this.selectedIndex].value;">
+    <option value="#">Select an action...</option>
+    <option value="#">----------------</option>
+    <option value="<%=url_for(:controller => 'audit_log_entries', :action => 'new')%>"> Add new Audit Log Entry </option>
+    <% unless session['user'] && !session['user'].is_admin? %>
+        <option value="#">----------------</option>
+        <option value="<%=url_for(params.merge(:controller => 'audit_log_entries', :action => 'download_csv'))%>"> Download CSV </option>
+        <option value="<%=url_for(:controller => 'audit_log_entries', :action => 'csv_upload')%>"> Upload CSV </option>
+    <% end %>
+    </select>
+</p>
+

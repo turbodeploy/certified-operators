@@ -1,0 +1,26 @@
+syntax="proto2";
+package history_component_api;
+
+option java_package = "com.vmturbo.history.component.api";
+
+// A notification indicating that the history component
+// has recorded all the relevant statistics for a plan in
+// progress.
+message StatsAvailable {
+    // The ID of the topology context. For a plan, this id will match the plan id.
+    // For the live topology this will match the global realtime_topology_context_id.
+    optional int64 topology_context_id = 1;
+}
+
+// The message that the history component sends to websocket listeners.
+message HistoryComponentNotification {
+    // The ID of the notification broadcast this notification belongs to.
+    // Each notification's broadcast has a unique ID for logging/debugging purposes.
+    required int64 broadcast_id = 1;
+
+    oneof type {
+        // Statistics for a plan are available.
+        StatsAvailable stats_available = 2;
+    }
+}
+

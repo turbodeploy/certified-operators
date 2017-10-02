@@ -1,0 +1,59 @@
+version: '2'
+
+networks:
+  default:
+    ipam:
+      driver: default
+      config:
+      - subnet: 10.10.11.0/24
+        gateway: 10.10.11.2
+
+services:
+  consul:
+    networks:
+      default:
+        ipv4_address: 10.10.11.10
+
+  auth:
+    ports:
+      - 9001
+
+  clustermgr:
+    ports:
+      - 9001
+
+  api:
+    ports:
+      - 9001
+
+  market:
+    ports:
+      - 9001
+
+  action-orchestrator:
+    ports:
+      - 9001
+
+  topology-processor:
+    ports:
+      - 9001
+
+  sample:
+    ports:
+       - 9001
+
+  repository:
+    ports:
+      - 9001
+
+  group:
+    ports:
+      - 9001
+
+  history:
+    ports:
+      - 9001
+
+  plan-orchestrator:
+    ports:
+      - 9001

@@ -1,0 +1,341 @@
+
+<% 
+  @add_list_view_edits = true if @add_list_view_edits.nil? || (session['user'].nil? || session['user'].is_admin?)
+  @add_row_deleting ||= @add_list_view_edits 
+  @add_col_editing ||= @add_list_view_edits 
+  @add_new_obj ||= @add_list_view_edits 
+  @add_quick_add ||= @add_list_view_edits 
+
+  @submit_action_name = "Apply to Checked"
+  @batch_actions ||= [ ]
+%>
+
+<%
+unless @field_info
+    @field_info = []
+    @field_info << ["Name", "name", true]
+end
+%>
+
+<!-- BEGIN-UID.list_view_settings -->
+
+<!-- END-UID.list_view_settings -->
+
+<% 
+  @batch_actions += ["Delete"] if @add_row_deleting
+  field_choices = @field_info.select{|fin| fin[2]}.collect{|fin| fin[0,2]} 
+%>
+
+<!-- start toplinks -->
+
+<table style="margin-bottom:15px;" border="0" width="100%">
+<tr>
+<td width="70%" valign="top">
+
+<p>
+ <%= js_button_to "Block View", params.merge(:controller => 'classifications', :action => 'block_list') %>
+<select onchange="javascript: location = this[this.selectedIndex].value;">
+    <option value="#">Select an action...</option>
+<% if @add_new_obj %>
+    <option value="#a">----------------</option>
+    <option value="<%=url_for(:controller => 'classifications', :action => 'new')%>"> Add new Classification </option>
+<% end %>
+        <option value="#b">----------------</option>
+        <option value="<%=url_for(:controller => 'classifications', :action => 'show_queries')%>"> View Reports </option>
+        <option value="#c">----------------</option>
+        <option value="<%=url_for(params.merge(:controller => 'classifications', :action => 'download_csv'))%>"> Download CSV </option>
+<% if @add_list_view_edits %>
+        <option value="<%=url_for(:controller => 'classifications', :action => 'csv_upload')%>"> Upload CSV </option>
+<% end %>
+
+<!-- BEGIN-UID.user_actions -->
+
+<!-- END-UID.user_actions -->
+
+    </select>
+</p>
+
+<% if @page_no %>
+<p>
+    <% @n_pages = ((@count-1+@page_size)/@page_size).to_i %>
+    <div class="pagination" style="float:left;margin-bottom:12px;margin-top:12px;">
+        <span class="rs_page_nos">Page: <%=@count == @page_size ? "All" : @page_no.to_s %> of <%=@n_pages%> (<%=number_with_delimiter(@count)%> Items)
+        <span class="rs_navs">
+        <% if @page_no > 1 then%>
+          <%= link_to( "Previous", params.merge({:controller => 'classifications', :action => 'list', :query => @query[:name], :order_by => params[:order_by], :page => @page_no.to_i-1})) %> 
+        <% else %>
+          Previous
+        <% end %>
+        |
+        <% if @page_size*@page_no < @count %>
+          <%= link_to( "Next", params.merge({:controller => 'classifications', :action => 'list', :query => @query[:name], :order_by => params[:order_by], :page => @page_no.to_i+1})) %>
+        <% else %>
+          Next
+        <% end %>
+        &nbsp; &nbsp; &nbsp; 
+
+        <% @page_size = @def_page_size if @page_size == @count %>
+
+        <%= link_to( "First",  params.merge({:controller => 'classifications', :action => 'list', :query => @query[:name], :order_by => params[:order_by], :page => 1, :page_length => @page_size})) %>
+        |
+        <%= link_to( "Middle", params.merge({:controller => 'classifications', :action => 'list', :query => @query[:name], :order_by => params[:order_by], :page => (@n_pages+1)/2, :page_length => @page_size})) %>
+        |
+        <%= link_to( "Last",   params.merge({:controller => 'classifications', :action => 'list', :query => @query[:name], :order_by => params[:order_by], :page => @n_pages, :page_length => @page_size})) %>
+      <% if @count.to_i < 1200 then %>
+        &nbsp; &nbsp; &nbsp;
+        <%= link_to( "All",    params.merge({:controller => 'classifications', :action => 'list', :query => @query[:name], :order_by => params[:order_by], :page => 1, :page_length => @count})) %>
+      <% end %>
+        </span></span>
+    </div>          
+    <div style="float:left; padding-top:6px; margin-left:30px;">
+        <%
+          params_hash = params.merge({:controller => 'classifications', :action => 'list', :query => @query[:name], :order_by => params[:order_by], :page_length => @page_size})
+          params_hash.delete :page
+        %>
+        <% form_tag(params_hash) do %>
+          Page: <%= text_field_tag "page", "", :style => "width:30px;" %>
+          <%= submit_tag "&raquo;" %>
+        <% end %>
+    </div>
+</p>
+<% end %>
+
+</td>
+
+<td width="30%" valign="top">
+</td>
+</tr>
+</table>
+
+<!-- end toplinks -->
+
+<!-- BEGIN-UID.user_code -->
+
+<!-- END-UID.user_code -->
+
+
+<p style="margin-top:-10px;">
+ <%=show_hide("sort", "list_sort")%> 
+ | <%=show_hide("search", "list_search1")%> 
+ <% if @add_col_editing %>
+ | <%=show_hide("edit columns", "col_value_replace1")%> 
+ <% end %>
+ <% if @add_row_deleting %>
+ | <%=show_hide("delete rows", "delete_rows1")%> 
+ <% end %>
+ <% if @add_quick_add%>
+ | <%=show_hide("quick-add", "quick_add_items1")%>
+ <% end %>
+</p>
+
+<% display_val = params[:sort_field] ? "block" : "none"%>
+<div id="list_sort" class="list_sort" style="display:<%=display_val%>;">
+<%=form_tag(params.merge(:controller => 'classifications', :action => 'list_with_sort').delete_if{|k,v| k.include?("sort_field") || k.include?("direction")})%>
+Sort by 
+<%=select_tag "sort_field", options_for_select([["",""]] + field_choices, params[:sort_field]) %>
+<%=select_tag "direction",  options_for_select([["A..Z","ASC"],["Z..A","DESC"]], params[:direction]) %>
+then 
+<%=select_tag "sort_field2", options_for_select([["",""]] + field_choices, params[:sort_field2]) %>
+<%=select_tag "direction2",  options_for_select([["A..Z","ASC"],["Z..A","DESC"]], params[:direction2]) %>
+then
+<%=select_tag "sort_field3", options_for_select([["",""]] + field_choices, params[:sort_field3]) %>
+<%=select_tag "direction3",  options_for_select([["A..Z","ASC"],["Z..A","DESC"]], params[:direction3]) %>
+<%=submit_tag("Sort")%> &nbsp; <%= params[:sort_field] ? (js_button_to "Cancel", params.merge({:controller => 'classifications', :action => 'list_without_sort'}), :style => 'color:maroon;') : "" %>
+</form>
+</div>
+
+<% display_val = params[:search_str] && ! params[:hide_q] ? "block" : "none"%>
+<div id="list_search1" class="list_search" style="display:<%=display_val%>;">
+<%=form_tag(params.merge(:controller => 'classifications', :action => 'list_with_filter').delete_if{|k,v| k.include?("search_str") || k.include?("search_field")})%>
+<table cellpadding="0">
+<tr>
+
+<td valign="top">
+Only show rows where
+</td>
+
+<td valign="top">
+<p>
+<%=select_tag "search_field", options_for_select([["",""]] + field_choices, params[:search_field]) %>
+is
+<%=text_field_tag("search_str", params[:search_str].to_s, :title => 'Use % or * as wildcard' )%>
+</p>
+
+<p>
+<%=select_tag "search_field2", options_for_select([["",""]] + field_choices, params[:search_field2]) %>
+is
+<%=text_field_tag("search_str2", params[:search_str2].to_s, :title => 'Use % or * as wildcard' )%>
+</p>
+
+<p>
+<%=select_tag "search_field3", options_for_select([["",""]] + field_choices, params[:search_field3]) %>
+is
+<%=text_field_tag("search_str3", params[:search_str3].to_s, :title => 'Use % or * as wildcard' )%>
+</p>
+
+</td>
+
+<td valign="top">
+   <%=submit_tag("Search")%> <%= params[:search_str] ? (js_button_to "Cancel", params.merge({:controller => 'classifications', :action => 'list_without_filter'}), :style => 'color:maroon;') : "" %>
+</td>
+</tr>
+</table>
+</form>
+
+</div>
+
+<% if @add_list_view_edits %>
+
+
+<div id="col_value_replace1" class="col_value_replace" style="display:none;">
+<%=form_tag(:controller => 'classifications', :action => 'replace_column_value')%>
+Replace
+<%=text_field_tag("old_value", '', :style => "margin:0px;font-size:8pt;")%>
+with
+<%=text_field_tag("new_value", '', :style => "margin:0px;font-size:8pt;")%>
+in <%=select_tag "field", options_for_select([["",""]] + field_choices,""), 
+                   :style=>"margin:0px;font-size:8pt;"%>
+<%=submit_with_confirm_tag("Execute", :confirm => "Replace all! Are you sure?")%> 
+</form>
+</div>
+
+
+<div id="delete_rows1" class="delete_rows" style="display:none;">
+<%=form_tag(:controller => 'classifications', :action => 'delete_matching_rows')%>
+Delete rows having
+<%=text_field_tag("value", '', :style=>"margin:0px;font-size:8pt;" )%>
+in <%=select_tag "field", options_for_select([["",""]] + field_choices,""), 
+                   :style=>"margin:0px;font-size:8pt;"%>
+<%=submit_with_confirm_tag("Execute", :confirm => "Delete rows! Are you sure?")%> 
+</form>
+</div>
+
+<% end %>
+
+<% if @add_list_view_edits %>
+
+<div id="quick_add_items1" class="quick_add_items" style="display:none; margin-bottom:6px;">
+<%=form_tag(:controller => 'classifications', :action => 'quick_add_items')%>
+Add Classifications by name (one per line) <br />
+<%=text_area_tag("names", '', {:style=>"margin:0px;font-size:8pt; height:0.5in; width:3in;"} )%>
+<%=submit_tag("Add Classifications")%> 
+</form>
+</div>
+
+<% end %>
+
+
+<%=form_tag({:controller => 'classifications', :action => 'apply_to_checked_items'}, :name => 'chks')%>
+
+<div style="margin:6px 0;">
+  <%= select_tag 'action_to_perform', options_for_select([["Select an action...",""]]+@batch_actions.collect{|a| [a,a]},"") %>
+  <%=submit_with_confirm_tag @submit_action_name, :confirm => 'Apply to all checked items. Are you sure?'%>
+</div>
+
+<table class="master" cellspacing="1">
+
+    <!-- table header --> 
+  
+    <tr>
+
+    <th style="padding:3px; vertical-align:top;">
+        <span style="font-size:8pt; font-weight:normal; color:navy; cursor:pointer;" onclick="selectToggle(true,'chks')">All</span> 
+        &nbsp;|&nbsp; <span style="font-size:8pt; font-weight:normal; color:navy; cursor:pointer;" onclick="selectToggle(false,'chks')">None</span>
+    </th>
+    
+    <% for fdesc in @field_info %>
+        <% attr_info = Classification.attr_type_info(fdesc[1]) %>
+        <th>
+    	    <% unless (attr_info && attr_info[:modifier] == 'derived') || ( ! fdesc[2] ) %>	
+    	        <% if @order_field == fdesc[1] %>
+    	            <%= link_to "#{fdesc[0]} #{(@direction == 'ASC' ? "&uarr;" : "&darr;")}", params.merge({:controller => 'classifications', :action => 'list_by_page', :order_by => fdesc[1], :direction => (@direction == 'ASC' ? 'DESC' : 'ASC'), :page => '1', :page_length => @page_size}), :class => 'col_sorting_link' %>
+    	        <% else %>
+    	            <%= link_to "#{fdesc[0]}", params.merge({:controller => 'classifications', :action => 'list_by_page', :order_by => fdesc[1], :page => '1', :page_length => @page_size}), :class => 'col_sorting_link' %>
+    	        <% end %>
+    	    <% else %>
+    		    <%= fdesc[0] %>
+    		<% end %>
+        </th>
+    
+    <% end %>
+
+
+    <!-- table body --> 
+
+    </tr>
+
+    <% for classification in @classifications %>
+
+    <tr class="<%=cycle("odd","even")%>">
+
+		<td class="links no_lf" style="padding-top:1px;">
+	      <%=check_box_tag "delchk[#{classification.id}]"%>&nbsp;&nbsp;<%= link_to image_tag("pencil.jpg",{:border=>"0", :title => 'Edit'}), {:controller => classification.ctrlr_name, :action => 'edit', :id => classification} %>
+		</td>
+		
+		<td class="no_lf">
+			<%= link_to classification.get_attr_val(@field_info[0][1]), url_show(classification) %>
+		</td>
+
+       <% toggle_text  = session['list_text_toggles'] %>
+       <% toggle_image = session['list_image_toggles'] %>
+
+       <% for fdesc in @field_info[1..-1] do 
+            text = classification.get_attr_val(fdesc[1])
+            attr_desc = Classification.attr_type_info(fdesc[1])
+            if attr_desc
+                if attr_desc[:datatype] == 'date' then
+                    text = (text && text.to_date_image) || ""
+                elsif attr_desc[:datatype] == 'time' then
+                    text = (text && text.to_time_image) || ""
+                elsif attr_desc[:datatype] == 'datetime' then
+                    text = (text && text.to_datetime_image) || ""
+                elsif attr_desc[:datatype] == 'text' then
+                    div_id = "#{fdesc[1]}_#{classification.id}"
+                    text = "#{show_hide('show/hide',div_id)}<div id='#{div_id}' style='display:#{toggle_text  ? 'none' : 'block'};'>#{rc_format((text.to_s))}</div>"
+                elsif attr_desc[:datatype] == 'image' then
+                    div_id = "#{fdesc[1]}_#{classification.id}"
+                    text = "#{show_hide('show/hide',div_id)}<div id='#{div_id}' style='display:#{toggle_image ? 'none' : 'block'};'>#{image_tag_or_crlink(text,fdesc[0])}</div>"
+                elsif attr_desc[:modifier] == "money" then
+                    text = text ? number_to_currency(text.to_f) : ""
+                elsif attr_desc[:modifier] == "linktext" then
+                    text = link_to("view", text, :target => 'show_link') if text && (text[0,4] == "http" || text[0,3] == "ftp")
+                end
+            end
+        %>
+            <td<%= (attr_desc && attr_desc[:datatype] == 'text') ? '' : ' class="no_lf"'%>> 
+               <%= text%>
+            </td>
+       <% end %>
+
+    </tr>
+
+    <% end %>
+
+</table>
+
+<% if @add_list_view_edits %>
+</form>
+
+<% end %>
+
+<p style="margin-top:16px;">
+ <%= js_button_to "Block View", params.merge(:controller => 'classifications', :action => 'block_list') %>
+<select onchange="javascript: location = this[this.selectedIndex].value;">
+    <option value="#">Select an action...</option>
+<% if @add_list_view_edits %>
+    <option value="#a">----------------</option>
+    <option value="<%=url_for(:controller => 'classifications', :action => 'new')%>"> Add new Classification </option>
+<% end %>
+        <option value="#b">----------------</option>
+        <option value="<%=url_for(:controller => 'classifications', :action => 'show_queries')%>"> View Reports </option>
+        <option value="#c">----------------</option>
+        <option value="<%=url_for(params.merge(:controller => 'classifications', :action => 'download_csv'))%>"> Download CSV </option>
+    <% unless session['user'] && !session['user'].is_admin? %>
+<% if @add_list_view_edits %>
+        <option value="<%=url_for(:controller => 'classifications', :action => 'csv_upload')%>"> Upload CSV </option>
+<% end %>
+    <% end %>
+
+    </select>
+</p>
+

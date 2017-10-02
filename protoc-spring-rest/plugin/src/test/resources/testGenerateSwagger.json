@@ -1,0 +1,98 @@
+{
+  "fileToGenerate": ["TestDTO.proto"],
+  "protoFile": [{
+    "name": "TestDTO.proto",
+    "package": "com.vmturbo.protoc.spring.rest.testImport",
+    "messageType": [{
+      "name": "Bar",
+      "field": [{
+        "name": "int_field",
+        "number": 1,
+        "label": "LABEL_OPTIONAL",
+        "type": "TYPE_INT64",
+        "jsonName": "intField"
+      }, {
+        "name": "some_id",
+        "number": 2,
+        "label": "LABEL_REQUIRED",
+        "type": "TYPE_INT64",
+        "jsonName": "someId"
+      }]
+    }],
+    "enumType": [{
+      "name": "TestEnum",
+      "value": [{
+        "name": "NONE",
+        "number": 1
+      }]
+    }],
+    "sourceCodeInfo": {
+      "location": [{
+        "span": [0, 0, 16, 1]
+      }, {
+        "path": [12],
+        "span": [0, 0, 18]
+      }, {
+        "path": [2],
+        "span": [1, 8, 49]
+      }, {
+        "path": [5, 0],
+        "span": [4, 0, 7, 1],
+        "leadingComments": " This is an important enum.\n"
+      }, {
+        "path": [5, 0, 1],
+        "span": [4, 5, 13]
+      }, {
+        "path": [5, 0, 2, 0],
+        "span": [6, 4, 13],
+        "leadingComments": " This is a comment for the enum value.\n",
+        "trailingComments": " And a trailing comment...\n"
+      }, {
+        "path": [5, 0, 2, 0, 1],
+        "span": [6, 4, 8]
+      }, {
+        "path": [5, 0, 2, 0, 2],
+        "span": [6, 11, 12]
+      }, {
+        "path": [4, 0],
+        "span": [10, 0, 16, 1],
+        "leadingComments": " This is an important message.\n"
+      }, {
+        "path": [4, 0, 1],
+        "span": [10, 8, 11]
+      }, {
+        "path": [4, 0, 2, 0],
+        "span": [12, 4, 33],
+        "leadingComments": " This is an integer field.\n"
+      }, {
+        "path": [4, 0, 2, 0, 4],
+        "span": [12, 4, 12]
+      }, {
+        "path": [4, 0, 2, 0, 5],
+        "span": [12, 13, 18]
+      }, {
+        "path": [4, 0, 2, 0, 1],
+        "span": [12, 19, 28]
+      }, {
+        "path": [4, 0, 2, 0, 3],
+        "span": [12, 31, 32]
+      }, {
+        "path": [4, 0, 2, 1],
+        "span": [15, 4, 31],
+        "leadingComments": " This one is really important.\n"
+      }, {
+        "path": [4, 0, 2, 1, 4],
+        "span": [15, 4, 12]
+      }, {
+        "path": [4, 0, 2, 1, 5],
+        "span": [15, 13, 18]
+      }, {
+        "path": [4, 0, 2, 1, 1],
+        "span": [15, 19, 26]
+      }, {
+        "path": [4, 0, 2, 1, 3],
+        "span": [15, 29, 30]
+      }]
+    }
+  }]
+}

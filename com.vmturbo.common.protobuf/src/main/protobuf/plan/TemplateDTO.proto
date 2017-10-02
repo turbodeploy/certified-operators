@@ -1,0 +1,244 @@
+syntax = "proto2";
+package plan;
+
+option java_package = "com.vmturbo.common.protobuf.plan";
+
+// Template represents the pattern of service entity, inclues both user created templates and probe
+// discovered templates. For this model, templates contain two part: TemplateSpec and TemplateInfo,
+// TemplateSpec describes for each different template type, how many fields it has, and how to display
+// each different field. TemplateInfo holds specific information such as name, vendor, model and value
+// for each required fields. For example, VM template, TemplateSepc shows it needs to display
+// such fields: numOfCpu, cpuSpeed, cpuConsumedFactor...etc, and for each field,  also have displayName,
+// description, valueType... etc. For TemplateInfo, it contains name, vendor, model and value for
+// each field, such as value of numOfCpu, value of cpuSpeed...etc.
+message Template {
+    // OID of the Template
+    required int64 id = 1;
+
+    // ID of target the template is created from (may be omitted, if template is created by user)
+    optional int64 target_id = 2;
+
+    // Template information which cotains actual information about template
+    required TemplateInfo template_info = 3;
+}
+
+// Template information - contains data for created template no matter whether it is user-created or discovered..
+// TempalteInfo holds specific information which could be different between each templates, such as
+// name, model, vendor, value for each tempalte fields.
+message TemplateInfo {
+    // String representation of the template name
+    required string name = 1;
+
+    // Model related to the discoverd template, it is unused on user-created templates,
+    // and it contains additional information about discovered template.
+    // such as: AVG:VMs_Development41 Cloudstack:GROUP-VMsByCluster_vsphere-dc3.eng.vmturbo.com datacenter-22 domain-c72
+    optional string model = 2;
+
+    // Vendor related to the template
+    optional string vendor = 3;
+
+    // Entity type of the template.
+    optional int32 entity_type = 4;
+
+    // Description of the template
+    optional string description = 5;
+
+    // Template Spec used by the template
+    optional int64 template_spec_id = 6;
+
+    // Template resouce contains by the template which contains category and template fields information
+    // for each templateResource, UI will display it as a group.
+    repeated TemplateResource resources = 7;
+
+    // Price of the template, will be used by phycial and storage template
+    optional float price = 8;
+
+    // Probe send the Id of tempalte, we can use it differentiate discoverd templates, for user created
+    // templated, it will not be provided.
+    optional string probe_template_id = 9;
+}
+
+// Template Resource separate all the template fields into different category. Each category could
+// contains a list of fields. Each template field describe one attribute, such as numCores in PM template.
+message TemplateResource {
+    // Partition template fields into different category which will be used by UI to group different
+    // template fields.
+    optional ResourcesCategory category = 1;
+
+    // The list of template fields belong to differnt category
+    repeated TemplateField fields = 2;
+}
+
+// Describe each differnt category
+message ResourcesCategory {
+    // The name of category
+    optional ResourcesCategoryName name = 1;
+
+    // The type of category, for example, VM template Storage category could have different disk type
+    // For example, Storage Template, its template resources could have list of ResourceCategory, and
+    // for each ResourceCategory could have same name "Storage", but have different type: disk1, disk2.
+    optional string type = 2;
+
+    // Different category name
+    enum ResourcesCategoryName {
+        Compute = 0;
+        Storage = 1;
+        Infrastructure = 2;
+    }
+}
+
+// Template Field represent each different attribute of template, such as numVCPUs in VM template
+message TemplateField {
+    // Name of template field
+    optional string name = 1;
+
+    // Value of template field
+    optional string value = 2;
+}
+
+// TemplateSpecs describe the structure of different types of templates. Many template instances
+// may refer to the same template spec. For example, in VM template, it will have only one fixed
+// template spec shared by different VM template instance. All created templates must match some
+// TemplateSpec. This should be provided by the probes, even though at the time of this writing
+// we're statically defining them in XL.
+message TemplateSpec {
+    // Id of the template spec
+    optional int64 id = 1;
+
+    // Name of the template spec.
+    optional string name = 2;
+
+    // Represent different resource category for each template spec.
+    repeated TemplateSpecResource resources = 3;
+
+    // Entity type of the template, each template spec must have a entity type, and also, a
+    // given entity type, it only have one related template spec
+    optional int32 entity_type = 4;
+}
+
+// Template Spec Resource separate all the template spec fields into different category. Each category could
+// contains a list of fields. Each template spec field contains constant parts of each attribute.
+message TemplateSpecResource {
+    // Category of the template spec
+    optional ResourcesCategory category = 1;
+
+    // The list of template spec fields belong to differnt category
+    repeated TemplateSpecField fields = 2;
+}
+
+// Template Spec Field describe constant part for each template field.
+message TemplateSpecField {
+    // Name of template spec field
+    optional string name = 1;
+
+    // Display name of template spec field
+    optional string display_name = 2;
+
+    // Value type of template spec field
+    optional string value_type = 3;
+
+    // Units of template spec field
+    optional string units = 4;
+
+    // Description of template spec field
+    optional string description = 5;
+
+    // Describe if the field is required
+    optional bool required = 6;
+
+    // divisor of template field value
+    optional float divisor = 7;
+
+    // default value of template field
+    optional float default_value = 8;
+}
+
+// Request for delete discovered templates by target id.
+message DeleteTemplatesByTargetRequest {
+    optional int64 target_id = 1;
+}
+
+// Request for get all templates
+message GetTemplatesRequest {
+}
+
+// Request for get template by template id
+message GetTemplateRequest {
+    // Id of the request template
+    optional int64 template_id = 1;
+}
+
+// Request for create template
+message CreateTemplateRequest {
+    // Template instance needs to store
+    optional TemplateInfo template_info = 1;
+}
+
+// Request for edit template
+message EditTemplateRequest {
+    // Id of template needs to update
+    optional int64 template_id = 1;
+
+    // Template instance need to store
+    optional TemplateInfo template_info = 2;
+}
+
+// Request for delete one tempalte by template id
+message DeleteTemplateRequest {
+    // Id of the template need to delete
+    optional int64 template_id = 1;
+}
+
+message GetTemplatesByTypeRequest {
+    // Id of Entity type
+    optional int32 entity_type = 1;
+}
+
+service TemplateService {
+    // Delete discovered templates by target id.
+    rpc DeleteTemplatesByTarget (DeleteTemplatesByTargetRequest) returns (stream Template);
+
+    // Get all templates
+    rpc GetTemplates(GetTemplatesRequest) returns (stream Template);
+
+    // Get the template by template id
+    rpc GetTemplate(GetTemplateRequest) returns (Template);
+
+    // Create a new template
+    rpc CreateTemplate(CreateTemplateRequest) returns (Template);
+
+    // Update the existing template with new template
+    rpc EditTemplate(EditTemplateRequest) returns (Template);
+
+    // Delete the existing template
+    rpc DeleteTemplate(DeleteTemplateRequest) returns (Template);
+
+    // Get templates by entity type
+    rpc GetTemplatesByType(GetTemplatesByTypeRequest) returns (stream Template);
+}
+
+// Get all template specs
+message GetTemplateSpecsRequest {
+}
+
+// Get the template spec by entity type request
+message GetTemplateSpecByEntityTypeRequest {
+    // Id of entity type
+    optional int32 entity_type = 1;
+}
+
+// Get the template spec by Id
+message GetTemplateSpecRequest {
+    // Id of template sepc
+    optional int64 id = 1;
+}
+
+service TemplateSpecService {
+    // Get all the template specs
+    rpc GetTemplateSpecs(GetTemplateSpecsRequest) returns (stream TemplateSpec);
+    // Get the template spec through entity type, and for a given entity type, it only have one
+    // related template spec
+    rpc GetTemplateSpecByEntityType(GetTemplateSpecByEntityTypeRequest) returns (TemplateSpec);
+    // Get the template spec through Id
+    rpc GetTemplateSpec(GetTemplateSpecRequest) returns (TemplateSpec);
+}

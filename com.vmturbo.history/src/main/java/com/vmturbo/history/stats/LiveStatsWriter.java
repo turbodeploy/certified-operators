@@ -1,0 +1,193 @@
+package com.vmturbo.history.stats;
+
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
+
+import javax.annotation.Nonnull;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import com.google.common.base.Stopwatch;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
+
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.communication.chunking.RemoteIterator;
+import com.vmturbo.history.db.HistorydbIO;
+import com.vmturbo.history.topology.TopologySnapshotRegistry;
+import com.vmturbo.history.utils.TopologyOrganizer;
+import com.vmturbo.reports.db.EntityType;
+import com.vmturbo.reports.db.VmtDbException;
+import com.vmturbo.reports.db.abstraction.tables.records.EntitiesRecord;
+
+/**
+ * Persist information in a Live Topology to the History DB. This includes persisting the entities,
+ * and for each entity write the stats, including commodities and entity attributes.
+ **/
+public class LiveStatsWriter {
+
+    private final HistorydbIO historydbIO;
+
+    // the number of entities for which stats are persisted in a single DB Insert operations
+    private final int writeTopologyChunkSize;
+
+    // commodities in this list will not be pesisted to the DB; examples are Access Commodities
+    // note that the list will be small so using a HashSet is not necessary.
+    private final ImmutableList<String> commoditiesToExclude;
+
+    private static final Logger logger = LogManager.getLogger();
+
+    /**
+     * a utility class to coordinate async receipt of Topology and PriceIndex messages for the
+     * same topologyContext.
+     */
+    private final TopologySnapshotRegistry snapshotRegistry;
+
+    public LiveStatsWriter(TopologySnapshotRegistry topologySnapshotRegistry,
+                           HistorydbIO historydbIO, int writeTopologyChunkSize,
+                           ImmutableList<String> commoditiesToExclude) {
+        this.historydbIO = historydbIO;
+        this.snapshotRegistry = topologySnapshotRegistry;
+        this.writeTopologyChunkSize = writeTopologyChunkSize;
+        this.commoditiesToExclude = commoditiesToExclude;
+    }
+
+    /**
+     * Handle receipt of an invalid topology. Record in the {@link TopologySnapshotRegistry} that
+     * the corresponding PriceIndex information should be discarded.
+     *
+     * @param topologyContextId the topology context for the invalid topology
+     * @param topologyId the unique id for the invalid topology
+     */
+    public void invalidTopologyReceived(long topologyContextId, long topologyId) {
+        snapshotRegistry.registerInvalidTopology(topologyContextId, topologyId);
+    }
+
+    public int processChunks(
+            @Nonnull TopologyOrganizer topologyOrganizer,
+            @Nonnull RemoteIterator<TopologyEntityDTO> dtosIterator
+    ) throws CommunicationException, TimeoutException, InterruptedException, VmtDbException {
+        // read all the DTO chunks before any processing
+        Collection<TopologyEntityDTO> allTopologyDTOs = Lists.newArrayList();
+        int chunkNumber = 0;
+        int numberOfEntities = 0;
+        Stopwatch chunkTimer = Stopwatch.createStarted();
+        while (dtosIterator.hasNext()) {
+            Collection<TopologyEntityDTO> chunk = dtosIterator.nextChunk();
+
+            numberOfEntities += chunk.size();
+            logger.debug("Received chunk #{} of size {} for topology {} and context {} [soFar={}]",
+                ++chunkNumber, chunk.size(), topologyOrganizer.getTopologyId(),
+                topologyOrganizer.getTopologyContextId(), numberOfEntities);
+            allTopologyDTOs.addAll(chunk);
+        }
+        logger.debug("time to recieve chunks & organize: {}", chunkTimer);
+
+        // create class to buffer chunks of stats and insert in batches for efficiency
+        LiveStatsAggregator aggregator = new LiveStatsAggregator(historydbIO, topologyOrganizer,
+                commoditiesToExclude, writeTopologyChunkSize);
+        // look up existing entity information
+        chunkTimer.reset().start();
+        List<String> chunkOIDs = allTopologyDTOs.stream()
+                .map(TopologyEntityDTO::getOid)
+                .map(String::valueOf)
+                .collect(Collectors.toList());
+        Map<Long, EntitiesRecord> knownChunkEntities = historydbIO.getEntities(chunkOIDs);
+        logger.debug("time to look up entities: {}", chunkTimer);
+
+        // process all the TopologyEntityDTOs
+        chunkTimer.reset().start();
+        for (TopologyEntityDTO entityDTO : allTopologyDTOs) {
+            // persist this entity if necessary
+            persistEntity(entityDTO, knownChunkEntities, topologyOrganizer);
+            // save the type information for processing priceIndex message
+            topologyOrganizer.addEntityType(entityDTO);
+            aggregator.aggregateEntity(entityDTO);
+        }
+        logger.debug("time to persist entities: {} number of entities: {}", chunkTimer,
+                allTopologyDTOs.size());
+        // write the per-entity-type aggregate stats (e.g. counts), and write the partial chunks
+        aggregator.writeFinalStats();
+
+        // register that this topology has been processed; may trigger additional processing
+        snapshotRegistry.registerTopologySnapshot(topologyOrganizer.getTopologyContextId(),
+            topologyOrganizer);
+        logger.info("Done handling topology notification for realtime topology {} and context {}."
+                        + " Number of entities: {}", topologyOrganizer.getTopologyId(),
+                        topologyOrganizer.getTopologyContextId(), numberOfEntities);
+
+        return numberOfEntities;
+    }
+
+    /**
+     * Persist one entity DTO to the database. The entity will be persisted only if it has
+     * changed, based on the provided list of known entities.
+     *
+     * @param entityDTO the entity DTO to persist
+     * @param knownChunkEntities a map of known entities
+     * @param topologyOrganizer
+     * @throws VmtDbException if writing to the DB failed.
+     * @see #entityInfoChanged(TopologyEntityDTO, EntitiesRecord)
+     */
+    private void persistEntity(@Nonnull TopologyEntityDTO entityDTO,
+                               @Nonnull Map<Long, EntitiesRecord> knownChunkEntities,
+                               @Nonnull TopologyOrganizer topologyOrganizer) throws VmtDbException {
+        long oid = entityDTO.getOid();
+        EntitiesRecord dbEntityRecord = knownChunkEntities.get(oid);
+        if (dbEntityRecord == null || entityInfoChanged(entityDTO, dbEntityRecord)) {
+            historydbIO.persistEntity(topologyOrganizer.getSnapshotTime(), entityDTO);
+        }
+    }
+
+
+    /**
+     * Return true if the incoming {@link TopologyEntityDTO} needs to be persisted to the 'entities'
+     * DB table, and false otherwise. A {@link TopologyEntityDTO} needs to be persisted if:
+     * <ol>
+     *     <li>its OID is not found in the DB, or
+     *     <li>its Creation Class (EntityType) has changed, or
+     *     <li>its Display Name has changed.
+     * </ol>
+     *
+     * Warning: currently a change in EntityType is allowed. One conceivable use case is where
+     * we discover something about a ServiceEntity of a given EntityType, and then through refinement
+     * or new information (e.g. stitching) it is mutated to a different EntityType.
+     *
+     * @param entityDTO the incoming {@link TopologyEntityDTO}
+     * @param entitiesRecord the {@link EntitiesRecord} containing the previously stored info
+     * @return whether the incoming {@link TopologyEntityDTO} should be persisted
+     */
+    private boolean entityInfoChanged(TopologyEntityDTO entityDTO, EntitiesRecord entitiesRecord) {
+        // compare the entity type information
+        Optional<EntityType> entityDBInfo = historydbIO.getEntityType(entityDTO.getEntityType());
+
+        if (!entityDBInfo.isPresent()) {
+            // entity type not found - this entity should not be persisted.
+            return false;
+        }
+
+        // if displayName has changed, entity info has changed
+        if (!entityDTO.getDisplayName().equals(entitiesRecord.getDisplayName())) {
+            logger.debug("Display name changed for oid {}. old: {}, new: {}",
+                    entityDTO.getOid(), entitiesRecord.getDisplayName(), entityDTO.getDisplayName());
+            return true;
+        }
+
+        // check if the entity type has changed
+        final String topologyEntityType = entityDBInfo.get().getClsName();
+        if (!topologyEntityType.equals(entitiesRecord.getCreationClass())) {
+            // entity type changed - warn and then return "true" -> should rewrite entity info
+            logger.debug("Creation class changed for oid {}. old: {}, new: {}",
+                    entityDTO.getOid(), entitiesRecord.getCreationClass(), topologyEntityType);
+            return true;
+        }
+        // no changes
+        return false;
+    }
+}

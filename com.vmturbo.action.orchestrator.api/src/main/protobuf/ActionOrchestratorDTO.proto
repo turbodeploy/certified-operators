@@ -1,0 +1,23 @@
+syntax = "proto2";
+package action_orchestrator_api_dto;
+
+option java_package = "com.vmturbo.action.orchestrator.dto";
+option java_outer_classname = "ActionMessages";
+
+import "action/ActionDTO.proto";
+import "action/ActionNotificationDTO.proto";
+
+message ActionOrchestratorNotification {
+    // The ID of the notification broadcast this notification belongs to.
+    // Each notification's broadcast has a unique ID for logging/debugging purposes.
+    required int64 broadcast_id = 1;
+
+    oneof type {
+        // Action plan recommended by the action orchestrator.
+        .action.ActionPlan action_plan = 2;
+        .action.ActionProgress action_progress = 3;
+        .action.ActionSuccess action_success = 4;
+        .action.ActionFailure action_failure = 5;
+    }
+}
+

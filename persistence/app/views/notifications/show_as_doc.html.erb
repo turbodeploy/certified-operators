@@ -1,0 +1,284 @@
+<% unless @embedded %>
+
+<div class="buttons_etc buttons_etc_top">
+<table width="100%" border="0" cellspacing="0" style="margin-top:-5px;margin-bottom:30px;">
+<tr>
+<td width="60%" valign="top">
+<%= js_button_to 'Modify', :controller => 'notifications', :action => 'edit', :id => @notification %> 
+<select onchange="javascript: location = this[this.selectedIndex].value;">
+    <option value="#">Select an action...</option>
+    <option value="#">----------------</option>
+    <option value="<%=url_for(:controller => 'notifications', :action => 'show', :id => @notification.id)%>"> Normal Format </option>
+    <option value="<%=url_for(:controller => 'notifications', :action => 'show_as_doc', :id => @notification.id)%>"> Document Format </option>
+    <option value="#">----------------</option>
+    <option value="<%=url_for(:controller => 'notifications', :action => 'list')%>"> <%="Table of Notification".pluralize%> </option>
+    <option value="<%=url_for(:controller => 'notifications', :action => 'block_list')%>"> <%="List of Notification".pluralize%> </option>
+    <option value="#">----------------</option>
+    <option value="<%=url_for(:controller => 'notifications', :action => 'new')%>"> Add new Notification </option>
+
+    <option value="#">----------------</option>
+
+<!-- BEGIN-UID.user_actions -->
+
+<!-- END-UID.user_actions -->
+
+    </select>
+</td>
+<td class="context" width="40%">
+   <%=context_links(@notification)%>
+</td>
+</tr>
+</table>
+</div>
+
+<% end %>
+
+<%
+   # default vis control to show all
+   unless @show_item
+     @show_item = {}
+     @show_item.default = true
+   end
+
+   @ft_view_section = {}
+%>
+
+
+<div class="show_as_doc_view show_as_doc_view_notification">    <!-- show_as_doc_view -->
+
+    <div class="show_doc_props show_doc_props_notification">   <!-- show_doc_props -->
+
+      <p class="doc_prev_next_links">
+      <%=link_to "previous", url_show_as_doc(@notification.prev_item), :title => "Previous Notification", :style => "font-size:8pt;"%> 
+      | <%=link_to "next", url_show_as_doc(@notification.next_item), :title => "Next Notification", :style => "font-size:8pt;"%>
+      </p>
+
+<!-- BEGIN-UID.user_properties -->
+
+<!-- END-UID.user_properties -->
+
+
+
+<% @ft_view_section[:clear_time] = capture { %>
+<% if @show_item[:clear_time] then %>
+
+  <!-- Clear Time -->
+
+  <div class="doc_attr_group attr_group_notification_clear_time title">     <!-- div10-b -->
+    <div class="doc_attr_label"> Clear Time </div>                   <!-- div11-b -->
+    <div class="doc_attr_value single_line"> <%= auto_link(@notification.clear_time.to_s) %>&nbsp;</div>   <!-- div12h -->
+  </div>   <!-- div10 end -->
+  <p class="spacer">&nbsp;</p>
+
+<% end %>
+<% } %>
+
+
+
+<% @ft_view_section[:last_notify_time] = capture { %>
+<% if @show_item[:last_notify_time] then %>
+
+  <!-- Last Notify Time -->
+
+  <div class="doc_attr_group attr_group_notification_last_notify_time ">     <!-- div10-b -->
+    <div class="doc_attr_label"> Last Notify Time </div>                   <!-- div11-b -->
+    <div class="doc_attr_value single_line"> <%= auto_link(@notification.last_notify_time.to_s) %>&nbsp;</div>   <!-- div12h -->
+  </div>   <!-- div10 end -->
+
+<% end %>
+<% } %>
+
+
+
+<% @ft_view_section[:severity] = capture { %>
+<% if @show_item[:severity] then %>
+
+  <!-- Severity -->
+
+  <div class="doc_attr_group attr_group_notification_severity ">     <!-- div10-b -->
+    <div class="doc_attr_label"> Severity </div>                   <!-- div11-b -->
+    <div class="doc_attr_value single_line"> <%= auto_link(@notification.severity.to_s) %>&nbsp;</div>   <!-- div12h -->
+  </div>   <!-- div10 end -->
+
+<% end %>
+<% } %>
+
+
+
+<% @ft_view_section[:category] = capture { %>
+<% if @show_item[:category] then %>
+
+  <!-- Category -->
+
+  <div class="doc_attr_group attr_group_notification_category ">     <!-- div10-b -->
+    <div class="doc_attr_label"> Category </div>                   <!-- div11-b -->
+    <div class="doc_attr_value single_line"> <%= auto_link(@notification.category.to_s) %>&nbsp;</div>   <!-- div12h -->
+  </div>   <!-- div10 end -->
+
+<% end %>
+<% } %>
+
+
+
+<% @ft_view_section[:name] = capture { %>
+<% if @show_item[:name] then %>
+
+  <!-- Name -->
+
+  <div class="doc_attr_group attr_group_notification_name ">     <!-- div10-b -->
+    <div class="doc_attr_label"> Name </div>                   <!-- div11-b -->
+    <div class="doc_attr_value single_line"> <%= auto_link(@notification.name.to_s) %>&nbsp;</div>   <!-- div12h -->
+  </div>   <!-- div10 end -->
+
+<% end %>
+<% } %>
+
+
+
+<% @ft_view_section[:uuid] = capture { %>
+<% if @show_item[:uuid] then %>
+
+  <!-- Uuid -->
+
+  <div class="doc_attr_group attr_group_notification_uuid ">     <!-- div10-b -->
+    <div class="doc_attr_label"> Uuid </div>                   <!-- div11-b -->
+    <div class="doc_attr_value single_line"> <%= auto_link(@notification.uuid.to_s) %>&nbsp;</div>   <!-- div12h -->
+  </div>   <!-- div10 end -->
+
+<% end %>
+<% } %>
+
+
+
+<% @ft_view_section[:importance] = capture { %>
+<% if @show_item[:importance] then %>
+
+  <!-- Importance -->
+
+  <div class="doc_attr_group attr_group_notification_importance ">     <!-- div10-b -->
+    <div class="doc_attr_label"> Importance </div>                   <!-- div11-b -->
+    <div class="doc_attr_value single_line"> <%= auto_link(@notification.importance.to_s) %>&nbsp;</div>   <!-- div12h -->
+  </div>   <!-- div10 end -->
+
+<% end %>
+<% } %>
+
+<% @ft_view_section_order = []
+   @ft_view_section_order << :clear_time
+   @ft_view_section_order << :last_notify_time
+   @ft_view_section_order << :severity
+   @ft_view_section_order << :category
+   @ft_view_section_order << :name
+   @ft_view_section_order << :uuid
+   @ft_view_section_order << :importance
+%>
+
+<!-- BEGIN-UID.user_ordering -->
+
+<!-- END-UID.user_ordering -->
+
+<% for s in @ft_view_section_order %>
+   <%= @ft_view_section[s].to_s %>
+<% end %>
+
+    </div>   <!-- show_doc_props -->
+
+    <p class="spacer">&nbsp;</p>
+
+
+<% @ft_view_section = {} %>
+
+<% @ft_view_section[:description] = capture { %>
+<% if @show_item[:description] then %>
+
+  <!-- Description -->
+
+  <div class="doc_section_group">                             <!-- div10.doc -->
+    <div class="doc_section_label"> Description </div>    <!-- div11.doc -->
+    <div class="doc_section_value">  <!-- div12g.doc -->
+        <%= rc_format((@notification.description.to_s)) %> 
+    </div>   <!-- div12g.doc end -->
+  </div>   <!-- div10.doc end -->
+
+<% end %>
+<% } %>
+
+<% @ft_view_section_order = []
+   @ft_view_section_order << :description
+%>
+
+<!-- BEGIN-UID.user_text_ordering -->
+
+<!-- END-UID.user_text_ordering -->
+
+<% for s in @ft_view_section_order %>
+   <%= @ft_view_section[s].to_s %>
+<% end %>
+
+<div class="show_as_doc_related">
+
+<!-- BEGIN-UID.user_related_items -->
+<h3 class="rel_items_heading">Related Items</h3>
+<!-- END-UID.user_related_items -->
+
+<div class="show_hide_subtable_text">
+<% listtext_op = session['list_text_toggles'] ? "show text in tables" : "hide text in tables" %>
+<%= link_to listtext_op, {:controller => 'fast_ops', :action => 'toggle_list_text_toggle'}, :style => 'font-size:8pt;' %> |
+<% listimage_op = session['list_image_toggles'] ? "show images in tables" : "hide images in tables" %>
+<%= link_to listimage_op, {:controller => 'fast_ops', :action => 'toggle_list_image_toggle'}, :style => 'font-size:8pt;' %>
+</div>
+
+
+<% @ft_view_section = {} %>
+
+<%     @ft_view_section_order = []
+%>
+<!-- BEGIN-UID.user_rel_ordering -->
+
+<!-- END-UID.user_rel_ordering -->
+
+<% for s in @ft_view_section_order do %>
+   <%= @ft_view_section[s].to_s %>
+<% end %>
+
+</div> <!-- show_as_doc_related -->
+
+
+</div>  <!-- show_as_doc_view -->
+
+<!-- BEGIN-UID.userdivs -->
+
+<!-- END-UID.userdivs -->
+
+<% unless @embedded %>
+
+<div class="buttons_etc buttons_etc_bottom">
+<table width="100%" border="0" cellspacing="0" style="margin-bottom:-5px;margin-top:30px;">
+<tr>
+<td width="60%" valign="top">
+<%= js_button_to 'Modify', :controller => 'notifications', :action => 'edit', :id => @notification %> 
+<select onchange="javascript: location = this[this.selectedIndex].value;">
+    <option value="#">Select an action...</option>
+    <option value="#">----------------</option>
+    <option value="<%=url_for(:controller => 'notifications', :action => 'show', :id => @notification.id)%>"> Normal Format </option>
+    <option value="<%=url_for(:controller => 'notifications', :action => 'show_as_doc', :id => @notification.id)%>"> Document Format </option>
+    <option value="#">----------------</option>
+    <option value="<%=url_for(:controller => 'notifications', :action => 'list')%>"> <%="Table of Notification".pluralize%> </option>
+    <option value="<%=url_for(:controller => 'notifications', :action => 'block_list')%>"> <%="List of Notification".pluralize%> </option>
+    <option value="#">----------------</option>
+    <option value="<%=url_for(:controller => 'notifications', :action => 'new')%>"> Add new Notification </option>
+
+    <option value="#">----------------</option>
+
+
+
+    </select>
+</td>
+<td class="context" width="40%">
+   <%=context_links(@notification)%>
+</td>
+</tr>
+</table>
+</div>
+
+<% end %>

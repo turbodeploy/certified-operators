@@ -1,0 +1,46 @@
+syntax = "proto2";
+package topology;
+
+option java_package = "com.vmturbo.common.protobuf.topology";
+
+import "plan/PlanDTO.proto";
+
+message StartAnalysisRequest {
+    // The ID of the plan this analysis request
+    // should be associated with.
+    required int64 plan_id = 1;
+
+    // The ID of the topology to run the analysis on.
+    // If not set, run the analysis on the real-time
+    // topology.
+    optional int64 topology_id = 2;
+
+    // The requested changes to the topology.
+    // The changes will be applied on a best-effort basis.
+    // For example, requests to add a clone of a non-existing entity
+    // will be ignored.
+    repeated plan.ScenarioChange scenario_change = 3;
+}
+
+message StartAnalysisResponse {
+    // The number of entities in the broadcast topology.
+    optional int64 entities_broadcast = 10;
+
+    // The ID of the topology that was broadcast.
+    optional int64 topology_id = 11;
+
+    // The ID of the topology context for which this broadcast occurred.
+    // Used to differentiate, for example, between real and plan contexts.
+    optional int64 topology_context_id = 12;
+}
+
+// The Analysis service is the interface to trigger analyses in
+// the system.
+service AnalysisService {
+    // Trigger an analysis. The Topology Processor will process the request,
+    // make changes to the desired topology, and broadcast the topology
+    // to all listeners (just like in the real-time case). Updates about
+    // the results of the analysis will come in via notifications from various
+    // components in the system.
+    rpc StartAnalysis(StartAnalysisRequest) returns (StartAnalysisResponse);
+}

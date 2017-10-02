@@ -1,0 +1,174 @@
+syntax = "proto2";
+package stats;
+
+option java_package = "com.vmturbo.common.protobuf.stats";
+
+import "group/GroupDTO.proto";
+
+message EntityStatsRequest {
+    // The entities to gather stats for. These could be the IDs of individual entities, a plan,
+    // or the global market.
+    repeated int64 entities = 1;
+
+    // The filter to apply to the stats. If not set, retrieve all stats.
+    optional StatsFilter filter = 2;
+}
+
+message ClusterStatsRequest {
+    // The ID of the cluster to retrieve stats from.
+    optional int64 cluster_id = 1;
+
+    // The filter to apply to the stats. If not set, retrieve all stats.
+    optional StatsFilter stats = 2;
+}
+
+// The stats filter represents the restrictions to apply to stats before returning them.
+// All the individual filters are AND-ed together.
+message StatsFilter {
+    // commodity names; if omitted, requests all commoditites
+    repeated string commodity_name = 1;
+
+    // a list of the attributes of the given commodities to extract, e.g. "used" or "peak"; if ommited, requests all
+    repeated string commodity_attributes = 2;
+
+    // date range for the request; if omitted, implies "now"; dates are epoch longs
+    optional int64 start_date = 3;
+
+    optional int64 end_date = 4;
+
+    // If present, limit the ServiceEntities processed to the given type.
+    optional string related_entity_type = 5;
+}
+
+// Request for stats from the latest projected topology.
+message ProjectedStatsRequest {
+    // The entities to gather stats for. If empty, get them for the whole topology!
+    repeated int64 entities = 1;
+
+    // The commodities to retrieve.
+    repeated string commodity_name = 2;
+}
+
+// the top-level response for the snapshot - taken at a given time, for a time range, containing a set of records
+// that satisfy the StatsRequest
+message StatSnapshot {
+
+    // the actual snapshot_date for this response
+    optional string snapshot_date = 1;
+
+    // the oldest date of the request time window
+    optional uint64 start_date = 2;
+
+    // the most recent date of the request time window
+    optional uint64 end_date = 3;
+
+    // the individual stat_records collected; if the input was a group, these values will be averaged over the group
+    repeated StatRecord stat_records = 4;
+
+    // an individual stats value - e.g. commodies, etc. - from the xx_stats_zz tables.
+    message StatRecord {
+
+        // name of the particular stat, e.g. priceIndex, actions, Produces, numVMsand etc.
+        optional string name = 1;
+
+        // capacity for the commodities PROVIDED by this entity; null otherwise
+        optional float capacity = 2;
+
+        // amount reserved - ?for reservation/deployment functionality?
+        optional float reserved = 3;
+
+        // a key for the type of the commodity, e.g.   - see com.vmturbo.platform.common.dto.CommonDTO.proto,
+        // the enum {@link CommodityType}, for the known commodity names, e.g.
+        //   STORAGE, MEM_ALLOCATION, CPU_ALLOCATION, NUMBER_CONSUMERS, FLOW_ALLOCATION, Q1_VCPU, etc.
+        optional string stat_key = 4;
+
+        // for commodities CONSUMED by this entity, the OID of the provider
+        optional string provider_uuid = 5;
+
+        // for commodities CONSUMED by this entity, the display_name of the provider
+        optional string provider_display_name = 6;
+
+        // units suffix for this commodity
+        optional string units = 7;
+
+        // current value for this commodity - for most recent value ???
+        optional float current_value = 8;
+
+        // avg for these secondary stats - for rolled-up values
+        optional StatValue values = 9;
+
+        // used for these secondary stats - for rolled-up values
+        optional StatValue used = 10;
+
+        // max for these secondary stats - for rolled-up values
+        optional StatValue peak = 11;
+
+        // relation for the stat: (see RelationType in com.vmturbo.reports.db and
+        // StatsMapper in com.vmturbo.api.component))
+        // "Commodities", "CommoditiesBought", "CommoditiesFromAttributes"
+        //  (e.g., priceIndex, numVCPUs, etc.), and "plan"
+        optional string relation = 12;
+
+        // statistics for a given value over time
+        message StatValue {
+            optional float max = 1;
+            optional float min = 2;
+            optional float avg = 3;
+            optional float total = 4;
+
+        }
+    }
+}
+
+message EntityStats {
+    optional uint64 oid = 1;
+    repeated StatSnapshot statSnapshots = 2;
+}
+
+message ProjectedStatsResponse {
+    // The response for projected stats contains at most one snapshot,
+    // because there is only one projection.
+    optional StatSnapshot snapshot = 1;
+}
+
+// Request sent to the Stats Service when it is time to compute roll-up stats for clusters.
+message ClusterRollupRequest {
+    // The list of clusters for which stats roll-up should be calculated.
+    repeated .group.Cluster clustersToRollup = 1;
+}
+
+message ClusterRollupResponse {
+    // nothing to return
+}
+
+message DeletePlanStatsRequest{
+    // TODO - karthikt : Maybe should be a list to support bulk deletes
+    optional int64 topology_context_id = 1;
+}
+
+message DeletePlanStatsResponse{
+}
+
+// the gRPC API entry points for the Stats service
+service StatsHistoryService {
+
+    //Get stats filtered by certain options and average over all entities listed in the request
+    rpc GetAveragedEntityStats(EntityStatsRequest) returns (stream StatSnapshot);
+
+    // Get stats separately for each entity listed in the request
+    rpc GetEntityStats(EntityStatsRequest) returns (stream EntityStats);
+
+    //Get stats filtered by certain options and average over all desired entities in the cluser.
+    rpc GetClusterStats(ClusterStatsRequest) returns (stream StatSnapshot);
+
+    // Get stats from the latest projected topology.
+    // Will return a response with no data if the stats service
+    // doesn't have any projected stats.
+    rpc GetProjectedStats(ProjectedStatsRequest) returns (ProjectedStatsResponse);
+
+    // Trigger a cluster-rollup computation for the given clusters.
+    // Will return no significant data.
+    rpc ComputeClusterRollup(ClusterRollupRequest) returns (ClusterRollupResponse);
+
+    rpc DeletePlanStats(DeletePlanStatsRequest) returns (DeletePlanStatsResponse);
+}

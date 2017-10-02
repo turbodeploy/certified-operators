@@ -1,0 +1,84 @@
+
+    The follow actionmailer configs have been shown to work:
+
+    =======================================================
+    In .../config/environments/
+
+    config.action_mailer.raise_delivery_errors = true
+    
+    # BLUEHOST
+    
+    ActionMailer::Base.smtp_settings = {
+       :address  => "localhost"
+    }
+    
+    # GO_DADDY
+    
+    config.action_mailer.smtp_settings = {
+      :address => "relay-hosting.secureserver.net"
+    }
+    
+    # LOCALHOST W/ GMAIL -- SOME OTHER HOSTS PERMIT IT
+    
+    # put this line near trhe top
+    require 'smtp_tls'
+
+    # then near the bottom ...
+    config.action_mailer.smtp_settings = {
+      :address => "smtp.gmail.com",
+      :port => 587,
+      :domain => "google.com",
+      :authentication => :plain,
+      :user_name => "gmail-user-name",
+      :password => "gmail-password"
+    }
+
+    =======================================================
+
+    # In .../app/models/
+
+    class Notifier < ActionMailer::Base
+      def notify(dist,subj,msg)
+        recipients    dist
+        subject       subj
+        body          :message => msg
+    
+        from          'A-VALID-EMAIL-ADDR'
+        sent_on       Time.now
+        content_type  "text/html"
+      end
+    end
+
+    ===============  then ... ================
+
+    # In .../app/views/notifier/notify.rhtml
+
+    <html>
+    <head>
+    </head>
+    
+    <body>
+    
+    <p><%= @message %></p>
+    
+    <h5 style="color:gray;">This is an automated notification. Do not reply to this email.</h5>
+    
+    </body>
+    </html>
+    
+    ===============  then ... ================
+
+    # In a controller ... send the mail in a thread (the call is 'deliver'_viewname)
+
+      t1 = Thread.new do
+               sender =    Notifier.deliver_notify( @participant.email,
+                           "Email Confirmation",
+                           "<h3>Use the link below to confirm your email address</h3>
+                            <br />
+                           " +
+                           url_for(:action => 'confirm_email', :id => @participant) +
+                           "
+                           "
+                           )
+      end
+

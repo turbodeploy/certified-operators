@@ -1,0 +1,85 @@
+
+<%
+   # default vis control to show all
+   unless @show_item
+     @show_item = {}
+     @show_item.default = true
+   end
+
+   @ft_view_section = {}
+
+   @edit_ctrl_cols = @edit_ctrl_cols || 80
+
+   @text_ctrl_rows = @text_ctrl_rows || 8
+   @text_ctrl_cols = @text_ctrl_cols || (@edit_ctrl_cols - 1)
+%>
+
+<!-- BEGIN-UID.user_vis_ctrls -->
+
+<!-- END-UID.user_vis_ctrls -->
+
+<%= error_messages_for 'vc_license' %>
+
+<!--[form:vc_license]-->
+<table class="aform_table">
+
+<% @ft_view_section[:target] = capture { %>
+<% if @show_item[:target] then %>
+<tr class="aform_row">
+<td class="label">&nbsp;<label for="vc_license_target">Target&nbsp;</label></td>
+<td class="value">&nbsp;<%= text_field 'vc_license', 'target', :size => [250,@edit_ctrl_cols].min, :maxlength => "250", :id => "focus" %></td>
+</tr>
+<% end %>
+<% } %>
+
+<% @ft_view_section[:product] = capture { %>
+<% if @show_item[:product] then %>
+<tr class="aform_row">
+<td class="label">&nbsp;<label for="vc_license_product">Product&nbsp;</label></td>
+<td class="value">&nbsp;<%= text_field 'vc_license', 'product', :size => [250,@edit_ctrl_cols].min, :maxlength => "250" %></td>
+</tr>
+<% end %>
+<% } %>
+
+<% @ft_view_section[:capacity] = capture { %>
+<% if @show_item[:capacity] then %>
+<tr class="aform_row">
+<td class="label">&nbsp;<label for="vc_license_capacity">Capacity&nbsp;</label></td>
+<td class="value">&nbsp;<%= text_field 'vc_license', 'capacity', :size => "14" %></td>
+</tr>
+<% end %>
+<% } %>
+
+<% @ft_view_section[:used] = capture { %>
+<% if @show_item[:used] then %>
+<tr class="aform_row">
+<td class="label">&nbsp;<label for="vc_license_used">Used&nbsp;</label></td>
+<td class="value">&nbsp;<%= text_field 'vc_license', 'used', :size => "14" %></td>
+</tr>
+<% end %>
+<% } %>
+
+<%     @ft_view_section_order = []
+       @ft_view_section_order << :target
+       @ft_view_section_order << :product
+       @ft_view_section_order << :capacity
+       @ft_view_section_order << :used
+%>
+
+<!-- BEGIN-UID.user_section_ordering -->
+
+<!-- END-UID.user_section_ordering -->
+
+<% for s in @ft_view_section_order %>
+   <%= @ft_view_section[s].to_s %>
+<% end %>
+
+
+<!-- BEGIN-UID.user_fields -->
+
+<!-- END-UID.user_fields -->
+
+</table>
+
+
+<!--[eoform:vc_license]-->

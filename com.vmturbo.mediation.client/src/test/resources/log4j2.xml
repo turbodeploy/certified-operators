@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration name="ComponentConfig" status="error">
+    <Appenders>
+        <File name="File" fileName="target/vmturbo-trace-${sys:forkNumber}.log" >
+            <PatternLayout>
+                <pattern>%d [%t] %-5p %c - %m%n%throwable</pattern>
+            </PatternLayout>
+        </File>
+    </Appenders>
+
+    <Loggers>
+        <Logger name="com.vmturbo" level="trace" />
+        <Root level="info">
+            <AppenderRef ref="File"/>
+        </Root>
+    </Loggers>
+</Configuration>

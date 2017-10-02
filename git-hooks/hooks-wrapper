@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# Common wrapper around all hooks.
+#
+# Git calls this wrapper on every hook. The wrapper then calls
+# the appropriate hooks in personal/ and common/.
+
+success=true
+hookname=`basename $0`
+HOOK_DIR=$(git rev-parse --show-toplevel)/git-hooks
+
+for hook in $(find ${HOOK_DIR} -name ${hookname}-*); do
+   ${hook}
+   exitcode=${?}
+   # Don't fail immediately if a sub-hook gives a non-zero exit
+   # code. This way if multiple sub-hooks fail all errors will
+   # print together.
+   if [ "${exitcode}" != 0 ]; then
+      echo "Hook ${hook} failed with exit code: ${exitcode}"
+      success=false
+   fi
+done
+
+if [[ "${success}" == true ]]; then
+   exit 0
+else
+   exit 1
+fi

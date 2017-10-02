@@ -1,0 +1,202 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+
+<!-- BEGIN-UID.usermethods -->
+
+<%
+  tabs = [ ]
+  tabs << ["standard_reports","Standard Reports"]
+  tabs << ["user_reports","Custom Reports"] if StandardReport.custom_reports_feature_enabled?
+  tabs << ["report_subscriptions","Manage Subscriptions"]
+%>
+
+<% content_for('banner') do %>
+  <div style="position:absolute; top:16px; left:90%;">
+    <%= link_to image_tag("help-book.png", :border => 'none')+ " Help", "/com.vmturbo.UI/help/index.html", :target => 'helpWindow' %>
+    &#160;
+    <%= link_to image_tag("icon-logout.jpg", :border => 'none')+ " Logout", "/persistence/logout" %>
+  </div>
+  
+  <div style="float:left; margin-right:6px;">
+    <%= image_tag "vmt_logo.jpg", :height => "30px;" %>
+  </div>
+
+  <% for tab in tabs %>
+    <% is_active = tab[0].to_s == params[:controller].to_s %>
+    <div class="rept_tab <%= is_active ? 'rept_active_tab' : '' %>">
+      <%= link_to(tab[1], { :controller => tab[0], :action => 'list'}, :class => 'rept_tab_text') %>
+    </div>
+  <% end %>
+
+  <p class="spacer" style="width:1140px;"><!-- --></p>
+<% end %>
+
+<!-- END-UID.usermethods -->
+
+ <% 
+   unless @ft_title
+     @ft_subject = (params[:obj_context] ? ("Add to " + params[:obj_context]) : @ft_subject.to_s)
+     @ft_title   = @ft_subject.to_s + (@ft_activity ? (" - " + @ft_activity.to_s) : "")
+   end
+ %>
+
+ <% content_for('banner') do %>
+   <p class="page_title"> <%=@ft_title%> </p>
+ <% end %>
+
+ <% content_for('main') do %>
+      <div class="columns <%=@main_class_ext.to_s%>">
+
+<!-- BEGIN-UID.user_above_menu -->
+  <% if !@content_for_menu_bar %>
+    <hr />
+  <% end %>
+<!-- END-UID.user_above_menu -->
+
+     <% if @content_for_menu_bar %>
+        <div class="menu_bar">
+          <%= yield :menu_bar %>
+        </div>
+     <% end %>
+
+<!-- BEGIN-UID.user_below_menu -->
+
+<!-- END-UID.user_below_menu -->
+
+        <table class="show_layout" cellspacing="0" border="0">
+
+        <tr>
+
+        <td id="show_layout_lhs" class="lhs">
+          <div class="lhs">
+            <%= yield :lhs_content %>
+          </div>
+        </td>
+
+        <td id="show_layout_lhs2" class="lhs2">
+          <div class="lhs2">
+          </div>
+        </td>
+
+        <td id="show_layout_rhs" class="rhs">
+          <div class="rhs">
+            <%= yield :layout %>
+          </div>
+        </td>
+
+        </tr>
+
+        </table>
+      </div>
+ <% end %>
+
+ <% content_for('footer') do %>
+ <% end %>
+
+<!-- BEGIN-UID.usercontent -->
+
+<!-- END-UID.usercontent -->
+
+ <% content_for('body') do %>
+    <table class="body_layout" cellspacing="0" border="0">
+
+    <tr><td class="banner">
+      <%= yield :banner %>
+    </td></tr>
+
+    <tr><td class="body">
+      <%= yield :main %>
+    </td></tr>
+
+    <tr><td class="footer">
+      <%= yield :footer %>
+    </td></tr>
+
+    </table>
+ <% end %>
+
+<html>
+    <head>
+        <META HTTP-EQUIV="Pragma" CONTENT="no-cache"> <META HTTP-EQUIV="Cache-Control" CONTENT="no-cache"> 
+        <%= javascript_include_tag 'date-functions' %>
+        <%= javascript_include_tag 'datechooser' %>
+        <%= javascript_include_tag :defaults %>
+        <%= stylesheet_link_tag    'datechooser' %>
+
+        <script type="text/javascript">
+            function giveFocus() {
+                ffield = document.getElementById('focus'); 
+                if (ffield) ffield.focus();    
+            }
+    
+            function doLoadAction() {
+              try {
+                giveFocus();
+              }
+              catch(e) {
+              } 
+            }
+        </script>
+
+<!-- BEGIN-UID.user_js_includes -->
+
+<!-- END-UID.user_js_includes -->
+
+        <!--[if lte IE 6.5]>
+        <%= stylesheet_link_tag 'select-free' %>
+        <![endif]-->
+
+        <%= stylesheet_link_tag 'styles', :media => 'all' %>
+        <%= stylesheet_link_tag 'styles_print', :media => 'print' %>
+
+<!-- BEGIN-UID.user_style_includes -->
+
+<!-- END-UID.user_style_includes -->
+
+        <title><%= @ft_title %></title>
+    </head>
+
+    <body class="app_layout" onload="doLoadAction();">
+
+    <p class="notice"><%= flash[:notice] %></p>
+
+<!--
+    <%= link_to('<p>Home</p>', url_user_home() , :class => 'homelink') %>
+-->
+
+    <center>
+    <%= yield :body %>
+    </center>
+
+<% enable_css_debug = ENV['RAILS_ENV'] == 'development' %>
+
+<!-- BEGIN-UID.userdivs -->
+
+<!-- END-UID.userdivs -->
+
+  <% if enable_css_debug then %>
+
+    <div id="debug" style="margin: 20px 5px 5px 5px;">
+      <p onclick="Element.toggle('debug_info');" style="color:#89A;cursor:pointer;">Show Runtime Context</p>
+      <div id="debug_info" style="display:none;">
+          <%= debug params %>
+            <hr />
+          <%= debug session %>
+      </div>
+    </div>
+
+    <% @css_text = File.open("#{RAILS_ROOT}/public/stylesheets/styles.css","r"){|f| @css_text = f.read} %>
+    <div id="debug" style="margin: 20px 5px 5px 5px;">
+      <p onclick="Element.toggle('css_edit'); $('css_text').focus();" style="color:#89A;cursor:pointer;">Edit CSS</p>
+      <div id="css_edit" style="display:none;">
+        <%=form_tag  :controller => 'fast_ops', :action => 'edit_style_sheet', :css_name => 'styles.css'%>
+          <%=submit_tag("Apply Changes")%><br />
+          <%=text_area_tag("css_text", @css_text, :style => "width:98%;height:2in;margin-bottom:0.5in;")%>
+        </form>
+      </div>
+    </div>
+
+  <% end %>
+
+    </body>
+</html>
+
