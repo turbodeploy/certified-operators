@@ -40,6 +40,7 @@ public class TestUtils {
     public static final CommoditySpecification MEM_ALLOC = new CommoditySpecification(4);
     public static final CommoditySpecification VCPU = new CommoditySpecification(5);
     public static final CommoditySpecification VMEM = new CommoditySpecification(6);
+    public static final CommoditySpecification COST_COMMODITY = new CommoditySpecification(7);
 
     /**
      * @param economy - Economy where you want to create a trader.
@@ -135,6 +136,45 @@ public class TestUtils {
                                 .indexOf(basketCommodities.get(i))).getQuantity();
                 seller.getCommoditiesSold().get(seller.getBasketSold()
                                 .indexOf(basketCommodities.get(i))).setQuantity(sellerQuantity + commQuantities[i]);
+            }
+        }
+        return sl;
+    }
+
+    /**
+     * @param economy - Economy where you want to create and place shopping list.
+     * @param basketCommodities - Basket's commodities bought in this shopping list.
+     * @param buyer - The buyer buying this shopping list.
+     * @param commQuantities - A list representing the quantities of commodities needed by the buyer in
+     *                         the same order as the commodities in the basketCommodities.
+     * @param peakQuantities - A list of the peak quantities needed by the buyer.
+     * @param seller - The seller to place this shopping list on.
+     * @return The shopping list which was created.
+     */
+    public static ShoppingList createAndPlaceShoppingList(Economy economy,
+                    List<CommoditySpecification> basketCommodities, Trader buyer,
+                    double[] commQuantities, double[] peakQuantities, Trader seller) {
+        Basket basket = new Basket(basketCommodities);
+        ShoppingList sl = economy.addBasketBought(buyer, basket);
+        for (int i = 0; i < basketCommodities.size(); i++){
+            sl.setQuantity(sl.getBasket().indexOf(basketCommodities.get(i)), commQuantities[i]);
+            sl.setPeakQuantity(sl.getBasket().indexOf(basketCommodities.get(i)), peakQuantities[i]);
+        }
+        sl.setMovable(true);
+        if(seller != null){
+            sl.move(seller);
+            for(int i=0; i<basketCommodities.size(); i++){
+                double sellerQuantity = seller.getCommoditiesSold().get(seller.getBasketSold()
+                                .indexOf(basketCommodities.get(i))).getQuantity();
+                seller.getCommoditiesSold().get(seller.getBasketSold()
+                                .indexOf(basketCommodities.get(i))).setQuantity(sellerQuantity + commQuantities[i]);
+
+                double sellerPeakQuantity = seller.getCommoditiesSold().get(seller.getBasketSold()
+                                .indexOf(basketCommodities.get(i))).getPeakQuantity();
+                seller.getCommoditiesSold()
+                                .get(seller.getBasketSold().indexOf(basketCommodities.get(i)))
+                                .setPeakQuantity((peakQuantities[i] > sellerPeakQuantity)
+                                                ? peakQuantities[i] : sellerPeakQuantity);
             }
         }
         return sl;
