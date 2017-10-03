@@ -56,18 +56,14 @@ public class EntityValidatorTest {
     @Test
     public void testGoodCommoditySold() {
         final Optional<EntityValidationFailure> error = entityValidator.validateEntityDTO(entityId,
-                entityBuilder()
-                    .addCommoditiesSold(noErrorCommodity())
-                    .build());
+                seller(noErrorCommodity()));
         Assert.assertFalse(error.isPresent());
     }
 
     @Test
     public void testBadCommoditySold() {
         final Optional<EntityValidationFailure> error = entityValidator.validateEntityDTO(entityId,
-                entityBuilder()
-                    .addCommoditiesSold(errorCommodity())
-                    .build());
+                seller(errorCommodity()));
         Assert.assertTrue(error.isPresent());
     }
 
@@ -87,9 +83,7 @@ public class EntityValidatorTest {
             .setCommodityType(CommodityType.CPU)
             .setCapacity(-1)
             .build();
-        final EntityDTO ownerEntity = entityBuilder()
-                .addCommoditiesSold(commodity)
-                .build();
+        final EntityDTO ownerEntity = seller(commodity);
         final CommodityDTO newCommodity =
                 entityValidator.replaceIllegalCommodityValues(ownerEntity, commodity, true);
         Assert.assertTrue(newCommodity.getCapacity() > 0);
@@ -101,9 +95,7 @@ public class EntityValidatorTest {
                 .setCommodityType(CommodityType.CPU)
                 .setCapacity(0.0)
                 .build();
-        final EntityDTO ownerEntity = entityBuilder()
-                .addCommoditiesSold(commodity)
-                .build();
+        final EntityDTO ownerEntity = seller(commodity);
         final CommodityDTO newCommodity =
                 entityValidator.replaceIllegalCommodityValues(ownerEntity, commodity, true);
         Assert.assertTrue(newCommodity.getCapacity() > 0);
@@ -114,9 +106,7 @@ public class EntityValidatorTest {
         final CommodityDTO commodity = CommodityDTO.newBuilder()
                 .setCommodityType(CommodityType.CPU)
                 .build();
-        final EntityDTO ownerEntity = entityBuilder()
-                .addCommoditiesSold(commodity)
-                .build();
+        final EntityDTO ownerEntity = seller(commodity);
         final CommodityDTO newCommodity =
                 entityValidator.replaceIllegalCommodityValues(ownerEntity, commodity, true);
         Assert.assertTrue(newCommodity.getCapacity() > 0);
@@ -128,9 +118,7 @@ public class EntityValidatorTest {
                 .setCommodityType(CommodityType.CPU)
                 .setCapacity(-1)
                 .build();
-        final EntityDTO ownerEntity = entityBuilder()
-                .addCommoditiesSold(commodity)
-                .build();
+        final EntityDTO ownerEntity = seller(commodity);
         final CommodityDTO newCommodity =
                 entityValidator.replaceIllegalCommodityValues(ownerEntity, commodity, false);
         Assert.assertEquals(commodity.getCapacity(), newCommodity.getCapacity(), 0.0);
@@ -142,9 +130,7 @@ public class EntityValidatorTest {
                 .setCommodityType(CommodityType.CPU)
                 .setUsed(-1)
                 .build();
-        final EntityDTO ownerEntity = entityBuilder()
-                .addCommoditiesSold(commodity)
-                .build();
+        final EntityDTO ownerEntity = seller(commodity);
         final CommodityDTO newCommodity =
                 entityValidator.replaceIllegalCommodityValues(ownerEntity, commodity, true);
         Assert.assertTrue(newCommodity.getUsed() >= 0);
@@ -164,6 +150,40 @@ public class EntityValidatorTest {
         final CommodityDTO newCommodity =
                 entityValidator.replaceIllegalCommodityValues(ownerEntity, commodity, false);
         Assert.assertTrue(newCommodity.getUsed() >= 0);
+    }
+
+    private static final double PROV_CAPACITY = 13.0;
+
+    /**
+     * Verify that capacity of provisioned commodity is multiplied by 10.
+     */
+    @Test
+    public void testProvisionCommodityCapacity() {
+        final CommodityDTO commodity = provisionedCommodity();
+        final EntityDTO ownerEntity = seller(commodity);
+        final CommodityDTO newCommodity =
+                    entityValidator.replaceIllegalCommodityValues(ownerEntity, commodity, true);
+        Assert.assertEquals(PROV_CAPACITY * 10, newCommodity.getCapacity(), 1e-5);
+    }
+
+    /**
+     * Verify that when a provisioned commodity exists, a call to
+     * {@link EntityValidator#validateEntityDTO(long, EntityDTO, boolean)}
+     * returns errors when the last argument is false and no errors when it is true.
+     */
+    @Test
+    public void testProvisionCommodityErrors() {
+        final EntityDTO ownerEntity = seller(provisionedCommodity());
+        Optional<EntityValidationFailure> errors = entityValidator.validateEntityDTO(1L, ownerEntity, false);
+        Assert.assertTrue(errors.isPresent());
+        errors = entityValidator.validateEntityDTO(1L, ownerEntity, true);
+        Assert.assertFalse(errors.isPresent());
+    }
+
+    private EntityDTO seller(CommodityDTO commodity) {
+        return entityBuilder()
+                .addCommoditiesSold(commodity)
+                .build();
     }
 
     private EntityDTO.Builder entityBuilder() {
@@ -211,5 +231,12 @@ public class EntityValidatorTest {
                 .setReservation(0)
                 .build();
 
+    }
+
+    private CommodityDTO provisionedCommodity() {
+        return CommodityDTO.newBuilder()
+                        .setCommodityType(CommodityType.CPU_PROVISIONED)
+                        .setCapacity(PROV_CAPACITY)
+                        .build();
     }
 }

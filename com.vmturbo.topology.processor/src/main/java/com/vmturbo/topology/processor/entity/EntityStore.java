@@ -235,7 +235,7 @@ public class EntityStore {
 
                 // A post-massage re-validation, since the modifications aren't guaranteed to
                 // get rid of ALL problems with the DTO.
-                error = entityValidator.validateEntityDTO(entityId, finalEntityDto);
+                error = entityValidator.validateEntityDTO(entityId, finalEntityDto, true);
             }
 
             if (error.isPresent()) {

@@ -79,9 +79,13 @@ public class EntityStoreTest {
                 .build();
 
         // Force an error!
-        final EntityValidationFailure validationFailure = new EntityValidationFailure(entityId, entity1, "ERROR");
+        final EntityValidationFailure validationFailure =
+                        new EntityValidationFailure(entityId, entity1, "ERROR");
         Mockito.doReturn(Optional.of(validationFailure))
                 .when(entityValidator).validateEntityDTO(Mockito.anyLong(), Mockito.any());
+        Mockito.doReturn(Optional.of(validationFailure))
+            .when(entityValidator).validateEntityDTO(
+                Mockito.anyLong(), Mockito.any(), Mockito.anyBoolean());
 
         expectedException.expect(EntitiesValidationException.class);
 
@@ -159,9 +163,13 @@ public class EntityStoreTest {
                 .build();
 
         // Force an error!
-        final EntityValidationFailure validationFailure = new EntityValidationFailure(entityId, entity1, "ERROR");
+        final EntityValidationFailure validationFailure =
+                        new EntityValidationFailure(entityId, entity1, "ERROR");
         Mockito.doReturn(Optional.of(validationFailure))
                 .when(entityValidator).validateEntityDTO(Mockito.anyLong(), Mockito.any());
+        Mockito.doReturn(Optional.of(validationFailure))
+            .when(entityValidator).validateEntityDTO(
+                Mockito.anyLong(), Mockito.any(), Mockito.anyBoolean());
 
         // Not using expectedException because that stops execution,
         // and we want to verify the calls.

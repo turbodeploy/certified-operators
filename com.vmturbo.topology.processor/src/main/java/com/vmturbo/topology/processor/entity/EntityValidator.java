@@ -12,6 +12,8 @@ import javax.annotation.concurrent.Immutable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.collect.ImmutableList;
+
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO;
@@ -38,7 +40,7 @@ public class EntityValidator {
                                      final boolean sold,
                                      final String type,
                                      final double illegalAmount) {
-        logger.error("Entity {} with name {} of type {} is {} {} commodity {} with illegal {} {}!",
+        logger.warn("Entity {} with name {} of type {} is {} {} commodity {} with illegal {} {}",
                 ownerEntity.getId(),
                 ownerEntity.getDisplayName(),
                 ownerEntity.getEntityType(),
@@ -99,6 +101,11 @@ public class EntityValidator {
                 // deal with them unless we want to fail the discovery.
                 logReplacementError(ownerEntity, original, sold, "capacity", original.getCapacity());
                 modifiedBuilder.setCapacity(HACKED_INFINITE_CAPACITY);
+            } else if (isProvisionCommodity(original)) {
+                double hackedCapacitry = 10 * original.getCapacity();
+                logger.warn("{} : Multiplied original capacity of {} by 10. New capacity is {}",
+                    ownerEntity.getDisplayName(), original.getCommodityType(), hackedCapacitry);
+                modifiedBuilder.setCapacity(hackedCapacitry );
             }
 
             if (original.getLimit() < 0.0) {
@@ -127,13 +134,36 @@ public class EntityValidator {
         return modifiedBuilder.build();
     }
 
+    private static List<CommodityDTO.CommodityType> PROVISION_COMMODITIES = ImmutableList.of(
+        CommodityDTO.CommodityType.MEM_PROVISIONED,
+        CommodityDTO.CommodityType.CPU_PROVISIONED,
+        CommodityDTO.CommodityType.STORAGE_PROVISIONED);
+
+    private boolean isProvisionCommodity(CommodityDTO original) {
+        return PROVISION_COMMODITIES.contains(original.getCommodityType());
+    }
+
     public Optional<EntityValidationFailure> validateEntityDTO(final long entityId,
-                                                               @Nonnull final EntityDTO entityDTO) {
+                    @Nonnull final EntityDTO entityDTO) {
+        return validateEntityDTO(entityId, entityDTO, false);
+    }
+
+    /**
+     * Check that the properties of an entity are valid.
+     *
+     * @param entityId ID of the entity to validate
+     * @param entityDTO the entity to validate
+     * @param last set to true in the post-massage re-validation in order to skip tests
+     * that may still fail at that stage, e.g. the check for provisioned commodities.
+     * @return error messages when errors exist, {@link Optional#empty} otherwise.
+     */
+    public Optional<EntityValidationFailure> validateEntityDTO(final long entityId,
+                                                               @Nonnull final EntityDTO entityDTO, boolean last) {
         final List<String> validationErrors = entityDTO.getCommoditiesBoughtList().stream()
                 .map(commodityBought -> {
                     final StringBuilder errorStringBuilder = new StringBuilder();
                     final List<String> errors = commodityBought.getBoughtList().stream()
-                            .flatMap(commodityDTO -> validateCommodityDTO(commodityDTO, true).stream())
+                            .flatMap(commodityDTO -> validateCommodityDTO(commodityDTO, true, last).stream())
                             .collect(Collectors.toList());
                     if (!errors.isEmpty()) {
                         errorStringBuilder
@@ -150,7 +180,7 @@ public class EntityValidator {
 
         final List<String> commoditiesSoldErrors = entityDTO.getCommoditiesSoldList().stream()
                 .flatMap(commoditySold -> {
-                    final List<String> errors = validateCommodityDTO(commoditySold, false).stream()
+                    final List<String> errors = validateCommodityDTO(commoditySold, false, last).stream()
                         .map(errorStr -> "Error with commodity sold: " + errorStr)
                         .collect(Collectors.toList());
                     return errors.stream();
@@ -170,7 +200,7 @@ public class EntityValidator {
 
     @Nonnull
     private List<String> validateCommodityDTO(@Nonnull final CommodityDTO commodityDTO,
-                                      final boolean buyer) {
+                                      final boolean buyer, boolean last) {
         final List<String> errors = new ArrayList<>();
 
         if (commodityDTO.hasUsed() && commodityDTO.getUsed() < 0) {
@@ -192,9 +222,11 @@ public class EntityValidator {
             if (commodityDTO.hasCapacity() && commodityDTO.getCapacity() < 0) {
                 errors.add("Capacity " + commodityDTO.getCommodityType() + " has a negative value: " + commodityDTO.getCapacity());
             }
-
             if (commodityDTO.hasLimit() && commodityDTO.getLimit() < 0) {
                 errors.add("Limit " + commodityDTO.getCommodityType() + " has a negative value: " + commodityDTO.getLimit());
+            }
+            if (!last && isProvisionCommodity(commodityDTO)) {
+                errors.add("Capacity " + commodityDTO.getCommodityType() + " needs to be multiplied by 10");
             }
         }
         return errors;
