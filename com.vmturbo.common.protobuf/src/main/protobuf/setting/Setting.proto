@@ -2,11 +2,12 @@ syntax = "proto2";
 package setting;
 
 option java_package = "com.vmturbo.common.protobuf.setting";
+option java_outer_classname = "SettingProto";
 
 // The SettingSpec defines a specification for a setting that will be used in the
 // system. A SettingSpec can be of 2 different types: EntitySettingSpec or GlobalSettingSpec (check
 // the specific message docs for the details).
-// A SettingSec should have a name, that will be used as an identifier. It will also have a
+// A SettingSpec should have a name, that will be used as an identifier. It will also have a
 // SettingCategoryPath used to classify it, and a SettingValueType to specify which values
 // are allowed for this setting.
 message SettingSpec {
@@ -30,13 +31,13 @@ message SettingSpec {
     //      every entity can have its own setting value.
     // - GlobalSettingSpec, used to define settings that are global for the system. In this case
     //      there is only one value possible for the whole system.
-    oneof settingType {
+    oneof setting_type {
         EntitySettingSpec entity_setting_spec = 3;
         GlobalSettingSpec global_setting_spec = 4;
     }
 
     // The settingValueType is used to specify the type of values that a SettingSpec can have.
-    oneof settingValueType {
+    oneof setting_value_type {
         BooleanSettingValueType boolean_setting_value_type = 5;
         NumericSettingValueType numeric_setting_value_type = 6;
         StringSettingValueType string_setting_value_type = 7;
@@ -106,9 +107,9 @@ enum SettingTiebreaker {
     SMALLER = 2;
 }
 
-// EntitySettingScope is associated with an EntitySettingSpec, in order to indicates which
+// EntitySettingScope is associated with an EntitySettingSpec, in order to indicate which
 // type of entities are allowed to have this setting.
-// The class keeps a list of entities allowed. It can also specifies that all entity types are allowed.
+// The class keeps a list of entities allowed. It can also specify that all entity types are allowed.
 message EntitySettingScope {
     oneof scope {
         EntityTypeSet entity_type_set = 1;
@@ -131,7 +132,7 @@ message BooleanSettingValueType {
     optional bool default = 1;
 }
 
-// NumericSettingValueType is used to indicate that a setting is carrying a numberic
+// NumericSettingValueType is used to indicate that a setting is carrying a numeric
 // type of value. The class can specify a minimum and a maximum number; the value should be in that
 // range in order to be accepted.
 // if min/max is not specified, then we can assume that there is no min/max (except the memory limit
@@ -153,7 +154,7 @@ message StringSettingValueType {
     // regex used to validate against the setting value
     optional string validation_regex = 1;
 
-    // The default value for this setting. 
+    // The default value for this setting.
     optional string default = 2;
 }
 
@@ -227,9 +228,16 @@ message SettingPolicy {
     // The id of the SettingPolicy.
     optional int64 id = 1;
 
+    // The properties of the SettingPolicy.
+    optional SettingPolicyInfo info = 2;
+}
+
+// Describes the properties of a SettingPolicy object. For additional information about
+// SettingPolicies, see the comments for the SettingPolicy message.
+message SettingPolicyInfo {
     // The name of the SettingPolicy, used to name it in the UI.
     // The name should be unique.
-    optional string name = 2;
+    optional string name = 1;
 
     // The settings that should be applied to the entities in the scope.
     //
@@ -238,7 +246,7 @@ message SettingPolicy {
     //
     // The entity_type on the SettingSpecs associated with each of these Settings should match
     // the entity_type on the SettingPolicy.
-    repeated Setting settings = 3;
+    repeated Setting settings = 2;
 
     // The type of the entities to which the SettingPolicy applies.
     // If the SettingPolicy is a default, it applies to all entities of that type for which
@@ -259,10 +267,10 @@ message SettingPolicy {
     // automated and resize set to manual.
     // In contrast, a virtual machine NOT in the scope of the the "sqlVmSettingPolicy" will have both
     // moves and resizes as manually executable.
-    optional int32 entity_type = 4;
+    optional int32 entity_type = 3;
 
     // Whether the setting_policy is enabled or not.
-    optional bool enabled = 5 [default = true];
+    optional bool enabled = 4 [default = true];
 
     // The type of the SettingPolicy.
     oneof type {
@@ -280,7 +288,7 @@ message SettingPolicy {
 // other seting_policy applies. See detailed comments above.
 message DefaultType { }
 
-// A ScopeType SettingPolicy in is bound to all of the entities
+// A ScopeType SettingPolicy is bound to all of the entities
 // belonging to the groups whose ids are members of the ScopeType's groups.
 // A Setting is applied to an entity the same regardless if it is a member of 1, 2, or n of
 // the groups in the scope. A setting will not be applied to an entity if it is not in the scope.
@@ -299,7 +307,6 @@ message SingleSettingSpecRequest {
 // Used to request all the single SettingSpecs
 message AllSettingSpecRequest {}
 
-
 // Service responsible for setting operations
 service SettingService {
     // Get a setting spec
@@ -309,4 +316,63 @@ service SettingService {
     rpc GetAllSettingSpec (AllSettingSpecRequest) returns (stream SettingSpec);
 }
 
+// A request to create a SettingPolicy.
+message CreateSettingPolicyRequest {
+    // The properties of the SettingPolicy to create.
+    optional SettingPolicyInfo setting_policy_info = 1;
+}
 
+// The response for creating a SettingPolicy.
+message CreateSettingPolicyResponse {
+    // The created SettingPolicy.
+    optional SettingPolicy setting_policy = 1;
+}
+
+// A request for getting a specific SettingPolicy, either by id or name.
+message GetSettingPolicyRequest {
+    // Whether to include the SettingSpecs associated with the Setting objects
+    // in the policy in the response. This is often desirable because the specs
+    // are usually necessary to understand the semantics of how to apply a given
+    // setting.
+    optional bool include_setting_specs = 1 [default = false];
+
+    // A SettingPolicy can be fetched either by its id or name.
+    // Names are unique so there should be at most one SettingPolicy with a given name.
+    oneof setting_policy_identifier {
+        int64 id = 2;
+        string name = 3;
+    }
+}
+
+// The response for a GetSettingPolicy rpc.
+message GetSettingPolicyResponse {
+    // The requested SettingPolicy.
+    optional SettingPolicy setting_policy = 1;
+
+    // The SettingSpec objects associated with the Settings in the SettingPolicy.
+    // This list will be only be populated if GetSettingPolicyRequest.include_setting_specs
+    // was true.
+    repeated SettingSpec setting_specs = 2;
+}
+
+// List the created SettingPolicies.
+// The SettingSpecs associated with the settings in the returned SettingPolicies
+// should be retrieved in a separate call.
+message ListSettingPoliciesRequest {
+}
+
+// The SettingPolicyService provides RPC's for CRUD-type operations related to SettingPolicy objects.
+service SettingPolicyService {
+    // Create a setting policy
+    // If the setting policy is invalid (e.g. it refers to settings that don't exist), this
+    // will return a INVALID_ARGUMENT status.
+    // If a setting policy of the same name already exists, this will return a ALREADY_EXIST status.
+    rpc CreateSettingPolicy (CreateSettingPolicyRequest) returns (CreateSettingPolicyResponse);
+
+    // Fetch a specific SettingPolicy by its id or name.
+    // If the SettingPolicy is not found, it will not be set in the response.
+    rpc GetSettingPolicy (GetSettingPolicyRequest) returns (GetSettingPolicyResponse);
+
+    // List setting policies.
+    rpc ListSettingPolicies (ListSettingPoliciesRequest) returns (stream SettingPolicy);
+}

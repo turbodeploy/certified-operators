@@ -21,7 +21,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.DeleteActionsResponse;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.commons.idgen.IdentityGenerator;
-import com.vmturbo.components.api.test.GrpcExceptionMatcher;
+import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcTestServer;
 
 import static org.junit.Assert.assertEquals;
@@ -65,7 +65,7 @@ public class ActionDeletionRpcTest {
             .setTopologyContextId(topologyContextId)
             .build();
 
-        expectedException.expect(GrpcExceptionMatcher.code(Code.INVALID_ARGUMENT)
+        expectedException.expect(GrpcRuntimeExceptionMatcher.hasCode(Code.INVALID_ARGUMENT)
             .descriptionContains("Operation not permitted for context " + topologyContextId));
         actionOrchestratorServiceClient.deleteActions(actionRequest);
     }
@@ -79,7 +79,7 @@ public class ActionDeletionRpcTest {
             .setTopologyContextId(topologyContextId)
             .build();
 
-        expectedException.expect(GrpcExceptionMatcher.code(Code.INTERNAL)
+        expectedException.expect(GrpcRuntimeExceptionMatcher.hasCode(Code.INTERNAL)
             .descriptionContains("Attempt to delete actions for context " + topologyContextId + " failed."));
         actionOrchestratorServiceClient.deleteActions(actionRequest);
     }
@@ -89,7 +89,7 @@ public class ActionDeletionRpcTest {
         DeleteActionsRequest actionRequest = DeleteActionsRequest.newBuilder()
             .build();
 
-        expectedException.expect(GrpcExceptionMatcher.code(Code.INVALID_ARGUMENT)
+        expectedException.expect(GrpcRuntimeExceptionMatcher.hasCode(Code.INVALID_ARGUMENT)
             .descriptionContains("Missing required parameter topologyContextId."));
 
         actionOrchestratorServiceClient.deleteActions(actionRequest);
@@ -102,7 +102,7 @@ public class ActionDeletionRpcTest {
             .setTopologyContextId(topologyContextId)
             .build();
 
-        expectedException.expect(GrpcExceptionMatcher.code(Code.NOT_FOUND)
+        expectedException.expect(GrpcRuntimeExceptionMatcher.hasCode(Code.NOT_FOUND)
             .descriptionContains(topologyContextId + " not found."));
 
         actionOrchestratorServiceClient.deleteActions(actionRequest);

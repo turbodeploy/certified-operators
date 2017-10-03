@@ -23,6 +23,7 @@ import com.vmturbo.group.ArangoDriverFactory;
 import com.vmturbo.group.GroupDBDefinition;
 import com.vmturbo.group.ImmutableGroupDBDefinition;
 import com.vmturbo.group.identity.IdentityProvider;
+import com.vmturbo.group.persistent.ArangoDBFixtures.MockDatabase;
 import com.vmturbo.group.persistent.PolicyStore.PolicyDeleteException;
 
 @RunWith(MockitoJUnitRunner.class)
@@ -44,6 +45,8 @@ public class PolicyStoreTest {
 
     private PolicyStore policyStore;
 
+    private MockDatabase mockDatabase;
+
     @Before
     public void setUp() throws Exception {
         final GroupDBDefinition groupDBDefinition = ImmutableGroupDBDefinition.builder()
@@ -55,6 +58,7 @@ public class PolicyStoreTest {
         policyStore = new PolicyStore(arangoDriverFactory, groupDBDefinition, identityProvider);
 
         given(arangoDriverFactory.getDriver()).willReturn(arangoDB);
+        mockDatabase = ArangoDBFixtures.mockDatabase(arangoDB, TEST_DATABASE);
     }
 
     @Test
@@ -62,7 +66,7 @@ public class PolicyStoreTest {
         final Long policyID = 1000L;
         final PolicyDTO.InputPolicy testPolicy = PolicyDTO.InputPolicy.newBuilder().setId(policyID).build();
 
-        ArangoDBFixtures.givenGetDocumentWillReturn(arangoDB, TEST_DATABASE, TEST_POLICY_COLLECTION,
+        mockDatabase.givenGetDocumentWillReturn(TEST_POLICY_COLLECTION,
                 Long.toString(policyID), PolicyDTO.InputPolicy.class, testPolicy);
 
         final Optional<PolicyDTO.InputPolicy> retrieved = policyStore.get(policyID);
@@ -76,12 +80,12 @@ public class PolicyStoreTest {
         final Long policyID = 1000L;
         final PolicyDTO.InputPolicy testPolicy = PolicyDTO.InputPolicy.newBuilder().setId(policyID).build();
 
-        final ArangoCollection mockCollection = ArangoDBFixtures
-                .getMockCollection(arangoDB, TEST_DATABASE, TEST_POLICY_COLLECTION);
-        ArangoDBFixtures.givenKeyExists(mockCollection, policyID.toString());
+        mockDatabase.givenKeyExists(TEST_POLICY_COLLECTION, policyID.toString());
 
         final boolean result = policyStore.save(policyID, testPolicy);
 
+        final ArangoCollection mockCollection =
+                mockDatabase.createMockCollection(TEST_POLICY_COLLECTION);
         Mockito.verify(mockCollection).replaceDocument(policyID.toString(), testPolicy);
         assertThat(result).isTrue();
     }
@@ -91,12 +95,12 @@ public class PolicyStoreTest {
         final Long policyID = 1000L;
         final PolicyDTO.InputPolicy testPolicy = PolicyDTO.InputPolicy.newBuilder().setId(policyID).build();
 
-        final ArangoCollection mockCollection = ArangoDBFixtures
-                .getMockCollection(arangoDB, TEST_DATABASE, TEST_POLICY_COLLECTION);
-        ArangoDBFixtures.givenKeyDoesNotExist(mockCollection, policyID.toString());
+        mockDatabase.givenKeyDoesNotExist(TEST_POLICY_COLLECTION, policyID.toString());
 
         final boolean result = policyStore.save(policyID, testPolicy);
 
+        final ArangoCollection mockCollection =
+                mockDatabase.createMockCollection(TEST_POLICY_COLLECTION);
         Mockito.verify(mockCollection).insertDocument(testPolicy);
         assertThat(result).isTrue();
     }
@@ -106,10 +110,9 @@ public class PolicyStoreTest {
         final Long policyID = 1000L;
         final PolicyDTO.InputPolicy testPolicy = PolicyDTO.InputPolicy.newBuilder().setId(policyID).build();
 
-        final ArangoCollection mockCollection = ArangoDBFixtures
-                .getMockCollection(arangoDB, TEST_DATABASE, TEST_POLICY_COLLECTION);
-        ArangoDBFixtures.givenKeyDoesNotExist(mockCollection, policyID.toString());
-        ArangoDBFixtures.givenInsertWillThrowException(mockCollection,
+        mockDatabase
+            .givenKeyDoesNotExist(TEST_POLICY_COLLECTION, policyID.toString())
+            .givenInsertWillThrowException(TEST_POLICY_COLLECTION,
                 new ArangoDBException("Mock ArangoDB exception in save"));
 
         final boolean result = policyStore.save(policyID, testPolicy);
@@ -121,8 +124,8 @@ public class PolicyStoreTest {
     public void testDelete() {
         final Long policyID = 1000L;
 
-        final ArangoCollection mockCollection = ArangoDBFixtures
-                .getMockCollection(arangoDB, TEST_DATABASE, TEST_POLICY_COLLECTION);
+        final ArangoCollection mockCollection =
+                mockDatabase.createMockCollection(TEST_POLICY_COLLECTION);
 
         final boolean result = policyStore.delete(policyID);
 
@@ -134,8 +137,8 @@ public class PolicyStoreTest {
     public void testDeletePolicies() throws PolicyDeleteException {
         final Long policyID = 1000L;
 
-        final ArangoCollection mockCollection = ArangoDBFixtures
-            .getMockCollection(arangoDB, TEST_DATABASE, TEST_POLICY_COLLECTION);
+        final ArangoCollection mockCollection = mockDatabase
+            .createMockCollection(TEST_POLICY_COLLECTION);
 
         policyStore.deletePolicies(Lists.newArrayList(policyID));
 
@@ -147,9 +150,7 @@ public class PolicyStoreTest {
     public void testDeleteException() {
         final Long policyID = 1000L;
 
-        final ArangoCollection mockCollection = ArangoDBFixtures
-                .getMockCollection(arangoDB, TEST_DATABASE, TEST_POLICY_COLLECTION);
-        ArangoDBFixtures.givenDeleteWillThrowException(mockCollection,
+        mockDatabase.givenDeleteWillThrowException(TEST_POLICY_COLLECTION,
                 new ArangoDBException("Mock ArangoDB exception in delete"));
 
         final boolean result = policyStore.delete(policyID);

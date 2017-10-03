@@ -21,7 +21,7 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationR
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponseCode;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
-import com.vmturbo.components.api.test.GrpcExceptionMatcher;
+import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.repository.topology.TopologyEventHandler;
@@ -100,7 +100,7 @@ public class RepositoryRpcServiceTest {
     @Test
     public void testDeleteTopologyMissingParameter() {
 
-        expectedException.expect(GrpcExceptionMatcher.code(Code.INVALID_ARGUMENT)
+        expectedException.expect(GrpcRuntimeExceptionMatcher.hasCode(Code.INVALID_ARGUMENT)
             .descriptionContains("Topology Context ID missing"));
 
         RepositoryOperationResponse response = repositoryService.deleteTopology(
@@ -117,7 +117,7 @@ public class RepositoryRpcServiceTest {
         Mockito.doThrow(new NoSuchElementException("Error deleting topology"))
             .when(topologyProtobufReader).delete();
 
-        expectedException.expect(GrpcExceptionMatcher.code(Code.NOT_FOUND)
+        expectedException.expect(GrpcRuntimeExceptionMatcher.hasCode(Code.NOT_FOUND)
             .descriptionContains("Cannot find rawTopology with topologyId: " +
                 topologyId + " and topologyContextId: " + topologyContextId));
 
@@ -141,7 +141,7 @@ public class RepositoryRpcServiceTest {
         Mockito.when(arangoException.getErrorNum())
             .thenReturn(RepositoryRpcService.ERROR_ARANGO_DATABASE_NOT_FOUND);
 
-        expectedException.expect(GrpcExceptionMatcher.code(Code.NOT_FOUND)
+        expectedException.expect(GrpcRuntimeExceptionMatcher.hasCode(Code.NOT_FOUND)
             .descriptionContains("Cannot find topologyGraph with topologyId: " +
                 topologyId + " and topologyContextId: " + topologyContextId));
 
@@ -161,8 +161,8 @@ public class RepositoryRpcServiceTest {
                         topologyId,
                         TopologyType.PROJECTED));
 
-        expectedException.expect(GrpcExceptionMatcher.code(Code.UNKNOWN)
-                .anyDescriptionOrCause());
+        expectedException.expect(GrpcRuntimeExceptionMatcher.hasCode(Code.UNKNOWN)
+                .anyDescription());
 
         RepositoryOperationResponse response = repositoryService.deleteTopology(
                 createDeleteTopologyRequest(topologyId, topologyContextId));

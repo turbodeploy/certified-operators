@@ -43,7 +43,7 @@ import com.vmturbo.common.protobuf.plan.ScenarioServiceGrpc;
 import com.vmturbo.common.protobuf.plan.ScenarioServiceGrpc.ScenarioServiceBlockingStub;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.commons.idgen.IdentityInitializer;
-import com.vmturbo.components.api.test.GrpcExceptionMatcher;
+import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
@@ -138,7 +138,7 @@ public class ScenarioRpcServiceTest {
 
     @Test
     public void testUpdateNonExistingScenario() throws Exception {
-        expectedException.expect(GrpcExceptionMatcher.code(Code.NOT_FOUND)
+        expectedException.expect(GrpcRuntimeExceptionMatcher.hasCode(Code.NOT_FOUND)
                 .descriptionContains("1"));
         scenarioServiceClient.updateScenario(
                 UpdateScenarioRequest.newBuilder()
@@ -166,7 +166,7 @@ public class ScenarioRpcServiceTest {
 
     @Test
     public void testDeleteNonExistingScenario() throws Exception {
-        expectedException.expect(GrpcExceptionMatcher.code(Code.NOT_FOUND)
+        expectedException.expect(GrpcRuntimeExceptionMatcher.hasCode(Code.NOT_FOUND)
                 .descriptionContains("1"));
         scenarioServiceClient.deleteScenario(
                 ScenarioId.newBuilder()
@@ -193,7 +193,7 @@ public class ScenarioRpcServiceTest {
 
     @Test
     public void testGetNonExistingScenario() throws Exception {
-        expectedException.expect(GrpcExceptionMatcher.code(Code.NOT_FOUND)
+        expectedException.expect(GrpcRuntimeExceptionMatcher.hasCode(Code.NOT_FOUND)
                 .descriptionContains("1234"));
         scenarioServiceClient.getScenario(
             ScenarioId.newBuilder()

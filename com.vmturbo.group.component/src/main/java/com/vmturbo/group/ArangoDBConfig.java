@@ -12,13 +12,13 @@ import com.arangodb.velocypack.VPackSerializer;
 import com.arangodb.velocypack.ValueType;
 import com.arangodb.velocypack.exception.VPackBuilderException;
 import com.google.protobuf.InvalidProtocolBufferException;
+
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.group.arangodb.ArangoDBManager;
 import com.vmturbo.group.persistent.ClusterStore;
 import com.vmturbo.group.persistent.GroupStore;
 import com.vmturbo.group.persistent.PolicyStore;
-import com.vmturbo.group.persistent.SettingStore;
 
 @Configuration
 @Import({IdentityProviderConfig.class})

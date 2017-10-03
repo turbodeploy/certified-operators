@@ -33,7 +33,7 @@ import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
-import com.vmturbo.components.api.test.GrpcExceptionMatcher;
+import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcTestServer;
 
 public class SupplyChainRpcServiceTest {
@@ -94,8 +94,8 @@ public class SupplyChainRpcServiceTest {
         doReturn(Either.left("failed"))
             .when(graphDBService).getSupplyChain(eq(Optional.of("1234")), eq("5678"));
 
-        expectedException.expect(GrpcExceptionMatcher
-            .code(Code.INTERNAL)
+        expectedException.expect(GrpcRuntimeExceptionMatcher
+            .hasCode(Code.INTERNAL)
             .descriptionContains("failed"));
 
         // Force evaluation of the stream
@@ -162,9 +162,9 @@ public class SupplyChainRpcServiceTest {
         when(supplyChainService.getGlobalSupplyChain(eq(Optional.of("1234"))))
             .thenReturn(Mono.error(new RuntimeException("failed")));
 
-        expectedException.expect(GrpcExceptionMatcher
-            .code(Code.INTERNAL)
-            .withCause(IOException.class));
+        expectedException.expect(GrpcRuntimeExceptionMatcher
+            .hasCode(Code.INTERNAL)
+            .anyDescription());
 
         // Force evaluation of the stream
         Lists.newArrayList(supplyChainStub.getSupplyChain(SupplyChainRequest.newBuilder()

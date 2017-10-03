@@ -2,13 +2,16 @@ package com.vmturbo.group.persistent;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
 import java.util.Optional;
 
 import org.junit.Before;
@@ -31,6 +34,7 @@ import com.vmturbo.group.ArangoDriverFactory;
 import com.vmturbo.group.GroupDBDefinition;
 import com.vmturbo.group.ImmutableGroupDBDefinition;
 import com.vmturbo.group.identity.IdentityProvider;
+import com.vmturbo.group.persistent.ArangoDBFixtures.MockDatabase;
 import com.vmturbo.group.persistent.GroupStore.DuplicateGroupException;
 
 @RunWith(MockitoJUnitRunner.class)
@@ -51,6 +55,8 @@ public class GroupStoreTest {
 
     private IdentityProvider identityProviderSpy = spy(new IdentityProvider(0));
 
+    private MockDatabase mockDatabase;
+
     @Before
     public void setUp() throws Exception {
         final GroupDBDefinition groupDBDefinition = ImmutableGroupDBDefinition.builder()
@@ -63,6 +69,7 @@ public class GroupStoreTest {
                 groupDBDefinition, identityProviderSpy));
 
         given(arangoDriverFactory.getDriver()).willReturn(arangoDB);
+        mockDatabase = ArangoDBFixtures.mockDatabase(arangoDB, TEST_DATABASE);
     }
 
     @Test
@@ -70,8 +77,8 @@ public class GroupStoreTest {
         final Long groupID = 1000L;
         final GroupDTO.Group testGroup = GroupDTO.Group.newBuilder().setId(groupID).build();
 
-        ArangoDBFixtures.givenGetDocumentWillReturn(arangoDB, TEST_DATABASE, TEST_GROUP_COLLECTION,
-                Long.toString(groupID), GroupDTO.Group.class, testGroup);
+        mockDatabase.givenQueryWillReturn(
+                GroupStore.ALL_GROUPS_QUERY, GroupDTO.Group.class, testGroup);
 
         final Optional<GroupDTO.Group> retrieved = groupStoreSpy.get(groupID);
 
@@ -80,16 +87,56 @@ public class GroupStoreTest {
     }
 
     @Test
+    public void testGetAll() throws Exception {
+        final Long groupID = 1000L;
+        final GroupDTO.Group testGroup = GroupDTO.Group.newBuilder().setId(groupID).build();
+
+        mockDatabase.givenQueryWillReturn(GroupStore.ALL_GROUPS_QUERY,
+                GroupDTO.Group.class, testGroup);
+
+        final Collection<Group> retrieved = groupStoreSpy.getAll();
+
+        assertThat(retrieved).containsExactly(testGroup);
+    }
+
+    @Test
+    public void testGetSome() throws Exception {
+        final Long groupID = 1000L;
+        final GroupDTO.Group testGroup = GroupDTO.Group.newBuilder().setId(groupID).build();
+
+        mockDatabase.givenQueryWillReturn(GroupStore.ALL_GROUPS_QUERY,
+                GroupDTO.Group.class, testGroup);
+
+        final Map<Long, Optional<Group>> retrieved =
+                groupStoreSpy.getGroups(Collections.singleton(groupID));
+
+        // It should be found.
+        assertEquals(testGroup, retrieved.get(groupID).get());
+    }
+
+    @Test
+    public void testGetSomeNotFound() throws Exception {
+        final Long groupID = 1000L;
+
+        mockDatabase.givenQueryWillReturn(
+                GroupStore.ALL_GROUPS_QUERY, GroupDTO.Group.class, Collections.emptyList());
+
+        final Map<Long, Optional<Group>> retrieved =
+                groupStoreSpy.getGroups(Collections.singleton(groupID));
+
+        // It should be found.
+        assertFalse(retrieved.get(groupID).isPresent());
+    }
+
+    @Test
     public void testSaveInsert() throws Exception {
         final Long groupID = 1000L;
         when(identityProviderSpy.next()).thenReturn(groupID);
 
-        final ArangoCollection mockCollection = ArangoDBFixtures
-                .getMockCollection(arangoDB, TEST_DATABASE, TEST_GROUP_COLLECTION);
-        ArangoDBFixtures.givenKeyDoesNotExist(mockCollection, groupID.toString());
+        mockDatabase.givenKeyDoesNotExist(TEST_GROUP_COLLECTION, groupID.toString());
 
         final GroupInfo info = GroupInfo.getDefaultInstance();
-        doReturn(false).when(groupStoreSpy).isDuplicate(eq(groupID.longValue()), eq(info));
+        doReturn(false).when(groupStoreSpy).checkForDuplicates(eq(groupID.longValue()), eq(info));
         final Group group = groupStoreSpy.newUserGroup(info);
 
         final GroupDTO.Group expectedGroup = GroupDTO.Group.newBuilder()
@@ -98,6 +145,8 @@ public class GroupStoreTest {
                 .setInfo(info)
                 .build();
 
+        final ArangoCollection mockCollection = mockDatabase
+                .createMockCollection(TEST_GROUP_COLLECTION);
         Mockito.verify(mockCollection).insertDocument(expectedGroup);
         assertEquals(expectedGroup, group);
     }
@@ -107,14 +156,13 @@ public class GroupStoreTest {
         final Long groupID = 1000L;
         when(identityProviderSpy.next()).thenReturn(groupID);
 
-        final ArangoCollection mockCollection = ArangoDBFixtures
-                .getMockCollection(arangoDB, TEST_DATABASE, TEST_GROUP_COLLECTION);
-        ArangoDBFixtures.givenKeyDoesNotExist(mockCollection, groupID.toString());
-        ArangoDBFixtures.givenInsertWillThrowException(mockCollection,
+        mockDatabase
+            .givenKeyDoesNotExist(TEST_GROUP_COLLECTION, groupID.toString())
+            .givenInsertWillThrowException(TEST_GROUP_COLLECTION,
                 new ArangoDBException("Mock ArangoDB exception in save"));
 
         final GroupInfo info = GroupInfo.getDefaultInstance();
-        doReturn(false).when(groupStoreSpy).isDuplicate(eq(groupID.longValue()), eq(info));
+        doReturn(false).when(groupStoreSpy).checkForDuplicates(eq(groupID.longValue()), eq(info));
         groupStoreSpy.newUserGroup(info);
     }
 
@@ -132,8 +180,8 @@ public class GroupStoreTest {
             .setName("foo")
             .build();
 
-        ArangoDBFixtures.givenQueryWillReturn(arangoDB, TEST_DATABASE,
-            GroupStore.GROUPS_BY_NAME_QUERY, GroupDTO.Group.class, originalGroup);
+        mockDatabase.givenQueryWillReturn(GroupStore.GROUPS_BY_NAME_QUERY, GroupDTO.Group.class,
+                originalGroup);
 
         groupStoreSpy.newUserGroup(duplicateGroup);
     }
@@ -156,12 +204,14 @@ public class GroupStoreTest {
             .build();
 
 
-        final ArangoDatabase mockDatabase = ArangoDBFixtures.givenQueryWillReturn(arangoDB, TEST_DATABASE,
-            GroupStore.GROUPS_BY_NAME_QUERY, GroupDTO.Group.class, originalGroup);
-        final ArangoCollection mockCollection = Mockito.mock(ArangoCollection.class);
+        // Make sure the original group with the same name gets returned from the groups query.
+        mockDatabase
+            .givenQueryWillReturn(GroupStore.GROUPS_BY_NAME_QUERY, GroupDTO.Group.class,
+                originalGroup)
+            // Pretend the "duplicate" group (the one that's being updated) exists in the database
+            // already.
+            .givenQueryWillReturn(GroupStore.ALL_GROUPS_QUERY, GroupDTO.Group.class, duplicateGroup);
 
-        given(mockDatabase.collection(TEST_GROUP_COLLECTION)).willReturn(mockCollection);
-        given(mockCollection.getDocument(duplicateGroupID.toString(), GroupDTO.Group.class)).willReturn(duplicateGroup);
 
         groupStoreSpy.updateUserGroup(duplicateGroupID, GroupInfo.newBuilder()
             .setName(originalGroupName)
@@ -172,8 +222,8 @@ public class GroupStoreTest {
     public void testDelete() throws Exception {
         final Long groupID = 1000L;
 
-        final ArangoCollection mockCollection = ArangoDBFixtures
-                .getMockCollection(arangoDB, TEST_DATABASE, TEST_GROUP_COLLECTION);
+        final ArangoCollection mockCollection = mockDatabase
+                .createMockCollection(TEST_GROUP_COLLECTION);
 
         doReturn(Optional.of(Group.newBuilder().setId(groupID).build()))
             .when(groupStoreSpy).get(eq(groupID));
@@ -187,9 +237,7 @@ public class GroupStoreTest {
     public void testDeleteException() throws Exception {
         final Long groupID = 1000L;
 
-        final ArangoCollection mockCollection = ArangoDBFixtures
-                .getMockCollection(arangoDB, TEST_DATABASE, TEST_GROUP_COLLECTION);
-        ArangoDBFixtures.givenDeleteWillThrowException(mockCollection,
+        mockDatabase.givenDeleteWillThrowException(TEST_GROUP_COLLECTION,
                 new ArangoDBException("Mock ArangoDB exception in delete"));
 
         doReturn(Optional.of(Group.newBuilder().setId(groupID).build()))

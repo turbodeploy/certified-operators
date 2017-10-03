@@ -1,10 +1,13 @@
 package com.vmturbo.group.persistent;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -30,9 +33,11 @@ public class GroupStore {
 
     private final static Logger logger = LogManager.getLogger();
 
-    private final static String ALL_GROUPS_QUERY = "FOR g IN @@group_collection RETURN g";
+    @VisibleForTesting
+    final static String ALL_GROUPS_QUERY = "FOR g IN @@group_collection RETURN g";
 
-    private final static String GROUPS_BY_TARGET_QUERY = "FOR g in @@group_collection " +
+    @VisibleForTesting
+    final static String GROUPS_BY_TARGET_QUERY = "FOR g in @@group_collection " +
             "FILTER g.targetId == @targetId " +
             "RETURN g";
 
@@ -51,28 +56,6 @@ public class GroupStore {
         this.arangoDriverFactory = Objects.requireNonNull(arangoDriverFactory);
         this.identityProvider = Objects.requireNonNull(identityProvider);
         this.groupDBDefinition = Objects.requireNonNull(groupDBDefinitionArg);
-    }
-
-    /**
-     * Retrieve a {@link Group} by it's ID.
-     *
-     * @param id The ID of the group to look for.
-     * @return The {@link Group} associated with that ID.
-     * @throws DatabaseException If there is an error interacting with the database.
-     */
-    @Nonnull
-    public Optional<Group> get(final Long id) throws DatabaseException {
-        ArangoDB arangoDB = arangoDriverFactory.getDriver();
-
-        try {
-            return Optional.ofNullable(arangoDB.db(groupDBDefinition.databaseName())
-                                       .collection(groupDBDefinition.groupCollection())
-                                       .getDocument(Long.toString(id), Group.class));
-        } catch (ArangoDBException e) {
-            throw new DatabaseException("Failed to get group " + id, e);
-        } finally {
-            arangoDB.shutdown();
-        }
     }
 
     /**
@@ -98,6 +81,40 @@ public class GroupStore {
         Map<String, Long> map = update.apply(this::store, this::delete);
         logger.info("Finished updating discovered groups.");
         return map;
+    }
+
+
+    /**
+     * Retrieve a {@link Group} by it's ID.
+     *
+     * @param id The ID of the group to look for.
+     * @return The {@link Group} associated with that ID.
+     * @throws DatabaseException If there is an error interacting with the database.
+     */
+    @Nonnull
+    public Optional<Group> get(final long id) throws DatabaseException {
+        return getGroups(Collections.singleton(id)).get(id);
+    }
+
+    /**
+     * Get groups with IDs in a set from the store.
+     *
+     * @param ids The IDs to look for.
+     * @return A map with an entry for each input ID. The value is an optional containing the
+     *         {@link Group} with that ID, or an empty optional if that group was not found.
+     * @throws DatabaseException If there is an error interacting with the database.
+     */
+    @Nonnull
+    public Map<Long, Optional<Group>> getGroups(@Nonnull final Collection<Long> ids)
+            throws DatabaseException {
+        // (roman, Oct 2 2017): This is a temporary implementation - when building on top
+        // of MySQL this filtering should be done by the database.
+        final Map<Long, Optional<Group>> requestedIds = ids.stream()
+            .collect(Collectors.toMap(Function.identity(), x -> Optional.empty()));
+        getAll().stream()
+            .filter(group -> requestedIds.containsKey(group.getId()))
+            .forEach(group -> requestedIds.put(group.getId(), Optional.of(group)));
+        return requestedIds;
     }
 
     /**
@@ -138,7 +155,7 @@ public class GroupStore {
     @Nonnull
     public Group newUserGroup(@Nonnull final GroupInfo groupInfo) throws DatabaseException, DuplicateGroupException {
         final long oid = identityProvider.next();
-        if (isDuplicate(oid, groupInfo)) {
+        if (checkForDuplicates(oid, groupInfo)) {
             throw new DuplicateGroupException(groupInfo);
         }
 
@@ -172,7 +189,7 @@ public class GroupStore {
             if (existingGroup.getOrigin().equals(Origin.DISCOVERED)) {
                 throw new ImmutableUpdateException(existingGroup);
             }
-            if (isDuplicate(id, newInfo)) {
+            if (checkForDuplicates(id, newInfo)) {
                 throw new DuplicateGroupException(newInfo);
             }
 
@@ -215,7 +232,8 @@ public class GroupStore {
      *         but has a different oid than that group, false otherwise.
      */
     @VisibleForTesting
-    boolean isDuplicate(final long id, @Nonnull final GroupInfo groupInfo) throws DatabaseException {
+    boolean checkForDuplicates(final long id, @Nonnull final GroupInfo groupInfo)
+            throws DatabaseException {
         ArangoDB arangoDB = arangoDriverFactory.getDriver();
 
         try {

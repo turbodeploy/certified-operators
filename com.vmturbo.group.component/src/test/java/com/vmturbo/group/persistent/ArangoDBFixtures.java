@@ -7,7 +7,11 @@ import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.when;
 
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import org.mockito.Mockito;
 
@@ -17,66 +21,94 @@ import com.arangodb.ArangoDB;
 import com.arangodb.ArangoDatabase;
 
 public class ArangoDBFixtures {
-    public static ArangoDatabase getMockDatabase(final ArangoDB mockArangoDB,
-                                                 final String database) {
-        final ArangoDatabase mockDatabase = Mockito.mock(ArangoDatabase.class);
-        given(mockArangoDB.db(database)).willReturn(mockDatabase);
 
-        return mockDatabase;
+    /**
+     * Createa new {@link MockDatabase}.
+     *
+     * @param mockArangoDB The {@link ArangoDB} object, which should be a mock or a spy.
+     * @param database The name of the database.
+     * @return A {@link MockDatabase} containing an {@link ArangoDatabase} which will be returned
+     *        by {@link ArangoDB#db(String)} with the provided database name. You can customize
+     *        the behaviour of the {@link MockDatabase} by the various methods on it.
+     */
+    public static MockDatabase mockDatabase(final ArangoDB mockArangoDB, final String database) {
+        return new MockDatabase(mockArangoDB, database);
     }
 
-    public static ArangoCollection getMockCollection(final ArangoDB mockArangoDB,
-                                                     final String database,
-                                                     final String collection) {
-        final ArangoDatabase mockDatabase = getMockDatabase(mockArangoDB, database);
-        final ArangoCollection mockCollection = Mockito.mock(ArangoCollection.class);
+    /**
+     * A wrapper around a mock Arango database that allows configuration of multiple
+     * behaviours for a single {@link ArangoDatabase} object (e.g. return different things
+     * for two different queries).
+     */
+    public static class MockDatabase {
+        private ArangoDatabase arangoDatabase;
+        private Map<String, ArangoCollection> collectionMap = new HashMap<>();
 
-        given(mockDatabase.collection(collection)).willReturn(mockCollection);
+        private MockDatabase(final ArangoDB mockDb, final String database) {
+            arangoDatabase = Mockito.mock(ArangoDatabase.class);
+            given(mockDb.db(database)).willReturn(arangoDatabase);
+        }
 
-        return mockCollection;
-    }
+        public ArangoCollection createMockCollection(final String name) {
+            return collectionMap.computeIfAbsent(name, n -> {
+                final ArangoCollection mockCollection = Mockito.mock(ArangoCollection.class);
+                given(arangoDatabase.collection(n)).willReturn(mockCollection);
+                return mockCollection;
+            });
+        }
 
-    public static <R> void givenGetDocumentWillReturn(final ArangoDB mockArangoDB,
-                                                      final String database,
-                                                      final String collection,
-                                                      final String key,
-                                                      final Class<R> klass,
-                                                      final R testData) {
+        public <R> MockDatabase givenGetDocumentWillReturn(final String collectionName,
+                                                           final String key,
+                                                           final Class<R> klass,
+                                                           final R testData) {
+            ArangoCollection collection = createMockCollection(collectionName);
+            given(collection.getDocument(key, klass)).willReturn(testData);
+            return this;
+        }
 
-        final ArangoCollection mockCollection = getMockCollection(mockArangoDB, database, collection);
-        given(mockCollection.getDocument(key, klass)).willReturn(testData);
-    }
+        public <R> MockDatabase givenQueryWillReturn(final String query,
+                                                     final Class<R> klass,
+                                                     final R testData) {
+            return givenQueryWillReturn(query, klass, Collections.singletonList(testData));
+        }
 
-    public static <R> ArangoDatabase givenQueryWillReturn(final ArangoDB mockArangoDB,
-                                                final String database,
-                                                final String query,
-                                                final Class<R> klass,
-                                                final R testData) {
-        final ArangoDatabase mockDatabase = getMockDatabase(mockArangoDB, database);
-        @SuppressWarnings("unchecked")
-        final ArangoCursor<R> mockCursor = Mockito.mock(ArangoCursor.class);
+        public <R> MockDatabase givenQueryWillReturn(final String query,
+                                                     final Class<R> klass,
+                                                     final List<R> testData) {
+            @SuppressWarnings("unchecked")
+            final ArangoCursor<R> mockCursor = Mockito.mock(ArangoCursor.class);
 
-        when(mockCursor.asListRemaining()).thenReturn(Collections.singletonList(testData));
-        when(mockDatabase.query(eq(query), anyMap(), eq(null), eq(klass)))
-            .thenReturn(mockCursor);
+            when(mockCursor.asListRemaining()).thenReturn(testData);
+            when(arangoDatabase.query(eq(query), anyMap(), eq(null), eq(klass)))
+                    .thenReturn(mockCursor);
 
-        return mockDatabase;
-    }
+            return this;
+        }
 
-    public static void givenKeyExists(final ArangoCollection mockCollection, final String key) {
-        given(mockCollection.documentExists(key)).willReturn(true);
-    }
+        public MockDatabase givenKeyExists(final String collectionName, final String key) {
+            final ArangoCollection mockCollection = createMockCollection(collectionName);
+            given(mockCollection.documentExists(key)).willReturn(true);
+            return this;
+        }
 
-    public static void givenKeyDoesNotExist(final ArangoCollection mockCollection, final String key) {
-        given(mockCollection.documentExists(key)).willReturn(false);
-    }
+        public MockDatabase givenKeyDoesNotExist(final String collectionName, final String key) {
+            final ArangoCollection mockCollection = createMockCollection(collectionName);
+            given(mockCollection.documentExists(key)).willReturn(false);
+            return this;
+        }
 
-    public static void givenInsertWillThrowException(final ArangoCollection mockCollection,
-                                                     final Throwable e) {
-        given(mockCollection.insertDocument(any())).willThrow(e);
-    }
+        public MockDatabase givenInsertWillThrowException(final String collectionName,
+                                                          final Throwable e) {
+            final ArangoCollection mockCollection = createMockCollection(collectionName);
+            given(mockCollection.insertDocument(any())).willThrow(e);
+            return this;
+        }
 
-    public static void givenDeleteWillThrowException(final ArangoCollection mockCollection, final Throwable e) {
-        given(mockCollection.deleteDocument(anyString())).willThrow(e);
+        public MockDatabase givenDeleteWillThrowException(final String collectionName,
+                                                          final Throwable e) {
+            final ArangoCollection mockCollection = createMockCollection(collectionName);
+            given(mockCollection.deleteDocument(anyString())).willThrow(e);
+            return this;
+        }
     }
 }

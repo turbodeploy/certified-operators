@@ -17,9 +17,9 @@ import com.vmturbo.api.dto.input.SettingApiInputDTO;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
 import com.vmturbo.api.serviceinterfaces.ISettingsService;
-import com.vmturbo.common.protobuf.setting.SettingOuterClass.AllSettingSpecRequest;
-import com.vmturbo.common.protobuf.setting.SettingOuterClass.EntitySettingScope;
-import com.vmturbo.common.protobuf.setting.SettingOuterClass.SettingSpec;
+import com.vmturbo.common.protobuf.setting.SettingProto.AllSettingSpecRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 
 /**

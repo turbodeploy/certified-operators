@@ -2,6 +2,7 @@ package com.vmturbo.group.service;
 
 import java.util.Collection;
 import java.util.Objects;
+import java.util.Optional;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -9,9 +10,9 @@ import org.apache.logging.log4j.Logger;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
-import com.vmturbo.common.protobuf.setting.SettingOuterClass.AllSettingSpecRequest;
-import com.vmturbo.common.protobuf.setting.SettingOuterClass.SettingSpec;
-import com.vmturbo.common.protobuf.setting.SettingOuterClass.SingleSettingSpecRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.AllSettingSpecRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
+import com.vmturbo.common.protobuf.setting.SettingProto.SingleSettingSpecRequest;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceImplBase;
 import com.vmturbo.group.persistent.SettingStore;
 
@@ -46,19 +47,17 @@ public class SettingRpcService extends SettingServiceImplBase {
         }
 
         // retrieve the spec from the store
-        SettingSpec settingSpec = settingStore.getSettingSpec(settingSpecName);
+        Optional<SettingSpec> settingSpec = settingStore.getSettingSpec(settingSpecName);
 
         // check if spec was found
-        if (settingSpec == null) {
+        if (settingSpec.isPresent()) {
+            responseObserver.onNext(settingSpec.get());
+            responseObserver.onCompleted();
+        } else {
             String errorMessage = "Setting Spec with name \"" + settingSpecName + "\" not found";
             logger.error(errorMessage);
             responseObserver.onError(Status.NOT_FOUND.withDescription(errorMessage).asRuntimeException());
-        } else {
-            responseObserver.onNext(settingSpec);
-            responseObserver.onCompleted();
         }
-
-
     }
 
     /**

@@ -28,7 +28,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsResponse;
 import com.vmturbo.common.protobuf.action.ActionsDebugServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsDebugServiceGrpc.ActionsDebugServiceBlockingStub;
 import com.vmturbo.commons.idgen.IdentityGenerator;
-import com.vmturbo.components.api.test.GrpcExceptionMatcher;
+import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcTestServer;
 
 public class ActionsDebugRpcTest {
@@ -82,7 +82,7 @@ public class ActionsDebugRpcTest {
         when(actionStorehouse.storeActions(eq(actionPlan)))
             .thenThrow(new IllegalArgumentException("Failed!"));
 
-        expectedException.expect(GrpcExceptionMatcher.code(Code.INTERNAL)
+        expectedException.expect(GrpcRuntimeExceptionMatcher.hasCode(Code.INTERNAL)
             .descriptionContains("Failed!"));
         actionOrchestratorServiceClient.overrideActionPlan(actionPlan);
     }

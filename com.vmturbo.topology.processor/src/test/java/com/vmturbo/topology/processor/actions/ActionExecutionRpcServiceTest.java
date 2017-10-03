@@ -27,7 +27,7 @@ import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest
 import com.vmturbo.common.protobuf.topology.ActionExecutionServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ActionExecutionServiceGrpc.ActionExecutionServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.components.api.test.GrpcExceptionMatcher;
+import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.CommodityAttribute;
@@ -156,8 +156,8 @@ public class ActionExecutionRpcServiceTest {
                 NewEntityRequest.virtualMachine(move.getTargetId(), move.getSourceId()),
                 NewEntityRequest.physicalMachine(move.getSourceId()));
 
-        expectedException.expect(GrpcExceptionMatcher
-                .code(Code.INVALID_ARGUMENT)
+        expectedException.expect(GrpcRuntimeExceptionMatcher
+                .hasCode(Code.INVALID_ARGUMENT)
                 .descriptionContains("Missing destination"));
         actionExecutionStub.executeAction(request);
     }
@@ -194,8 +194,8 @@ public class ActionExecutionRpcServiceTest {
                 targetIdCounter.getAndIncrement(),
                 NewEntityRequest.physicalMachine(move.getDestinationId()));
 
-        expectedException.expect(GrpcExceptionMatcher
-                .code(Code.INVALID_ARGUMENT)
+        expectedException.expect(GrpcRuntimeExceptionMatcher
+                .hasCode(Code.INVALID_ARGUMENT)
                 .descriptionContains("Missing target info"));
         actionExecutionStub.executeAction(request);
     }
@@ -271,8 +271,8 @@ public class ActionExecutionRpcServiceTest {
                 // Destination is a storage, but source is a PM.
                 NewEntityRequest.storage(move.getDestinationId()));
 
-        expectedException.expect(GrpcExceptionMatcher
-                .code(Code.INVALID_ARGUMENT)
+        expectedException.expect(GrpcRuntimeExceptionMatcher
+                .hasCode(Code.INVALID_ARGUMENT)
                 .descriptionContains("Mismatched source and destination"));
         actionExecutionStub.executeAction(request);
     }
@@ -351,8 +351,8 @@ public class ActionExecutionRpcServiceTest {
         // No entities in topology; target entity is missing.
         initializeTopology(targetId);
 
-        expectedException.expect(GrpcExceptionMatcher
-                .code(Code.INVALID_ARGUMENT)
+        expectedException.expect(GrpcRuntimeExceptionMatcher
+                .hasCode(Code.INVALID_ARGUMENT)
                 .descriptionContains("Missing target"));
         actionExecutionStub.executeAction(request);
     }
@@ -382,8 +382,8 @@ public class ActionExecutionRpcServiceTest {
                         NewEntityRequest.virtualMachine(resizeSpec.getTargetId(), 7));
 
 
-        expectedException.expect(GrpcExceptionMatcher
-                .code(Code.INVALID_ARGUMENT)
+        expectedException.expect(GrpcRuntimeExceptionMatcher
+                .hasCode(Code.INVALID_ARGUMENT)
                 .descriptionContains("Missing host of target"));
         actionExecutionStub.executeAction(request);
     }
@@ -479,8 +479,8 @@ public class ActionExecutionRpcServiceTest {
         // Empty topology.
         initializeTopology(targetId);
 
-        expectedException.expect(GrpcExceptionMatcher
-                .code(Code.INVALID_ARGUMENT)
+        expectedException.expect(GrpcRuntimeExceptionMatcher
+                .hasCode(Code.INVALID_ARGUMENT)
                 .descriptionContains("Missing target"));
         actionExecutionStub.executeAction(request);
     }
@@ -505,8 +505,8 @@ public class ActionExecutionRpcServiceTest {
          initializeTopology(targetId,
                 NewEntityRequest.virtualMachine(entityId, entityId + 1));
 
-        expectedException.expect(GrpcExceptionMatcher
-                .code(Code.INVALID_ARGUMENT)
+        expectedException.expect(GrpcRuntimeExceptionMatcher
+                .hasCode(Code.INVALID_ARGUMENT)
                 .descriptionContains("Missing host of target"));
         actionExecutionStub.executeAction(request);
     }
@@ -605,8 +605,8 @@ public class ActionExecutionRpcServiceTest {
         // Empty topology.
         initializeTopology(targetId);
 
-        expectedException.expect(GrpcExceptionMatcher
-                .code(Code.INVALID_ARGUMENT)
+        expectedException.expect(GrpcRuntimeExceptionMatcher
+                .hasCode(Code.INVALID_ARGUMENT)
                 .descriptionContains("Missing target"));
         actionExecutionStub.executeAction(request);
     }
@@ -631,8 +631,8 @@ public class ActionExecutionRpcServiceTest {
         initializeTopology(targetId,
                 NewEntityRequest.virtualMachine(entityId, entityId + 1));
 
-        expectedException.expect(GrpcExceptionMatcher
-                .code(Code.INVALID_ARGUMENT)
+        expectedException.expect(GrpcRuntimeExceptionMatcher
+                .hasCode(Code.INVALID_ARGUMENT)
                 .descriptionContains("Missing host of target"));
         actionExecutionStub.executeAction(request);
     }

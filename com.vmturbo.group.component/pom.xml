@@ -286,12 +286,19 @@
                                     <inputSchema>${db.schema}</inputSchema>
                                 </schema>
                             </schemata>
-
                             <customTypes>
+                                <customType>
+                                    <name>com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo</name>
+                                    <converter>com.vmturbo.group.persistent.SettingPolicyInfoConverter</converter>
+                                </customType>
                             </customTypes>
 
                             <!-- Then, associate custom types with database columns -->
                             <forcedTypes>
+                                <forcedType>
+                                    <name>com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo</name>
+                                    <expression>.*\.setting_policy\.setting_policy_data</expression>
+                                </forcedType>
                             </forcedTypes>
                         </database>
                         <generate>

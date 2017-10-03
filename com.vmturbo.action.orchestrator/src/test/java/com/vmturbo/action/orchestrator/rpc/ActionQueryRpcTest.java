@@ -38,7 +38,6 @@ import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTranslator;
-import com.vmturbo.action.orchestrator.execution.ActionTranslator.TranslationExecutor;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.LiveActionStore;
@@ -60,7 +59,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.TopologyContextResponse;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.commons.idgen.IdentityGenerator;
-import com.vmturbo.components.api.test.GrpcExceptionMatcher;
+import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
@@ -127,7 +126,7 @@ public class ActionQueryRpcTest {
         SingleActionRequest actionRequest = SingleActionRequest.newBuilder()
             .build();
 
-        expectedException.expect(GrpcExceptionMatcher.code(Code.INVALID_ARGUMENT)
+        expectedException.expect(GrpcRuntimeExceptionMatcher.hasCode(Code.INVALID_ARGUMENT)
             .descriptionContains("Missing required parameter actionId or topologyContextId."));
 
         actionOrchestratorServiceClient.getAction(actionRequest);
@@ -141,7 +140,7 @@ public class ActionQueryRpcTest {
             .setActionId(1)
             .build();
 
-        expectedException.expect(GrpcExceptionMatcher.code(Code.NOT_FOUND)
+        expectedException.expect(GrpcRuntimeExceptionMatcher.hasCode(Code.NOT_FOUND)
             .descriptionContains("1234 not found"));
         actionOrchestratorServiceClient.getAction(actionRequest);
     }
@@ -232,7 +231,7 @@ public class ActionQueryRpcTest {
         FilteredActionRequest actionRequest = FilteredActionRequest.newBuilder()
             .build();
 
-        expectedException.expect(GrpcExceptionMatcher.code(Code.INVALID_ARGUMENT)
+        expectedException.expect(GrpcRuntimeExceptionMatcher.hasCode(Code.INVALID_ARGUMENT)
             .descriptionContains("topologyContextId"));
 
         // Because getAllActions returns a lazily-evaluated stream, we have to force the evaluation somehow
@@ -247,7 +246,7 @@ public class ActionQueryRpcTest {
             .setTopologyContextId(1234)
             .build();
 
-        expectedException.expect(GrpcExceptionMatcher.code(Code.NOT_FOUND)
+        expectedException.expect(GrpcRuntimeExceptionMatcher.hasCode(Code.NOT_FOUND)
             .descriptionContains("1234 not found"));
 
         // Because getAllActions returns a lazily-evaluated stream, we have to force the evaluation somehow
@@ -318,7 +317,7 @@ public class ActionQueryRpcTest {
         MultiActionRequest actionRequest = MultiActionRequest.newBuilder()
             .build();
 
-        expectedException.expect(GrpcExceptionMatcher.code(Code.INVALID_ARGUMENT)
+        expectedException.expect(GrpcRuntimeExceptionMatcher.hasCode(Code.INVALID_ARGUMENT)
             .descriptionContains("topologyContextId"));
 
         fetchSpecList(() -> actionOrchestratorServiceClient.getActions(actionRequest));
@@ -462,7 +461,7 @@ public class ActionQueryRpcTest {
         when(actionStorehouse.getStore(Mockito.eq(topologyContextId)))
                 .thenReturn(Optional.empty());
 
-        expectedException.expect(GrpcExceptionMatcher.code(Code.NOT_FOUND)
+        expectedException.expect(GrpcRuntimeExceptionMatcher.hasCode(Code.NOT_FOUND)
             .descriptionContains(Long.toString(topologyContextId)));
 
         actionOrchestratorServiceClient.getActionCounts(

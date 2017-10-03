@@ -24,14 +24,12 @@ import com.vmturbo.common.protobuf.group.GroupDTOREST.ClusterServiceController;
 import com.vmturbo.common.protobuf.group.GroupDTOREST.DiscoveredCollectionsServiceController;
 import com.vmturbo.common.protobuf.group.GroupDTOREST.GroupServiceController;
 import com.vmturbo.common.protobuf.group.PolicyDTOREST.PolicyServiceController;
-import com.vmturbo.common.protobuf.setting.SettingREST.SettingServiceController;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.SQLDBHealthMonitor;
 import com.vmturbo.group.service.ClusterRpcService;
 import com.vmturbo.group.service.DiscoveredCollectionsRpcService;
 import com.vmturbo.group.service.GroupService;
 import com.vmturbo.group.service.PolicyService;
-import com.vmturbo.group.service.SettingRpcService;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 @Configuration("theComponent")
@@ -39,6 +37,7 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
 @Import({ArangoDBConfig.class,
     IdentityProviderConfig.class,
     GrpcConfig.class,
+    SettingConfig.class,
     SQLDatabaseConfig.class})
 @SpringBootApplication
 public class GroupComponent extends BaseVmtComponent {
@@ -127,16 +126,6 @@ public class GroupComponent extends BaseVmtComponent {
         return new DiscoveredCollectionsServiceController(discoveredCollectionsRpcService());
     }
 
-    @Bean
-    public SettingRpcService settingService() {
-        return new SettingRpcService(settingConfig.settingStore());
-    }
-
-    @Bean
-    public SettingServiceController settingServiceController() {
-        return new SettingServiceController(settingService());
-    }
-
     @Nonnull
     @Override
     protected Optional<Server> buildGrpcServer(@Nonnull ServerBuilder builder) {
@@ -145,7 +134,7 @@ public class GroupComponent extends BaseVmtComponent {
                 .addService(groupService())
                 .addService(clusterRpcService())
                 .addService(discoveredCollectionsRpcService())
-                .addService(settingService())
+                .addService(settingConfig.settingService())
                 .build());
     }
 

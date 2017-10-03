@@ -44,7 +44,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.AnalysisDTO.StartAnalysisRequest;
 import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc.AnalysisServiceImplBase;
-import com.vmturbo.components.api.test.GrpcExceptionMatcher;
+import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
 import com.vmturbo.plan.orchestrator.db.tables.pojos.Scenario;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
@@ -120,7 +120,7 @@ public class PlanTest {
     @Test
     public void testCreatePlanAbsentScenario() {
         final CreatePlanRequest createPlanRequest = CreatePlanRequest.newBuilder(request).setScenarioId(PLAN_ID).build();
-        expectedException.expect(GrpcExceptionMatcher.code(Code.NOT_FOUND)
+        expectedException.expect(GrpcRuntimeExceptionMatcher.hasCode(Code.NOT_FOUND)
                 .descriptionContains(Long.toString(PLAN_ID)));
         planClient.createPlan(createPlanRequest);
     }
@@ -203,7 +203,7 @@ public class PlanTest {
                 .setPlanId(PLAN_ID)
                 .setScenarioId(NEW_SCENARIO_ID)
                 .build();
-        expectedException.expect(GrpcExceptionMatcher.code(Status.Code.NOT_FOUND)
+        expectedException.expect(GrpcRuntimeExceptionMatcher.hasCode(Status.Code.NOT_FOUND)
                 .descriptionContains(Long.toString(PLAN_ID)));
 
         // act
@@ -220,7 +220,7 @@ public class PlanTest {
                 .setPlanId(PLAN_ID)
                 .setScenarioId(SCENARIO_ID)
                 .build();
-        expectedException.expect(GrpcExceptionMatcher.code(Status.Code.NOT_FOUND)
+        expectedException.expect(GrpcRuntimeExceptionMatcher.hasCode(Status.Code.NOT_FOUND)
                 .descriptionContains(Long.toString(SCENARIO_ID)));
 
         // act
@@ -236,7 +236,7 @@ public class PlanTest {
     @Test
     public void testRunAbsentPlan() {
         final PlanId planId = PlanId.newBuilder().setPlanId(PLAN_ID).build();
-        expectedException.expect(GrpcExceptionMatcher.code(Status.Code.NOT_FOUND)
+        expectedException.expect(GrpcRuntimeExceptionMatcher.hasCode(Status.Code.NOT_FOUND)
                 .descriptionContains(Long.toString(PLAN_ID)));
         planClient.runPlan(planId);
         Mockito.verify(analysisServer, Mockito.never())
@@ -250,7 +250,7 @@ public class PlanTest {
     public void testDeleteAbsentPlan() {
         final long id = 12345;
         final PlanId planId = PlanId.newBuilder().setPlanId(id).build();
-        expectedException.expect(GrpcExceptionMatcher.code(Status.Code.NOT_FOUND)
+        expectedException.expect(GrpcRuntimeExceptionMatcher.hasCode(Status.Code.NOT_FOUND)
                 .descriptionContains(Long.toString(id)));
         planClient.deletePlan(planId);
     }

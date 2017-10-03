@@ -6,6 +6,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+import java.util.Optional;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.Before;
@@ -19,9 +21,9 @@ import com.google.common.collect.ImmutableSet;
 
 import io.grpc.stub.StreamObserver;
 
-import com.vmturbo.common.protobuf.setting.SettingOuterClass.AllSettingSpecRequest;
-import com.vmturbo.common.protobuf.setting.SettingOuterClass.SettingSpec;
-import com.vmturbo.common.protobuf.setting.SettingOuterClass.SingleSettingSpecRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.AllSettingSpecRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
+import com.vmturbo.common.protobuf.setting.SettingProto.SingleSettingSpecRequest;
 import com.vmturbo.group.persistent.SettingStore;
 
 
@@ -58,8 +60,8 @@ public class SettingRpcServiceTest {
                 .build();
 
         // inject them
-        given(settingStore.getSettingSpec(specName1)).willReturn(injectedSettingSpec1);
-        given(settingStore.getSettingSpec(specName2)).willReturn(injectedSettingSpec2);
+        given(settingStore.getSettingSpec(specName1)).willReturn(Optional.of(injectedSettingSpec1));
+        given(settingStore.getSettingSpec(specName2)).willReturn(Optional.of(injectedSettingSpec2));
 
         ImmutableSet<SettingSpec> specSet = ImmutableSet.of(
                 injectedSettingSpec1,
