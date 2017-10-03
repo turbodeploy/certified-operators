@@ -27,7 +27,7 @@ import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.client.WebsocketNotificationReceiver;
 import com.vmturbo.components.api.test.IntegrationTestServer;
 import com.vmturbo.market.component.api.ActionsListener;
-import com.vmturbo.market.component.api.MarketNotificationSender;
+import com.vmturbo.market.MarketNotificationSender;
 import com.vmturbo.market.component.api.impl.MarketComponentClient;
 import com.vmturbo.market.component.dto.MarketMessages.MarketComponentNotification;
 

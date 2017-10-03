@@ -10,7 +10,15 @@ import org.springframework.web.socket.server.standard.ServerEndpointExporter;
 import org.springframework.web.socket.server.standard.ServerEndpointRegistration;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import com.google.protobuf.Empty;
 
+import com.vmturbo.communication.ITransport;
+import com.vmturbo.communication.WebsocketServerTransport;
+import com.vmturbo.communication.WebsocketServerTransportManager;
+import com.vmturbo.communication.WebsocketServerTransportManager.TransportHandler;
+import com.vmturbo.components.api.server.NotificationProtobufEndpoint;
+import com.vmturbo.components.api.server.WebsocketNotificationSender;
+import com.vmturbo.sample.api.SampleNotifications.SampleNotification;
 import com.vmturbo.sample.api.impl.SampleComponentNotificationReceiver;
 
 /**
@@ -51,7 +59,35 @@ public class SampleNotificationsTestConfig {
      */
     @Bean
     public SampleComponentNotificationSender echoNotificationsBackend() {
-        return new SampleComponentNotificationSender(echoNotificationsThreadPool());
+        return new SampleComponentNotificationSender(echoNotificationsThreadPool(),
+                notificationSender());
+    }
+
+    /**
+     * This is the "backend" that the echo component uses to send notifications to
+     * listeners.
+     */
+    @Bean
+    public SampleComponentNotificationSender sampleComponentNotificationSender() {
+        return new SampleComponentNotificationSender(echoNotificationsThreadPool(),
+                notificationSender());
+    }
+
+    @Bean
+    public WebsocketNotificationSender<SampleNotification> notificationSender() {
+        return new WebsocketNotificationSender<>(echoNotificationsThreadPool());
+    }
+
+    @Bean
+    public WebsocketServerTransportManager transportManager() {
+        return new WebsocketServerTransportManager(new TransportHandler() {
+            @Override
+            public void onNewTransport(WebsocketServerTransport transport) {
+                final ITransport<SampleNotification, Empty> endpoint =
+                        new NotificationProtobufEndpoint<>(transport);
+                notificationSender().addTransport(endpoint);
+            }
+        }, echoNotificationsThreadPool());
     }
 
     /**
@@ -61,6 +97,6 @@ public class SampleNotificationsTestConfig {
     @Bean
     public ServerEndpointRegistration echoApiEndpointRegistration() {
         return new ServerEndpointRegistration(SampleComponentNotificationReceiver.WEBSOCKET_PATH,
-                echoNotificationsBackend().getWebsocketEndpoint());
+                transportManager());
     }
 }

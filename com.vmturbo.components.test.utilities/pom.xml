@@ -115,7 +115,7 @@
         </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>
-            <artifactId>market-component-api</artifactId>
+            <artifactId>market-component</artifactId>
         </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>

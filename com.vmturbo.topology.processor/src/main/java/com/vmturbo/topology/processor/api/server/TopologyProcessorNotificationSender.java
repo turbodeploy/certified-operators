@@ -6,10 +6,10 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
-import java.util.function.Consumer;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
@@ -26,6 +26,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.communication.chunking.MessageChunker;
 import com.vmturbo.components.api.server.ComponentNotificationSender;
+import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus;
@@ -47,13 +48,19 @@ public class TopologyProcessorNotificationSender
         extends ComponentNotificationSender<TopologyProcessorNotification>
         implements TopoBroadcastManager, TargetStoreListener, OperationListener, ProbeStoreListener {
 
-    private final Map<Class<? extends Operation>, Consumer<Operation>> operationsListeners;
+    private final Map<Class<? extends Operation>, OperationNotifier> operationsListeners;
     // TODO remove in future after switch off websockets
     private final long chunkSendDelayMs;
+    private final IMessageSender<TopologyProcessorNotification> topologySender;
+    private final IMessageSender<TopologyProcessorNotification> notificationSender;
 
     public TopologyProcessorNotificationSender(@Nonnull final ExecutorService threadPool,
-            long chunkSendDelayMs) {
+            long chunkSendDelayMs,
+            @Nonnull IMessageSender<TopologyProcessorNotification> topologySender,
+            @Nonnull IMessageSender<TopologyProcessorNotification> notifiationSender) {
         super(threadPool);
+        this.topologySender = Objects.requireNonNull(topologySender);
+        this.notificationSender = Objects.requireNonNull(notifiationSender);
         operationsListeners = new HashMap<>();
         operationsListeners.put(Validation.class,
                         operation -> notifyValidationState((Validation)operation));
@@ -72,27 +79,24 @@ public class TopologyProcessorNotificationSender
     public void onTargetAdded(@Nonnull final Target target) {
         getLogger().debug(() -> "Sending onTargetAdded notifications for target " + target);
         final TopologyProcessorNotification message = createNewMessage()
-            .setTargetAddedNotification(target.getNoSecretDto())
-            .build();
-        sendMessage(message.getBroadcastId(), message);
+            .setTargetAddedNotification(target.getNoSecretDto()).build();
+        sendMessage(notificationSender, message);
     }
 
     @Override
     public void onTargetUpdated(@Nonnull final Target target) {
         getLogger().debug(() -> "Sending onTargetChanged notifications for target " + target);
-        final TopologyProcessorNotification message = createNewMessage()
-            .setTargetChangedNotification(target.getNoSecretDto())
-            .build();
-        sendMessage(message.getBroadcastId(), message);
+        final TopologyProcessorNotification message =
+                createNewMessage().setTargetChangedNotification(target.getNoSecretDto()).build();
+        sendMessage(notificationSender, message);
     }
 
     @Override
     public void onTargetRemoved(@Nonnull final Target target) {
         getLogger().debug(() -> "Sending onTargetRemoved notifications for target " + target);
-        final TopologyProcessorNotification message = createNewMessage()
-                .setTargetRemovedNotification(target.getId())
-                .build();
-        sendMessage(message.getBroadcastId(), message);
+        final TopologyProcessorNotification message =
+                createNewMessage().setTargetRemovedNotification(target.getId()).build();
+        sendMessage(notificationSender, message);
     }
 
     /**
@@ -105,13 +109,14 @@ public class TopologyProcessorNotificationSender
         return date.toInstant(ZoneOffset.ofTotalSeconds(0)).toEpochMilli();
     }
 
-    private void notifyValidationState(@Nonnull final Validation result) {
+    private void notifyValidationState(@Nonnull final Validation result)
+            throws InterruptedException {
         getLogger().debug(() -> "Target " + result.getTargetId() + " validation reported with status "
                         + result.getStatus());
         final TopologyProcessorNotification message = createNewMessage()
             .setValidationNotification(convertOperationToDto(result))
             .build();
-        sendMessage(message.getBroadcastId(), message);
+        sendMessage(notificationSender, message);
     }
 
     private void notifyDiscoveryState(@Nonnull final Discovery result) {
@@ -120,10 +125,10 @@ public class TopologyProcessorNotificationSender
         final TopologyProcessorNotification message = createNewMessage()
                 .setDiscoveryNotification(convertOperationToDto(result))
                 .build();
-        sendMessage(message.getBroadcastId(), message);
+        sendMessage(notificationSender, message);
     }
 
-    private void notifyActionState(@Nonnull final Action action) {
+    private void notifyActionState(@Nonnull final Action action) throws InterruptedException {
         final TopologyProcessorNotification.Builder messageBuilder = createNewMessage();
         switch (action.getStatus()) {
             case IN_PROGRESS:
@@ -148,7 +153,7 @@ public class TopologyProcessorNotificationSender
                 break;
         }
 
-        sendMessage(messageBuilder.getBroadcastId(), messageBuilder.build());
+        sendMessage(notificationSender, messageBuilder.build());
     }
 
     private OperationStatus convertOperationToDto(@Nonnull final Operation src) {
@@ -167,7 +172,7 @@ public class TopologyProcessorNotificationSender
     private void sendTopologySegment(final @Nonnull Topology segment) throws InterruptedException {
         final TopologyProcessorNotification message =
                 createNewMessage().setTopologyNotification(segment).build();
-        sendMessageSync(message.getBroadcastId(), message);
+        sendMessageSync(topologySender, message);
     }
 
     private TopologyProcessorNotification.Builder createNewMessage() {
@@ -182,16 +187,21 @@ public class TopologyProcessorNotificationSender
     }
 
     @Override
-    public void notifyOperationState(@Nonnull Operation operation) {
-        getOperationListener(operation).accept(operation);
+    public void notifyOperationState(@Nonnull Operation operation){
+        try {
+            getOperationListener(operation).notifyOperation(operation);
+        } catch (InterruptedException e) {
+            // TODO implement guaranteed delivery instead of RTE
+            throw new RuntimeException("Thread interrupted", e);
+        }
     }
 
     // TODO switch to IClassMap, after SDK is synched between MT and XL
     @SuppressWarnings("unchecked")
-    private Consumer<Operation> getOperationListener(Operation operation) {
+    private OperationNotifier getOperationListener(Operation operation) {
         Class<? extends Operation> clazz = operation.getClass();
         while (clazz != null) {
-            final Consumer<Operation> processor = operationsListeners.get(clazz);
+            final OperationNotifier processor = operationsListeners.get(clazz);
             if (processor != null) {
                 return processor;
             }
@@ -207,7 +217,7 @@ public class TopologyProcessorNotificationSender
         final TopologyProcessorNotification message = createNewMessage()
             .setProbeRegistrationNotification(infoDto)
             .build();
-        sendMessage(message.getBroadcastId(), message);
+        sendMessage(notificationSender, message);
     }
 
     private TopologyProcessorDTO.ProbeInfo buildProbeInfoDto(final long probeId, @Nonnull final ProbeInfo probeInfo) {
@@ -223,7 +233,8 @@ public class TopologyProcessorNotificationSender
     @Override
     protected String describeMessage(
             @Nonnull TopologyProcessorNotification topologyProcessorNotification) {
-        return topologyProcessorNotification.getTypeCase().name();
+        return topologyProcessorNotification.getTypeCase().name() + " broadcast #" +
+                topologyProcessorNotification.getBroadcastId();
     }
 
     /**
@@ -371,5 +382,9 @@ public class TopologyProcessorNotificationSender
             sendTopologySegment(subMessage);
             totalCount += chunk.size();
         }
+    }
+
+    private interface OperationNotifier {
+        void notifyOperation(@Nonnull Operation operation) throws InterruptedException;
     }
 }

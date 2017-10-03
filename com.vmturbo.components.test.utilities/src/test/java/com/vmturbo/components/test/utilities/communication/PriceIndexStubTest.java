@@ -43,7 +43,7 @@ public class PriceIndexStubTest {
             final CompletableFuture<PriceIndexMessage> priceIndexFuture = new CompletableFuture<>();
             client.setPriceIndexListener(priceIndexFuture::complete);
 
-            stub.getBackend().waitForEndpoints(1, 10, TimeUnit.SECONDS);
+            stub.waitForEndpoints(1, 10, TimeUnit.SECONDS);
             stub.getBackend().sendPriceIndex(topologyId, creationTime,
                 PriceIndexMessage.newBuilder()
                     .setMarketId(999L)

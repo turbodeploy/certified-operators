@@ -480,7 +480,12 @@ com.vmturbo.components.api/src/main/java/com/vmturbo/components/api/client/Compo
 com.vmturbo.components.api/src/main/java/com/vmturbo/components/api/client/ComponentRestClient.java -text
 com.vmturbo.components.api/src/main/java/com/vmturbo/components/api/client/IMessageReceiver.java -text
 com.vmturbo.components.api/src/main/java/com/vmturbo/components/api/client/WebsocketNotificationReceiver.java -text
+com.vmturbo.components.api/src/main/java/com/vmturbo/components/api/server/BroadcastWebsocketTransportManager.java -text
 com.vmturbo.components.api/src/main/java/com/vmturbo/components/api/server/ComponentNotificationSender.java -text
+com.vmturbo.components.api/src/main/java/com/vmturbo/components/api/server/IByteTransferNotificationSender.java -text
+com.vmturbo.components.api/src/main/java/com/vmturbo/components/api/server/IMessageSender.java -text
+com.vmturbo.components.api/src/main/java/com/vmturbo/components/api/server/NotificationProtobufEndpoint.java -text
+com.vmturbo.components.api/src/main/java/com/vmturbo/components/api/server/WebsocketNotificationSender.java -text
 com.vmturbo.components.api/src/test/java/com/vmturbo/components/api/GsonPostProcessableTest.java -text
 com.vmturbo.components.baseimage/docker/Dockerfile -text
 com.vmturbo.components.baseimage/docker/collect_diags.sh -text
@@ -566,6 +571,7 @@ com.vmturbo.components.test.utilities/src/main/java/com/vmturbo/components/test/
 com.vmturbo.components.test.utilities/src/main/java/com/vmturbo/components/test/utilities/alert/report/NumberFormatter.java -text
 com.vmturbo.components.test.utilities/src/main/java/com/vmturbo/components/test/utilities/alert/report/PerformanceTestNameComparator.java -text
 com.vmturbo.components.test.utilities/src/main/java/com/vmturbo/components/test/utilities/alert/report/ResultsTabulator.java -text
+com.vmturbo.components.test.utilities/src/main/java/com/vmturbo/components/test/utilities/communication/AbstractNotificationSenderStub.java -text
 com.vmturbo.components.test.utilities/src/main/java/com/vmturbo/components/test/utilities/communication/ComponentStubHost.java -text
 com.vmturbo.components.test.utilities/src/main/java/com/vmturbo/components/test/utilities/communication/MarketStub.java -text
 com.vmturbo.components.test.utilities/src/main/java/com/vmturbo/components/test/utilities/communication/NotificationSenderStub.java -text

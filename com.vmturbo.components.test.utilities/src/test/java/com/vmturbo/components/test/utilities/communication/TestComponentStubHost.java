@@ -55,7 +55,7 @@ public class TestComponentStubHost {
             final CompletableFuture<ActionPlan> actionPlanFuture = new CompletableFuture<>();
             mkt.addActionsListener(actionPlanFuture::complete);
 
-            marketStub.getBackend().waitForEndpoints(1, 10, TimeUnit.SECONDS);
+            marketStub.waitForEndpoints(1, 10, TimeUnit.SECONDS);
             marketStub.getBackend().notifyActionsRecommended(
                     ActionPlan.newBuilder()
                         .setId(1)
@@ -75,7 +75,7 @@ public class TestComponentStubHost {
             tp.addEntitiesListener((topologyInfo, topologyDTOs) ->
                     topologyContextIdFuture.complete(topologyInfo));
 
-            topologyProcessorStub.getBackend().waitForEndpoints(1, 10, TimeUnit.SECONDS);
+            topologyProcessorStub.waitForEndpoints(1, 10, TimeUnit.SECONDS);
 
             final TopologyBroadcast broadcast =
                     topologyProcessorStub.getBackend().broadcastTopology(10, 7, TopologyType.REALTIME);

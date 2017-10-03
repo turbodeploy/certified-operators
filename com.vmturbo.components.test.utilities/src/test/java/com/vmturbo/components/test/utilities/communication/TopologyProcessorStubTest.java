@@ -48,7 +48,7 @@ public class TopologyProcessorStubTest {
             tpClient.addEntitiesListener((topologyInfo, topologyDTOs) ->
                     topologyContextIdFuture.complete(topologyInfo));
 
-            tpStub.getBackend().waitForEndpoints(1, 10, TimeUnit.SECONDS);
+            tpStub.waitForEndpoints(1, 10, TimeUnit.SECONDS);
 
             final TopologyBroadcast broadcast =
                     tpStub.getBackend().broadcastTopology(10, 7, TopologyType.REALTIME);

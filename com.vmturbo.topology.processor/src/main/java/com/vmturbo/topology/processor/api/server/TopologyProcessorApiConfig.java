@@ -13,7 +13,11 @@ import org.springframework.web.socket.server.standard.ServerEndpointRegistration
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
+import com.vmturbo.communication.WebsocketServerTransportManager;
+import com.vmturbo.components.api.server.BroadcastWebsocketTransportManager;
+import com.vmturbo.components.api.server.WebsocketNotificationSender;
 import com.vmturbo.topology.processor.GlobalConfig;
+import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TopologyProcessorNotification;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClient;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
 import com.vmturbo.topology.processor.targets.TargetConfig;
@@ -45,9 +49,26 @@ public class TopologyProcessorApiConfig {
     }
 
     @Bean
+    public WebsocketNotificationSender<TopologyProcessorNotification> topologySender() {
+        return new WebsocketNotificationSender<>(apiServerThreadPool());
+    }
+
+    @Bean
+    public WebsocketNotificationSender<TopologyProcessorNotification> notificationSender() {
+        return new WebsocketNotificationSender<>(apiServerThreadPool());
+    }
+
+    @Bean
+    public WebsocketServerTransportManager transportManager() {
+        return BroadcastWebsocketTransportManager.createTransportManager(apiServerThreadPool(),
+                topologySender(), notificationSender());
+    }
+
+    @Bean
     public TopologyProcessorNotificationSender topologyProcessorNotificationSender() {
         final TopologyProcessorNotificationSender backend =
-                new TopologyProcessorNotificationSender(apiServerThreadPool(), chunkSendDelayMs);
+                new TopologyProcessorNotificationSender(apiServerThreadPool(), chunkSendDelayMs,
+                        topologySender(), notificationSender());
         targetConfig.targetStore().addListener(backend);
         probeConfig.probeStore().addListener(backend);
         return backend;
@@ -61,7 +82,6 @@ public class TopologyProcessorApiConfig {
     @Bean
     public ServerEndpointRegistration apiEndpointRegistration() {
         return new ServerEndpointRegistration(TopologyProcessorClient.WEBSOCKET_PATH,
-                topologyProcessorNotificationSender().getWebsocketEndpoint());
+                transportManager());
     }
-
 }

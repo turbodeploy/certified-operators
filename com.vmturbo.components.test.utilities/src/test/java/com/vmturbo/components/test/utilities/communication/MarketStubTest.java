@@ -64,7 +64,7 @@ public class MarketStubTest {
             final CompletableFuture<ActionPlan> actionPlanFuture = new CompletableFuture<>();
             component.addActionsListener(actionPlanFuture::complete);
 
-            stub.getBackend().waitForEndpoints(1, 10, TimeUnit.SECONDS);
+            stub.waitForEndpoints(1, 10, TimeUnit.SECONDS);
             stub.getBackend().notifyActionsRecommended(ActionPlan.newBuilder().setId(1).build());
 
             final ActionPlan actionPlan = actionPlanFuture.get(10, TimeUnit.SECONDS);

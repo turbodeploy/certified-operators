@@ -12,10 +12,12 @@ import org.springframework.context.annotation.Import;
 import org.springframework.web.socket.server.standard.ServerEndpointRegistration;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
 import io.grpc.Channel;
 import io.grpc.ManagedChannelBuilder;
 
 import com.vmturbo.action.orchestrator.api.ActionOrchestrator;
+import com.vmturbo.action.orchestrator.api.PlanOrchestratorDTO.PlanNotification;
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
@@ -24,6 +26,9 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc;
 import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc.AnalysisServiceBlockingStub;
+import com.vmturbo.communication.WebsocketServerTransportManager;
+import com.vmturbo.components.api.server.BroadcastWebsocketTransportManager;
+import com.vmturbo.components.api.server.WebsocketNotificationSender;
 import com.vmturbo.history.component.api.HistoryComponent;
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientImpl;
@@ -95,15 +100,6 @@ public class PlanConfig {
         return new PlanServiceController(planService());
     }
 
-
-    @Bean(destroyMethod = "shutdownNow")
-    protected ExecutorService actOrchestrThreadPool() {
-        final ThreadFactory threadFactory =
-                new ThreadFactoryBuilder().setNameFormat("action-orch-api-%d")
-                        .build();
-        return Executors.newCachedThreadPool(threadFactory);
-    }
-
     @Bean
     public ActionOrchestrator actionOrchestrator() {
         final ActionOrchestrator actionOrchestrator = aoClientConfig.actionOrchestratorClient();
@@ -145,8 +141,19 @@ public class PlanConfig {
     }
 
     @Bean
+    public WebsocketNotificationSender<PlanNotification> notificationSender() {
+        return new WebsocketNotificationSender<>(planThreadPool());
+    }
+
+    @Bean
+    public WebsocketServerTransportManager transportManager() {
+        return BroadcastWebsocketTransportManager.createTransportManager(planThreadPool(),
+                notificationSender());
+    }
+
+    @Bean
     public PlanNotificationSender planNotificationSender() {
-        return new PlanNotificationSender(planThreadPool());
+        return new PlanNotificationSender(planThreadPool(), notificationSender());
     }
 
     /**
@@ -157,7 +164,7 @@ public class PlanConfig {
     @Bean
     public ServerEndpointRegistration planApiEndpointRegistration() {
         return new ServerEndpointRegistration(PlanOrchestratorClientImpl.WEBSOCKET_PATH,
-                planNotificationSender().getWebsocketEndpoint());
+                transportManager());
     }
 
     @Bean(destroyMethod = "shutdownNow")

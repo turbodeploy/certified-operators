@@ -11,8 +11,12 @@ import org.springframework.web.socket.server.standard.ServerEndpointRegistration
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
-import com.vmturbo.market.component.api.MarketNotificationSender;
+import com.vmturbo.communication.WebsocketServerTransportManager;
+import com.vmturbo.components.api.server.BroadcastWebsocketTransportManager;
+import com.vmturbo.components.api.server.WebsocketNotificationSender;
+import com.vmturbo.market.MarketNotificationSender;
 import com.vmturbo.market.component.api.impl.MarketComponentClient;
+import com.vmturbo.market.component.dto.MarketMessages.MarketComponentNotification;
 
 /**
  * Spring configuration to provide the {@link com.vmturbo.market.component.api.MarketComponent} integration.
@@ -32,7 +36,24 @@ public class MarketApiConfig {
 
     @Bean
     public MarketNotificationSender marketApi() {
-        return new MarketNotificationSender(apiServerThreadPool(), chunkSendDelayMs);
+        return new MarketNotificationSender(apiServerThreadPool(), chunkSendDelayMs,
+                topologySender(), notificationSender());
+    }
+
+    @Bean
+    public WebsocketNotificationSender<MarketComponentNotification> notificationSender() {
+        return new WebsocketNotificationSender<>(apiServerThreadPool());
+    }
+
+    @Bean
+    public WebsocketNotificationSender<MarketComponentNotification> topologySender() {
+        return new WebsocketNotificationSender<>(apiServerThreadPool());
+    }
+
+    @Bean
+    public WebsocketServerTransportManager transportManager() {
+        return BroadcastWebsocketTransportManager.createTransportManager(apiServerThreadPool(),
+                notificationSender(), topologySender());
     }
 
     /**
@@ -43,6 +64,6 @@ public class MarketApiConfig {
     @Bean
     public ServerEndpointRegistration marketApiEndpointRegistration() {
         return new ServerEndpointRegistration(MarketComponentClient.WEBSOCKET_PATH,
-                marketApi().getWebsocketEndpoint());
+                transportManager());
     }
 }
