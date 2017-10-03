@@ -50,11 +50,16 @@ public class AbstractEchoServiceTest {
 
     protected Gson gson = ComponentGsonFactory.createGson();
 
+    protected final String ECHO_STR = "echoThis1";
+
     protected final EchoREST.EchoRequest inputRequest1 = EchoREST.EchoRequest
             .fromProto(Echo.EchoRequest.newBuilder()
                     .setEchoThis("echoThis1")
                     .setExtraOptional("extraOptional1")
                     .build());
+
+    protected final String inputJson1 = "{ \"echoThis\" : \"" + ECHO_STR + "\" }";
+
     protected final EchoREST.EchoRequest inputRequest2 = EchoREST.EchoRequest
             .fromProto(Echo.EchoRequest.newBuilder()
                     .setEchoThis("echoThis2")

@@ -345,9 +345,6 @@ public class Descriptors {
                     .add("fieldDeclarations", fieldDescriptors.stream()
                             .map(descriptor -> descriptor.generateDeclaration(oneofNameMap))
                             .collect(Collectors.toList()))
-                    .add("fieldGetters", fieldDescriptors.stream()
-                            .map(FieldDescriptor::generateGetter)
-                            .collect(Collectors.toList()))
                     .add("setBuilderFields", fieldDescriptors.stream()
                             .map(FieldDescriptor::addToProtoBuilder)
                             .collect(Collectors.toList()))
@@ -600,15 +597,6 @@ public class Descriptors {
                 template.add("hasOneOf", false);
             }
             return template.render();
-        }
-
-        @Nonnull
-        public String generateGetter() {
-            return Templates.fieldGetter()
-                    .add("type", getType())
-                    .add("name", getJavaName())
-                    .add("capDisplayName", StringUtils.capitalize(getName()))
-                    .render();
         }
 
         /**

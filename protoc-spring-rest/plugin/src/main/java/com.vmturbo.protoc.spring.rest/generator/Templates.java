@@ -38,10 +38,6 @@ public class Templates {
         return new ST(FIELD_DECL_TEMPLATE);
     }
 
-    public static ST fieldGetter() {
-        return new ST(GETTER_TEMPLATE);
-    }
-
     public static ST setFieldFromProto() {
         return new ST(SET_FIELD_FROM_PROTO_TEMPLATE);
     }
@@ -57,6 +53,8 @@ public class Templates {
 
         "import java.util.Map;" +
         "import java.util.List;" +
+        "import com.google.gson.annotations.SerializedName;" +
+        "import com.fasterxml.jackson.annotation.JsonProperty;" +
         "import com.google.protobuf.ByteString;" +
         "import java.util.stream.Collectors;" +
         "import io.swagger.annotations.ApiModel;" +
@@ -97,7 +95,7 @@ public class Templates {
         "@RequestMapping(value=\"<serviceName>\") " +
         "@RestController " +
         "public static class <serviceName>Controller {" +
-            "@ApiModel(\"Wrapper around the responses from <serviceName> to provide optional error information.\")" +
+            "@ApiModel(description=\"Wrapper around the responses from <serviceName> to provide optional error information.\")" +
             "public static class <responseWrapper>\\<T> {" +
                 "@ApiModelProperty(\"If present, the response from the method call. Null IFF error is present.\")"+
                 "public final T response;" +
@@ -187,12 +185,11 @@ public class Templates {
         "}";
 
     private static final String MESSAGE_TEMPLATE =
-       "@ApiModel(<if(comment)>description=<comment><endif>)" +
+       "@ApiModel(value=\"<className>\", <if(comment)>description=<comment><endif>)" +
        "public static class <className> {" +
            "private <className>() {}" +
            "<nestedDefinitions>" +
            "<fieldDeclarations>" +
-           "<fieldGetters>" +
            "public <originalProtoType> toProto() {" +
                "<originalProtoType>.Builder builder = <originalProtoType>.newBuilder();" +
                "<setBuilderFields>" +
@@ -229,16 +226,15 @@ public class Templates {
 
     private static final String FIELD_DECL_TEMPLATE =
         "@ApiModelProperty(required=<isRequired>," +
-            "name=\"<displayName>\", " +
-            "value=" +
+                "name=\"<displayName>\", " +
+                "value=" +
                 "<if(hasOneOf)>\"This field belongs to the oneof group: <oneof>." +
-                    "Only one field in the group should be set, or else weird things will happen.\\n\" +" +
+                "Only one field in the group should be set, or else weird things will happen.\\n\" +" +
                 "<endif>" +
                 "<comment>)" +
-        "private <type> <name> = null;";
-
-    private static final String GETTER_TEMPLATE =
-        "public <type> get<capDisplayName>() { return <name>; }";
+        "@SerializedName(value=\"<displayName>\")" +
+        "@JsonProperty(value=\"<displayName>\")" +
+        "public <type> <name> = null;";
 
     private static final String SET_FIELD_FROM_PROTO_TEMPLATE =
             "<msgName>.<fieldName> = " +

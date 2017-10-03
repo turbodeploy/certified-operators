@@ -68,7 +68,22 @@ public class EchoServiceTest extends AbstractEchoServiceTest {
         Mockito.verify(testService).echo(Mockito.any(), Mockito.any());
 
         Assert.assertNotNull(response.response);
-        Assert.assertEquals(inputRequest1.getEchoThis(), response.response.getEcho());
+        Assert.assertEquals(inputRequest1.echoThis_, response.response.echo_);
+    }
+
+    /**
+     * Test the echo service with a manually entered JSON string, to make sure that
+     * the expected String input works.
+     */
+    @Test
+    public void testEchoManual() throws Exception {
+        EchoREST.EchoServiceController.EchoServiceResponse<EchoREST.EchoResponse> response =
+                parseEchoResponse(postAndExpect("/EchoService/echo", inputJson1, HttpStatus.OK));
+
+        Mockito.verify(testService).echo(Mockito.any(), Mockito.any());
+
+        Assert.assertNotNull(response.response);
+        Assert.assertEquals(ECHO_STR, response.response.echo_);
     }
 
     @Test
@@ -92,7 +107,7 @@ public class EchoServiceTest extends AbstractEchoServiceTest {
                 parseEchoResponse(postAndExpect("/EchoService/echo", gson.toJson(noOptional), HttpStatus.OK));
         Assert.assertNull(response.error);
         Assert.assertNotNull(response.response);
-        Assert.assertEquals("echoThis", response.response.getEcho());
+        Assert.assertEquals("echoThis", response.response.echo_);
     }
 
     @Test
@@ -104,8 +119,8 @@ public class EchoServiceTest extends AbstractEchoServiceTest {
 
         Assert.assertNotNull(responses.response);
         Assert.assertEquals(2, responses.response.size());
-        Assert.assertEquals(inputRequest1.getEchoThis(), responses.response.get(0).getEcho());
-        Assert.assertEquals(inputRequest1.getEchoThis(), responses.response.get(1).getEcho());
+        Assert.assertEquals(inputRequest1.echoThis_, responses.response.get(0).echo_);
+        Assert.assertEquals(inputRequest1.echoThis_, responses.response.get(1).echo_);
     }
 
     @Test
@@ -116,7 +131,7 @@ public class EchoServiceTest extends AbstractEchoServiceTest {
 
         Mockito.verify(testService).clientStreamEcho(Mockito.any());
         Assert.assertNotNull(response.response);
-        Assert.assertEquals(inputRequest2.getEchoThis(), response.response.getEcho());
+        Assert.assertEquals(inputRequest2.echoThis_, response.response.echo_);
     }
 
     @Test
@@ -129,8 +144,8 @@ public class EchoServiceTest extends AbstractEchoServiceTest {
 
         Assert.assertNotNull(responses.response);
         Assert.assertEquals(2, responses.response.size());
-        Assert.assertEquals(inputRequest1.getEchoThis(), responses.response.get(0).getEcho());
-        Assert.assertEquals(inputRequest2.getEchoThis(), responses.response.get(1).getEcho());
+        Assert.assertEquals(inputRequest1.echoThis_, responses.response.get(0).echo_);
+        Assert.assertEquals(inputRequest2.echoThis_, responses.response.get(1).echo_);
 
     }
 }
