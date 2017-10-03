@@ -35,8 +35,8 @@ import com.vmturbo.components.common.health.sql.SQLDBHealthMonitor;
 @Configuration("theComponent")
 @EnableAutoConfiguration
 @EnableDiscoveryClient
-@ComponentScan("com.vmturbo.plan.orchestrator")
-@Import({ScenarioConfig.class, PlanConfig.class, TemplatesConfig.class})
+@Import({ScenarioConfig.class, PlanConfig.class, TemplatesConfig.class,
+        DeploymentProfileConfig.class, SQLDatabaseConfig.class, ClusterRollupSchedulerConfig.class})
 public class PlanOrchestratorComponent extends BaseVmtComponent {
     private static final Logger LOGGER = LogManager.getLogger();
 

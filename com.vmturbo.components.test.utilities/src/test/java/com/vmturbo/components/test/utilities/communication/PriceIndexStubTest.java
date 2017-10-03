@@ -10,6 +10,8 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
+import com.vmturbo.components.api.client.IMessageReceiver;
+import com.vmturbo.components.api.client.WebsocketNotificationReceiver;
 import com.vmturbo.components.test.utilities.component.ComponentUtils;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessagePayload;
@@ -32,8 +34,12 @@ public class PriceIndexStubTest {
                 ComponentApiConnectionConfig.newBuilder()
                     .setHostAndPort("localhost", ComponentUtils.GLOBAL_HTTP_PORT)
                     .build();
+            final IMessageReceiver<PriceIndexMessage> messageReceiver = new
+                    WebsocketNotificationReceiver<>(connectionConfig, PriceIndexReceiver
+                    .WEBSOCKET_PATH, Executors.newCachedThreadPool(),
+                    PriceIndexMessage::parseFrom);
             final PriceIndexReceiver client = PriceIndexReceiver.rpcAndNotification(
-                connectionConfig, Executors.newCachedThreadPool());
+                connectionConfig, Executors.newCachedThreadPool(), messageReceiver);
             final CompletableFuture<PriceIndexMessage> priceIndexFuture = new CompletableFuture<>();
             client.setPriceIndexListener(priceIndexFuture::complete);
 

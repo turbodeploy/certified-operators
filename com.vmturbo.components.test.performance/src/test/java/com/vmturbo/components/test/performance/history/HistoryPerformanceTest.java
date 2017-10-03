@@ -19,6 +19,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.components.api.client.WebsocketNotificationReceiver;
 import com.vmturbo.components.test.utilities.utils.TopologyUtils;
 import com.vmturbo.components.test.utilities.communication.MarketStub;
 import com.vmturbo.components.test.utilities.communication.PriceIndexStub;
@@ -37,6 +38,7 @@ public abstract class HistoryPerformanceTest {
     protected PriceIndexStub priceIndexStub = new PriceIndexStub();
 
     protected HistoryComponent historyComponent;
+    protected WebsocketNotificationReceiver historyMessageReceiver;
     protected StatsHistoryServiceBlockingStub statsService;
     protected ExecutorService threadPool = Executors.newCachedThreadPool();
 

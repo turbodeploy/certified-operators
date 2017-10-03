@@ -16,7 +16,7 @@ import io.grpc.Channel;
 import io.grpc.ManagedChannelBuilder;
 
 import com.vmturbo.action.orchestrator.api.ActionOrchestrator;
-import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClient;
+import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTOREST.PlanServiceController;
@@ -24,21 +24,21 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc;
 import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc.AnalysisServiceBlockingStub;
-import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
-import com.vmturbo.grpc.extensions.PingingChannelBuilder;
 import com.vmturbo.history.component.api.HistoryComponent;
-import com.vmturbo.history.component.api.impl.HistoryComponentNotificationReceiver;
+import com.vmturbo.history.component.api.impl.HistoryClientConfig;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientImpl;
-import com.vmturbo.plan.orchestrator.repository.RepositoryClientConfig;
 import com.vmturbo.repository.api.Repository;
-import com.vmturbo.repository.api.impl.RepositoryNotificationReceiver;
+import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
+import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 
 /**
  * Spring configuration for plan instance manipulations.
  */
 @Configuration
-@Import({SQLDatabaseConfig.class, RepositoryClientConfig.class})
+@Import({SQLDatabaseConfig.class, RepositoryClientConfig.class,
+        ActionOrchestratorClientConfig.class, HistoryClientConfig.class,
+        RepositoryClientConfig.class, TopologyProcessorClientConfig.class})
 public class PlanConfig {
 
     @Value("${topologyProcessorHost}")
@@ -47,34 +47,28 @@ public class PlanConfig {
     @Value("${server.grpcPort}")
     private int grpcPort;
 
-    @Value("${server.port}")
-    private int httpPort;
-
-    @Value("${actionOrchestratorHost}")
-    private String actionOrchestratorHost;
-
-    @Value("${repositoryHost}")
-    private String repositoryHost;
-
-    @Value("${historyHost}")
-    private String historyHost;
-
     @Value("${realtimeTopologyContextId}")
     private Long realtimeTopologyContextId;
-
-    @Value("${websocket.pong.timeout}")
-    private long websocketPongTimeout;
 
     @Autowired
     private SQLDatabaseConfig dbConfig;
 
     @Autowired
-    private RepositoryClientConfig repositoryConfig;
+    private RepositoryClientConfig repositoryClientConfig;
+
+    @Autowired
+    private ActionOrchestratorClientConfig aoClientConfig;
+
+    @Autowired
+    private HistoryClientConfig historyClientConfig;
+
+    @Autowired
+    private TopologyProcessorClientConfig tpClientConfig;
 
     @Bean
     public PlanDao planDao() {
         return new PlanDaoImpl(dbConfig.dsl(), planNotificationSender(),
-            repositoryConfig.repositoryClient(),
+            repositoryClientConfig.repositoryClient(),
             actionsRpcService(),
             statsRpcService());
     }
@@ -101,29 +95,6 @@ public class PlanConfig {
         return new PlanServiceController(planService());
     }
 
-    @Bean
-    public ComponentApiConnectionConfig actOrchConnectionConfig() {
-        return ComponentApiConnectionConfig.newBuilder()
-                .setHostAndPort(actionOrchestratorHost, httpPort)
-                .setPongMessageTimeout(websocketPongTimeout)
-                .build();
-    }
-
-    @Bean
-    public ComponentApiConnectionConfig historyConnectionConfig() {
-        return ComponentApiConnectionConfig.newBuilder()
-                .setHostAndPort(historyHost, httpPort)
-                .setPongMessageTimeout(websocketPongTimeout)
-                .build();
-    }
-
-    @Bean
-    public ComponentApiConnectionConfig repositoryConnectionConfig() {
-        return ComponentApiConnectionConfig.newBuilder()
-                .setHostAndPort(repositoryHost, httpPort)
-                .setPongMessageTimeout(websocketPongTimeout)
-                .build();
-    }
 
     @Bean(destroyMethod = "shutdownNow")
     protected ExecutorService actOrchestrThreadPool() {
@@ -135,23 +106,14 @@ public class PlanConfig {
 
     @Bean
     public ActionOrchestrator actionOrchestrator() {
-        final ActionOrchestrator actionOrchestrator =
-                ActionOrchestratorClient.rpcAndNotification(actOrchConnectionConfig(),
-                        actOrchestrThreadPool());
+        final ActionOrchestrator actionOrchestrator = aoClientConfig.actionOrchestratorClient();
         actionOrchestrator.addActionsListener(planProgressListener());
         return actionOrchestrator;
     }
 
     @Bean
-    public Channel actionOrchestratorChannel() {
-        return PingingChannelBuilder.forAddress(actionOrchestratorHost, grpcPort)
-                .usePlaintext(true)
-                .build();
-    }
-
-    @Bean
     public ActionsServiceBlockingStub actionsRpcService() {
-        return ActionsServiceGrpc.newBlockingStub(actionOrchestratorChannel());
+        return ActionsServiceGrpc.newBlockingStub(aoClientConfig.actionOrchestratorChannel());
     }
 
     @Bean
@@ -161,9 +123,7 @@ public class PlanConfig {
 
     @Bean
     public HistoryComponent historyComponent() {
-       final HistoryComponent historyComponent =
-           new HistoryComponentNotificationReceiver(
-                   historyConnectionConfig(), actOrchestrThreadPool());
+       final HistoryComponent historyComponent = historyClientConfig.historyComponent();
         historyComponent.addStatsListener(planProgressListener());
         return historyComponent;
     }
@@ -171,22 +131,15 @@ public class PlanConfig {
     /**
      * Stats/history terms used interchangeably.
      */
-    @Bean
-    public Channel statsChannel() {
-        return PingingChannelBuilder.forAddress(historyHost, grpcPort)
-                .usePlaintext(true)
-                .build();
-    }
 
     @Bean
     public StatsHistoryServiceBlockingStub statsRpcService() {
-        return StatsHistoryServiceGrpc.newBlockingStub(actionOrchestratorChannel());
+        return StatsHistoryServiceGrpc.newBlockingStub(aoClientConfig.actionOrchestratorChannel());
     }
 
     @Bean
     public Repository repository() {
-        final Repository repositoryClient =
-                new RepositoryNotificationReceiver(repositoryConnectionConfig(), actOrchestrThreadPool());
+        final Repository repositoryClient = repositoryClientConfig.repository();
         repositoryClient.addListener(planProgressListener());
         return repositoryClient;
     }

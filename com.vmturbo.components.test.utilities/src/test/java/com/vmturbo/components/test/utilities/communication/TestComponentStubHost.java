@@ -14,10 +14,14 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
+import com.vmturbo.components.api.client.IMessageReceiver;
+import com.vmturbo.components.api.client.WebsocketNotificationReceiver;
 import com.vmturbo.components.test.utilities.component.ComponentUtils;
 import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.impl.MarketComponentClient;
+import com.vmturbo.market.component.dto.MarketMessages.MarketComponentNotification;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
+import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TopologyProcessorNotification;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClient;
 import com.vmturbo.topology.processor.api.server.TopologyBroadcast;
 
@@ -40,9 +44,13 @@ public class TestComponentStubHost {
                     .setHostAndPort("localhost", ComponentUtils.GLOBAL_HTTP_PORT)
                     .build();
 
+            final IMessageReceiver<MarketComponentNotification> messageReceiver =
+                    new WebsocketNotificationReceiver<>(config,
+                            MarketComponentClient.WEBSOCKET_PATH, threadPool,
+                            MarketComponentNotification::parseFrom);
             // Test that the market component stub works.
             final MarketComponent mkt =
-                    MarketComponentClient.rpcAndNotification(config, threadPool);
+                    MarketComponentClient.rpcAndNotification(config, threadPool, messageReceiver);
 
             final CompletableFuture<ActionPlan> actionPlanFuture = new CompletableFuture<>();
             mkt.addActionsListener(actionPlanFuture::complete);
@@ -57,8 +65,12 @@ public class TestComponentStubHost {
             Assert.assertEquals(1, actionPlan.getId());
 
             // Test that the topology processor stub works.
+            final IMessageReceiver<TopologyProcessorNotification> tpMessageReceiver =
+                    new WebsocketNotificationReceiver<>(config,
+                            TopologyProcessorClient.WEBSOCKET_PATH, threadPool,
+                            TopologyProcessorNotification::parseFrom);
             final TopologyProcessor tp =
-                    TopologyProcessorClient.rpcAndNotification(config, threadPool);
+                    TopologyProcessorClient.rpcAndNotification(config, threadPool, tpMessageReceiver);
             final CompletableFuture<TopologyInfo> topologyContextIdFuture = new CompletableFuture<>();
             tp.addEntitiesListener((topologyInfo, topologyDTOs) ->
                     topologyContextIdFuture.complete(topologyInfo));

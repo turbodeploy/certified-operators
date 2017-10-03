@@ -146,7 +146,9 @@ com.vmturbo.action.orchestrator.api/pom.xml -text
 com.vmturbo.action.orchestrator.api/src/main/java/com/vmturbo/action/orchestrator/api/ActionOrchestrator.java -text
 com.vmturbo.action.orchestrator.api/src/main/java/com/vmturbo/action/orchestrator/api/ActionsListener.java -text
 com.vmturbo.action.orchestrator.api/src/main/java/com/vmturbo/action/orchestrator/api/impl/ActionOrchestratorClient.java -text
+com.vmturbo.action.orchestrator.api/src/main/java/com/vmturbo/action/orchestrator/api/impl/ActionOrchestratorClientConfig.java -text
 com.vmturbo.action.orchestrator.api/src/main/java/com/vmturbo/action/orchestrator/api/impl/ActionOrchestratorException.java -text
+com.vmturbo.action.orchestrator.api/src/main/java/com/vmturbo/action/orchestrator/api/impl/ActionOrchestratorMessageReceiver.java -text
 com.vmturbo.action.orchestrator.api/src/main/java/com/vmturbo/action/orchestrator/api/impl/ActionOrchestratorNotificationReceiver.java -text
 com.vmturbo.action.orchestrator.api/src/main/java/com/vmturbo/action/orchestrator/api/impl/ActionOrchestratorRestApi.java -text
 com.vmturbo.action.orchestrator.api/src/main/java/com/vmturbo/action/orchestrator/api/impl/ActionOrchestratorRestClient.java -text
@@ -476,7 +478,8 @@ com.vmturbo.components.api/src/main/java/com/vmturbo/components/api/client/Compo
 com.vmturbo.components.api/src/main/java/com/vmturbo/components/api/client/ComponentApiConnectionConfig.java -text
 com.vmturbo.components.api/src/main/java/com/vmturbo/components/api/client/ComponentNotificationReceiver.java -text
 com.vmturbo.components.api/src/main/java/com/vmturbo/components/api/client/ComponentRestClient.java -text
-com.vmturbo.components.api/src/main/java/com/vmturbo/components/api/client/InactiveNotificationReceiver.java -text
+com.vmturbo.components.api/src/main/java/com/vmturbo/components/api/client/IMessageReceiver.java -text
+com.vmturbo.components.api/src/main/java/com/vmturbo/components/api/client/WebsocketNotificationReceiver.java -text
 com.vmturbo.components.api/src/main/java/com/vmturbo/components/api/server/ComponentNotificationSender.java -text
 com.vmturbo.components.api/src/test/java/com/vmturbo/components/api/GsonPostProcessableTest.java -text
 com.vmturbo.components.baseimage/docker/Dockerfile -text
@@ -714,7 +717,9 @@ com.vmturbo.grpc.extensions/src/test/resources/log4j2.xml -text
 com.vmturbo.history.component.api/pom.xml -text
 com.vmturbo.history.component.api/src/main/java/com/vmturbo/history/component/api/HistoryComponent.java -text
 com.vmturbo.history.component.api/src/main/java/com/vmturbo/history/component/api/StatsListener.java -text
+com.vmturbo.history.component.api/src/main/java/com/vmturbo/history/component/api/impl/HistoryClientConfig.java -text
 com.vmturbo.history.component.api/src/main/java/com/vmturbo/history/component/api/impl/HistoryComponentNotificationReceiver.java -text
+com.vmturbo.history.component.api/src/main/java/com/vmturbo/history/component/api/impl/HistoryMessageReceiver.java -text
 com.vmturbo.history.component.api/src/main/protobuf/HistoryComponentNotifications.proto -text
 com.vmturbo.history/pom.xml -text
 com.vmturbo.history/src/main/java/com/vmturbo/history/HistoryComponent.java -text
@@ -803,10 +808,12 @@ com.vmturbo.market.component.api/src/main/java/com/vmturbo/market/component/api/
 com.vmturbo.market.component.api/src/main/java/com/vmturbo/market/component/api/MarketComponent.java -text
 com.vmturbo.market.component.api/src/main/java/com/vmturbo/market/component/api/MarketNotificationSender.java -text
 com.vmturbo.market.component.api/src/main/java/com/vmturbo/market/component/api/ProjectedTopologyListener.java -text
+com.vmturbo.market.component.api/src/main/java/com/vmturbo/market/component/api/impl/MarketClientConfig.java -text
 com.vmturbo.market.component.api/src/main/java/com/vmturbo/market/component/api/impl/MarketComponentClient.java -text
 com.vmturbo.market.component.api/src/main/java/com/vmturbo/market/component/api/impl/MarketComponentException.java -text
 com.vmturbo.market.component.api/src/main/java/com/vmturbo/market/component/api/impl/MarketComponentNotificationReceiver.java -text
 com.vmturbo.market.component.api/src/main/java/com/vmturbo/market/component/api/impl/MarketComponentRestClient.java -text
+com.vmturbo.market.component.api/src/main/java/com/vmturbo/market/component/api/impl/MarketMessageReceiver.java -text
 com.vmturbo.market.component.api/src/main/protobuf/MarketComponentDTO.proto -text
 com.vmturbo.market.component/pom.xml -text
 com.vmturbo.market.component/src/main/java/com/vmturbo/market/MarketComponent.java -text
@@ -880,6 +887,7 @@ com.vmturbo.mediation.vmax.component/pom.xml -text
 com.vmturbo.plan.orchestrator.api/pom.xml -text
 com.vmturbo.plan.orchestrator.api/src/main/java/com/vmturbo/plan/orchestrator/api/PlanListener.java -text
 com.vmturbo.plan.orchestrator.api/src/main/java/com/vmturbo/plan/orchestrator/api/PlanOrchestrator.java -text
+com.vmturbo.plan.orchestrator.api/src/main/java/com/vmturbo/plan/orchestrator/api/impl/PlanOrchestratorClientConfig.java -text
 com.vmturbo.plan.orchestrator.api/src/main/java/com/vmturbo/plan/orchestrator/api/impl/PlanOrchestratorClientImpl.java -text
 com.vmturbo.plan.orchestrator.api/src/main/protobuf/PlanOrchestratorDTO.proto -text
 com.vmturbo.plan.orchestrator/pom.xml -text
@@ -900,7 +908,6 @@ com.vmturbo.plan.orchestrator/src/main/java/com/vmturbo/plan/orchestrator/plan/P
 com.vmturbo.plan.orchestrator/src/main/java/com/vmturbo/plan/orchestrator/plan/PlanNotificationSender.java -text
 com.vmturbo.plan.orchestrator/src/main/java/com/vmturbo/plan/orchestrator/plan/PlanProgressListener.java svneol=native#text/x-java
 com.vmturbo.plan.orchestrator/src/main/java/com/vmturbo/plan/orchestrator/plan/PlanRpcService.java svneol=native#text/x-java
-com.vmturbo.plan.orchestrator/src/main/java/com/vmturbo/plan/orchestrator/repository/RepositoryClientConfig.java -text
 com.vmturbo.plan.orchestrator/src/main/java/com/vmturbo/plan/orchestrator/scenario/ScenarioConfig.java -text
 com.vmturbo.plan.orchestrator/src/main/java/com/vmturbo/plan/orchestrator/scenario/ScenarioInfoConverter.java -text
 com.vmturbo.plan.orchestrator/src/main/java/com/vmturbo/plan/orchestrator/scenario/ScenarioRpcService.java -text
@@ -947,6 +954,7 @@ com.vmturbo.plan.orchestrator/src/test/resources/log4j2-test.xml -text
 com.vmturbo.priceindex.api/pom.xml -text
 com.vmturbo.priceindex.api/src/main/java/com/vmturbo/priceindex/api/PriceIndexListener.java -text
 com.vmturbo.priceindex.api/src/main/java/com/vmturbo/priceindex/api/PriceIndexNotificationSender.java -text
+com.vmturbo.priceindex.api/src/main/java/com/vmturbo/priceindex/api/impl/PriceIndexClientConfig.java -text
 com.vmturbo.priceindex.api/src/main/java/com/vmturbo/priceindex/api/impl/PriceIndexNotificationReceiver.java -text
 com.vmturbo.priceindex.api/src/main/java/com/vmturbo/priceindex/api/impl/PriceIndexReceiver.java -text
 com.vmturbo.priceindex.api/src/main/java/com/vmturbo/priceindex/api/impl/PriceIndexRestReceiver.java -text
@@ -991,6 +999,8 @@ com.vmturbo.repository.api/pom.xml -text
 com.vmturbo.repository.api/src/main/java/com/vmturbo/repository/api/Repository.java -text
 com.vmturbo.repository.api/src/main/java/com/vmturbo/repository/api/RepositoryClient.java -text
 com.vmturbo.repository.api/src/main/java/com/vmturbo/repository/api/RepositoryListener.java -text
+com.vmturbo.repository.api/src/main/java/com/vmturbo/repository/api/impl/RepositoryClientConfig.java -text
+com.vmturbo.repository.api/src/main/java/com/vmturbo/repository/api/impl/RepositoryMessageReceiver.java -text
 com.vmturbo.repository.api/src/main/java/com/vmturbo/repository/api/impl/RepositoryNotificationReceiver.java -text
 com.vmturbo.repository.api/src/main/protobuf/RepositoryDTO.proto -text
 com.vmturbo.repository.component/README.adoc -text
@@ -1202,6 +1212,8 @@ com.vmturbo.topology.processor.api/src/main/java/com/vmturbo/topology/processor/
 com.vmturbo.topology.processor.api/src/main/java/com/vmturbo/topology/processor/api/impl/TargetInfoProtobufWrapper.java svneol=native#text/x-java
 com.vmturbo.topology.processor.api/src/main/java/com/vmturbo/topology/processor/api/impl/TargetRESTApi.java -text
 com.vmturbo.topology.processor.api/src/main/java/com/vmturbo/topology/processor/api/impl/TopologyProcessorClient.java svneol=native#text/x-java
+com.vmturbo.topology.processor.api/src/main/java/com/vmturbo/topology/processor/api/impl/TopologyProcessorClientConfig.java -text
+com.vmturbo.topology.processor.api/src/main/java/com/vmturbo/topology/processor/api/impl/TopologyProcessorMessageReceiver.java -text
 com.vmturbo.topology.processor.api/src/main/java/com/vmturbo/topology/processor/api/impl/TopologyProcessorNotificationReceiver.java svneol=native#text/x-java
 com.vmturbo.topology.processor.api/src/main/java/com/vmturbo/topology/processor/api/impl/TopologyProcessorRestClient.java svneol=native#text/x-java
 com.vmturbo.topology.processor.api/src/main/protobuf/TopologyProcessorDTO.proto -text

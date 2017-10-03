@@ -9,7 +9,7 @@ import com.vmturbo.communication.CommunicationException;
 /**
  * Target controller interface is responsible for operations with targets and probes.
  */
-public interface TopologyProcessor extends AutoCloseable {
+public interface TopologyProcessor {
     /**
      * Returns all the registered probes, available currently in topology processor. Method is
      * blocked until result is returned or exception is raised.

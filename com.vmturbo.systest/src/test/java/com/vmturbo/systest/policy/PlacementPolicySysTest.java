@@ -96,6 +96,7 @@ import com.vmturbo.common.protobuf.topology.TopologyServiceGrpc.TopologyServiceB
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
+import com.vmturbo.components.api.client.WebsocketNotificationReceiver;
 import com.vmturbo.components.test.utilities.ComponentTestRule;
 import com.vmturbo.components.test.utilities.communication.ComponentStubHost;
 import com.vmturbo.components.test.utilities.component.ComponentCluster;
@@ -104,6 +105,8 @@ import com.vmturbo.market.component.api.ActionsListener;
 import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.ProjectedTopologyListener;
 import com.vmturbo.market.component.api.impl.MarketComponentClient;
+import com.vmturbo.market.component.api.impl.MarketMessageReceiver;
+import com.vmturbo.market.component.dto.MarketMessages.MarketComponentNotification;
 import com.vmturbo.mediation.delegatingprobe.DelegatingProbeAccount;
 import com.vmturbo.platform.common.builders.EntityBuilders;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -120,7 +123,9 @@ import com.vmturbo.topology.processor.api.TargetInfo;
 import com.vmturbo.topology.processor.api.TargetListener;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
+import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TopologyProcessorNotification;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClient;
+import com.vmturbo.topology.processor.api.impl.TopologyProcessorMessageReceiver;
 
 /**
  * A system test that brings up the TopologyProcessor and sends a specific topology to it.
@@ -147,6 +152,9 @@ public class PlacementPolicySysTest {
     private ExecutorService threadPool = Executors.newCachedThreadPool();
 
     private final PolicyServiceStub policyServiceStub = new PolicyServiceStub();
+
+    private WebsocketNotificationReceiver<TopologyProcessorNotification> tpMessageReceiver;
+    private WebsocketNotificationReceiver<MarketComponentNotification> marketMessageReceiver;
 
     @Autowired
     private DiscoveryDriverController discoveryDriverController;
@@ -237,20 +245,24 @@ public class PlacementPolicySysTest {
 
         topologyService = TopologyServiceGrpc.newBlockingStub(
             componentTestRule.getCluster().newGrpcChannel("topology-processor"));
+        tpMessageReceiver = new TopologyProcessorMessageReceiver(componentTestRule.getCluster()
+                .getConnectionConfig("topology-processor"), threadPool);
         topologyProcessor = TopologyProcessorClient.rpcAndNotification(
             componentTestRule.getCluster().getConnectionConfig("topology-processor"),
-            threadPool);
+            threadPool, tpMessageReceiver);
 
+        marketMessageReceiver = new MarketMessageReceiver(componentTestRule.getCluster()
+                .getConnectionConfig("market"), threadPool);
         marketComponent = MarketComponentClient.rpcAndNotification(
             componentTestRule.getCluster().getConnectionConfig("market"),
-            threadPool);
+            threadPool, marketMessageReceiver);
     }
 
     @After
     public void teardown() {
         try {
-            topologyProcessor.close();
-            marketComponent.close();
+            tpMessageReceiver.close();
+            marketMessageReceiver.close();
 
             threadPool.shutdownNow();
             threadPool.awaitTermination(10, TimeUnit.MINUTES);
