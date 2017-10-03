@@ -1,6 +1,6 @@
 package com.vmturbo.platform.analysis.actions;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -169,7 +169,7 @@ public class ExecutableActionsTest {
      */
 
     @Test
-    public final void testMarkResizeUpNonExecutable_Action() {
+    public final void testMarkResizeUpExecutable_Action() {
         Economy economy = new Economy();
         List<Action> actions = new ArrayList<>();
 
@@ -209,9 +209,9 @@ public class ExecutableActionsTest {
         try {
             classifier = new ActionClassifier(economy);
             classifier.classify(actions);
-            // resize up non-executable, resize down executable
+            // resize up executable, resize down executable
             assertTrue(actions.size() == 1);
-            assertTrue(classifier.getExecutable() == 0);
+            assertTrue(classifier.getExecutable() == 1);
             logger.info(classifier.getExecutable());
         }
         catch (Exception e) {
