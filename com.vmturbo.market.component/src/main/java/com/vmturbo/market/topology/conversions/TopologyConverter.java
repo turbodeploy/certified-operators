@@ -40,6 +40,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.commons.Units;
+import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.commons.analysis.InvalidTopologyException;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs;
@@ -77,77 +78,9 @@ public class TopologyConverter {
 
     private static final String BICLIQUE = "BICLIQUE";
 
-    private static final Set<Integer> CLONABLE_TYPES = ImmutableSet.of(
-        EntityType.PHYSICAL_MACHINE_VALUE,
-        EntityType.STORAGE_VALUE,
-        EntityType.STORAGE_CONTROLLER_VALUE,
-        EntityType.CHASSIS_VALUE
-        );
-
-    // If an entity buys from guaranteed sellers then it is a guaranteed buyer
-    private static final Set<Integer> GUARANTEED_SELLER_TYPES = ImmutableSet.of(
-        EntityType.STORAGE_VALUE,
-        EntityType.PHYSICAL_MACHINE_VALUE
-        );
-
-    private static final Set<Integer> MOVABLE_TYPES = ImmutableSet.of(
-        EntityType.VIRTUAL_MACHINE_VALUE
-        );
-
-    private static final Set<Integer> CONSTANT_PRICE_TYPES = ImmutableSet.of(
-        CommodityDTO.CommodityType.COOLING_VALUE, CommodityDTO.CommodityType.POWER_VALUE, CommodityDTO.CommodityType.SPACE_VALUE,
-            CommodityDTO.CommodityType.APPLICATION_VALUE, CommodityDTO.CommodityType.CLUSTER_VALUE,
-            CommodityDTO.CommodityType.DATACENTER_VALUE, CommodityDTO.CommodityType.DATASTORE_VALUE,
-            CommodityDTO.CommodityType.DSPM_ACCESS_VALUE, CommodityDTO.CommodityType.NETWORK_VALUE,
-            CommodityDTO.CommodityType.SEGMENTATION_VALUE, CommodityDTO.CommodityType.DRS_SEGMENTATION_VALUE,
-            CommodityDTO.CommodityType.STORAGE_CLUSTER_VALUE,
-            CommodityDTO.CommodityType.VAPP_ACCESS_VALUE, CommodityDTO.CommodityType.VDC_VALUE,
-            CommodityDTO.CommodityType.VMPM_ACCESS_VALUE, CommodityDTO.CommodityType.EXTENT_VALUE
-        );
-
-    private static final Set<Integer> STEP_PRICE_TYPES = ImmutableSet.of(
-                    CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE,
-                    CommodityDTO.CommodityType.STORAGE_PROVISIONED_VALUE,
-                    CommodityDTO.CommodityType.VSTORAGE_VALUE);
-
-    private static final Set<Integer> COMMODITIES_TO_CAP = ImmutableSet.of(
-                    CommodityDTO.CommodityType.VMEM_VALUE, CommodityDTO.CommodityType.VCPU_VALUE);
-
-    private static final Set<Integer> COMMODITIES_TO_SKIP = ImmutableSet.of(
-                    CommodityDTO.CommodityType.MEM_PROVISIONED_VALUE, CommodityDTO.CommodityType.CPU_PROVISIONED_VALUE,
-                    CommodityDTO.CommodityType.STORAGE_PROVISIONED_VALUE,
-                    CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE, CommodityDTO.CommodityType.STORAGE_LATENCY_VALUE);
-
-    /**
-     * These are the types that in the platform are subclasses of AccessCommodity.
-     * TODO: Make this check part of {@link CommodityDTO.CommodityType}.
-     */
-    private static final Set<Integer> ACCESS_COMMODITY_TYPES = ImmutableSet.of(
-                                            CommodityDTO.CommodityType.APPLICATION_VALUE,
-                                            CommodityDTO.CommodityType.CLUSTER_VALUE,
-                                            CommodityDTO.CommodityType.DATACENTER_VALUE,
-                                            CommodityDTO.CommodityType.DATASTORE_VALUE,
-                                            CommodityDTO.CommodityType.DISK_ARRAY_ACCESS_VALUE,
-                                            CommodityDTO.CommodityType.DSPM_ACCESS_VALUE,
-                                            CommodityDTO.CommodityType.NETWORK_VALUE,
-                                            CommodityDTO.CommodityType.SEGMENTATION_VALUE,
-                                            CommodityDTO.CommodityType.DRS_SEGMENTATION_VALUE,
-                                            CommodityDTO.CommodityType.SERVICE_LEVEL_CLUSTER_VALUE,
-                                            CommodityDTO.CommodityType.STORAGE_CLUSTER_VALUE,
-                                            CommodityDTO.CommodityType.VAPP_ACCESS_VALUE,
-                                            CommodityDTO.CommodityType.VDC_VALUE,
-                                            CommodityDTO.CommodityType.VMPM_ACCESS_VALUE);
-
-    private static final Set<Integer> SKIPPED_ENTITY_TYPES = ImmutableSet.of(
-                    EntityType.CONTAINER_VALUE, EntityType.VIRTUAL_APPLICATION_VALUE,
-                    EntityType.ACTION_MANAGER_VALUE);
-
-    private static final Set<TopologyDTO.EntityState> SKIPPED_ENTITY_STATES = ImmutableSet.of(
+    public static final Set<TopologyDTO.EntityState> SKIPPED_ENTITY_STATES = ImmutableSet.of(
         TopologyDTO.EntityState.UNKNOWN, TopologyDTO.EntityState.MAINTENANCE);
 
-    private static final Set<Integer> GUARANTEED_BUYER_TYPES = ImmutableSet.of(
-                    EntityType.VIRTUAL_DATACENTER_VALUE, EntityType.VPOD_VALUE,
-                    EntityType.DPOD_VALUE);
     // TODO: In legacy this is taken from LicenseManager and is currently false
     private boolean includeGuaranteedBuyer = false;
 
@@ -173,10 +106,7 @@ public class TopologyConverter {
     // these entities (acting as sellers) when includeGuaranteedBuyer is false.
     private @Nonnull List<Long> guaranteedList = new ArrayList<Long>();
 
-    private static final Set<Integer> VDC_COMMODITY_TYPES = ImmutableSet.of(
-                    CommodityDTO.CommodityType.CPU_ALLOCATION_VALUE, CommodityDTO.CommodityType.MEM_ALLOCATION_VALUE,
-                    CommodityDTO.CommodityType.STORAGE_ALLOCATION_VALUE, CommodityDTO.CommodityType.FLOW_ALLOCATION_VALUE);
-    // a map to keep the oid to traderTO mapping, it also includes newly cloned traderTO
+ // a map to keep the oid to traderTO mapping, it also includes newly cloned traderTO
     private Map<Long, EconomyDTOs.TraderTO> oidToTraderTOMap = Maps.newHashMap();
 
     /**
@@ -209,9 +139,6 @@ public class TopologyConverter {
 
     // Biclique stuff
     private final BiCliquer bicliquer = new BiCliquer();
-
-    private static Set<Integer> DSPM_OR_DATASTORE =
-                Sets.newHashSet(CommodityDTO.CommodityType.DSPM_ACCESS_VALUE, CommodityDTO.CommodityType.DATASTORE_VALUE);
 
     private static EconomyDTOs.CommoditySoldSettingsTO BC_SETTING_TO =
                 EconomyDTOs.CommoditySoldSettingsTO.newBuilder()
@@ -261,10 +188,10 @@ public class TopologyConverter {
                                 throws InvalidTopologyException {
         for (TopologyDTO.TopologyEntityDTO entity : entities) {
             int entityType = entity.getEntityType();
-            if (SKIPPED_ENTITY_TYPES.contains(entityType)
+            if (AnalysisUtil.SKIPPED_ENTITY_TYPES.contains(entityType)
                 || SKIPPED_ENTITY_STATES.contains(entity.getEntityState())) {
                 continue;
-            } else if (!includeGuaranteedBuyer && GUARANTEED_BUYER_TYPES.contains(entityType)) {
+            } else if (!includeGuaranteedBuyer && AnalysisUtil.GUARANTEED_BUYER_TYPES.contains(entityType)) {
                 guaranteedList.add(entity.getOid());
             } else {
                 entityOidToDto.put(entity.getOid(), entity);
@@ -464,7 +391,7 @@ public class TopologyConverter {
         // get dspm and datastore commodity sold from the original trader, add
         // them to projected topology entity DTO
         return entityDTO.addAllCommoditySoldList(originalTrader.getCommoditySoldListList().stream()
-                        .filter(c -> DSPM_OR_DATASTORE
+                        .filter(c -> AnalysisUtil.DSPM_OR_DATASTORE
                                         .contains(c.getCommodityType().getType()))
                         .collect(Collectors.toSet()))
                         .build();
@@ -555,10 +482,10 @@ public class TopologyConverter {
         final boolean active = EconomyDTOs.TraderStateTO.ACTIVE.equals(state);
         final boolean bottomOfSupplyChain = topologyDTO.getCommodityBoughtMapMap().isEmpty();
         final int entityType = topologyDTO.getEntityType();
-        boolean clonable = CLONABLE_TYPES.contains(entityType); // TODO: should use settings
+        boolean clonable = AnalysisUtil.CLONABLE_TYPES.contains(entityType); // TODO: should use settings
         boolean suspendable = true; // TODO: should use settings
         if (bottomOfSupplyChain && active) {
-            clonable = CLONABLE_TYPES.contains(entityType);
+            clonable = AnalysisUtil.CLONABLE_TYPES.contains(entityType);
             suspendable = false;
         }
         final boolean isGuranteedBuyer = guaranteedBuyer(topologyDTO);
@@ -603,7 +530,7 @@ public class TopologyConverter {
                         && topologyDTO.getCommodityBoughtMapMap().keySet().stream()
                         .map(entityOidToDto::get)
                         .map(TopologyDTO.TopologyEntityDTO::getEntityType)
-                        .anyMatch(type -> GUARANTEED_SELLER_TYPES.contains(type))
+                        .anyMatch(type -> AnalysisUtil.GUARANTEED_SELLER_TYPES.contains(type))
                     || entityType == EntityType.DPOD_VALUE;
     }
 
@@ -676,7 +603,7 @@ public class TopologyConverter {
                 .setSupplier(providerOid)
                 .setOid(id)
                 .setStorageMoveCost(moveCost)
-                .setMovable(MOVABLE_TYPES.contains((int)entityType))
+                .setMovable(AnalysisUtil.MOVABLE_TYPES.contains((int)entityType))
                 .build();
         shoppingListOidToInfos.put(id,
             new ShoppingListInfo(id, buyerOid, providerOid, commoditiesBought));
@@ -761,8 +688,8 @@ public class TopologyConverter {
             .filter(commSold -> commSold.getActive())
             .filter(commSold -> !isBicliqueCommodity(commSold.getCommodityType()))
             .filter(commSold -> includeGuaranteedBuyer
-                || !GUARANTEED_SELLER_TYPES.contains(topologyDTO.getEntityType())
-                || !VDC_COMMODITY_TYPES.contains(commSold.getCommodityType().getType()))
+                || !AnalysisUtil.GUARANTEED_SELLER_TYPES.contains(topologyDTO.getEntityType())
+                || !AnalysisUtil.VDC_COMMODITY_TYPES.contains(commSold.getCommodityType().getType()))
             .map(commSold -> {
                 try {
                     return commoditySold(commSold);
@@ -805,10 +732,10 @@ public class TopologyConverter {
         float used = (float)topologyCommSold.getUsed();
         final int type = commodityType.getType();
         if (used > capacity) {
-            if (COMMODITIES_TO_CAP.contains(type)) {
+            if (AnalysisUtil.COMMODITIES_TO_CAP.contains(type)) {
                 used = capacity * 0.999999f;
-            } else if (!(COMMODITIES_TO_SKIP.contains(type) ||
-                            ACCESS_COMMODITY_TYPES.contains(type))) {
+            } else if (!(AnalysisUtil.COMMODITIES_TO_SKIP.contains(type) ||
+                            AnalysisUtil.ACCESS_COMMODITY_TYPES.contains(type))) {
                 throw new InvalidTopologyException(errorMsg(topologyCommSold));
             }
         }
@@ -841,7 +768,7 @@ public class TopologyConverter {
     }
 
     private boolean isBicliqueCommodity(CommodityType commodityType) {
-        boolean isOfType = DSPM_OR_DATASTORE.contains(commodityType.getType());
+        boolean isOfType = AnalysisUtil.DSPM_OR_DATASTORE.contains(commodityType.getType());
         if (isOfType && commodityType.hasKey()) {
             // TODO: Support for cloud targets.
             // Exclude cloud targets imported from legacy from bicliques for the moment.
@@ -946,9 +873,9 @@ public class TopologyConverter {
     private static PriceFunctionDTOs.PriceFunctionTO priceFunction(
             @Nonnull final TopologyDTO.CommoditySoldDTO topologyCommSold) {
         final int commSoldType = topologyCommSold.getCommodityType().getType();
-        if (CONSTANT_PRICE_TYPES.contains(commSoldType)) {
+        if (AnalysisUtil.CONSTANT_PRICE_TYPES.contains(commSoldType)) {
             return CONSTANT; // TODO: use settings
-        } else if (STEP_PRICE_TYPES.contains(commSoldType)) {
+        } else if (AnalysisUtil.STEP_PRICE_TYPES.contains(commSoldType)) {
             return STEP;
         } else {
             return SWP;
