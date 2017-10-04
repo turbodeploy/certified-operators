@@ -33,8 +33,14 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
 @Configuration("theComponent")
 @EnableAutoConfiguration
 @EnableDiscoveryClient
-@Import({ScenarioConfig.class, PlanConfig.class, TemplatesConfig.class,
-        DeploymentProfileConfig.class, SQLDatabaseConfig.class, ClusterRollupSchedulerConfig.class})
+@Import({DeploymentProfileConfig.class,
+        PlanConfig.class,
+        ScenarioConfig.class,
+        ClusterRollupSchedulerConfig.class,
+        TemplatesConfig.class,
+        ApiSecurityConfig.class,
+        GlobalConfig.class,
+        SQLDatabaseConfig.class})
 public class PlanOrchestratorComponent extends BaseVmtComponent {
     private static final Logger LOGGER = LogManager.getLogger();
 
