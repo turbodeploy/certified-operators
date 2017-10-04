@@ -43,14 +43,14 @@ public class ActionOrchestratorClientConfig {
     private long grpcPingIntervalSeconds;
 
     @Bean(destroyMethod = "shutdownNow")
-    protected ExecutorService threadPool() {
+    protected ExecutorService actionOrchestratorClientThreadPool() {
         final ThreadFactory threadFactory =
                 new ThreadFactoryBuilder().setNameFormat("action-orchestrator-api-%d").build();
         return Executors.newCachedThreadPool(threadFactory);
     }
 
     @Bean
-    protected ComponentApiConnectionConfig connectionConfig() {
+    protected ComponentApiConnectionConfig actionOrchestratorClientConnectionConfig() {
         return ComponentApiConnectionConfig.newBuilder()
                 .setHostAndPort(actionOrchestratorHost, httpPort)
                 .setPongMessageTimeout(websocketPongTimeout)
@@ -58,16 +58,17 @@ public class ActionOrchestratorClientConfig {
     }
 
     @Bean
-    protected IMessageReceiver<ActionOrchestratorNotification> messageReceiver() {
-        return new WebsocketNotificationReceiver<>(connectionConfig(),
-                ActionOrchestratorClient.WEBSOCKET_PATH, threadPool(),
+    protected IMessageReceiver<ActionOrchestratorNotification> actionOrchestratorClientMessageReceiver() {
+        return new WebsocketNotificationReceiver<>(actionOrchestratorClientConnectionConfig(),
+                ActionOrchestratorClient.WEBSOCKET_PATH, actionOrchestratorClientThreadPool(),
                 ActionOrchestratorNotification::parseFrom);
     }
 
     @Bean
     public ActionOrchestratorClient actionOrchestratorClient() {
-        return ActionOrchestratorClient.rpcAndNotification(connectionConfig(), threadPool(),
-                messageReceiver());
+        return ActionOrchestratorClient.rpcAndNotification(
+                actionOrchestratorClientConnectionConfig(), actionOrchestratorClientThreadPool(),
+                actionOrchestratorClientMessageReceiver());
     }
 
     @Bean

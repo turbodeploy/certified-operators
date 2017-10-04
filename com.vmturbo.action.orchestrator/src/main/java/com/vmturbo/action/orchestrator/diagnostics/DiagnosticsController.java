@@ -1,4 +1,4 @@
-package com.vmturbo.action.orchestrator.rest;
+package com.vmturbo.action.orchestrator.diagnostics;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;

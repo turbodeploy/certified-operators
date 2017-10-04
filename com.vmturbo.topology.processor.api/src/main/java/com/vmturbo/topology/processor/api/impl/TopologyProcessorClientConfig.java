@@ -41,17 +41,17 @@ public class TopologyProcessorClientConfig {
     private int topologyProcessorRpcPort;
 
     @Bean(destroyMethod = "shutdownNow")
-    protected ExecutorService threadPool() {
-        return Executors.newCachedThreadPool(threadFactory());
+    protected ExecutorService topologyProcessorClientThreadPool() {
+        return Executors.newCachedThreadPool(topologyProcessorClientThreadFactory());
     }
 
     @Bean
-    protected ThreadFactory threadFactory() {
+    protected ThreadFactory topologyProcessorClientThreadFactory() {
         return new ThreadFactoryBuilder().setNameFormat("tp-api-%d").build();
     }
 
     @Bean
-    protected ComponentApiConnectionConfig connectionConfig() {
+    protected ComponentApiConnectionConfig topologyProcessorClientConnectionConfig() {
         return ComponentApiConnectionConfig.newBuilder()
                 .setHostAndPort(topologyProcessorHost, topologyProcessorPort)
                 .setPongMessageTimeout(websocketPongTimeout)
@@ -59,19 +59,21 @@ public class TopologyProcessorClientConfig {
     }
 
     @Bean
-    protected IMessageReceiver<TopologyProcessorNotification> messageReceiver() {
-        return new TopologyProcessorMessageReceiver(connectionConfig(), threadPool());
+    protected IMessageReceiver<TopologyProcessorNotification> topologyProcessorClientMessageReceiver() {
+        return new TopologyProcessorMessageReceiver(topologyProcessorClientConnectionConfig(),
+                topologyProcessorClientThreadPool());
     }
 
     @Bean
     public TopologyProcessor topologyProcessor() {
-        return TopologyProcessorClient.rpcAndNotification(connectionConfig(), threadPool(),
-                messageReceiver());
+        return TopologyProcessorClient.rpcAndNotification(topologyProcessorClientConnectionConfig(),
+                topologyProcessorClientThreadPool(),
+                topologyProcessorClientMessageReceiver());
     }
 
     @Bean
     public TopologyProcessor topologyProcessorRpcOnly() {
-        return TopologyProcessorClient.rpcOnly(connectionConfig());
+        return TopologyProcessorClient.rpcOnly(topologyProcessorClientConnectionConfig());
     }
 
     /**

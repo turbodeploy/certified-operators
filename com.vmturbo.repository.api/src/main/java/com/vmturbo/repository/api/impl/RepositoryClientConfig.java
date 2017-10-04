@@ -39,14 +39,14 @@ public class RepositoryClientConfig {
     private int grpcPort;
 
     @Bean(destroyMethod = "shutdownNow")
-    protected ExecutorService threadPool() {
+    protected ExecutorService repositoryClientThreadPool() {
         final ThreadFactory threadFactory =
                 new ThreadFactoryBuilder().setNameFormat("repository-api-%d").build();
         return Executors.newCachedThreadPool(threadFactory);
     }
 
     @Bean
-    public ComponentApiConnectionConfig repositoryConnectionConfig() {
+    public ComponentApiConnectionConfig repositoryClientConnectionConfig() {
         return ComponentApiConnectionConfig.newBuilder()
                 .setHostAndPort(repositoryHost, httpPort)
                 .setPongMessageTimeout(websocketPongTimeout)
@@ -54,15 +54,16 @@ public class RepositoryClientConfig {
     }
 
     @Bean
-    protected IMessageReceiver<RepositoryNotification> messageReceiver() {
-        return new WebsocketNotificationReceiver<>(repositoryConnectionConfig(),
-                RepositoryNotificationReceiver.WEBSOCKET_PATH, threadPool(),
+    protected IMessageReceiver<RepositoryNotification> repositoryClientMessageReceiver() {
+        return new WebsocketNotificationReceiver<>(repositoryClientConnectionConfig(),
+                RepositoryNotificationReceiver.WEBSOCKET_PATH, repositoryClientThreadPool(),
                 RepositoryNotification::parseFrom);
     }
 
     @Bean
     public Repository repository() {
-        return new RepositoryNotificationReceiver(messageReceiver(), threadPool());
+        return new RepositoryNotificationReceiver(repositoryClientMessageReceiver(),
+                repositoryClientThreadPool());
     }
 
     @Value("${grpcPingIntervalSeconds}")

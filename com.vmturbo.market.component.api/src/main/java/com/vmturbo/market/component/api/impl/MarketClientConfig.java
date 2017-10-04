@@ -35,12 +35,12 @@ public class MarketClientConfig {
     private long websocketPongTimeout;
 
     @Bean
-    protected IMessageReceiver<MarketComponentNotification> notificationReceiver() {
-        return new MarketMessageReceiver(connectionConfig(), apiServerThreadPool());
+    protected IMessageReceiver<MarketComponentNotification> marketClientNotificationReceiver() {
+        return new MarketMessageReceiver(marketClientConnectionConfig(), marketClientThreadPool());
     }
 
     @Bean
-    protected ComponentApiConnectionConfig connectionConfig() {
+    protected ComponentApiConnectionConfig marketClientConnectionConfig() {
         return ComponentApiConnectionConfig.newBuilder()
                 .setHostAndPort(marketHost, httpPort)
                 .setPongMessageTimeout(websocketPongTimeout)
@@ -48,7 +48,7 @@ public class MarketClientConfig {
     }
 
     @Bean(destroyMethod = "shutdownNow")
-    protected ExecutorService apiServerThreadPool() {
+    protected ExecutorService marketClientThreadPool() {
         final ThreadFactory threadFactory =
                 new ThreadFactoryBuilder().setNameFormat("market-api-%d").build();
         return Executors.newCachedThreadPool(threadFactory);
@@ -56,7 +56,7 @@ public class MarketClientConfig {
 
     @Bean
     public MarketComponent marketComponent() {
-        return MarketComponentClient.rpcAndNotification(connectionConfig(),
-                apiServerThreadPool(), notificationReceiver());
+        return MarketComponentClient.rpcAndNotification(marketClientConnectionConfig(),
+                marketClientThreadPool(), marketClientNotificationReceiver());
     }
 }

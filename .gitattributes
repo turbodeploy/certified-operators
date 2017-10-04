@@ -170,6 +170,7 @@ com.vmturbo.action.orchestrator/src/main/java/com/vmturbo/action/orchestrator/ap
 com.vmturbo.action.orchestrator/src/main/java/com/vmturbo/action/orchestrator/api/ApiSecurityConfig.java -text
 com.vmturbo.action.orchestrator/src/main/java/com/vmturbo/action/orchestrator/diagnostics/ActionOrchestratorDiagnostics.java -text
 com.vmturbo.action.orchestrator/src/main/java/com/vmturbo/action/orchestrator/diagnostics/ActionOrchestratorDiagnosticsConfig.java -text
+com.vmturbo.action.orchestrator/src/main/java/com/vmturbo/action/orchestrator/diagnostics/DiagnosticsController.java -text
 com.vmturbo.action.orchestrator/src/main/java/com/vmturbo/action/orchestrator/diagnostics/InvalidRestoreInputException.java -text
 com.vmturbo.action.orchestrator/src/main/java/com/vmturbo/action/orchestrator/execution/ActionExecutionConfig.java -text
 com.vmturbo.action.orchestrator/src/main/java/com/vmturbo/action/orchestrator/execution/ActionExecutor.java -text
@@ -180,7 +181,6 @@ com.vmturbo.action.orchestrator/src/main/java/com/vmturbo/action/orchestrator/ex
 com.vmturbo.action.orchestrator/src/main/java/com/vmturbo/action/orchestrator/execution/notifications/NotificationsConfig.java -text
 com.vmturbo.action.orchestrator/src/main/java/com/vmturbo/action/orchestrator/market/MarketActionListener.java -text
 com.vmturbo.action.orchestrator/src/main/java/com/vmturbo/action/orchestrator/market/MarketConfig.java -text
-com.vmturbo.action.orchestrator/src/main/java/com/vmturbo/action/orchestrator/rest/DiagnosticsController.java -text
 com.vmturbo.action.orchestrator/src/main/java/com/vmturbo/action/orchestrator/rpc/ActionsDebugRpcService.java -text
 com.vmturbo.action.orchestrator/src/main/java/com/vmturbo/action/orchestrator/rpc/ActionsRpcService.java -text
 com.vmturbo.action.orchestrator/src/main/java/com/vmturbo/action/orchestrator/rpc/EntitySeverityRpcService.java -text

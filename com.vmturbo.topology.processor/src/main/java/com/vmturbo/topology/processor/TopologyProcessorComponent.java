@@ -13,7 +13,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
-import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
@@ -21,15 +20,25 @@ import io.grpc.Server;
 import io.grpc.ServerBuilder;
 
 import com.vmturbo.components.common.BaseVmtComponent;
-import com.vmturbo.sql.utils.SQLDatabaseConfig;
 import com.vmturbo.components.common.health.sql.SQLDBHealthMonitor;
+import com.vmturbo.sql.utils.SQLDatabaseConfig;
 import com.vmturbo.topology.processor.actions.ActionsConfig;
 import com.vmturbo.topology.processor.analysis.AnalysisConfig;
+import com.vmturbo.topology.processor.api.server.TopologyProcessorApiConfig;
+import com.vmturbo.topology.processor.api.server.TopologyProcessorApiSecurityConfig;
+import com.vmturbo.topology.processor.communication.SdkServerConfig;
 import com.vmturbo.topology.processor.diagnostics.TopologyProcessorDiagnosticsConfig;
 import com.vmturbo.topology.processor.entity.EntityConfig;
+import com.vmturbo.topology.processor.group.GroupConfig;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
+import com.vmturbo.topology.processor.operation.OperationConfig;
+import com.vmturbo.topology.processor.probes.ProbeConfig;
+import com.vmturbo.topology.processor.repository.RepositoryConfig;
+import com.vmturbo.topology.processor.rest.RESTConfig;
 import com.vmturbo.topology.processor.rpc.TopologyProcessorRpcConfig;
 import com.vmturbo.topology.processor.scheduling.SchedulerConfig;
+import com.vmturbo.topology.processor.targets.TargetConfig;
+import com.vmturbo.topology.processor.templates.DiscoveredTemplateDeploymentProfileConfig;
 import com.vmturbo.topology.processor.topology.TopologyConfig;
 
 /**
@@ -40,19 +49,30 @@ import com.vmturbo.topology.processor.topology.TopologyConfig;
  */
 @Configuration("theComponent")
 @Import({
-    TopologyProcessorDiagnosticsConfig.class,
-    AnalysisConfig.class,
     ActionsConfig.class,
-    SchedulerConfig.class,
+    AnalysisConfig.class,
+    TopologyProcessorApiConfig.class,
+    TopologyProcessorApiSecurityConfig.class,
+    TopologyProcessorDiagnosticsConfig.class,
+    SdkServerConfig.class,
     EntityConfig.class,
-    TopologyConfig.class,
+    GroupConfig.class,
     IdentityProviderConfig.class,
+    OperationConfig.class,
+    ProbeConfig.class,
+    RepositoryConfig.class,
+    RESTConfig.class,
     TopologyProcessorRpcConfig.class,
+    SchedulerConfig.class,
+    TargetConfig.class,
+    DiscoveredTemplateDeploymentProfileConfig.class,
+    GlobalConfig.class,
+    KVConfig.class,
+    TopologyConfig.class,
     SQLDatabaseConfig.class,
 })
 @EnableAutoConfiguration
 @EnableDiscoveryClient
-@ComponentScan({"com.vmturbo.topology.processor"})
 public class TopologyProcessorComponent extends BaseVmtComponent {
 
     private Logger log = LogManager.getLogger();

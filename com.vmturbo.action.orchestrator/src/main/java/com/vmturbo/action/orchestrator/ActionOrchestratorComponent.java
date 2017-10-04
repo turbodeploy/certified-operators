@@ -13,31 +13,40 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
-import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 
+import com.vmturbo.action.orchestrator.api.ActionOrchestratorApiConfig;
 import com.vmturbo.action.orchestrator.api.ApiSecurityConfig;
 import com.vmturbo.action.orchestrator.diagnostics.ActionOrchestratorDiagnosticsConfig;
+import com.vmturbo.action.orchestrator.execution.ActionExecutionConfig;
+import com.vmturbo.action.orchestrator.execution.notifications.NotificationsConfig;
+import com.vmturbo.action.orchestrator.market.MarketConfig;
 import com.vmturbo.action.orchestrator.rpc.RpcConfig;
+import com.vmturbo.action.orchestrator.store.ActionStoreConfig;
 import com.vmturbo.components.common.BaseVmtComponent;
-import com.vmturbo.sql.utils.SQLDatabaseConfig;
 import com.vmturbo.components.common.health.sql.SQLDBHealthMonitor;
+import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 /**
  * The component for the action orchestrator.
  */
 @Configuration("theComponent")
-@Import({ActionOrchestratorDiagnosticsConfig.class,
+@Import({ActionOrchestratorApiConfig.class,
+        ActionOrchestratorDiagnosticsConfig.class,
         RpcConfig.class,
+        NotificationsConfig.class,
+        ActionExecutionConfig.class,
+        MarketConfig.class,
+        ActionStoreConfig.class,
         ApiSecurityConfig.class,
+        ActionOrchestratorGlobalConfig.class,
         SQLDatabaseConfig.class})
 @EnableAutoConfiguration
 @EnableDiscoveryClient
-@ComponentScan({"com.vmturbo.action.orchestrator"})
 public class ActionOrchestratorComponent extends BaseVmtComponent {
 
     private Logger log = LogManager.getLogger();

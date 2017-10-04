@@ -31,4 +31,9 @@ public class ActionOrchestratorDiagnosticsConfig {
     public DiagnosticsWriter diagnosticsWriter() {
         return new DiagnosticsWriter();
     }
+
+    @Bean
+    public DiagnosticsController diagnosticsController() {
+        return new DiagnosticsController(diagnostics());
+    }
 }

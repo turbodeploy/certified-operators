@@ -54,7 +54,7 @@ public class ActionOrchestratorGlobalConfig {
 
     @Bean
     public TopologyProcessor topologyProcessor() {
-        return tpClientConfig.topologyProcessorRpcOnly();
+        return tpClientConfig.topologyProcessor();
     }
 
     @Bean

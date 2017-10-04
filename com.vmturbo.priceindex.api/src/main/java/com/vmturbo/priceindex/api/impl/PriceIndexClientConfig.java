@@ -29,14 +29,14 @@ public class PriceIndexClientConfig {
     private long websocketPongTimeout;
 
     @Bean(destroyMethod = "shutdownNow")
-    protected ExecutorService threadPool() {
+    protected ExecutorService priceIndexClientThreadPool() {
         final ThreadFactory threadFactory =
                 new ThreadFactoryBuilder().setNameFormat("priceindex-api-%d").build();
         return Executors.newCachedThreadPool(threadFactory);
     }
 
     @Bean
-    protected ComponentApiConnectionConfig connectionConfig() {
+    protected ComponentApiConnectionConfig priceIndexClientConnectionConfig() {
         return ComponentApiConnectionConfig.newBuilder()
                 .setHostAndPort(marketHost, httpPort)
                 .setPongMessageTimeout(websocketPongTimeout)
@@ -44,14 +44,16 @@ public class PriceIndexClientConfig {
     }
 
     @Bean
-    protected IMessageReceiver<PriceIndexMessage> messageReceiver() {
-        return new WebsocketNotificationReceiver<>(connectionConfig(),
-                PriceIndexReceiver.WEBSOCKET_PATH, threadPool(), PriceIndexMessage::parseFrom);
+    protected IMessageReceiver<PriceIndexMessage> priceIndexClientMessageReceiver() {
+        return new WebsocketNotificationReceiver<>(priceIndexClientConnectionConfig(),
+                PriceIndexReceiver.WEBSOCKET_PATH, priceIndexClientThreadPool(),
+                PriceIndexMessage::parseFrom);
     }
 
     @Bean
     public PriceIndexReceiver priceIndexReceiver() {
-        return PriceIndexReceiver.rpcAndNotification(connectionConfig(), threadPool(),
-                messageReceiver());
+        return PriceIndexReceiver.rpcAndNotification(priceIndexClientConnectionConfig(),
+                priceIndexClientThreadPool(),
+                priceIndexClientMessageReceiver());
     }
 }

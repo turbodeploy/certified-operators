@@ -12,7 +12,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
-import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
@@ -20,14 +19,13 @@ import io.grpc.Server;
 import io.grpc.ServerBuilder;
 
 import com.vmturbo.components.common.BaseVmtComponent;
+import com.vmturbo.components.common.health.sql.SQLDBHealthMonitor;
 import com.vmturbo.plan.orchestrator.deployment.profile.DeploymentProfileConfig;
 import com.vmturbo.plan.orchestrator.plan.PlanConfig;
 import com.vmturbo.plan.orchestrator.scenario.ScenarioConfig;
 import com.vmturbo.plan.orchestrator.scheduled.ClusterRollupSchedulerConfig;
-
-import com.vmturbo.sql.utils.SQLDatabaseConfig;
 import com.vmturbo.plan.orchestrator.templates.TemplatesConfig;
-import com.vmturbo.components.common.health.sql.SQLDBHealthMonitor;
+import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 /**
  * Responsible for orchestrating plan workflow.

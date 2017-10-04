@@ -41,14 +41,14 @@ public class HistoryClientConfig {
     private long websocketPongTimeout;
 
     @Bean(destroyMethod = "shutdownNow")
-    protected ExecutorService threadPool() {
+    protected ExecutorService historyClientThreadPool() {
         final ThreadFactory threadFactory =
                 new ThreadFactoryBuilder().setNameFormat("history-api-%d").build();
         return Executors.newCachedThreadPool(threadFactory);
     }
 
     @Bean
-    public ComponentApiConnectionConfig historyConnectionConfig() {
+    public ComponentApiConnectionConfig historyClientConnectionConfig() {
         return ComponentApiConnectionConfig.newBuilder()
                 .setHostAndPort(historyHost, httpPort)
                 .setPongMessageTimeout(websocketPongTimeout)
@@ -56,19 +56,20 @@ public class HistoryClientConfig {
     }
 
     @Bean
-    public WebsocketNotificationReceiver<HistoryComponentNotification> messageReceiver() {
-        return new WebsocketNotificationReceiver<>(historyConnectionConfig(),
-                HistoryComponentNotificationReceiver.WEBSOCKET_PATH, threadPool(),
+    public WebsocketNotificationReceiver<HistoryComponentNotification> historyClientMessageReceiver() {
+        return new WebsocketNotificationReceiver<>(historyClientConnectionConfig(),
+                HistoryComponentNotificationReceiver.WEBSOCKET_PATH, historyClientThreadPool(),
                 HistoryComponentNotification::parseFrom);
     }
 
     @Bean
     public HistoryComponent historyComponent() {
-        return new HistoryComponentNotificationReceiver(messageReceiver(), threadPool());
+        return new HistoryComponentNotificationReceiver(historyClientMessageReceiver(),
+                historyClientThreadPool());
     }
 
     @Bean
-    public Channel statsChannel() {
+    public Channel historyComponentChannel() {
         return PingingChannelBuilder.forAddress(historyHost, grpcPort).usePlaintext(true).build();
     }
 }

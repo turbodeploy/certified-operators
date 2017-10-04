@@ -46,7 +46,7 @@ public class PlanOrchestratorClientConfig {
     private long grpcPingIntervalSeconds;
 
     @Bean
-    protected ComponentApiConnectionConfig connectionConfig() {
+    protected ComponentApiConnectionConfig planOrchestratorClientConnectionConfig() {
         return ComponentApiConnectionConfig.newBuilder()
                 .setHostAndPort(planOrchestratorHost, httpPort)
                 .setPongMessageTimeout(websocketPongTimeout)
@@ -54,23 +54,23 @@ public class PlanOrchestratorClientConfig {
     }
 
     @Bean(destroyMethod = "shutdownNow")
-    protected ExecutorService planOrchestratorListenerThreadpool() {
+    protected ExecutorService planOrchestratorClientThreadPool() {
         final ThreadFactory threadFactory = new ThreadFactoryBuilder().setNameFormat(
                 "plan-orchestrator-api-%d").build();
         return Executors.newCachedThreadPool(threadFactory);
     }
 
     @Bean
-    protected IMessageReceiver<PlanNotification> messageReceiver() {
-        return new WebsocketNotificationReceiver<>(connectionConfig(),
+    protected IMessageReceiver<PlanNotification> planOrchestratorMessageReceiver() {
+        return new WebsocketNotificationReceiver<>(planOrchestratorClientConnectionConfig(),
                 PlanOrchestratorClientImpl.WEBSOCKET_PATH,
-                planOrchestratorListenerThreadpool(), PlanNotification::parseFrom);
+                planOrchestratorClientThreadPool(), PlanNotification::parseFrom);
     }
 
     @Bean
     public PlanOrchestrator planOrchestrator() {
-        return new PlanOrchestratorClientImpl(messageReceiver(),
-                planOrchestratorListenerThreadpool());
+        return new PlanOrchestratorClientImpl(planOrchestratorMessageReceiver(),
+                planOrchestratorClientThreadPool());
     }
 
     @Bean
