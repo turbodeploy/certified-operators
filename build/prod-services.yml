@@ -42,6 +42,26 @@ services:
       - mysql_var:/var/run
     restart: always
 
+  zoo1-prod:
+    image: zookeeper:3.4
+    restart: always
+    environment:
+      ZOO_MY_ID: 1
+      ZOO_SERVERS: server.1=zoo1:2888:3888
+
+  kafka1-prod:
+    extends:
+      file: common-services.yml
+      service: prod-component
+    image: turbonomic/kafka
+    restart: always
+    environment:
+      BROKER_ID: 1
+      ADVERTISED_PORT: 9092
+      ZOOKEEPER_HOSTS: "zoo1:2181"
+    volumes:
+      - kafka1-log:/tmp/kafka-logs
+
   auth-prod:
     extends:
       file: common-services.yml

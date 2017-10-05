@@ -1474,6 +1474,11 @@ git-hooks/hook-names -text
 git-hooks/hooks-wrapper -text
 git-hooks/init-hooks -text
 git-hooks/rm-hooks -text
+kafka/docker/Dockerfile -text
+kafka/docker/log4j.properties -text
+kafka/docker/rsyslog.conf -text
+kafka/docker/start-kafka -text
+kafka/pom.xml -text
 persistence/README -text
 persistence/Rakefile -text
 persistence/app/controllers/application.rb -text

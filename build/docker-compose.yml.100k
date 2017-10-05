@@ -34,6 +34,7 @@ volumes:
   plan-orchestrator: *localdriver
   mediation-vcenter: *localdriver
   mediation-hyperv: *localdriver
+  kafka1-log: *localdriver
 
 services:
   rsyslog:
@@ -55,6 +56,19 @@ services:
     mem_limit: 8g
     depends_on:
       - rsyslog
+
+  zoo1:
+    extends:
+      file: prod-services.yml
+      service: zoo1-prod
+
+  kafka1:
+    extends:
+      file: prod-services.yml
+      service: kafka1-prod
+    depends_on:
+      - rsyslog
+      - zoo1
 
   auth:
     extends:

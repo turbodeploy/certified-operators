@@ -41,6 +41,7 @@ volumes:
   mediation-stressprobe: *localdriver
   mediation-hyperv: *localdriver
   mediation-delegatingprobe: *localdriver
+  kafka1-log: *localdriver
 #  mediation-aix: *localdriver
 #  mediation-vmax: *localdriver
 #  mediation-openstack: *localdriver
@@ -91,6 +92,27 @@ services:
     mem_limit: ${DB_MEM_LIMIT_MB}M
     depends_on:
       - rsyslog
+
+  zoo1:
+    image: zookeeper:3.4
+    restart: always
+    environment:
+      ZOO_MY_ID: 1
+      ZOO_SERVERS: server.1=zoo1:2888:3888
+
+  kafka1:
+    extends:
+      file: common-services.yml
+      service: dev-component
+    image: turbonomic/kafka
+    environment:
+      BROKER_ID: 1
+      ADVERTISED_PORT: 9092
+      ZOOKEEPER_HOSTS: "zoo1:2181"
+    volumes:
+      - kafka1-log:/tmp/kafka-logs
+    depends_on:
+      - zoo1
 
   auth:
     extends:
