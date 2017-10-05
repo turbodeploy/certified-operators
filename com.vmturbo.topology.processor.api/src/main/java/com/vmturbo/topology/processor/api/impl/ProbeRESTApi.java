@@ -11,7 +11,7 @@ import com.google.common.collect.ImmutableList;
 
 import io.swagger.annotations.ApiModelProperty;
 
-import com.vmturbo.common.protobuf.action.ActionDTO.ProbeActionPolicy;
+import com.vmturbo.common.protobuf.action.ActionDTO.ProbeActionCapability;
 import com.vmturbo.topology.processor.api.AccountDefEntry;
 import com.vmturbo.topology.processor.api.AccountFieldValueType;
 import com.vmturbo.topology.processor.api.ProbeInfo;
@@ -144,7 +144,7 @@ public class ProbeRESTApi {
         private final List<String> identifyingFields;
 
         @ApiModelProperty(value = "Entity types and actions that can be applied to them.")
-        private final List<ProbeActionPolicy> actionPolicies;
+        private final List<ProbeActionCapability> actionPolicies;
 
         /**
          * Protected constructor, suitable only for deserialization purposes.
@@ -163,7 +163,7 @@ public class ProbeRESTApi {
                 @Nonnull final String category,
                 @Nonnull final List<AccountField> accountFields,
                 @Nonnull final List<String> identifyingFields,
-                @Nonnull final List<ProbeActionPolicy> actionPolicies) {
+                @Nonnull final List<ProbeActionCapability> actionPolicies) {
             this.id = probeId;
             this.type = Objects.requireNonNull(type);
             this.category = Objects.requireNonNull(category);
@@ -234,41 +234,8 @@ public class ProbeRESTApi {
          * @return list of action policies of probe
          */
         @Nullable
-        public List<ProbeActionPolicy> getActionPolicies() {
+        public List<ProbeActionCapability> getActionPolicies() {
             return actionPolicies;
-        }
-    }
-
-    /**
-     * All action capabilities of probe.
-     */
-    public static final class ProbeActionsInfo {
-        /**
-         * Entity types and actions which can be applied to them.
-         */
-        @ApiModelProperty(value = "Entity types and actions that can be applied to them.")
-        private final List<ProbeActionPolicy> probeActionPolicies;
-
-        public ProbeActionsInfo(List<ProbeActionPolicy> actionPolicies) {
-            this.probeActionPolicies = Collections.unmodifiableList(Objects.requireNonNull
-                    (actionPolicies, "Action policies got by probeId shouldn't be null"));
-        }
-
-        /**
-         * Constuctor for empty actions info if there isn't certain probe.
-         */
-        public ProbeActionsInfo() {
-            this.probeActionPolicies = null;
-        }
-
-        /**
-         * Returns entity types and actions which can be applied to them.
-         *
-         * @return Probe action policies for probe
-         */
-        @Nullable
-        public List<ProbeActionPolicy> getProbeActionPolicies() {
-            return probeActionPolicies;
         }
     }
 

@@ -1,0 +1,32 @@
+syntax = "proto2";
+package topology;
+
+option java_package = "com.vmturbo.common.protobuf.topology";
+import "action/ActionDTO.proto";
+
+// Input param for GetProbeActioncapabilitiesService.
+message GetProbeActionCapabilitiesRequest {
+
+    // Id of probe which action capabilities are requested.
+    required int64 probe_id = 1;
+
+    // Entity type of action capabilities which are requested. As it optional it can be either
+    // presented - in this case gotten capabilities will be filtered, or not presented - in this
+    // case service will return probe capabilities for all entity types.
+    optional int32 entity_type = 2;
+}
+
+// Response for GetProbeActionCapabilitiesService.
+message GetProbeActionCapabilitiesResponse {
+    // Action capabilities of probe.
+    repeated action.ProbeActionCapability action_capabilities = 1;
+}
+
+// Service for getting action capabilities of probe with certain probe_id which can be filtered
+// by entity_type of action capability.
+service ProbeActionCapabilitiesService {
+    // Get all action capabilities of probe. If request will provide entity_type then it will return
+    // capabilities filtered by entity_type. If entity_type of request will not provided then it
+    // returns all action capabilities of the probe.
+    rpc GetProbeActionCapabilities(GetProbeActionCapabilitiesRequest) returns (GetProbeActionCapabilitiesResponse);
+}

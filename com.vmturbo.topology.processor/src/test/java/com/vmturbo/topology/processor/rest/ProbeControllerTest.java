@@ -46,7 +46,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter
 
 import com.google.gson.Gson;
 
-import com.vmturbo.common.protobuf.action.ActionDTO.ProbeActionPolicy;
+import com.vmturbo.common.protobuf.action.ActionDTO.ProbeActionCapability;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO;
@@ -62,7 +62,6 @@ import com.vmturbo.topology.processor.actions.SdkToProbeActionsConverter;
 import com.vmturbo.topology.processor.api.AccountFieldValueType;
 import com.vmturbo.topology.processor.api.impl.ProbeRESTApi.AccountField;
 import com.vmturbo.topology.processor.api.impl.ProbeRESTApi.GetAllProbes;
-import com.vmturbo.topology.processor.api.impl.ProbeRESTApi.ProbeActionsInfo;
 import com.vmturbo.topology.processor.api.impl.ProbeRESTApi.ProbeDescription;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.util.SdkActionPolicyBuilder;
@@ -358,51 +357,9 @@ public final class ProbeControllerTest {
         final List<ActionPolicyDTO> sdkActionPolicies =
                 prepareProbeStoreForTestActionPolicies(probeId);
         final ProbeDescription probeDescription = parseProbeDescription(probeId);
-        final List<ProbeActionPolicy> responsePolicies = probeDescription.getActionPolicies();
+        final List<ProbeActionCapability> responsePolicies = probeDescription.getActionPolicies();
 
         Assert.assertEquals(SDK_TO_PROBE_ACTIONS_CONVERTER.convert(sdkActionPolicies), responsePolicies);
-    }
-
-    /**
-     * Tests getting all action policies of the probe with certain id.
-     *
-     * @throws Exception may be thrown in case of invalid probeId
-     */
-    @Test
-    public void testGetActionPoliciesByprobeid() throws Exception {
-        final long probeId = 1L;
-        final List<ActionPolicyDTO> sdkActionPolicies =
-                prepareProbeStoreForTestActionPolicies(probeId);
-        final String resultStr = mockMvc.perform(get("/probe/policies/" + probeId)
-                .accept(MediaType.APPLICATION_JSON_UTF8_VALUE)).andExpect(status().isOk())
-                .andReturn()
-                .getResponse()
-                .getContentAsString();
-        ProbeActionsInfo actionsInfo = GSON.fromJson(resultStr, ProbeActionsInfo.class);
-        Assert.assertEquals(SDK_TO_PROBE_ACTIONS_CONVERTER.convert(sdkActionPolicies),
-                actionsInfo.getProbeActionPolicies());
-    }
-
-    /**
-     * Tests getting all action policies of the probe with certain id and certain entityType.
-     *
-     * @throws Exception may be thrown in case of invalid probeId
-     */
-    @Test
-    public void testGetActionPoliciesByprobeidAndEntityType() throws Exception {
-        final long probeId = 1L;
-        final List<ActionPolicyDTO> sdkActionPolicies =
-                prepareProbeStoreForTestActionPolicies(probeId);
-        final String resultStr = mockMvc.perform(get("/probe/policiesByEntityType/" + probeId)
-                .param("entityType", "14")
-                .accept(MediaType.APPLICATION_JSON_UTF8_VALUE)).andExpect(status().isOk())
-                .andReturn()
-                .getResponse()
-                .getContentAsString();
-        ProbeActionsInfo actionsInfo = GSON.fromJson(resultStr, ProbeActionsInfo.class);
-        Assert.assertEquals(SDK_TO_PROBE_ACTIONS_CONVERTER.convert(sdkActionPolicies)
-                .stream().filter(policy -> policy.getEntityType() == 14).collect(Collectors.toList()),
-                actionsInfo.getProbeActionPolicies());
     }
 
     private List<ActionPolicyDTO> prepareProbeStoreForTestActionPolicies(long probeId) {

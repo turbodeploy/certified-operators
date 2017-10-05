@@ -5,6 +5,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.common.protobuf.topology.ProbeREST.ProbeActionCapabilitiesServiceController;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
 
 /**
@@ -19,5 +20,15 @@ public class ProbeConfig {
     @Bean
     public ProbeStore probeStore() {
         return new RemoteProbeStore(identityProviderConfig.identityProvider());
+    }
+
+    @Bean
+    public ProbeActionCapabilitiesRpcService probeActionPoliciesService() {
+        return new ProbeActionCapabilitiesRpcService(probeStore());
+    }
+
+    @Bean
+    public ProbeActionCapabilitiesServiceController actionCapabilitiesServiceController() {
+        return new ProbeActionCapabilitiesServiceController(probeActionPoliciesService());
     }
 }

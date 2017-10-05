@@ -14,7 +14,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
-import com.vmturbo.common.protobuf.action.ActionDTO.ProbeActionPolicy;
+import com.vmturbo.common.protobuf.action.ActionDTO.ProbeActionCapability;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO;
 
@@ -24,7 +24,7 @@ import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO;
  */
 public class SdkToProbeActionsConverter {
 
-    private final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger();
 
     /**
      * SDK-XL Action types matches.
@@ -78,9 +78,9 @@ public class SdkToProbeActionsConverter {
      * @return sdkPolicies converted to xl policies.
      */
     @Nonnull
-    public List<ProbeActionPolicy> convert(@Nonnull List<ActionPolicyDTO> sdkPolicies) {
+    public static List<ProbeActionCapability> convert(@Nonnull List<ActionPolicyDTO> sdkPolicies) {
         return Objects.requireNonNull(sdkPolicies).stream()
-                .map(this::convert).collect(Collectors.toList());
+                .map(SdkToProbeActionsConverter::convert).collect(Collectors.toList());
     }
 
     /**
@@ -90,13 +90,13 @@ public class SdkToProbeActionsConverter {
      * @return converted xl policy.
      */
     @Nonnull
-    public ProbeActionPolicy convert(@Nonnull ActionPolicyDTO sdkActionPolicy) {
-        ProbeActionPolicy convertedPolicy = ProbeActionPolicy.newBuilder()
+    public static ProbeActionCapability convert(@Nonnull ActionPolicyDTO sdkActionPolicy) {
+        ProbeActionCapability convertedPolicy = ProbeActionCapability.newBuilder()
                 .setEntityType(Objects.requireNonNull(sdkActionPolicy)
                 .getEntityType().getNumber())
-                .addAllPolicyElement(convertAllSdkPolicyElementsToXl(sdkActionPolicy
+                .addAllCapabilityElement(convertAllSdkPolicyElementsToXl(sdkActionPolicy
                         .getPolicyElementList())).build();
-        logger.trace(sdkActionPolicy + " was converted into " + convertedPolicy);
+        logger.trace("{} was converted into {}", sdkActionPolicy, convertedPolicy);
         return convertedPolicy;
     }
 
@@ -106,11 +106,11 @@ public class SdkToProbeActionsConverter {
      * @param allPolicyElements policy elements to convert.
      * @return converted elements.
      */
-    private List<ProbeActionPolicy.ActionPolicyElement> convertAllSdkPolicyElementsToXl(
+    private static List<ProbeActionCapability.ActionCapabilityElement> convertAllSdkPolicyElementsToXl(
             @Nonnull List<ActionPolicyDTO.ActionPolicyElement> allPolicyElements) {
 
         return Objects.requireNonNull(allPolicyElements).stream()
-                .map(this::convertSdkPolicyElementToXl)
+                .map(SdkToProbeActionsConverter::convertSdkPolicyElementToXl)
                 .collect(Collectors.toList());
     }
 
@@ -120,7 +120,7 @@ public class SdkToProbeActionsConverter {
      * @param sdkPolicyElement policy element to convert.
      * @return converted policy element.
      */
-    private ProbeActionPolicy.ActionPolicyElement convertSdkPolicyElementToXl(
+    private static ProbeActionCapability.ActionCapabilityElement convertSdkPolicyElementToXl(
             @Nonnull ActionPolicyDTO.ActionPolicyElement sdkPolicyElement) {
 
         ActionDTO.ActionType mapedType = SDK_TO_XL_ACTIONS.get(sdkPolicyElement.getActionType());
@@ -128,9 +128,9 @@ public class SdkToProbeActionsConverter {
             logger.warn(sdkPolicyElement.getActionType() + " was maped into ActionType.NONE! " +
                     "Sdk policy element: " + sdkPolicyElement);
         }
-        return ProbeActionPolicy.ActionPolicyElement
+        return ProbeActionCapability.ActionCapabilityElement
                 .newBuilder()
-                .setActionCapability(ProbeActionPolicy.ActionCapability
+                .setActionCapability(ProbeActionCapability.ActionCapability
                 .forNumber(Objects.requireNonNull(sdkPolicyElement)
                 .getActionCapability().getNumber()))
                 .setActionType(mapedType)

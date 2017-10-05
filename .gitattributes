@@ -461,6 +461,7 @@ com.vmturbo.common.protobuf/src/main/protobuf/topology/AnalysisDTO.proto -text
 com.vmturbo.common.protobuf/src/main/protobuf/topology/DiscoveredGroup.proto -text
 com.vmturbo.common.protobuf/src/main/protobuf/topology/EntityInfo.proto -text
 com.vmturbo.common.protobuf/src/main/protobuf/topology/Identity.proto -text
+com.vmturbo.common.protobuf/src/main/protobuf/topology/Probe.proto -text
 com.vmturbo.common.protobuf/src/main/protobuf/topology/Scheduler.proto -text
 com.vmturbo.common.protobuf/src/main/protobuf/topology/TopologyDTO.proto -text
 com.vmturbo.common.protobuf/src/test/java/com/vmturbo/common/protobuf/GroupDTOUtilTest.java -text
@@ -1334,6 +1335,7 @@ com.vmturbo.topology.processor/src/main/java/com/vmturbo/topology/processor/oper
 com.vmturbo.topology.processor/src/main/java/com/vmturbo/topology/processor/operation/validation/ValidationMessageHandler.java -text
 com.vmturbo.topology.processor/src/main/java/com/vmturbo/topology/processor/operation/validation/ValidationResult.java -text
 com.vmturbo.topology.processor/src/main/java/com/vmturbo/topology/processor/probes/AccountValueAdaptor.java svneol=native#text/x-java
+com.vmturbo.topology.processor/src/main/java/com/vmturbo/topology/processor/probes/ProbeActionCapabilitiesRpcService.java -text
 com.vmturbo.topology.processor/src/main/java/com/vmturbo/topology/processor/probes/ProbeConfig.java -text
 com.vmturbo.topology.processor/src/main/java/com/vmturbo/topology/processor/probes/ProbeException.java -text
 com.vmturbo.topology.processor/src/main/java/com/vmturbo/topology/processor/probes/ProbeStore.java -text
@@ -1423,6 +1425,7 @@ com.vmturbo.topology.processor/src/test/java/com/vmturbo/topology/processor/oper
 com.vmturbo.topology.processor/src/test/java/com/vmturbo/topology/processor/operation/OperationTest.java -text
 com.vmturbo.topology.processor/src/test/java/com/vmturbo/topology/processor/operation/OperationTestUtilities.java -text
 com.vmturbo.topology.processor/src/test/java/com/vmturbo/topology/processor/probes/FakeTransport.java svneol=native#text/x-java
+com.vmturbo.topology.processor/src/test/java/com/vmturbo/topology/processor/probes/ProbeActionCapabilitiesRpcServiceTest.java -text
 com.vmturbo.topology.processor/src/test/java/com/vmturbo/topology/processor/probes/ProbeRegistrationTest.java svneol=native#text/x-java
 com.vmturbo.topology.processor/src/test/java/com/vmturbo/topology/processor/probes/RemoteProbeStoreTest.java -text
 com.vmturbo.topology.processor/src/test/java/com/vmturbo/topology/processor/rest/EntityRpcServiceTest.java -text

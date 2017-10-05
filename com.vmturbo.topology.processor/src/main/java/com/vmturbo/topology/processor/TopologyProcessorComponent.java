@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
+import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
@@ -22,6 +23,7 @@ import io.grpc.ServerBuilder;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.SQLDBHealthMonitor;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
+import com.vmturbo.components.common.health.sql.SQLDBHealthMonitor;
 import com.vmturbo.topology.processor.actions.ActionsConfig;
 import com.vmturbo.topology.processor.analysis.AnalysisConfig;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorApiConfig;
@@ -57,6 +59,8 @@ import com.vmturbo.topology.processor.topology.TopologyConfig;
     SdkServerConfig.class,
     EntityConfig.class,
     GroupConfig.class,
+    SchedulerConfig.class,
+    TopologyConfig.class,
     IdentityProviderConfig.class,
     OperationConfig.class,
     ProbeConfig.class,
@@ -73,6 +77,7 @@ import com.vmturbo.topology.processor.topology.TopologyConfig;
 })
 @EnableAutoConfiguration
 @EnableDiscoveryClient
+@ComponentScan({"com.vmturbo.topology.processor"})
 public class TopologyProcessorComponent extends BaseVmtComponent {
 
     private Logger log = LogManager.getLogger();
@@ -103,6 +108,9 @@ public class TopologyProcessorComponent extends BaseVmtComponent {
 
     @Autowired
     private SQLDatabaseConfig dbConfig;
+
+    @Autowired
+    private ProbeConfig probeConfig;
 
     @Value("${mariadbHealthCheckIntervalSeconds:60}")
     private int mariaHealthCheckIntervalSeconds;
@@ -138,6 +146,7 @@ public class TopologyProcessorComponent extends BaseVmtComponent {
             .addService(topologyConfig.topologyRpcService())
             .addService(identityProviderConfig.identityRpcService())
             .addService(topologyProcessorRpcConfig.discoveredGroupRpcService())
+            .addService(probeConfig.probeActionPoliciesService())
             .build());
     }
 
