@@ -172,8 +172,8 @@ public class ActionSpecMapperTest {
                                         .setReconfigure(ReconfigureExplanation.newBuilder()
                                                         .addReconfigureCommodity(2).build())
                                         .build();
-        Mockito.when(repositoryApi.getServiceEntitiesById(Mockito.eq(ImmutableSet.of(0L, 1L)),
-                        Mockito.anyBoolean()))
+        Mockito.when(repositoryApi.getServiceEntitiesById(Mockito.eq(ImmutableSet.of(0L, 1L))
+        ))
                         .thenReturn(oidToEntityMap(
                                 entityApiDTO("Target", 0L, "C0"),
                                 entityApiDTO("Source", 1L, "C1")));
@@ -203,8 +203,8 @@ public class ActionSpecMapperTest {
                         .newBuilder().setProvisionBySupplyExplanation(ProvisionBySupplyExplanation
                                         .newBuilder().setMostExpensiveCommodity(21).build())
                         .build()).build();
-        Mockito.when(repositoryApi.getServiceEntitiesById(Mockito.eq(ImmutableSet.of(0L)),
-                        Mockito.anyBoolean()))
+        Mockito.when(repositoryApi.getServiceEntitiesById(Mockito.eq(ImmutableSet.of(0L))
+        ))
                         .thenReturn(oidToEntityMap(
                                 entityApiDTO("EntityToClone", 0L, "c0")));
 
@@ -241,7 +241,7 @@ public class ActionSpecMapperTest {
                 .setEndUtilization(0.4f).build())
             .build();
 
-        Mockito.when(repositoryApi.getServiceEntitiesById(Mockito.eq(ImmutableSet.of(targetId)), Mockito.anyBoolean()))
+        Mockito.when(repositoryApi.getServiceEntitiesById(Mockito.eq(ImmutableSet.of(targetId))))
             .thenReturn(oidToEntityMap(
                     entityApiDTO("EntityToResize", targetId, "c0")));
 
@@ -267,8 +267,8 @@ public class ActionSpecMapperTest {
                                         .setActivate(ActivateExplanation.newBuilder()
                                                         .setMostExpensiveCommodity(40).build())
                                         .build();
-        Mockito.when(repositoryApi.getServiceEntitiesById(Mockito.eq(ImmutableSet.of(targetId)),
-                        Mockito.anyBoolean()))
+        Mockito.when(repositoryApi.getServiceEntitiesById(Mockito.eq(ImmutableSet.of(targetId))
+        ))
                         .thenReturn(oidToEntityMap(
                                 entityApiDTO("EntityToActivate", targetId, "c0")));
 
@@ -296,8 +296,8 @@ public class ActionSpecMapperTest {
         final String entityToDeactivateName = "EntityToDeactivate";
         final String className = "C0";
         final String prettyClassName = "C 0";
-        Mockito.when(repositoryApi.getServiceEntitiesById(Mockito.eq(ImmutableSet.of(targetId)),
-                        Mockito.anyBoolean()))
+        Mockito.when(repositoryApi.getServiceEntitiesById(Mockito.eq(ImmutableSet.of(targetId))
+        ))
                         .thenReturn(oidToEntityMap(
                                 entityApiDTO(entityToDeactivateName, targetId, className)));
 
@@ -363,7 +363,7 @@ public class ActionSpecMapperTest {
         involvedEntities.put(badDestination, Optional.empty());
 
         Mockito.when(repositoryApi.getServiceEntitiesById(
-            Mockito.eq(ImmutableSet.of(badTarget, badSource, badDestination, goodTarget)), Mockito.anyBoolean()))
+            Mockito.eq(ImmutableSet.of(badTarget, badSource, badDestination, goodTarget))))
             .thenReturn(involvedEntities);
 
         final ActionSpec moveSpec = buildActionSpec(moveInfo, Explanation.getDefaultInstance(), Optional.empty());
@@ -414,7 +414,7 @@ public class ActionSpecMapperTest {
         ).build();
 
         Mockito.when(repositoryApi.getServiceEntitiesById(
-                    Mockito.eq(ImmutableSet.of(0L, 1L, 2L)), Mockito.anyBoolean()))
+                    Mockito.eq(ImmutableSet.of(0L, 1L, 2L))))
                 .thenReturn(oidToEntityMap(
                                 entityApiDTO("Target", 0L, UIEntityType.VIRTUAL_MACHINE.getValue()),
                                 entityApiDTO("Source", 1L, srcAndDestType),

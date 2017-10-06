@@ -85,7 +85,7 @@ public class ActionSpecMapper {
 
         final Set<Long> involvedEntities = ActionDTOUtil.getInvolvedEntities(recommendations);
         final Map<Long, Optional<ServiceEntityApiDTO>> entities =
-                repositoryApi.getServiceEntitiesById(involvedEntities, false);
+                repositoryApi.getServiceEntitiesById(involvedEntities);
 
         final ActionSpecMappingContext context = new ActionSpecMappingContext(entities);
 
@@ -123,7 +123,7 @@ public class ActionSpecMapper {
         final Set<Long> involvedEntities = ActionDTOUtil.getInvolvedEntities(actionSpec
                 .getRecommendation());
         final Map<Long, Optional<ServiceEntityApiDTO>> entities =
-                repositoryApi.getServiceEntitiesById(involvedEntities, false);
+                repositoryApi.getServiceEntitiesById(involvedEntities);
 
         final ActionSpecMappingContext context = new ActionSpecMappingContext(entities);
         return mapActionSpecToActionApiDTOInternal(actionSpec, context);

@@ -227,13 +227,11 @@ public class RepositoryApi {
      * Request several service entity descriptions from the Repository.
      *
      * @param entityIds The OIDs of the entities to look for.
-     * @param populateSeverity If true, populate the severity of the returned entities.
      * @return A map of OID -> an optional containing the entity, or an empty optional if the entity was not found.
      *         Each OID in entityIds will have a matching entry in the returned map.
      */
     @Nonnull
-    public Map<Long, Optional<ServiceEntityApiDTO>> getServiceEntitiesById(@Nonnull final Set<Long> entityIds,
-                                                                           final boolean populateSeverity) {
+    public Map<Long, Optional<ServiceEntityApiDTO>> getServiceEntitiesById(@Nonnull final Set<Long> entityIds) {
         final String getEntitiesByIdSetRequest = newUriBuilder()
                 .path(SERVICE_ENTITY_MULTIGET_URI)
                 .build()
@@ -249,14 +247,12 @@ public class RepositoryApi {
 
             results.forEach(seDTO -> retMap.put(Long.parseLong(seDTO.getUuid()), Optional.of(seDTO)));
 
-            if (populateSeverity) {
-                SeverityPopulator.populate(entitySeverityRpc, realtimeTopologyContextId, retMap);
-            }
-
             return retMap;
         } catch (RestClientException e) {
-            logger.error("Error retrieving service entities by ID during {}: {}", getEntitiesByIdSetRequest, e);
-            throw new RuntimeException("Error retrieving service entities by ID during: " + getEntitiesByIdSetRequest, e);
+            logger.error("Error retrieving service entities by ID during {}: {}",
+                    getEntitiesByIdSetRequest, e);
+            throw new RuntimeException("Error retrieving service entities by ID during: " +
+                    getEntitiesByIdSetRequest, e);
         }
     }
 

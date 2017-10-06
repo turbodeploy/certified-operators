@@ -56,7 +56,6 @@ import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlock
 import com.vmturbo.common.protobuf.group.ClusterServiceGrpc.ClusterServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.Cluster;
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.DeleteGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetClusterRequest;
@@ -366,8 +365,7 @@ public class GroupsService implements IGroupsService {
 
             // Get entities of group members from the repository component
             final Map<Long, Optional<ServiceEntityApiDTO>> entities =
-                    repositoryApi.getServiceEntitiesById(Sets.newHashSet(memberIds),
-                            false);
+                    repositoryApi.getServiceEntitiesById(Sets.newHashSet(memberIds));
 
             final List<ServiceEntityApiDTO> results = new ArrayList<>();
 

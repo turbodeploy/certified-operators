@@ -259,7 +259,7 @@ public class StatsService implements IStatsService {
         //        for each ServiceEntityApiDTO returned, and throw an exception if oid is not found
         Map<Long, ServiceEntityApiDTO> entityInfoMap = new HashMap<>();
         for (Map.Entry<Long, Optional<ServiceEntityApiDTO>> entry :
-                repositoryApi.getServiceEntitiesById(oidSet, false).entrySet()) {
+                repositoryApi.getServiceEntitiesById(oidSet).entrySet()) {
             entityInfoMap.put(entry.getKey(), entry.getValue()
                             .orElseThrow(() -> new UnknownObjectException(
                                     "ServiceEntity Not Found for oid: " + entry.getKey())));

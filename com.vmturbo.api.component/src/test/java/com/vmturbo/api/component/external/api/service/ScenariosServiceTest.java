@@ -72,7 +72,7 @@ public class ScenariosServiceTest {
         grpcServer = GrpcTestServer.withServices(scenarioServiceBackend);
 
         final RepositoryApi repositoryApi = Mockito.mock(RepositoryApi.class);
-        Mockito.when(repositoryApi.getServiceEntitiesById(Mockito.any(), Mockito.anyBoolean()))
+        Mockito.when(repositoryApi.getServiceEntitiesById(Mockito.any()))
                .thenReturn(Collections.emptyMap());
         scenarioMapper = new ScenarioMapper(repositoryApi);
 

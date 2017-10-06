@@ -199,7 +199,7 @@ public class ScenarioMapper {
         // and as long as we're not retrieving detailed information about lots of scenarios.
         // If necessary we can optimize it by exposing an API call that returns only entity types.
         final Map<Long, ServiceEntityApiDTO> serviceEntityMap =
-            repositoryApi.getServiceEntitiesById(PlanDTOUtil.getInvolvedEntities(changes), false)
+            repositoryApi.getServiceEntitiesById(PlanDTOUtil.getInvolvedEntities(changes))
                 .entrySet().stream()
                 .filter(entry -> entry.getValue().isPresent())
                 // The .get() here is safe because we filtered out entries where the entity

@@ -3,7 +3,6 @@ package com.vmturbo.api.component.external.api.util;
 import java.net.NoRouteToHostException;
 import java.time.Duration;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -14,9 +13,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -25,10 +22,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.base.MoreObjects;
-import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Multimap;
 
 import io.grpc.Channel;
 import io.grpc.stub.StreamObserver;
@@ -42,7 +37,6 @@ import com.vmturbo.api.enums.SupplyChainDetailType;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
-import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
@@ -251,9 +245,6 @@ public class SupplyChainFetcher {
         private final SupplychainApiDTO supplychainApiDTO;
         private final RepositoryApi repositoryApi;
 
-        // map from EntityType to ServiceEntity OIDs of the given type in the supply chain
-        private final Multimap<String, Long> shadowOidMap;
-
         private boolean actionOrchestratorAvailable;
 
 
@@ -289,8 +280,6 @@ public class SupplyChainFetcher {
             supplychainApiDTO.setSeMap(new HashMap<>());
 
             actionOrchestratorAvailable = true;
-
-            shadowOidMap = HashMultimap.create();
         }
 
         /**
@@ -352,40 +341,52 @@ public class SupplyChainFetcher {
                     .addAllEntityIds(memberOidsList)
                     .build();
 
-            // remember these OIDs (without duplication)
-            shadowOidMap.putAll(supplyChainNode.getEntityType(), memberOidsList);
-
             // fetch service entities, if requested
-            Map<String, ServiceEntityApiDTO> serviceEntityApiDTOS = Collections.emptyMap();
+            final Map<String, ServiceEntityApiDTO> serviceEntityApiDTOS = new HashMap<>();
             if (supplyChainDetailType != null) {
                 // fetch a map from member OID to optional<ServiceEntityApiDTO>, where the
                 // optional is empty if the OID was not found
                 Map<Long, Optional<ServiceEntityApiDTO>> serviceEntitiesFromRepository =
-                        repositoryApi.getServiceEntitiesById(new HashSet<>(memberOidsList),
-                                false);
+                        repositoryApi.getServiceEntitiesById(new HashSet<>(memberOidsList));
                 // ignore the unknown OIDs for now...perhaps should complain in the future
-                serviceEntityApiDTOS = serviceEntitiesFromRepository.entrySet().stream()
+                serviceEntityApiDTOS.putAll(serviceEntitiesFromRepository.entrySet().stream()
                         .filter(entry -> entry.getValue().isPresent())
                         .collect(Collectors.toMap(entry -> Long.toString(entry.getKey()),
-                                entry -> entry.getValue().get()));
+                                entry -> entry.getValue().get())));
             }
 
-            // fetch severities
-            Optional<Map<Severity, Long>> severities = Optional.empty();
-            if (includeHealthSummary) {
+            final Map<Severity, Long> severities = new HashMap<>();
+            if (includeHealthSummary || supplyChainDetailType != null) {
+                // fetch severities, either to include in a health summary or to decorate SE's
                 try {
                     logger.debug("Collecting severities for {}", supplyChainNode.getEntityType());
 
                     // If we have already determined the AO is unavailable, avoid lots of other calls to the AO that
                     // will likely almost certainly fail and delay the response to the client.
                     if (actionOrchestratorAvailable) {
-                        final Iterable<EntitySeverity> severitiesIter =
-                                () -> severityRpcService.getEntitySeverities(severityRequest);
-
-                        severities = Optional.of(StreamSupport.stream(severitiesIter.spliterator(), false)
-                                // If no severity is provided by the AO, default to normal
-                                .map(entitySeverity -> entitySeverity.hasSeverity() ? entitySeverity.getSeverity() : Severity.NORMAL)
-                                .collect(Collectors.groupingBy(Function.identity(), Collectors.counting())));
+                        severityRpcService.getEntitySeverities(severityRequest)
+                                .forEachRemaining(entitySeverity -> {
+                                    // If no severity is provided by the AO, default to normal
+                                    Severity effectiveSeverity = entitySeverity.hasSeverity()
+                                            ? entitySeverity.getSeverity()
+                                            : Severity.NORMAL;
+                                    // if the SE is being collected, update the severity
+                                    if (supplyChainDetailType != null) {
+                                        final String oidString = Long.toString(entitySeverity.getEntityId());
+                                        if (serviceEntityApiDTOS.containsKey(oidString)) {
+                                            serviceEntityApiDTOS
+                                                    // fetch the ServiceEntityApiDTO for this ID
+                                                    .get(oidString)
+                                                    // update the severity
+                                                    .setSeverity(effectiveSeverity.name());
+                                        }
+                                    }
+                                    // if healthSummary is being created, increment the count
+                                    if (includeHealthSummary) {
+                                        severities.put(entitySeverity.getSeverity(), severities
+                                                .getOrDefault(entitySeverity.getSeverity(), 0L) + 1L);
+                                    }
+                                });
                     }
                 } catch (RuntimeException e) {
                     logger.error("Error when fetching severities: ", e);
@@ -421,7 +422,7 @@ public class SupplyChainFetcher {
          */
         private synchronized void compileSupplyChainNode(
                 @Nonnull final SupplyChainNode node,
-                @Nonnull final Optional<Map<Severity, Long>> severityMap,
+                @Nonnull final Map<Severity, Long> severityMap,
                 @Nonnull Map<String, ServiceEntityApiDTO> serviceEntityApiDTOS) {
             logger.debug("Compiling results for {}", node.getEntityType());
 
@@ -439,15 +440,11 @@ public class SupplyChainFetcher {
                 supplyChainEntry.setInstances(serviceEntityApiDTOS);
 
                 // Set health summary if we were able to retrieve severities.
-                if (severityMap.isPresent()) {
-                    Map<Severity, Long> severities = severityMap.get();
-                    // Entities with no actions are not provided a severity
-                    final Map<String, Integer> healthSummary = severities.entrySet().stream()
-                            .collect(Collectors.toMap(
-                                    entry -> ActionDTOUtil.getSeverityName(entry.getKey()),
-                                    entry -> entry.getValue().intValue()));
-                    supplyChainEntry.setHealthSummary(healthSummary);
-                }
+                final Map<String, Integer> healthSummary = severityMap.entrySet().stream()
+                        .collect(Collectors.toMap(
+                                entry -> ActionDTOUtil.getSeverityName(entry.getKey()),
+                                entry -> entry.getValue().intValue()));
+                supplyChainEntry.setHealthSummary(healthSummary);
             }
         }
 

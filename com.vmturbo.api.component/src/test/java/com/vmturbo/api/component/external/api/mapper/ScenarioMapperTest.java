@@ -3,13 +3,10 @@ package com.vmturbo.api.component.external.api.mapper;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
-import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -29,23 +26,14 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyAddition;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyRemoval;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyReplace;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
-import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass.EntityInfo;
-import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass.GetEntitiesInfoRequest;
-import com.vmturbo.common.protobuf.topology.EntityServiceGrpc.EntityServiceImplBase;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
-import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.when;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
-
-import io.grpc.stub.StreamObserver;
 
 public class ScenarioMapperTest {
     private static final String SCENARIO_NAME = "MyScenario";
@@ -60,7 +48,7 @@ public class ScenarioMapperTest {
         repositoryApi = Mockito.mock(RepositoryApi.class);
 
         // Return empty by default to keep NPE's at bay.
-        when(repositoryApi.getServiceEntitiesById(any(), anyBoolean()))
+        when(repositoryApi.getServiceEntitiesById(any()))
             .thenReturn(Collections.emptyMap());
 
         scenarioMapper = new ScenarioMapper(repositoryApi);
@@ -242,7 +230,7 @@ public class ScenarioMapperTest {
         vmDto.setClassName("VirtualMachine");
         vmDto.setDisplayName("VM #100");
 
-        when(repositoryApi.getServiceEntitiesById(eq(Sets.newHashSet(1L)), anyBoolean()))
+        when(repositoryApi.getServiceEntitiesById(eq(Sets.newHashSet(1L))))
                 .thenReturn(ImmutableMap.of(1L, Optional.of(vmDto)));
 
         ScenarioApiDTO dto = scenarioMapper.toScenarioApiDTO(scenario);
