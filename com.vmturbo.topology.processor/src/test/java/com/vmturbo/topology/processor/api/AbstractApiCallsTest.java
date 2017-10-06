@@ -10,6 +10,8 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.topology.EntityServiceGrpc;
+import com.vmturbo.topology.processor.entity.EntityRpcService;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.After;
@@ -22,15 +24,11 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import com.vmturbo.common.protobuf.topology.ActionExecutionServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ActionExecutionServiceGrpc.ActionExecutionServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.EntityServiceGrpc;
-import com.vmturbo.components.api.client.IMessageReceiver;
-import com.vmturbo.components.api.client.WebsocketNotificationReceiver;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.IntegrationTestServer;
 import com.vmturbo.platform.common.dto.Discovery.AccountValue;
 import com.vmturbo.platform.common.dto.Discovery.AccountValue.PropertyValueList;
 import com.vmturbo.topology.processor.actions.ActionExecutionRpcService;
-import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TopologyProcessorNotification;
 import com.vmturbo.topology.processor.api.dto.InputField;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetSpec;
@@ -64,8 +62,6 @@ public abstract class AbstractApiCallsTest {
 
     private GrpcTestServer grpcEntityServer;
 
-    private IMessageReceiver<TopologyProcessorNotification> messageReceiver;
-
     @Before
     public final void init() throws Exception {
         Thread.currentThread().setName(testName.getMethodName() + "-main");
@@ -76,12 +72,8 @@ public abstract class AbstractApiCallsTest {
 
         integrationTestServer = new IntegrationTestServer(testName, TestApiServerConfig.class);
 
-        messageReceiver =
-                new WebsocketNotificationReceiver<>(integrationTestServer.connectionConfig(),
-                        TopologyProcessorClient.WEBSOCKET_PATH, threadPool,
-                        TopologyProcessorNotification::parseFrom);
         topologyProcessor = TopologyProcessorClient.rpcAndNotification(
-                integrationTestServer.connectionConfig(), threadPool, messageReceiver);
+                integrationTestServer.connectionConfig(), threadPool);
 
         integrationTestServer.waitForRegisteredEndpoints(1, TIMEOUT_MS);
 
@@ -98,7 +90,7 @@ public abstract class AbstractApiCallsTest {
     public final void shutdown() throws Exception {
         logger.debug("Starting @After");
         grpcServer.close();
-        messageReceiver.close();
+        topologyProcessor.close();
         integrationTestServer.close();
         logger.debug("Finished @After");
     }

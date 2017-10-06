@@ -1,8 +1,5 @@
 package com.vmturbo.components.test.utilities.communication;
 
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-
 import javax.annotation.Nonnull;
 
 import org.springframework.context.ApplicationContext;
@@ -36,16 +33,4 @@ public interface NotificationSenderStub<ConfigClass extends StubConfiguration> {
      * @return The class of the @Configuration-annotated class.
      */
     Class<ConfigClass> getConfiguration();
-
-    /**
-     * Waits for the clients to arrive and to begin consuming notifications from this stub.
-     *
-     * @param numOfEndpoints number of clients to await to arrive
-     * @param timeout time to wait
-     * @param timeUnit time unit to treat {@code time}
-     * @throws InterruptedException if thread has been interrupted
-     * @throws TimeoutException if endpoints did not arrive after the specified time passed.
-     */
-    void waitForEndpoints(int numOfEndpoints, long timeout, @Nonnull TimeUnit timeUnit)
-            throws InterruptedException, TimeoutException;
 }

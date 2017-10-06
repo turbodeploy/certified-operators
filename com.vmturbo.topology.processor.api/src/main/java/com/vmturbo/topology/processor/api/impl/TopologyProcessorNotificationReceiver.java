@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.api.impl;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Set;
@@ -10,6 +11,8 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.protobuf.CodedInputStream;
+
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionFailure;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionProgress;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionSuccess;
@@ -19,8 +22,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.chunking.ChunkingReceiver;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.components.api.client.ApiClientException;
+import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.components.api.client.ComponentNotificationReceiver;
-import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.topology.processor.api.ActionExecutionListener;
 import com.vmturbo.topology.processor.api.DiscoveryStatus;
 import com.vmturbo.topology.processor.api.EntitiesListener;
@@ -55,49 +58,49 @@ class TopologyProcessorNotificationReceiver extends ComponentNotificationReceive
                 try {
                     command.accept(listener);
                 } catch (RuntimeException e) {
-                    getLogger().error("Error executing command for listener " + listener, e);
+                    logger.error("Error executing command for listener " + listener, e);
                 }
             });
         }
     }
 
-    public TopologyProcessorNotificationReceiver(
-            @Nonnull final IMessageReceiver<TopologyProcessorNotification> messageReceiver,
+    TopologyProcessorNotificationReceiver(
+            @Nonnull final ComponentApiConnectionConfig connectionConfig,
             @Nonnull final ExecutorService executorService) {
-        super(messageReceiver, executorService);
+        super(connectionConfig, executorService);
         this.topologyChunkReceiver = new ChunkingReceiver<>(executorService);
     }
 
     private void onTargetAddedNotification(@Nonnull final TopologyProcessorNotification message) {
         final TopologyProcessorDTO.TargetInfo notification = message.getTargetAddedNotification();
-        getLogger().debug("Target added notification received for target {}", notification.getId());
+        logger.debug("Target added notification received for target {}", notification.getId());
         final TargetInfo targetInfo = new TargetInfoProtobufWrapper(notification);
         doWithListeners(targetListeners, l -> l.onTargetAdded(targetInfo));
     }
 
     private void onTargetChangedNotification(@Nonnull final TopologyProcessorNotification message) {
         final TopologyProcessorDTO.TargetInfo notification = message.getTargetChangedNotification();
-        getLogger().debug("Target updated notification received for target {}", notification.getId());
+        logger.debug("Target updated notification received for target {}", notification.getId());
         final TargetInfo targetInfo = new TargetInfoProtobufWrapper(notification);
         doWithListeners(targetListeners, l -> l.onTargetChanged(targetInfo));
     }
 
     private void onTargetRemovedNotification(@Nonnull final TopologyProcessorNotification message) {
         final long targetId = message.getTargetRemovedNotification();
-        getLogger().debug("Target removed notification received for target {}", targetId);
+        logger.debug("Target removed notification received for target {}", targetId);
         doWithListeners(targetListeners, l -> l.onTargetRemoved(targetId));
     }
 
     private void onTargetValidatedNotification(@Nonnull final TopologyProcessorNotification message) {
         final OperationStatus notification = message.getValidationNotification();
-        getLogger().debug("Validation notification received for target {}", notification.getTargetId());
+        logger.debug("Validation notification received for target {}", notification.getTargetId());
         final ValidationStatus result = new OperationStatusWrapper(notification);
         doWithListeners(targetListeners, l -> l.onTargetValidated(result));
     }
 
     private void onTargetDiscoveredNotification(@Nonnull final TopologyProcessorNotification message) {
         final OperationStatus notification = message.getDiscoveryNotification();
-        getLogger().debug("Discovery notification received for target {}", +notification.getTargetId());
+        logger.debug("Discovery notification received for target {}", +notification.getTargetId());
         final DiscoveryStatus result = new OperationStatusWrapper(notification);
         doWithListeners(targetListeners, l -> l.onTargetDiscovered(result));
     }
@@ -120,14 +123,14 @@ class TopologyProcessorNotificationReceiver extends ComponentNotificationReceive
                         topology.getEnd().getTotalCount());
                 break;
             default:
-                getLogger().warn("Unknown broadcast data segment received: {}",
+                logger.warn("Unknown broadcast data segment received: {}",
                         topology.getSegmentCase());
         }
     }
 
     private Collection<Consumer<RemoteIterator<TopologyEntityDTO>>> createEntityConsumers(
             final long topologyId, final TopologyInfo topologyInfo) {
-        getLogger().info("TopologyInfo : " + topologyInfo);
+        logger.info("TopologyInfo : " + topologyInfo);
         return entitiesListeners.stream().map(listener -> {
             final Consumer<RemoteIterator<TopologyEntityDTO>> consumer =
                     iterator -> listener.onTopologyNotification(topologyInfo, iterator);
@@ -138,31 +141,37 @@ class TopologyProcessorNotificationReceiver extends ComponentNotificationReceive
 
     private void onActionProgressNotification(@Nonnull final TopologyProcessorNotification message) {
         final ActionProgress notification = message.getActionProgress();
-        getLogger().debug("ActionProgress notification received for action {}", notification.getActionId());
+        logger.debug("ActionProgress notification received for action {}", notification.getActionId());
         doWithListeners(actionListeners, l -> l.onActionProgress(notification));
     }
 
     private void onActionSuccessNotification(@Nonnull final TopologyProcessorNotification message) {
         final ActionSuccess notification = message.getActionSuccess();
-        getLogger().debug("ActionSuccess notification received for action {}", notification.getActionId());
+        logger.debug("ActionSuccess notification received for action {}", notification.getActionId());
         doWithListeners(actionListeners, l -> l.onActionSuccess(notification));
     }
 
     private void onActionFailureNotification(@Nonnull final TopologyProcessorNotification message) {
         final ActionFailure notification = message.getActionFailure();
-        getLogger().debug("ActionFailure notification received for action {}", notification.getActionId());
+        logger.debug("ActionFailure notification received for action {}", notification.getActionId());
         doWithListeners(actionListeners, l -> l.onActionFailure(notification));
     }
 
     private void onProbeRegisteredNotification(@Nonnull final TopologyProcessorNotification message) {
         final TopologyProcessorDTO.ProbeInfo notification = message.getProbeRegistrationNotification();
-        getLogger().debug("Probe registration notification received for probe {}", notification.getId());
+        logger.debug("Probe registration notification received for probe {}", notification.getId());
         doWithListeners(probeListeners, l -> l.onProbeRegistered(notification));
     }
 
     @Override
+    @Nonnull
+    protected String addWebsocketPath(@Nonnull final String serverAddress) {
+        return serverAddress + TopologyProcessorClient.WEBSOCKET_PATH;
+    }
+
+    @Override
     protected void processMessage(@Nonnull final TopologyProcessorNotification message) throws ApiClientException {
-        getLogger().trace("Processing message {}", message.getBroadcastId());
+        logger.trace("Processing message {}", message.getBroadcastId());
         switch (message.getTypeCase()) {
             case TOPOLOGY_NOTIFICATION:
                 onTopologyNotification(message);
@@ -197,7 +206,15 @@ class TopologyProcessorNotificationReceiver extends ComponentNotificationReceive
             default:
                 throw new TopologyProcessorException("Message type unrecognized: " + message);
         }
-        getLogger().trace("Message {} processed successfully", message.getBroadcastId());
+        logger.trace("Message {} processed successfully", message.getBroadcastId());
+
+    }
+
+    @Nonnull
+    @Override
+    protected TopologyProcessorNotification parseMessage(@Nonnull CodedInputStream bytes)
+            throws IOException {
+        return TopologyProcessorNotification.parseFrom(bytes);
     }
 
     public void addTargetListener(@Nonnull final TargetListener listener) {

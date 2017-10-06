@@ -1,6 +1,9 @@
 package com.vmturbo.api.component.communication;
 
 import java.net.URISyntaxException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,10 +14,11 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.converter.xml.Jaxb2RootElementHttpMessageConverter;
 import org.springframework.web.client.RestTemplate;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
 import io.grpc.Channel;
 
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClient;
-import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
 import com.vmturbo.clustermgr.api.impl.ClusterMgrClient;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
@@ -44,36 +48,38 @@ import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.grpc.extensions.PingingChannelBuilder;
 import com.vmturbo.plan.orchestrator.api.PlanOrchestrator;
-import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
+import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientImpl;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
-import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
+import com.vmturbo.topology.processor.api.impl.TopologyProcessorClient;
 
 /**
  * Configuration for the communication between the API component
  * and the rest of the components in the system.
  */
 @Configuration
-@Import({ApiWebsocketConfig.class, TopologyProcessorClientConfig.class,
-        ActionOrchestratorClientConfig.class, PlanOrchestratorClientConfig.class})
+@Import({ApiWebsocketConfig.class})
 public class CommunicationConfig {
 
-    @Autowired
-    private TopologyProcessorClientConfig tpClientConfig;
-    @Autowired
-    private ActionOrchestratorClientConfig aoClientConfig;
-    @Autowired
-    private PlanOrchestratorClientConfig planClientConfig;
     @Value("${clusterMgrHost}")
     private String clusterMgrHost;
 
     @Value("${server.port}")
     private int httpPort;
 
+    @Value("${actionOrchestratorHost}")
+    private String actionOrchestratorHost;
+
+    @Value("${topologyProcessorHost}")
+    private String topologyProcessorHost;
+
     @Value("${repositoryHost}")
     private String repositoryHost;
 
     @Value("${authHost}")
     public String authHost;
+
+    @Value("${planOrchestratorHost}")
+    private String planOrchestratorHost;
 
     @Value("${groupHost}")
     private String groupHost;
@@ -84,14 +90,14 @@ public class CommunicationConfig {
     @Value("${realtimeTopologyContextId}")
     private Long realtimeTopologyContextId;
 
+    @Value("${server.grpcPort}")
+    private int grpcPort;
+
     @Value("${grpcPingIntervalSeconds}")
     private long grpcPingIntervalSeconds;
 
     @Value("${websocket.pong.timeout}")
     private long websocketPongTimeout;
-
-    @Value("${server.grpcPort}")
-    private int grpcPort;
 
     @Autowired
     private ApiWebsocketConfig websocketConfig;
@@ -118,9 +124,21 @@ public class CommunicationConfig {
         return restTemplate;
     }
 
+    @Bean(destroyMethod = "shutdownNow")
+    public ExecutorService actionOrchestratorListenerThreadpool() {
+        final ThreadFactory threadFactory =
+            new ThreadFactoryBuilder().setNameFormat("api-component-action-orchestrator-api-srv-%d").build();
+        return Executors.newCachedThreadPool(threadFactory);
+    }
+
     @Bean
     public ActionOrchestratorClient actionOrchestratorClient() throws CommunicationException, InterruptedException, URISyntaxException {
-        return aoClientConfig.actionOrchestratorClient();
+        return ActionOrchestratorClient.rpcAndNotification(
+            ComponentApiConnectionConfig.newBuilder()
+                .setHostAndPort(actionOrchestratorHost, httpPort)
+                .setPongMessageTimeout(websocketPongTimeout)
+                .build(),
+            actionOrchestratorListenerThreadpool());
     }
 
     @Bean
@@ -133,10 +151,17 @@ public class CommunicationConfig {
         return actionsListener;
     }
 
+    @Bean
+    public Channel actionOrchestratorChannel() {
+        return PingingChannelBuilder.forAddress(actionOrchestratorHost, grpcPort)
+                .setPingInterval(grpcPingIntervalSeconds, TimeUnit.SECONDS)
+                .usePlaintext(true)
+                .build();
+    }
 
     @Bean
     public ActionsServiceBlockingStub actionsRpcService() {
-        return ActionsServiceGrpc.newBlockingStub(aoClientConfig.actionOrchestratorChannel());
+        return ActionsServiceGrpc.newBlockingStub(actionOrchestratorChannel());
     }
 
     @Bean
@@ -146,13 +171,12 @@ public class CommunicationConfig {
 
     @Bean
     public PlanServiceBlockingStub planRpcService() {
-        return PlanServiceGrpc.newBlockingStub(planClientConfig.planOrchestratorChannel());
+        return PlanServiceGrpc.newBlockingStub(planOrchestratorChannel());
     }
 
     @Bean
     public EntitySeverityServiceBlockingStub entitySeverityService() {
-        return EntitySeverityServiceGrpc.newBlockingStub(
-                aoClientConfig.actionOrchestratorChannel());
+        return EntitySeverityServiceGrpc.newBlockingStub(actionOrchestratorChannel());
     }
 
     @Bean
@@ -171,8 +195,26 @@ public class CommunicationConfig {
     }
 
     @Bean
+    public Channel planOrchestratorChannel() {
+        return PingingChannelBuilder.forAddress(planOrchestratorHost, grpcPort)
+                .setPingInterval(grpcPingIntervalSeconds, TimeUnit.SECONDS)
+                .usePlaintext(true)
+                .build();
+    }
+
+    @Bean
     public TopologyProcessor topologyProcessor() {
-        return tpClientConfig.topologyProcessorRpcOnly();
+        return TopologyProcessorClient.rpcOnly(ComponentApiConnectionConfig.newBuilder()
+                .setHostAndPort(topologyProcessorHost, httpPort)
+                .setPongMessageTimeout(websocketPongTimeout)
+                .build());
+    }
+
+    @Bean(destroyMethod = "shutdownNow")
+    public ExecutorService planOrchestratorListenerThreadpool() {
+        final ThreadFactory threadFactory =
+                new ThreadFactoryBuilder().setNameFormat("api-component-plan-orchestrator-api-srv-%d").build();
+        return Executors.newCachedThreadPool(threadFactory);
     }
 
     @Bean
@@ -185,7 +227,10 @@ public class CommunicationConfig {
 
     @Bean
     public PlanOrchestrator planOrchestrator() {
-        final PlanOrchestrator planOrchestrator = planClientConfig.planOrchestrator();
+        PlanOrchestrator planOrchestrator = new PlanOrchestratorClientImpl(ComponentApiConnectionConfig.newBuilder()
+                .setHostAndPort(planOrchestratorHost, httpPort)
+                .setPongMessageTimeout(websocketPongTimeout)
+                .build(), planOrchestratorListenerThreadpool());
         planOrchestrator.addPlanListener(apiComponentPlanListener());
         return planOrchestrator;
     }
@@ -246,21 +291,11 @@ public class CommunicationConfig {
 
     @Bean
     public TemplateServiceBlockingStub templateServiceBlockingStub() {
-        return TemplateServiceGrpc.newBlockingStub(planClientConfig.planOrchestratorChannel());
+        return TemplateServiceGrpc.newBlockingStub(planOrchestratorChannel());
     }
 
     @Bean
     public TemplateSpecServiceBlockingStub templateSpecServiceBlockingStub() {
-        return TemplateSpecServiceGrpc.newBlockingStub(planClientConfig.planOrchestratorChannel());
-    }
-
-    @Bean
-    public Channel planOrchestratorChannel() {
-        return planClientConfig.planOrchestratorChannel();
-    }
-
-    @Bean
-    public Channel actionOrchestratorChannel() {
-        return aoClientConfig.actionOrchestratorChannel();
+        return TemplateSpecServiceGrpc.newBlockingStub(planOrchestratorChannel());
     }
 }

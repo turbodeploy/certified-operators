@@ -19,15 +19,11 @@ import org.springframework.web.socket.server.standard.ServerEndpointRegistration
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClient;
-import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionOrchestratorNotification;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.EntitySeverityCache;
 import com.vmturbo.commons.idgen.IdentityInitializer;
-import com.vmturbo.communication.WebsocketServerTransportManager;
 import com.vmturbo.components.api.ComponentGsonFactory;
-import com.vmturbo.components.api.server.BroadcastWebsocketTransportManager;
-import com.vmturbo.components.api.server.WebsocketNotificationSender;
 import com.vmturbo.components.api.test.IntegrationTestServer;
 
 /**
@@ -51,25 +47,13 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
 
     @Bean
     public ActionOrchestratorNotificationSender actionOrchestratorApi() {
-        return new ActionOrchestratorNotificationSender(apiServerThreadPool(),
-                notificationSender());
-    }
-
-    @Bean
-    public WebsocketNotificationSender<ActionOrchestratorNotification> notificationSender() {
-        return new WebsocketNotificationSender<>(apiServerThreadPool());
-    }
-
-    @Bean
-    public WebsocketServerTransportManager transportManager() {
-        return BroadcastWebsocketTransportManager.createTransportManager(apiServerThreadPool(),
-                notificationSender());
+        return new ActionOrchestratorNotificationSender(apiServerThreadPool());
     }
 
     @Bean
     public ServerEndpointRegistration apiEndpointRegistration() {
         return new ServerEndpointRegistration(ActionOrchestratorClient.WEBSOCKET_PATH,
-                transportManager());
+                actionOrchestratorApi().getWebsocketEndpoint());
     }
 
     @Bean

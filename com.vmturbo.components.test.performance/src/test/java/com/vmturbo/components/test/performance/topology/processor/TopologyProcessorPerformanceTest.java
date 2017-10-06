@@ -23,7 +23,6 @@ import org.junit.Test;
 import io.grpc.stub.StreamObserver;
 import io.prometheus.client.Summary;
 import io.prometheus.client.Summary.Timer;
-
 import tec.units.ri.unit.MetricPrefix;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
@@ -50,7 +49,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyServiceGrpc.TopologyServiceBlockingStub;
 import com.vmturbo.communication.chunking.RemoteIterator;
-import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.components.test.utilities.ComponentTestRule;
 import com.vmturbo.components.test.utilities.alert.Alert;
 import com.vmturbo.components.test.utilities.communication.ComponentStubHost;
@@ -70,7 +68,6 @@ import com.vmturbo.topology.processor.api.TargetListener;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClient;
-import com.vmturbo.topology.processor.api.impl.TopologyProcessorMessageReceiver;
 
 @Alert({
     "tp_broadcast_duration_seconds_sum/5minutes",
@@ -83,7 +80,6 @@ public class TopologyProcessorPerformanceTest {
     private TopologyServiceBlockingStub topologyService;
 
     private TopologyProcessor topologyProcessor;
-    private TopologyProcessorMessageReceiver messageReceiver;
 
     private ExecutorService threadPool = Executors.newCachedThreadPool();
 
@@ -109,19 +105,17 @@ public class TopologyProcessorPerformanceTest {
 
     @Before
     public void setup() {
-        final ComponentApiConnectionConfig connectionConfig =
-                componentTestRule.getCluster().getConnectionConfig("topology-processor");
-        messageReceiver = new TopologyProcessorMessageReceiver(connectionConfig, threadPool);
         topologyService = TopologyServiceGrpc.newBlockingStub(
                 componentTestRule.getCluster().newGrpcChannel("topology-processor"));
-        topologyProcessor = TopologyProcessorClient.rpcAndNotification(connectionConfig, threadPool,
-                messageReceiver);
+        topologyProcessor = TopologyProcessorClient.rpcAndNotification(
+                componentTestRule.getCluster().getConnectionConfig("topology-processor"),
+                threadPool);
     }
 
     @After
     public void teardown() {
         try {
-            messageReceiver.close();
+            topologyProcessor.close();
 
             threadPool.shutdownNow();
             threadPool.awaitTermination(10, TimeUnit.MINUTES);

@@ -1,6 +1,5 @@
 package com.vmturbo.plan.orchestrator.plan;
 
-import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 
 import javax.annotation.Nonnull;
@@ -8,19 +7,14 @@ import javax.annotation.Nonnull;
 import com.vmturbo.action.orchestrator.api.PlanOrchestratorDTO.PlanNotification;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.components.api.server.ComponentNotificationSender;
-import com.vmturbo.components.api.server.IMessageSender;
 
 /**
  * API backend for plan-related notifications.
  */
 public class PlanNotificationSender extends ComponentNotificationSender<PlanNotification> {
 
-    private final IMessageSender<PlanNotification> sender;
-
-    public PlanNotificationSender(@Nonnull final ExecutorService threadPool,
-            @Nonnull IMessageSender<PlanNotification> sender) {
+    public PlanNotificationSender(@Nonnull final ExecutorService threadPool) {
         super(threadPool);
-        this.sender = Objects.requireNonNull(sender);
     }
 
     public void onPlanStatusChanged(@Nonnull final PlanInstance plan) {
@@ -28,7 +22,7 @@ public class PlanNotificationSender extends ComponentNotificationSender<PlanNoti
                 .setBroadcastId(newMessageChainId())
                 .setStatusChanged(plan)
                 .build();
-        sendMessage(sender, message);
+        sendMessage(message.getBroadcastId(), message);
     }
 
     @Override

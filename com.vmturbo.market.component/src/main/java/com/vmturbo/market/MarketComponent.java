@@ -6,13 +6,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
+import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Import;
 
 import com.vmturbo.components.common.BaseVmtComponent;
-import com.vmturbo.market.api.MarketApiConfig;
-import com.vmturbo.market.priceindex.PriceIndexApiConfig;
-import com.vmturbo.market.topology.TopologyProcessorConfig;
 
 /**
  * Component wrapping the Market implementation.
@@ -20,8 +17,7 @@ import com.vmturbo.market.topology.TopologyProcessorConfig;
 @Configuration("theComponent")
 @EnableAutoConfiguration
 @EnableDiscoveryClient
-@Import({MarketGlobalConfig.class, TopologyProcessorConfig.class, PriceIndexApiConfig.class,
-        MarketApiConfig.class})
+@ComponentScan("com.vmturbo.market")
 public class MarketComponent extends BaseVmtComponent {
 
     private Logger log = LogManager.getLogger();

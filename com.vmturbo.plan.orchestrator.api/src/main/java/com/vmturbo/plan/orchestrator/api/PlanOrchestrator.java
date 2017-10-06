@@ -5,7 +5,7 @@ import javax.annotation.Nonnull;
 /**
  * Plan orchestrator remote client.
  */
-public interface PlanOrchestrator {
+public interface PlanOrchestrator extends AutoCloseable {
 
     void addPlanListener(@Nonnull PlanListener planListener);
 }

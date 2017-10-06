@@ -6,7 +6,7 @@ import javax.annotation.Nonnull;
  * The client interface to a remote action orchestrator
  * component.
  */
-public interface ActionOrchestrator {
+public interface ActionOrchestrator extends AutoCloseable {
 
     /**
      * Registers a listener for action recommendations.

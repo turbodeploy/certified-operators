@@ -23,7 +23,6 @@ import com.vmturbo.communication.chunking.ChunkingReceiver;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.components.api.client.ComponentNotificationReceiver;
-import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.market.component.api.ActionsListener;
 import com.vmturbo.market.component.api.ProjectedTopologyListener;
 import com.vmturbo.market.component.dto.MarketMessages.MarketComponentNotification;
@@ -42,10 +41,23 @@ class MarketComponentNotificationReceiver extends
     private final ChunkingReceiver<TopologyEntityDTO> topologyChunkReceiver;
 
     MarketComponentNotificationReceiver(
-            @Nonnull final IMessageReceiver<MarketComponentNotification> messageReceiver,
+            @Nonnull final ComponentApiConnectionConfig connectionConfig,
             @Nonnull final ExecutorService executorService) {
-        super(messageReceiver, executorService);
+        super(connectionConfig, executorService);
         topologyChunkReceiver = new ChunkingReceiver<>(executorService);
+    }
+
+    @Nonnull
+    @Override
+    protected String addWebsocketPath(@Nonnull final String serverAddress) {
+        return serverAddress + MarketComponentClient.WEBSOCKET_PATH;
+    }
+
+    @Nonnull
+    @Override
+    protected MarketComponentNotification parseMessage(@Nonnull CodedInputStream bytes)
+            throws IOException {
+        return MarketComponentNotification.parseFrom(bytes);
     }
 
     void addActionsListener(@Nonnull final ActionsListener listener) {
@@ -73,12 +85,11 @@ class MarketComponentNotificationReceiver extends
 
     private void processActions(@Nonnull final ActionPlan actions) {
         for (final ActionsListener listener : actionsListenersSet) {
-            getExecutorService().submit(() -> {
+            executorService.submit(() -> {
                 try {
                     listener.onActionsReceived(actions);
                 } catch (RuntimeException e) {
-                    getLogger().error("Error executing entities notification for listener " +
-                            listener, e);
+                    logger.error("Error executing entities notification for listener " + listener, e);
                 }
             });
         }
@@ -101,7 +112,7 @@ class MarketComponentNotificationReceiver extends
                         topology.getEnd().getTotalCount());
                 break;
             default:
-                getLogger().warn("Unknown broadcast data segment received: {}",
+                logger.warn("Unknown broadcast data segment received: {}",
                         topology.getSegmentCase());
         }
     }

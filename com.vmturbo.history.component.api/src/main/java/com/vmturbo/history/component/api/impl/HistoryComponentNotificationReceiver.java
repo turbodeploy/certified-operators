@@ -1,5 +1,6 @@
 package com.vmturbo.history.component.api.impl;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
@@ -8,9 +9,11 @@ import java.util.function.Consumer;
 
 import javax.annotation.Nonnull;
 
+import com.google.protobuf.CodedInputStream;
+
 import com.vmturbo.components.api.client.ApiClientException;
+import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.components.api.client.ComponentNotificationReceiver;
-import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.history.component.api.HistoryComponent;
 import com.vmturbo.history.component.api.HistoryComponentNotifications.HistoryComponentNotification;
 import com.vmturbo.history.component.api.StatsListener;
@@ -28,9 +31,21 @@ public class HistoryComponentNotificationReceiver
      * {@inheritDoc}
      */
     public HistoryComponentNotificationReceiver(
-            @Nonnull final IMessageReceiver<HistoryComponentNotification> messageReceiver,
+            @Nonnull final ComponentApiConnectionConfig connectionConfig,
             @Nonnull final ExecutorService executorService) {
-        super(messageReceiver, executorService);
+        super(connectionConfig, executorService);
+    }
+
+    @Nonnull
+    @Override
+    protected String addWebsocketPath(@Nonnull final String serverAddress) {
+        return serverAddress + WEBSOCKET_PATH;
+    }
+
+    @Nonnull
+    @Override
+    protected HistoryComponentNotification parseMessage(@Nonnull final CodedInputStream bytes) throws IOException {
+        return HistoryComponentNotification.parseFrom(bytes);
     }
 
     @Override
@@ -45,12 +60,11 @@ public class HistoryComponentNotificationReceiver
 
     private void processNotification(@Nonnull final Consumer<StatsListener> listenerConsumer,
                                      @Nonnull final String notificationDescription) {
-        statsListeners.forEach(listener -> getExecutorService().submit(() -> {
+        statsListeners.forEach(listener -> executorService.submit(() -> {
             try {
                 listenerConsumer.accept(listener);
             } catch (RuntimeException e) {
-                getLogger().error("Error executing " + notificationDescription + " notification " +
-                        "listener.", e);
+                logger.error("Error executing " + notificationDescription + " notification listener.", e);
             }
         }));
     }

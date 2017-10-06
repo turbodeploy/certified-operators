@@ -23,14 +23,10 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClient;
-import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorMessageReceiver;
-import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionOrchestratorNotification;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionFailure;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionProgress;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionSuccess;
-import com.vmturbo.components.api.client.IMessageReceiver;
-import com.vmturbo.components.api.client.WebsocketNotificationReceiver;
 import com.vmturbo.components.api.test.IntegrationTestServer;
 
 /**
@@ -66,8 +62,6 @@ public class ActionOrchestratorApiIntegrationTest {
     @Captor
     private ArgumentCaptor<ActionFailure> failureCaptor;
 
-    private IMessageReceiver<ActionOrchestratorNotification> messageReceiver;
-
     @Before
     public final void init() throws Exception {
 
@@ -80,11 +74,8 @@ public class ActionOrchestratorApiIntegrationTest {
         final ExecutorService threadPool = Executors.newCachedThreadPool(threadFactory);
 
         integrationTestServer = new IntegrationTestServer(testName, TestApiServerConfig.class);
-        messageReceiver =
-                new ActionOrchestratorMessageReceiver(integrationTestServer.connectionConfig(),
-                        threadPool);
         actionOrchestrator = ActionOrchestratorClient.rpcAndNotification(
-                integrationTestServer.connectionConfig(), threadPool, messageReceiver);
+            integrationTestServer.connectionConfig(), threadPool);
 
         notificationSender =
                 integrationTestServer.getBean(ActionOrchestratorNotificationSender.class);
@@ -96,7 +87,7 @@ public class ActionOrchestratorApiIntegrationTest {
     @After
     public final void shutdown() throws Exception {
         logger.debug("Starting @After");
-        messageReceiver.close();
+        actionOrchestrator.close();
         integrationTestServer.close();
         logger.debug("Finished @After");
     }
@@ -191,7 +182,7 @@ public class ActionOrchestratorApiIntegrationTest {
     @Ignore("Fails intermittently on build server. Not reproducible locally. Please fix.")
     @Test
     public void testEndpointClear() throws Exception {
-        messageReceiver.close();
+        actionOrchestrator.close();
         integrationTestServer.waitForRegisteredEndpoints(0, TIMEOUT_MS);
     }
 }

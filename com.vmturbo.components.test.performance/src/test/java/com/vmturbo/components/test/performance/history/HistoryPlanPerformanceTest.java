@@ -22,7 +22,6 @@ import com.vmturbo.components.test.utilities.component.ComponentCluster;
 import com.vmturbo.components.test.utilities.component.ComponentUtils;
 import com.vmturbo.history.component.api.HistoryComponentNotifications.StatsAvailable;
 import com.vmturbo.history.component.api.impl.HistoryComponentNotificationReceiver;
-import com.vmturbo.history.component.api.impl.HistoryMessageReceiver;
 
 /**
  * Performance tests for the history component.
@@ -55,10 +54,8 @@ public class HistoryPlanPerformanceTest extends HistoryPerformanceTest {
 
     @Before
     public void setup() {
-        historyMessageReceiver = new HistoryMessageReceiver(
-                componentTestRule.getCluster().getConnectionConfig("history"), threadPool);
-        historyComponent =
-                new HistoryComponentNotificationReceiver(historyMessageReceiver, threadPool);
+        historyComponent = new HistoryComponentNotificationReceiver(
+            componentTestRule.getCluster().getConnectionConfig("history"), threadPool);
         historyComponent.addStatsListener(statsListener);
 
         final Channel historyChannel = componentTestRule.getCluster().newGrpcChannel("history");
@@ -68,7 +65,7 @@ public class HistoryPlanPerformanceTest extends HistoryPerformanceTest {
     @After
     public void teardown() {
         try {
-            historyMessageReceiver.close();
+            historyComponent.close();
 
             threadPool.shutdownNow();
             threadPool.awaitTermination(10, TimeUnit.MINUTES);

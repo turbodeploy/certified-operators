@@ -7,7 +7,6 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.sample.Echo.EchoResponse;
 import com.vmturbo.components.api.server.ComponentNotificationSender;
-import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.sample.api.SampleComponent;
 import com.vmturbo.sample.api.SampleNotifications.SampleNotification;
 import com.vmturbo.sample.api.impl.SampleComponentNotificationReceiver;
@@ -29,12 +28,8 @@ import com.vmturbo.sample.component.echo.EchoRpcConfig;
 public class SampleComponentNotificationSender extends
         ComponentNotificationSender<SampleNotification> {
 
-    private final IMessageSender<SampleNotification> sender;
-
-    protected SampleComponentNotificationSender(@Nonnull final ExecutorService executorService,
-            @Nonnull IMessageSender<SampleNotification> sender) {
+    protected SampleComponentNotificationSender(@Nonnull final ExecutorService executorService) {
         super(executorService);
-        this.sender = Objects.requireNonNull(sender);
     }
 
     /**
@@ -46,7 +41,7 @@ public class SampleComponentNotificationSender extends
             .setEchoResponse(Objects.requireNonNull(response))
             .build();
 
-        sendMessage(sender, notification);
+        sendMessage(notification.getBroadcastId(), notification);
     }
 
     private SampleNotification.Builder newNotification() {

@@ -12,10 +12,6 @@ import org.springframework.web.socket.server.standard.ServerEndpointRegistration
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
-import com.vmturbo.action.orchestrator.api.PlanOrchestratorDTO.PlanNotification;
-import com.vmturbo.communication.WebsocketServerTransportManager;
-import com.vmturbo.components.api.server.BroadcastWebsocketTransportManager;
-import com.vmturbo.components.api.server.WebsocketNotificationSender;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientImpl;
 
 /**
@@ -24,27 +20,16 @@ import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientImpl;
 @Configuration
 public class PlanTestConfigWebsocket extends PlanTestConfig {
 
-    @Bean
-    public WebsocketNotificationSender<PlanNotification> notificationSender() {
-        return new WebsocketNotificationSender<>(planThreadPool());
-    }
-
-    @Bean
-    public WebsocketServerTransportManager transportManager() {
-        return BroadcastWebsocketTransportManager.createTransportManager(planThreadPool(),
-                notificationSender());
-    }
-
     @Override
     @Bean
     public PlanNotificationSender planNotificationSender() {
-        return new PlanNotificationSender(planThreadPool(), notificationSender());
+        return new PlanNotificationSender(planThreadPool());
     }
 
     @Bean
     public ServerEndpointRegistration planApiEndpointRegistration() {
         return new ServerEndpointRegistration(PlanOrchestratorClientImpl.WEBSOCKET_PATH,
-                transportManager());
+                planNotificationSender().getWebsocketEndpoint());
     }
 
     @Bean(destroyMethod = "shutdownNow")

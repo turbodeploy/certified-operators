@@ -22,9 +22,6 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
-                <configuration>
-                    <attach>false</attach>
-                </configuration>
             </plugin>
             <plugin>
                 <groupId>com.spotify</groupId>

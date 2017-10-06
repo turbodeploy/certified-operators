@@ -15,10 +15,8 @@ import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
 import com.vmturbo.common.protobuf.sample.Echo.EchoResponse;
-import com.vmturbo.components.api.client.WebsocketNotificationReceiver;
 import com.vmturbo.components.api.test.IntegrationTestServer;
 import com.vmturbo.sample.api.EchoListener;
-import com.vmturbo.sample.api.SampleNotifications.SampleNotification;
 import com.vmturbo.sample.api.impl.SampleComponentNotificationReceiver;
 
 /**
@@ -45,8 +43,6 @@ public class SampleNotificationsTest {
 
     private SampleComponentNotificationSender notificationsBackend;
 
-    private WebsocketNotificationReceiver<SampleNotification> messageReceiver;
-
     @Rule
     public TestName testName = new TestName();
 
@@ -62,17 +58,12 @@ public class SampleNotificationsTest {
         // The test name is used for logging/debugging purposes.
         server = new IntegrationTestServer(testName, SampleNotificationsTestConfig.class);
 
-        messageReceiver = new WebsocketNotificationReceiver<>(server.connectionConfig(),
-                SampleComponentNotificationReceiver.WEBSOCKET_PATH, threadPool,
-                SampleNotification::parseFrom);
-
         // Get the EchoNotificationsBackend initialized in the Spring context of the
         // IntegrationTestServer.
         notificationsBackend = server.getBean(SampleComponentNotificationSender.class);
 
         // Create a component client that connects to the test server.
-        sampleComponentNotificationReceiver =
-                new SampleComponentNotificationReceiver(messageReceiver, threadPool);
+        sampleComponentNotificationReceiver = new SampleComponentNotificationReceiver(server.connectionConfig(), threadPool);
 
         // Wait for the websocket connection to be established.
         server.waitForRegisteredEndpoints(1, TIMEOUT_MS);
@@ -80,7 +71,7 @@ public class SampleNotificationsTest {
 
     @After
     public void close() throws Exception {
-        messageReceiver.close();
+        sampleComponentNotificationReceiver.close();
         server.close();
         threadPool.shutdownNow();
     }

@@ -41,7 +41,6 @@ import com.vmturbo.components.test.utilities.component.ServiceHealthCheck.BasicS
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.repository.api.Repository;
 import com.vmturbo.repository.api.RepositoryListener;
-import com.vmturbo.repository.api.impl.RepositoryMessageReceiver;
 import com.vmturbo.repository.api.impl.RepositoryNotificationReceiver;
 import com.vmturbo.topology.processor.api.server.TopologyBroadcast;
 
@@ -63,7 +62,6 @@ public class RepositoryPerformanceTest {
 
     private Repository repository;
     private SupplyChainServiceBlockingStub supplyChainService;
-    private RepositoryMessageReceiver messageReceiver;
     private ExecutorService threadPool = Executors.newCachedThreadPool();
 
     @Rule
@@ -84,9 +82,9 @@ public class RepositoryPerformanceTest {
 
     @Before
     public void setup() {
-        messageReceiver = new RepositoryMessageReceiver(
-                componentTestRule.getCluster().getConnectionConfig("repository"), threadPool);
-        repository = new RepositoryNotificationReceiver(messageReceiver, threadPool);
+        repository = new RepositoryNotificationReceiver(
+            componentTestRule.getCluster().getConnectionConfig("repository"),
+            threadPool);
 
         final Channel repositoryChannel = componentTestRule.getCluster().newGrpcChannel("repository");
         supplyChainService = SupplyChainServiceGrpc.newBlockingStub(repositoryChannel);
@@ -95,7 +93,7 @@ public class RepositoryPerformanceTest {
     @After
     public void teardown() {
         try {
-            messageReceiver.close();
+            repository.close();
 
             threadPool.shutdownNow();
             threadPool.awaitTermination(10, TimeUnit.MINUTES);

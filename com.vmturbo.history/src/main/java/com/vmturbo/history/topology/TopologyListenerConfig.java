@@ -17,26 +17,31 @@ import com.vmturbo.history.api.HistoryApiConfig;
 import com.vmturbo.history.stats.StatsConfig;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClient;
-import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 
 /**
  * Set up a Listener for the Topology Processor feed.
  **/
 @Configuration
-@Import({HistoryApiConfig.class, TopologyProcessorClientConfig.class})
+@Import({HistoryApiConfig.class})
 public class TopologyListenerConfig {
 
-    @Autowired
-    private TopologyProcessorClientConfig topologyClientConfig;
+    @Value("${topologyProcessorHost}")
+    private String topologyProcessorHost;
+
+    @Value("${server.port}")
+    private int topologyProcessorPort;
 
     @Value("${realtimeTopologyContextId}")
-    private long realtimeTopologyContextId;
+    long realtimeTopologyContextId;
 
     @Autowired
     private StatsConfig statsConfig;
 
     @Autowired
     private HistoryApiConfig historyApiConfig;
+
+    @Value("${websocket.pong.timeout}")
+    private long websocketPongTimeout;
 
     @Bean
     public TopologyEntitiesListener topologyEntitiesListener() {
@@ -49,9 +54,19 @@ public class TopologyListenerConfig {
 
     @Bean
     public TopologyProcessor topologyProcessor() {
-        final TopologyProcessor topologyProcessor = topologyClientConfig.topologyProcessor();
+        final TopologyProcessor topologyProcessor =
+                TopologyProcessorClient.rpcAndNotification(connectionConfig(), tpClientExecutorService());
         topologyProcessor.addEntitiesListener(topologyEntitiesListener());
         return topologyProcessor;
+    }
+
+
+    @Bean
+    public ComponentApiConnectionConfig connectionConfig() {
+        return ComponentApiConnectionConfig.newBuilder()
+                .setHostAndPort(topologyProcessorHost, topologyProcessorPort)
+                .setPongMessageTimeout(websocketPongTimeout)
+                .build();
     }
 
     @Bean(destroyMethod = "shutdownNow")

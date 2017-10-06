@@ -12,12 +12,10 @@ import org.junit.rules.TestName;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
-import com.vmturbo.components.api.client.WebsocketNotificationReceiver;
 import com.vmturbo.components.api.test.IntegrationTestServer;
-import com.vmturbo.repository.RepositoryApiConfig;
-import com.vmturbo.repository.RepositoryNotificationSender;
-import com.vmturbo.repository.api.RepositoryDTO.RepositoryNotification;
 import com.vmturbo.repository.api.impl.RepositoryNotificationReceiver;
+import com.vmturbo.repository.RepositoryNotificationSender;
+import com.vmturbo.repository.RepositoryApiConfig;
 
 /**
  * Repository API notifications test.
@@ -33,17 +31,13 @@ public class RepositoryApiTest {
     private ExecutorService threadPool;
     private IntegrationTestServer server;
     private RepositoryNotificationReceiver client;
-    private WebsocketNotificationReceiver messageReceiver;
     private RepositoryListener listener;
 
     @Before
     public void init() throws Exception {
         threadPool = Executors.newCachedThreadPool();
         server = new IntegrationTestServer(testName, RepositoryApiConfig.class);
-        messageReceiver = new WebsocketNotificationReceiver(server.connectionConfig(),
-                RepositoryNotificationReceiver.WEBSOCKET_PATH, threadPool,
-                RepositoryNotification::parseFrom);
-        client = new RepositoryNotificationReceiver(messageReceiver, threadPool);
+        client = new RepositoryNotificationReceiver(server.connectionConfig(), threadPool);
         listener = Mockito.mock(RepositoryListener.class);
         client.addListener(listener);
         server.waitForRegisteredEndpoints(1, TIMEOUT);
@@ -51,7 +45,7 @@ public class RepositoryApiTest {
 
     @After
     public void shutdown() throws Exception {
-        messageReceiver.close();
+        client.close();
         server.close();
         threadPool.shutdownNow();
     }

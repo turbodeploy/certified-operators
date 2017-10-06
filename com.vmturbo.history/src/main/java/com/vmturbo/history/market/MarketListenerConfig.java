@@ -12,26 +12,31 @@ import org.springframework.context.annotation.Import;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
+import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.history.HistoryComponent;
 import com.vmturbo.history.api.HistoryApiConfig;
 import com.vmturbo.history.stats.PriceIndexWriter;
 import com.vmturbo.history.stats.StatsConfig;
 import com.vmturbo.history.topology.TopologyListenerConfig;
 import com.vmturbo.market.component.api.MarketComponent;
-import com.vmturbo.market.component.api.impl.MarketClientConfig;
-import com.vmturbo.priceindex.api.impl.PriceIndexClientConfig;
+import com.vmturbo.market.component.api.impl.MarketComponentClient;
 import com.vmturbo.priceindex.api.impl.PriceIndexReceiver;
 
 /**
  * Configuration for the PriceIndex Listener for the History component
  **/
 @Configuration
-@Import({TopologyListenerConfig.class, StatsConfig.class, HistoryApiConfig.class,
-        MarketClientConfig.class, PriceIndexClientConfig.class})
+@Import({TopologyListenerConfig.class, StatsConfig.class, HistoryApiConfig.class})
 public class MarketListenerConfig {
 
     @Autowired
     private HistoryComponent historyComponent;
+
+    @Value("${marketHost}")
+    private String marketHost;
+
+    @Value("${server.port}")
+    private int httpPort;
 
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
@@ -51,11 +56,8 @@ public class MarketListenerConfig {
     @Autowired
     private MarketListenerConfig marketListenerConfig;
 
-    @Autowired
-    private MarketClientConfig marketClientConfig;
-
-    @Autowired
-    private PriceIndexClientConfig priceIndexClientConfig;
+    @Value("${websocket.pong.timeout}")
+    private long websocketPongTimeout;
 
     /**
      * Create a listener for both Projected Market and PriceIndex information as created by the
@@ -78,7 +80,12 @@ public class MarketListenerConfig {
      */
     @Bean
     public MarketComponent marketComponent() {
-        final MarketComponent market = marketClientConfig.marketComponent();
+        final ComponentApiConnectionConfig connectionConfig = ComponentApiConnectionConfig.newBuilder()
+                .setHostAndPort(marketHost, httpPort)
+                .setPongMessageTimeout(websocketPongTimeout)
+                .build();
+        final MarketComponent market =
+                MarketComponentClient.rpcAndNotification(connectionConfig, projectedTopologyThreadPool());
         market.addProjectedTopologyListener(marketListener());
         return market;
     }
@@ -106,8 +113,23 @@ public class MarketListenerConfig {
      */
     @Bean
     public PriceIndexReceiver priceIndexReceiver() {
-        final PriceIndexReceiver client = priceIndexClientConfig.priceIndexReceiver();
+        final ComponentApiConnectionConfig connectionConfig =
+                ComponentApiConnectionConfig.newBuilder()
+                .setHostAndPort(marketHost, httpPort)
+                .build();
+        final PriceIndexReceiver client = PriceIndexReceiver.rpcAndNotification(
+                connectionConfig, priceIndexThreadPool());
         client.setPriceIndexListener(marketListener());
         return client;
+    }
+
+    /**
+     * Thread pool for the PriceIndex Listeners.
+     */
+    @Bean(destroyMethod = "shutdownNow")
+    public ExecutorService priceIndexThreadPool() {
+        final ThreadFactory threadFactory =
+                new ThreadFactoryBuilder().setNameFormat("history-priceIndex-listener-%d").build();
+        return Executors.newCachedThreadPool(threadFactory);
     }
 }

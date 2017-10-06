@@ -22,7 +22,7 @@ import org.springframework.web.context.support.AnnotationConfigWebApplicationCon
 import org.springframework.web.servlet.DispatcherServlet;
 
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
-import com.vmturbo.components.api.server.WebsocketNotificationSender;
+import com.vmturbo.components.api.server.ComponentNotificationSender;
 
 /**
  * Contains a websocket-enabled server initialized from
@@ -89,8 +89,8 @@ public class IntegrationTestServer implements AutoCloseable {
 
     public void waitForRegisteredEndpoints(final int numEndpoints, final long timeoutMs)
             throws InterruptedException, TimeoutException {
-        final WebsocketNotificationSender notificationSender =
-                getBean(WebsocketNotificationSender.class);
+        final ComponentNotificationSender notificationSender =
+                getBean(ComponentNotificationSender.class);
         notificationSender.waitForEndpoints(numEndpoints, timeoutMs, TimeUnit.MILLISECONDS);
     }
 
@@ -101,7 +101,7 @@ public class IntegrationTestServer implements AutoCloseable {
     }
 
     public <T> T getBean(Class<T> requiredType) {
-        return applicationContext.getBeansOfType(requiredType).values().iterator().next();
+        return applicationContext.getBean(requiredType);
     }
 
     public ComponentApiConnectionConfig connectionConfig() throws URISyntaxException {

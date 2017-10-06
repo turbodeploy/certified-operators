@@ -1,5 +1,6 @@
 package com.vmturbo.repository.api.impl;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.Objects;
 import java.util.Set;
@@ -8,10 +9,11 @@ import java.util.concurrent.ExecutorService;
 
 import javax.annotation.Nonnull;
 
+import com.google.protobuf.CodedInputStream;
+
 import com.vmturbo.components.api.client.ApiClientException;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.components.api.client.ComponentNotificationReceiver;
-import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.repository.api.Repository;
 import com.vmturbo.repository.api.RepositoryDTO.AvailableTopology;
 import com.vmturbo.repository.api.RepositoryDTO.FailedTopology;
@@ -29,10 +31,9 @@ public class RepositoryNotificationReceiver extends
     private final Set<RepositoryListener> listeners =
             Collections.newSetFromMap(new ConcurrentHashMap<>());
 
-    public RepositoryNotificationReceiver(
-            @Nonnull final IMessageReceiver<RepositoryNotification> messageReceiver,
-            @Nonnull final ExecutorService executorService) {
-        super(messageReceiver, executorService);
+    public RepositoryNotificationReceiver(@Nonnull final ComponentApiConnectionConfig connectionConfig,
+                                          @Nonnull final ExecutorService executorService) {
+        super(connectionConfig, executorService);
     }
 
     @Override
@@ -92,6 +93,18 @@ public class RepositoryNotificationReceiver extends
                     () -> listener.onSourceTopologyFailure(topology.getTopologyId(),
                             topology.getContextId(), topology.getFailureDescription()));
         }
+    }
+
+    @Nonnull
+    @Override
+    protected RepositoryNotification parseMessage(@Nonnull CodedInputStream bytes) throws IOException {
+        return RepositoryNotification.parseFrom(bytes);
+    }
+
+    @Nonnull
+    @Override
+    protected String addWebsocketPath(@Nonnull String serverAddress) {
+        return serverAddress + WEBSOCKET_PATH;
     }
 
     @Override

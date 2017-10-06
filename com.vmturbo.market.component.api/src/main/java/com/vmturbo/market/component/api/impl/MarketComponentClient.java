@@ -7,11 +7,9 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.components.api.client.ComponentApiClient;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
-import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.market.component.api.ActionsListener;
 import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.ProjectedTopologyListener;
-import com.vmturbo.market.component.dto.MarketMessages.MarketComponentNotification;
 
 /**
  * Client-side implementation of the {@link MarketComponent}.
@@ -19,36 +17,31 @@ import com.vmturbo.market.component.dto.MarketMessages.MarketComponentNotificati
  * <p>Clients should create an instance of this class.
  */
 public class MarketComponentClient
-        extends ComponentApiClient<MarketComponentRestClient>
+        extends ComponentApiClient<MarketComponentRestClient, MarketComponentNotificationReceiver>
         implements MarketComponent {
 
     public static final String WEBSOCKET_PATH = "/market-api";
-    private final MarketComponentNotificationReceiver notificationReceiver;
 
     private MarketComponentClient(@Nonnull final ComponentApiConnectionConfig connectionConfig,
-                                 @Nonnull final ExecutorService executorService,
-            @Nonnull final IMessageReceiver<MarketComponentNotification> messageReceiver) {
-        super(connectionConfig);
-        this.notificationReceiver =
-                new MarketComponentNotificationReceiver(messageReceiver, executorService);
+                                 @Nonnull final ExecutorService executorService) {
+        super(connectionConfig, executorService);
     }
 
     private MarketComponentClient(@Nonnull final ComponentApiConnectionConfig connectionConfig) {
         super(connectionConfig);
-        this.notificationReceiver = null;
     }
 
     public static MarketComponentClient rpcAndNotification(
             @Nonnull final ComponentApiConnectionConfig connectionConfig,
-            @Nonnull final ExecutorService executorService,
-            @Nonnull final IMessageReceiver<MarketComponentNotification> messageReceiver) {
-        return new MarketComponentClient(connectionConfig, executorService, messageReceiver);
+            @Nonnull final ExecutorService executorService) {
+        return new MarketComponentClient(connectionConfig, executorService);
     }
 
     public static MarketComponentClient rpcOnly(
             @Nonnull final ComponentApiConnectionConfig connectionConfig) {
         return new MarketComponentClient(connectionConfig);
     }
+
 
     @Nonnull
     @Override
@@ -58,20 +51,20 @@ public class MarketComponentClient
     }
 
     @Nonnull
-    private MarketComponentNotificationReceiver getNotificationReceiver() {
-        if (notificationReceiver == null) {
-            throw new IllegalStateException("Market client is not set up to receive notifications");
-        }
-        return notificationReceiver;
+    @Override
+    protected MarketComponentNotificationReceiver createWebsocketClient(
+            @Nonnull final ComponentApiConnectionConfig connectionConfig,
+            @Nonnull final ExecutorService executorService) {
+        return new MarketComponentNotificationReceiver(connectionConfig, executorService);
     }
 
     @Override
     public void addActionsListener(@Nonnull final ActionsListener listener) {
-        getNotificationReceiver().addActionsListener(Objects.requireNonNull(listener));
+        websocketClient().addActionsListener(Objects.requireNonNull(listener));
     }
 
     @Override
     public void addProjectedTopologyListener(@Nonnull final ProjectedTopologyListener listener) {
-        getNotificationReceiver().addProjectedTopologyListener(Objects.requireNonNull(listener));
+        websocketClient().addProjectedTopologyListener(Objects.requireNonNull(listener));
     }
 }

@@ -12,11 +12,8 @@ import org.junit.Test;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
-import com.vmturbo.components.api.client.IMessageReceiver;
-import com.vmturbo.components.api.client.WebsocketNotificationReceiver;
 import com.vmturbo.components.test.utilities.component.ComponentUtils;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
-import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TopologyProcessorNotification;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClient;
 import com.vmturbo.topology.processor.api.server.TopologyBroadcast;
 
@@ -32,23 +29,16 @@ public class TopologyProcessorStubTest {
 
             server.start();
 
-            final ComponentApiConnectionConfig connectionConfig =
+            final TopologyProcessor tpClient = TopologyProcessorClient.rpcAndNotification(
                     ComponentApiConnectionConfig.newBuilder()
                             .setHostAndPort("localhost", ComponentUtils.GLOBAL_HTTP_PORT)
-                            .build();
-            final IMessageReceiver<TopologyProcessorNotification> messageReceiver =
-                    new WebsocketNotificationReceiver<>(connectionConfig,
-                            TopologyProcessorClient.WEBSOCKET_PATH, Executors.newCachedThreadPool(),
-                            TopologyProcessorNotification::parseFrom);
-            final TopologyProcessor tpClient =
-                    TopologyProcessorClient.rpcAndNotification(connectionConfig,
-                            Executors.newCachedThreadPool(), messageReceiver);
+                            .build(), Executors.newCachedThreadPool());
 
             final CompletableFuture<TopologyInfo> topologyContextIdFuture = new CompletableFuture<>();
             tpClient.addEntitiesListener((topologyInfo, topologyDTOs) ->
                     topologyContextIdFuture.complete(topologyInfo));
 
-            tpStub.waitForEndpoints(1, 10, TimeUnit.SECONDS);
+            tpStub.getBackend().waitForEndpoints(1, 10, TimeUnit.SECONDS);
 
             final TopologyBroadcast broadcast =
                     tpStub.getBackend().broadcastTopology(10, 7, TopologyType.REALTIME);

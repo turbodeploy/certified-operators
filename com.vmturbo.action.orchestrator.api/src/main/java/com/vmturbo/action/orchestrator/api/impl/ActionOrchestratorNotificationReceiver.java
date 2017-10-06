@@ -1,5 +1,6 @@
 package com.vmturbo.action.orchestrator.api.impl;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.Objects;
 import java.util.Set;
@@ -9,10 +10,12 @@ import java.util.function.Consumer;
 
 import javax.annotation.Nonnull;
 
+import com.google.protobuf.CodedInputStream;
+
 import com.vmturbo.action.orchestrator.api.ActionsListener;
 import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionOrchestratorNotification;
+import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.components.api.client.ComponentNotificationReceiver;
-import com.vmturbo.components.api.client.IMessageReceiver;
 
 /**
  * The websocket client connecting to the Action Orchestrator.
@@ -23,10 +26,22 @@ class ActionOrchestratorNotificationReceiver
     private final Set<ActionsListener> actionsListenersSet =
             Collections.newSetFromMap(new ConcurrentHashMap<>());
 
-    ActionOrchestratorNotificationReceiver(
-            @Nonnull final IMessageReceiver<ActionOrchestratorNotification> messageReceiver,
-            @Nonnull final ExecutorService executorService) {
-        super(messageReceiver, executorService);
+    ActionOrchestratorNotificationReceiver(@Nonnull final ComponentApiConnectionConfig apiClient,
+                                           @Nonnull final ExecutorService executorService) {
+        super(apiClient, executorService);
+    }
+
+    @Nonnull
+    @Override
+    protected String addWebsocketPath(@Nonnull final String serverAddress) {
+        return serverAddress + ActionOrchestratorClient.WEBSOCKET_PATH;
+    }
+
+    @Nonnull
+    @Override
+    protected ActionOrchestratorNotification parseMessage(@Nonnull CodedInputStream bytes)
+            throws IOException {
+        return ActionOrchestratorNotification.parseFrom(bytes);
     }
 
     @Override
@@ -61,13 +76,11 @@ class ActionOrchestratorNotificationReceiver
     private void doWithListeners(@Nonnull final Consumer<ActionsListener> command,
                                  @Nonnull final ActionOrchestratorNotification.TypeCase messageCase) {
         for (final ActionsListener listener : actionsListenersSet) {
-            getExecutorService().submit(() -> {
+            executorService.submit(() -> {
                 try {
                     command.accept(listener);
                 } catch (RuntimeException e) {
-                    getLogger().error(
-                            "Error executing command (" + messageCase + ") for listener " +
-                                    listener, e);
+                    logger.error("Error executing command (" + messageCase + ") for listener " + listener, e);
                 }
             });
         }

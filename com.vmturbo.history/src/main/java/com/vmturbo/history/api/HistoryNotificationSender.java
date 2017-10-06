@@ -1,6 +1,5 @@
 package com.vmturbo.history.api;
 
-import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 
 import javax.annotation.Nonnull;
@@ -10,7 +9,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.components.api.server.ComponentNotificationSender;
-import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.history.component.api.HistoryComponentNotifications.HistoryComponentNotification;
 import com.vmturbo.history.component.api.HistoryComponentNotifications.StatsAvailable;
 
@@ -21,19 +19,15 @@ import com.vmturbo.history.component.api.HistoryComponentNotifications.StatsAvai
 public class HistoryNotificationSender extends ComponentNotificationSender<HistoryComponentNotification> {
     private final Logger logger = LogManager.getLogger();
 
-    private final IMessageSender<HistoryComponentNotification> sender;
-
-    HistoryNotificationSender(@Nonnull final ExecutorService executorService,
-            @Nonnull IMessageSender<HistoryComponentNotification> sender) {
+    HistoryNotificationSender(@Nonnull final ExecutorService executorService) {
         super(executorService);
-        this.sender = Objects.requireNonNull(sender);
     }
 
     public void statsAvailable(final long topologyContextId) {
         final long messageChainId = newMessageChainId();
         logger.info("Stats available for context: {}", topologyContextId);
 
-        sendMessage(sender,
+        sendMessage(messageChainId,
             HistoryComponentNotification.newBuilder()
                 .setBroadcastId(messageChainId)
                 .setStatsAvailable(StatsAvailable.newBuilder().setTopologyContextId(topologyContextId))

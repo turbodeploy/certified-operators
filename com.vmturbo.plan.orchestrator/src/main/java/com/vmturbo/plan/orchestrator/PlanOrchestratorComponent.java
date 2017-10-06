@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
+import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
@@ -33,14 +34,8 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
 @Configuration("theComponent")
 @EnableAutoConfiguration
 @EnableDiscoveryClient
-@Import({DeploymentProfileConfig.class,
-        PlanConfig.class,
-        ScenarioConfig.class,
-        ClusterRollupSchedulerConfig.class,
-        TemplatesConfig.class,
-        ApiSecurityConfig.class,
-        GlobalConfig.class,
-        SQLDatabaseConfig.class})
+@ComponentScan("com.vmturbo.plan.orchestrator")
+@Import({ScenarioConfig.class, PlanConfig.class, TemplatesConfig.class})
 public class PlanOrchestratorComponent extends BaseVmtComponent {
     private static final Logger LOGGER = LogManager.getLogger();
 
