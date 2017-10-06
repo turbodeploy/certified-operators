@@ -14,7 +14,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
-import com.vmturbo.common.protobuf.action.ActionDTO.ProbeActionCapability;
+import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO;
 

@@ -46,7 +46,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter
 
 import com.google.gson.Gson;
 
-import com.vmturbo.common.protobuf.action.ActionDTO.ProbeActionCapability;
+import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO;

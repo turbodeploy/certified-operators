@@ -16,9 +16,10 @@ import com.google.common.collect.ImmutableList;
 import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.topology.Probe;
 import com.vmturbo.common.protobuf.topology.Probe.GetProbeActionCapabilitiesRequest;
 import com.vmturbo.common.protobuf.topology.Probe.GetProbeActionCapabilitiesResponse;
-import com.vmturbo.common.protobuf.action.ActionDTO.ProbeActionCapability;
+import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO.ActionCapability;
@@ -101,7 +102,7 @@ public class ProbeActionCapabilitiesRpcServiceTest {
         GetProbeActionCapabilitiesRequest request = GetProbeActionCapabilitiesRequest.newBuilder()
                 .setProbeId(PROBE_ID).setEntityType(EntityType.VIRTUAL_MACHINE.getNumber()).build();
         service.getProbeActionCapabilities(request, observer);
-        ActionDTO.ProbeActionCapability expected = SdkToProbeActionsConverter.convert
+        Probe.ProbeActionCapability expected = SdkToProbeActionsConverter.convert
                 (SdkActionPolicyBuilder.build(ActionCapability.SUPPORTED,
                         EntityType.VIRTUAL_MACHINE, ActionType.CHANGE));
         Assert.assertEquals(expected, observer.getActionCapabilities().get(0));
@@ -143,7 +144,7 @@ public class ProbeActionCapabilitiesRpcServiceTest {
         /**
          * Action capabilities from response.
          */
-        private List<ActionDTO.ProbeActionCapability> actionCapabilities;
+        private List<Probe.ProbeActionCapability> actionCapabilities;
 
         @Override
         public void onNext(GetProbeActionCapabilitiesResponse getProbeActionCapabilitiesResponse) {

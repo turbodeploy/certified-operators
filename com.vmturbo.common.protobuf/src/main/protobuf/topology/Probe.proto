@@ -4,6 +4,39 @@ package topology;
 option java_package = "com.vmturbo.common.protobuf.topology";
 import "action/ActionDTO.proto";
 
+message ProbeActionCapability {
+    // Entity type which the capability is applied to
+    optional int32 entity_type = 1;
+
+    // Action capability elements (for every supported action type)
+    repeated ActionCapabilityElement capability_element = 2;
+
+    // Capability applied to a particular action type
+    message ActionCapabilityElement {
+        // Action type
+        //required ActionItemDTO.ActionType actionType = 1;
+        optional action.ActionType action_type = 1;
+
+        // Action execution capability
+        optional ActionCapability action_capability = 2;
+    }
+
+    // Defines how action can be executed by the probe
+    enum ActionCapability {
+        // The action does not make sense for the probe. Actions of this type should not be shown
+        // to the user.
+        NOT_SUPPORTED = 1;
+
+        // The probe does not support executing the action, but it may still make sense to display
+        // actions of this type to the user. For example, VSTORAGE resize is not supported in VCenter,
+        // but many users still wish to see actions of this type.
+        NOT_EXECUTABLE = 2;
+
+        // The probe supports execution of the action. Actions of this type are displayed to the user.
+        SUPPORTED = 3;
+    }
+}
+
 // Input param for GetProbeActioncapabilitiesService.
 message GetProbeActionCapabilitiesRequest {
 
@@ -19,7 +52,7 @@ message GetProbeActionCapabilitiesRequest {
 // Response for GetProbeActionCapabilitiesService.
 message GetProbeActionCapabilitiesResponse {
     // Action capabilities of probe.
-    repeated action.ProbeActionCapability action_capabilities = 1;
+    repeated ProbeActionCapability action_capabilities = 1;
 }
 
 // Service for getting action capabilities of probe with certain probe_id which can be filtered

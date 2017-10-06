@@ -11,7 +11,7 @@ import com.google.common.collect.ImmutableList;
 
 import io.swagger.annotations.ApiModelProperty;
 
-import com.vmturbo.common.protobuf.action.ActionDTO.ProbeActionCapability;
+import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability;
 import com.vmturbo.topology.processor.api.AccountDefEntry;
 import com.vmturbo.topology.processor.api.AccountFieldValueType;
 import com.vmturbo.topology.processor.api.ProbeInfo;
