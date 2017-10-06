@@ -368,6 +368,7 @@
                 <module>../protoc-spring-rest</module>
                 <module>../diags</module>
                 <module>../kafka</module>
+                <module>../zookeeper</module>
 
 
                 <!-- The meat of the XL code, and the platform components. -->

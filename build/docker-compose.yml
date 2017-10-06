@@ -42,6 +42,7 @@ volumes:
   mediation-hyperv: *localdriver
   mediation-delegatingprobe: *localdriver
   kafka1-log: *localdriver
+  zoo1-data: *localdriver
 #  mediation-aix: *localdriver
 #  mediation-vmax: *localdriver
 #  mediation-openstack: *localdriver
@@ -94,11 +95,16 @@ services:
       - rsyslog
 
   zoo1:
-    image: zookeeper:3.4
+    extends:
+      file: common-services.yml
+      service: dev-component
+    image: turbonomic/zookeeper
     restart: always
     environment:
       ZOO_MY_ID: 1
-      ZOO_SERVERS: server.1=zoo1:2888:3888
+      ZOO_SERVERS: zoo1
+    volumes:
+      - zoo1-data:/var/lib/zoo
 
   kafka1:
     extends:
