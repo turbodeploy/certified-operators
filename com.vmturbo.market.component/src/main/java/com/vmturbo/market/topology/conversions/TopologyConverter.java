@@ -56,7 +56,6 @@ import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults.
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO;
-import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.Constant;
 import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO;
 import com.vmturbo.platform.analysis.utilities.BiCliquer;
 import com.vmturbo.platform.analysis.utilities.NumericIDAllocator;
@@ -118,38 +117,9 @@ public class TopologyConverter {
         this.includeGuaranteedBuyer = includeGuaranteedBuyer;
     }
 
-    // Updating functions are used when taking actions in computing the new
-    // used and peak used values of commodities sold. Below are reusable DTOs
-    // used when constructing commodity sold settings.
-
-    private static UpdatingFunctionTO AVERAGE_UPDATING_FUNCTION =
-                UpdatingFunctionTO.newBuilder()
-                    .setAvgAdd(UpdatingFunctionTO.Average.newBuilder().build())
-                    .build();
-
-    private static UpdatingFunctionTO DELTA_UPDATING_FUNCTION =
-                UpdatingFunctionTO.newBuilder()
-                    .setDelta(UpdatingFunctionTO.Delta.newBuilder().build())
-                    .build();
-
-    private static UpdatingFunctionTO PROJECTED_SECOND_UPDATING_FUNCTION =
-                UpdatingFunctionTO.newBuilder()
-                    .setProjectSecond(UpdatingFunctionTO.ProjectSecond.newBuilder().build())
-                    .build();
-
     // Biclique stuff
     private final BiCliquer bicliquer = new BiCliquer();
 
-    private static EconomyDTOs.CommoditySoldSettingsTO BC_SETTING_TO =
-                EconomyDTOs.CommoditySoldSettingsTO.newBuilder()
-                    .setResizable(false)
-                    .setPriceFunction(PriceFunctionTO.newBuilder()
-                        .setConstant(Constant.newBuilder()
-                            .setValue(0)
-                            .build())
-                        .build())
-                    .setUpdateFunction(PROJECTED_SECOND_UPDATING_FUNCTION)
-                    .build();
     // Map from bcKey to commodity bought
     private Map<String, EconomyDTOs.CommodityBoughtTO> bcCommodityBoughtMap = Maps.newHashMap();
     // a BiMap from DSPMAccess and Datastore commodity sold key to seller oid
@@ -786,7 +756,7 @@ public class TopologyConverter {
     private EconomyDTOs.CommoditySoldTO newBiCliqueCommoditySoldDTO(String bcKey) {
         return EconomyDTOs.CommoditySoldTO.newBuilder()
                         .setSpecification(bcSpec(bcKey))
-                        .setSettings(BC_SETTING_TO)
+                        .setSettings(AnalysisUtil.BC_SETTING_TO)
                         .build();
     }
 
@@ -837,32 +807,6 @@ public class TopologyConverter {
         return economyCommodity;
     }
 
-    // Reusable price function DTOs used when constructing commodity sold settings.
-
-    private static final PriceFunctionDTOs.PriceFunctionTO CONSTANT =
-                    PriceFunctionDTOs.PriceFunctionTO.newBuilder()
-                        .setConstant(PriceFunctionDTOs.PriceFunctionTO.Constant.newBuilder()
-                            .setValue(1.0f)
-                            .build())
-                        .build();
-
-    private static final PriceFunctionDTOs.PriceFunctionTO STEP =
-                    PriceFunctionDTOs.PriceFunctionTO.newBuilder()
-                        .setStep(PriceFunctionDTOs.PriceFunctionTO.Step.newBuilder()
-                            .setStepAt(1)
-                            .setPriceAbove(Float.POSITIVE_INFINITY)
-                            .setPriceBelow(0)
-                            .build())
-                        .build();
-
-    private static final PriceFunctionDTOs.PriceFunctionTO SWP =
-                    PriceFunctionDTOs.PriceFunctionTO.newBuilder()
-                        .setStandardWeighted(
-                            PriceFunctionDTOs.PriceFunctionTO.StandardWeighted.newBuilder()
-                                .setWeight(1.0f)
-                                .build())
-                        .build();
-
     /**
      * Select the right {@link PriceFunctionTO} based on the commodity sold type.
      *
@@ -872,14 +816,7 @@ public class TopologyConverter {
     @Nonnull
     private static PriceFunctionDTOs.PriceFunctionTO priceFunction(
             @Nonnull final TopologyDTO.CommoditySoldDTO topologyCommSold) {
-        final int commSoldType = topologyCommSold.getCommodityType().getType();
-        if (AnalysisUtil.CONSTANT_PRICE_TYPES.contains(commSoldType)) {
-            return CONSTANT; // TODO: use settings
-        } else if (AnalysisUtil.STEP_PRICE_TYPES.contains(commSoldType)) {
-            return STEP;
-        } else {
-            return SWP;
-        }
+        return AnalysisUtil.priceFunction(topologyCommSold.getCommodityType().getType());
     }
 
     /**
@@ -891,10 +828,7 @@ public class TopologyConverter {
     @Nonnull
     private static UpdatingFunctionTO updateFunction(
                     TopologyDTO.CommoditySoldDTO topologyCommSold) {
-        final int commSoldType = topologyCommSold.getCommodityType().getType();
-        return commSoldType == CommodityDTO.CommodityType.STORAGE_LATENCY_VALUE
-                        ? AVERAGE_UPDATING_FUNCTION
-                        : DELTA_UPDATING_FUNCTION;
+        return AnalysisUtil.updateFunction(topologyCommSold.getCommodityType().getType());
     }
 
     /**
