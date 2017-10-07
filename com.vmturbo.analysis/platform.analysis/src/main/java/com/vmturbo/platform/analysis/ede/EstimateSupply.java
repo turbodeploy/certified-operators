@@ -81,13 +81,13 @@ public class EstimateSupply {
      */
     private boolean isEligibleMarket(Market market) {
         // the market is not eligible if any of the following conditions is true
-        // 1. there are no sellers in the market
+        // 1. there are no sellers that are availableForPlacement in the market
         // 2. the market consists only of guaranteed buyers
         // 3. there are no cloneable or suspendable sellers in the market
-        if (market.getActiveSellers().size() == 0
+        if (market.getActiveSellersAvailableForPlacement().size() == 0
             || market.getBuyers().stream()
                             .allMatch(sl -> sl.getBuyer().getSettings().isGuaranteedBuyer())
-            || market.getActiveSellers().stream()
+            || market.getActiveSellersAvailableForPlacement().stream()
                             .allMatch(seller -> !seller.getSettings().isCloneable()
                                                 && !seller.getSettings().isSuspendable())) {
             return false;
@@ -445,7 +445,8 @@ class SuperSeller {
                 desiredRevenue += getRevenue(i, desiredUtil);
         }
         // Calculate desired expenses (min expenses if max=true, max expenses if max=false)
-        double expense = market_.getActiveSellers().stream().map(s
+        // provision/suspension must be driven by the sellersAvailableForPlacement
+        double expense = market_.getActiveSellersAvailableForPlacement().stream().map(s
                 -> { IncomeStatement IS = ledger_.getTraderIncomeStatements().get(s.getEconomyIndex());
                 return (max ? IS.getMinDesiredExpenses() : IS.getMaxDesiredExpenses());})
                 .reduce((x, y) -> x + y).get();
@@ -471,7 +472,7 @@ class SuperSeller {
      */
     public double getTotalMarketExpenses(Market market) {
         double totalExp = 0;
-        for (Trader s: market.getActiveSellers()) {
+        for (Trader s: market.getActiveSellersAvailableForPlacement()) {
             totalExp += ledger_.getTraderIncomeStatements().get(s.getEconomyIndex()).getExpenses();
             if (Double.isInfinite(totalExp)) {
                 break;

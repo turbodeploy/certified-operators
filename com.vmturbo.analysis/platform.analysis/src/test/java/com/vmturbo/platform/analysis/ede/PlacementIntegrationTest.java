@@ -124,10 +124,10 @@ public class PlacementIntegrationTest {
         Topology topology = new Topology();
         Trader shopAloneVM = ProtobufToAnalysis.addTrader(topology, shopAloneVMTO);
         Trader shopTogetherVM = ProtobufToAnalysis.addTrader(topology, shopTogetherVMTO);
-        ProtobufToAnalysis.addTrader(topology, pm1TO);
-        ProtobufToAnalysis.addTrader(topology, pm2TO);
-        ProtobufToAnalysis.addTrader(topology, st1TO);
-        ProtobufToAnalysis.addTrader(topology, st2TO);
+        ProtobufToAnalysis.addTrader(topology, pm1TO).getSettings().setCanAcceptNewCustomers(true);
+        ProtobufToAnalysis.addTrader(topology, pm2TO).getSettings().setCanAcceptNewCustomers(true);
+        ProtobufToAnalysis.addTrader(topology, st1TO).getSettings().setCanAcceptNewCustomers(true);
+        ProtobufToAnalysis.addTrader(topology, st2TO).getSettings().setCanAcceptNewCustomers(true);
         topology.populateMarketsWithSellers();
         Economy economy = (Economy)topology.getEconomy();
         economy.composeMarketSubsetForPlacement();

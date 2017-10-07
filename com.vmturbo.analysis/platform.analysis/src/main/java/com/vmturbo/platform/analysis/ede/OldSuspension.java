@@ -62,7 +62,8 @@ public class OldSuspension {
             es = new EstimateSupply(economy, ledger, false);
         }
         for (Market market : economy.getMarkets()) {
-            if (market.getActiveSellers().stream()
+            // consider only sellers that canAcceptNewCustomers for suspension
+            if (market.getActiveSellersAvailableForPlacement().stream()
                             .allMatch(s -> !s.getSettings().isSuspendable())) {
                 continue;
             }
@@ -253,7 +254,7 @@ public class OldSuspension {
         // as for affected sellers outside market, we will calculate the expense and revenue once
         // running suspension on their market
         for (Trader t : affectedTraders) {
-            if (market.getActiveSellers().contains(t)) {
+            if (market.getActiveSellersAvailableForPlacement().contains(t)) {
                 ledger.calculateExpRevForTraderAndGetTopRevenue(economy, t);
             }
         }

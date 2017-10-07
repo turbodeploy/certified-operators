@@ -173,7 +173,8 @@ public class Provision {
     private static boolean canMarketProvisionSellers(Market market) {
 
         // do not consider cloning in this market if there are no active sellers
-        if (market.getActiveSellers().isEmpty()) {
+        // available for placement
+        if (market.getActiveSellersAvailableForPlacement().isEmpty()) {
             return false;
         }
 
@@ -188,10 +189,10 @@ public class Provision {
             return false;
         }
 
-        // FALSE if there is no seller with greater than 1 customer shopping in this market who is
-        // not a guaranteedBuyer
+        // FALSE if there is no active seller that is available for placement with greater than 1
+        // customer shopping in this market who is not a guaranteedBuyer
         boolean multipleBuyersInSupplier = false;
-        for (Trader seller : market.getActiveSellers()) {
+        for (Trader seller : market.getActiveSellersAvailableForPlacement()) {
             if (seller.getCustomers().stream().filter(sl -> buyers.contains(sl) && !sl.getBuyer()
                             .getSettings().isGuaranteedBuyer()).count() > 1) {
                 multipleBuyersInSupplier = true;
@@ -226,9 +227,11 @@ public class Provision {
         Trader mostProfitableTrader = null;
         double roiOfRichestTrader = 0;
         double mostProfitableCommRev = 0;
-        for (Trader seller : market.getActiveSellers()) {
+        // consider only sellers available for placements. Considering a seller with clonable false
+        // is going to fail acceptanceCriteria since none its customers will move
+        for (Trader seller : market.getActiveSellersAvailableForPlacement()) {
             // consider only sellers that have more than 1 non-guaranteedBuyer
-        	double commRev = ledger.calculateExpRevForTraderAndGetTopRevenue(economy, seller);
+            double commRev = ledger.calculateExpRevForTraderAndGetTopRevenue(economy, seller);
             if (seller.getSettings().isCloneable() && seller.getCustomers().stream().filter(sl ->
                     !sl.getBuyer().getSettings().isGuaranteedBuyer()).count() > 1) {
                 IncomeStatement traderIS = ledger.getTraderIncomeStatements().get(seller

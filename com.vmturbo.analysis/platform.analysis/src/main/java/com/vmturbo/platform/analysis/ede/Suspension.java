@@ -65,6 +65,13 @@ public class Suspension {
         List<@NonNull Action> allActions = new ArrayList<>();
         List<@NonNull Action> actions = new ArrayList<>();
         int round=0;
+        // suspend entities that arent sellers in any market
+        for (Trader seller : economy.getTraders()) {
+            if (seller.getSettings().isSuspendable() && seller.getState().isActive() &&
+                            economy.getMarketsAsSeller(seller).isEmpty()) {
+                suspendTrader(economy, null, seller, allActions);
+            }
+        }
         // run suspension for 3 rounds. We can have scenarios where, there are VMs that can move
         // when buyers in a different market make room. In order to enable this, we retry suspensions
         // after a round of economy-wide placements. We do this a third time for better packing as
@@ -80,13 +87,17 @@ public class Suspension {
                 if (economy.getForceStop()) {
                     return allActions;
                 }
-                // skip markets that don't have suspendable active sellers
-                if (market.getActiveSellers().isEmpty() || !market.getActiveSellers().stream().anyMatch(
-                                t -> t.getSettings().isSuspendable())) {
+                // skip markets that don't have suspendable active sellers. We consider only
+                // activeSellersAvailableForPlacement as entities should not move out of the ones
+                // not available for placement
+                if (market.getActiveSellersAvailableForPlacement().isEmpty() ||
+                                !market.getActiveSellersAvailableForPlacement().stream().anyMatch(
+                                                t -> t.getSettings().isSuspendable())) {
                     continue;
                 }
                 List<Trader> suspensionCandidates = new ArrayList<>();
-                suspensionCandidates.addAll(market.getActiveSellers().stream().filter(
+                // suspensionCandidates can be only activeSellers that canAcceptNewCustomers that are suspendable
+                suspensionCandidates.addAll(market.getActiveSellersAvailableForPlacement().stream().filter(
                                 t -> t.getSettings().isSuspendable()).collect(Collectors.toList()));
                 for (Trader seller : suspensionCandidates) {
                     if (seller.getCustomers().isEmpty()) {
@@ -189,9 +200,9 @@ public class Suspension {
             List<Market> marketsAsSeller = economy.getMarketsAsSeller(trader);
             // being the sole provider means the seller is the only active seller in a market
             // and it has some customers which are not the shoppinglists from guaranteed buyers
-            if (marketsAsSeller.stream().anyMatch((m) -> m.getActiveSellers().size() == 1 && m
-                            .getBuyers().stream()
-                            .anyMatch(sl -> !sl.getBuyer().getSettings().isGuaranteedBuyer()))) {
+            if (marketsAsSeller.stream().anyMatch((m) -> m.getActiveSellersAvailableForPlacement()
+                            .size() == 1 && m.getBuyers().stream().anyMatch(
+                                        sl -> !sl.getBuyer().getSettings().isGuaranteedBuyer()))) {
                 soleProviders.add(trader);
             }
         }

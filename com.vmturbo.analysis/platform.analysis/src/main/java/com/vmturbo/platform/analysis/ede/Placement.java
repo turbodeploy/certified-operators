@@ -147,10 +147,11 @@ public class Placement {
         }
         // if there are no sellers in the market, the buyer is misconfigured
         final @NonNull List<@NonNull Trader> sellers =
-                        economy.getMarket(shoppingList).getActiveSellers();
+                        economy.getMarket(shoppingList).getActiveSellersAvailableForPlacement();
+        // sl can be immovable when the underlying provider is not availableForPlacement
         if (!shoppingList.isMovable())
             return actions;
-        if (sellers.isEmpty()) {
+        if (economy.getMarket(shoppingList).getActiveSellers().isEmpty()) {
             actions.add(new Reconfigure(economy, shoppingList).take()
                             .setImportance(Double.POSITIVE_INFINITY));
             // To prevent regeneration of duplicate reconfigure actions

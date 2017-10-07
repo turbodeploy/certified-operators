@@ -74,8 +74,9 @@ public class SuspensionTest {
     public void test_suspensionDecisions_suspensionActions() {
         Economy economy = new Economy();
         // adding 2 non-suspendable traders
-        economy.addTrader(PM_TYPE, TraderState.ACTIVE, PM_SMALL);
+        economy.addTrader(PM_TYPE, TraderState.ACTIVE, PM_SMALL).getSettings().setCanAcceptNewCustomers(true);
         Trader seller = economy.addTrader(PM_TYPE, TraderState.ACTIVE, PM_SMALL);
+        seller.getSettings().setCanAcceptNewCustomers(true);
         seller.getCommoditiesSold().stream().forEach(cs -> cs.setCapacity(CAPACITY).getSettings().setUtilizationUpperBound(UTILIZATION_UPPER_BOUND));
         seller.getSettings().setSuspendable(true);
 
@@ -158,6 +159,7 @@ public class SuspensionTest {
         // add buyer and seller to create a market
         economy.addTrader(VM_TYPE, TraderState.ACTIVE, EMPTY, new Basket(CPU));
         Trader seller = economy.addTrader(VM_TYPE, TraderState.ACTIVE, PM_SMALL);
+        seller.getSettings().setCanAcceptNewCustomers(true);
         economy.populateMarketsWithSellers();
 
         List<Action> actions = new ArrayList<>();
@@ -377,7 +379,9 @@ public class SuspensionTest {
         Basket cpuMemStorageBasket= new Basket(CPU, MEM, TestUtils.ST_AMT);
         Basket storageBasket = new Basket(TestUtils.ST_AMT);
         Trader soleProviderForStorage = economy.addTrader(PM_TYPE, TraderState.ACTIVE, cpuMemStorageBasket, EMPTY);
-        economy.addTrader(PM_TYPE, TraderState.ACTIVE, PM_SMALL, EMPTY);
+        soleProviderForStorage.getSettings().setCanAcceptNewCustomers(true);
+        economy.addTrader(PM_TYPE, TraderState.ACTIVE, PM_SMALL, EMPTY)
+                    .getSettings().setCanAcceptNewCustomers(true);;
         //buyers
         Trader buyerVM1 = economy.addTrader(VM_TYPE, TraderState.ACTIVE, EMPTY);
         economy.addBasketBought(buyerVM1, PM_SMALL);
@@ -401,7 +405,8 @@ public class SuspensionTest {
     private Economy getEconomyWithGivenSellersAndBuyers(int numSellers, int numBuyers) {
         Economy economy = new Economy();
         //Add sellers
-        IntStream.range(0, numSellers).forEach($ -> economy.addTrader(PM_TYPE, TraderState.ACTIVE, PM_SMALL));
+        IntStream.range(0, numSellers).forEach($ -> economy.addTrader(PM_TYPE, TraderState.ACTIVE, PM_SMALL)
+                        .getSettings().setCanAcceptNewCustomers(true));
         //Add buyers
         IntStream.range(0, numBuyers).forEach($ -> economy.addTrader(VM_TYPE, TraderState.ACTIVE, EMPTY, new Basket(CPU)));
         return economy;

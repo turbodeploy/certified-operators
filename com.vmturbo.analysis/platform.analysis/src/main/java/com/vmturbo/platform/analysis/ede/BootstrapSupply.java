@@ -113,8 +113,9 @@ public class BootstrapSupply {
             QuoteMinimizer minimizer = stream.collect(() -> new QuoteMinimizer(economy, sl),
                             QuoteMinimizer::accept, QuoteMinimizer::combine);
             if (Double.isInfinite(minimizer.getBestQuote())) {
+                // we use only ActiveSellersAvailableForPlacement for finding possible provider
                 Trader sellerThatFits = findTraderThatFitsBuyer(entry.getKey(), market
-                                .getActiveSellers(), market);
+                                .getActiveSellersAvailableForPlacement(), market);
                 Map<@NonNull ShoppingList, @NonNull Trader> newSuppliers = new HashMap<>();
                 newSuppliers.put(sl, provisionOrActivateTrader(sellerThatFits, market, allActions,
                                 economy));
@@ -321,11 +322,12 @@ public class BootstrapSupply {
                             sl -> sl.getBuyer().getSettings().isGuaranteedBuyer())) {
                 continue;
             }
-            List<Trader> sellers = market.getActiveSellers();
+            List<Trader> sellers = market.getActiveSellersAvailableForPlacement();
             for (@NonNull ShoppingList shoppingList : market.getBuyers()) {
                 // below is the provision logic for non shop together traders, if the trader
                 // should shop together, skip the logic
-                if (shoppingList.getBuyer().getSettings().isShopTogether()) {
+                if (shoppingList.getBuyer().getSettings().isShopTogether()
+                                || !shoppingList.isMovable()) {
                     continue;
                 }
                 // find the bestQuote
@@ -366,7 +368,7 @@ public class BootstrapSupply {
         for (ShoppingList sl : slsThatNeedProvBySupply.keySet()) {
             // find the bestQuote
             Market market = economy.getMarket(sl);
-            List<Trader> sellers = market.getActiveSellers();
+            List<Trader> sellers = market.getActiveSellersAvailableForPlacement();
             final QuoteMinimizer minimizer =
                             (sellers.size() < economy.getSettings().getMinSellersForParallelism()
                                 ? sellers.stream() : sellers.parallelStream())

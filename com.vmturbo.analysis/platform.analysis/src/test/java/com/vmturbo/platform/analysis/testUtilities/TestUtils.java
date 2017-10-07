@@ -62,6 +62,7 @@ public class TestUtils {
         }
         trader.getSettings().setCloneable(isCloneable);
         trader.getSettings().setGuaranteedBuyer(isGuaranteedBuyer);
+        trader.getSettings().setCanAcceptNewCustomers(true);
         return trader;
     }
 
@@ -73,8 +74,8 @@ public class TestUtils {
      * @return Trader i.e PM
      */
     public static Trader createPM(Economy economy, List<Long> cliques, double cpuCapacity, double memCapacity, boolean isCloneable) {
-        Trader pm1 = createTrader(economy, PM_TYPE, cliques, Arrays.asList(CPU, MEM), new double[]{cpuCapacity, memCapacity}, isCloneable, false);
-        return pm1;
+        Trader pm = createTrader(economy, PM_TYPE, cliques, Arrays.asList(CPU, MEM), new double[]{cpuCapacity, memCapacity}, isCloneable, false);
+        return pm;
     }
 
     /**
@@ -85,11 +86,10 @@ public class TestUtils {
      * @return Trader i.e. storage
      */
     public static Trader createStorage(Economy economy, List<Long> cliques, double storageCapacity, boolean isCloneable) {
-        Trader st1 = economy.addTrader(ST_TYPE, TraderState.ACTIVE, new Basket(ST_AMT),
-                        new HashSet<>(cliques));
-        st1.getCommoditiesSold().get(st1.getBasketSold().indexOf(ST_AMT)).setCapacity(300);
-        st1.getSettings().setCloneable(isCloneable);
-        return st1;
+        Trader st = createTrader(economy, ST_TYPE, cliques, Arrays.asList(ST_AMT), new double[]{storageCapacity}, isCloneable, false);
+        st.getCommoditiesSold().get(st.getBasketSold().indexOf(ST_AMT)).setCapacity(300);
+        st.getSettings().setCloneable(isCloneable);
+        return st;
     }
 
     /**
@@ -106,9 +106,9 @@ public class TestUtils {
      * @return a VDC trader which is a guaranteed buyer.
      */
     public static Trader createVDC(Economy economy) {
-        Trader vdc1 = economy.addTrader(VDC_TYPE, TraderState.ACTIVE, new Basket());
-        vdc1.getSettings().setGuaranteedBuyer(true);
-        return vdc1;
+        Trader vdc = economy.addTrader(VDC_TYPE, TraderState.ACTIVE, new Basket());
+        vdc.getSettings().setCanAcceptNewCustomers(true);
+        return vdc;
     }
 
     /**

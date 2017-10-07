@@ -42,6 +42,8 @@ public final class Market implements Serializable {
     private final @NonNull List<@NonNull Trader> activeSellers_ = new ArrayList<>(); // see #getActiveSellers()
     private final @NonNull Map<@NonNull Long, @NonNull List<@NonNull Trader>> cliques_ = new TreeMap<>(); // see #getCliques
     private final @NonNull List<@NonNull Trader> inactiveSellers_ = new ArrayList<>(); // see #getInactiveSellers()
+    // active sellers that can accept new customers. see #getActiveSellersAvailableForPlacement()
+    private final @NonNull List<@NonNull Trader> activeSellersAvailableForPlacement_ = new ArrayList<>();
 
     // Cached data
     // used in placement termination condition
@@ -52,6 +54,9 @@ public final class Market implements Serializable {
     private final @NonNull List<@NonNull ShoppingList> unmodifiableBuyers_ = Collections.unmodifiableList(buyers_);
     // Cached unmodifiable view of the activeSellers_ list.
     private final @NonNull List<@NonNull Trader> unmodifiableActiveSellers_ = Collections.unmodifiableList(activeSellers_);
+    // Cached unmodifiable view of the activeSellersAvailableForPlacement_ list.
+    private final @NonNull List<@NonNull Trader> unmodifiableActiveSellersAvailableForPlacement_ =
+                    Collections.unmodifiableList(activeSellersAvailableForPlacement_);
     // Cached unmodifiable view of the cliques_ map.
     // TODO: find a way to make the contained lists unmodifiable as well.
     private final @NonNull Map<@NonNull Long, @NonNull List<@NonNull Trader>> unmodifiableCliques_ = Collections.unmodifiableMap(cliques_);
@@ -97,6 +102,22 @@ public final class Market implements Serializable {
     @Pure
     public @NonNull @ReadOnly List<@NonNull Trader> getActiveSellers(@ReadOnly Market this) {
         return unmodifiableActiveSellers_;
+    }
+
+    /**
+     * Returns an unmodifiable list of active sellers available for placement that are
+     * participating in {@code this} {@code Market}.
+     *
+     * <p>
+     *  A {@link Trader} participates in the market as a seller iff he is active and the basket he
+     *  is selling satisfies the one associated with the market.
+     * </p>
+     *
+     * @see #getInactiveSellers()
+     */
+    @Pure
+    public @NonNull @ReadOnly List<@NonNull Trader> getActiveSellersAvailableForPlacement(@ReadOnly Market this) {
+        return unmodifiableActiveSellersAvailableForPlacement_;
     }
 
     /**
@@ -170,7 +191,14 @@ public final class Market implements Serializable {
         checkArgument(getBasket().isSatisfiedBy(newSeller.getBasketSold()),
             "getBasket() = " + getBasket() + " sellerBasket = " + newSeller.getBasketSold() + " newSeller = " + newSeller);
 
-        (newSeller.getState().isActive() ? activeSellers_ : inactiveSellers_).add(newSeller);
+        if (newSeller.getState().isActive()) {
+            activeSellers_.add(newSeller);
+            if (newSeller.canAcceptNewCustomers()) {
+                activeSellersAvailableForPlacement_.add(newSeller);
+            }
+        } else {
+            inactiveSellers_.add(newSeller);
+        }
         newSeller.getMarketsAsSeller().add(this);
 
         // Add seller to corresponding cliques
@@ -206,8 +234,14 @@ public final class Market implements Serializable {
      */
     @Deterministic
     @NonNull Market removeSeller(@NonNull TraderWithSettings sellerToRemove) {
-        checkArgument((sellerToRemove.getState().isActive() ? activeSellers_ : inactiveSellers_).remove(sellerToRemove),
-                      "sellerToRemove = " + sellerToRemove);
+        if (sellerToRemove.getState().isActive()) {
+            checkArgument(activeSellers_.remove(sellerToRemove), "sellerToRemove = " + sellerToRemove);
+            if (sellerToRemove.canAcceptNewCustomers()) {
+                checkArgument(activeSellersAvailableForPlacement_.remove(sellerToRemove));
+            }
+        } else {
+            checkArgument(inactiveSellers_.remove(sellerToRemove), "sellerToRemove = " + sellerToRemove);
+        }
         sellerToRemove.getMarketsAsSeller().remove(this);
 
         // Remove seller from corresponding cliques
@@ -299,6 +333,7 @@ public final class Market implements Serializable {
                 for (@NonNull @PolyRead Market market : trader.getMarketsAsSeller()) {
                     checkArgument(market.inactiveSellers_.remove(trader), "trader = " + trader);
                     market.activeSellers_.add(trader);
+                    market.activeSellersAvailableForPlacement_.add(trader);
                     for (@NonNull Long cliqueNumber : trader.getCliques()) {
                         market.cliques_.get(cliqueNumber).add(trader);
                     }
@@ -311,6 +346,7 @@ public final class Market implements Serializable {
                 // As seller
                 for (@NonNull @PolyRead Market market : trader.getMarketsAsSeller()) {
                     checkArgument(market.activeSellers_.remove(trader), "trader = " + trader);
+                    checkArgument(market.activeSellersAvailableForPlacement_.remove(trader), "trader = " + trader);
                     market.inactiveSellers_.add(trader);
                     for (@NonNull Long cliqueNumber : trader.getCliques()) {
                         checkArgument(market.cliques_.get(cliqueNumber).remove(trader),"trader = " + trader);
