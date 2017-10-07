@@ -1,6 +1,7 @@
 package com.vmturbo.platform.analysis.translators;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -367,8 +368,8 @@ public final class AnalysisToProtobuf {
             Deactivate deactivate = (Deactivate)input;
             builder.setDeactivate(DeactivateTO.newBuilder()
                             .setTraderToDeactivate(traderOid.get(deactivate.getTarget()))
-                            .addAllTriggeringBasket(specificationTOs(
-                                            deactivate.getSourceMarket().getBasket())));
+                            .addAllTriggeringBasket(specificationTOs(deactivate.getSourceMarket() != null ?
+                                            deactivate.getSourceMarket().getBasket() : new Basket(Collections.EMPTY_LIST))));
         } else if (input instanceof ProvisionByDemand) {
             ProvisionByDemand provDemand = (ProvisionByDemand)input;
             ProvisionByDemandTO.Builder provDemandTO = ProvisionByDemandTO.newBuilder()
