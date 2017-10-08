@@ -18,10 +18,14 @@ import org.springframework.web.socket.server.standard.ServerEndpointRegistration
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
+import com.vmturbo.communication.WebsocketServerTransportManager;
 import com.vmturbo.components.api.ComponentGsonFactory;
+import com.vmturbo.components.api.server.BroadcastWebsocketTransportManager;
+import com.vmturbo.components.api.server.WebsocketNotificationSender;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.topology.processor.TestProbeStore;
 import com.vmturbo.topology.processor.actions.ActionExecutionRpcService;
+import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TopologyProcessorNotification;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClient;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
 import com.vmturbo.topology.processor.entity.EntityStore;
@@ -76,12 +80,30 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
     }
 
     @Bean
+    public WebsocketNotificationSender<TopologyProcessorNotification> topologySender() {
+        return new WebsocketNotificationSender<>(apiServerThreadPool());
+    }
+
+    @Bean
+    public WebsocketNotificationSender<TopologyProcessorNotification> notificationSender() {
+        return new WebsocketNotificationSender<>(apiServerThreadPool());
+    }
+
+    @Bean
+    // TODO switch to direct message sender-receiver chain instead of real network communication
+    public WebsocketServerTransportManager transportManager() {
+        return BroadcastWebsocketTransportManager.createTransportManager(apiServerThreadPool(),
+                topologySender(), notificationSender());
+    }
+
+    @Bean
     public TopologyProcessorNotificationSender topologyProcessorNotificationSender() {
-        final TopologyProcessorNotificationSender impl =
-                new TopologyProcessorNotificationSender(apiServerThreadPool(), 10L);
-        targetStore().addListener(impl);
-        probeStore().addListener(impl);
-        return impl;
+        final TopologyProcessorNotificationSender backend =
+                new TopologyProcessorNotificationSender(apiServerThreadPool(), 10,
+                        topologySender(), notificationSender());
+        targetStore().addListener(backend);
+        probeStore().addListener(backend);
+        return backend;
     }
 
     /**
@@ -92,7 +114,7 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
     @Bean
     public ServerEndpointRegistration apiEndpointRegistration() {
         return new ServerEndpointRegistration(TopologyProcessorClient.WEBSOCKET_PATH,
-                        topologyProcessorNotificationSender().getWebsocketEndpoint());
+                transportManager());
     }
 
     @Bean

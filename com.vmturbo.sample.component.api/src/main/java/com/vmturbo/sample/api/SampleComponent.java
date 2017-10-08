@@ -7,7 +7,7 @@ import javax.annotation.Nonnull;
  * other components to register for notifications that the sample
  * component emits.
  */
-public interface SampleComponent extends AutoCloseable {
+public interface SampleComponent {
 
     void addEchoListener(@Nonnull final EchoListener listener);
 

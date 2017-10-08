@@ -7,12 +7,16 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.socket.server.standard.ServerEndpointRegistration;
 
+import com.vmturbo.communication.WebsocketServerTransportManager;
+import com.vmturbo.components.api.server.BroadcastWebsocketTransportManager;
+import com.vmturbo.components.api.server.WebsocketNotificationSender;
 import com.vmturbo.components.test.utilities.communication.ComponentStubHost.StubConfiguration;
 import com.vmturbo.components.test.utilities.communication.PriceIndexStub.PriceIndexStubConfig;
-import com.vmturbo.priceindex.api.PriceIndexNotificationSender;
+import com.vmturbo.market.PriceIndexNotificationSender;
+import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
 import com.vmturbo.priceindex.api.impl.PriceIndexReceiver;
 
-public class PriceIndexStub implements NotificationSenderStub<PriceIndexStubConfig> {
+public class PriceIndexStub extends AbstractNotificationSenderStub<PriceIndexStubConfig> {
 
     private PriceIndexNotificationSender backend;
 
@@ -22,6 +26,7 @@ public class PriceIndexStub implements NotificationSenderStub<PriceIndexStubConf
 
     @Override
     public void initialize(@Nonnull final ApplicationContext context) {
+        super.initialize(context);
         backend = context.getBean(PriceIndexNotificationSender.class);
     }
 
@@ -35,13 +40,25 @@ public class PriceIndexStub implements NotificationSenderStub<PriceIndexStubConf
 
         @Bean
         public PriceIndexNotificationSender priceIndexApiBackend() {
-            return new PriceIndexNotificationSender(threadPool);
+            return new PriceIndexNotificationSender(threadPool, notificationSender());
         }
 
         @Bean
         public ServerEndpointRegistration priceIndexApiEndpointRegistration() {
             return new ServerEndpointRegistration(PriceIndexReceiver.WEBSOCKET_PATH,
-                    priceIndexApiBackend().getWebsocketEndpoint());
+                    transportManager());
         }
+
+        @Bean
+        public WebsocketNotificationSender<PriceIndexMessage> notificationSender() {
+            return new WebsocketNotificationSender<>(threadPool);
+        }
+
+        @Bean
+        public WebsocketServerTransportManager transportManager() {
+            return BroadcastWebsocketTransportManager.createTransportManager(threadPool,
+                    notificationSender());
+        }
+
     }
 }

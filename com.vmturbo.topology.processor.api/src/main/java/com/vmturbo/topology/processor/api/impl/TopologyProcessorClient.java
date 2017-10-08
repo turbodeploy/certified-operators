@@ -14,6 +14,7 @@ import com.google.common.base.Preconditions;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.client.ComponentApiClient;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
+import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.topology.processor.api.ActionExecutionListener;
 import com.vmturbo.topology.processor.api.DiscoveryStatus;
 import com.vmturbo.topology.processor.api.EntitiesListener;
@@ -23,6 +24,7 @@ import com.vmturbo.topology.processor.api.TargetData;
 import com.vmturbo.topology.processor.api.TargetInfo;
 import com.vmturbo.topology.processor.api.TargetListener;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
+import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TopologyProcessorNotification;
 import com.vmturbo.topology.processor.api.TopologyProcessorException;
 import com.vmturbo.topology.processor.api.ValidationStatus;
 
@@ -31,11 +33,12 @@ import com.vmturbo.topology.processor.api.ValidationStatus;
  * closed in order to release all the resources
  */
 public class TopologyProcessorClient extends
-        ComponentApiClient<TopologyProcessorRestClient, TopologyProcessorNotificationReceiver> implements TopologyProcessor {
+        ComponentApiClient<TopologyProcessorRestClient> implements TopologyProcessor {
 
     public static final String WEBSOCKET_PATH = "/tp-api";
 
     private final Logger logger = LogManager.getLogger();
+    private final TopologyProcessorNotificationReceiver notificationClient;
 
     public static TopologyProcessorClient rpcOnly(@Nonnull final ComponentApiConnectionConfig connectionConfig) {
         return new TopologyProcessorClient(connectionConfig);
@@ -43,12 +46,14 @@ public class TopologyProcessorClient extends
 
     public static TopologyProcessorClient rpcAndNotification(
             @Nonnull final ComponentApiConnectionConfig connectionConfig,
-            @Nonnull final ExecutorService executorService) {
-        return new TopologyProcessorClient(connectionConfig, executorService);
+            @Nonnull final ExecutorService executorService,
+            @Nonnull final IMessageReceiver<TopologyProcessorNotification> messageReceiver) {
+        return new TopologyProcessorClient(connectionConfig, messageReceiver, executorService);
     }
 
     private TopologyProcessorClient(@Nonnull final ComponentApiConnectionConfig connectionConfig) {
         super(connectionConfig);
+        this.notificationClient = null;
     }
 
     /**
@@ -59,23 +64,18 @@ public class TopologyProcessorClient extends
      * @param connectionConfig TopologyProcessor connection configuration
      * @param threadPool thread pool to use
      */
-    private TopologyProcessorClient(@Nonnull ComponentApiConnectionConfig connectionConfig,
-                    ExecutorService threadPool) {
-        super(connectionConfig, threadPool);
+    private TopologyProcessorClient(@Nonnull final ComponentApiConnectionConfig connectionConfig,
+            @Nonnull IMessageReceiver<TopologyProcessorNotification> messageReceiver,
+            @Nonnull ExecutorService threadPool) {
+        super(connectionConfig);
+        this.notificationClient =
+                new TopologyProcessorNotificationReceiver(messageReceiver, threadPool);
     }
 
     @Nonnull
     @Override
     protected TopologyProcessorRestClient createRestClient(@Nonnull ComponentApiConnectionConfig connectionConfig) {
         return new TopologyProcessorRestClient(connectionConfig);
-    }
-
-    @Nonnull
-    @Override
-    protected TopologyProcessorNotificationReceiver createWebsocketClient(
-            @Nonnull final ComponentApiConnectionConfig apiClient,
-            @Nonnull final ExecutorService executorService) {
-        return new TopologyProcessorNotificationReceiver(apiClient, executorService);
     }
 
     @Override
@@ -151,24 +151,32 @@ public class TopologyProcessorClient extends
     @Override
     public void addTargetListener(@Nonnull final TargetListener listener) {
         Preconditions.checkArgument(listener != null);
-        websocketClient().addTargetListener(listener);
+        getNotificationClient().addTargetListener(listener);
     }
 
     @Override
     public void addEntitiesListener(@Nonnull final EntitiesListener listener) {
         Preconditions.checkArgument(listener != null);
-        websocketClient().addEntitiesListener(listener);
+        getNotificationClient().addEntitiesListener(listener);
     }
 
     @Override
     public void addActionListener(@Nonnull final ActionExecutionListener listener) {
         Preconditions.checkArgument(listener != null);
-        websocketClient().addActionListener(listener);
+        getNotificationClient().addActionListener(listener);
     }
 
     @Override
     public void addProbeListener(@Nonnull final ProbeListener listener) {
         Preconditions.checkArgument(listener != null);
-        websocketClient().addProbeListener(listener);
+        getNotificationClient().addProbeListener(listener);
+    }
+
+    @Nonnull
+    private TopologyProcessorNotificationReceiver getNotificationClient() {
+        if (notificationClient == null) {
+            throw new IllegalStateException("Notification API is not enabled");
+        }
+        return notificationClient;
     }
 }

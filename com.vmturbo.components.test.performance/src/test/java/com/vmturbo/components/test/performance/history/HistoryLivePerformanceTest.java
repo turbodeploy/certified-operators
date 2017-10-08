@@ -15,6 +15,7 @@ import io.grpc.Channel;
 import tec.units.ri.unit.MetricPrefix;
 
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
+import com.vmturbo.components.api.client.WebsocketNotificationReceiver;
 import com.vmturbo.components.test.utilities.ComponentTestRule;
 import com.vmturbo.components.test.utilities.alert.Alert;
 import com.vmturbo.components.test.utilities.communication.ComponentStubHost;
@@ -22,6 +23,7 @@ import com.vmturbo.components.test.utilities.component.ComponentCluster;
 import com.vmturbo.components.test.utilities.component.ComponentUtils;
 import com.vmturbo.history.component.api.HistoryComponentNotifications.StatsAvailable;
 import com.vmturbo.history.component.api.impl.HistoryComponentNotificationReceiver;
+import com.vmturbo.history.component.api.impl.HistoryMessageReceiver;
 
 /**
  * Performance tests for the history component.
@@ -54,8 +56,10 @@ public class HistoryLivePerformanceTest extends HistoryPerformanceTest {
 
     @Before
     public void setup() {
-        historyComponent = new HistoryComponentNotificationReceiver(
-            componentTestRule.getCluster().getConnectionConfig("history"), threadPool);
+        historyMessageReceiver = new HistoryMessageReceiver(
+                componentTestRule.getCluster().getConnectionConfig("history"), threadPool);
+        historyComponent =
+                new HistoryComponentNotificationReceiver(historyMessageReceiver, threadPool);
         historyComponent.addStatsListener(statsListener);
 
         final Channel historyChannel = componentTestRule.getCluster().newGrpcChannel("history");
@@ -65,7 +69,7 @@ public class HistoryLivePerformanceTest extends HistoryPerformanceTest {
     @After
     public void teardown() {
         try {
-            historyComponent.close();
+            historyMessageReceiver.close();
 
             threadPool.shutdownNow();
             threadPool.awaitTermination(10, TimeUnit.MINUTES);

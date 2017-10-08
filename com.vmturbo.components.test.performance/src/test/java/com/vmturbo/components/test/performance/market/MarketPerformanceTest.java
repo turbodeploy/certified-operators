@@ -20,6 +20,7 @@ import tec.units.ri.unit.MetricPrefix;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.components.test.utilities.ComponentTestRule;
 import com.vmturbo.components.test.utilities.utils.TopologyUtils;
 import com.vmturbo.components.test.utilities.alert.Alert;
@@ -30,6 +31,7 @@ import com.vmturbo.components.test.utilities.component.ComponentUtils;
 import com.vmturbo.market.component.api.ActionsListener;
 import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.impl.MarketComponentClient;
+import com.vmturbo.market.component.api.impl.MarketMessageReceiver;
 import com.vmturbo.topology.processor.api.server.TopologyBroadcast;
 
 /**
@@ -56,20 +58,23 @@ public class MarketPerformanceTest {
             .scrapeClusterAndLocalMetricsToInflux();
 
     private MarketComponent marketComponent;
+    private MarketMessageReceiver messageReceiver;
 
     private ExecutorService threadPool = Executors.newCachedThreadPool();
 
     @Before
     public void setup() {
-        marketComponent = MarketComponentClient.rpcAndNotification(
-                componentTestRule.getCluster().getConnectionConfig("market"),
-                threadPool);
+        final ComponentApiConnectionConfig connectionConfig =
+                componentTestRule.getCluster().getConnectionConfig("market");
+        messageReceiver = new MarketMessageReceiver(connectionConfig, threadPool);
+        marketComponent = MarketComponentClient.rpcAndNotification(connectionConfig, threadPool,
+                messageReceiver);
     }
 
     @After
     public void teardown() {
         try {
-            marketComponent.close();
+            messageReceiver.close();
 
             threadPool.shutdownNow();
             threadPool.awaitTermination(10, TimeUnit.MINUTES);

@@ -1,6 +1,7 @@
-package com.vmturbo.market.component.api;
+package com.vmturbo.market;
 
 import java.util.Collection;
+import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 
 import javax.annotation.Nonnull;
@@ -15,6 +16,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.communication.chunking.MessageChunker;
 import com.vmturbo.components.api.server.ComponentNotificationSender;
+import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.market.component.dto.MarketMessages.MarketComponentNotification;
 
 /**
@@ -24,12 +26,19 @@ import com.vmturbo.market.component.dto.MarketMessages.MarketComponentNotificati
 public class MarketNotificationSender extends
         ComponentNotificationSender<MarketComponentNotification> {
 
+    private final IMessageSender<MarketComponentNotification> topologySender;
+    private final IMessageSender<MarketComponentNotification> notificationSender;
+
     // TODO remove in future after switch off websockets
     private final long chunkSendDelayMs;
 
     public MarketNotificationSender(@Nonnull final ExecutorService threadPool,
-            long chunkSendDelayMs) {
+            long chunkSendDelayMs,
+            @Nonnull IMessageSender<MarketComponentNotification> topologySender,
+            @Nonnull IMessageSender<MarketComponentNotification> notificationSender) {
         super(threadPool);
+        this.topologySender = Objects.requireNonNull(topologySender);
+        this.notificationSender = Objects.requireNonNull(notificationSender);
         if (chunkSendDelayMs < 0) {
             throw new IllegalArgumentException("Chunk send delay must not be a negative value");
         } else {
@@ -47,7 +56,7 @@ public class MarketNotificationSender extends
      */
     public void notifyActionsRecommended(@Nonnull final ActionPlan actionPlan) {
         final MarketComponentNotification serverMessage = createNewMessage().setActionPlan(actionPlan).build();
-        sendMessage(serverMessage.getBroadcastId(), serverMessage);
+        sendMessage(notificationSender, serverMessage);
     }
 
     /**
@@ -113,7 +122,7 @@ public class MarketNotificationSender extends
         final MarketComponentNotification serverMessage =
                 createNewMessage().setProjectedTopology(topology).build();
         Thread.sleep(chunkSendDelayMs);
-        sendMessageSync(serverMessage.getBroadcastId(), serverMessage);
+        sendMessage(topologySender, serverMessage);
     }
 
     @Nonnull

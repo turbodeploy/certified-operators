@@ -1,11 +1,13 @@
-package com.vmturbo.priceindex.api;
+package com.vmturbo.market;
 
+import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
 import com.vmturbo.components.api.server.ComponentNotificationSender;
+import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessagePayload;
 
@@ -17,13 +19,16 @@ import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessagePa
  */
 public class PriceIndexNotificationSender extends ComponentNotificationSender<PriceIndexMessage> {
 
+    private final IMessageSender<PriceIndexMessage> sender;
     /**
      * Constructs the backend.
      *
      * @param threadPool The thread pool required to send messages.
      */
-    public PriceIndexNotificationSender(final @Nonnull ExecutorService threadPool) {
+    public PriceIndexNotificationSender(final @Nonnull ExecutorService threadPool, @Nonnull
+            IMessageSender<PriceIndexMessage> sender) {
         super(threadPool);
+        this.sender = Objects.requireNonNull(sender);
     }
 
     /**
@@ -48,7 +53,7 @@ public class PriceIndexNotificationSender extends ComponentNotificationSender<Pr
                     .setTopologyId(topologyId)
                     .setSourceTopologyCreationTime(creationTime)
                     .build();
-        sendMessage(newMessageChainId(), serverMessage);
+        sendMessage(sender, serverMessage);
     }
 
     /**

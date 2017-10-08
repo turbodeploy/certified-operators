@@ -47,7 +47,6 @@ import com.vmturbo.arangodb.tool.ArangoRestore;
 import com.vmturbo.common.protobuf.search.SearchREST.SearchServiceController;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.communication.CommunicationException;
-import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.DiagnosticsWriter;
 import com.vmturbo.components.common.FileFolderZipper;
@@ -80,13 +79,13 @@ import com.vmturbo.repository.topology.TopologyIDManager;
 import com.vmturbo.repository.topology.TopologyRelationshipRecorder;
 import com.vmturbo.repository.topology.protobufs.TopologyProtobufsManager;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
-import com.vmturbo.topology.processor.api.impl.TopologyProcessorClient;
+import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 
 @Configuration("theComponent")
 @SpringBootApplication
 @EnableDiscoveryClient
 @EnableConfigurationProperties(RepositoryProperties.class)
-@Import({RepositoryApiConfig.class})
+@Import({RepositoryApiConfig.class, TopologyProcessorClientConfig.class})
 public class RepositoryComponent extends BaseVmtComponent {
     private static final Logger logger = LoggerFactory.getLogger(RepositoryComponent.class);
     private static final String DOCUMENT_KEY_FIELD = "_key";
@@ -97,6 +96,8 @@ public class RepositoryComponent extends BaseVmtComponent {
 
     @Autowired
     RepositoryApiConfig apiConfig;
+    @Autowired
+    private TopologyProcessorClientConfig tpClientConfig;
 
     RepositoryProperties repositoryProperties;
 
@@ -107,26 +108,11 @@ public class RepositoryComponent extends BaseVmtComponent {
     @Value("${spring.application.name}")
     private String componentName;
 
-    @Value("${topologyProcessorHost}")
-    private String topologyProcessorHost;
-
-    @Value("${server.port}")
-    private int topologyProcessorPort;
-
-    @Value("${server.grpcPort}")
-    private int grpcPort;
-
     @Value("${arangoDumpRestorePort:8599}")
     private int arangoDumpRestorePort;
 
-    @Value("${grpcPingIntervalSeconds}")
-    private long grpcPingIntervalSeconds;
-
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
-
-    @Value("${websocket.pong.timeout}")
-    private long websocketPongTimeout;
 
     @Value("${arangodbHealthCheckIntervalSeconds:60}")
     private int arangoHealthCheckIntervalSeconds;
@@ -423,12 +409,7 @@ public class RepositoryComponent extends BaseVmtComponent {
 
     @Bean
     public TopologyProcessor topologyProcessor() throws GraphDatabaseException {
-        final ComponentApiConnectionConfig tpConnectionConfig = ComponentApiConnectionConfig.newBuilder()
-                .setHostAndPort(topologyProcessorHost, topologyProcessorPort)
-                .setPongMessageTimeout(websocketPongTimeout)
-                .build();
-        final TopologyProcessor topologyProcessor =
-                TopologyProcessorClient.rpcAndNotification(tpConnectionConfig, tpClientExecutorService());
+        final TopologyProcessor topologyProcessor = tpClientConfig.topologyProcessor();
         topologyProcessor.addEntitiesListener(topologyEntitiesListener());
         return topologyProcessor;
     }

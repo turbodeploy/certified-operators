@@ -5,7 +5,7 @@ import javax.annotation.Nonnull;
 /**
  * Plan orchestrator remote client.
  */
-public interface Repository extends AutoCloseable {
+public interface Repository {
 
     /**
      * Adds listener to receive repository notifications.

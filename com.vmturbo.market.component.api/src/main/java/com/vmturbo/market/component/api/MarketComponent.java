@@ -6,7 +6,7 @@ import javax.annotation.Nonnull;
  * The client-side interface to the market component. This
  * is the only supported way of interacting with the market.
  */
-public interface MarketComponent extends AutoCloseable {
+public interface MarketComponent {
 
     /**
      * Registers a listener for action recommendations.

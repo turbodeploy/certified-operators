@@ -6,6 +6,7 @@ import java.util.concurrent.ExecutorService;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.components.api.server.ComponentNotificationSender;
+import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.repository.api.RepositoryDTO.AvailableTopology;
 import com.vmturbo.repository.api.RepositoryDTO.FailedTopology;
 import com.vmturbo.repository.api.RepositoryDTO.RepositoryNotification;
@@ -16,8 +17,12 @@ import com.vmturbo.repository.api.RepositoryDTO.RepositoryNotification;
 public class RepositoryNotificationSender extends
         ComponentNotificationSender<RepositoryNotification> {
 
-    public RepositoryNotificationSender(@Nonnull final ExecutorService threadPool) {
+    private final IMessageSender<RepositoryNotification> sender;
+
+    public RepositoryNotificationSender(@Nonnull final ExecutorService threadPool,
+            @Nonnull IMessageSender<RepositoryNotification> sender) {
         super(threadPool);
+        this.sender = Objects.requireNonNull(sender);
     }
 
     public void onProjectedTopologyAvailable(final long projectedTopologyId, final long topologyContextId) {
@@ -27,7 +32,7 @@ public class RepositoryNotificationSender extends
                         .setContextId(topologyContextId)
                         .setTopologyId(projectedTopologyId))
                 .build();
-        sendMessage(message.getBroadcastId(), message);
+        sendMessage(sender, message);
     }
 
     public void onProjectedTopologyFailure(final long projectedTopologyId,
@@ -40,7 +45,7 @@ public class RepositoryNotificationSender extends
                         .setTopologyId(projectedTopologyId)
                         .setFailureDescription(description))
                 .build();
-        sendMessage(message.getBroadcastId(), message);
+        sendMessage(sender, message);
     }
 
     public void onSourceTopologyAvailable(final long topologyId, final long topologyContextId) {
@@ -50,7 +55,7 @@ public class RepositoryNotificationSender extends
                         .setContextId(topologyContextId)
                         .setTopologyId(topologyId))
                 .build();
-        sendMessage(message.getBroadcastId(), message);
+        sendMessage(sender, message);
     }
 
     public void onSourceTopologyFailure(final long topologyId, final long topologyContextId,
@@ -63,7 +68,7 @@ public class RepositoryNotificationSender extends
                         .setTopologyId(topologyId)
                         .setFailureDescription(description))
                 .build();
-        sendMessage(message.getBroadcastId(), message);
+        sendMessage(sender, message);
     }
 
     @Override

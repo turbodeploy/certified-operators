@@ -22,12 +22,14 @@ import org.junit.rules.TestName;
 import org.mockito.Mockito;
 import org.mockito.internal.matchers.CapturesArguments;
 
+import com.vmturbo.action.orchestrator.api.PlanOrchestratorDTO.PlanNotification;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.plan.PlanDTO.CreatePlanRequest;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
+import com.vmturbo.components.api.client.WebsocketNotificationReceiver;
 import com.vmturbo.components.api.test.IntegrationTestServer;
 import com.vmturbo.history.component.api.HistoryComponentNotifications.StatsAvailable;
 import com.vmturbo.plan.orchestrator.api.PlanListener;
@@ -55,20 +57,24 @@ public class PlanNotificationsTest {
 
     private PlanProgressListener actionsListener;
 
+    private WebsocketNotificationReceiver<PlanNotification> messageReceiver;
+
     private final Logger logger = LogManager.getLogger();
 
     @Before
     public void init() throws Exception {
         server = new IntegrationTestServer(testName, PlanTestConfigWebsocket.class);
         threadPool = Executors.newCachedThreadPool();
-        client = new PlanOrchestratorClientImpl(server.connectionConfig(), threadPool);
+        messageReceiver = new WebsocketNotificationReceiver<>(server.connectionConfig(),
+                PlanOrchestratorClientImpl.WEBSOCKET_PATH, threadPool, PlanNotification::parseFrom);
+        client = new PlanOrchestratorClientImpl(messageReceiver, threadPool);
         planDao = server.getBean(PlanDao.class);
         actionsListener = server.getBean(PlanProgressListener.class);
     }
 
     @After
     public void shutdown() throws Exception {
-        client.close();
+        messageReceiver.close();
         server.close();
         threadPool.shutdownNow();
     }

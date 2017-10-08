@@ -10,6 +10,10 @@ import org.springframework.web.socket.server.standard.ServerEndpointRegistration
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
+import com.vmturbo.communication.WebsocketServerTransportManager;
+import com.vmturbo.components.api.server.BroadcastWebsocketTransportManager;
+import com.vmturbo.components.api.server.WebsocketNotificationSender;
+import com.vmturbo.history.component.api.HistoryComponentNotifications.HistoryComponentNotification;
 import com.vmturbo.history.component.api.impl.HistoryComponentNotificationReceiver;
 
 @Configuration
@@ -24,13 +28,24 @@ public class HistoryApiConfig {
 
     @Bean
     public HistoryNotificationSender historyNotificationSender() {
-        return new HistoryNotificationSender(historyApiServerThreadPool());
+        return new HistoryNotificationSender(historyApiServerThreadPool(), notificationSender());
+    }
+
+    @Bean
+    public WebsocketNotificationSender<HistoryComponentNotification> notificationSender() {
+        return new WebsocketNotificationSender<>(historyApiServerThreadPool());
+    }
+
+    @Bean
+    public WebsocketServerTransportManager transportManager() {
+        return BroadcastWebsocketTransportManager.createTransportManager
+                (historyApiServerThreadPool(), notificationSender());
     }
 
     @Bean
     public ServerEndpointRegistration historyApiEndpointRegistration() {
         return new ServerEndpointRegistration(HistoryComponentNotificationReceiver.WEBSOCKET_PATH,
-                historyNotificationSender().getWebsocketEndpoint());
+                transportManager());
     }
 
     @Bean

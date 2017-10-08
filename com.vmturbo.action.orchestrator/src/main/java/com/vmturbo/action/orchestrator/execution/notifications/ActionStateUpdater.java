@@ -68,7 +68,8 @@ public class ActionStateUpdater implements ActionExecutionListener {
             .flatMap(store -> store.getAction(actionProgress.getActionId()));
         if (storedAction.isPresent()) {
             Action action = storedAction.get();
-            action.receive(new ProgressEvent(actionProgress.getProgressPercentage(), actionProgress.getDescription()));
+            action.receive(new ProgressEvent(actionProgress.getProgressPercentage(),
+                    actionProgress.getDescription()));
             notificationSender.notifyActionProgress(actionProgress);
         } else {
             logger.error("Unable to update progress for " + actionProgress);

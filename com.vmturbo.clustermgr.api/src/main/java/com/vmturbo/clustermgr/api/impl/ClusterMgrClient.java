@@ -3,7 +3,6 @@ package com.vmturbo.clustermgr.api.impl;
 import java.io.OutputStream;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
 
 import javax.annotation.Nonnull;
 
@@ -12,28 +11,16 @@ import com.vmturbo.api.dto.cluster.ComponentPropertiesDTO;
 import com.vmturbo.api.serviceinterfaces.IClusterService;
 import com.vmturbo.components.api.client.ComponentApiClient;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
-import com.vmturbo.components.api.client.InactiveNotificationReceiver;
 
 /**
  * ClusterMgrClient provides the client-side functionality necccesary to interact with the Cluster Mgr API.
  **/
-public class ClusterMgrClient extends ComponentApiClient<ClusterMgrRestClient, InactiveNotificationReceiver>
+public class ClusterMgrClient extends ComponentApiClient<ClusterMgrRestClient>
     implements IClusterService {
-
-    ClusterMgrClient() {
-        super(null);
-    }
 
     private ClusterMgrClient(@Nonnull ComponentApiConnectionConfig connectionConfig) {
         super(connectionConfig);
     }
-
-    private ClusterMgrClient(
-            @Nonnull final ComponentApiConnectionConfig connectionConfig,
-            @Nonnull final ExecutorService executorService) {
-        super(connectionConfig, executorService);
-    }
-
 
     @Override
     public boolean isTelemetryInitialized() {
@@ -64,13 +51,6 @@ public class ClusterMgrClient extends ComponentApiClient<ClusterMgrRestClient, I
     @Override
     protected ClusterMgrRestClient createRestClient(@Nonnull ComponentApiConnectionConfig connectionConfig) {
         return new ClusterMgrRestClient(connectionConfig);
-    }
-
-    @Nonnull
-    @Override
-    protected InactiveNotificationReceiver createWebsocketClient(@Nonnull ComponentApiConnectionConfig apiClient,
-                                                                 @Nonnull ExecutorService executorService) {
-        return new InactiveNotificationReceiver(apiClient, executorService);
     }
 
     public static ClusterMgrClient rpcOnly(@Nonnull final ComponentApiConnectionConfig connectionConfig) {

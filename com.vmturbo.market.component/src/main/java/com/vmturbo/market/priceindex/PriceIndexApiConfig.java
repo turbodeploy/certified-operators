@@ -4,14 +4,17 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.socket.server.standard.ServerEndpointRegistration;
 
-import com.vmturbo.priceindex.api.PriceIndexNotificationSender;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
+import com.vmturbo.communication.WebsocketServerTransportManager;
+import com.vmturbo.components.api.server.BroadcastWebsocketTransportManager;
+import com.vmturbo.components.api.server.WebsocketNotificationSender;
+import com.vmturbo.market.PriceIndexNotificationSender;
+import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
 import com.vmturbo.priceindex.api.impl.PriceIndexReceiver;
 
 /**
@@ -45,7 +48,18 @@ public class PriceIndexApiConfig {
      */
     @Bean
     public PriceIndexNotificationSender priceIndexNotificationSender() {
-        return new PriceIndexNotificationSender(apiSenderThreadPool());
+        return new PriceIndexNotificationSender(apiSenderThreadPool(), notificationSender());
+    }
+
+    @Bean
+    public WebsocketNotificationSender<PriceIndexMessage> notificationSender() {
+        return new WebsocketNotificationSender<>(apiSenderThreadPool());
+    }
+
+    @Bean
+    public WebsocketServerTransportManager transportManager() {
+        return BroadcastWebsocketTransportManager.createTransportManager(apiSenderThreadPool(),
+                notificationSender());
     }
 
     /**
@@ -56,9 +70,9 @@ public class PriceIndexApiConfig {
      * @return Sender endpoint registration.
      */
     @Bean
-        public ServerEndpointRegistration priceIndexApiEndpointRegistration() {
+    public ServerEndpointRegistration priceIndexApiEndpointRegistration() {
         return new ServerEndpointRegistration(PriceIndexReceiver.WEBSOCKET_PATH,
-                                          priceIndexNotificationSender().getWebsocketEndpoint());
+                transportManager());
     }
 
 }

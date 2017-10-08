@@ -1,6 +1,5 @@
 package com.vmturbo.sample.api.impl;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
@@ -11,12 +10,10 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.protobuf.CodedInputStream;
-
 import com.vmturbo.common.protobuf.sample.Echo.EchoResponse;
 import com.vmturbo.components.api.client.ApiClientException;
-import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.components.api.client.ComponentNotificationReceiver;
+import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.sample.api.EchoListener;
 import com.vmturbo.sample.api.SampleComponent;
 import com.vmturbo.sample.api.SampleNotifications.SampleNotification;
@@ -43,22 +40,9 @@ public class SampleComponentNotificationReceiver
      * {@inheritDoc}
      */
     public SampleComponentNotificationReceiver(
-            @Nonnull final ComponentApiConnectionConfig connectionConfig,
+            @Nonnull final IMessageReceiver<SampleNotification> messageReceiver,
             @Nonnull final ExecutorService executorService) {
-        super(connectionConfig, executorService);
-    }
-
-    @Nonnull
-    @Override
-    protected String addWebsocketPath(@Nonnull final String serverAddress) {
-        return serverAddress + WEBSOCKET_PATH;
-    }
-
-    @Nonnull
-    @Override
-    protected SampleNotification parseMessage(@Nonnull final CodedInputStream bytes)
-            throws IOException {
-        return SampleNotification.parseFrom(bytes);
+        super(messageReceiver, executorService);
     }
 
     @Override
@@ -74,7 +58,7 @@ public class SampleComponentNotificationReceiver
     }
 
     private void notifyEchoListeners(@Nonnull final EchoResponse echoResponse) {
-        listeners.forEach(listener -> executorService.submit(() -> {
+        listeners.forEach(listener -> getExecutorService().submit(() -> {
             try {
                 listener.onEchoResponse(echoResponse);
             } catch (RuntimeException e) {

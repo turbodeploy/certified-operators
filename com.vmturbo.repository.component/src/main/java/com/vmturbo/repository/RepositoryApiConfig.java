@@ -11,6 +11,10 @@ import org.springframework.web.socket.server.standard.ServerEndpointRegistration
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
+import com.vmturbo.communication.WebsocketServerTransportManager;
+import com.vmturbo.components.api.server.BroadcastWebsocketTransportManager;
+import com.vmturbo.components.api.server.WebsocketNotificationSender;
+import com.vmturbo.repository.api.RepositoryDTO.RepositoryNotification;
 import com.vmturbo.repository.api.impl.RepositoryNotificationReceiver;
 
 /**
@@ -29,7 +33,18 @@ public class RepositoryApiConfig {
 
     @Bean
     public RepositoryNotificationSender repositoryNotificationSender() {
-        return new RepositoryNotificationSender(threadPool());
+        return new RepositoryNotificationSender(threadPool(), notificationSender());
+    }
+
+    @Bean
+    public WebsocketNotificationSender<RepositoryNotification> notificationSender() {
+        return new WebsocketNotificationSender<>(threadPool());
+    }
+
+    @Bean
+    public WebsocketServerTransportManager transportManager() {
+        return BroadcastWebsocketTransportManager.createTransportManager(threadPool(),
+                notificationSender());
     }
 
     /**
@@ -40,7 +55,7 @@ public class RepositoryApiConfig {
     @Bean
     public ServerEndpointRegistration apiEndpointRegistration() {
         return new ServerEndpointRegistration(RepositoryNotificationReceiver.WEBSOCKET_PATH,
-                repositoryNotificationSender().getWebsocketEndpoint());
+                transportManager());
     }
 
     @Bean

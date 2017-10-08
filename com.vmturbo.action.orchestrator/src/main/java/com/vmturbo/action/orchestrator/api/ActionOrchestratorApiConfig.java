@@ -4,7 +4,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.socket.server.standard.ServerEndpointRegistration;
@@ -12,6 +11,10 @@ import org.springframework.web.socket.server.standard.ServerEndpointRegistration
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClient;
+import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionOrchestratorNotification;
+import com.vmturbo.communication.WebsocketServerTransportManager;
+import com.vmturbo.components.api.server.BroadcastWebsocketTransportManager;
+import com.vmturbo.components.api.server.WebsocketNotificationSender;
 
 /**
  * Spring configuration to provide the {@link com.vmturbo.market.component.api.MarketComponent} integration.
@@ -28,7 +31,19 @@ public class ActionOrchestratorApiConfig {
 
     @Bean
     public ActionOrchestratorNotificationSender actionOrchestratorNotificationSender() {
-        return new ActionOrchestratorNotificationSender(apiServerThreadPool());
+        return new ActionOrchestratorNotificationSender(apiServerThreadPool(),
+                notificationSender());
+    }
+
+    @Bean
+    public WebsocketNotificationSender<ActionOrchestratorNotification> notificationSender() {
+        return new WebsocketNotificationSender<>(apiServerThreadPool());
+    }
+
+    @Bean
+    public WebsocketServerTransportManager transportManager() {
+        return BroadcastWebsocketTransportManager.createTransportManager(apiServerThreadPool(),
+                notificationSender());
     }
 
     /**
@@ -39,7 +54,7 @@ public class ActionOrchestratorApiConfig {
     @Bean
     public ServerEndpointRegistration apiEndpointRegistration() {
         return new ServerEndpointRegistration(ActionOrchestratorClient.WEBSOCKET_PATH,
-                actionOrchestratorNotificationSender().getWebsocketEndpoint());
+                transportManager());
     }
 
 }

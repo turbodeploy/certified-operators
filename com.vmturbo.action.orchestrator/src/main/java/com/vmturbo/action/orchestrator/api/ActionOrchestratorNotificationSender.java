@@ -1,5 +1,6 @@
 package com.vmturbo.action.orchestrator.api;
 
+import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 
 import javax.annotation.Nonnull;
@@ -10,6 +11,7 @@ import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionFailure;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionProgress;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionSuccess;
 import com.vmturbo.components.api.server.ComponentNotificationSender;
+import com.vmturbo.components.api.server.IMessageSender;
 
 /**
  * Handles the websocket connections with clients using the
@@ -18,8 +20,12 @@ import com.vmturbo.components.api.server.ComponentNotificationSender;
 public class ActionOrchestratorNotificationSender extends
         ComponentNotificationSender<ActionOrchestratorNotification> {
 
-    ActionOrchestratorNotificationSender(@Nonnull final ExecutorService threadPool) {
+    private final IMessageSender<ActionOrchestratorNotification> sender;
+
+    ActionOrchestratorNotificationSender(@Nonnull final ExecutorService threadPool,
+            @Nonnull IMessageSender<ActionOrchestratorNotification> sender) {
         super(threadPool);
+        this.sender = Objects.requireNonNull(sender);
     }
 
     /**
@@ -34,28 +40,28 @@ public class ActionOrchestratorNotificationSender extends
         final ActionOrchestratorNotification serverMessage = createNewMessage()
                 .setActionPlan(actionPlan)
                 .build();
-        sendMessage(serverMessage.getBroadcastId(), serverMessage);
+        sendMessage(sender, serverMessage);
     }
 
     public void notifyActionProgress(@Nonnull final ActionProgress actionProgress) {
         final ActionOrchestratorNotification serverMessage = createNewMessage()
                 .setActionProgress(actionProgress)
                 .build();
-        sendMessage(serverMessage.getBroadcastId(), serverMessage);
+        sendMessage(sender, serverMessage);
     }
 
     public void notifyActionSuccess(@Nonnull final ActionSuccess actionSuccess) {
         final ActionOrchestratorNotification serverMessage = createNewMessage()
                 .setActionSuccess(actionSuccess)
                 .build();
-        sendMessage(serverMessage.getBroadcastId(), serverMessage);
+        sendMessage(sender, serverMessage);
     }
 
     public void notifyActionFailure(@Nonnull final ActionFailure actionFailure) {
         final ActionOrchestratorNotification serverMessage = createNewMessage()
                 .setActionFailure(actionFailure)
                 .build();
-        sendMessage(serverMessage.getBroadcastId(), serverMessage);
+        sendMessage(sender, serverMessage);
     }
 
     @Nonnull
@@ -69,5 +75,4 @@ public class ActionOrchestratorNotificationSender extends
         return ActionOrchestratorNotification.class.getSimpleName() + "[" +
                 actionNotification.getBroadcastId() + "]";
     }
-
 }
