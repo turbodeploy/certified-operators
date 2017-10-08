@@ -48,18 +48,18 @@ public class PriceIndexApiConfig {
      */
     @Bean
     public PriceIndexNotificationSender priceIndexNotificationSender() {
-        return new PriceIndexNotificationSender(apiSenderThreadPool(), notificationSender());
+        return new PriceIndexNotificationSender(apiSenderThreadPool(), priceIndexWebsocketNotificationSender());
     }
 
     @Bean
-    public WebsocketNotificationSender<PriceIndexMessage> notificationSender() {
+    public WebsocketNotificationSender<PriceIndexMessage> priceIndexWebsocketNotificationSender() {
         return new WebsocketNotificationSender<>(apiSenderThreadPool());
     }
 
     @Bean
-    public WebsocketServerTransportManager transportManager() {
+    public WebsocketServerTransportManager priceIndexTransportManager() {
         return BroadcastWebsocketTransportManager.createTransportManager(apiSenderThreadPool(),
-                notificationSender());
+                priceIndexWebsocketNotificationSender());
     }
 
     /**
@@ -72,7 +72,7 @@ public class PriceIndexApiConfig {
     @Bean
     public ServerEndpointRegistration priceIndexApiEndpointRegistration() {
         return new ServerEndpointRegistration(PriceIndexReceiver.WEBSOCKET_PATH,
-                transportManager());
+                priceIndexTransportManager());
     }
 
 }

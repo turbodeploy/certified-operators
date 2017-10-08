@@ -27,7 +27,7 @@ public class MarketNotificationSender extends
         ComponentNotificationSender<MarketComponentNotification> {
 
     private final IMessageSender<MarketComponentNotification> topologySender;
-    private final IMessageSender<MarketComponentNotification> notificationSender;
+    private final IMessageSender<MarketComponentNotification> actionPlanSender;
 
     // TODO remove in future after switch off websockets
     private final long chunkSendDelayMs;
@@ -35,10 +35,10 @@ public class MarketNotificationSender extends
     public MarketNotificationSender(@Nonnull final ExecutorService threadPool,
             long chunkSendDelayMs,
             @Nonnull IMessageSender<MarketComponentNotification> topologySender,
-            @Nonnull IMessageSender<MarketComponentNotification> notificationSender) {
+            @Nonnull IMessageSender<MarketComponentNotification> actionPlanSender) {
         super(threadPool);
         this.topologySender = Objects.requireNonNull(topologySender);
-        this.notificationSender = Objects.requireNonNull(notificationSender);
+        this.actionPlanSender = Objects.requireNonNull(actionPlanSender);
         if (chunkSendDelayMs < 0) {
             throw new IllegalArgumentException("Chunk send delay must not be a negative value");
         } else {
@@ -56,7 +56,7 @@ public class MarketNotificationSender extends
      */
     public void notifyActionsRecommended(@Nonnull final ActionPlan actionPlan) {
         final MarketComponentNotification serverMessage = createNewMessage().setActionPlan(actionPlan).build();
-        sendMessage(notificationSender, serverMessage);
+        sendMessage(actionPlanSender, serverMessage);
     }
 
     /**

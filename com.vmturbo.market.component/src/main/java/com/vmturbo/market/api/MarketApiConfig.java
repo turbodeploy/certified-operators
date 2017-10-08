@@ -37,11 +37,11 @@ public class MarketApiConfig {
     @Bean
     public MarketNotificationSender marketApi() {
         return new MarketNotificationSender(apiServerThreadPool(), chunkSendDelayMs,
-                topologySender(), notificationSender());
+                topologySender(), actionPlanSender());
     }
 
     @Bean
-    public WebsocketNotificationSender<MarketComponentNotification> notificationSender() {
+    public WebsocketNotificationSender<MarketComponentNotification> actionPlanSender() {
         return new WebsocketNotificationSender<>(apiServerThreadPool());
     }
 
@@ -51,9 +51,9 @@ public class MarketApiConfig {
     }
 
     @Bean
-    public WebsocketServerTransportManager transportManager() {
+    public WebsocketServerTransportManager marketApiTransportManager() {
         return BroadcastWebsocketTransportManager.createTransportManager(apiServerThreadPool(),
-                notificationSender(), topologySender());
+                actionPlanSender(), topologySender());
     }
 
     /**
@@ -64,6 +64,6 @@ public class MarketApiConfig {
     @Bean
     public ServerEndpointRegistration marketApiEndpointRegistration() {
         return new ServerEndpointRegistration(MarketComponentClient.WEBSOCKET_PATH,
-                transportManager());
+                marketApiTransportManager());
     }
 }
