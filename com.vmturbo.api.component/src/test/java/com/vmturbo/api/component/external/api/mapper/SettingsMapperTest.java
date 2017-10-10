@@ -1,9 +1,12 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -17,26 +20,40 @@ import java.util.stream.Collectors;
 
 import org.junit.Test;
 
+import com.google.common.collect.ImmutableMap;
+
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper.DefaultSettingSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingManagerInfo;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingManagerMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingSpecMapper;
+import com.vmturbo.api.dto.GroupApiDTO;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
+import com.vmturbo.api.dto.setting.SettingsPolicyApiDTO;
 import com.vmturbo.api.enums.InputValueType;
 import com.vmturbo.api.enums.SettingScope;
+import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.AllEntityType;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.EntityTypeSet;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingSpec;
+import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.GlobalSettingSpec;
+import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValueType;
+import com.vmturbo.common.protobuf.setting.SettingProto.ScopeType;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingCategoryPath;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingCategoryPath.SettingCategoryPathNode;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingTiebreaker;
+import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValueType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class SettingsMapperTest {
     private final String mgrId1 = "mgr1";
@@ -66,6 +83,9 @@ public class SettingsMapperTest {
     private final SettingSpec settingSpec3 = SettingSpec.newBuilder(settingSpec1)
             .setName("thirdMoveVM")
             .build();
+
+    private final SettingManagerInfo mgr1Info = new SettingManagerInfo(mgrName1, mgrCategory1,
+                Collections.singleton(settingSpec1.getName()));
 
     /**
      * Verify that a manager loaded from JSON file gets used to map
@@ -109,7 +129,7 @@ public class SettingsMapperTest {
         when(mapping.getManagerInfo(mgrId1))
             .thenReturn(Optional.of(new SettingManagerInfo(mgrName1, mgrCategory1,
                     Collections.singleton(settingSpec1.getName()))));
-        when(mapping.getManagerUuid(settingSpec1)).thenReturn(Optional.of(mgrId1));
+        when(mapping.getManagerUuid(settingSpec1.getName())).thenReturn(Optional.of(mgrId1));
 
         SettingApiDTO settingApiDTO = new SettingApiDTO();
         settingApiDTO.setDisplayName("mockSetting");
@@ -144,8 +164,8 @@ public class SettingsMapperTest {
         when(mapping.getManagerInfo(mgrId1))
                 .thenReturn(Optional.of(new SettingManagerInfo(mgrName1, mgrCategory1,
                         Collections.emptySet())));
-        when(mapping.getManagerUuid(settingSpec1)).thenReturn(Optional.empty());
-        when(mapping.getManagerUuid(settingSpec2)).thenReturn(Optional.of(mgrId1 + "suffix"));
+        when(mapping.getManagerUuid(settingSpec1.getName())).thenReturn(Optional.empty());
+        when(mapping.getManagerUuid(settingSpec2.getName())).thenReturn(Optional.of(mgrId1 + "suffix"));
 
         SettingsMapper mapper = new SettingsMapper(mapping,  specMapper);
         Optional<SettingsManagerApiDTO> mgrDtoOpt =
@@ -168,8 +188,8 @@ public class SettingsMapperTest {
         final SettingApiDTO settingApiDTO2 = new SettingApiDTO();
         settingApiDTO2.setDisplayName("mockSetting2");
 
-        when(mapping.getManagerUuid(settingSpec1)).thenReturn(Optional.of(mgrId1));
-        when(mapping.getManagerUuid(settingSpec2)).thenReturn(Optional.of(mgrId2));
+        when(mapping.getManagerUuid(settingSpec1.getName())).thenReturn(Optional.of(mgrId1));
+        when(mapping.getManagerUuid(settingSpec2.getName())).thenReturn(Optional.of(mgrId2));
         when(mapping.getManagerInfo(mgrId1))
                 .thenReturn(Optional.of(new SettingManagerInfo(mgrName1, mgrCategory1,
                         Collections.singleton(settingSpec1.getName()))));
@@ -206,7 +226,7 @@ public class SettingsMapperTest {
         final SettingManagerMapping mapping = mock(SettingManagerMapping.class);
         final SettingSpecMapper specMapper = mock(SettingSpecMapper.class);
         final SettingsMapper mapper = new SettingsMapper(mapping,  specMapper);
-        when(mapping.getManagerUuid(settingSpec1)).thenReturn(Optional.empty());
+        when(mapping.getManagerUuid(settingSpec1.getName())).thenReturn(Optional.empty());
         assertTrue(mapper.toManagerDtos(Collections.singleton(settingSpec1)).isEmpty());
     }
 
@@ -302,5 +322,277 @@ public class SettingsMapperTest {
         final SettingApiDTO dto = specMapper.settingSpecToApi(stringSpec).get();
         // The first entity type should be the one set in the returned DTO.
         assertEquals(ServiceEntityMapper.toUIEntityType(10), dto.getEntityType());
+    }
+
+    @Test
+    public void testMapInputPolicyDefault() {
+        final SettingManagerMapping mapping = mock(SettingManagerMapping.class);
+        final SettingSpecMapper specMapper = mock(SettingSpecMapper.class);
+        final SettingsMapper mapper = new SettingsMapper(mapping,  specMapper);
+
+        final SettingsPolicyApiDTO settingsPolicyApiDTO = new SettingsPolicyApiDTO();
+        settingsPolicyApiDTO.setDisplayName("Test");
+        settingsPolicyApiDTO.setDefault(true);
+        settingsPolicyApiDTO.setEntityType(
+                ServiceEntityMapper.toUIEntityType(EntityType.VIRTUAL_MACHINE.getNumber()));
+
+        SettingPolicyInfo info =
+                mapper.convertInputPolicy(settingsPolicyApiDTO, Collections.emptyMap());
+
+        assertEquals("Test", info.getName());
+        assertTrue(info.hasDefault());
+        // Enabled if disabled is not explicitly set.
+        assertTrue(info.getEnabled());
+    }
+
+    @Test
+    public void testMapInputPolicy() {
+        final SettingManagerMapping mapping = mock(SettingManagerMapping.class);
+        final SettingSpecMapper specMapper = mock(SettingSpecMapper.class);
+        final SettingsMapper mapper = new SettingsMapper(mapping,  specMapper);
+
+        final SettingsPolicyApiDTO settingsPolicyApiDTO = new SettingsPolicyApiDTO();
+
+        final SettingApiDTO boolSetting = new SettingApiDTO();
+        boolSetting.setUuid("bool setting");
+        boolSetting.setValue("true");
+        final Setting boolSettingProto = Setting.newBuilder()
+                .setSettingSpecName(boolSetting.getUuid())
+                .setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(true))
+                .build();
+
+        final SettingApiDTO numSetting = new SettingApiDTO();
+        numSetting.setUuid("num setting");
+        numSetting.setValue("10");
+        final Setting numSettingProto = Setting.newBuilder()
+                .setSettingSpecName(numSetting.getUuid())
+                .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(10))
+                .build();
+
+        final SettingApiDTO stringSetting = new SettingApiDTO();
+        stringSetting.setUuid("string setting");
+        stringSetting.setValue("foo");
+        final Setting strSettingProto = Setting.newBuilder()
+                .setSettingSpecName(stringSetting.getUuid())
+                .setStringSettingValue(StringSettingValue.newBuilder().setValue("foo"))
+                .build();
+
+        final SettingApiDTO enumSetting = new SettingApiDTO();
+        enumSetting.setUuid("enum setting");
+        enumSetting.setValue("VAL");
+        final Setting enumSettingProto = Setting.newBuilder()
+                .setSettingSpecName(enumSetting.getUuid())
+                .setEnumSettingValue(EnumSettingValue.newBuilder().setValue("VAL"))
+                .build();
+
+        final Map<String, SettingSpec> specMap = ImmutableMap.<String, SettingSpec>builder()
+            .put(boolSetting.getUuid(), SettingSpec.newBuilder()
+                .setBooleanSettingValueType(BooleanSettingValueType.getDefaultInstance()).build())
+            .put(numSetting.getUuid(), SettingSpec.newBuilder()
+                .setNumericSettingValueType(NumericSettingValueType.getDefaultInstance()).build())
+            .put(stringSetting.getUuid(), SettingSpec.newBuilder()
+                .setStringSettingValueType(StringSettingValueType.getDefaultInstance()).build())
+            .put(enumSetting.getUuid(), SettingSpec.newBuilder()
+                .setEnumSettingValueType(EnumSettingValueType.getDefaultInstance()).build())
+            .build();
+
+        final SettingsManagerApiDTO settingMgr1 = new SettingsManagerApiDTO();
+        settingMgr1.setSettings(Arrays.asList(boolSetting, numSetting));
+        final SettingsManagerApiDTO settingMgr2 = new SettingsManagerApiDTO();
+        settingMgr2.setSettings(Arrays.asList(stringSetting, enumSetting));
+
+        settingsPolicyApiDTO.setSettingsManagers(Arrays.asList(settingMgr1, settingMgr2));
+        settingsPolicyApiDTO.setDefault(false);
+
+        final GroupApiDTO group = new GroupApiDTO();
+        group.setUuid("7");
+        settingsPolicyApiDTO.setScopes(Collections.singletonList(group));
+
+        settingsPolicyApiDTO.setDisplayName("A Setting Policy is neither a Setting, not a Policy." +
+                " Like a pineapple.");
+        settingsPolicyApiDTO.setEntityType(ServiceEntityMapper.toUIEntityType(
+                EntityType.VIRTUAL_MACHINE.getNumber()));
+        settingsPolicyApiDTO.setDisabled(false);
+
+        final SettingPolicyInfo info = mapper.convertInputPolicy(settingsPolicyApiDTO, specMap);
+        assertEquals(settingsPolicyApiDTO.getDisplayName(), info.getName());
+        assertEquals(EntityType.VIRTUAL_MACHINE.getNumber(), info.getEntityType());
+        assertEquals(true, info.getEnabled());
+        assertTrue(info.hasScope());
+        assertThat(info.getScope().getGroupsList(), containsInAnyOrder(7L));
+        assertThat(info.getSettingsList(),
+                containsInAnyOrder(boolSettingProto, numSettingProto,
+                        strSettingProto, enumSettingProto));
+    }
+
+    @Test
+    public void testMapPolicyInfoToApiDto() {
+        final SettingManagerMapping mapping = mock(SettingManagerMapping.class);
+        final SettingSpecMapper specMapper = mock(SettingSpecMapper.class);
+        final SettingsMapper mapper = new SettingsMapper(mapping,  specMapper);
+
+        final long groupId = 7;
+        final String groupName = "goat";
+
+        final SettingPolicy settingPolicy = SettingPolicy.newBuilder()
+                .setId(1)
+                .setInfo(SettingPolicyInfo.newBuilder()
+                    .setName("foo")
+                    .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
+                    .setEnabled(true)
+                    .setScope(ScopeType.newBuilder()
+                            .addGroups(7L))
+                    .addSettings(Setting.newBuilder()
+                            .setSettingSpecName(settingSpec1.getName())
+                            .setEnumSettingValue(EnumSettingValue.newBuilder()
+                                    .setValue("AUTOMATIC"))))
+                .build();
+
+        when(mapping.getManagerUuid(eq(settingSpec1.getName()))).thenReturn(Optional.of(mgrId1));
+        when(mapping.getManagerInfo(mgrId1))
+                .thenReturn(Optional.of(mgr1Info));
+
+        final SettingsPolicyApiDTO retDto =
+                mapper.convertSettingsPolicy(settingPolicy, ImmutableMap.of(groupId, groupName));
+        assertEquals("foo", retDto.getDisplayName());
+        assertEquals("1", retDto.getUuid());
+        assertFalse(retDto.getDisabled());
+        assertFalse(retDto.isDefault());
+        final List<SettingsManagerApiDTO> mgrDtos = retDto.getSettingsManagers();
+        assertEquals(1, mgrDtos.size());
+        final SettingsManagerApiDTO mgr = mgrDtos.get(0);
+        assertEquals(mgrId1, mgr.getUuid());
+        assertEquals(mgrName1, mgr.getDisplayName());
+        assertEquals(mgrCategory1, mgr.getCategory());
+        assertEquals(1, mgr.getSettings().size());
+        final SettingApiDTO setting = mgr.getSettings().get(0);
+        assertEquals(settingSpec1.getName(), setting.getUuid());
+        assertEquals("AUTOMATIC", setting.getValue());
+    }
+
+    @Test
+    public void testValMgrDtoEnum() {
+        final SettingManagerMapping mapping = mock(SettingManagerMapping.class);
+        final SettingSpecMapper specMapper = mock(SettingSpecMapper.class);
+        final SettingsMapper mapper = new SettingsMapper(mapping,  specMapper);
+
+        final SettingsManagerApiDTO mgr =
+            mapper.createValMgrDto(mgrId1, mgr1Info, Collections.singletonList(Setting.newBuilder()
+                .setSettingSpecName(settingSpec1.getName())
+                .setEnumSettingValue(EnumSettingValue.newBuilder()
+                        .setValue("AUTOMATIC"))
+                .build()));
+        assertEquals(mgrId1, mgr.getUuid());
+        assertEquals(mgrName1, mgr.getDisplayName());
+        assertEquals(mgrCategory1, mgr.getCategory());
+        assertEquals(1, mgr.getSettings().size());
+        final SettingApiDTO setting = mgr.getSettings().get(0);
+        assertEquals(settingSpec1.getName(), setting.getUuid());
+        assertEquals("AUTOMATIC", setting.getValue());
+    }
+
+    @Test
+    public void testValMgrDtoBool() {
+        final SettingManagerMapping mapping = mock(SettingManagerMapping.class);
+        final SettingSpecMapper specMapper = mock(SettingSpecMapper.class);
+        final SettingsMapper mapper = new SettingsMapper(mapping,  specMapper);
+
+        final SettingsManagerApiDTO mgr =
+                mapper.createValMgrDto(mgrId1, mgr1Info, Collections.singletonList(Setting.newBuilder()
+                        .setSettingSpecName("setting")
+                        .setBooleanSettingValue(BooleanSettingValue.newBuilder()
+                                .setValue(true))
+                        .build()));
+        assertEquals(mgrId1, mgr.getUuid());
+        assertEquals(mgrName1, mgr.getDisplayName());
+        assertEquals(mgrCategory1, mgr.getCategory());
+        assertEquals(1, mgr.getSettings().size());
+        final SettingApiDTO setting = mgr.getSettings().get(0);
+        assertEquals("setting", setting.getUuid());
+        assertEquals("true", setting.getValue());
+    }
+
+    @Test
+    public void testValMgrDtoNum() {
+        final SettingManagerMapping mapping = mock(SettingManagerMapping.class);
+        final SettingSpecMapper specMapper = mock(SettingSpecMapper.class);
+        final SettingsMapper mapper = new SettingsMapper(mapping,  specMapper);
+
+        final SettingsManagerApiDTO mgr =
+                mapper.createValMgrDto(mgrId1, mgr1Info, Collections.singletonList(Setting.newBuilder()
+                        .setSettingSpecName("setting")
+                        .setNumericSettingValue(NumericSettingValue.newBuilder()
+                                .setValue(2.7f))
+                        .build()));
+        assertEquals(mgrId1, mgr.getUuid());
+        assertEquals(mgrName1, mgr.getDisplayName());
+        assertEquals(mgrCategory1, mgr.getCategory());
+        assertEquals(1, mgr.getSettings().size());
+        final SettingApiDTO setting = mgr.getSettings().get(0);
+        assertEquals("setting", setting.getUuid());
+        assertEquals("2.7", setting.getValue());
+    }
+
+    @Test
+    public void testValMgrDtoStr() {
+        final SettingManagerMapping mapping = mock(SettingManagerMapping.class);
+        final SettingSpecMapper specMapper = mock(SettingSpecMapper.class);
+        final SettingsMapper mapper = new SettingsMapper(mapping,  specMapper);
+
+        final SettingsManagerApiDTO mgr =
+                mapper.createValMgrDto(mgrId1, mgr1Info, Collections.singletonList(Setting.newBuilder()
+                        .setSettingSpecName("setting")
+                        .setStringSettingValue(StringSettingValue.newBuilder()
+                                .setValue("foo"))
+                        .build()));
+        assertEquals(mgrId1, mgr.getUuid());
+        assertEquals(mgrName1, mgr.getDisplayName());
+        assertEquals(mgrCategory1, mgr.getCategory());
+        assertEquals(1, mgr.getSettings().size());
+        final SettingApiDTO setting = mgr.getSettings().get(0);
+        assertEquals("setting", setting.getUuid());
+        assertEquals("foo", setting.getValue());
+    }
+
+    @Test
+    public void testInferEntityTypeSuccess() {
+        final SettingManagerMapping mapping = mock(SettingManagerMapping.class);
+        final SettingSpecMapper specMapper = mock(SettingSpecMapper.class);
+        final SettingsMapper mapper = new SettingsMapper(mapping,  specMapper);
+        final Map<String, SettingSpec> specMap = ImmutableMap.of("setting", SettingSpec.newBuilder()
+                .setEntitySettingSpec(EntitySettingSpec.newBuilder()
+                        .setEntitySettingScope(EntitySettingScope.newBuilder()
+                                .setEntityTypeSet(EntityTypeSet.newBuilder()
+                                        .addEntityType(EntityType.VIRTUAL_MACHINE.getNumber()))))
+                .build());
+        assertEquals(EntityType.VIRTUAL_MACHINE.getNumber(), mapper.inferEntityType(specMap));
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testInferEntityTypeTwoTypes() {
+        final SettingManagerMapping mapping = mock(SettingManagerMapping.class);
+        final SettingSpecMapper specMapper = mock(SettingSpecMapper.class);
+        final SettingsMapper mapper = new SettingsMapper(mapping,  specMapper);
+        final Map<String, SettingSpec> specMap = ImmutableMap.of("setting", SettingSpec.newBuilder()
+            .setEntitySettingSpec(EntitySettingSpec.newBuilder()
+                .setEntitySettingScope(EntitySettingScope.newBuilder()
+                    .setEntityTypeSet(EntityTypeSet.newBuilder()
+                        .addEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
+                        .addEntityType(EntityType.STORAGE.getNumber()))))
+            .build());
+        assertEquals(EntityType.VIRTUAL_MACHINE.getNumber(), mapper.inferEntityType(specMap));
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testInferEntityTypeNoType() {
+        final SettingManagerMapping mapping = mock(SettingManagerMapping.class);
+        final SettingSpecMapper specMapper = mock(SettingSpecMapper.class);
+        final SettingsMapper mapper = new SettingsMapper(mapping,  specMapper);
+        final Map<String, SettingSpec> specMap = ImmutableMap.of("setting", SettingSpec.newBuilder()
+            .setEntitySettingSpec(EntitySettingSpec.newBuilder()
+                .setEntitySettingScope(EntitySettingScope.newBuilder()
+                    .setAllEntityType(AllEntityType.getDefaultInstance())))
+            .build());
+        assertEquals(EntityType.VIRTUAL_MACHINE.getNumber(), mapper.inferEntityType(specMap));
     }
 }

@@ -1,16 +1,18 @@
 package com.vmturbo.group.service;
 
-import java.util.Collection;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.collect.Sets;
+
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
-import com.vmturbo.common.protobuf.setting.SettingProto.AllSettingSpecRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.SearchSettingSpecsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.SingleSettingSpecRequest;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceImplBase;
@@ -61,22 +63,28 @@ public class SettingRpcService extends SettingServiceImplBase {
     }
 
     /**
-     * Gets all {@link SettingSpec}.
+     * Gets all {@link SettingSpec} matching the criteria in the request.
      *
      * @param request SettingSpec request
      * @param responseObserver gRPC response observer
      */
     @Override
-    public void getAllSettingSpec(AllSettingSpecRequest request, StreamObserver<SettingSpec> responseObserver) {
+    public void searchSettingSpecs(SearchSettingSpecsRequest request,
+                                   StreamObserver<SettingSpec> responseObserver) {
 
-        logger.debug("Request: getAllSettingSpec");
+        logger.debug("Request: searchSettingSpec. Object: {}", request);
 
-        // retrieve all the specs from the store
-        Collection<SettingSpec> settingSpecCollection = settingStore.getAllSettingSpec();
+        // Store the requested names as a set for quicker comparisons.
+        Optional<Set<String>> requestedNames = request.getSettingSpecNameCount() > 0 ?
+                Optional.of(Sets.newHashSet(request.getSettingSpecNameList())) : Optional.empty();
 
-        for (SettingSpec settingSpec : settingSpecCollection) {
-            responseObserver.onNext(settingSpec);
-        }
+        settingStore.getAllSettingSpec().stream()
+                // If specific names are requested, filter out anything that doesn't match.
+                .filter(spec -> requestedNames
+                    .map(names -> names.contains(spec.getName()))
+                    .orElse(true))
+                .forEach(responseObserver::onNext);
+
         responseObserver.onCompleted();
     }
 }

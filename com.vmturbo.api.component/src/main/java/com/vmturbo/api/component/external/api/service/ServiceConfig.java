@@ -185,7 +185,8 @@ public class ServiceConfig {
 
     @Bean
     public SettingsPoliciesService settingsPoliciesService() {
-        return new SettingsPoliciesService();
+        return new SettingsPoliciesService(mapperConfig.settingsMapper(),
+                communicationConfig.groupChannel());
     }
 
     @Bean

@@ -1,5 +1,6 @@
 package com.vmturbo.group.service;
 
+import static org.junit.Assert.assertEquals;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.never;
@@ -13,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
@@ -21,7 +23,7 @@ import com.google.common.collect.ImmutableSet;
 
 import io.grpc.stub.StreamObserver;
 
-import com.vmturbo.common.protobuf.setting.SettingProto.AllSettingSpecRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.SearchSettingSpecsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.SingleSettingSpecRequest;
 import com.vmturbo.group.persistent.SettingStore;
@@ -92,17 +94,36 @@ public class SettingRpcServiceTest {
     @Test
     public void testGetAllSettingSpec() {
 
-        AllSettingSpecRequest settingSpecRequest = AllSettingSpecRequest.newBuilder().build();
+        SearchSettingSpecsRequest settingSpecRequest =
+                SearchSettingSpecsRequest.newBuilder().build();
 
         StreamObserver<SettingSpec> mockObserver =
                 (StreamObserver<SettingSpec>) Mockito.mock(StreamObserver.class);
 
-        settingRpcService.getAllSettingSpec(settingSpecRequest, mockObserver);
+        settingRpcService.searchSettingSpecs(settingSpecRequest, mockObserver);
 
         verify(mockObserver, times(2)).onNext(any(SettingSpec.class));
         verify(mockObserver).onCompleted();
         verify(mockObserver, never()).onError(any());
+    }
 
+    @Test
+    public void testGetSomeSettingSpec() {
+        SearchSettingSpecsRequest settingSpecRequest =
+                SearchSettingSpecsRequest.newBuilder()
+                        .addSettingSpecName(specName1)
+                        .build();
+
+        StreamObserver<SettingSpec> mockObserver =
+                (StreamObserver<SettingSpec>) Mockito.mock(StreamObserver.class);
+
+        settingRpcService.searchSettingSpecs(settingSpecRequest, mockObserver);
+
+        ArgumentCaptor<SettingSpec> specCaptor = ArgumentCaptor.forClass(SettingSpec.class);
+        verify(mockObserver).onNext(specCaptor.capture());
+        verify(mockObserver).onCompleted();
+
+        assertEquals(specName1, specCaptor.getValue().getName());
     }
 
 }

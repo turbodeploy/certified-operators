@@ -17,8 +17,8 @@ import com.vmturbo.api.dto.input.SettingApiInputDTO;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
 import com.vmturbo.api.serviceinterfaces.ISettingsService;
-import com.vmturbo.common.protobuf.setting.SettingProto.AllSettingSpecRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
+import com.vmturbo.common.protobuf.setting.SettingProto.SearchSettingSpecsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 
@@ -61,8 +61,8 @@ public class SettingsService implements ISettingsService {
     public List<SettingsManagerApiDTO> getSettingsSpecs(final String managerUuid,
                                                         final String entityType,
                                                         final boolean isPlan) throws Exception {
-        final Iterable<SettingSpec> specIt = () -> settingServiceBlockingStub.getAllSettingSpec(
-                AllSettingSpecRequest.getDefaultInstance());
+        final Iterable<SettingSpec> specIt = () -> settingServiceBlockingStub.searchSettingSpecs(
+                SearchSettingSpecsRequest.getDefaultInstance());
 
         final List<SettingSpec> specs = StreamSupport.stream(specIt.spliterator(), false)
                 .filter(spec -> settingMatchEntityType(spec, entityType))

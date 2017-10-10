@@ -304,16 +304,20 @@ message SingleSettingSpecRequest {
     optional string setting_spec_name = 1;
 }
 
-// Used to request all the single SettingSpecs
-message AllSettingSpecRequest {}
+// Used to request all the single SettingSpecs that match some criteria.
+// If no fields are set, returns all SettingSpecs.
+message SearchSettingSpecsRequest {
+    // If set, return only setting specs that match the list of names.
+    repeated string setting_spec_name = 1;
+}
 
 // Service responsible for setting operations
 service SettingService {
     // Get a setting spec
-    rpc GetSettingSpec (SingleSettingSpecRequest) returns (SettingSpec);
+    rpc GetSettingSpec(SingleSettingSpecRequest) returns (SettingSpec);
 
-    // Get all setting specs
-    rpc GetAllSettingSpec (AllSettingSpecRequest) returns (stream SettingSpec);
+    // Search setting specs, returning all that match some criteria.
+    rpc SearchSettingSpecs(SearchSettingSpecsRequest) returns (stream SettingSpec);
 }
 
 // A request to create a SettingPolicy.

@@ -29,7 +29,7 @@ import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
-import com.vmturbo.common.protobuf.setting.SettingProto.AllSettingSpecRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.SearchSettingSpecsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.AllEntityType;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.EntityTypeSet;
@@ -174,11 +174,12 @@ public class SettingsServiceTest {
 
     private static class TestSettingRpcService extends SettingServiceImplBase {
 
-        public List<SettingSpec> getAllSettingSpec(AllSettingSpecRequest request) {
+        public List<SettingSpec> getAllSettingSpec(SearchSettingSpecsRequest request) {
             return Collections.emptyList();
         }
 
-        public void getAllSettingSpec(AllSettingSpecRequest request,
+        @Override
+        public void searchSettingSpecs(SearchSettingSpecsRequest request,
                                       StreamObserver<SettingSpec> responseObserver) {
             getAllSettingSpec(request).forEach(responseObserver::onNext);
             responseObserver.onCompleted();

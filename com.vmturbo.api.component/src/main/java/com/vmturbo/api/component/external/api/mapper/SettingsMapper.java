@@ -16,24 +16,37 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 
+import com.vmturbo.api.dto.GroupApiDTO;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.setting.SettingOptionApiDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
+import com.vmturbo.api.dto.setting.SettingsPolicyApiDTO;
 import com.vmturbo.api.enums.InputValueType;
 import com.vmturbo.api.enums.SettingScope;
+import com.vmturbo.common.protobuf.SettingDTOUtil;
+import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
+import com.vmturbo.common.protobuf.setting.SettingProto.DefaultType;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.EntityTypeSet;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.ScopeCase;
+import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
+import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValueType;
+import com.vmturbo.common.protobuf.setting.SettingProto.ScopeType;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingCategoryPath.SettingCategoryPathNode;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
+import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValueType;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.GsonPostProcessable;
@@ -86,11 +99,11 @@ public class SettingsMapper {
      * that will represent these settings to the UI.
      *
      * @param specs The collection of specs.
-     * @return
+     * @return The {@link SettingsManagerApiDTO}s.
      */
     public List<SettingsManagerApiDTO> toManagerDtos(@Nonnull final Collection<SettingSpec> specs) {
         final Map<String, List<SettingSpec>> specsByMgr = specs.stream()
-                .collect(Collectors.groupingBy(spec -> managerMapping.getManagerUuid(spec)
+                .collect(Collectors.groupingBy(spec -> managerMapping.getManagerUuid(spec.getName())
                         .orElse(NO_MANAGER)));
 
         final List<SettingSpec> unhandledSpecs = specsByMgr.get(NO_MANAGER);
@@ -114,22 +127,238 @@ public class SettingsMapper {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Convert a collection of {@link SettingSpec} objects into a specific
+     * {@link SettingsManagerApiDTO}. This is like {@link SettingsMapper#toManagerDtos(Collection)},
+     * just for one specific manager.
+     *
+     * @param specs The {@link SettingSpec}s. These don't have to all be managed by the desired
+     *              manager - the method will exclude the ones that are not.
+     * @param desiredMgrId The ID of the desired manager ID.
+     * @return An optional containing the {@link SettingsManagerApiDTO}, or an empty optional if
+     *         the manager does not exist in the mappings.
+     */
     public Optional<SettingsManagerApiDTO> toManagerDto(
             @Nonnull final Collection<SettingSpec> specs,
             @Nonnull final String desiredMgrId) {
         final Optional<SettingManagerInfo> infoOpt = managerMapping.getManagerInfo(desiredMgrId);
         return infoOpt.map(info -> createMgrDto(desiredMgrId, info, specs.stream()
-                .filter(spec -> managerMapping.getManagerUuid(spec)
+                .filter(spec -> managerMapping.getManagerUuid(spec.getName())
                     .map(name -> name.equals(desiredMgrId))
                     .orElse(false))
                 .collect(Collectors.toList())));
 
     }
 
+    /**
+     * Convert a {@link SettingsPolicyApiDTO} received as input to create a setting policy into
+     * a matching {@link SettingPolicyInfo} that can be used inside XL.
+     *
+     * @param apiInputPolicy The {@link SettingsPolicyApiDTO} received from the user.
+     * @param specsByName A list of {@link SettingSpec}s arranged by name. Required to figure out
+     *                    how to interpret some data in the input.
+     * @return The {@link SettingPolicyInfo} representing the input DTO for internal XL
+     *         communication.
+     */
+    @Nonnull
+    public SettingPolicyInfo convertInputPolicy(@Nonnull final SettingsPolicyApiDTO apiInputPolicy,
+                                                @Nonnull final Map<String, SettingSpec> specsByName) {
+        final SettingPolicyInfo.Builder infoBuilder = SettingPolicyInfo.newBuilder()
+            .setName(apiInputPolicy.getDisplayName());
+
+        if (apiInputPolicy.isDefault()) {
+            infoBuilder.setDefault(DefaultType.getDefaultInstance());
+        } else {
+            final ScopeType.Builder scopeBuilder = ScopeType.newBuilder();
+            apiInputPolicy.getScopes().stream()
+                    .map(GroupApiDTO::getUuid)
+                    .map(Long::parseLong)
+                    .forEach(scopeBuilder::addGroups);
+            infoBuilder.setScope(scopeBuilder);
+        }
+
+        if (apiInputPolicy.getEntityType() == null) {
+            // At the time of this writing (Oct 4, 2017) the UI does NOT set the entity type
+            // in the input policy, because all settings in legacy apply to at most one entity type.
+            // We will try to infer the entity type based on the specs.
+            infoBuilder.setEntityType(inferEntityType(specsByName));
+        } else {
+            infoBuilder.setEntityType(ServiceEntityMapper.fromUIEntityType(
+                    apiInputPolicy.getEntityType()));
+        }
+
+        infoBuilder.setEnabled(apiInputPolicy.getDisabled() == null || !apiInputPolicy.getDisabled());
+
+        if (apiInputPolicy.getSettingsManagers() != null) {
+            apiInputPolicy.getSettingsManagers().stream()
+                .flatMap(settingMgr -> settingMgr.getSettings().stream())
+                .map(settingApiDto -> {
+                    final Setting.Builder settingBuilder = Setting.newBuilder()
+                            .setSettingSpecName(settingApiDto.getUuid());
+                    final String value = settingApiDto.getValue();
+                    // We expect the SettingSpec to be found.
+                    final SettingSpec spec = specsByName.get(settingApiDto.getUuid());
+                    if (spec == null) {
+                        throw new IllegalArgumentException("Spec " + settingApiDto.getUuid() +
+                                " not found in the specs given to the mapper.");
+                    }
+                    switch (spec.getSettingValueTypeCase()) {
+                        case BOOLEAN_SETTING_VALUE_TYPE:
+                            settingBuilder.setBooleanSettingValue(BooleanSettingValue.newBuilder()
+                                    .setValue(Boolean.valueOf(value)));
+                            break;
+                        case NUMERIC_SETTING_VALUE_TYPE:
+                            settingBuilder.setNumericSettingValue(NumericSettingValue.newBuilder()
+                                    .setValue(Float.valueOf(value)));
+                            break;
+                        case STRING_SETTING_VALUE_TYPE:
+                            settingBuilder.setStringSettingValue(StringSettingValue.newBuilder()
+                                    .setValue(value));
+                            break;
+                        case ENUM_SETTING_VALUE_TYPE:
+                            settingBuilder.setEnumSettingValue(EnumSettingValue.newBuilder()
+                                    .setValue(value));
+                            break;
+                    }
+                    return settingBuilder;
+                }).forEach(infoBuilder::addSettings);
+        }
+
+        return infoBuilder.build();
+    }
+
+    /**
+     * Convert a {@link SettingPolicy} to a {@link SettingsPolicyApiDTO} that can be returned
+     * to API clients.
+     *
+     * @param settingPolicy The {@link SettingPolicy}.
+     * @param groupNames A map of group names containing all groups the policy is scoped to. This
+     *                   is required to set the display names of the groups (which the API needs).
+     *                   Group IDs that are not found in the map will not be included in the
+     *                   resulting {@link SettingsPolicyApiDTO}.
+     * @return The resulting {@link SettingsPolicyApiDTO}.
+     */
+    @Nonnull
+    public SettingsPolicyApiDTO convertSettingsPolicy(
+            @Nonnull final SettingPolicy settingPolicy,
+            @Nonnull final Map<Long, String> groupNames) {
+        final SettingsPolicyApiDTO apiDto = new SettingsPolicyApiDTO();
+        apiDto.setUuid(Long.toString(settingPolicy.getId()));
+
+        final SettingPolicyInfo info = settingPolicy.getInfo();
+        apiDto.setDisplayName(info.getName());
+        apiDto.setEntityType(ServiceEntityMapper.toUIEntityType(info.getEntityType()));
+        apiDto.setDisabled(!info.getEnabled());
+        apiDto.setDefault(info.hasDefault());
+
+        if (info.hasScope()) {
+            apiDto.setScopes(info.getScope().getGroupsList().stream()
+                .map(groupId -> {
+                    String groupName = groupNames.get(groupId);
+                    if (groupName != null) {
+                        GroupApiDTO group = new GroupApiDTO();
+                        group.setUuid(Long.toString(groupId));
+                        group.setDisplayName(groupName);
+                        return Optional.of(group);
+                    } else {
+                        logger.warn("Group {} in scope of policy {} not found!", groupId,
+                                info.getName());
+                        return Optional.<GroupApiDTO>empty();
+                    }
+                })
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .collect(Collectors.toList()));
+        }
+
+        // Do the actual settings mapping.
+        final Map<String, List<Setting>> settingsByMgr = info.getSettingsList().stream()
+                .collect(Collectors.groupingBy(setting ->
+                            managerMapping.getManagerUuid(setting.getSettingSpecName())
+                        .orElse(NO_MANAGER)));
+
+        final List<Setting> unhandledSettings = settingsByMgr.get(NO_MANAGER);
+        if (unhandledSettings != null && !unhandledSettings.isEmpty()) {
+            logger.warn("The following settings don't have a mapping in the API component." +
+                    " Not returning them to the user. Settings: {}", unhandledSettings.stream()
+                        .map(Setting::getSettingSpecName)
+                        .collect(Collectors.toSet()));
+        }
+
+        apiDto.setSettingsManagers(settingsByMgr.entrySet().stream()
+                // Don't return the specs that don't have a Manager mapping
+                .filter(entry -> !entry.getKey().equals(NO_MANAGER))
+                .map(entry -> {
+                    final SettingManagerInfo mgrInfo = managerMapping.getManagerInfo(entry.getKey())
+                            .orElseThrow(() -> new IllegalStateException("Manager ID " +
+                                    entry.getKey() + " not found despite being in the mappings earlier."));
+                    return createValMgrDto(entry.getKey(), mgrInfo, entry.getValue());
+                })
+                .collect(Collectors.toList()));
+
+        return apiDto;
+    }
+
+    /**
+     * Create a {@link SettingsManagerApiDTO} containing setting values to return to the API.
+     * This will be a "thinner" manager - all the settings will only have the UUIDs and values.
+     *
+     * @param mgrId The ID of the setting manager.
+     * @param mgrInfo The {@link SettingManagerInfo} for the manager.
+     * @param settings The {@link Setting} objects containing setting values. All of these settings
+     *                 should be "managed" by this manager, but this method does not check.
+     * @return The {@link SettingsManagerApiDTO}.
+     */
+    @Nonnull
+    @VisibleForTesting
+    SettingsManagerApiDTO createValMgrDto(@Nonnull final String mgrId,
+                                          @Nonnull final SettingManagerInfo mgrInfo,
+                                          @Nonnull final Collection<Setting> settings) {
+        final SettingsManagerApiDTO mgrApiDto = new SettingsManagerApiDTO();
+        mgrApiDto.setUuid(mgrId);
+        mgrApiDto.setDisplayName(mgrInfo.getDisplayName());
+        mgrApiDto.setCategory(mgrInfo.getDefaultCategory());
+
+        mgrApiDto.setSettings(settings.stream()
+                .map(setting -> {
+                    final SettingApiDTO apiDto = new SettingApiDTO();
+                    apiDto.setUuid(setting.getSettingSpecName());
+                    switch (setting.getValueCase()) {
+                        case BOOLEAN_SETTING_VALUE:
+                            apiDto.setValue(Boolean.toString(setting.getBooleanSettingValue().getValue()));
+                            break;
+                        case NUMERIC_SETTING_VALUE:
+                            apiDto.setValue(Float.toString(setting.getNumericSettingValue().getValue()));
+                            break;
+                        case STRING_SETTING_VALUE:
+                            apiDto.setValue(setting.getStringSettingValue().getValue());
+                            break;
+                        case ENUM_SETTING_VALUE:
+                            apiDto.setValue(setting.getEnumSettingValue().getValue());
+                            break;
+                    }
+                    return apiDto;
+                })
+                .collect(Collectors.toList()));
+        return mgrApiDto;
+    }
+
+    /**
+     * Create a {@link SettingsManagerApiDTO} containing information about settings, but not their
+     * values. This will be a "thicker" manager than the one created by
+     * {@link SettingsMapper#createValMgrDto(String, SettingManagerInfo, Collection)}, but none
+     * of the settings will have values (since this is only a description of what the settings are).
+     *
+     * @param mgrId The ID of the manager.
+     * @param info The information about the manager.
+     * @param specs The {@link SettingSpec}s managed by this manager. This function assumes all
+     *              the settings belong to the manager.
+     * @return The {@link SettingsManagerApiDTO}.
+     */
     @Nonnull
     private SettingsManagerApiDTO createMgrDto(@Nonnull final String mgrId,
-                                               @Nonnull final SettingManagerInfo info,
-                                               @Nonnull final Collection<SettingSpec> specs) {
+                                            @Nonnull final SettingManagerInfo info,
+                                            @Nonnull final Collection<SettingSpec> specs) {
         final SettingsManagerApiDTO mgrApiDto = new SettingsManagerApiDTO();
         mgrApiDto.setUuid(mgrId);
         mgrApiDto.setDisplayName(info.getDisplayName());
@@ -140,6 +369,35 @@ public class SettingsMapper {
                 .filter(Optional::isPresent).map(Optional::get)
                 .collect(Collectors.toList()));
         return mgrApiDto;
+    }
+
+    /**
+     * Infer the entity type based on the list of specs a policy applies to. Extracted from
+     * {@link SettingsMapper#convertInputPolicy(SettingsPolicyApiDTO, Map)} for easier testing.
+     * This is built on the assumption that, as in legacy, entity types can be inferred from the
+     * settings. That assumption is not necessarily true in XL, but it will be true for the settings
+     * we migrate from legacy.
+     *
+     * @param specsByName The list of specs to look at, arranged by name.
+     * @return The entity type shared by the specs.
+     * @throws IllegalArgumentException If it's impossible to narrow the specs down to exactly
+     *                                  one entity type.
+     */
+    @VisibleForTesting
+    int inferEntityType(@Nonnull final Map<String, SettingSpec> specsByName) {
+        final Optional<Set<Integer>> entityTypesOpt =
+                SettingDTOUtil.getOverlappingEntityTypes(specsByName.values());
+        if (!entityTypesOpt.isPresent() || entityTypesOpt.get().size() != 1) {
+            // This means that we couldn't narrow things down to exactly one entity type
+            // from the provided settings. This is a violation of the assumption that entity
+            // types can be inferred from the settings, so throw an exception!
+            // If this becomes an issue, we could still try to infer the entity type from
+            // the groups, but that shouldn't be necessary.
+            throw new IllegalArgumentException("Cannot infer a single entity type from the " +
+                    "setting specs: " + StringUtils.join(specsByName.keySet(), ", "));
+        }
+        // At this point, we expect exactly one entity type.
+        return entityTypesOpt.get().iterator().next();
     }
 
     /**
@@ -289,12 +547,12 @@ public class SettingsMapper {
         /**
          * Get the name of the manager that "manages" a particular setting.
          *
-         * @param spec The {@link SettingSpec} describing the setting.
+         * @param specName The name of the setting.
          * @return An optional containing the name of the manager that manages this setting.
          *         An empty optional if there is no matching manager.
          */
-        Optional<String> getManagerUuid(@Nonnull final SettingSpec spec) {
-            return Optional.ofNullable(settingToManager.get(spec.getName()));
+        Optional<String> getManagerUuid(@Nonnull final String specName) {
+            return Optional.ofNullable(settingToManager.get(specName));
         }
 
         /**

@@ -135,6 +135,7 @@ public class GroupComponent extends BaseVmtComponent {
                 .addService(clusterRpcService())
                 .addService(discoveredCollectionsRpcService())
                 .addService(settingConfig.settingService())
+                .addService(settingConfig.settingPolicyService())
                 .build());
     }
 
