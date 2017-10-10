@@ -10,7 +10,6 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.when;
 
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -44,6 +43,7 @@ import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockin
  */
 public class SearchServiceTest {
 
+    private final SupplyChainTestUtils supplyChainTestUtils = new SupplyChainTestUtils();
     private SearchService searchService;
     private MarketsService marketsService = Mockito.mock(MarketsService.class);
     private GroupsService groupsService = Mockito.mock(GroupsService.class);
@@ -110,11 +110,11 @@ public class SearchServiceTest {
         GroupApiDTO clusterGroup = new GroupApiDTO();
         clusterGroup.setMemberUuidList(Lists.newArrayList("1", "2", "3", "4"));
         List<ServiceEntityApiDTO> searchResultDTOs = Lists.newArrayList(
-                createServiceEntityApiDTO(999),
-                createServiceEntityApiDTO(1),
-                createServiceEntityApiDTO(2),
-                createServiceEntityApiDTO(3),
-                createServiceEntityApiDTO(4));
+                supplyChainTestUtils.createServiceEntityApiDTO(999),
+                supplyChainTestUtils.createServiceEntityApiDTO(1),
+                supplyChainTestUtils.createServiceEntityApiDTO(2),
+                supplyChainTestUtils.createServiceEntityApiDTO(3),
+                supplyChainTestUtils.createServiceEntityApiDTO(4));
 
         List<String> scopes = Lists.newArrayList(CLUSTER_OID);
         List<String> types = Lists.newArrayList("PhysicalMachine");
@@ -124,12 +124,12 @@ public class SearchServiceTest {
 
         SupplychainEntryDTO pmSupplyChainEntryDTO = new SupplychainEntryDTO();
         pmSupplyChainEntryDTO.setInstances(ImmutableMap.of(
-                "1", createServiceEntityApiDTO(1),
-                "2", createServiceEntityApiDTO(2),
-                "3", createServiceEntityApiDTO(3),
-                "4", createServiceEntityApiDTO(4)));
+                "1", supplyChainTestUtils.createServiceEntityApiDTO(1),
+                "2", supplyChainTestUtils.createServiceEntityApiDTO(2),
+                "3", supplyChainTestUtils.createServiceEntityApiDTO(3),
+                "4", supplyChainTestUtils.createServiceEntityApiDTO(4)));
 
-        SupplychainApiDTO mockSupplychainApiDto = createSupplychainApiDTO();
+        SupplychainApiDTO mockSupplychainApiDto = supplyChainTestUtils.createSupplychainApiDTO();
         mockSupplychainApiDto.getSeMap().put("PhysicalMachine", pmSupplyChainEntryDTO);
         Map<String, SupplychainEntryDTO> seMap = ImmutableMap.of("PhysicalMachine", pmSupplyChainEntryDTO);
         mockSupplychainApiDto.setSeMap(seMap);
@@ -139,17 +139,17 @@ public class SearchServiceTest {
                     scopeEntities, types, environmentType, null, false, 3, TimeUnit.MINUTES);
 
          */
-        SupplyChainFetcher.Builder mockBuilder = Mockito.mock(SupplyChainFetcher.Builder.class);
-        when(supplyChainFetcher.newBuilder()).thenReturn(mockBuilder);
+        SupplyChainFetcher.OperationBuilder mockOperationBuilder = Mockito.mock(SupplyChainFetcher.OperationBuilder.class);
+        when(supplyChainFetcher.newOperation()).thenReturn(mockOperationBuilder);
 
         // we need to set up these mocks to support the builder pattern
-        when(mockBuilder.topologyContextId(anyLong())).thenReturn(mockBuilder);
-        when(mockBuilder.seedUuid(anyObject())).thenReturn(mockBuilder);
-        when(mockBuilder.entityTypes(anyObject())).thenReturn(mockBuilder);
-        when(mockBuilder.environmentType(anyObject())).thenReturn(mockBuilder);
-        when(mockBuilder.includeHealthSummary(anyBoolean())).thenReturn(mockBuilder);
-        when(mockBuilder.supplyChainDetailType(anyObject())).thenReturn(mockBuilder);
-        when(mockBuilder.fetch()).thenReturn(mockSupplychainApiDto);
+        when(mockOperationBuilder.topologyContextId(anyLong())).thenReturn(mockOperationBuilder);
+        when(mockOperationBuilder.seedUuid(anyObject())).thenReturn(mockOperationBuilder);
+        when(mockOperationBuilder.entityTypes(anyObject())).thenReturn(mockOperationBuilder);
+        when(mockOperationBuilder.environmentType(anyObject())).thenReturn(mockOperationBuilder);
+        when(mockOperationBuilder.includeHealthSummary(anyBoolean())).thenReturn(mockOperationBuilder);
+        when(mockOperationBuilder.supplyChainDetailType(anyObject())).thenReturn(mockOperationBuilder);
+        when(mockOperationBuilder.fetch()).thenReturn(mockSupplychainApiDto);
         when(groupExpander.expandUuidList(eq(scopes))).thenReturn(Lists.newArrayList(1L, 2L, 3L, 4L));
 
         // Act
@@ -163,19 +163,6 @@ public class SearchServiceTest {
         assertThat(results.size(), is(4));
         assertThat(results.stream().map(BaseApiDTO::getUuid).collect(Collectors.toList()),
                 containsInAnyOrder("1", "2", "3", "4"));
-    }
-
-    private ServiceEntityApiDTO createServiceEntityApiDTO(long id) {
-        ServiceEntityApiDTO answer = new ServiceEntityApiDTO();
-        answer.setUuid(Long.toString(id));
-        return answer;
-    }
-
-    private SupplychainApiDTO createSupplychainApiDTO() {
-        SupplychainApiDTO answer = new SupplychainApiDTO();
-        Map<String, SupplychainEntryDTO> seMap = new HashMap<>();
-        answer.setSeMap(seMap);
-        return answer;
     }
 
 }

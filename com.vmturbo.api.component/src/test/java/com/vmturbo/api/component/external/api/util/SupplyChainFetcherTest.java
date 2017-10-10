@@ -15,7 +15,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.assertj.core.util.Lists;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -94,9 +93,8 @@ public class SupplyChainFetcherTest {
         supplyChainServiceBackend.addNode(vms);
         supplyChainServiceBackend.addNode(hosts);
 
-        final SupplychainApiDTO result = supplyChainFetcher.newBuilder()
+        final SupplychainApiDTO result = supplyChainFetcher.newOperation()
                 .topologyContextId(LIVE_TOPOLOGY_ID)
-                .entityTypes(Lists.newArrayList("Market"))
                 .includeHealthSummary(true)
                 .fetch();
 
@@ -142,7 +140,7 @@ public class SupplyChainFetcherTest {
         repositoryApiBackend.putServiceEnity(7L, PM, null);
 
         // act
-        final SupplychainApiDTO result = supplyChainFetcher.newBuilder()
+        final SupplychainApiDTO result = supplyChainFetcher.newOperation()
                 .topologyContextId(LIVE_TOPOLOGY_ID)
                 .seedUuid("Market")
                 .includeHealthSummary(true)

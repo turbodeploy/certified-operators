@@ -173,7 +173,7 @@ public class SearchService implements ISearchService {
             List<String> scopeServiceEntityIds = groupExpander.expandUuidList(scopes).stream()
                     .map(l -> Long.toString(l))
                     .collect(Collectors.toList());
-            SupplychainApiDTO supplychain = supplyChainFetcher.newBuilder()
+            SupplychainApiDTO supplychain = supplyChainFetcher.newOperation()
                     .topologyContextId(uuidMapper.fromUuid(UuidMapper.UI_REAL_TIME_MARKET_STR).oid())
                     .seedUuid(scopeServiceEntityIds)
                     .entityTypes(types)

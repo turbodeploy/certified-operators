@@ -19,7 +19,9 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
+import org.apache.commons.collections4.CollectionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -79,7 +81,7 @@ public class SupplyChainRpcService extends SupplyChainServiceImplBase {
      * @param request the request indicating the OIDs for the service entities from which
      *                the supply chain should be calculated; and the topology context ID
      *                identifying from which topology, either the Live Topology or a Plan Topology,
-     *                the supply chain information should be drawn
+     *                the supply chain information should be drawn, and optional entityType filter
      * @param responseObserver the gRPC response stream onto which each resulting SupplyChainNode is
      *                         returned
      */
@@ -90,29 +92,37 @@ public class SupplyChainRpcService extends SupplyChainServiceImplBase {
             Optional.of(request.getContextId()) : Optional.empty();
 
         if (request.getStartingEntityOidCount() > 0) {
-            getMultiSourceSupplyChain(request.getStartingEntityOidList(), contextId,
+            getMultiSourceSupplyChain(request.getStartingEntityOidList(),
+                    request.getEntityTypesToIncludeList(), contextId,
                     responseObserver);
         } else {
-            getGlobalSupplyChain(contextId, responseObserver);
+            getGlobalSupplyChain(request.getEntityTypesToIncludeList(), contextId, responseObserver);
         }
     }
 
     /**
      * Get the global supply chain. While technically not a supply chain, return a stream of the
      * same supply chain information ({@link SupplyChainNode} calculated over all the
-     * ServiceEntities in the given topology context.
+     * ServiceEntities in the given topology context. If requested, restrict the supply chain
+     * information to entities from a given list of entityTypes.
      *
+     * @param entityTypesToIncludeList if given and non-empty, then restrict supply chain nodes
+     *                                 returned to the entityTypes listed here
      * @param contextId the unique identifier for the topology context from which the supply chain
      *                  information should be derived
      * @param responseObserver the gRPC response stream onto which each resulting SupplyChainNode is
-     *                         returned
      */
-    private void getGlobalSupplyChain(@Nonnull final Optional<Long> contextId,
+    private void getGlobalSupplyChain(@Nullable List<String> entityTypesToIncludeList,
+                                      @Nonnull final Optional<Long> contextId,
                                       @Nonnull final StreamObserver<SupplyChainNode> responseObserver) {
         GLOBAL_SUPPLY_CHAIN_DURATION_SUMMARY.startTimer().time(() -> {
             supplyChainService.getGlobalSupplyChain(contextId.map(Object::toString))
                 .subscribe(supplyChainNodes -> {
-                    supplyChainNodes.values().forEach(responseObserver::onNext);
+                    supplyChainNodes.values().stream()
+                            // if entityTypes are to be limited, restrict to SupplyChainNode types in the list
+                            .filter(supplyChainNode -> CollectionUtils.isEmpty(entityTypesToIncludeList)
+                                    || entityTypesToIncludeList.contains(supplyChainNode.getEntityType()))
+                            .forEach(responseObserver::onNext);
                     responseObserver.onCompleted();
                 }, error -> responseObserver.onError(Status.INTERNAL.withDescription(
                     error.getMessage()).asException()));
@@ -122,21 +132,23 @@ public class SupplyChainRpcService extends SupplyChainServiceImplBase {
     /**
      * Fetch the supply chain for each element in a list of starting ServiceEntity OIDs.
      * The result is a stream of {@link SupplyChainNode} elements, one per entity type
-     * in the supply chain.
+     * in the supply chain. If requested, restrict the supply chain information to entities from
+     * a given list of entityTypes.
      *
      * The SupplyChainNodes returned represent the result of merging, without duplication,
      * the supply chains derived from each of the starting Vertex OIDs. The elements merged
      * into each SupplyChainNode are: connected_provider_types, connected_consumer_types,
      * and member_oids.
-     *
-     * @param startingVertexOids the list of the ServiceEntity OIDs to start with, generating the
+     *  @param startingVertexOids the list of the ServiceEntity OIDs to start with, generating the
      *                           supply
+     * @param entityTypesToIncludeList if given and not empty, restrict the supply chain nodes
+     *                                 to be returned to entityTypes in this list
      * @param contextId the unique identifier for the topology context from which the supply chain
      *                  information should be derived
      * @param responseObserver the gRPC response stream onto which each resulting SupplyChainNode is
-     *                         returned
      */
     private void getMultiSourceSupplyChain(@Nonnull final List<Long> startingVertexOids,
+                                           @Nullable final List<String> entityTypesToIncludeList,
                                            @Nonnull final Optional<Long> contextId,
                                            @Nonnull final StreamObserver<SupplyChainNode> responseObserver) {
         final SupplyChainMerger supplyChainMerger = new SupplyChainMerger();
@@ -147,7 +159,11 @@ public class SupplyChainRpcService extends SupplyChainServiceImplBase {
 
         final MergedSupplyChain supplyChain = supplyChainMerger.merge();
         if (supplyChain.errors.isEmpty()) {
-            supplyChain.getSupplyChainNodes().forEach(responseObserver::onNext);
+            supplyChain.getSupplyChainNodes().stream()
+                    // if entityTypes are to be limited, restrict to SupplyChainNode types in the list
+                    .filter(supplyChainNode -> CollectionUtils.isEmpty(entityTypesToIncludeList)
+                            || entityTypesToIncludeList.contains(supplyChainNode.getEntityType()))
+                    .forEach(responseObserver::onNext);
             responseObserver.onCompleted();
         } else {
             responseObserver.onError(Status.INTERNAL.withDescription(

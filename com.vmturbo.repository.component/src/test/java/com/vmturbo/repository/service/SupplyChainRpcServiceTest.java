@@ -90,6 +90,22 @@ public class SupplyChainRpcServiceTest {
     }
 
     @Test
+    public void testGetSingleSourceSupplyChainFiltered() throws Exception {
+        doReturn(Either.right(Stream.of(pmNode, vmNode)))
+            .when(graphDBService).getSupplyChain(eq(Optional.of("1234")), eq("5678"));
+
+        final List<SupplyChainNode> nodes = Lists.newArrayList(
+            supplyChainStub.getSupplyChain(SupplyChainRequest.newBuilder()
+                .setContextId(1234L)
+                    .addAllEntityTypesToInclude(Lists.newArrayList("VirtualMachine"))
+                .addAllStartingEntityOid(Lists.newArrayList(5678L))
+                .build()));
+
+        assertEquals(1, nodes.size());
+        compareSupplyChainNode(vmNode, nodes.get(0));
+    }
+
+    @Test
     public void testGetSingleSourceSupplyChainFailure() throws Exception {
         doReturn(Either.left("failed"))
             .when(graphDBService).getSupplyChain(eq(Optional.of("1234")), eq("5678"));
@@ -139,6 +155,42 @@ public class SupplyChainRpcServiceTest {
         assertEquals(2, nodes.size());
         compareSupplyChainNode(pmMergedNode, nodes.get(0));
         compareSupplyChainNode(vmMergedNode, nodes.get(1));
+    }
+
+    @Test
+    public void testMergedSupplyChainFiltered() throws Exception {
+
+        final SupplyChainNode pmNode2 = SupplyChainNode.newBuilder()
+                .addAllMemberOids(Lists.newArrayList(1L, 5L))
+                .setEntityType("PhysicalMachine")
+                .build();
+        final SupplyChainNode pmMergedNode = SupplyChainNode.newBuilder()
+                .addAllMemberOids(Lists.newArrayList(1L, 5L, 2L))
+                .setEntityType("PhysicalMachine")
+                .build();
+        final SupplyChainNode vmNode2 = SupplyChainNode.newBuilder()
+                .addAllMemberOids(Lists.newArrayList(3L, 4L))
+                .setEntityType("VirtualMachine")
+                .build();
+        final SupplyChainNode vmMergedNode = SupplyChainNode.newBuilder()
+                .addAllMemberOids(Lists.newArrayList(3L, 4L, 5L))
+                .setEntityType("VirtualMachine")
+                .build();
+
+        doReturn(Either.right(Stream.of(pmNode, vmNode)))
+                .when(graphDBService).getSupplyChain(eq(Optional.of("1234")), eq("5678"));
+        doReturn(Either.right(Stream.of(pmNode2, vmNode2)))
+                .when(graphDBService).getSupplyChain(eq(Optional.of("1234")), eq("91011"));
+
+        final List<SupplyChainNode> nodes = Lists.newArrayList(
+                supplyChainStub.getSupplyChain(SupplyChainRequest.newBuilder()
+                        .setContextId(1234L)
+                        .addAllEntityTypesToInclude(Lists.newArrayList("PhysicalMachine"))
+                        .addAllStartingEntityOid(Lists.newArrayList(5678L, 91011L))
+                        .build()));
+
+        assertEquals(1, nodes.size());
+        compareSupplyChainNode(pmMergedNode, nodes.get(0));
     }
 
     @Test

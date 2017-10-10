@@ -18,6 +18,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -77,16 +78,16 @@ public class SupplyChainFetcher {
         this.supplyChainFetcherTimeoutSeconds = supplyChainFetcherTimeoutSeconds;
     }
 
-    public Builder newBuilder() {
-        return new Builder();
+    public OperationBuilder newOperation() {
+        return new OperationBuilder();
     }
 
     /**
-     * Define a Builder class to simplify creating a {@link SupplyChainFetchOperation}.
+     * Define a OperationBuilder class to simplify creating a {@link SupplyChainFetchOperation}.
      *
      * None of the parameters are required.
      */
-    public class Builder {
+    public class OperationBuilder {
 
         // all fields are optional; see the setter for each field for a description
         private List<String> seedUuids;
@@ -101,9 +102,9 @@ public class SupplyChainFetcher {
          * The default is the entire topology.
          *
          * @param seedUuid a single UUID to serve as the seed for the supplychain generation
-         * @return the flow-style Builder for this SupplyChainOperation
+         * @return the flow-style OperationBuilder for this SupplyChainFetcher
          */
-        Builder seedUuid(String seedUuid) {
+        OperationBuilder seedUuid(String seedUuid) {
             this.seedUuids = Lists.newArrayList(seedUuid);
             return this;
         }
@@ -114,9 +115,9 @@ public class SupplyChainFetcher {
          *
          * @param uuids a list of uuids, each of which will be the seed of a supplychain; the result
          *              is the union of the supplychains from each seed
-         * @return the flow-style Builder for this SupplyChainOperation
+         * @return the flow-style OperationBuilder for this SupplyChainFetcher
          */
-        public Builder seedUuid(List<String> uuids) {
+        public OperationBuilder seedUuid(List<String> uuids) {
             this.seedUuids = uuids;
             return this;
         }
@@ -125,9 +126,9 @@ public class SupplyChainFetcher {
          * the topologyContext in which to perform the supplychain lookup - default is the Live Topology
          * @param topologyContextId the topologyContextId on which the supplychain operations should
          *                          be performed - default is the Live Topology
-         * @return the flow-style Builder for this SupplyChainOperation
+         * @return the flow-style OperationBuilder for this SupplyChainFetcher
          */
-        public Builder topologyContextId(long topologyContextId) {
+        public OperationBuilder topologyContextId(long topologyContextId) {
             this.topologyContextId = topologyContextId;
             return this;
         }
@@ -137,9 +138,9 @@ public class SupplyChainFetcher {
          * 'null' or the empty list indicates no filtering; all entity types will be included.
          *
          * @param entityTypes a list of the entity types to be included in the result
-         * @return the flow-style Builder for this SupplyChainOperation
+         * @return the flow-style OperationBuilder for this SupplyChainFetcher
          */
-        public Builder entityTypes(List<String> entityTypes) {
+        public OperationBuilder entityTypes(List<String> entityTypes) {
             this.entityTypes = entityTypes;
             return this;
         }
@@ -151,9 +152,9 @@ public class SupplyChainFetcher {
          * NOTE:  this setting is not currently supported in XL
          *
          * @param environmentType what environment to limit the responses to
-         * @return the flow-style Builder for this SupplyChainOperation
+         * @return the flow-style OperationBuilder for this SupplyChainFetcher
          */
-        public Builder environmentType(EnvironmentType environmentType) {
+        public OperationBuilder environmentType(EnvironmentType environmentType) {
             this.environmentType = environmentType;
             return this;
         }
@@ -165,9 +166,9 @@ public class SupplyChainFetcher {
          * NOTE:  this setting is not currently supported in XL.
          *
          * @param supplyChainDetailType what level of detail to include in the supplychain result
-         * @return the flow-style Builder for this SupplyChainOperation
+         * @return the flow-style OperationBuilder for this SupplyChainFetcher
          */
-        public Builder supplyChainDetailType(SupplyChainDetailType supplyChainDetailType) {
+        public OperationBuilder supplyChainDetailType(SupplyChainDetailType supplyChainDetailType) {
             this.supplyChainDetailType = supplyChainDetailType;
             return this;
         }
@@ -179,9 +180,9 @@ public class SupplyChainFetcher {
          * all the ServiceEntities in the supplychain.
          *
          * @param includeHealthSummary should the healthSummary be included in the supplychain result
-         * @return the flow-style Builder for this SupplyChainOperation
+         * @return the flow-style OperationBuilder for this SupplyChainFetcher
          */
-        public Builder includeHealthSummary(boolean includeHealthSummary) {
+        public OperationBuilder includeHealthSummary(boolean includeHealthSummary) {
             this.includeHealthSummary = includeHealthSummary;
             return this;
         }
@@ -288,9 +289,8 @@ public class SupplyChainFetcher {
          * to determine what sort of results to return - health information (from the
          * {@link EntitySeverityServiceGrpc}) vs. the individual ServiceEntities.
          *
-         * TODO:  The supply chain request here does not make use of the 'entityTypes' parameter
-         * that the caller sets to restrict the returned {@link SupplychainEntryDTO}s. We should
-         * add the 'entityTypes' filter to the SupplyChainRequest.
+         * Make use of the 'entityTypes' parameter, if specified, to to restrict the returned
+         * {@link SupplychainEntryDTO}s.
          *
          * @return The {@link SupplychainApiDTO} populated with the supply chain search results.
          */
@@ -302,6 +302,11 @@ public class SupplyChainFetcher {
                 requestBuilder.addAllStartingEntityOid(seedUuids.stream()
                         .map(Long::valueOf)
                         .collect(Collectors.toList()));
+            }
+
+            // If entityTypes is specified, include that in the request
+            if (CollectionUtils.isNotEmpty(entityTypes)) {
+                requestBuilder.addAllEntityTypesToInclude(entityTypes);
             }
 
             SupplyChainRequest request = requestBuilder.build();
@@ -345,7 +350,7 @@ public class SupplyChainFetcher {
             final Map<String, ServiceEntityApiDTO> serviceEntityApiDTOS = new HashMap<>();
             if (supplyChainDetailType != null) {
                 // fetch a map from member OID to optional<ServiceEntityApiDTO>, where the
-                // optional is empty if the OID was not found
+                // optional is empty if the OID was not found; include severities
                 Map<Long, Optional<ServiceEntityApiDTO>> serviceEntitiesFromRepository =
                         repositoryApi.getServiceEntitiesById(new HashSet<>(memberOidsList));
                 // ignore the unknown OIDs for now...perhaps should complain in the future

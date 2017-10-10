@@ -15,6 +15,11 @@ message SupplyChainRequest {
     // The supply chains from each individual OID are merged into a single result.
     // If no starting vertex is specified, the global supply chain is retrieved.
     repeated int64 starting_entity_oid = 2;
+
+    // The list of entity types to include in the resultant supplychain. If this
+    // list is empty, then no filtering is done and SupplyChainNodes pertaining
+    // to any entity type are included.
+    repeated string entity_types_to_include = 3;
 }
 
 // The response to a supply chain request consists of a series of supply chain nodes
