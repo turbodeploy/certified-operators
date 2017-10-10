@@ -5,12 +5,11 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 
 import javax.annotation.Nonnull;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import javax.annotation.Nullable;
 
 import com.google.common.base.Preconditions;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.client.ComponentApiClient;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
@@ -35,9 +34,9 @@ import com.vmturbo.topology.processor.api.ValidationStatus;
 public class TopologyProcessorClient extends
         ComponentApiClient<TopologyProcessorRestClient> implements TopologyProcessor {
 
-    public static final String WEBSOCKET_PATH = "/tp-api";
+    public static final String NOTIFICATIONS_TOPIC = "tp-notifications";
+    public static final String TOPOLOGY_BROADCAST_TOPIC = "tp-topology-broadcast";
 
-    private final Logger logger = LogManager.getLogger();
     private final TopologyProcessorNotificationReceiver notificationClient;
 
     public static TopologyProcessorClient rpcOnly(@Nonnull final ComponentApiConnectionConfig connectionConfig) {
@@ -47,8 +46,10 @@ public class TopologyProcessorClient extends
     public static TopologyProcessorClient rpcAndNotification(
             @Nonnull final ComponentApiConnectionConfig connectionConfig,
             @Nonnull final ExecutorService executorService,
-            @Nonnull final IMessageReceiver<TopologyProcessorNotification> messageReceiver) {
-        return new TopologyProcessorClient(connectionConfig, messageReceiver, executorService);
+            @Nullable final IMessageReceiver<TopologyProcessorNotification> messageReceiver,
+            @Nullable final IMessageReceiver<Topology> topologyReceiver) {
+        return new TopologyProcessorClient(connectionConfig, messageReceiver, topologyReceiver,
+                executorService);
     }
 
     private TopologyProcessorClient(@Nonnull final ComponentApiConnectionConfig connectionConfig) {
@@ -65,11 +66,13 @@ public class TopologyProcessorClient extends
      * @param threadPool thread pool to use
      */
     private TopologyProcessorClient(@Nonnull final ComponentApiConnectionConfig connectionConfig,
-            @Nonnull IMessageReceiver<TopologyProcessorNotification> messageReceiver,
+            @Nullable IMessageReceiver<TopologyProcessorNotification> messageReceiver,
+            @Nullable IMessageReceiver<Topology> topologyReceiver,
             @Nonnull ExecutorService threadPool) {
         super(connectionConfig);
         this.notificationClient =
-                new TopologyProcessorNotificationReceiver(messageReceiver, threadPool);
+                new TopologyProcessorNotificationReceiver(messageReceiver, topologyReceiver,
+                        threadPool);
     }
 
     @Nonnull

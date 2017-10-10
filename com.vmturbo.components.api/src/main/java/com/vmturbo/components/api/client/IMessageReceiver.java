@@ -10,7 +10,7 @@ import javax.annotation.Nonnull;
  *
  * @param <T> type of message to receive.
  */
-public interface IMessageReceiver<T> extends AutoCloseable {
+public interface IMessageReceiver<T> {
     /**
      * Method adds listeners to the receiver. Listener will receive the messages. There could be
      * multiple listeners for each message. As soon as consumer is sure, that the message has
@@ -20,10 +20,4 @@ public interface IMessageReceiver<T> extends AutoCloseable {
      * @param listener listener to add
      */
     void addListener(@Nonnull BiConsumer<T, Runnable> listener);
-
-    /**
-     * Closes the receiver freeing all the resources and preventing underlying transport system
-     * from sending data to this receiver furthermore.
-     */
-    void close();
 }
