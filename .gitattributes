@@ -694,7 +694,9 @@ com.vmturbo.group.component/src/main/java/com/vmturbo/group/persistent/Duplicate
 com.vmturbo.group.component/src/main/java/com/vmturbo/group/persistent/GroupStore.java -text
 com.vmturbo.group.component/src/main/java/com/vmturbo/group/persistent/InvalidSettingPolicyException.java -text
 com.vmturbo.group.component/src/main/java/com/vmturbo/group/persistent/PolicyStore.java -text
+com.vmturbo.group.component/src/main/java/com/vmturbo/group/persistent/SettingPolicyFilter.java -text
 com.vmturbo.group.component/src/main/java/com/vmturbo/group/persistent/SettingPolicyInfoConverter.java -text
+com.vmturbo.group.component/src/main/java/com/vmturbo/group/persistent/SettingPolicyTypeConverter.java -text
 com.vmturbo.group.component/src/main/java/com/vmturbo/group/persistent/SettingStore.java -text
 com.vmturbo.group.component/src/main/java/com/vmturbo/group/persistent/TargetCollectionUpdate.java -text
 com.vmturbo.group.component/src/main/java/com/vmturbo/group/policy/DiscoveredPoliciesMapper.java -text
@@ -707,6 +709,7 @@ com.vmturbo.group.component/src/main/java/com/vmturbo/group/service/SettingRpcSe
 com.vmturbo.group.component/src/main/resources/bootstrap.yml -text
 com.vmturbo.group.component/src/main/resources/db/migration/V1_1__create_policy_setting.sql -text
 com.vmturbo.group.component/src/main/resources/db/migration/V1_2__create_name_index.sql -text
+com.vmturbo.group.component/src/main/resources/db/migration/V1_3__default_setting_policy.sql -text
 com.vmturbo.group.component/src/main/resources/log4j2.xml -text
 com.vmturbo.group.component/src/main/resources/setting/setting-spec.json -text
 com.vmturbo.group.component/src/test/java/com/vmturbo/group/GroupComponentTest.java -text

@@ -14,13 +14,12 @@ import org.junit.Test;
 
 import com.google.common.collect.Sets;
 
-import com.vmturbo.common.protobuf.setting.SettingProto.DefaultType;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.AllEntityType;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.EntityTypeSet;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.GlobalSettingSpec;
-import com.vmturbo.common.protobuf.setting.SettingProto.ScopeType;
+import com.vmturbo.common.protobuf.setting.SettingProto.Scope;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
@@ -34,12 +33,12 @@ public class SettingDTOUtilTest {
     public void testInvolvedGroups() {
         final SettingPolicy policy1 = SettingPolicy.newBuilder()
                 .setInfo(SettingPolicyInfo.newBuilder()
-                        .setScope(ScopeType.newBuilder()
+                        .setScope(Scope.newBuilder()
                                 .addGroups(7L)))
                 .build();
         final SettingPolicy policy2 = SettingPolicy.newBuilder()
                 .setInfo(SettingPolicyInfo.newBuilder()
-                        .setScope(ScopeType.newBuilder()
+                        .setScope(Scope.newBuilder()
                                 .addGroups(8L)))
                 .build();
         final Set<Long> involvedGroups =
@@ -50,8 +49,7 @@ public class SettingDTOUtilTest {
     @Test
     public void testInvolvedGroupsDefault() {
         final SettingPolicy policy1 = SettingPolicy.newBuilder()
-                .setInfo(SettingPolicyInfo.newBuilder()
-                        .setDefault(DefaultType.newBuilder()))
+                .setInfo(SettingPolicyInfo.newBuilder())
                 .build();
         final Set<Long> involvedGroups =
                 SettingDTOUtil.getInvolvedGroups(Collections.singletonList(policy1));
@@ -62,7 +60,7 @@ public class SettingDTOUtilTest {
     public void testInvolvedGroupsSingle() {
         final SettingPolicy policy1 = SettingPolicy.newBuilder()
                 .setInfo(SettingPolicyInfo.newBuilder()
-                        .setScope(ScopeType.newBuilder()
+                        .setScope(Scope.newBuilder()
                                 .addGroups(7L)))
                 .build();
         final Set<Long> involvedGroups =

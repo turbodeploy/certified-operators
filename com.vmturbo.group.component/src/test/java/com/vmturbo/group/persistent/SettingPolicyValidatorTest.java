@@ -8,6 +8,7 @@ import static org.mockito.Mockito.when;
 import java.util.Collections;
 import java.util.Optional;
 
+import org.junit.Before;
 import org.junit.Test;
 
 import com.google.common.collect.ImmutableMap;
@@ -17,7 +18,6 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValueType;
-import com.vmturbo.common.protobuf.setting.SettingProto.DefaultType;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.EntityTypeSet;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingSpec;
@@ -26,8 +26,10 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.GlobalSettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValueType;
-import com.vmturbo.common.protobuf.setting.SettingProto.ScopeType;
+import com.vmturbo.common.protobuf.setting.SettingProto.Scope;
+import com.vmturbo.common.protobuf.setting.SettingProto.Scope;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
@@ -43,6 +45,8 @@ import com.vmturbo.group.persistent.SettingStore.SettingSpecStore;
  */
 public class SettingPolicyValidatorTest {
 
+    private static final long GROUP_ID = 99;
+
     private static final int ENTITY_TYPE = 10;
 
     private static final String SPEC_NAME = "spec";
@@ -54,12 +58,21 @@ public class SettingPolicyValidatorTest {
     private final DefaultSettingPolicyValidator validator =
             new DefaultSettingPolicyValidator(specStore, groupStore);
 
+    @Before
+    public void setup() throws Exception {
+        when(groupStore.get(eq(GROUP_ID)))
+            .thenReturn(Optional.of(Group.newBuilder()
+                .setInfo(GroupInfo.newBuilder()
+                        .setEntityType(ENTITY_TYPE))
+                .build()));
+    }
+
     @Test(expected = InvalidSettingPolicyException.class)
     public void testSettingWithNoName() throws InvalidSettingPolicyException {
         validator.validateSettingPolicy(newInfo()
                 .addSettings(Setting.newBuilder()
                         .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance()))
-                .build());
+                .build(), Type.USER);
     }
 
     @Test(expected = InvalidSettingPolicyException.class)
@@ -67,7 +80,7 @@ public class SettingPolicyValidatorTest {
         when(specStore.getSpec(any())).thenReturn(Optional.empty());
         validator.validateSettingPolicy(newInfo()
                 .addSettings(newSetting())
-                .build());
+                .build(), Type.USER);
     }
 
     @Test(expected = InvalidSettingPolicyException.class)
@@ -78,7 +91,39 @@ public class SettingPolicyValidatorTest {
                 .build()));
         validator.validateSettingPolicy(newInfo()
                 .addSettings(newSetting())
-                .build());
+                .build(), Type.USER);
+    }
+
+    @Test(expected = InvalidSettingPolicyException.class)
+    public void testSettingNoName() throws InvalidSettingPolicyException {
+        when(specStore.getSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
+                .setNumericSettingValueType(NumericSettingValueType.getDefaultInstance())
+                .build()));
+        validator.validateSettingPolicy(SettingPolicyInfo.newBuilder()
+                .setEntityType(10)
+                .build(), Type.DEFAULT);
+    }
+
+    @Test(expected = InvalidSettingPolicyException.class)
+    public void testSettingNoEntityType() throws InvalidSettingPolicyException {
+        when(specStore.getSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
+                .setNumericSettingValueType(NumericSettingValueType.getDefaultInstance())
+                .build()));
+        validator.validateSettingPolicy(SettingPolicyInfo.newBuilder()
+                .setName("Policy")
+                .build(), Type.DEFAULT);
+    }
+
+    @Test(expected = InvalidSettingPolicyException.class)
+    public void testDefaultSettingWithScope() throws InvalidSettingPolicyException {
+        when(specStore.getSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
+            .setNumericSettingValueType(NumericSettingValueType.getDefaultInstance())
+            .build()));
+        validator.validateSettingPolicy(SettingPolicyInfo.newBuilder()
+            .setName("Policy")
+            .setEntityType(10)
+            .setScope(Scope.newBuilder().addGroups(GROUP_ID))
+            .build(), Type.DEFAULT);
     }
 
     @Test
@@ -90,7 +135,7 @@ public class SettingPolicyValidatorTest {
                 .addSettings(newSetting()
                         .setNumericSettingValue(NumericSettingValue.newBuilder()
                                 .setValue(10)))
-                .build());
+                .build(), Type.USER);
     }
 
     @Test
@@ -104,7 +149,7 @@ public class SettingPolicyValidatorTest {
                 .addSettings(newSetting()
                         .setNumericSettingValue(NumericSettingValue.newBuilder()
                                 .setValue(1.1f)))
-                .build());
+                .build(), Type.USER);
     }
 
     @Test(expected = InvalidSettingPolicyException.class)
@@ -118,7 +163,7 @@ public class SettingPolicyValidatorTest {
                 .addSettings(newSetting()
                         .setNumericSettingValue(NumericSettingValue.newBuilder()
                                 .setValue(0.9f)))
-                .build());
+                .build(), Type.USER);
     }
 
     @Test(expected = InvalidSettingPolicyException.class)
@@ -132,7 +177,7 @@ public class SettingPolicyValidatorTest {
                 .addSettings(newSetting()
                         .setNumericSettingValue(NumericSettingValue.newBuilder()
                                 .setValue(1.3f)))
-                .build());
+                .build(), Type.USER);
     }
 
     @Test
@@ -144,7 +189,7 @@ public class SettingPolicyValidatorTest {
                 .addSettings(newSetting()
                         .setStringSettingValue(StringSettingValue.newBuilder()
                                 .setValue("foo")))
-                .build());
+                .build(), Type.USER);
     }
 
     @Test
@@ -157,7 +202,7 @@ public class SettingPolicyValidatorTest {
                 .addSettings(newSetting()
                         .setStringSettingValue(StringSettingValue.newBuilder()
                                 .setValue("foo123")))
-                .build());
+                .build(), Type.USER);
     }
 
     @Test(expected = InvalidSettingPolicyException.class)
@@ -170,7 +215,7 @@ public class SettingPolicyValidatorTest {
                 .addSettings(newSetting()
                         .setStringSettingValue(StringSettingValue.newBuilder()
                                 .setValue("boo123")))
-                .build());
+                .build(), Type.USER);
     }
 
     @Test(expected = InvalidSettingPolicyException.class)
@@ -183,7 +228,7 @@ public class SettingPolicyValidatorTest {
                 .addSettings(newSetting()
                         .setEnumSettingValue(EnumSettingValue.newBuilder()
                                 .setValue("x")))
-                .build());
+                .build(), Type.USER);
     }
 
     @Test
@@ -196,7 +241,7 @@ public class SettingPolicyValidatorTest {
                 .addSettings(newSetting()
                         .setEnumSettingValue(EnumSettingValue.newBuilder()
                                 .setValue("2")))
-                .build());
+                .build(), Type.USER);
     }
 
     @Test(expected = InvalidSettingPolicyException.class)
@@ -207,7 +252,7 @@ public class SettingPolicyValidatorTest {
         validator.validateSettingPolicy(newInfo()
                 .addSettings(newSetting()
                         .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance()))
-                .build());
+                .build(), Type.USER);
     }
 
     @Test(expected = InvalidSettingPolicyException.class)
@@ -218,7 +263,7 @@ public class SettingPolicyValidatorTest {
         validator.validateSettingPolicy(newInfo()
                 .addSettings(newSetting()
                         .setEnumSettingValue(EnumSettingValue.getDefaultInstance()))
-                .build());
+                .build(), Type.USER);
     }
 
     @Test(expected = InvalidSettingPolicyException.class)
@@ -229,7 +274,7 @@ public class SettingPolicyValidatorTest {
         validator.validateSettingPolicy(newInfo()
                 .addSettings(newSetting()
                         .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance()))
-                .build());
+                .build(), Type.USER);
     }
 
     @Test(expected = InvalidSettingPolicyException.class)
@@ -240,7 +285,7 @@ public class SettingPolicyValidatorTest {
         validator.validateSettingPolicy(newInfo()
                 .addSettings(newSetting()
                         .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance()))
-                .build());
+                .build(), Type.USER);
     }
 
     @Test(expected = InvalidSettingPolicyException.class)
@@ -250,9 +295,9 @@ public class SettingPolicyValidatorTest {
                 .build()));
         when(groupStore.getGroups(any())).thenReturn(ImmutableMap.of(7L, Optional.empty()));
         validator.validateSettingPolicy(newInfo()
-                .setScope(ScopeType.newBuilder()
+                .setScope(Scope.newBuilder()
                         .addGroups(7L))
-                .build());
+                .build(), Type.USER);
     }
 
     @Test(expected = InvalidSettingPolicyException.class)
@@ -266,9 +311,9 @@ public class SettingPolicyValidatorTest {
                         .setEntityType(ENTITY_TYPE + 1))
                 .build())));
         validator.validateSettingPolicy(newInfo()
-                .setScope(ScopeType.newBuilder()
+                .setScope(Scope.newBuilder()
                         .addGroups(7L))
-                .build());
+                .build(), Type.USER);
     }
 
     @Test(expected = InvalidSettingPolicyException.class)
@@ -277,9 +322,9 @@ public class SettingPolicyValidatorTest {
                 .build()));
         when(groupStore.getGroups(any())).thenThrow(DatabaseException.class);
         validator.validateSettingPolicy(newInfo()
-                .setScope(ScopeType.newBuilder()
+                .setScope(Scope.newBuilder()
                         .addGroups(7L))
-                .build());
+                .build(), Type.USER);
     }
 
     @Test(expected = InvalidSettingPolicyException.class)
@@ -293,15 +338,15 @@ public class SettingPolicyValidatorTest {
                 .build()));
         validator.validateSettingPolicy(newInfo()
                 .addSettings(newSetting())
-                .build());
+                .build(), Type.USER);
     }
-
 
     private SettingPolicyInfo.Builder newInfo() {
         return SettingPolicyInfo.newBuilder()
                 .setName("SettingPolicy")
                 .setEntityType(ENTITY_TYPE)
-                .setDefault(DefaultType.getDefaultInstance());
+                .setScope(Scope.newBuilder()
+                    .addGroups(GROUP_ID));
     }
 
     private Setting.Builder newSetting() {

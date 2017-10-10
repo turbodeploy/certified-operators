@@ -24,7 +24,6 @@ import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyResponse;
-import com.vmturbo.common.protobuf.setting.SettingProto.DefaultType;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyResponse;
@@ -50,7 +49,6 @@ public class SettingPolicyRpcServiceTest {
 
     private SettingPolicyInfo settingPolicyInfo = SettingPolicyInfo.newBuilder()
             .setName("name")
-            .setDefault(DefaultType.getDefaultInstance())
             .addSettings(Setting.newBuilder()
                     .setSettingSpecName(settingSpec.getName())
                     .setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(true)))

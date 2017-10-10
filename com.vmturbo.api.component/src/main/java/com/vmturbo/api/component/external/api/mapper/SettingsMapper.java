@@ -32,7 +32,6 @@ import com.vmturbo.api.enums.InputValueType;
 import com.vmturbo.api.enums.SettingScope;
 import com.vmturbo.common.protobuf.SettingDTOUtil;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
-import com.vmturbo.common.protobuf.setting.SettingProto.DefaultType;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.EntityTypeSet;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.ScopeCase;
@@ -40,10 +39,11 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValueType;
-import com.vmturbo.common.protobuf.setting.SettingProto.ScopeType;
+import com.vmturbo.common.protobuf.setting.SettingProto.Scope;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingCategoryPath.SettingCategoryPathNode;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
@@ -167,9 +167,10 @@ public class SettingsMapper {
             .setName(apiInputPolicy.getDisplayName());
 
         if (apiInputPolicy.isDefault()) {
-            infoBuilder.setDefault(DefaultType.getDefaultInstance());
+            // We don't allow the creation of default policies.
+            throw new IllegalArgumentException("Default policies cannot be created.");
         } else {
-            final ScopeType.Builder scopeBuilder = ScopeType.newBuilder();
+            final Scope.Builder scopeBuilder = Scope.newBuilder();
             apiInputPolicy.getScopes().stream()
                     .map(GroupApiDTO::getUuid)
                     .map(Long::parseLong)
@@ -249,7 +250,7 @@ public class SettingsMapper {
         apiDto.setDisplayName(info.getName());
         apiDto.setEntityType(ServiceEntityMapper.toUIEntityType(info.getEntityType()));
         apiDto.setDisabled(!info.getEnabled());
-        apiDto.setDefault(info.hasDefault());
+        apiDto.setDefault(settingPolicy.getSettingPolicyType().equals(Type.DEFAULT));
 
         if (info.hasScope()) {
             apiDto.setScopes(info.getScope().getGroupsList().stream()

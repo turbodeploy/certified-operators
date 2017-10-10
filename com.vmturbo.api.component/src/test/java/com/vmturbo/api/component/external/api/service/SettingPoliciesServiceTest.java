@@ -40,11 +40,11 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceImplBase;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceImplBase;
 import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyResponse;
-import com.vmturbo.common.protobuf.setting.SettingProto.DefaultType;
 import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesRequest;
-import com.vmturbo.common.protobuf.setting.SettingProto.ScopeType;
+import com.vmturbo.common.protobuf.setting.SettingProto.Scope;
 import com.vmturbo.common.protobuf.setting.SettingProto.SearchSettingSpecsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceImplBase;
@@ -62,7 +62,6 @@ public class SettingPoliciesServiceTest {
     private static final String GROUP_NAME = "the krew";
 
     private static final SettingPolicyInfo DEFAULT_POLICY_INFO = SettingPolicyInfo.newBuilder()
-            .setDefault(DefaultType.getDefaultInstance())
             .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
             .build();
 
@@ -72,7 +71,7 @@ public class SettingPoliciesServiceTest {
             .build();
 
     private static final SettingPolicyInfo SCOPE_POLICY_INFO = SettingPolicyInfo.newBuilder()
-            .setScope(ScopeType.newBuilder()
+            .setScope(Scope.newBuilder()
                     .addGroups(GROUP_ID))
             .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
             .build();
@@ -191,9 +190,9 @@ public class SettingPoliciesServiceTest {
         // This one should get filtered out.
         final SettingPolicy wrongEntityTypePolicy = SettingPolicy.newBuilder()
                 .setId(GROUP_ID + 1)
+                .setSettingPolicyType(Type.DEFAULT)
                 .setInfo(SettingPolicyInfo.newBuilder()
-                        .setEntityType(EntityType.STORAGE.getNumber())
-                        .setDefault(DefaultType.getDefaultInstance()))
+                        .setEntityType(EntityType.STORAGE.getNumber()))
                 .build();
 
         when(settingPolicyBackend.listSettingPolicies(any()))

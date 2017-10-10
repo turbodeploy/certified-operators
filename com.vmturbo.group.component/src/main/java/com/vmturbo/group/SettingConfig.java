@@ -1,5 +1,7 @@
 package com.vmturbo.group;
 
+import java.util.concurrent.TimeUnit;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -29,10 +31,15 @@ public class SettingConfig {
     @Value("${settingSpecJsonFile:setting/setting-spec.json}")
     private String settingSpecJsonFile;
 
+    @Value("${createDefaultSettingPolicyRetryIntervalSec}")
+    private long createDefaultSettingPolicyRetryIntervalSec;
+
     @Bean
     public SettingStore settingStore() {
         return new SettingStore(settingSpecJsonFile, databaseConfig.dsl(),
-                identityProviderConfig.identityProvider(), arangoDBConfig.groupStore());
+                identityProviderConfig.identityProvider(),
+                arangoDBConfig.groupStore(),
+                createDefaultSettingPolicyRetryIntervalSec, TimeUnit.SECONDS);
     }
 
     @Bean

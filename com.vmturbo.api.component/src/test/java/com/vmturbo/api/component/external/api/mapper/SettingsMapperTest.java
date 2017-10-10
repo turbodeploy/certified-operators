@@ -43,11 +43,12 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.GlobalSettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValueType;
-import com.vmturbo.common.protobuf.setting.SettingProto.ScopeType;
+import com.vmturbo.common.protobuf.setting.SettingProto.Scope;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingCategoryPath;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingCategoryPath.SettingCategoryPathNode;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingTiebreaker;
@@ -324,7 +325,7 @@ public class SettingsMapperTest {
         assertEquals(ServiceEntityMapper.toUIEntityType(10), dto.getEntityType());
     }
 
-    @Test
+    @Test(expected = IllegalArgumentException.class)
     public void testMapInputPolicyDefault() {
         final SettingManagerMapping mapping = mock(SettingManagerMapping.class);
         final SettingSpecMapper specMapper = mock(SettingSpecMapper.class);
@@ -338,11 +339,6 @@ public class SettingsMapperTest {
 
         SettingPolicyInfo info =
                 mapper.convertInputPolicy(settingsPolicyApiDTO, Collections.emptyMap());
-
-        assertEquals("Test", info.getName());
-        assertTrue(info.hasDefault());
-        // Enabled if disabled is not explicitly set.
-        assertTrue(info.getEnabled());
     }
 
     @Test
@@ -436,11 +432,12 @@ public class SettingsMapperTest {
 
         final SettingPolicy settingPolicy = SettingPolicy.newBuilder()
                 .setId(1)
+                .setSettingPolicyType(Type.USER)
                 .setInfo(SettingPolicyInfo.newBuilder()
                     .setName("foo")
                     .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
                     .setEnabled(true)
-                    .setScope(ScopeType.newBuilder()
+                    .setScope(Scope.newBuilder()
                             .addGroups(7L))
                     .addSettings(Setting.newBuilder()
                             .setSettingSpecName(settingSpec1.getName())

@@ -225,18 +225,39 @@ message EnumSettingValue {
 // Note that the DefaultScope vs GroupScope resolution mechanism differs from the
 // "most conservative" conflict resolution mechanism described elsewhere.
 message SettingPolicy {
+    enum Type {
+        // Default setting policies are created by the system, and can only be modified by
+        // users. Default policies are defined on a per-entity-type basis, and there is only
+        // one default policy per entity type. The policy applies to all entities of that type
+        // for which there is no other SettingPolicy.
+        DEFAULT = 1;
+
+        // User setting policies are created by users, and must be scoped.
+        // User policies always override default policies, regardless of conflict resolution
+        // strategies.
+        USER = 2;
+    }
+
     // The id of the SettingPolicy.
     optional int64 id = 1;
 
     // The properties of the SettingPolicy.
     optional SettingPolicyInfo info = 2;
+
+    // The type of the setting policy.
+    optional Type setting_policy_type = 7;
 }
 
 // Describes the properties of a SettingPolicy object. For additional information about
 // SettingPolicies, see the comments for the SettingPolicy message.
 message SettingPolicyInfo {
     // The name of the SettingPolicy, used to name it in the UI.
+    //
     // The name should be unique.
+    //
+    // Default setting policies have an auto-generated name for consistency and debugging, but it
+    // is not meant to be user-visible. The API component (and UI) should generate the "right"
+    // name to use.
     optional string name = 1;
 
     // The settings that should be applied to the entities in the scope.
@@ -272,28 +293,16 @@ message SettingPolicyInfo {
     // Whether the setting_policy is enabled or not.
     optional bool enabled = 4 [default = true];
 
-    // The type of the SettingPolicy.
-    oneof type {
-        // A DefaultType SettingPolicy applies to all entities of the given type for which no
-        // other seting_policy applies. See detailed comments above.
-        DefaultType default = 6;
-
-        // A ScopeType SettingPolicy applies to a scope specified by the groups of entities
-        // in the scope.
-        ScopeType scope = 7;
-    }
+    // The scope of a setting policy is the groups of entities the policy applies to.
+    // Default setting policies do not have a scope (see detailed comments above).
+    optional Scope scope = 7;
 }
 
-// A DefaultType SettingPolicy applies to all entities of the given type for which no
-// other seting_policy applies. See detailed comments above.
-message DefaultType { }
-
-// A ScopeType SettingPolicy is bound to all of the entities
-// belonging to the groups whose ids are members of the ScopeType's groups.
+// A scope defines the groups to which the SettingPolicy applies to.
 // A Setting is applied to an entity the same regardless if it is a member of 1, 2, or n of
 // the groups in the scope. A setting will not be applied to an entity if it is not in the scope.
 // The entity_type of the groups in the scope should match the entity_type of the SettingPolicy.
-message ScopeType {
+message Scope {
     // The ids of the groups to which a SettingPolicy should be bound.
     repeated int64 groups = 1;
 }
