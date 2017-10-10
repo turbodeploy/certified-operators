@@ -35,7 +35,7 @@ import com.vmturbo.communication.WebSocketClientTransport;
  * @param <T> type of messge to receive.
  */
 public class WebsocketNotificationReceiver<T extends AbstractMessage> implements
-        IMessageReceiver<T>, AutoCloseable {
+        IMessageReceiver<T> {
 
     private final Logger logger = LogManager.getLogger(getClass());
     private final Deserializer<T> deserializer;
@@ -186,6 +186,24 @@ public class WebsocketNotificationReceiver<T extends AbstractMessage> implements
         public long getPongMessageTimeout() {
             return innerConfig.getPongMessageTimeout();
         }
+    }
+
+    /**
+     * Deserializer is an object used to convert input stream (protobuf-related) into a protobuf
+     * message. This deserializer is very protobuf-specific.
+     *
+     * @param <T> type of message that is expected
+     */
+    public interface Deserializer<T> {
+        /**
+         * Parses the bytes to generate the message
+         *
+         * @param is input stream
+         * @return message
+         * @throws IOException if deserialization failed.
+         */
+        @Nonnull
+        T parseFrom(@Nonnull CodedInputStream is) throws IOException;
     }
 }
 

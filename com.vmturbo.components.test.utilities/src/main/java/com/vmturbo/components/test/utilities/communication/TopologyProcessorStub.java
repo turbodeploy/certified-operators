@@ -5,10 +5,11 @@ import javax.annotation.Nonnull;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.web.socket.server.standard.ServerEndpointRegistration;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
-import com.vmturbo.components.api.server.IMessageSender;
-import com.vmturbo.components.api.server.KafkaMessageProducer;
+import com.vmturbo.communication.WebsocketServerTransportManager;
+import com.vmturbo.components.api.server.BroadcastWebsocketTransportManager;
+import com.vmturbo.components.api.server.WebsocketNotificationSender;
 import com.vmturbo.components.test.utilities.communication.ComponentStubHost.StubConfiguration;
 import com.vmturbo.components.test.utilities.communication.TopologyProcessorStub.TopologyProcessorStubConfig;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TopologyProcessorNotification;
@@ -49,24 +50,30 @@ public class TopologyProcessorStub extends
 
         @Bean
         public TopologyProcessorNotificationSender topologyProcessorApiBackend() {
-            return new TopologyProcessorNotificationSender(threadPool, notificationSender(),
-                    topologySender());
+            return new TopologyProcessorNotificationSender(threadPool, 10L, topologySender(),
+                    notificationSender());
         }
 
         @Bean
-        public KafkaMessageProducer messageSender() {
-            // TODO inject kafka container name here
-            return new KafkaMessageProducer("kafka-non-existing");
+        public ServerEndpointRegistration topologyApiEndpointRegistration() {
+            return new ServerEndpointRegistration(TopologyProcessorClient.WEBSOCKET_PATH,
+                    transportManager());
         }
 
         @Bean
-        public IMessageSender<TopologyProcessorNotification> topologySender() {
-            return messageSender().messageSender(TopologyProcessorClient.NOTIFICATIONS_TOPIC);
+        public WebsocketNotificationSender<TopologyProcessorNotification> topologySender() {
+            return new WebsocketNotificationSender<>(threadPool);
         }
 
         @Bean
-        public IMessageSender<Topology> notificationSender() {
-            return messageSender().messageSender(TopologyProcessorClient.TOPOLOGY_BROADCAST_TOPIC);
+        public WebsocketNotificationSender<TopologyProcessorNotification> notificationSender() {
+            return new WebsocketNotificationSender<>(threadPool);
+        }
+
+        @Bean
+        public WebsocketServerTransportManager transportManager() {
+            return BroadcastWebsocketTransportManager.createTransportManager(threadPool,
+                    topologySender(), notificationSender());
         }
     }
 }

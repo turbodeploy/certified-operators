@@ -5,7 +5,6 @@ import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import javax.annotation.Nonnull;
 import javax.servlet.Servlet;
 
 import org.apache.logging.log4j.LogManager;
@@ -103,11 +102,6 @@ public class IntegrationTestServer implements AutoCloseable {
 
     public <T> T getBean(Class<T> requiredType) {
         return applicationContext.getBeansOfType(requiredType).values().iterator().next();
-    }
-
-    @SuppressWarnings("unchecked")
-    public <T> T getBean(@Nonnull String name) {
-        return (T)applicationContext.getBean(name);
     }
 
     public ComponentApiConnectionConfig connectionConfig() throws URISyntaxException {

@@ -49,15 +49,18 @@ public class TopologyProcessorNotificationSender
         implements TopoBroadcastManager, TargetStoreListener, OperationListener, ProbeStoreListener {
 
     private final Map<Class<? extends Operation>, OperationNotifier> operationsListeners;
-    private final IMessageSender<Topology> topologySender;
+    // TODO remove in future after switch off websockets
+    private final long chunkSendDelayMs;
+    private final IMessageSender<TopologyProcessorNotification> topologySender;
     private final IMessageSender<TopologyProcessorNotification> notificationSender;
 
     public TopologyProcessorNotificationSender(@Nonnull final ExecutorService threadPool,
-            @Nonnull IMessageSender<Topology> topologySender,
-            @Nonnull IMessageSender<TopologyProcessorNotification> notificationSender) {
+            long chunkSendDelayMs,
+            @Nonnull IMessageSender<TopologyProcessorNotification> topologySender,
+            @Nonnull IMessageSender<TopologyProcessorNotification> notifiationSender) {
         super(threadPool);
         this.topologySender = Objects.requireNonNull(topologySender);
-        this.notificationSender = Objects.requireNonNull(notificationSender);
+        this.notificationSender = Objects.requireNonNull(notifiationSender);
         operationsListeners = new HashMap<>();
         operationsListeners.put(Validation.class,
                         operation -> notifyValidationState((Validation)operation));
@@ -65,6 +68,11 @@ public class TopologyProcessorNotificationSender
                         operation -> notifyDiscoveryState((Discovery)operation));
         // TODO (roman, Aug 2016): Add notifications for actions.
         operationsListeners.put(Action.class, operation -> notifyActionState((Action)operation));
+        if (chunkSendDelayMs < 0) {
+            throw new IllegalArgumentException("Chunk send delay must not be a negative value");
+        } else {
+            this.chunkSendDelayMs = chunkSendDelayMs;
+        }
     }
 
     @Override
@@ -162,9 +170,9 @@ public class TopologyProcessorNotificationSender
     }
 
     private void sendTopologySegment(final @Nonnull Topology segment) throws InterruptedException {
-        getLogger().debug("Sending topology {} segment {}", segment::getTopologyId,
-                segment::getSegmentCase);
-        topologySender.sendMessage(segment);
+        final TopologyProcessorNotification message =
+                createNewMessage().setTopologyNotification(segment).build();
+        sendMessageSync(topologySender, message);
     }
 
     private TopologyProcessorNotification.Builder createNewMessage() {
@@ -370,6 +378,7 @@ public class TopologyProcessorNotificationSender
                     .setData(Data.newBuilder().addAllEntities(chunk))
                     .setTopologyId(topologyId)
                     .build();
+            Thread.sleep(chunkSendDelayMs);
             sendTopologySegment(subMessage);
             totalCount += chunk.size();
         }

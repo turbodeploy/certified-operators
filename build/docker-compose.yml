@@ -114,7 +114,7 @@ services:
     environment:
       BROKER_ID: 1
       ADVERTISED_PORT: 9092
-      ZOOKEEPER_HOSTS: ${ZOOKEEPER_SERVERS}
+      ZOOKEEPER_HOSTS: "zoo1:2181"
     volumes:
       - kafka1-log:/tmp/kafka-logs
     depends_on:
@@ -168,7 +168,6 @@ services:
     image: turbonomic/com.vmturbo.api.component
     depends_on:
       - clustermgr
-      - kafka1
     ports:
       - "${API_HTTP_PORT}"
       - "${API_HTTPS_PORT}"
@@ -178,7 +177,6 @@ services:
       instance_id: api-1
       consul_host: consul
       realtimeTopologyContextId: 777777
-      kafkaServers: ${KAFKA_SERVERS}
       JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${API_XMX_MB}M ${API_SYSTEM_PROPERTIES}"
     volumes:
       - api:/home/turbonomic/data
@@ -192,7 +190,6 @@ services:
     image: turbonomic/market-component
     depends_on: &clustermgrdep
       - clustermgr
-      - kafka1
     ports:
       - "${MARKET_PORT}"
       - "${MARKET_DEBUG_PORT}"
@@ -200,7 +197,6 @@ services:
       component_type: market
       instance_id: market-1
       consul_host: consul
-      kafkaServers: ${KAFKA_SERVERS}
       JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MARKET_XMX_MB}M ${MARKET_SYSTEM_PROPERTIES}"
     volumes:
       - market:/home/turbonomic/data
@@ -214,7 +210,6 @@ services:
     depends_on:
       - db
       - clustermgr
-      - kafka1
     ports:
       - "${ACTION_ORCHESTRATOR_PORT}"
       - "${ACTION_ORCHESTRATOR_DEBUG_PORT}"
@@ -223,7 +218,6 @@ services:
       instance_id: action-orchestrator-1
       consul_host: consul
       realtimeTopologyContextId: 777777
-      kafkaServers: ${KAFKA_SERVERS}
       JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${ACTION_ORCHESTRATOR_XMX_MB}M ${ACTION_ORCHESTRATOR_SYSTEM_PROPERTIES}"
     volumes:
       - action-orchestrator:/home/turbonomic/data
@@ -240,14 +234,12 @@ services:
     depends_on:
       - db
       - clustermgr
-      - kafka1
     environment:
       component_type: topology-processor
       instance_id: topology-processor-1
       node_name: default
       consul_host: consul
       realtimeTopologyContextId: 777777
-      kafkaServers: ${KAFKA_SERVERS}
       JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${TOPOLOGY_PROCESSOR_XMX_MB}M ${TOPOLOGY_PROCESSOR_SYSTEM_PROPERTIES}"
     volumes:
       - topology-processor:/home/turbonomic/data
@@ -308,13 +300,11 @@ services:
     depends_on:
       - arangodb
       - clustermgr
-      - kafka1
     environment:
       component_type: repository
       instance_id: repository-1
       REPOSITORY_ARANGODB_HOST: arangodb
       realtimeTopologyContextId: 777777
-      kafkaServers: ${KAFKA_SERVERS}
       JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${REPOSITORY_XMX_MB}M ${REPOSITORY_SYSTEM_PROPERTIES}"
     volumes:
       - repository:/home/turbonomic/data
@@ -353,7 +343,6 @@ services:
     depends_on:
       - db
       - clustermgr
-      - kafka1
     volumes:
       - history:/home/turbonomic/data
     environment:
@@ -362,7 +351,6 @@ services:
       instance_id: history-1
       realtimeTopologyContextId: 777777
       logging.level.com.vmturbo.history: INFO
-      kafkaServers: ${KAFKA_SERVERS}
       JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${HISTORY_XMX_MB}M ${HISTORY_SYSTEM_PROPERTIES}"
     mem_limit: ${HISTORY_MEM_LIMIT_MB}M
 
@@ -377,7 +365,6 @@ services:
     depends_on:
       - db
       - clustermgr
-      - kafka1
     volumes:
       - plan-orchestrator:/home/turbonomic/data
     environment:
@@ -385,7 +372,6 @@ services:
       component_type: plan-orchestrator
       instance_id: plan-orchestrator-1
       realtimeTopologyContextId: 777777
-      kafkaServers: ${KAFKA_SERVERS}
       JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${PLAN_ORCHESTRATOR_XMX_MB}M ${PLAN_ORCHESTRATOR_SYSTEM_PROPERTIES}"
     mem_limit: ${PLAN_ORCHESTRATOR_MEM_LIMIT_MB}M
 

@@ -9,7 +9,6 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionFailure;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionProgress;
@@ -63,13 +62,10 @@ class TopologyProcessorNotificationReceiver extends ComponentNotificationReceive
     }
 
     public TopologyProcessorNotificationReceiver(
-            @Nullable final IMessageReceiver<TopologyProcessorNotification> messageReceiver,
-            @Nullable final IMessageReceiver<Topology> topologyReceiver,
+            @Nonnull final IMessageReceiver<TopologyProcessorNotification> messageReceiver,
             @Nonnull final ExecutorService executorService) {
         super(messageReceiver, executorService);
         this.topologyChunkReceiver = new ChunkingReceiver<>(executorService);
-        topologyReceiver.addListener(this::onTopologyNotification);
-
     }
 
     private void onTargetAddedNotification(@Nonnull final TopologyProcessorNotification message) {
@@ -106,8 +102,8 @@ class TopologyProcessorNotificationReceiver extends ComponentNotificationReceive
         doWithListeners(targetListeners, l -> l.onTargetDiscovered(result));
     }
 
-    private void onTopologyNotification(@Nonnull final Topology topology,
-            @Nonnull Runnable commitCommand) {
+    private void onTopologyNotification(@Nonnull final TopologyProcessorNotification message) {
+        final Topology topology = message.getTopologyNotification();
         final long topologyId = topology.getTopologyId();
         switch (topology.getSegmentCase()) {
             case START:
@@ -122,7 +118,6 @@ class TopologyProcessorNotificationReceiver extends ComponentNotificationReceive
             case END:
                 topologyChunkReceiver.finishTopologyBroadcast(topology.getTopologyId(),
                         topology.getEnd().getTotalCount());
-                commitCommand.run();
                 break;
             default:
                 getLogger().warn("Unknown broadcast data segment received: {}",
@@ -169,6 +164,9 @@ class TopologyProcessorNotificationReceiver extends ComponentNotificationReceive
     protected void processMessage(@Nonnull final TopologyProcessorNotification message) throws ApiClientException {
         getLogger().trace("Processing message {}", message.getBroadcastId());
         switch (message.getTypeCase()) {
+            case TOPOLOGY_NOTIFICATION:
+                onTopologyNotification(message);
+                break;
             case TARGET_ADDED_NOTIFICATION:
                 onTargetAddedNotification(message);
                 break;

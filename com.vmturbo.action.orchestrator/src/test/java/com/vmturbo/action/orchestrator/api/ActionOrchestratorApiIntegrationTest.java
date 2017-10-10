@@ -24,10 +24,13 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClient;
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorMessageReceiver;
+import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionOrchestratorNotification;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionFailure;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionProgress;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionSuccess;
+import com.vmturbo.components.api.client.IMessageReceiver;
+import com.vmturbo.components.api.client.WebsocketNotificationReceiver;
 import com.vmturbo.components.api.test.IntegrationTestServer;
 
 /**
@@ -63,7 +66,7 @@ public class ActionOrchestratorApiIntegrationTest {
     @Captor
     private ArgumentCaptor<ActionFailure> failureCaptor;
 
-    private ActionOrchestratorMessageReceiver messageReceiver;
+    private IMessageReceiver<ActionOrchestratorNotification> messageReceiver;
 
     @Before
     public final void init() throws Exception {

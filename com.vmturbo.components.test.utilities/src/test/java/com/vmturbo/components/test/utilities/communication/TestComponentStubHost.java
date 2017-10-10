@@ -11,7 +11,6 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
@@ -65,19 +64,13 @@ public class TestComponentStubHost {
             final ActionPlan actionPlan = actionPlanFuture.get(10, TimeUnit.SECONDS);
             Assert.assertEquals(1, actionPlan.getId());
 
-            // TODO add real message receivers here (OM-25222)
-            if (true) {
-                throw new UnsupportedOperationException("Implement real message receiver");
-            }
             // Test that the topology processor stub works.
-            final IMessageReceiver<TopologyProcessorNotification> tpMessageReceiver = null;
-            final IMessageReceiver<Topology> tpTopologyReceiver = null;
-//                    new WebsocketNotificationReceiver<>(config,
-//                            TopologyProcessorClient.WEBSOCKET_PATH, threadPool,
-//                            TopologyProcessorNotification::parseFrom);
+            final IMessageReceiver<TopologyProcessorNotification> tpMessageReceiver =
+                    new WebsocketNotificationReceiver<>(config,
+                            TopologyProcessorClient.WEBSOCKET_PATH, threadPool,
+                            TopologyProcessorNotification::parseFrom);
             final TopologyProcessor tp =
-                    TopologyProcessorClient.rpcAndNotification(config, threadPool,
-                            tpMessageReceiver, tpTopologyReceiver);
+                    TopologyProcessorClient.rpcAndNotification(config, threadPool, tpMessageReceiver);
             final CompletableFuture<TopologyInfo> topologyContextIdFuture = new CompletableFuture<>();
             tp.addEntitiesListener((topologyInfo, topologyDTOs) ->
                     topologyContextIdFuture.complete(topologyInfo));
