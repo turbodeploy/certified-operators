@@ -91,7 +91,7 @@ public class Analysis {
         startTime = LocalDateTime.now();
         logger.info(logPrefix + "Started");
         try {
-            final TopologyConverter converter = new TopologyConverter(includeVDC);
+            final TopologyConverter converter = new TopologyConverter(includeVDC, topologyType);
             final Set<TraderTO> traderTOs = converter
                             .convertToMarket(Lists.newLinkedList(topologyDTOs));
             if (logger.isDebugEnabled()) {

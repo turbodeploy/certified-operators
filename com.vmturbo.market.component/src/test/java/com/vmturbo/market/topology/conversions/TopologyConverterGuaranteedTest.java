@@ -17,9 +17,11 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommodityBoughtList;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.analysis.InvalidTopologyException;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -35,8 +37,8 @@ public class TopologyConverterGuaranteedTest {
     private static final long VM1_OID = 70001;
     private static final long VM2_OID = 70002;
     private static CommodityType MEM_ALLOC = CommodityType.newBuilder()
-                    .setType(com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.MEM_ALLOCATION_VALUE)
-                    .build();
+            .setType(CommodityDTO.CommodityType.MEM_ALLOCATION_VALUE)
+            .build();
     private static List<TopologyEntityDTO> entities;
 
     /**
@@ -93,7 +95,7 @@ public class TopologyConverterGuaranteedTest {
     @Test
     public void testExcludeVDCs() throws InvalidTopologyException {
         // includeVDC is false
-        TopologyConverter converter = new TopologyConverter();
+        TopologyConverter converter = new TopologyConverter(TopologyType.REALTIME);
         Set<TraderTO> traders = converter.convertToMarket(entities);
         // VDCs are skipped, VMs in maintenance and unknown state are skipped
         assertEquals(1, traders.size());
@@ -113,7 +115,7 @@ public class TopologyConverterGuaranteedTest {
      */
     @Test
     public void testIncludeVDCs() throws InvalidTopologyException {
-        TopologyConverter converter = new TopologyConverter(true);
+        TopologyConverter converter = new TopologyConverter(true, TopologyType.REALTIME);
         Set<TraderTO> traders = converter.convertToMarket(entities);
         assertEquals(4, traders.size());
         List<Long> guaranteedBuyers = traders.stream()

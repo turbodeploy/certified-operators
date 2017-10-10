@@ -39,6 +39,9 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ResizeExplanatio
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.Units;
 import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.commons.analysis.InvalidTopologyException;
@@ -69,8 +72,22 @@ public class TopologyConverter {
 
     /**
      * A non-shop-together TopologyConverter.
+     *
+     * @param topologyType the type of topology (realtime or plan) to convert
      */
-    public TopologyConverter() {
+    public TopologyConverter(TopologyType topologyType) {
+        isPlan = topologyType == TopologyType.PLAN;
+    }
+
+    /**
+     * Constructor with includeGuaranteedBuyer parameter.
+     *
+     * @param includeGuaranteedBuyer whether to include guaranteed buyers (VDC, VPod, DPod) or not
+     * @param topologyType the type of topology (realtime or plan) to convert
+     */
+    public TopologyConverter(boolean includeGuaranteedBuyer, TopologyType topologyType) {
+        this(topologyType);
+        this.includeGuaranteedBuyer = includeGuaranteedBuyer;
     }
 
     private final Logger logger = LogManager.getLogger();
@@ -82,6 +99,18 @@ public class TopologyConverter {
 
     // TODO: In legacy this is taken from LicenseManager and is currently false
     private boolean includeGuaranteedBuyer = false;
+
+    private final boolean isPlan;
+
+    private static final Set<Integer> CONTAINER_TYPES = ImmutableSet.of(
+        // TODO: Add container collection
+        EntityType.CONTAINER_VALUE);
+
+    /**
+     * Entities that are providers of containers.
+     * Populated only for plans. For realtime market, this set will be empty.
+     */
+    private Set<Long> providersOfContainers = Sets.newHashSet();
 
     /**
      * Map from entity OID to entity.
@@ -108,15 +137,6 @@ public class TopologyConverter {
  // a map to keep the oid to traderTO mapping, it also includes newly cloned traderTO
     private Map<Long, EconomyDTOs.TraderTO> oidToTraderTOMap = Maps.newHashMap();
 
-    /**
-     * Constructor with includeGuaranteedBuyer parameter.
-     *
-     * @param includeGuaranteedBuyer whether to include guaranteed buyers (VDC, VPod, DPod) or not
-     */
-    public TopologyConverter(boolean includeGuaranteedBuyer) {
-        this.includeGuaranteedBuyer = includeGuaranteedBuyer;
-    }
-
     // Biclique stuff
     private final BiCliquer bicliquer = new BiCliquer();
 
@@ -138,10 +158,11 @@ public class TopologyConverter {
     /**
      * A shop-together TopologyConverter.
      *
+     * @param topologyType the type of topology (realtime or plan) to convert
      * @return an instance of TopologyConverter that applies shop-together biclique creation
      */
-    public static TopologyConverter shopTogetherConverter() {
-        TopologyConverter converter = new TopologyConverter(false);
+    public static TopologyConverter shopTogetherConverter(TopologyType topologyType) {
+        TopologyConverter converter = new TopologyConverter(false, topologyType);
         converter.shopTogether = true;
         return converter;
     }
@@ -165,6 +186,10 @@ public class TopologyConverter {
                 guaranteedList.add(entity.getOid());
             } else {
                 entityOidToDto.put(entity.getOid(), entity);
+                if (isPlan && CONTAINER_TYPES.contains(entityType)) {
+                    // VMs and ContainerPods
+                    providersOfContainers.addAll(entity.getCommodityBoughtMapMap().keySet());
+                }
             }
         }
         return convertToMarket();
@@ -448,14 +473,27 @@ public class TopologyConverter {
     private EconomyDTOs.TraderTO topologyDTOtoTraderTO(
             @Nonnull final TopologyDTO.TopologyEntityDTO topologyDTO)
                             throws InvalidTopologyException {
-        final EconomyDTOs.TraderStateTO state = traderState(topologyDTO.getEntityState());
+        final EconomyDTOs.TraderStateTO state = traderState(topologyDTO);
         final boolean active = EconomyDTOs.TraderStateTO.ACTIVE.equals(state);
         final boolean bottomOfSupplyChain = topologyDTO.getCommodityBoughtMapMap().isEmpty();
+        final boolean topOfSupplyChain = topologyDTO.getCommoditySoldListList().isEmpty();
         final int entityType = topologyDTO.getEntityType();
         boolean clonable = AnalysisUtil.CLONABLE_TYPES.contains(entityType); // TODO: should use settings
         boolean suspendable = true; // TODO: should use settings
         if (bottomOfSupplyChain && active) {
             clonable = AnalysisUtil.CLONABLE_TYPES.contains(entityType);
+            suspendable = false;
+        }
+        if (isPlan && entityType == EntityType.VIRTUAL_MACHINE_VALUE) {
+            suspendable = false;
+        }
+        // Checking isPlan here is redundant, but since Set.contains(.) might be expensive,
+        // (even for an empty Set) it is worth checking again. Also improves readability.
+        if (isPlan && providersOfContainers.contains(topologyDTO.getOid())) {
+            clonable = true;
+            suspendable = true;
+        }
+        if (topOfSupplyChain) { // Workaround for OM-25254. Should be set by mediation.
             suspendable = false;
         }
         final boolean isGuranteedBuyer = guaranteedBuyer(topologyDTO);
@@ -466,6 +504,7 @@ public class TopologyConverter {
             .setMaxDesiredUtilization(0.8f)  // TODO: should use settings
             .setGuaranteedBuyer(isGuranteedBuyer)
             .setCanAcceptNewCustomers(topologyDTO.getProviderPolicy().getIsAvailableAsProvider())
+            .setIsEligibleForResizeDown(isPlan)
             .build();
         Set<Long> allCliques = shopTogether
                         ? bicliquer.getBcIDs(String.valueOf(topologyDTO.getOid()))
@@ -520,10 +559,13 @@ public class TopologyConverter {
 
     @Nonnull
     private EconomyDTOs.TraderStateTO traderState(
-            @Nonnull final TopologyDTO.EntityState topologyEntityState) {
-        return topologyEntityState == TopologyDTO.EntityState.POWERED_ON
+            @Nonnull final TopologyEntityDTO entity) {
+        EntityState entityState = entity.getEntityState();
+        return entityState == TopologyDTO.EntityState.POWERED_ON
                 ? EconomyDTOs.TraderStateTO.ACTIVE
-                : EconomyDTOs.TraderStateTO.INACTIVE;
+                : entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE
+                    ? EconomyDTOs.TraderStateTO.IDLE
+                    : EconomyDTOs.TraderStateTO.INACTIVE;
     }
 
     @Nonnull
@@ -555,7 +597,7 @@ public class TopologyConverter {
             final long providerOid,
             @Nonnull final TopologyDTO.TopologyEntityDTO.CommodityBoughtList commoditiesBought) {
         TopologyDTO.TopologyEntityDTO provider = entityOidToDto.get(providerOid);
-        float moveCost = (entityType == EntityType.VIRTUAL_MACHINE_VALUE
+        float moveCost = !isPlan && (entityType == EntityType.VIRTUAL_MACHINE_VALUE
                 && provider != null // this check is for testing purposes
                 && provider.getEntityType() == EntityType.STORAGE_VALUE)
                         ? (float)(totalStorageAmountBought(buyerOid) / Units.KIBI)

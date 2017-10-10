@@ -860,6 +860,7 @@ com.vmturbo.market.component/src/test/java/com/vmturbo/market/api/TestApiServerC
 com.vmturbo.market.component/src/test/java/com/vmturbo/market/runner/AnalysisTest.java -text
 com.vmturbo.market.component/src/test/java/com/vmturbo/market/runner/MarketRunnerTest.java -text
 com.vmturbo.market.component/src/test/java/com/vmturbo/market/topology/TopologyEntitiesHandlerTest.java -text
+com.vmturbo.market.component/src/test/java/com/vmturbo/market/topology/conversions/InterpretActionTest.java -text
 com.vmturbo.market.component/src/test/java/com/vmturbo/market/topology/conversions/TopologyConverterGuaranteedTest.java -text
 com.vmturbo.market.component/src/test/java/com/vmturbo/market/topology/conversions/TopologyConverterTest.java -text
 com.vmturbo.market.component/src/test/resources/log4j2-test.xml -text
