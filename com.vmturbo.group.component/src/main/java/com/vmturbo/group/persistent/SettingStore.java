@@ -415,8 +415,7 @@ public class SettingStore {
      * @return A stream of {@link SettingPolicy} objects that match the filter.
      * @throws DataAccessException If there is an error connecting to the database.
      */
-    @VisibleForTesting
-    Stream<SettingProto.SettingPolicy> getSettingPolicies(
+    public Stream<SettingProto.SettingPolicy> getSettingPolicies(
             @Nonnull final SettingPolicyFilter filter) throws DataAccessException {
         return dsl.selectFrom(SETTING_POLICY)
            .where(filter.getConditions())
@@ -444,17 +443,6 @@ public class SettingStore {
      */
     public Optional<SettingProto.SettingPolicy> getSettingPolicy(@Nonnull final String name) {
         return getSettingPolicies(SettingPolicyFilter.newBuilder().withName(name).build()).findFirst();
-    }
-
-    /**
-     * Get all defined setting policies.
-     *
-     * @return A stream of {@link SettingProto.SettingPolicy} objects, one for every setting policy
-     *         known to the {@link SettingStore}.
-     */
-    @Nonnull
-    public Stream<SettingProto.SettingPolicy> getAllSettingPolicies() {
-        return getSettingPolicies(SettingPolicyFilter.newBuilder().build());
     }
 
     /**

@@ -372,6 +372,8 @@ message GetSettingPolicyResponse {
 // The SettingSpecs associated with the settings in the returned SettingPolicies
 // should be retrieved in a separate call.
 message ListSettingPoliciesRequest {
+    // Return only policies of the particular type.
+    optional SettingPolicy.Type type_filter = 1;
 }
 
 // The SettingPolicyService provides RPC's for CRUD-type operations related to SettingPolicy objects.

@@ -436,9 +436,16 @@ public class SettingsMapper {
 
             switch (settingSpec.getSettingTypeCase()) {
                 case ENTITY_SETTING_SPEC:
-                    apiDTO.setScope(SettingScope.LOCAL);
                     final EntitySettingScope entityScope =
                             settingSpec.getEntitySettingSpec().getEntitySettingScope();
+                    // We explicitly want the scope unset, because for API purposes LOCAL scope
+                    // settings are those that are ONLY applicable to groups. However, entity
+                    // setting specs also have globally editable defaults (which are considered
+                    // global), so we can't say they have LOCAL or GLOBAL scope.
+                    //
+                    // In the API, something that has both LOCAL and GLOBAL scope has a "null"
+                    // scope at the time of this writing (Oct 10 2017) :)
+                    apiDTO.setScope(null);
                     if (entityScope.getScopeCase().equals(ScopeCase.ENTITY_TYPE_SET)) {
                         // TODO (roman, Sept 12, 2017): Right now there are no settings that
                         // have multiple entity types, so we can just print a warning if we

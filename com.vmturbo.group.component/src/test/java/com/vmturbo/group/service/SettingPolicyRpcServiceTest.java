@@ -30,11 +30,13 @@ import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyResponse
 import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.components.api.test.GrpcExceptionMatcher;
 import com.vmturbo.group.persistent.DuplicateNameException;
 import com.vmturbo.group.persistent.InvalidSettingPolicyException;
+import com.vmturbo.group.persistent.SettingPolicyFilter;
 import com.vmturbo.group.persistent.SettingStore;
 
 public class SettingPolicyRpcServiceTest {
@@ -225,7 +227,7 @@ public class SettingPolicyRpcServiceTest {
     public void testListPolicies() {
         final StreamObserver<SettingPolicy> responseObserver =
                 (StreamObserver<SettingPolicy>)mock(StreamObserver.class);
-        when(settingStore.getAllSettingPolicies())
+        when(settingStore.getSettingPolicies(eq(SettingPolicyFilter.newBuilder().build())))
             // Just return the same one twice - that's fine for the purpose of the test.
             .thenReturn(Stream.of(settingPolicy, settingPolicy));
         service.listSettingPolicies(ListSettingPoliciesRequest.getDefaultInstance(),
@@ -234,4 +236,23 @@ public class SettingPolicyRpcServiceTest {
         verify(responseObserver, times(2)).onNext(eq(settingPolicy));
         verify(responseObserver).onCompleted();
     }
+
+    @Test
+    public void testListPoliciesTypeFilter() {
+        final StreamObserver<SettingPolicy> responseObserver =
+                (StreamObserver<SettingPolicy>)mock(StreamObserver.class);
+        when(settingStore.getSettingPolicies(eq(SettingPolicyFilter.newBuilder()
+                .withType(Type.DEFAULT)
+                .build())))
+            // Just return the same one twice - that's fine for the purpose of the test.
+            .thenReturn(Stream.of(settingPolicy, settingPolicy));
+        service.listSettingPolicies(ListSettingPoliciesRequest.newBuilder()
+                    .setTypeFilter(Type.DEFAULT)
+                    .build(),
+                responseObserver);
+
+        verify(responseObserver, times(2)).onNext(eq(settingPolicy));
+        verify(responseObserver).onCompleted();
+    }
+
 }

@@ -26,7 +26,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
  * over the policies in the table.
  */
 @Immutable
-class SettingPolicyFilter {
+public class SettingPolicyFilter {
     private final Set<Type> desiredTypes;
     private final Set<String> desiredNames;
     private final Set<Long> desiredIds;

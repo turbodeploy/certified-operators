@@ -172,7 +172,8 @@ public class SettingStoreTest {
             .build());
 
         List<SettingPolicy> allPolicies =
-                settingStore.getAllSettingPolicies().collect(Collectors.toList());
+                settingStore.getSettingPolicies(SettingPolicyFilter.newBuilder().build())
+                    .collect(Collectors.toList());
         assertThat(allPolicies, containsInAnyOrder(policy, policy2));
     }
 

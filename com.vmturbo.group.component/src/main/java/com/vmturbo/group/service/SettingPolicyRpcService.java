@@ -24,6 +24,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.group.persistent.DuplicateNameException;
 import com.vmturbo.group.persistent.InvalidSettingPolicyException;
+import com.vmturbo.group.persistent.SettingPolicyFilter;
 import com.vmturbo.group.persistent.SettingStore;
 
 /**
@@ -125,7 +126,11 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
     @Override
     public void listSettingPolicies(ListSettingPoliciesRequest request,
                                     StreamObserver<SettingPolicy> responseObserver) {
-        settingStore.getAllSettingPolicies().forEach(responseObserver::onNext);
+        final SettingPolicyFilter.Builder filterBuilder = SettingPolicyFilter.newBuilder();
+        if (request.hasTypeFilter()) {
+            filterBuilder.withType(request.getTypeFilter());
+        }
+        settingStore.getSettingPolicies(filterBuilder.build()).forEach(responseObserver::onNext);
         responseObserver.onCompleted();
     }
 }

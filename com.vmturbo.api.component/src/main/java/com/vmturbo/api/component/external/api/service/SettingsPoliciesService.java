@@ -44,6 +44,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyRespo
 import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.SearchSettingSpecsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
@@ -86,15 +87,22 @@ public class SettingsPoliciesService implements ISettingsPoliciesService {
      * @throws Exception If something goes wrong.
      */
     @Override
-    public List<SettingsPolicyApiDTO> getSettingsPolicies(boolean onlyDefaults, List<String> entityTypes) throws Exception {
+    public List<SettingsPolicyApiDTO> getSettingsPolicies(boolean onlyDefaults,
+                                                          List<String> entityTypes) throws Exception {
         final Set<Integer> acceptableEntityTypes = entityTypes == null || entityTypes.isEmpty() ?
                 Collections.emptySet() :
                 entityTypes.stream()
                     .map(ServiceEntityMapper::fromUIEntityType)
                     .collect(Collectors.toSet());
 
+
+        final ListSettingPoliciesRequest.Builder reqBuilder = ListSettingPoliciesRequest.newBuilder();
+        if (onlyDefaults) {
+            reqBuilder.setTypeFilter(Type.DEFAULT);
+        }
+
         final List<SettingPolicy> settingPolicies = new LinkedList<>();
-        spService.listSettingPolicies(ListSettingPoliciesRequest.getDefaultInstance())
+        spService.listSettingPolicies(reqBuilder.build())
             .forEachRemaining(policy -> {
                 // We use an empty acceptable set to indicate everything is accepted.
                 if (acceptableEntityTypes.isEmpty() ||

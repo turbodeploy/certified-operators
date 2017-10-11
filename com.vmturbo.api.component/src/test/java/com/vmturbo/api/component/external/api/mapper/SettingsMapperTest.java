@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.mapper;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
@@ -110,7 +111,8 @@ public class SettingsMapperTest {
         assertEquals("moveVM", settingApiDTO.getUuid());
         assertEquals("Move", settingApiDTO.getDisplayName());
         assertEquals("MANUAL", settingApiDTO.getDefaultValue());
-        assertEquals(SettingScope.LOCAL, settingApiDTO.getScope());
+        // Scope should be null.
+        assertNull(settingApiDTO.getScope());
 
         assertEquals("VirtualMachine", settingApiDTO.getEntityType());
         assertEquals(InputValueType.STRING, settingApiDTO.getValueType());
