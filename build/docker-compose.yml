@@ -113,10 +113,17 @@ services:
     image: turbonomic/kafka
     environment:
       BROKER_ID: 1
-      ADVERTISED_PORT: 9092
       ZOOKEEPER_HOSTS: ${ZOOKEEPER_SERVERS}
+      KAFKA_INTERNAL_PORT: ${KAFKA_INTERNAL_PORT}
+      KAFKA_INTERNAL_BROKER_ADDRESS: ${KAFKA_INTERNAL_BROKER_ADDRESS}
+      KAFKA_EXTERNAL_PORT: ${KAFKA_EXTERNAL_PORT}
+      KAFKA_EXTERNAL_BROKER_ADDRESS: ${KAFKA_EXTERNAL_BROKER_ADDRESS}
     volumes:
       - kafka1-log:/tmp/kafka-logs
+    ports:
+      # the external port mapping will have to be revisited for clustering, where external ports
+      # would need to be unique per-host.
+      - "${KAFKA_EXTERNAL_PORT}:${KAFKA_EXTERNAL_PORT}"
     depends_on:
       - zoo1
 

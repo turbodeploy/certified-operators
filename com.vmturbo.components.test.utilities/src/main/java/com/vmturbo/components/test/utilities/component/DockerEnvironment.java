@@ -123,6 +123,11 @@ public class DockerEnvironment {
             .put("MEDIATION_STRESSPROBE_MEM_LIMIT_MB", "1024")
             .put("MEDIATION_DELEGATINGPROBE_XMX_MB", "384")
             .put("MEDIATION_DELEGATINGPROBE_MEM_LIMIT_MB", "512")
+            // KAFKA PROPERTIES
+            .put("KAFKA_INTERNAL_PORT", "9092")
+            .put("KAFKA_INTERNAL_BROKER_ADDRESS", "kafka1")
+            .put("KAFKA_EXTERNAL_PORT", "9093")
+            .put("KAFKA_EXTERNAL_BROKER_ADDRESS", "localhost")
             // SYSTEM PROPERTIES
             .put("AUTH_SYSTEM_PROPERTIES", "")
             .put("CLUSTERMGR_SYSTEM_PROPERTIES", "")

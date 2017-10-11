@@ -30,7 +30,26 @@ start_kafka() {
 
     KAFKA_PARAMS="$KAFKA_PARAMS --override broker.id=$BROKER_ID"
     KAFKA_PARAMS="$KAFKA_PARAMS --override zookeeper.connect=$ZOOKEEPER_HOSTS"
-    KAFKA_PARAMS="$KAFKA_PARAMS --override listeners=PLAINTEXT://:$ADVERTISED_PORT"
+    # set up configuration for an INTERNAL listener and an EXTERNAL listener. clients connecting on the
+    # INTERNAL port will be mapped to internally-resolvable (i.e. inside the docker network) broker
+    # addresses, while clients connecting to the EXTERNAL port will be mapped to externally (outside
+    # the docker network) accessible broker addresses.
+    # For more info, see
+    #   https://cwiki.apache.org/confluence/display/KAFKA/KIP-103%3A+Separation+of+Internal+and+External+traffic
+    KAFKA_PARAMS="$KAFKA_PARAMS --override inter.broker.listener.name=INTERNAL"
+    KAFKA_PARAMS="$KAFKA_PARAMS --override listener.security.protocol.map=PLAINTEXT:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT"
+    if [ -n "$KAFKA_EXTERNAL_BROKER_ADDRESS" ] && [ -n "$KAFKA_EXTERNAL_PORT" ]; then
+        # add configuration for supporting both internal and external access
+        KAFKA_PARAMS="$KAFKA_PARAMS --override listeners=INTERNAL://0.0.0.0:$KAFKA_INTERNAL_PORT,EXTERNAL://0.0.0.0:$KAFKA_EXTERNAL_PORT"
+        KAFKA_PARAMS="$KAFKA_PARAMS --override advertised.listeners=INTERNAL://$KAFKA_INTERNAL_BROKER_ADDRESS:$KAFKA_INTERNAL_PORT,EXTERNAL://$KAFKA_EXTERNAL_BROKER_ADDRESS:$KAFKA_EXTERNAL_PORT"
+    else
+        # default: only listen internally
+#        KAFKA_PARAMS="$KAFKA_PARAMS --override listeners=PLAINTEXT://:$KAFKA_INTERNAL_PORT"
+        KAFKA_PARAMS="$KAFKA_PARAMS --override listeners=INTERNAL://:$KAFKA_INTERNAL_PORT"
+    fi
+    # Set a default retention period to 24 hours for now. TODO: refine this setting per-topic based
+    # our topic-specific needs.
+    KAFKA_PARAMS="$KAFKA_PARAMS --override log.retention.hours=24"
 
     echo Executing kafka with options: $KAFKA_PARAMS
 

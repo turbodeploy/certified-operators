@@ -229,6 +229,13 @@
         </profile>
 
         <profile>
+            <id>kafka</id>
+            <modules>
+                <module>../kafka</module>
+            </modules>
+        </profile>
+
+        <profile>
             <id>component-tests</id>
             <modules>
                 <module>../com.vmturbo.components.test.utilities</module>

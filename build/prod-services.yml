@@ -62,7 +62,8 @@ services:
     restart: always
     environment:
       BROKER_ID: 1
-      ADVERTISED_PORT: 9092
+      KAFKA_INTERNAL_PORT: 9092
+      KAFKA_INTERNAL_BROKER_ADDRESS: kafka1
       ZOOKEEPER_HOSTS: "zoo1:2181"
     volumes:
       - kafka1-log:/tmp/kafka-logs
