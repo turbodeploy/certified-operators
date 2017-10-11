@@ -110,6 +110,7 @@ services:
       instance_id: api-1
       consul_host: consul
       realtimeTopologyContextId: 777777
+      kafkaServers: kafka1:9092
     volumes:
       - api:/home/turbonomic/data
       - /tmp/certs:/tmp/certs
@@ -125,6 +126,7 @@ services:
       instance_id: market-1
       instances.market-1.identityGeneratorPrefix: 2
       consul_host: consul
+      kafkaServers: kafka1:9092
     volumes:
       - market:/home/turbonomic/data
     restart: always
@@ -139,6 +141,7 @@ services:
       instance_id: action-orchestrator-1
       consul_host: consul
       realtimeTopologyContextId: 777777
+      kafkaServers: kafka1:9092
     volumes:
       - action-orchestrator:/home/turbonomic/data
     restart: always
@@ -155,6 +158,7 @@ services:
       node_name: default
       consul_host: consul
       realtimeTopologyContextId: 777777
+      kafkaServers: kafka1:9092
     volumes:
       - topology-processor:/home/turbonomic/data
     restart: always
@@ -184,6 +188,7 @@ services:
       instance_id: repository-1
       REPOSITORY_ARANGODB_HOST: arangodb
       realtimeTopologyContextId: 777777
+      kafkaServers: kafka1:9092
     volumes:
       - repository:/home/turbonomic/data
     restart: always
@@ -199,6 +204,7 @@ services:
       consul_host: consul
       component_type: group
       instance_id: group-1
+      kafkaServers: kafka1:9092
     restart: always
 
   history-prod:
@@ -214,6 +220,7 @@ services:
       instance_id: history-1
       realtimeTopologyContextId: 777777
       logging.level.com.vmturbo.history: info # change to debug to enable more debugging output
+      kafkaServers: kafka1:9092
     restart: always
 
   plan-orchestrator-prod:
@@ -228,6 +235,7 @@ services:
       component_type: plan-orchestrator
       instance_id: plan-orchestrator-1
       realtimeTopologyContextId: 777777
+      kafkaServers: kafka1:9092
     restart: always
 
   mediation-vcenter-prod:

@@ -36,6 +36,7 @@ import java.util.concurrent.TimeoutException;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.commons.lang.NotImplementedException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.After;
@@ -88,6 +89,7 @@ import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.StoppingCondition;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyBroadcastRequest;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -125,7 +127,6 @@ import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TopologyProcessorNotification;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClient;
-import com.vmturbo.topology.processor.api.impl.TopologyProcessorMessageReceiver;
 
 /**
  * A system test that brings up the TopologyProcessor and sends a specific topology to it.
@@ -154,6 +155,7 @@ public class PlacementPolicySysTest {
     private final PolicyServiceStub policyServiceStub = new PolicyServiceStub();
 
     private WebsocketNotificationReceiver<TopologyProcessorNotification> tpMessageReceiver;
+    private WebsocketNotificationReceiver<Topology> tpTopologyReceiver;
     private WebsocketNotificationReceiver<MarketComponentNotification> marketMessageReceiver;
 
     @Autowired
@@ -245,11 +247,16 @@ public class PlacementPolicySysTest {
 
         topologyService = TopologyServiceGrpc.newBlockingStub(
             componentTestRule.getCluster().newGrpcChannel("topology-processor"));
-        tpMessageReceiver = new TopologyProcessorMessageReceiver(componentTestRule.getCluster()
-                .getConnectionConfig("topology-processor"), threadPool);
+        if (true) {
+            throw new NotImplementedException("TP connection to Kafka should be implemented");
+        }
+        tpMessageReceiver = null;
+        tpTopologyReceiver = null;
+//                new TopologyProcessorMessageReceiver(componentTestRule.getCluster()
+//                .getConnectionConfig("topology-processor"), threadPool);
         topologyProcessor = TopologyProcessorClient.rpcAndNotification(
             componentTestRule.getCluster().getConnectionConfig("topology-processor"),
-            threadPool, tpMessageReceiver);
+            threadPool, tpMessageReceiver, tpTopologyReceiver);
 
         marketMessageReceiver = new MarketMessageReceiver(componentTestRule.getCluster()
                 .getConnectionConfig("market"), threadPool);

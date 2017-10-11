@@ -5,17 +5,15 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
-import org.springframework.web.socket.server.standard.ServerEndpointRegistration;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
-import com.vmturbo.communication.WebsocketServerTransportManager;
-import com.vmturbo.components.api.server.BroadcastWebsocketTransportManager;
-import com.vmturbo.components.api.server.WebsocketNotificationSender;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
+import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
+import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.topology.processor.GlobalConfig;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TopologyProcessorNotification;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClient;
@@ -26,7 +24,7 @@ import com.vmturbo.topology.processor.targets.TargetConfig;
  * Spring configuration for server-side API.
  */
 @Configuration
-@Import({ TargetConfig.class, GlobalConfig.class, ProbeConfig.class })
+@Import({TargetConfig.class, GlobalConfig.class, ProbeConfig.class, BaseKafkaProducerConfig.class})
 public class TopologyProcessorApiConfig {
 
     @Autowired
@@ -38,50 +36,35 @@ public class TopologyProcessorApiConfig {
     @Autowired
     private GlobalConfig globalConfig;
 
-    @Value("${chunk.send.delay.msec:50}")
-    private long chunkSendDelayMs;
+    @Autowired
+    private BaseKafkaProducerConfig baseKafkaServerConfig;
 
     @Bean(destroyMethod = "shutdownNow")
     public ExecutorService apiServerThreadPool() {
         final ThreadFactory threadFactory =
-                        new ThreadFactoryBuilder().setNameFormat("tp-api-srv-%d").build();
+                new ThreadFactoryBuilder().setNameFormat("tp-api-srv-%d").build();
         return Executors.newCachedThreadPool(threadFactory);
     }
 
     @Bean
-    public WebsocketNotificationSender<TopologyProcessorNotification> topologySender() {
-        return new WebsocketNotificationSender<>(apiServerThreadPool());
+    public IMessageSender<Topology> topologySender() {
+        return baseKafkaServerConfig.kafkaMessageSender()
+                .messageSender(TopologyProcessorClient.TOPOLOGY_BROADCAST_TOPIC);
     }
 
     @Bean
-    public WebsocketNotificationSender<TopologyProcessorNotification> notificationSender() {
-        return new WebsocketNotificationSender<>(apiServerThreadPool());
-    }
-
-    @Bean
-    public WebsocketServerTransportManager transportManager() {
-        return BroadcastWebsocketTransportManager.createTransportManager(apiServerThreadPool(),
-                topologySender(), notificationSender());
+    public IMessageSender<TopologyProcessorNotification> notificationSender() {
+        return baseKafkaServerConfig.kafkaMessageSender()
+                .messageSender(TopologyProcessorClient.NOTIFICATIONS_TOPIC);
     }
 
     @Bean
     public TopologyProcessorNotificationSender topologyProcessorNotificationSender() {
         final TopologyProcessorNotificationSender backend =
-                new TopologyProcessorNotificationSender(apiServerThreadPool(), chunkSendDelayMs,
-                        topologySender(), notificationSender());
+                new TopologyProcessorNotificationSender(apiServerThreadPool(), topologySender(),
+                        notificationSender());
         targetConfig.targetStore().addListener(backend);
         probeConfig.probeStore().addListener(backend);
         return backend;
-    }
-
-    /**
-     * This bean configures endpoint to bind it to a specific address (path).
-     *
-     * @return bean
-     */
-    @Bean
-    public ServerEndpointRegistration apiEndpointRegistration() {
-        return new ServerEndpointRegistration(TopologyProcessorClient.WEBSOCKET_PATH,
-                transportManager());
     }
 }

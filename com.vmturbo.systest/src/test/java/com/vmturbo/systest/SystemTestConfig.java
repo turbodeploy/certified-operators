@@ -7,15 +7,16 @@ import java.util.concurrent.Executors;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyServiceGrpc;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.components.api.client.IMessageReceiver;
+import com.vmturbo.components.api.client.KafkaMessageConsumer;
 import com.vmturbo.components.test.utilities.ComponentTestRule;
 import com.vmturbo.components.test.utilities.component.ComponentCluster;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TopologyProcessorNotification;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClient;
-import com.vmturbo.topology.processor.api.impl.TopologyProcessorMessageReceiver;
 
 /**
  * Spring Configuration for the System Test suite.
@@ -62,16 +63,29 @@ public class SystemTestConfig {
     }
 
     @Bean
-    public IMessageReceiver<TopologyProcessorNotification> topologyMessageReceiver() {
-        return new TopologyProcessorMessageReceiver(tpConnectionCofig(),
-                Executors.newCachedThreadPool());
+    public KafkaMessageConsumer kafkaConsumer() {
+        // TODO change kafka instantiation
+        return new KafkaMessageConsumer("kafka-non-existing", "group-1");
+    }
+
+    @Bean
+    public IMessageReceiver<TopologyProcessorNotification> topologyNotificationReceiver() {
+        return kafkaConsumer().messageReceiver(TopologyProcessorClient.NOTIFICATIONS_TOPIC,
+                TopologyProcessorNotification::parseFrom);
+    }
+
+    @Bean
+    public IMessageReceiver<Topology> topologyBroadcastReceiver() {
+        return kafkaConsumer().messageReceiver(TopologyProcessorClient.TOPOLOGY_BROADCAST_TOPIC,
+                Topology::parseFrom);
     }
 
     @Bean
     public TopologyProcessor topologyProcessor() {
         return TopologyProcessorClient.rpcAndNotification(
                 componentCluster().getConnectionConfig("topology-processor"),
-                Executors.newCachedThreadPool(), topologyMessageReceiver());
+                Executors.newCachedThreadPool(), topologyNotificationReceiver(),
+                topologyBroadcastReceiver());
     }
 
     @Bean

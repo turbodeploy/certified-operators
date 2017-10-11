@@ -101,6 +101,7 @@
 
         <arangodb.version>3.0.ON</arangodb.version>
         <arangodb.driver.version>4.1.10</arangodb.driver.version>
+        <kafka.version>0.11.0.1</kafka.version>
 
         <st4.version>4.0.8</st4.version>
         <failsafe.version>2.19.1</failsafe.version>
@@ -1464,6 +1465,11 @@
                 <groupId>io.projectreactor</groupId>
                 <artifactId>reactor-core</artifactId>
                 <version>${reactor.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.kafka</groupId>
+                <artifactId>kafka-clients</artifactId>
+                <version>${kafka.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

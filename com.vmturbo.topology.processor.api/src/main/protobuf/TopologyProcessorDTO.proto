@@ -28,8 +28,6 @@ message TopologyProcessorNotification {
     oneof type {
         // Error message shows, that client side could not process the request.
         string error = 2;
-        // Notification of new topology.
-        .topology.Topology topology_notification = 6;
         // Notification of validation result.
         OperationStatus validation_notification = 7;
         // Notification of validation result.
