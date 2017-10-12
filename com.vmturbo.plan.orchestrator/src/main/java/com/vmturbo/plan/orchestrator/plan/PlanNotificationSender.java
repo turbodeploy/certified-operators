@@ -5,7 +5,6 @@ import java.util.concurrent.ExecutorService;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.action.orchestrator.api.PlanOrchestratorDTO.PlanNotification;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.components.api.server.ComponentNotificationSender;
 import com.vmturbo.components.api.server.IMessageSender;
@@ -13,27 +12,22 @@ import com.vmturbo.components.api.server.IMessageSender;
 /**
  * API backend for plan-related notifications.
  */
-public class PlanNotificationSender extends ComponentNotificationSender<PlanNotification> {
+public class PlanNotificationSender extends ComponentNotificationSender<PlanInstance> {
 
-    private final IMessageSender<PlanNotification> sender;
+    private final IMessageSender<PlanInstance> sender;
 
     public PlanNotificationSender(@Nonnull final ExecutorService threadPool,
-            @Nonnull IMessageSender<PlanNotification> sender) {
+            @Nonnull IMessageSender<PlanInstance> sender) {
         super(threadPool);
         this.sender = Objects.requireNonNull(sender);
     }
 
     public void onPlanStatusChanged(@Nonnull final PlanInstance plan) {
-        final PlanNotification message = PlanNotification.newBuilder()
-                .setBroadcastId(newMessageChainId())
-                .setStatusChanged(plan)
-                .build();
-        sendMessage(sender, message);
+        sendMessage(sender, plan);
     }
 
     @Override
-    protected String describeMessage(@Nonnull PlanNotification planNotification) {
-        return PlanNotification.class.getSimpleName() + "[" + planNotification.getBroadcastId() +
-                "]";
+    protected String describeMessage(@Nonnull PlanInstance planNotification) {
+        return PlanInstance.class.getSimpleName() + "[" + planNotification.getPlanId() + "]";
     }
 }

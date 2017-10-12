@@ -922,7 +922,6 @@ com.vmturbo.plan.orchestrator.api/src/main/java/com/vmturbo/plan/orchestrator/ap
 com.vmturbo.plan.orchestrator.api/src/main/java/com/vmturbo/plan/orchestrator/api/PlanOrchestrator.java -text
 com.vmturbo.plan.orchestrator.api/src/main/java/com/vmturbo/plan/orchestrator/api/impl/PlanOrchestratorClientConfig.java -text
 com.vmturbo.plan.orchestrator.api/src/main/java/com/vmturbo/plan/orchestrator/api/impl/PlanOrchestratorClientImpl.java -text
-com.vmturbo.plan.orchestrator.api/src/main/protobuf/PlanOrchestratorDTO.proto -text
 com.vmturbo.plan.orchestrator/pom.xml -text
 com.vmturbo.plan.orchestrator/src/main/java/com/vmturbo/plan/orchestrator/ApiSecurityConfig.java -text
 com.vmturbo.plan.orchestrator/src/main/java/com/vmturbo/plan/orchestrator/GlobalConfig.java -text
@@ -973,7 +972,6 @@ com.vmturbo.plan.orchestrator/src/test/java/com/vmturbo/plan/orchestrator/plan/A
 com.vmturbo.plan.orchestrator/src/test/java/com/vmturbo/plan/orchestrator/plan/PlanNotificationsTest.java -text
 com.vmturbo.plan.orchestrator/src/test/java/com/vmturbo/plan/orchestrator/plan/PlanTest.java svneol=native#text/x-java
 com.vmturbo.plan.orchestrator/src/test/java/com/vmturbo/plan/orchestrator/plan/PlanTestConfig.java svneol=native#text/x-java
-com.vmturbo.plan.orchestrator/src/test/java/com/vmturbo/plan/orchestrator/plan/PlanTestConfigWebsocket.java -text
 com.vmturbo.plan.orchestrator/src/test/java/com/vmturbo/plan/orchestrator/plan/TestAnalysisService.java svneol=native#text/x-java
 com.vmturbo.plan.orchestrator/src/test/java/com/vmturbo/plan/orchestrator/scenario/ScenarioRpcServiceTest.java -text
 com.vmturbo.plan.orchestrator/src/test/java/com/vmturbo/plan/orchestrator/scheduled/ClusterRollupTaskTest.java -text

@@ -9,8 +9,6 @@ import java.util.concurrent.Future;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 import org.junit.After;
@@ -22,14 +20,13 @@ import org.junit.rules.TestName;
 import org.mockito.Mockito;
 import org.mockito.internal.matchers.CapturesArguments;
 
-import com.vmturbo.action.orchestrator.api.PlanOrchestratorDTO.PlanNotification;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.plan.PlanDTO.CreatePlanRequest;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
-import com.vmturbo.components.api.client.WebsocketNotificationReceiver;
+import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.test.IntegrationTestServer;
 import com.vmturbo.history.component.api.HistoryComponentNotifications.StatsAvailable;
 import com.vmturbo.plan.orchestrator.api.PlanListener;
@@ -57,16 +54,13 @@ public class PlanNotificationsTest {
 
     private PlanProgressListener actionsListener;
 
-    private WebsocketNotificationReceiver<PlanNotification> messageReceiver;
-
-    private final Logger logger = LogManager.getLogger();
+    private IMessageReceiver<PlanInstance> messageReceiver;
 
     @Before
     public void init() throws Exception {
-        server = new IntegrationTestServer(testName, PlanTestConfigWebsocket.class);
+        server = new IntegrationTestServer(testName, PlanTestConfig.class);
         threadPool = Executors.newCachedThreadPool();
-        messageReceiver = new WebsocketNotificationReceiver<>(server.connectionConfig(),
-                PlanOrchestratorClientImpl.WEBSOCKET_PATH, threadPool, PlanNotification::parseFrom);
+        messageReceiver = server.getBean("messageChannel");
         client = new PlanOrchestratorClientImpl(messageReceiver, threadPool);
         planDao = server.getBean(PlanDao.class);
         actionsListener = server.getBean(PlanProgressListener.class);
@@ -74,7 +68,6 @@ public class PlanNotificationsTest {
 
     @After
     public void shutdown() throws Exception {
-        messageReceiver.close();
         server.close();
         threadPool.shutdownNow();
     }
@@ -91,7 +84,6 @@ public class PlanNotificationsTest {
         final PlanListener listener = Mockito.mock(PlanListener.class);
         client.addPlanListener(listener);
         final long planId = planDao.createPlanInstance(CreatePlanRequest.getDefaultInstance()).getPlanId();
-        server.waitForRegisteredEndpoints(1, TIMEOUT);
 
         planRpcService.runPlan(PlanId.newBuilder().setPlanId(planId).build());
 
@@ -120,7 +112,6 @@ public class PlanNotificationsTest {
         final PlanListener listener = Mockito.mock(PlanListener.class);
         client.addPlanListener(listener);
         final long planId = planDao.createPlanInstance(CreatePlanRequest.getDefaultInstance()).getPlanId();
-        server.waitForRegisteredEndpoints(1, TIMEOUT);
         actionsListener.onProjectedTopologyAvailable(TOPOLOGY_ID, planId);
         actionsListener.onStatsAvailable(StatsAvailable.newBuilder()
             .setTopologyContextId(planId)
@@ -152,7 +143,6 @@ public class PlanNotificationsTest {
         final PlanListener listener = Mockito.mock(PlanListener.class);
         client.addPlanListener(listener);
         final long planId = planDao.createPlanInstance(CreatePlanRequest.getDefaultInstance()).getPlanId();
-        server.waitForRegisteredEndpoints(1, TIMEOUT);
 
         actionsListener.onActionsReceived(
                 ActionPlan.newBuilder().setId(ACT_PLAN_ID).setTopologyContextId(planId).build());
@@ -187,7 +177,6 @@ public class PlanNotificationsTest {
         final PlanListener listener = Mockito.mock(PlanListener.class);
         client.addPlanListener(listener);
         final long planId = planDao.createPlanInstance(CreatePlanRequest.getDefaultInstance()).getPlanId();
-        server.waitForRegisteredEndpoints(1, TIMEOUT);
 
         actionsListener.onActionsReceived(
                 ActionPlan.newBuilder().setId(ACT_PLAN_ID).setTopologyContextId(planId).build());
@@ -221,7 +210,6 @@ public class PlanNotificationsTest {
         final PlanListener listener = Mockito.mock(PlanListener.class);
         client.addPlanListener(listener);
         final long planId = planDao.createPlanInstance(CreatePlanRequest.getDefaultInstance()).getPlanId();
-        server.waitForRegisteredEndpoints(1, TIMEOUT);
         actionsListener.onProjectedTopologyAvailable(TOPOLOGY_ID, planId);
         Mockito.verify(listener, Mockito.never()).onPlanStatusChanged(planSucceeded());
         actionsListener.onProjectedTopologyAvailable(TOPOLOGY_ID, planId);
@@ -239,7 +227,6 @@ public class PlanNotificationsTest {
         final PlanListener listener = Mockito.mock(PlanListener.class);
         client.addPlanListener(listener);
         final long planId = planDao.createPlanInstance(CreatePlanRequest.getDefaultInstance()).getPlanId();
-        server.waitForRegisteredEndpoints(1, TIMEOUT);
         final CountDownLatch latch = new CountDownLatch(1);
         final Future<?> actionReport = threadPool.submit(() -> {
             final ActionPlan actionPlan =

@@ -105,9 +105,10 @@ public class IntegrationTestServer implements AutoCloseable {
         return applicationContext.getBeansOfType(requiredType).values().iterator().next();
     }
 
+    @Nonnull
     @SuppressWarnings("unchecked")
     public <T> T getBean(@Nonnull String name) {
-        return (T)applicationContext.getBean(name);
+        return (T)Objects.requireNonNull(applicationContext.getBean(name));
     }
 
     public ComponentApiConnectionConfig connectionConfig() throws URISyntaxException {

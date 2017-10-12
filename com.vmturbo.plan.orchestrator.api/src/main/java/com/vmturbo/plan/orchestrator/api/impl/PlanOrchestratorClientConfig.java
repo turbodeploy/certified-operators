@@ -5,19 +5,20 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Lazy;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import io.grpc.Channel;
 
-import com.vmturbo.action.orchestrator.api.PlanOrchestratorDTO.PlanNotification;
-import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
+import com.vmturbo.components.api.client.BaseKafkaConsumerConfig;
 import com.vmturbo.components.api.client.IMessageReceiver;
-import com.vmturbo.components.api.client.WebsocketNotificationReceiver;
 import com.vmturbo.grpc.extensions.PingingChannelBuilder;
 import com.vmturbo.plan.orchestrator.api.PlanOrchestrator;
 
@@ -28,16 +29,11 @@ import com.vmturbo.plan.orchestrator.api.PlanOrchestrator;
  */
 @Configuration
 @Lazy
+@Import({BaseKafkaConsumerConfig.class})
 public class PlanOrchestratorClientConfig {
 
     @Value("${planOrchestratorHost}")
     private String planOrchestratorHost;
-
-    @Value("${server.port}")
-    private int httpPort;
-
-    @Value("${websocket.pong.timeout}")
-    private long websocketPongTimeout;
 
     @Value("${server.grpcPort}")
     private int grpcPort;
@@ -45,13 +41,8 @@ public class PlanOrchestratorClientConfig {
     @Value("${grpcPingIntervalSeconds}")
     private long grpcPingIntervalSeconds;
 
-    @Bean
-    protected ComponentApiConnectionConfig planOrchestratorClientConnectionConfig() {
-        return ComponentApiConnectionConfig.newBuilder()
-                .setHostAndPort(planOrchestratorHost, httpPort)
-                .setPongMessageTimeout(websocketPongTimeout)
-                .build();
-    }
+    @Autowired
+    private BaseKafkaConsumerConfig consumerConfig;
 
     @Bean(destroyMethod = "shutdownNow")
     protected ExecutorService planOrchestratorClientThreadPool() {
@@ -61,15 +52,15 @@ public class PlanOrchestratorClientConfig {
     }
 
     @Bean
-    protected IMessageReceiver<PlanNotification> planOrchestratorMessageReceiver() {
-        return new WebsocketNotificationReceiver<>(planOrchestratorClientConnectionConfig(),
-                PlanOrchestratorClientImpl.WEBSOCKET_PATH,
-                planOrchestratorClientThreadPool(), PlanNotification::parseFrom);
+    protected IMessageReceiver<PlanInstance> planInstanceReceiver() {
+        return consumerConfig.kafkaConsumer()
+                .messageReceiver(PlanOrchestratorClientImpl.STATUS_CHANGED_TOPIC,
+                        PlanInstance::parseFrom);
     }
 
     @Bean
     public PlanOrchestrator planOrchestrator() {
-        return new PlanOrchestratorClientImpl(planOrchestratorMessageReceiver(),
+        return new PlanOrchestratorClientImpl(planInstanceReceiver(),
                 planOrchestratorClientThreadPool());
     }
 

@@ -5,6 +5,7 @@ import java.util.Properties;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
+
 import javax.annotation.PostConstruct;
 
 import org.mockito.Mockito;
@@ -16,11 +17,12 @@ import org.springframework.context.support.PropertySourcesPlaceholderConfigurer;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
 import io.grpc.Channel;
 
-//import com.vmturbo.action.orchestrator.rpc.ActionsRpcService;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceImplBase;
@@ -33,10 +35,11 @@ import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc.AnalysisServiceB
 import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc.AnalysisServiceImplBase;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.api.test.SenderReceiverPair;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
- /**
+/**
  * Test configuration for interacting with the DB.
  */
 @Configuration
@@ -83,10 +86,17 @@ public class PlanTestConfig {
         return Mockito.spy(new TestAnalysisService());
     }
 
-    @Bean
-    public PlanNotificationSender planNotificationSender() {
-        return Mockito.mock(PlanNotificationSender.class);
-    }
+     @Bean
+     public PlanNotificationSender planNotificationSender() {
+         return new PlanNotificationSender(planThreadPool(), messageChannel());
+     }
+
+     @Bean(destroyMethod = "shutdownNow")
+     public ExecutorService planThreadPool() {
+         final ThreadFactory threadFactory = new ThreadFactoryBuilder().setNameFormat("plan-api-%d")
+                 .build();
+         return Executors.newCachedThreadPool(threadFactory);
+     }
 
     @Bean
     public PlanServiceImplBase planServer() throws IOException {
@@ -130,10 +140,9 @@ public class PlanTestConfig {
 
     @Bean
     public PlanDao planDao() {
-        return new PlanDaoImpl(dbConfig.dsl(), Mockito.mock(PlanNotificationSender.class),
-            repositoryClient(),
-            actionServiceClient(),
-            statsServiceClient());
+        return Mockito.spy(
+                new PlanDaoImpl(dbConfig.dsl(), planNotificationSender(), repositoryClient(),
+                        actionServiceClient(), statsServiceClient()));
     }
 
     @Bean
@@ -147,4 +156,10 @@ public class PlanTestConfig {
         dbConfig.flyway().clean();
         dbConfig.flyway().migrate();
     }
-}
+
+     @Bean
+     public SenderReceiverPair<PlanInstance> messageChannel() {
+         return new SenderReceiverPair<>();
+     }
+
+ }

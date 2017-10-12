@@ -9,30 +9,25 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
-import org.springframework.web.socket.server.standard.ServerEndpointRegistration;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import io.grpc.Channel;
-import io.grpc.ManagedChannelBuilder;
 
 import com.vmturbo.action.orchestrator.api.ActionOrchestrator;
-import com.vmturbo.action.orchestrator.api.PlanOrchestratorDTO.PlanNotification;
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTOREST.PlanServiceController;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc;
 import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc.AnalysisServiceBlockingStub;
-import com.vmturbo.communication.WebsocketServerTransportManager;
-import com.vmturbo.components.api.server.BroadcastWebsocketTransportManager;
-import com.vmturbo.components.api.server.WebsocketNotificationSender;
-import com.vmturbo.history.component.api.HistoryComponent;
+import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
+import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientImpl;
-import com.vmturbo.repository.api.Repository;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
@@ -43,14 +38,9 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 @Configuration
 @Import({SQLDatabaseConfig.class, RepositoryClientConfig.class,
         ActionOrchestratorClientConfig.class, HistoryClientConfig.class,
-        RepositoryClientConfig.class, TopologyProcessorClientConfig.class})
+        RepositoryClientConfig.class, TopologyProcessorClientConfig.class,
+        BaseKafkaProducerConfig.class})
 public class PlanConfig {
-
-    @Value("${topologyProcessorHost}")
-    private String serverAddress;
-
-    @Value("${server.grpcPort}")
-    private int grpcPort;
 
     @Value("${realtimeTopologyContextId}")
     private Long realtimeTopologyContextId;
@@ -70,6 +60,9 @@ public class PlanConfig {
     @Autowired
     private TopologyProcessorClientConfig tpClientConfig;
 
+    @Autowired
+    private BaseKafkaProducerConfig kafkaProducerConfig;
+
     @Bean
     public PlanDao planDao() {
         return new PlanDaoImpl(dbConfig.dsl(), planNotificationSender(),
@@ -88,10 +81,7 @@ public class PlanConfig {
 
     @Bean
     public AnalysisServiceBlockingStub analysisService() {
-        final ManagedChannelBuilder<?> analysisChannel =
-                ManagedChannelBuilder.forAddress(serverAddress, grpcPort)
-                        .usePlaintext(true);
-        final Channel channel = analysisChannel.build();
+        final Channel channel = tpClientConfig.topologyProcessorChannel();
         return AnalysisServiceGrpc.newBlockingStub(channel);
     }
 
@@ -114,14 +104,11 @@ public class PlanConfig {
 
     @Bean
     public PlanProgressListener planProgressListener() {
-        return new PlanProgressListener(planDao(), realtimeTopologyContextId);
-    }
-
-    @Bean
-    public HistoryComponent historyComponent() {
-       final HistoryComponent historyComponent = historyClientConfig.historyComponent();
-        historyComponent.addStatsListener(planProgressListener());
-        return historyComponent;
+        final PlanProgressListener listener =  new PlanProgressListener(planDao(),
+                realtimeTopologyContextId);
+        repositoryClientConfig.repository().addListener(listener);
+        historyClientConfig.historyComponent().addStatsListener(listener);
+        return listener;
     }
 
     /**
@@ -134,37 +121,14 @@ public class PlanConfig {
     }
 
     @Bean
-    public Repository repository() {
-        final Repository repositoryClient = repositoryClientConfig.repository();
-        repositoryClient.addListener(planProgressListener());
-        return repositoryClient;
-    }
-
-    @Bean
-    public WebsocketNotificationSender<PlanNotification> notificationSender() {
-        return new WebsocketNotificationSender<>(planThreadPool());
-    }
-
-    @Bean
-    public WebsocketServerTransportManager transportManager() {
-        return BroadcastWebsocketTransportManager.createTransportManager(planThreadPool(),
-                notificationSender());
+    public IMessageSender<PlanInstance> notificationSender() {
+        return kafkaProducerConfig.kafkaMessageSender()
+                .messageSender(PlanOrchestratorClientImpl.STATUS_CHANGED_TOPIC);
     }
 
     @Bean
     public PlanNotificationSender planNotificationSender() {
         return new PlanNotificationSender(planThreadPool(), notificationSender());
-    }
-
-    /**
-     * This bean configures endpoint to bind it to a specific address (path).
-     *
-     * @return bean
-     */
-    @Bean
-    public ServerEndpointRegistration planApiEndpointRegistration() {
-        return new ServerEndpointRegistration(PlanOrchestratorClientImpl.WEBSOCKET_PATH,
-                transportManager());
     }
 
     @Bean(destroyMethod = "shutdownNow")
