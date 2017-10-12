@@ -33,6 +33,10 @@ public class DockerEnvironment {
 
     private DockerEnvironment() {}
 
+    /**
+     * Port used for access kafka broker instance from the outside. Used to connect from
+     * notification senders stubs.
+     */
     public static int KAFKA_EXTERNAL_PORT = 9093;
 
     private static final String XMX_SUFFIX = "_XMX_MB";
@@ -194,7 +198,7 @@ public class DockerEnvironment {
             // This won't work if the layout of the modules changes!
             Path rootDir = path.getParent().getParent().getParent().getParent();
             // This is a sanity check - it's not foolproof as the code base changes.
-            if (!rootDir.endsWith("xl")) {
+            if (!rootDir.toString().toLowerCase().endsWith("xl")) {
                 throw new IllegalStateException("Going up four levels from pathAnchor didn't " +
                     "take us to the top-level XL folder!");
             }
