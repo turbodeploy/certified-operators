@@ -155,6 +155,7 @@ services:
     depends_on:
       - consul
       - rsyslog
+      - kafka1
     ports:
       - "${CLUSTERMGR_PORT}"
       - "${CLUSTERMGR_DEBUG_PORT}"

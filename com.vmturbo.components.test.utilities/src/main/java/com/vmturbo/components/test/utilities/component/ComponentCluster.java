@@ -133,10 +133,6 @@ public class ComponentCluster {
 
             // Start up clustermgr.
             Container clusterMgr = dockerComposeRule.containers().container("clustermgr");
-            // TODO remove this container startup, as soon as kafka will be a dependency for
-            // cluster manager
-            final Container kafka = dockerComposeRule.containers().container(KAFKA_CONTAINER);
-            kafka.up();
             clusterMgr.up();
             healthCheck.waitUntilReady(clusterMgr, Duration.ofMinutes(DEFAULT_HEALTH_CHECK_WAIT_MINUTES));
 
