@@ -855,6 +855,9 @@ com.vmturbo.market.component/src/main/java/com/vmturbo/market/priceindex/PriceIn
 com.vmturbo.market.component/src/main/java/com/vmturbo/market/runner/Analysis.java -text
 com.vmturbo.market.component/src/main/java/com/vmturbo/market/runner/MarketRunner.java -text
 com.vmturbo.market.component/src/main/java/com/vmturbo/market/runner/MarketRunnerConfig.java -text
+com.vmturbo.market.component/src/main/java/com/vmturbo/market/settings/CommoditySettings.java -text
+com.vmturbo.market.component/src/main/java/com/vmturbo/market/settings/EntitySettings.java -text
+com.vmturbo.market.component/src/main/java/com/vmturbo/market/settings/MarketSettings.java -text
 com.vmturbo.market.component/src/main/java/com/vmturbo/market/topology/TopologyEntitiesHandler.java -text
 com.vmturbo.market.component/src/main/java/com/vmturbo/market/topology/TopologyEntitiesListener.java -text
 com.vmturbo.market.component/src/main/java/com/vmturbo/market/topology/TopologyProcessorConfig.java -text

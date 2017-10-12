@@ -126,8 +126,8 @@ public class TopologyConverterTest {
         TraderSettingsTO vdcSettings = vdcTraderTO.getSettings();
         assertFalse(vdcSettings.getClonable());
         assertFalse(vdcSettings.getSuspendable());
-        assertEquals(0.7, vdcSettings.getMinDesiredUtilization(), epsilon); // hard-coded value
-        assertEquals(0.8, vdcSettings.getMaxDesiredUtilization(), epsilon); // hard-coded value
+        assertEquals(0.65, vdcSettings.getMinDesiredUtilization(), epsilon); // hard-coded value
+        assertEquals(0.75, vdcSettings.getMaxDesiredUtilization(), epsilon); // hard-coded value
         assertTrue(vdcSettings.getCanAcceptNewCustomers());
     }
 

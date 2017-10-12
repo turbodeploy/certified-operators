@@ -46,6 +46,8 @@ import com.vmturbo.commons.Units;
 import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.commons.analysis.InvalidTopologyException;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.market.settings.EntitySettings;
+import com.vmturbo.market.settings.MarketSettings;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActivateTO;
@@ -97,8 +99,11 @@ public class TopologyConverter {
     public static final Set<TopologyDTO.EntityState> SKIPPED_ENTITY_STATES = ImmutableSet.of(
         TopologyDTO.EntityState.UNKNOWN, TopologyDTO.EntityState.MAINTENANCE);
 
+    private static final boolean INCLUDE_GUARANTEED_BUYER_DEFAULT =
+                    MarketSettings.BooleanKey.INCLUDE_GUARANTEED_BUYER.value();
+
     // TODO: In legacy this is taken from LicenseManager and is currently false
-    private boolean includeGuaranteedBuyer = false;
+    private boolean includeGuaranteedBuyer = INCLUDE_GUARANTEED_BUYER_DEFAULT;
 
     private final boolean isPlan;
 
@@ -162,7 +167,8 @@ public class TopologyConverter {
      * @return an instance of TopologyConverter that applies shop-together biclique creation
      */
     public static TopologyConverter shopTogetherConverter(TopologyType topologyType) {
-        TopologyConverter converter = new TopologyConverter(false, topologyType);
+        TopologyConverter converter = new TopologyConverter(
+            INCLUDE_GUARANTEED_BUYER_DEFAULT, topologyType);
         converter.shopTogether = true;
         return converter;
     }
@@ -478,10 +484,9 @@ public class TopologyConverter {
         final boolean bottomOfSupplyChain = topologyDTO.getCommodityBoughtMapMap().isEmpty();
         final boolean topOfSupplyChain = topologyDTO.getCommoditySoldListList().isEmpty();
         final int entityType = topologyDTO.getEntityType();
-        boolean clonable = AnalysisUtil.CLONABLE_TYPES.contains(entityType); // TODO: should use settings
-        boolean suspendable = true; // TODO: should use settings
+        boolean clonable = EntitySettings.BooleanKey.ENABLE_PROVISION.value(topologyDTO);
+        boolean suspendable = EntitySettings.BooleanKey.ENABLE_SUSPEND.value(topologyDTO);
         if (bottomOfSupplyChain && active) {
-            clonable = AnalysisUtil.CLONABLE_TYPES.contains(entityType);
             suspendable = false;
         }
         if (isPlan && entityType == EntityType.VIRTUAL_MACHINE_VALUE) {
@@ -500,8 +505,10 @@ public class TopologyConverter {
         final EconomyDTOs.TraderSettingsTO settings = EconomyDTOs.TraderSettingsTO.newBuilder()
             .setClonable(clonable)
             .setSuspendable(suspendable)
-            .setMinDesiredUtilization(0.7f) // TODO: should use settings
-            .setMaxDesiredUtilization(0.8f)  // TODO: should use settings
+            .setMinDesiredUtilization(
+                EntitySettings.NumericKey.DESIRED_UTILIZATION_MIN.value(topologyDTO))
+            .setMaxDesiredUtilization(
+                EntitySettings.NumericKey.DESIRED_UTILIZATION_MAX.value(topologyDTO))
             .setGuaranteedBuyer(isGuranteedBuyer)
             .setCanAcceptNewCustomers(topologyDTO.getProviderPolicy().getIsAvailableAsProvider())
             .setIsEligibleForResizeDown(isPlan)
