@@ -14,10 +14,12 @@ import static com.vmturbo.reports.db.StringConstants.UTILIZATION;
 
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -96,11 +98,40 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
         this.projectedStatsStore = Objects.requireNonNull(projectedStatsStore);
     }
 
+    /**
+     * Get stats from the latest projected topology. Will return a {@link ProjectedStatsResponse}
+     * with no data if the projected stats are not available.
+     *
+     * @param request gives the entities and stats to search for
+     * @param responseObserver the sync for the result value {@link ProjectedStatsResponse}
+     */
     public void getProjectedStats(ProjectedStatsRequest request,
                                   StreamObserver<ProjectedStatsResponse> responseObserver) {
         final ProjectedStatsResponse.Builder builder = ProjectedStatsResponse.newBuilder();
         projectedStatsStore.getStatSnapshot(request).ifPresent(builder::setSnapshot);
         responseObserver.onNext(builder.build());
+        responseObserver.onCompleted();
+    }
+
+    /**
+     * Get stats from the latest projected topology on a per-entity basis. Will return
+     * an {@link EntityStats} response with no stats for each entity in the request list
+     * if the projected stats are not available.
+     *
+     * @param request gives entities and stats to search for
+     * @param responseObserver the sync for {@link EntityStats}, one for each entity in the request
+     */
+    public void getProjectedEntityStats(@Nonnull ProjectedStatsRequest request,
+                                        @Nonnull StreamObserver<EntityStats> responseObserver) {
+        final Set<String> commodityNames = new HashSet<>(request.getCommodityNameList());
+        final Set<Long> targetEntities = new HashSet<>(request.getEntitiesList());
+        targetEntities.forEach(entityOid -> {
+            final EntityStats.Builder entityStatsBuilder = EntityStats.newBuilder()
+                    .setOid(entityOid);
+            projectedStatsStore.getStatSnapshotForEntities(Collections.singleton(entityOid),
+                    commodityNames).ifPresent(entityStatsBuilder::addStatSnapshots);
+            responseObserver.onNext(entityStatsBuilder.build());
+        });
         responseObserver.onCompleted();
     }
 
@@ -167,9 +198,12 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
 
             timer.observeDuration();
         } catch (Exception e) {
-            logger.warn("Error getting stats snapshots for {}", request);
-            logger.warn("    ", e);
-            responseObserver.onError(e);
+            logger.error("Error getting stats snapshots for {}", request);
+            logger.error("    ", e);
+            responseObserver.onError(Status.INTERNAL
+                    .withDescription("Internal Error fetching stats for: " + request + ", cause: "
+                            + e.getMessage())
+                    .asException());
         }
     }
 
@@ -209,8 +243,13 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
                     .withDescription("DB Error fetching stats for: " + oidStrings)
                     .withCause(e)
                     .asException());
+        } catch (Exception e) {
+            logger.error("Internal exception fetching stats for: " + oidStrings, e);
+            responseObserver.onError(Status.INTERNAL
+                    .withDescription("Internal Error fetching stats for: " + oidStrings)
+                    .withCause(e)
+                    .asException());
         }
-
     }
 
 
@@ -240,6 +279,7 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
             responseObserver.onCompleted();
         } catch (Exception e) {
             // acatch and handle any internal exception so we return a useful error to caller
+            logger.error("Internal exception rolling up clusters, request: " + request, e);
             responseObserver.onError(Status.INTERNAL.withDescription("Error rolling up clusters")
                     .withCause(e)
                     .asException());

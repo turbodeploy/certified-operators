@@ -166,6 +166,11 @@ service StatsHistoryService {
     // doesn't have any projected stats.
     rpc GetProjectedStats(ProjectedStatsRequest) returns (ProjectedStatsResponse);
 
+    // Get per-entity stats from the latest projected topology.
+    // Will return a response for each entity with no data if the stats service
+    // doesn't have any projected stats.
+    rpc GetProjectedEntityStats(ProjectedStatsRequest) returns (stream EntityStats);
+
     // Trigger a cluster-rollup computation for the given clusters.
     // Will return no significant data.
     rpc ComputeClusterRollup(ClusterRollupRequest) returns (ClusterRollupResponse);

@@ -2,6 +2,8 @@ package com.vmturbo.history.stats;
 
 import static com.vmturbo.reports.db.StringConstants.USED;
 import static com.vmturbo.reports.db.StringConstants.UTILIZATION;
+import static junit.framework.TestCase.assertTrue;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
@@ -12,14 +14,18 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.internal.verification.VerificationModeFactory.times;
 
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 
+import org.assertj.core.util.Sets;
 import org.jooq.Record;
 import org.junit.Before;
 import org.junit.Test;
@@ -28,6 +34,7 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import com.google.common.collect.Lists;
+
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 
@@ -35,7 +42,10 @@ import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.stats.Stats;
 import com.vmturbo.common.protobuf.stats.Stats.DeletePlanStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.DeletePlanStatsResponse;
+import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
@@ -71,10 +81,16 @@ public class StatsHistoryServiceTest {
     private HistorydbIO historyDbio;
 
     @Mock
-    private ProjectedStatsStore projectedStatsStore;
+    private ProjectedStatsStore mockProjectedStatsStore;
 
     @Mock
     private StreamObserver<StatSnapshot> mockStatSnapshotStreamObserver;
+
+    @Mock
+    private StreamObserver<ProjectedStatsResponse> mockProjectedStatsStreamObserver;
+
+    @Mock
+    private StreamObserver<EntityStats> mockEntityStatsStreamObserver;
 
     @Mock
     private StreamObserver<DeletePlanStatsResponse> mockDeletePlanStatsStreamObserver;
@@ -85,7 +101,7 @@ public class StatsHistoryServiceTest {
 
         statsHistoryService =  new StatsHistoryService(REALTIME_CONTEXT_ID,
                 mockLivestatsreader, mockPlanStatsReader,
-                mockClusterStatsWriter, historyDbio, projectedStatsStore);
+                mockClusterStatsWriter, historyDbio, mockProjectedStatsStore);
     }
 
     /**
@@ -347,6 +363,100 @@ public class StatsHistoryServiceTest {
         //    .withDescription("Error deleting plan stats with id: "
         //      + topologyContextId).asException());
     }
+
+
+    @Test
+    public void testGetProjectedStats() throws Exception {
+        // arrange
+        List<String> commodityNames = Lists.newArrayList();
+        final ArrayList<Long> entityOids = Lists.newArrayList();
+        ProjectedStatsRequest request = ProjectedStatsRequest.newBuilder()
+                .addAllEntities(entityOids)
+                .addAllCommodityName(commodityNames)
+                .build();
+        StatSnapshot statSnapshot = StatSnapshot.newBuilder()
+                .build();
+        when(mockProjectedStatsStore.getStatSnapshot(request))
+                .thenReturn(Optional.of(statSnapshot));
+
+        // act
+        statsHistoryService.getProjectedStats(request, mockProjectedStatsStreamObserver);
+
+        // assert
+        ArgumentCaptor<ProjectedStatsResponse> projecteStatsResponseCaptor =
+                ArgumentCaptor.forClass(ProjectedStatsResponse.class);
+        verify(mockProjectedStatsStreamObserver).onNext(projecteStatsResponseCaptor.capture());
+        final ProjectedStatsResponse response = projecteStatsResponseCaptor.getValue();
+        assertTrue(response.hasSnapshot());
+        StatSnapshot responseSnapshot = response.getSnapshot();
+        assertThat(responseSnapshot, equalTo(statSnapshot));
+
+        verify(mockProjectedStatsStreamObserver).onCompleted();
+        verifyNoMoreInteractions(mockProjectedStatsStreamObserver);
+    }
+
+    /**
+     * Request individual stats for 3 entities.
+     * @throws Exception should never happen
+     */
+    @Test
+    public void testGetProjectedEntityStats() throws Exception {
+        // arrange
+        List<String> commodityNames = Lists.newArrayList("c1", "c2");
+        final ArrayList<Long> entityOids = Lists.newArrayList(1L, 2L, 3L);
+        ProjectedStatsRequest request = ProjectedStatsRequest.newBuilder()
+                .addAllEntities(entityOids)
+                .addAllCommodityName(commodityNames)
+                .build();
+        StatSnapshot statSnapshot1 = StatSnapshot.newBuilder()
+                .addStatRecords(StatRecord.newBuilder()
+                        .setCurrentValue(1.0f)
+                        .build())
+                .build();
+        StatSnapshot statSnapshot2 = StatSnapshot.newBuilder()
+                .addStatRecords(StatRecord.newBuilder()
+                        .setCurrentValue(2.0f)
+                        .build())
+                .build();
+        StatSnapshot statSnapshot3 = StatSnapshot.newBuilder()
+                .addStatRecords(StatRecord.newBuilder()
+                        .setCurrentValue(3.0f)
+                        .build())
+                .build();
+
+        final HashSet<String> commodityNamesSet = Sets.newHashSet(commodityNames);
+        when(mockProjectedStatsStore.getStatSnapshotForEntities(Collections.singleton(1L),
+                commodityNamesSet)).thenReturn(Optional.of(statSnapshot1));
+        when(mockProjectedStatsStore.getStatSnapshotForEntities(Collections.singleton(2L),
+                commodityNamesSet)).thenReturn(Optional.of(statSnapshot2));
+        when(mockProjectedStatsStore.getStatSnapshotForEntities(Collections.singleton(3L),
+                commodityNamesSet)).thenReturn(Optional.of(statSnapshot3));
+
+        // act
+        statsHistoryService.getProjectedEntityStats(request, mockEntityStatsStreamObserver);
+
+        // assert
+        ArgumentCaptor<EntityStats> entityStatsResponseCaptor =
+                ArgumentCaptor.forClass(EntityStats.class);
+        verify(mockEntityStatsStreamObserver, times(3)).onNext(entityStatsResponseCaptor.capture());
+        List<EntityStats> responseValues = entityStatsResponseCaptor.getAllValues();
+        assertThat(responseValues.size(), is(3));
+        assertThat(responseValues.get(0).getOid(), is(1L));
+        assertThat(responseValues.get(0).getStatSnapshotsCount(), is(1));
+        assertThat(responseValues.get(0).getStatSnapshotsList().get(0), is(statSnapshot1));
+
+        assertThat(responseValues.get(1).getOid(), is(2L));
+        assertThat(responseValues.get(1).getStatSnapshotsCount(), is(1));
+        assertThat(responseValues.get(1).getStatSnapshotsList().get(0), is(statSnapshot2));
+
+        assertThat(responseValues.get(2).getOid(), is(3L));
+        assertThat(responseValues.get(2).getStatSnapshotsCount(), is(1));
+        assertThat(responseValues.get(2).getStatSnapshotsList().get(0), is(statSnapshot3));
+
+        verify(mockEntityStatsStreamObserver).onCompleted();
+        verifyNoMoreInteractions(mockEntityStatsStreamObserver);
+    }
+
 
     private DeletePlanStatsRequest createDeletePlanStatsRequest(long topologyContextId) {
         return DeletePlanStatsRequest.newBuilder()

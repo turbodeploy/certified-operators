@@ -1,30 +1,27 @@
 package com.vmturbo.api.component.external.api.util;
 
-import static com.vmturbo.common.protobuf.group.GroupDTO.*;
+import static com.vmturbo.common.protobuf.group.GroupDTO.Cluster;
+import static com.vmturbo.common.protobuf.group.GroupDTO.GetClusterRequest;
+import static com.vmturbo.common.protobuf.group.GroupDTO.GetClusterResponse;
+import static com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
+import static com.vmturbo.common.protobuf.group.GroupDTO.Group;
 
 import java.util.Collections;
-import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
 import org.jooq.tools.StringUtils;
 
-import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
-import com.vmturbo.api.dto.GroupApiDTO;
 import com.vmturbo.api.dto.ServiceEntityApiDTO;
-import com.vmturbo.api.exceptions.UnknownObjectException;
-import com.vmturbo.common.protobuf.group.ClusterServiceGrpc;
 import com.vmturbo.common.protobuf.group.ClusterServiceGrpc.ClusterServiceBlockingStub;
-import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 
@@ -49,6 +46,19 @@ public class GroupExpander {
     }
 
     /**
+     * Process a UUID, expanding if a Group or Cluster uuid into the list of
+     * elements. If the UUID is neither, it is simply included in the output list.
+     *
+     * If uuid is the special UUID "Market", then return an empty list.
+     *
+     * @param uuid a UUID for which Cluster or Group UUIDs will be expanded.
+     * @return UUIDs if the given uuid is for a Group or Cluster; otherwise just the given uuid
+     */
+    public @Nonnull Set<Long> expandUuid(@Nonnull String uuid) {
+        return expandUuidList(Collections.singletonList(uuid));
+    }
+
+    /**
      * Process a list of UUIDs, expanding each Group or Cluster uuid into the list of
      * elements. If a UUID in the input is neither, it is simply included in the output list.
      *
@@ -57,9 +67,9 @@ public class GroupExpander {
      * @param uuidList a list of UUIDs for which Cluster or Group UUIDs will be expanded.
      * @return UUIDs from each Group or Cluster in the input list; other UUIDs are passed through
      */
-    public List<Long> expandUuidList(List<String> uuidList) {
+    public @Nonnull Set<Long> expandUuidList(@Nonnull List<String> uuidList) {
 
-        List<Long> answer = Lists.newArrayList();
+        Set<Long> answer = Sets.newHashSet();
         for (String uuidString : uuidList) {
             // sanity-check the uuidString
             if (StringUtils.isEmpty(uuidString)) {
@@ -67,7 +77,7 @@ public class GroupExpander {
             }
             // is this the special "Market" uuid string?
             if (uuidString.equals(UuidMapper.UI_REAL_TIME_MARKET_STR)) {
-                return Collections.emptyList();
+                return Collections.emptySet();
             }
 
             // try to fetch the members for a Group with the given OID

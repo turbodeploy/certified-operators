@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.mapper;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -14,14 +15,13 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.api.dto.BaseApiDTO;
+import com.vmturbo.api.dto.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.input.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.input.statistic.StatPeriodApiInputDTO;
-import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
-import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsRequest;
@@ -73,26 +73,18 @@ public class StatsMapper {
     }
 
     /**
-     * Convert a protobuf Stats.EntityStats to an API DTO EntityStatsApiDTO.
+     * Convert a protobuf Stats.EntityStats to a list of StatSnapshotApiDTO.
      *
      * EntityStats includes information about an entity as well as a list of StatsSnapshots
      * related to that entity. This list of StatsSnapshots must be converted to StatSnapshotApiDTO.
      *
-     * TODO: this conversion does not (yet) handle the "realtimeMarketReference" field of the
-     * StatSnapshotApiDTO.
-     *
      * @param entityStats the Stats.EntityStats to convert
-     * @return an API DTO EntityStatsApiDTO with the fields converted
+     * @return a List of StatSnapshotApiDTO populated from the EntityStats
      */
-    public static EntityStatsApiDTO toEntityStatsApiDTO(EntityStats entityStats) {
-        final EntityStatsApiDTO dto = new EntityStatsApiDTO();
-        dto.setUuid(Long.toString(entityStats.getOid()));
-        List<StatSnapshotApiDTO> apiStats = entityStats.getStatSnapshotsList().stream()
+    public static List<StatSnapshotApiDTO> toStatsSnapshotApiDtoList(EntityStats entityStats) {
+        return entityStats.getStatSnapshotsList().stream()
                 .map(StatsMapper::toStatSnapshotApiDTO)
                 .collect(Collectors.toList());
-        dto.setStats(apiStats);
-        // TODO: realtimeMarketReference
-        return dto;
     }
 
     /**
@@ -164,25 +156,11 @@ public class StatsMapper {
      * @param statApiInput a {@link StatApiInputDTO} specifying query options for this /stats query
      * @return a new instance of {@link EntityStatsRequest} protobuf with fields set from the given statApiInput
      */
-    public static EntityStatsRequest toEntityStatsRequest(final List<Long> entityIds,
+    public static EntityStatsRequest toEntityStatsRequest(final Set<Long> entityIds,
                                               @Nonnull final StatPeriodApiInputDTO statApiInput) {
         return EntityStatsRequest.newBuilder()
                 .addAllEntities(entityIds)
                 .setFilter(newPeriodStatsFilter(statApiInput))
-                .build();
-    }
-
-    /**
-     * Create a {@link ClusterStatsRequest} for a particular cluster.
-     * @param clusterId Gather stats for the specified cluster.
-     * @param statApiInput A {@link StatApiInputDTO} specifying the stats to retrieve.
-     * @return A new instance of {@link ClusterStatsRequest}.
- a    */
-    public static ClusterStatsRequest toClusterStatsRequest(final long clusterId,
-                                              @Nonnull final StatPeriodApiInputDTO statApiInput) {
-        return ClusterStatsRequest.newBuilder()
-                .setClusterId(clusterId)
-                .setStats(newPeriodStatsFilter(statApiInput))
                 .build();
     }
 
@@ -259,9 +237,17 @@ public class StatsMapper {
         return uiValue;
     }
 
+    /**
+     * Create a request to fetch Projected Stats from the History Component.
+     *
+     * @param uuid a set of {@link ServiceEntityApiDTO} UUIDs to query
+     * @param inputDto parameters for the query, especially the requested stats
+     * @return a {@link ProjectedStatsRequest} protobuf which encapsulates the given uuid list
+     * and stats names to be queried.
+     */
     @Nonnull
     public static ProjectedStatsRequest toProjectedStatsRequest(
-            @Nonnull final List<Long> uuid,
+            @Nonnull final Set<Long> uuid,
             @Nonnull final StatPeriodApiInputDTO inputDto) {
         ProjectedStatsRequest.Builder builder = ProjectedStatsRequest.newBuilder().addAllEntities(uuid);
         inputDto.getStatistics().forEach(statApiInputDTO -> {

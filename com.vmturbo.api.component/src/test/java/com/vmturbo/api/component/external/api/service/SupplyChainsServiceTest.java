@@ -25,6 +25,7 @@ import org.mockito.runners.MockitoJUnitRunner;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.api.component.external.api.service.SupplyChainsService.FilterSet;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
@@ -85,7 +86,7 @@ public class SupplyChainsServiceTest {
         // arrange
         final ImmutableList<String> searchUuids = ImmutableList.of("1");
         when(groupExpanderMock.expandUuidList(eq(searchUuids))).thenReturn(
-                ImmutableList.of(1L));
+                ImmutableSet.of(1L));
         // set up to return three entity types
         SupplychainApiDTO answer = new SupplychainApiDTO();
         answer.setSeMap(ImmutableMap.of(
@@ -142,7 +143,7 @@ public class SupplyChainsServiceTest {
         // arrange
         final ImmutableList<String> searchUuids = ImmutableList.of("1");
         when(groupExpanderMock.expandUuidList(eq(searchUuids))).thenReturn(
-                ImmutableList.of(1L));
+                ImmutableSet.of(1L));
         // set up to return three entity types
         SupplychainApiDTO answer = new SupplychainApiDTO();
         final SupplychainEntryDTO pmSupplyChainEntryDTO = supplyChainTestUtils
@@ -227,7 +228,7 @@ public class SupplyChainsServiceTest {
         // arrange
         final ImmutableList<String> searchUuids = ImmutableList.of("1");
         when(groupExpanderMock.expandUuidList(eq(searchUuids))).thenReturn(
-                ImmutableList.of(1L));
+                ImmutableSet.of(1L));
         // set up to return three entity types
         SupplychainApiDTO answer = new SupplychainApiDTO();
         final SupplychainEntryDTO pmSupplyChainEntryDTO = supplyChainTestUtils

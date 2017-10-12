@@ -192,10 +192,8 @@ public class ServiceConfig {
     @Bean
     public StatsService statsService() {
         return new StatsService(communicationConfig.historyRpcService(),
-                communicationConfig.groupRpcService(),
-                communicationConfig.clusterRpcService(),
                 communicationConfig.repositoryApi(),
-                mapperConfig.uuidMapper(),
+                groupExpander(),
                 Clock.systemUTC());
     }
 

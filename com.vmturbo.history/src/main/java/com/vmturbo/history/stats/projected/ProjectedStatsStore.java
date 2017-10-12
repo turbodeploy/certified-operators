@@ -83,7 +83,24 @@ public class ProjectedStatsStore {
      * @param request The request coming in from the client.
      * @return An optional containing the snapshot, or an empty optional if no data is available.
      */
-    public Optional<StatSnapshot> getStatSnapshot(final ProjectedStatsRequest request) {
+    public Optional<StatSnapshot> getStatSnapshot(@Nonnull final ProjectedStatsRequest request) {
+
+        final Set<String> commodityNames = new HashSet<>(request.getCommodityNameList());
+        final Set<Long> targetEntities = new HashSet<>(request.getEntitiesList());
+
+        return getStatSnapshotForEntities(targetEntities, commodityNames);
+    }
+
+    /**
+     * Get the snapshot representing projected stats for a given set of entities and commodities.
+     *
+     * @param targetEntities the entities to collect the stats for
+     * @param commodityNames the commodities to collect for those entities
+     * @return an Optional containing the snapshot, or empty optional if no data is available
+     */
+    public Optional<StatSnapshot> getStatSnapshotForEntities(@Nonnull final Set<Long> targetEntities,
+                                                             @Nonnull final Set<String> commodityNames) {
+
         final TopologyCommoditiesSnapshot targetCommodities;
         synchronized(topologyCommoditiesLock) {
             targetCommodities = topologyCommodities;
@@ -92,9 +109,6 @@ public class ProjectedStatsStore {
         if (targetCommodities == null) {
             return Optional.empty();
         }
-
-        final Set<String> commodityNames = new HashSet<>(request.getCommodityNameList());
-        final Set<Long> targetEntities = new HashSet<>(request.getEntitiesList());
 
         StatSnapshot.Builder builder = StatSnapshot.newBuilder();
         targetCommodities

@@ -4,8 +4,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.doReturn;
+import static org.mockito.Matchers.anyObject;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
@@ -13,12 +12,11 @@ import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.time.Clock;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -34,20 +32,17 @@ import io.grpc.stub.StreamObserver;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.dto.input.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
-import com.vmturbo.common.protobuf.group.ClusterServiceGrpc;
-import com.vmturbo.common.protobuf.group.ClusterServiceGrpc.ClusterServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.ClusterServiceGrpc.ClusterServiceImplBase;
-import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.Cluster;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetClusterRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetClusterResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
@@ -71,6 +66,9 @@ public class StatsServiceTest {
     private TestGroupService groupServiceTest = spy(new TestGroupService());
 
     private RepositoryApi repositoryApi = Mockito.mock(RepositoryApi.class);
+
+    private GroupExpander groupExpander = Mockito.mock(GroupExpander.class);
+
 
     private final String oid1 = "1";
     private final ApiId apiId1 = mock(ApiId.class);
@@ -109,12 +107,10 @@ public class StatsServiceTest {
         GrpcTestServer testServer = GrpcTestServer.withServices(testStatsHistoryService,
                 testClusterService, groupServiceTest);
         StatsHistoryServiceBlockingStub statsServiceRpc = StatsHistoryServiceGrpc.newBlockingStub(testServer.getChannel());
-        GroupServiceBlockingStub groupServiceRpc = GroupServiceGrpc.newBlockingStub(testServer.getChannel());
-        ClusterServiceBlockingStub clusterServiceRpc = ClusterServiceGrpc.newBlockingStub(testServer.getChannel());
+        groupExpander = Mockito.mock(GroupExpander.class);
 
-
-        statsService = new StatsService(statsServiceRpc, groupServiceRpc, clusterServiceRpc,
-                repositoryApi, uuidMapper, Clock.systemUTC());
+        statsService = new StatsService(statsServiceRpc,
+                repositoryApi, groupExpander, Clock.systemUTC());
 
         when(uuidMapper.fromUuid(oid1)).thenReturn(apiId1);
         when(uuidMapper.fromUuid(oid2)).thenReturn(apiId2);
@@ -127,6 +123,9 @@ public class StatsServiceTest {
     @Test
     public void testGetStatsByEntityQueryWithFiltering() throws Exception {
         StatPeriodApiInputDTO inputDto = new StatPeriodApiInputDTO();
+        final Set<Long> expandedOidList = Sets.newHashSet(apiId1.oid());
+        when(groupExpander.expandUuid(anyObject())).thenReturn(expandedOidList);
+
         List<StatSnapshotApiDTO> resp = statsService.getStatsByEntityQuery(oid1, inputDto);
 
         // The returned stats contain cpu, latency, roi, and app.
@@ -141,31 +140,25 @@ public class StatsServiceTest {
     @Test
     public void testGetStatsByEntityQueryWithAllFiltered() throws Exception {
         StatPeriodApiInputDTO inputDto = new StatPeriodApiInputDTO();
+
         List<StatSnapshotApiDTO> resp = statsService.getStatsByEntityQuery(oid2, inputDto);
 
         // The returned stats will be all filtered out.
-        assertEquals(1, resp.size());
-        Assert.assertTrue(resp.get(0).getStatistics().isEmpty());
+        assertEquals(0, resp.size());
     }
 
     @Test
     public void testGetClusterStats() throws Exception {
         final StatPeriodApiInputDTO inputDto = new StatPeriodApiInputDTO();
-        final GroupDTO.StaticGroupMembers.Builder groupMembers = GroupDTO.StaticGroupMembers
-                .newBuilder()
-                .addStaticMemberOids(2L);
-        final Cluster cluster = Cluster.newBuilder()
-                .setId(1L)
-                .setInfo(GroupDTO.ClusterInfo.newBuilder()
-                        .setMembers(groupMembers))
-                .build();
 
-        doReturn(Optional.of(cluster)).when(testClusterService).getCluster(eq(1L));
+        final Set<Long> listOfOidsInGroup = Sets.newHashSet(apiId2.oid());
+        when(groupExpander.expandUuid(anyObject())).thenReturn(listOfOidsInGroup);
 
         statsService.getStatsByEntityQuery(oid1, inputDto);
 
         ArgumentCaptor<EntityStatsRequest> requestCaptor =
                 ArgumentCaptor.forClass(EntityStatsRequest.class);
+
         verify(testStatsHistoryService).getAveragedEntityStats(requestCaptor.capture(), any());
         assertEquals(apiId1.oid(), requestCaptor.getValue().getEntitiesList().size());
         assertEquals(apiId2.oid(), (long)requestCaptor.getValue().getEntitiesList().get(0));
@@ -175,8 +168,11 @@ public class StatsServiceTest {
     public void testGetGroupStats() throws Exception {
         final StatPeriodApiInputDTO inputDto = new StatPeriodApiInputDTO();
 
-        doReturn(Optional.of(Arrays.asList(7L, 8L))).when(groupServiceTest).getMembers(
-                eq(Long.parseLong(oid1)));
+        final Set<Long> listOfOidsInGroup = Sets.newHashSet(7L, 8L);
+        when(groupExpander.expandUuid(anyObject())).thenReturn(listOfOidsInGroup);
+
+//        doReturn(Optional.of(Arrays.asList(7L, 8L))).when(groupServiceTest).getMembers(
+//                eq(Long.parseLong(oid1)));
 
         statsService.getStatsByEntityQuery(oid1, inputDto);
 
@@ -226,7 +222,7 @@ public class StatsServiceTest {
 
     private class TestGroupService extends GroupServiceGrpc.GroupServiceImplBase {
 
-        Optional<List<Long>> getMembers(final long groupId) {
+        Optional<List<Long>> getMembers(@SuppressWarnings("unused") final long groupId) {
             return Optional.empty();
         }
 
@@ -248,7 +244,7 @@ public class StatsServiceTest {
 
     private static class TestClusterService extends ClusterServiceImplBase {
 
-        Optional<Cluster> getCluster(final long clusterId) {
+        Optional<Cluster> getCluster(@SuppressWarnings("unused") final long clusterId) {
             return Optional.empty();
         }
 

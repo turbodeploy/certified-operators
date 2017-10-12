@@ -41,6 +41,7 @@ import static org.jooq.impl.DSL.min;
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -95,6 +96,8 @@ public class LiveStatsReader {
 
     // Partition the list of entities to read into chunks of this size in order not to flood the DB.
     private static final int ENTITIES_PER_CHUNK = 50000;
+    // time (MS) to specify a window before startTime and after endTime = 30 secs half-window = 1 min
+    private static final long TIME_HALF_WINDOW_MS = Duration.of(30, ChronoUnit.SECONDS).toMillis();
 
     private final HistorydbIO historydbIO;
 
@@ -147,8 +150,8 @@ public class LiveStatsReader {
             return Collections.emptyList();
         }
         long now = mostRecentTimestamp.get().getTime();
-        startTime = applyTimeDefault(startTime, now);
-        endTime = applyTimeDefault(endTime, now);
+        startTime = applyTimeDefault(startTime, now - TIME_HALF_WINDOW_MS);
+        endTime = applyTimeDefault(endTime, now + TIME_HALF_WINDOW_MS);
 
         Map<String, String> entityClsMap = historydbIO.getTypesForEntities(entityIds);
 
@@ -251,8 +254,8 @@ public class LiveStatsReader {
             return ImmutableList.of();
         }
         long now = mostRecentTimestamp.get().getTime();
-        startTime = applyTimeDefault(startTime, now);
-        endTime = applyTimeDefault(endTime, now);
+        startTime = applyTimeDefault(startTime, now - TIME_HALF_WINDOW_MS);
+        endTime = applyTimeDefault(endTime, now + TIME_HALF_WINDOW_MS);
 
         logger.debug("getting stats for full market");
 

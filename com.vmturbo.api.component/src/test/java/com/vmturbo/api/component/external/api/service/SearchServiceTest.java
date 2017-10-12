@@ -19,6 +19,7 @@ import org.junit.Test;
 import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
 import io.grpc.Channel;
@@ -150,7 +151,7 @@ public class SearchServiceTest {
         when(mockOperationBuilder.includeHealthSummary(anyBoolean())).thenReturn(mockOperationBuilder);
         when(mockOperationBuilder.supplyChainDetailType(anyObject())).thenReturn(mockOperationBuilder);
         when(mockOperationBuilder.fetch()).thenReturn(mockSupplychainApiDto);
-        when(groupExpander.expandUuidList(eq(scopes))).thenReturn(Lists.newArrayList(1L, 2L, 3L, 4L));
+        when(groupExpander.expandUuidList(eq(scopes))).thenReturn(ImmutableSet.of(1L, 2L, 3L, 4L));
 
         // Act
         Collection<BaseApiDTO> results = searchService.getSearchResults(null, types, scopes, null, null, null);
