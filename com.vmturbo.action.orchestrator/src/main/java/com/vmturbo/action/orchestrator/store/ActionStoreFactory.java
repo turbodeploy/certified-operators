@@ -6,7 +6,12 @@ import javax.annotation.Nonnull;
 
 import org.jooq.DSLContext;
 
+import io.grpc.Channel;
+
+import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTranslator;
+import com.vmturbo.common.protobuf.topology.ProbeActionCapabilitiesServiceGrpc;
+import com.vmturbo.common.protobuf.topology.ProbeActionCapabilitiesServiceGrpc.ProbeActionCapabilitiesServiceBlockingStub;
 
 /**
  * A factory for creating {@link ActionStore}s.
@@ -22,6 +27,8 @@ public class ActionStoreFactory implements IActionStoreFactory {
      * Required by {@link PlanActionStore}s to interact with the database.
      */
     private final DSLContext databaseDslContext;
+
+    private final Channel topologyProcessorChannel;
 
     /**
      * Required by {@link LiveActionStore}s to translate market actions to real-world actions.
@@ -43,24 +50,30 @@ public class ActionStoreFactory implements IActionStoreFactory {
     public ActionStoreFactory(@Nonnull final IActionFactory actionFactory,
                               @Nonnull final ActionTranslator actionTranslator,
                               final long realtimeTopologyContextId,
-                              @Nonnull final DSLContext databaseDslContext) {
+                              @Nonnull final DSLContext databaseDslContext,
+                              @Nonnull final Channel topologyProcessorChannel) {
         this.actionFactory = Objects.requireNonNull(actionFactory);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.databaseDslContext = Objects.requireNonNull(databaseDslContext);
         this.actionTranslator = Objects.requireNonNull(actionTranslator);
+        this.topologyProcessorChannel = topologyProcessorChannel;
     }
 
     /**
      * Creates an {@link LiveActionStore} for a real-time topology context
      * and an {@link PlanActionStore} otherwise.
-     *
      * {@inheritDoc}
      */
     @Nonnull
     @Override
     public ActionStore newStore(final long topologyContextId) {
         if (topologyContextId == realtimeTopologyContextId) {
-            return new LiveActionStore(actionFactory, topologyContextId);
+            final ProbeActionCapabilitiesServiceBlockingStub actionCapabilitiesServiceBlockingStub =
+                    ProbeActionCapabilitiesServiceGrpc.newBlockingStub(topologyProcessorChannel);
+            final ActionExecutor actionExecutor = new ActionExecutor(topologyProcessorChannel);
+            return new LiveActionStore(actionFactory, topologyContextId,
+                    new ActionSupportResolver(actionCapabilitiesServiceBlockingStub,
+                            actionExecutor));
         } else {
             return new PlanActionStore(actionFactory, databaseDslContext, topologyContextId);
         }

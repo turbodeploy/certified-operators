@@ -20,6 +20,7 @@ import com.vmturbo.action.orchestrator.action.ActionTranslation.TranslationStatu
 import com.vmturbo.action.orchestrator.state.machine.StateMachine;
 import com.vmturbo.action.orchestrator.state.machine.Transition.TransitionResult;
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
@@ -124,6 +125,17 @@ public class Action implements ActionView {
         this.actionTranslation = new ActionTranslation(this.recommendation);
     }
 
+    public Action(Action prototype, ActionDTO.Action.SupportLevel supportLevel) {
+        this.actionPlanId = prototype.actionPlanId;
+        this.actionTranslation = prototype.actionTranslation;
+        this.decision = prototype.decision;
+        this.executableStep = prototype.executableStep;
+        this.recommendationTime = prototype.recommendationTime;
+        this.stateMachine = prototype.stateMachine;
+        this.recommendation = ActionDTO.Action.newBuilder(prototype.recommendation)
+                .setSupportingLevel(supportLevel).build();
+    }
+
     public Action(@Nonnull final ActionDTO.Action recommendation,
                   final long actionPlanId) {
         this(recommendation, LocalDateTime.now(), actionPlanId);
@@ -208,7 +220,9 @@ public class Action implements ActionView {
         // Determine the mode based on action type for now.
         switch (recommendation.getInfo().getActionTypeCase()) {
             case MOVE: case RESIZE: case ACTIVATE: case DEACTIVATE:
-                return ActionMode.MANUAL;
+                return recommendation.getSupportingLevel() == SupportLevel.SHOW_ONLY
+                        ? ActionMode.RECOMMEND
+                        : ActionMode.MANUAL;
             default:
                 return ActionMode.RECOMMEND;
         }
@@ -350,6 +364,15 @@ public class Action implements ActionView {
      */
     void onActionCleared(@Nonnull final ClearingEvent event) {
         decide(builder -> builder.setClearingDecision(event.getDecision()));
+    }
+
+    /**
+     * Returnes false if action has NOT_SUPPORTED capability and shouldn't be shown in the UI.
+     *
+     * @return should be the shown or not.
+     */
+    public ActionDTO.Action.SupportLevel getSupportLevel() {
+        return recommendation.getSupportingLevel();
     }
 
     /**

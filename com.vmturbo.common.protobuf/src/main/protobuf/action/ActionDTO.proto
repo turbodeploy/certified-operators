@@ -6,7 +6,6 @@ option java_package = "com.vmturbo.common.protobuf.action";
 import "topology/TopologyDTO.proto";
 
 
-
 message Explanation {
    oneof action_explanation_type {
        MoveExplanation move = 1;
@@ -228,6 +227,20 @@ message Action {
     // ordering of actions. There is a high liklihood of non-executable actions not succeeding
     // because another action should be executed first.
     optional bool executable = 5;
+
+    // Indicates level of supporting of action by probe or not, depends on action
+    // capabilities (policies) of probe.
+    optional SupportLevel supportingLevel = 6;
+
+    // Levels of supporting action by probe
+    enum SupportLevel {
+        // Full support - will be shown an UI and may be executed
+        SUPPORTED = 1;
+        // Should be only shown in the UI, cannot be executed
+        SHOW_ONLY = 2;
+        // Shouldn't be shown, cannot be executed
+        UNSUPPORTED = 3;
+    }
 }
 
 // Actions the market recommends.

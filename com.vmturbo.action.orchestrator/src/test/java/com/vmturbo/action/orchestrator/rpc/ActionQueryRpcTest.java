@@ -173,6 +173,7 @@ public class ActionQueryRpcTest {
             visibleAction.getId(), visibleAction,
             disabledAction.getId(), disabledAction);
         when(actionStore.getActionViews()).thenReturn(actionViews);
+        when(actionStore.getVisibilityPredicate()).thenReturn(PlanActionStore.VISIBILITY_PREDICATE);
 
         FilteredActionRequest actionRequest = FilteredActionRequest.newBuilder()
             .setTopologyContextId(topologyContextId)

@@ -195,6 +195,7 @@ com.vmturbo.action.orchestrator/src/main/java/com/vmturbo/action/orchestrator/st
 com.vmturbo.action.orchestrator/src/main/java/com/vmturbo/action/orchestrator/store/ActionStoreConfig.java -text
 com.vmturbo.action.orchestrator/src/main/java/com/vmturbo/action/orchestrator/store/ActionStoreFactory.java -text
 com.vmturbo.action.orchestrator/src/main/java/com/vmturbo/action/orchestrator/store/ActionStorehouse.java -text
+com.vmturbo.action.orchestrator/src/main/java/com/vmturbo/action/orchestrator/store/ActionSupportResolver.java -text
 com.vmturbo.action.orchestrator/src/main/java/com/vmturbo/action/orchestrator/store/EntitySeverityCache.java -text
 com.vmturbo.action.orchestrator/src/main/java/com/vmturbo/action/orchestrator/store/IActionFactory.java -text
 com.vmturbo.action.orchestrator/src/main/java/com/vmturbo/action/orchestrator/store/IActionStoreFactory.java -text
@@ -230,6 +231,7 @@ com.vmturbo.action.orchestrator/src/test/java/com/vmturbo/action/orchestrator/st
 com.vmturbo.action.orchestrator/src/test/java/com/vmturbo/action/orchestrator/state/machine/StateMachineTest.java -text
 com.vmturbo.action.orchestrator/src/test/java/com/vmturbo/action/orchestrator/state/machine/TransitionBuilderTest.java -text
 com.vmturbo.action.orchestrator/src/test/java/com/vmturbo/action/orchestrator/store/ActionStorehouseTest.java -text
+com.vmturbo.action.orchestrator/src/test/java/com/vmturbo/action/orchestrator/store/ActionSupportResolverTest.java -text
 com.vmturbo.action.orchestrator/src/test/java/com/vmturbo/action/orchestrator/store/EntitySeverityCacheTest.java -text
 com.vmturbo.action.orchestrator/src/test/java/com/vmturbo/action/orchestrator/store/LiveActionStoreTest.java -text
 com.vmturbo.action.orchestrator/src/test/java/com/vmturbo/action/orchestrator/store/PlanActionStoreTest.java -text

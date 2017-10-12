@@ -5,11 +5,13 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyCollection;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
+import java.util.LinkedList;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -19,6 +21,7 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.mockito.Mockito;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
@@ -74,12 +77,18 @@ public class LiveActionStoreTest {
 
     private final ActionTranslator actionTranslator = mock(ActionTranslator.class);
 
+    private final ActionSupportResolver filter = Mockito.mock
+            (ActionSupportResolver.class);
+
     private final ActionStore actionStore =
-        new LiveActionStore(new SpyActionFactory(), TOPOLOGY_CONTEXT_ID);
+        new LiveActionStore(new SpyActionFactory(), TOPOLOGY_CONTEXT_ID, filter);
 
     @SuppressWarnings("unchecked")
     @Before
     public void setup() {
+        when(filter.resolveActionsSupporting(anyCollection())).thenAnswer(invocationOnMock
+                -> invocationOnMock.getArguments()[0]);
+        filter.resolveActionsSupporting(new LinkedList<>());
         IdentityGenerator.initPrefix(0);
 
         when(actionTranslator.translate(any(Stream.class))).thenAnswer(invocationOnMock ->
@@ -143,7 +152,7 @@ public class LiveActionStoreTest {
     public void testPopulateNotRecommendedAreClearedAndRemoved() throws Exception {
         // Can't use spies when checking for action state because action state machine will call
         // methods in the original action, not in the spy.
-        ActionStore actionStore = new LiveActionStore(new ActionFactory(), TOPOLOGY_CONTEXT_ID);
+        ActionStore actionStore = new LiveActionStore(new ActionFactory(), TOPOLOGY_CONTEXT_ID, filter);
 
         ActionDTO.Action.Builder firstMove = move(vm1, hostA, hostB);
 

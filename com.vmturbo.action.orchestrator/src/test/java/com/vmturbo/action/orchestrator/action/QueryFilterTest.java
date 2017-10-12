@@ -55,7 +55,8 @@ public class QueryFilterTest {
         final ActionView actionView = notExecutableMoveAction(1L, 2L, 3L);
         when(actionView.getMode()).thenReturn(ActionMode.DISABLED);
 
-        // Even if the visibility is false, the spec should still pass the test if no visibility filter is included.
+        // Even if the visibility is false, the spec should still pass the test if no visibility
+        // filter is included.
         assertTrue(filter.test(actionView, view -> false));
         assertTrue(filter.test(executableMoveAction(4L, 5L, 6L), actionSpec -> false));
     }

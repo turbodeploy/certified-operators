@@ -37,6 +37,7 @@ import com.vmturbo.action.orchestrator.store.IActionFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreLoader;
 import com.vmturbo.action.orchestrator.store.LiveActionStore;
+import com.vmturbo.action.orchestrator.store.ActionSupportResolver;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.AcceptActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
@@ -67,8 +68,12 @@ public class ActionExecutionRpcTest {
             action.getActionTranslation().setPassthroughTranslationSuccess();
             return action;
         })));
+
+    private final ActionSupportResolver filter = Mockito.mock
+            (ActionSupportResolver.class);
+
     private final ActionStore actionStoreSpy =
-        Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID));
+        Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID, filter));
 
     private final static long ACTION_PLAN_ID = 2;
     private final static long TOPOLOGY_CONTEXT_ID = 3;
