@@ -125,6 +125,7 @@ services:
       # would need to be unique per-host.
       - "${KAFKA_EXTERNAL_PORT}:${KAFKA_EXTERNAL_PORT}"
     depends_on:
+      - rsyslog
       - zoo1
 
   auth:

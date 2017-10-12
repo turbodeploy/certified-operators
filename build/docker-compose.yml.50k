@@ -85,6 +85,7 @@ services:
       service: clustermgr-prod
     depends_on:
       - consul
+      - kafka1
 
   api:
     extends:
@@ -95,6 +96,7 @@ services:
     mem_limit: 10242M
     depends_on:
       - clustermgr
+      - kafka1
 
   market:
     extends:
@@ -105,6 +107,7 @@ services:
     mem_limit: 4096M
     depends_on: &clustermgrdep
       - clustermgr
+      - kafka1
 
   action-orchestrator:
     extends:
@@ -116,6 +119,7 @@ services:
     depends_on:
       - db
       - clustermgr
+      - kafka1
 
   topology-processor:
     extends:
@@ -127,6 +131,7 @@ services:
     depends_on:
       - db
       - clustermgr
+      - kafka1
 
   arangodb:
     extends:
@@ -143,6 +148,7 @@ services:
     depends_on:
       - arangodb
       - clustermgr
+      - kafka1
 
   group:
     extends:
@@ -166,6 +172,7 @@ services:
     depends_on:
       - db
       - clustermgr
+      - kafka1
 
   plan-orchestrator:
     extends:
@@ -177,6 +184,7 @@ services:
     depends_on:
       - db
       - clustermgr
+      - kafka1
 
   mediation-vcenter:
     extends:
