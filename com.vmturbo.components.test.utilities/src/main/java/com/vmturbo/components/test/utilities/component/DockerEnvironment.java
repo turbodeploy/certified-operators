@@ -1,6 +1,7 @@
 package com.vmturbo.components.test.utilities.component;
 
 import java.io.File;
+import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Path;
@@ -20,6 +21,7 @@ import com.google.common.collect.ImmutableMap;
 import com.palantir.docker.compose.connection.DockerMachine;
 import com.palantir.docker.compose.connection.DockerMachine.LocalBuilder;
 import com.palantir.docker.compose.connection.DockerMachine.RemoteBuilder;
+import com.sun.corba.se.impl.logging.UtilSystemException;
 
 import com.vmturbo.components.test.utilities.component.ComponentCluster.Component;
 
@@ -30,6 +32,8 @@ import com.vmturbo.components.test.utilities.component.ComponentCluster.Componen
 public class DockerEnvironment {
 
     private DockerEnvironment() {}
+
+    public static int KAFKA_EXTERNAL_PORT = 9093;
 
     private static final String XMX_SUFFIX = "_XMX_MB";
 
@@ -126,8 +130,10 @@ public class DockerEnvironment {
             // KAFKA PROPERTIES
             .put("KAFKA_INTERNAL_PORT", "9092")
             .put("KAFKA_INTERNAL_BROKER_ADDRESS", "kafka1")
-            .put("KAFKA_EXTERNAL_PORT", "9093")
-            .put("KAFKA_EXTERNAL_BROKER_ADDRESS", "localhost")
+            .put("KAFKA_EXTERNAL_PORT", Integer.toString(KAFKA_EXTERNAL_PORT))
+            .put("KAFKA_EXTERNAL_BROKER_ADDRESS", getDockerHostName())
+            .put("KAFKA_SERVERS", "kafka1:9092")
+            .put("ZOOKEEPER_SERVERS", "zoo1:2181")
             // SYSTEM PROPERTIES
             .put("AUTH_SYSTEM_PROPERTIES", "")
             .put("CLUSTERMGR_SYSTEM_PROPERTIES", "")
@@ -188,7 +194,7 @@ public class DockerEnvironment {
             // This won't work if the layout of the modules changes!
             Path rootDir = path.getParent().getParent().getParent().getParent();
             // This is a sanity check - it's not foolproof as the code base changes.
-            if (!rootDir.endsWith("XL")) {
+            if (!rootDir.endsWith("xl")) {
                 throw new IllegalStateException("Going up four levels from pathAnchor didn't " +
                     "take us to the top-level XL folder!");
             }
@@ -246,5 +252,27 @@ public class DockerEnvironment {
      */
     private static String componentNamePrefix(@Nonnull final String componentName) {
         return StringUtils.upperCase(componentName.replace("-", "_"));
+    }
+
+    /**
+     * Returns the actual docker host name (or ip address). This name is used to configure Kafka
+     * external advertised host.
+     *
+     * It is determined by DOCKER_HOST variable. If it is not set, localhost is used.
+     * @return
+     */
+    @Nonnull
+    public static String getDockerHostName() {
+        final String envVar = System.getenv("DOCKER_HOST");
+        if (envVar == null) {
+            return "localhost";
+        } else {
+            try {
+                return new URI(envVar).getHost();
+            } catch (URISyntaxException e) {
+                throw new RuntimeException(
+                        "Could not get host name from DOCKER_HOST variable " + envVar, e);
+            }
+        }
     }
 }

@@ -44,7 +44,7 @@ start_kafka() {
         KAFKA_PARAMS="$KAFKA_PARAMS --override advertised.listeners=INTERNAL://$KAFKA_INTERNAL_BROKER_ADDRESS:$KAFKA_INTERNAL_PORT,EXTERNAL://$KAFKA_EXTERNAL_BROKER_ADDRESS:$KAFKA_EXTERNAL_PORT"
     else
         # default: only listen internally
-#        KAFKA_PARAMS="$KAFKA_PARAMS --override listeners=PLAINTEXT://:$KAFKA_INTERNAL_PORT"
+        # KAFKA_PARAMS="$KAFKA_PARAMS --override listeners=PLAINTEXT://:$KAFKA_INTERNAL_PORT"
         KAFKA_PARAMS="$KAFKA_PARAMS --override listeners=INTERNAL://:$KAFKA_INTERNAL_PORT"
     fi
     # Set a default retention period to 24 hours for now. TODO: refine this setting per-topic based

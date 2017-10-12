@@ -14,6 +14,10 @@ services:
       default:
         ipv4_address: 10.10.11.10
 
+  zoo1:
+
+  kafka1:
+
   auth:
     ports:
       - 9001

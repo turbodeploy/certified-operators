@@ -60,6 +60,7 @@ import com.vmturbo.market.component.api.impl.MarketComponentClient;
  */
 public class ComponentCluster {
 
+    public static final String KAFKA_CONTAINER = "kafka1";
     private static final String PERF_TEST_PROJECT_NAME = "perftest";
 
     public static final int DEFAULT_HEALTH_CHECK_WAIT_MINUTES = 5;
@@ -129,6 +130,8 @@ public class ComponentCluster {
 
             // Start up clustermgr.
             Container clusterMgr = dockerComposeRule.containers().container("clustermgr");
+            Container kafka = dockerComposeRule.containers().container("kafka1");
+            kafka.up();
             clusterMgr.up();
             healthCheck.waitUntilReady(clusterMgr, Duration.ofMinutes(DEFAULT_HEALTH_CHECK_WAIT_MINUTES));
 

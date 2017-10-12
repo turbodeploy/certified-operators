@@ -1,5 +1,8 @@
 package com.vmturbo.components.test.utilities.communication;
 
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+
 import javax.annotation.Nonnull;
 
 import org.springframework.context.ApplicationContext;
@@ -11,6 +14,7 @@ import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.components.api.server.KafkaMessageProducer;
 import com.vmturbo.components.test.utilities.communication.ComponentStubHost.StubConfiguration;
 import com.vmturbo.components.test.utilities.communication.TopologyProcessorStub.TopologyProcessorStubConfig;
+import com.vmturbo.components.test.utilities.component.DockerEnvironment;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TopologyProcessorNotification;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClient;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
@@ -21,8 +25,7 @@ import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSe
  * connects to this backend instead of the real topology processor, and the test writer
  * can then send topology broadcasts etc.
  */
-public class TopologyProcessorStub extends
-        AbstractNotificationSenderStub<TopologyProcessorStubConfig> {
+public class TopologyProcessorStub implements  NotificationSenderStub<TopologyProcessorStubConfig> {
 
     /**
      * The actual backend. It's initialized in the Spring configuration.
@@ -35,13 +38,18 @@ public class TopologyProcessorStub extends
 
     @Override
     public void initialize(@Nonnull final ApplicationContext context) {
-        super.initialize(context);
         backend = context.getBean(TopologyProcessorNotificationSender.class);
     }
 
     @Override
     public Class<TopologyProcessorStubConfig> getConfiguration() {
         return TopologyProcessorStubConfig.class;
+    }
+
+    @Override
+    public void waitForEndpoints(int numOfEndpoints, long timeout, @Nonnull TimeUnit timeUnit)
+            throws InterruptedException, TimeoutException {
+        // NOOP
     }
 
     @Configuration
@@ -55,8 +63,8 @@ public class TopologyProcessorStub extends
 
         @Bean
         public KafkaMessageProducer messageSender() {
-            // TODO inject kafka container name here
-            return new KafkaMessageProducer("kafka-non-existing");
+            return new KafkaMessageProducer(DockerEnvironment.getDockerHostName() + ":" +
+                    Integer.toString(DockerEnvironment.KAFKA_EXTERNAL_PORT));
         }
 
         @Bean
