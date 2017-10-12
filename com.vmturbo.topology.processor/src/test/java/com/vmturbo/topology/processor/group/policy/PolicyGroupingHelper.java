@@ -5,15 +5,17 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyGrouping;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyGroupingID;
 
 /**
- * Helper class to create instances of {@link PolicyGrouping} fopr unit tests.
+ * Helper class to create instances of {@link PolicyGrouping} and {@link PolicyGroupingID} for unit tests.
  */
 public class PolicyGroupingHelper {
 
     private PolicyGroupingHelper() {}
 
-    public static PolicyGrouping policyGrouping(SearchParametersCollection searchParameters, int entityType, long oid) {
+    public static PolicyGrouping policyGrouping(SearchParametersCollection searchParameters,
+                                                int entityType, long oid) {
         return PolicyGrouping.newBuilder()
                         .setGroup(Group.newBuilder()
                             .setInfo(GroupInfo.newBuilder()
@@ -25,7 +27,8 @@ public class PolicyGroupingHelper {
                         .build();
     }
 
-    public static PolicyGrouping policyGrouping(StaticGroupMembers members, int entityType, long oid) {
+    public static PolicyGrouping policyGrouping(StaticGroupMembers members,
+                                                int entityType, long oid) {
         return PolicyGrouping.newBuilder()
                         .setGroup(Group.newBuilder()
                             .setInfo(GroupInfo.newBuilder()
@@ -47,5 +50,9 @@ public class PolicyGroupingHelper {
                             .setId(oid)
                             .build())
                         .build();
+    }
+
+    public static PolicyGroupingID policyGroupingID(long oid) {
+        return PolicyGroupingID.newBuilder().setGroupId(oid).build();
     }
 }

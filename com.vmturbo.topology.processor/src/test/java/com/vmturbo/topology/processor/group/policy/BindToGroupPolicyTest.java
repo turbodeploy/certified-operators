@@ -46,9 +46,12 @@ public class BindToGroupPolicyTest {
     final PolicyDTO.PolicyGrouping providerGroup = PolicyGroupingHelper.policyGrouping(
         searchParametersCollection(), EntityType.PHYSICAL_MACHINE_VALUE, 5678L);
 
+    final PolicyDTO.PolicyGroupingID consumerID = PolicyGroupingHelper.policyGroupingID(1234L);
+    final PolicyDTO.PolicyGroupingID providerID = PolicyGroupingHelper.policyGroupingID(5678L);
+
     final PolicyDTO.Policy.BindToGroupPolicy bindToGroup = PolicyDTO.Policy.BindToGroupPolicy.newBuilder()
-        .setConsumerGroup(consumerGroup)
-        .setProviderGroup(providerGroup)
+        .setConsumerGroupId(consumerID)
+        .setProviderGroupId(providerID)
         .build();
 
     private static final long POLICY_ID = 9999L;
@@ -85,7 +88,8 @@ public class BindToGroupPolicyTest {
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
             .thenReturn(Collections.<Long>emptySet());
 
-        new BindToGroupPolicy(policy).apply(groupResolver, topologyGraph);
+        new BindToGroupPolicy(policy, consumerGroup, providerGroup)
+                .apply(groupResolver, topologyGraph);
         assertThat(topologyGraph.getVertex(1L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));
         assertThat(topologyGraph.getVertex(2L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));
         assertThat(topologyGraph.getVertex(4L).get(),
@@ -101,7 +105,8 @@ public class BindToGroupPolicyTest {
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
             .thenReturn(Collections.singleton(1L));
 
-        new BindToGroupPolicy(policy).apply(groupResolver, topologyGraph);
+        new BindToGroupPolicy(policy, consumerGroup, providerGroup)
+                .apply(groupResolver, topologyGraph);
         assertThat(topologyGraph.getVertex(1L).get(), policyMatcher.hasProviderSegment(POLICY_ID));
         assertThat(topologyGraph.getVertex(2L).get(),
             not(policyMatcher.hasProviderSegment(POLICY_ID)));
@@ -118,7 +123,8 @@ public class BindToGroupPolicyTest {
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
             .thenReturn(Collections.<Long>emptySet());
 
-        new BindToGroupPolicy(policy).apply(groupResolver, topologyGraph);
+        new BindToGroupPolicy(policy, consumerGroup, providerGroup)
+                .apply(groupResolver, topologyGraph);
         assertThat(topologyGraph.getVertex(1L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));
         assertThat(topologyGraph.getVertex(2L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));
         assertThat(topologyGraph.getVertex(4L).get(),
@@ -134,7 +140,8 @@ public class BindToGroupPolicyTest {
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
             .thenReturn(Sets.newHashSet(1L, 2L));
 
-        new BindToGroupPolicy(policy).apply(groupResolver, topologyGraph);
+        new BindToGroupPolicy(policy, consumerGroup, providerGroup)
+                .apply(groupResolver, topologyGraph);
         assertThat(topologyGraph.getVertex(1L).get(), policyMatcher.hasProviderSegment(POLICY_ID));
         assertThat(topologyGraph.getVertex(2L).get(), policyMatcher.hasProviderSegment(POLICY_ID));
         assertThat(topologyGraph.getVertex(3L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));
@@ -156,8 +163,8 @@ public class BindToGroupPolicyTest {
             searchParametersCollection(), EntityType.STORAGE_VALUE, 5678L);
 
         final PolicyDTO.Policy.BindToGroupPolicy bindToGroup = PolicyDTO.Policy.BindToGroupPolicy.newBuilder()
-            .setConsumerGroup(consumerGroup)
-            .setProviderGroup(providerGroup)
+            .setConsumerGroupId(consumerID)
+            .setProviderGroupId(providerID)
             .build();
 
         final PolicyDTO.Policy policy = PolicyDTO.Policy.newBuilder()
@@ -173,6 +180,7 @@ public class BindToGroupPolicyTest {
         // TODO: This should not generate an exception when OM-21673 is implemented. Instead we should assert
         // the segmentation commodity was created with no provider.
         expectedException.expect(PolicyApplicationException.class);
-        new BindToGroupPolicy(policy).apply(groupResolver, topologyGraph);
+        new BindToGroupPolicy(policy, consumerGroup, providerGroup)
+                .apply(groupResolver, topologyGraph);
     }
 }

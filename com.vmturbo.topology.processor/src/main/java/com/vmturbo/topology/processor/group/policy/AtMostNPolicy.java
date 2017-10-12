@@ -10,6 +10,7 @@ import org.apache.logging.log4j.Logger;
 import com.google.common.base.Preconditions;
 
 import com.vmturbo.common.protobuf.group.PolicyDTO;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyGrouping;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
@@ -25,6 +26,8 @@ public class AtMostNPolicy extends PlacementPolicy {
     private static final Logger logger = LogManager.getLogger();
 
     private final PolicyDTO.Policy.AtMostNPolicy atMostN;
+    private final PolicyGrouping providerGrouping;
+    private final PolicyGrouping consumerGrouping;
 
     /**
      * Create a new AtMostNPolicy.
@@ -32,12 +35,16 @@ public class AtMostNPolicy extends PlacementPolicy {
      * @param policyDefinition The policy definition describing the details of the policy to be applied.
      *                         The policy should be of type AtMostN.
      */
-    public AtMostNPolicy(@Nonnull final PolicyDTO.Policy policyDefinition) {
+    public AtMostNPolicy(@Nonnull final PolicyDTO.Policy policyDefinition,
+                         @Nonnull final PolicyGrouping consumerGrouping,
+                         @Nonnull final PolicyGrouping providerGrouping) {
         super(policyDefinition);
         Preconditions.checkArgument(policyDefinition.hasAtMostN(), "Must be AtMostNPolicy");
 
+        this.consumerGrouping = consumerGrouping;
+        this.providerGrouping = providerGrouping;
         this.atMostN = policyDefinition.getAtMostN();
-        Preconditions.checkArgument(hasEntityType(this.atMostN.getProviderGroup()),
+        Preconditions.checkArgument(hasEntityType(providerGrouping),
             "ProviderGroup entity type required");
         Preconditions.checkArgument(this.atMostN.hasCapacity(),
             "Capacity required");
@@ -58,9 +65,9 @@ public class AtMostNPolicy extends PlacementPolicy {
         logger.debug("Applying AtMostN policy with capacity of {}.", atMostN.getCapacity());
 
         // Resolve the relevant groups
-        final int providerEntityType = entityType(atMostN.getProviderGroup());
-        final Set<Long> providers = groupResolver.resolve(atMostN.getProviderGroup(), topologyGraph);
-        final Set<Long> consumers = groupResolver.resolve(atMostN.getConsumerGroup(), topologyGraph);
+        final int providerEntityType = entityType(providerGrouping);
+        final Set<Long> providers = groupResolver.resolve(providerGrouping, topologyGraph);
+        final Set<Long> consumers = groupResolver.resolve(consumerGrouping, topologyGraph);
 
         // Add the commodity to the appropriate entities.
         // Add a small epsilon to the capacity to ensure floating point roundoff error does not accidentally

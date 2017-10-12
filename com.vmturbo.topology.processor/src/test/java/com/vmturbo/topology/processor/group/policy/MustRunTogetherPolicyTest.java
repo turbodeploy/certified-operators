@@ -37,16 +37,18 @@ public class MustRunTogetherPolicyTest {
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
-    final PolicyDTO.PolicyGrouping consumerGroup = PolicyGroupingHelper.policyGrouping(
+    private final PolicyDTO.PolicyGrouping consumerGroup = PolicyGroupingHelper.policyGrouping(
         searchParametersCollection(), EntityType.VIRTUAL_MACHINE_VALUE, 1234L);
+    private final PolicyDTO.PolicyGroupingID consumerID = PolicyGroupingHelper.policyGroupingID(1234L);
 
-    final PolicyDTO.PolicyGrouping providerGroup = PolicyGroupingHelper.policyGrouping(
+    private final PolicyDTO.PolicyGrouping providerGroup = PolicyGroupingHelper.policyGrouping(
         searchParametersCollection(), EntityType.PHYSICAL_MACHINE_VALUE, 5678L);
+    private final PolicyDTO.PolicyGroupingID providerID = PolicyGroupingHelper.policyGroupingID(5678L);
 
-    final PolicyDTO.Policy.MustRunTogetherPolicy mustRunTogetherPolicy = PolicyDTO.Policy
+    private final PolicyDTO.Policy.MustRunTogetherPolicy mustRunTogetherPolicy = PolicyDTO.Policy
         .MustRunTogetherPolicy.newBuilder()
-        .setConsumerGroup(consumerGroup)
-        .setProviderGroup(providerGroup)
+        .setConsumerGroupId(consumerID)
+        .setProviderGroupId(providerID)
         .build();
 
     private static final long POLICY_ID = 9999L;
@@ -82,7 +84,8 @@ public class MustRunTogetherPolicyTest {
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
             .thenReturn(Collections.emptySet());
 
-        new MustRunTogetherPolicy(policy).apply(groupResolver, topologyGraph);
+        new MustRunTogetherPolicy(policy, consumerGroup, providerGroup)
+                .apply(groupResolver, topologyGraph);
         assertThat(topologyGraph.getVertex(1L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));
         assertThat(topologyGraph.getVertex(2L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));
         assertThat(topologyGraph.getVertex(5L).get(), not(policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE)));
@@ -97,7 +100,8 @@ public class MustRunTogetherPolicyTest {
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
             .thenReturn(Collections.singleton(1L));
 
-        new MustRunTogetherPolicy(policy).apply(groupResolver, topologyGraph);
+        new MustRunTogetherPolicy(policy, consumerGroup, providerGroup)
+                .apply(groupResolver, topologyGraph);
         assertThat(topologyGraph.getVertex(1L).get(), policyMatcher.hasProviderSegment(POLICY_ID));
         assertThat(topologyGraph.getVertex(2L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));
         assertThat(topologyGraph.getVertex(5L).get(), not(policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE)));
@@ -112,7 +116,8 @@ public class MustRunTogetherPolicyTest {
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
             .thenReturn(Collections.<Long>emptySet());
 
-        new MustRunTogetherPolicy(policy).apply(groupResolver, topologyGraph);
+        new MustRunTogetherPolicy(policy, consumerGroup, providerGroup)
+                .apply(groupResolver, topologyGraph);
         assertThat(topologyGraph.getVertex(1L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));
         assertThat(topologyGraph.getVertex(2L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));
         assertThat(topologyGraph.getVertex(5L).get(), not(policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE)));
@@ -127,7 +132,8 @@ public class MustRunTogetherPolicyTest {
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
             .thenReturn(Sets.newHashSet(1L, 2L));
 
-        new MustRunTogetherPolicy(policy).apply(groupResolver, topologyGraph);
+        new MustRunTogetherPolicy(policy, consumerGroup, providerGroup)
+                .apply(groupResolver, topologyGraph);
         assertThat(topologyGraph.getVertex(1L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));
         assertThat(topologyGraph.getVertex(2L).get(), policyMatcher.hasProviderSegment(POLICY_ID));
         assertThat(topologyGraph.getVertex(3L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));
@@ -144,7 +150,8 @@ public class MustRunTogetherPolicyTest {
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
             .thenReturn(Sets.newHashSet(2L));
 
-        new MustRunTogetherPolicy(policy).apply(groupResolver, topologyGraph);
+        new MustRunTogetherPolicy(policy, consumerGroup, providerGroup)
+                .apply(groupResolver, topologyGraph);
         assertThat(topologyGraph.getVertex(1L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));
         assertThat(topologyGraph.getVertex(2L).get(), policyMatcher.hasProviderSegment(POLICY_ID));
         assertThat(topologyGraph.getVertex(3L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));
@@ -161,8 +168,8 @@ public class MustRunTogetherPolicyTest {
 
         final PolicyDTO.Policy.MustRunTogetherPolicy mustRunTogetherPolicy = PolicyDTO.Policy
             .MustRunTogetherPolicy.newBuilder()
-            .setConsumerGroup(consumerGroup)
-            .setProviderGroup(providerGroup)
+            .setConsumerGroupId(consumerID)
+            .setProviderGroupId(providerID)
             .build();
 
         final PolicyDTO.Policy policy = PolicyDTO.Policy.newBuilder()
@@ -175,7 +182,8 @@ public class MustRunTogetherPolicyTest {
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
             .thenReturn(Collections.singleton(4L));
 
-        new MustRunTogetherPolicy(policy).apply(groupResolver, topologyGraph);
+        new MustRunTogetherPolicy(policy, consumerGroup, providerGroup)
+                .apply(groupResolver, topologyGraph);
         assertThat(topologyGraph.getVertex(1L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));
         assertThat(topologyGraph.getVertex(2L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));
         assertThat(topologyGraph.getVertex(3L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));

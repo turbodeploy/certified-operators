@@ -24,6 +24,8 @@ public class BindToGroupPolicy extends PlacementPolicy {
     private static final Logger logger = LogManager.getLogger();
 
     private final PolicyDTO.Policy.BindToGroupPolicy bindToGroup;
+    private final PolicyGrouping consumerGrouping;
+    private final PolicyGrouping providerGrouping;
 
     /**
      * Create a new BindToGroupPolicy.
@@ -31,12 +33,16 @@ public class BindToGroupPolicy extends PlacementPolicy {
      *
      * @param policyDefinition The policy definition describing the details of the policy to be applied.
      */
-    public BindToGroupPolicy(@Nonnull final PolicyDTO.Policy policyDefinition) {
+    public BindToGroupPolicy(@Nonnull final PolicyDTO.Policy policyDefinition,
+                             @Nonnull final PolicyGrouping consumerGrouping,
+                             @Nonnull final PolicyGrouping providerGrouping) {
         super(policyDefinition);
         Preconditions.checkArgument(policyDefinition.hasBindToGroup(), "Must be BindToGroupPolicy");
 
         this.bindToGroup = policyDefinition.getBindToGroup();
-        Preconditions.checkArgument(hasEntityType(this.bindToGroup.getProviderGroup()),
+        this.consumerGrouping = consumerGrouping;
+        this.providerGrouping = providerGrouping;
+        Preconditions.checkArgument(hasEntityType(providerGrouping),
                         "ProviderGroup entity type required");
     }
 
@@ -51,13 +57,13 @@ public class BindToGroupPolicy extends PlacementPolicy {
         throws GroupResolutionException, PolicyApplicationException {
         logger.debug("Applying bindToGroup policy.");
 
-        PolicyGrouping providerGroup = bindToGroup.getProviderGroup();
         // Resolve the relevant groups
-        final Set<Long> providers = groupResolver.resolve(providerGroup, topologyGraph);
-        final Set<Long> consumers = groupResolver.resolve(bindToGroup.getConsumerGroup(), topologyGraph);
+        final Set<Long> providers = groupResolver.resolve(providerGrouping, topologyGraph);
+        final Set<Long> consumers = groupResolver.resolve(consumerGrouping, topologyGraph);
 
         // Add the commodity to the appropriate entities.
         addCommoditySold(providers, topologyGraph, commoditySold());
-        addCommodityBought(consumers, topologyGraph, entityType(providerGroup), commodityBought());
+        addCommodityBought(consumers, topologyGraph,
+                entityType(providerGrouping), commodityBought());
     }
 }

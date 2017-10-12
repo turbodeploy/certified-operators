@@ -10,6 +10,7 @@ import org.apache.logging.log4j.Logger;
 import com.google.common.base.Preconditions;
 
 import com.vmturbo.common.protobuf.group.PolicyDTO;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyGrouping;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
@@ -25,6 +26,8 @@ public class AtMostNBoundPolicy extends PlacementPolicy {
     private static final Logger logger = LogManager.getLogger();
 
     private final PolicyDTO.Policy.AtMostNBoundPolicy atMostNBound;
+    private final PolicyGrouping providerGrouping;
+    private final PolicyGrouping consumerGrouping;
 
     /**
      * Create a new AtMostNBoundPolicy.
@@ -32,12 +35,16 @@ public class AtMostNBoundPolicy extends PlacementPolicy {
      * @param policyDefinition The policy definition describing the details of the policy to be applied.
      *                         The policy should be of type AtMostN.
      */
-    public AtMostNBoundPolicy(@Nonnull final PolicyDTO.Policy policyDefinition) {
+    public AtMostNBoundPolicy(@Nonnull final PolicyDTO.Policy policyDefinition,
+                              @Nonnull final PolicyGrouping consumerGrouping,
+                              @Nonnull final PolicyGrouping providerGrouping) {
         super(policyDefinition);
         Preconditions.checkArgument(policyDefinition.hasAtMostNBound(), "Must be AtMostNBoundPolicy");
 
+        this.providerGrouping = providerGrouping;
+        this.consumerGrouping = consumerGrouping;
         this.atMostNBound = policyDefinition.getAtMostNBound();
-        Preconditions.checkArgument(hasEntityType(this.atMostNBound.getProviderGroup()),
+        Preconditions.checkArgument(hasEntityType(providerGrouping),
             "ProviderGroup entity type required");
         Preconditions.checkArgument(this.atMostNBound.hasCapacity(),
             "Capacity required");
@@ -56,9 +63,9 @@ public class AtMostNBoundPolicy extends PlacementPolicy {
         logger.debug("Applying AtMostNBound policy with capacity of {}.", atMostNBound.getCapacity());
 
         // Resolve the relevant groups
-        final int providerEntityType = entityType(atMostNBound.getProviderGroup());
-        final Set<Long> providers = groupResolver.resolve(atMostNBound.getProviderGroup(), topologyGraph);
-        final Set<Long> consumers = groupResolver.resolve(atMostNBound.getConsumerGroup(), topologyGraph);
+        final int providerEntityType = entityType(providerGrouping);
+        final Set<Long> providers = groupResolver.resolve(providerGrouping, topologyGraph);
+        final Set<Long> consumers = groupResolver.resolve(consumerGrouping, topologyGraph);
 
         // Add the commodity to the appropriate entities.
         // Add a small epsilon to the capacity to ensure floating point roundoff error does not accidentally

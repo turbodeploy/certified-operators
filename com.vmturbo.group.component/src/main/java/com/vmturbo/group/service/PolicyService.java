@@ -14,10 +14,9 @@ import io.grpc.stub.StreamObserver;
 import javaslang.control.Either;
 
 import com.vmturbo.common.protobuf.group.GroupDTO;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.InputPolicy;
-import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyGrouping;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyGroupingID;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceImplBase;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.persistent.ClusterStore;
@@ -46,24 +45,24 @@ public class PolicyService extends PolicyServiceImplBase {
 
     /**
      * Convert an {@link com.vmturbo.common.protobuf.group.PolicyDTO.InputGroup} to
-     * a {@link GroupInfo}.
+     * a {@link PolicyDTO.PolicyGroupingID}.
      * ;w
      * @param inputGroup The InputGroup to convert.
-     * @return {@link GroupInfo}.
+     * @return {@link PolicyGroupingID}.
      * @throws DatabaseException if the query for the group failed.
      */
-    private PolicyDTO.PolicyGrouping convertToGroup(final PolicyDTO.InputGroup inputGroup)
+    private PolicyDTO.PolicyGroupingID convertToGroupID(final PolicyDTO.InputGroup inputGroup)
             throws DatabaseException {
         if (inputGroup.hasGroupId()) {
             final long groupId = inputGroup.getGroupId();
-            final PolicyDTO.PolicyGrouping.Builder builder = PolicyGrouping.newBuilder();
+            final PolicyDTO.PolicyGroupingID.Builder builder = PolicyGroupingID.newBuilder();
             final Optional<GroupDTO.Group> groupOptional = groupStore.get(groupId);
             if (groupOptional.isPresent()) {
-                builder.setGroup(groupOptional.get());
+                builder.setGroupId(groupId);
             } else {
                 final Optional<GroupDTO.Cluster> clusterOptional = clusterStore.get(groupId);
                 if (clusterOptional.isPresent()) {
-                    builder.setCluster(clusterOptional.get());
+                    builder.setClusterId(groupId);
                 } else {
                     throw new IllegalArgumentException(
                         "Cannot find a group or cluster with id " + groupId);
@@ -73,16 +72,6 @@ public class PolicyService extends PolicyServiceImplBase {
         } else {
             throw new IllegalArgumentException("InputGroup does not contain an ID");
         }
-    }
-
-    /**
-     * Convert a {@link PolicyDTO.InputPolicy} into a {@link PolicyDTO.Policy}.
-     *
-     * @param inputPolicy The <code>InputPolicy</code> to convert.
-     * @return The resulted {@link PolicyDTO.Policy}
-     */
-    public PolicyDTO.Policy inputPolicyToPolicy(final PolicyDTO.InputPolicy inputPolicy) {
-        return convertToPolicy(inputPolicy).get();
     }
 
     /**
@@ -107,8 +96,8 @@ public class PolicyService extends PolicyServiceImplBase {
                     inputConsumerGroup = inputPolicy.getAtMostN().getConsumerGroup();
                     inputProviderGroup = inputPolicy.getAtMostN().getProviderGroup();
                     policyBuilder.setAtMostN(PolicyDTO.Policy.AtMostNPolicy.newBuilder()
-                            .setConsumerGroup(convertToGroup(inputConsumerGroup))
-                            .setProviderGroup(convertToGroup(inputProviderGroup))
+                            .setConsumerGroupId(convertToGroupID(inputConsumerGroup))
+                            .setProviderGroupId(convertToGroupID(inputProviderGroup))
                             .setCapacity(inputPolicy.getAtMostN().getCapacity())
                             .build());
                     break;
@@ -117,8 +106,8 @@ public class PolicyService extends PolicyServiceImplBase {
                     inputProviderGroup = inputPolicy.getAtMostNBound().getProviderGroup();
                     final float capacity = inputPolicy.getAtMostNBound().getCapacity();
                     policyBuilder.setAtMostNBound(PolicyDTO.Policy.AtMostNBoundPolicy.newBuilder()
-                            .setConsumerGroup(convertToGroup(inputConsumerGroup))
-                            .setProviderGroup(convertToGroup(inputProviderGroup))
+                            .setConsumerGroupId(convertToGroupID(inputConsumerGroup))
+                            .setProviderGroupId(convertToGroupID(inputProviderGroup))
                             .setCapacity(capacity)
                             .build());
                     break;
@@ -126,32 +115,32 @@ public class PolicyService extends PolicyServiceImplBase {
                     inputConsumerGroup = inputPolicy.getBindToComplementaryGroup().getConsumerGroup();
                     inputProviderGroup = inputPolicy.getBindToComplementaryGroup().getProviderGroup();
                     policyBuilder.setBindToComplementaryGroup(PolicyDTO.Policy.BindToComplementaryGroupPolicy.newBuilder()
-                            .setConsumerGroup(convertToGroup(inputConsumerGroup))
-                            .setProviderGroup(convertToGroup(inputProviderGroup))
+                            .setConsumerGroupId(convertToGroupID(inputConsumerGroup))
+                            .setProviderGroupId(convertToGroupID(inputProviderGroup))
                             .build());
                     break;
                 case BIND_TO_GROUP:
                     inputConsumerGroup = inputPolicy.getBindToGroup().getConsumerGroup();
                     inputProviderGroup = inputPolicy.getBindToGroup().getProviderGroup();
                     policyBuilder.setBindToGroup(PolicyDTO.Policy.BindToGroupPolicy.newBuilder()
-                            .setConsumerGroup(convertToGroup(inputConsumerGroup))
-                            .setProviderGroup(convertToGroup(inputProviderGroup))
+                            .setConsumerGroupId(convertToGroupID(inputConsumerGroup))
+                            .setProviderGroupId(convertToGroupID(inputProviderGroup))
                             .build());
                     break;
                 case BIND_TO_GROUP_AND_LICENSE:
                     inputConsumerGroup = inputPolicy.getBindToGroupAndLicense().getConsumerGroup();
                     inputProviderGroup = inputPolicy.getBindToGroupAndLicense().getProviderGroup();
                     policyBuilder.setBindToGroupAndLicense(PolicyDTO.Policy.BindToGroupAndLicencePolicy.newBuilder()
-                            .setConsumerGroup(convertToGroup(inputConsumerGroup))
-                            .setProviderGroup(convertToGroup(inputProviderGroup))
+                            .setConsumerGroupId(convertToGroupID(inputConsumerGroup))
+                            .setProviderGroupId(convertToGroupID(inputProviderGroup))
                             .build());
                     break;
                 case BIND_TO_GROUP_AND_GEO_REDUNDANCY:
                     inputConsumerGroup = inputPolicy.getBindToGroupAndGeoRedundancy().getConsumerGroup();
                     inputProviderGroup = inputPolicy.getBindToGroupAndGeoRedundancy().getProviderGroup();
                     policyBuilder.setBindToGroupAndGeoRedundancy(PolicyDTO.Policy.BindToGroupAndGeoRedundancyPolicy.newBuilder()
-                            .setConsumerGroup(convertToGroup(inputConsumerGroup))
-                            .setProviderGroup(convertToGroup(inputProviderGroup))
+                            .setConsumerGroupId(convertToGroupID(inputConsumerGroup))
+                            .setProviderGroupId(convertToGroupID(inputProviderGroup))
                             .build());
                     break;
                 case MERGE:
@@ -159,9 +148,9 @@ public class PolicyService extends PolicyServiceImplBase {
                     final List<PolicyDTO.InputGroup> inputMergeGroups = inputPolicy.getMerge().getMergeGroupsList();
                     policyBuilder.setMerge(PolicyDTO.Policy.MergePolicy.newBuilder()
                             .setMergeType(mergeType)
-                            .addAllMergeGroups(inputMergeGroups.stream().map(ig -> {
+                            .addAllMergeGroupIds(inputMergeGroups.stream().map(ig -> {
                                 try {
-                                    PolicyGrouping group = convertToGroup(ig);
+                                    PolicyGroupingID group = convertToGroupID(ig);
                                     return group;
                                 } catch (DatabaseException dbe) {
                                     // Rethrow as a runtime exception to cross lambda boundaries.
@@ -174,8 +163,8 @@ public class PolicyService extends PolicyServiceImplBase {
                     inputConsumerGroup = inputPolicy.getMustRunTogether().getConsumerGroup();
                     inputProviderGroup = inputPolicy.getMustRunTogether().getProviderGroup();
                     policyBuilder.setMustRunTogether(PolicyDTO.Policy.MustRunTogetherPolicy.newBuilder()
-                            .setConsumerGroup(convertToGroup(inputConsumerGroup))
-                            .setProviderGroup(convertToGroup(inputProviderGroup))
+                            .setConsumerGroupId(convertToGroupID(inputConsumerGroup))
+                            .setProviderGroupId(convertToGroupID(inputProviderGroup))
                             .build());
                     break;
             }
@@ -317,7 +306,7 @@ public class PolicyService extends PolicyServiceImplBase {
                 final PolicyDTO.InputPolicy reqInputPolicy = request.getInputPolicy();
                 final PolicyDTO.InputPolicy.Builder inputPolicyBuilderToStore = PolicyDTO.InputPolicy.newBuilder(reqInputPolicy)
                     .setId(id);
-                targetId.ifPresent(target -> inputPolicyBuilderToStore.setTargetId(target));
+                targetId.ifPresent(inputPolicyBuilderToStore::setTargetId);
                 final PolicyDTO.InputPolicy inputPolicyToStore = inputPolicyBuilderToStore.build();
                 final boolean success = policyStore.save(id, inputPolicyToStore);
 

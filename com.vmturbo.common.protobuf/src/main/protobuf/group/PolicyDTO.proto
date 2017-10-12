@@ -23,6 +23,13 @@ message PolicyGrouping {
     }
 }
 
+message PolicyGroupingID {
+    oneof group_or_cluster_id {
+        int64 group_id = 1;
+        int64 cluster_id = 2;
+    }
+}
+
 message Policy {
     optional int64 id = 1;
 
@@ -53,8 +60,8 @@ message Policy {
     message AtMostNPolicy {
         // Indicate the max entities at the same time that can run on any entity in the providers group.
         optional float capacity = 1;
-        optional PolicyGrouping consumer_group = 2;
-        optional PolicyGrouping provider_group = 3;
+        optional PolicyGroupingID consumer_group_id = 2;
+        optional PolicyGroupingID provider_group_id = 3;
     }
 
     // Limits the entities in the consumer group to run only on the entities in the provider group
@@ -63,35 +70,35 @@ message Policy {
     message AtMostNBoundPolicy {
         // Indicate the max workload entities at the same time per placement entites.
         optional float capacity = 1;
-        optional PolicyGrouping consumer_group = 2;
-        optional PolicyGrouping provider_group = 3;
+        optional PolicyGroupingID consumer_group_id = 2;
+        optional PolicyGroupingID provider_group_id = 3;
     }
 
     // Entities in the consumer group can not run on any entity in the provider group.
     // Common use case: VM->Host or VM->Storage anti-affinity.
     message BindToComplementaryGroupPolicy {
-        optional PolicyGrouping consumer_group = 1;
-        optional PolicyGrouping provider_group = 2;
+        optional PolicyGroupingID consumer_group_id = 1;
+        optional PolicyGroupingID provider_group_id = 2;
     }
 
     // Limits the entities in the consumer group to run only on the entities in the provider group.
     // Common use case: VM->Host or VM->Storage affinity.
     message BindToGroupPolicy {
-        optional PolicyGrouping consumer_group = 1;
-        optional PolicyGrouping provider_group = 2;
+        optional PolicyGroupingID consumer_group_id = 1;
+        optional PolicyGroupingID provider_group_id = 2;
     }
 
     // Limits the entities in the consumer group to run only on the entities in the provider group
     // and makes it more expensive for workloads not in the consumer group to run on providers in the provider group.
     message BindToGroupAndLicencePolicy {
-        optional PolicyGrouping consumer_group = 1;
-        optional PolicyGrouping provider_group = 2;
+        optional PolicyGroupingID consumer_group_id = 1;
+        optional PolicyGroupingID provider_group_id = 2;
     }
 
     // ??? - Seems to have something to do with timezones.
     message BindToGroupAndGeoRedundancyPolicy {
-        optional PolicyGrouping consumer_group = 1;
-        optional PolicyGrouping provider_group = 2;
+        optional PolicyGroupingID consumer_group_id = 1;
+        optional PolicyGroupingID provider_group_id = 2;
     }
 
     // Merges all the given provider groups to be viewed as a single liquidity pool. For example
@@ -100,15 +107,15 @@ message Policy {
         optional MergeType merge_type = 1;
 
         // List of Groups to merge
-        repeated PolicyGrouping merge_groups = 2;
+        repeated PolicyGroupingID merge_group_ids = 2;
     }
 
     // Requires that all entities in the consumer group must run together on a single provider in
     // the provider group.
     // Common use case: VM->VM affinity.
     message MustRunTogetherPolicy {
-        optional PolicyGrouping consumer_group = 1;
-        optional PolicyGrouping provider_group = 2;
+        optional PolicyGroupingID consumer_group_id = 1;
+        optional PolicyGroupingID provider_group_id = 2;
     }
 }
 

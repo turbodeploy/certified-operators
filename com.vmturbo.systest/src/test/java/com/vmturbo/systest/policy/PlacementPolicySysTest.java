@@ -78,6 +78,7 @@ import com.vmturbo.common.protobuf.group.PolicyDTO.Policy.AtMostNPolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy.BindToComplementaryGroupPolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy.BindToGroupPolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyGrouping;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyGroupingID;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceImplBase;
 import com.vmturbo.common.protobuf.search.Search;
@@ -341,7 +342,7 @@ public class PlacementPolicySysTest {
         final EntityDTO vm1 = virtualMachine("vm-1", pm1);
         final EntityDTO vm2 = virtualMachine("vm-2", pm1);
 
-        policyServiceStub.setPolicy(bindToGroup(vmsOnHosts, hostsWithTwo));
+        policyServiceStub.setPolicy(bindToGroup());
 
         discoveryDriverController.setDiscoveredEntities(Arrays.asList(datacenter, pm1, pm2, vm1, vm2));
 
@@ -387,7 +388,7 @@ public class PlacementPolicySysTest {
         final EntityDTO pm2 = physicalMachine("pm-2", datacenter, 5.0, 5.0);
         final EntityDTO vm1 = virtualMachine("vm-1", pm2);
 
-        policyServiceStub.setPolicy(bindToComplementaryGroup(vmsOnHosts, hostsWithTwo));
+        policyServiceStub.setPolicy(bindToComplementaryGroup());
         discoveryDriverController.setDiscoveredEntities(Arrays.asList(datacenter, pm1, pm2, vm1));
 
         topologyResult = discoverAndBroadcast();
@@ -436,7 +437,7 @@ public class PlacementPolicySysTest {
         final EntityDTO vm2 = virtualMachine("vm-2", pm1);
         final EntityDTO vm3 = virtualMachine("vm-3", pm3);
 
-        policyServiceStub.setPolicy(atMostN(vmsOnHosts, hostsWithInGroup));
+        policyServiceStub.setPolicy(atMostN());
 
         discoveryDriverController.setDiscoveredEntities(Arrays.asList(datacenter, pm1, pm2, pm3, vm1, vm2, vm3));
 
@@ -493,7 +494,7 @@ public class PlacementPolicySysTest {
         final EntityDTO vm3 = virtualMachine("vm-3", pm3);
         final EntityDTO vm4 = virtualMachine("vm-4", pm3);
 
-        policyServiceStub.setPolicy(atMostNBound(vmsOnHosts, hostsWithInGroup));
+        policyServiceStub.setPolicy(atMostNBound());
 
         discoveryDriverController.setDiscoveredEntities(Arrays.asList(datacenter, pm1, pm2, pm3, vm1, vm2, vm3, vm4));
 
@@ -541,7 +542,7 @@ public class PlacementPolicySysTest {
         final EntityDTO vm2 = virtualMachine("vm-2", pm1);
         final EntityDTO vm3 = virtualMachine("vm-3", pm2);
 
-        policyServiceStub.setPolicy(mustRunTogether(vmsOnHosts, hostsWithInGroup));
+        policyServiceStub.setPolicy(mustRunTogether());
         discoveryDriverController.setDiscoveredEntities(Arrays.asList(datacenter, pm1, pm2, vm1, vm2, vm3));
 
         topologyResult = discoverAndBroadcast();
@@ -676,72 +677,64 @@ public class PlacementPolicySysTest {
             .build();
     }
 
-    private static Policy bindToGroup(@Nonnull final GroupInfo consumerGroup,
-                                      @Nonnull final GroupInfo providerGroup) {
+    private static Policy bindToGroup() {
         return Policy.newBuilder()
             .setId(IdentityGenerator.next())
             .setBindToGroup(
                 BindToGroupPolicy.newBuilder()
-                    .setConsumerGroup(policyGrouping(consumerGroup))
-                    .setProviderGroup(policyGrouping(providerGroup))
+                    .setConsumerGroupId(policyGroupingID())
+                    .setProviderGroupId(policyGroupingID())
                     .build())
             .build();
     }
 
-    private static Policy atMostN(@Nonnull final GroupInfo consumerGroup,
-                                  @Nonnull final GroupInfo providerGroup) {
+    private static Policy atMostN() {
         return Policy.newBuilder()
             .setId(IdentityGenerator.next())
             .setAtMostN(
                 AtMostNPolicy.newBuilder()
                     .setCapacity(1.0f)
-                    .setConsumerGroup(policyGrouping(consumerGroup))
-                    .setProviderGroup(policyGrouping(providerGroup))
+                    .setConsumerGroupId(policyGroupingID())
+                    .setProviderGroupId(policyGroupingID())
                     .build())
             .build();
     }
 
-    private static Policy atMostNBound(@Nonnull final GroupInfo consumerGroup,
-                                       @Nonnull final GroupInfo providerGroup) {
+    private static Policy atMostNBound() {
         return Policy.newBuilder()
             .setId(IdentityGenerator.next())
             .setAtMostNBound(
                 AtMostNBoundPolicy.newBuilder()
                     .setCapacity(2.0f)
-                    .setConsumerGroup(policyGrouping(consumerGroup))
-                    .setProviderGroup(policyGrouping(providerGroup))
+                    .setConsumerGroupId(policyGroupingID())
+                    .setProviderGroupId(policyGroupingID())
                     .build())
             .build();
     }
 
-    private static Policy bindToComplementaryGroup(@Nonnull final GroupInfo consumerGroup,
-                                                   @Nonnull final GroupInfo providerGroup) {
+    private static Policy bindToComplementaryGroup() {
         return Policy.newBuilder()
             .setId(IdentityGenerator.next())
             .setBindToComplementaryGroup(BindToComplementaryGroupPolicy.newBuilder()
-                .setConsumerGroup(policyGrouping(consumerGroup))
-                .setProviderGroup(policyGrouping(providerGroup))
+                .setConsumerGroupId(policyGroupingID())
+                .setProviderGroupId(policyGroupingID())
                 .build())
             .build();
     }
 
-    private static Policy mustRunTogether(@Nonnull final GroupInfo consumerGroup,
-                                          @Nonnull final GroupInfo providerGroup) {
+    private static Policy mustRunTogether() {
         return Policy.newBuilder()
             .setId(IdentityGenerator.next())
             .setMustRunTogether(Policy.MustRunTogetherPolicy.newBuilder()
-                .setConsumerGroup(policyGrouping(consumerGroup))
-                .setProviderGroup(policyGrouping(providerGroup))
+                .setConsumerGroupId(policyGroupingID())
+                .setProviderGroupId(policyGroupingID())
                 .build())
             .build();
     }
 
-    private static PolicyGrouping policyGrouping(GroupInfo info) {
-        return PolicyGrouping.newBuilder()
-                        .setGroup(Group.newBuilder()
-                            .setInfo(info)
-                            .setId(IdentityGenerator.next())
-                            .build())
+    private static PolicyGroupingID policyGroupingID() {
+        return PolicyGroupingID.newBuilder()
+                .setGroupId(IdentityGenerator.next())
                         .build();
     }
 

@@ -9,8 +9,8 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.io.IOException;
-
+import java.util.HashMap;
+import java.util.Map;
 import javax.annotation.Nonnull;
 
 import org.junit.After;
@@ -19,15 +19,19 @@ import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
+import com.google.common.collect.Sets;
+
 import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy.BindToGroupPolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyGrouping;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyGroupingID;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyRequest;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.common.protobuf.group.GroupFetcher;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
@@ -41,6 +45,7 @@ public class PolicyManagerTest {
 
     private final TopologyFilterFactory filterFactory = Mockito.mock(TopologyFilterFactory.class);
     private final GroupResolver groupResolver = Mockito.mock(GroupResolver.class);
+    private final GroupFetcher groupFetcher = Mockito.mock(GroupFetcher.class);
 
     private final TopologyGraph topologyGraph = Mockito.mock(TopologyGraph.class);
 
@@ -56,13 +61,30 @@ public class PolicyManagerTest {
     private final PolicyGrouping group4 = PolicyGroupingHelper.policyGrouping(
         "Group 4", EntityType.APPLICATION_SERVER_VALUE, 4L);
 
+    private final PolicyGroupingID id1 = PolicyGroupingHelper.policyGroupingID(1L);
+    private final PolicyGroupingID id2 = PolicyGroupingHelper.policyGroupingID(2L);
+    private final PolicyGroupingID id3 = PolicyGroupingHelper.policyGroupingID(3L);
+    private final PolicyGroupingID id4 = PolicyGroupingHelper.policyGroupingID(4L);
+
+    private final Map<PolicyGroupingID, PolicyGrouping> groupingMap =
+            new HashMap<PolicyGroupingID, PolicyGrouping>(){{
+                put(id1, group1);
+                put(id2, group2);
+                put(id3, group3);
+                put(id4, group4);
+            }};
+
+    private final Policy policy12 = bindToGroup(group1, group2, 12L);
+    private final Policy policy34 = bindToGroup(group3, group4, 34L);
+
     private GrpcTestServer grpcServer;
 
     private com.vmturbo.topology.processor.group.policy.PolicyManager policyManager;
 
     @Before
-    public void setup() throws IOException {
+    public void setup() throws Exception {
         when(filterFactory.newGroupResolver()).thenReturn(groupResolver);
+        when(groupFetcher.getGroupings(Sets.newHashSet(id1, id2, id3, id4))).thenReturn(groupingMap);
 
         // set up a mock Actions RPC server
         grpcServer = GrpcTestServer.withServices(policyServiceBackend);
@@ -71,7 +93,7 @@ public class PolicyManagerTest {
 
         // set up the ActionsService to test
         policyManager = new com.vmturbo.topology.processor.group.policy.PolicyManager(
-            policyRpcService, filterFactory, new PolicyFactory());
+            policyRpcService, groupFetcher, filterFactory, new PolicyFactory());
     }
 
     @After
@@ -109,11 +131,11 @@ public class PolicyManagerTest {
         public void getAllPolicies(PolicyRequest request,
                                    StreamObserver<PolicyResponse> responseObserver) {
             responseObserver.onNext(PolicyResponse.newBuilder()
-                .setPolicy(bindToGroup(group1, group2))
+                .setPolicy(policy12)
                 .build());
 
             responseObserver.onNext(PolicyResponse.newBuilder()
-                .setPolicy(bindToGroup(group3, group4))
+                .setPolicy(policy34)
                 .build());
 
             responseObserver.onCompleted();
@@ -121,13 +143,20 @@ public class PolicyManagerTest {
     }
 
     private static Policy bindToGroup(@Nonnull final PolicyGrouping consumerGroup,
-                                      @Nonnull final PolicyGrouping providerGroup) {
+                                      @Nonnull final PolicyGrouping providerGroup, final Long id) {
+        PolicyGroupingID.Builder builder = PolicyGroupingID.newBuilder();
+        PolicyGroupingID consumerGroupID = consumerGroup.hasGroup() ?
+                builder.setGroupId(consumerGroup.getGroup().getId()).build() :
+                builder.setGroupId(consumerGroup.getCluster().getId()).build();
+        PolicyGroupingID providerGroupID = providerGroup.hasGroup() ?
+                builder.setGroupId(providerGroup.getGroup().getId()).build() :
+                builder.setGroupId(providerGroup.getCluster().getId()).build();
         return Policy.newBuilder()
-            .setId(1234L)
+            .setId(id)
             .setBindToGroup(
             BindToGroupPolicy.newBuilder()
-                .setConsumerGroup(consumerGroup)
-                .setProviderGroup(providerGroup)
+                .setConsumerGroupId(consumerGroupID)
+                .setProviderGroupId(providerGroupID)
         ).build();
     }
 }

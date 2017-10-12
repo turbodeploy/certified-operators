@@ -47,9 +47,12 @@ public class AtMostNPolicyTest {
     final PolicyDTO.PolicyGrouping providerGroup = PolicyGroupingHelper.policyGrouping(
         staticGroupMembers(1L), EntityType.PHYSICAL_MACHINE_VALUE, 5678L);
 
+    final PolicyDTO.PolicyGroupingID consumerID = PolicyGroupingHelper.policyGroupingID(1234L);
+    final PolicyDTO.PolicyGroupingID providerID = PolicyGroupingHelper.policyGroupingID(5678L);
+
     final PolicyDTO.Policy.AtMostNPolicy atMostN = PolicyDTO.Policy.AtMostNPolicy.newBuilder()
-        .setConsumerGroup(consumerGroup)
-        .setProviderGroup(providerGroup)
+        .setConsumerGroupId(consumerID)
+        .setProviderGroupId(providerID)
         .setCapacity(1.0f)
         .build();
 
@@ -88,7 +91,8 @@ public class AtMostNPolicyTest {
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
             .thenReturn(Collections.<Long>emptySet());
 
-        new AtMostNPolicy(policy).apply(groupResolver, topologyGraph);
+        new AtMostNPolicy(policy, consumerGroup, providerGroup)
+                .apply(groupResolver, topologyGraph);
         assertThat(topologyGraph.getVertex(1L).get(),
             not(policyMatcher.hasProviderSegmentWithCapacity(POLICY_ID, 1.0f)));
         assertThat(topologyGraph.getVertex(2L).get(),
@@ -106,7 +110,8 @@ public class AtMostNPolicyTest {
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
             .thenReturn(Collections.<Long>emptySet());
 
-        new AtMostNPolicy(policy).apply(groupResolver, topologyGraph);
+        new AtMostNPolicy(policy, consumerGroup, providerGroup)
+                .apply(groupResolver, topologyGraph);
         assertThat(topologyGraph.getVertex(1L).get(),
             policyMatcher.hasProviderSegmentWithCapacity(POLICY_ID, Float.POSITIVE_INFINITY));
         assertThat(topologyGraph.getVertex(2L).get(),
@@ -124,7 +129,8 @@ public class AtMostNPolicyTest {
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
             .thenReturn(Sets.newHashSet(1L, 2L));
 
-        new AtMostNPolicy(policy).apply(groupResolver, topologyGraph);
+        new AtMostNPolicy(policy, consumerGroup, providerGroup)
+                .apply(groupResolver, topologyGraph);
         assertThat(topologyGraph.getVertex(1L).get(),
             policyMatcher.hasProviderSegmentWithCapacityAndUsed(POLICY_ID, 1.0f, 2.0f));
         assertThat(topologyGraph.getVertex(2L).get(),
@@ -148,8 +154,8 @@ public class AtMostNPolicyTest {
             searchParametersCollection(), EntityType.STORAGE_VALUE, 5678L);
 
         final PolicyDTO.Policy.AtMostNPolicy atMostNPolicy = PolicyDTO.Policy.AtMostNPolicy.newBuilder()
-            .setConsumerGroup(consumerGroup)
-            .setProviderGroup(providerGroup)
+            .setConsumerGroupId(consumerID)
+            .setProviderGroupId(providerID)
             .setCapacity(1.0f)
             .build();
 
@@ -166,6 +172,7 @@ public class AtMostNPolicyTest {
         // TODO: This should not generate an exception when OM-21673 is implemented. Instead we should assert
         // the segmentation commodity was created with no provider.
         expectedException.expect(PolicyApplicationException.class);
-        new AtMostNPolicy(policy).apply(groupResolver, topologyGraph);
+        new AtMostNPolicy(policy, consumerGroup, providerGroup)
+                .apply(groupResolver, topologyGraph);
     }
 }

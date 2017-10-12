@@ -1,18 +1,28 @@
 package com.vmturbo.topology.processor.group.policy;
 
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.group.PolicyDTO;
+import com.google.common.collect.ImmutableList;
+
+import com.vmturbo.common.protobuf.GroupDTOUtil;
+import com.vmturbo.common.protobuf.group.GroupFetchingException;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy.PolicyDetailCase;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyGrouping;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyGroupingID;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyRequest;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.GroupFetcher;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
@@ -34,6 +44,8 @@ public class PolicyManager {
      * The policy service from which to retrieve policy definitions.
      */
     final PolicyServiceBlockingStub policyService;
+
+    final GroupFetcher groupFetcher;
 
     /**
      * The factory to use when creating topology filters for group resolution.
@@ -58,11 +70,13 @@ public class PolicyManager {
      * @param topologyFilterFactory The factory to use when creating topology filters for group resolution.
      */
     public PolicyManager(@Nonnull final PolicyServiceBlockingStub policyService,
+                         @Nonnull final GroupFetcher groupFetcher,
                          @Nonnull final TopologyFilterFactory topologyFilterFactory,
                          @Nonnull final PolicyFactory policyFactory) {
         this.policyService = Objects.requireNonNull(policyService);
         this.topologyFilterFactory = Objects.requireNonNull(topologyFilterFactory);
         this.policyFactory = Objects.requireNonNull(policyFactory);
+        this.groupFetcher = Objects.requireNonNull(groupFetcher);
     }
 
     /**
@@ -77,19 +91,29 @@ public class PolicyManager {
             final GroupResolver resolver = topologyFilterFactory.newGroupResolver();
             final long startTime = System.currentTimeMillis();
 
-            Iterable<PolicyDTO.PolicyResponse> policiesIter =
-                () -> policyService.getAllPolicies(PolicyRequest.newBuilder().build());
+            final Iterator<PolicyResponse> policyIter =
+                    policyService.getAllPolicies(PolicyRequest.newBuilder().build());
+            final ImmutableList<PolicyResponse> policyResponses = ImmutableList.copyOf(policyIter);
 
             final Map<PolicyDetailCase, Integer> policyTypeMap = new HashMap<>();
-            for (PolicyDTO.PolicyResponse policyResponse : policiesIter) {
-                PlacementPolicy policy = policyFactory.newPolicy(policyResponse.getPolicy());
-                applyPolicy(resolver, policy, graph);
+            Set<PolicyGroupingID> groupIds = policyResponses.stream()
+                    .filter(PolicyResponse::hasPolicy)
+                    .flatMap(resp -> GroupDTOUtil.retrieveIdsFromPolicy(resp.getPolicy()).stream())
+                    .collect(Collectors.toSet());
 
-                final PolicyDetailCase policyType = policyResponse.getPolicy().getPolicyDetailCase();
-                int curCountOfType = policyTypeMap.computeIfAbsent(policyType, pt -> 0);
-                policyTypeMap.put(policyType, curCountOfType + 1);
+            try {
+                Map<PolicyGroupingID, PolicyGrouping> groups = groupFetcher.getGroupings(groupIds);
+                for (PolicyResponse response : policyResponses) {
+                    PlacementPolicy policy = policyFactory.newPolicy(response.getPolicy(), groups);
+                    applyPolicy(resolver, policy, graph);
+
+                    final PolicyDetailCase policyType = response.getPolicy().getPolicyDetailCase();
+                    int curCountOfType = policyTypeMap.computeIfAbsent(policyType, pt -> 0);
+                    policyTypeMap.put(policyType, curCountOfType + 1);
+                }
+            } catch (GroupFetchingException e){
+                throw new RuntimeException(e);
             }
-
             final long durationMs = System.currentTimeMillis() - startTime;
             logger.info("Completed application of {} policies in {}ms.", policyTypeMap, durationMs);
         }
@@ -105,7 +129,8 @@ public class PolicyManager {
      * @param topologyGraph The topology graph on which to apply the policies.
      */
     private void applyPolicy(@Nonnull final GroupResolver groupResolver,
-                             @Nonnull final PlacementPolicy policy, @Nonnull final TopologyGraph topologyGraph) {
+                             @Nonnull final PlacementPolicy policy,
+                             @Nonnull final TopologyGraph topologyGraph) {
         try {
             policy.apply(groupResolver, topologyGraph);
         } catch (GroupResolutionException e) {

@@ -46,10 +46,13 @@ public class BindToComplementaryGroupPolicyTest {
     final PolicyDTO.PolicyGrouping providerGroup = PolicyGroupingHelper.policyGrouping(
         searchParametersCollection(), EntityType.PHYSICAL_MACHINE_VALUE, 5678L);
 
+    final PolicyDTO.PolicyGroupingID consumerID = PolicyGroupingHelper.policyGroupingID(1234L);
+    final PolicyDTO.PolicyGroupingID providerID = PolicyGroupingHelper.policyGroupingID(5678L);
+
     final PolicyDTO.Policy.BindToComplementaryGroupPolicy bindToComplementarytGroup = PolicyDTO.Policy
             .BindToComplementaryGroupPolicy.newBuilder()
-            .setConsumerGroup(consumerGroup)
-            .setProviderGroup(providerGroup)
+            .setConsumerGroupId(consumerID)
+            .setProviderGroupId(providerID)
             .build();
 
     private static final long POLICY_ID = 9999L;
@@ -84,7 +87,8 @@ public class BindToComplementaryGroupPolicyTest {
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
                 .thenReturn(Collections.emptySet());
 
-        new BindToComplementaryGroupPolicy(policy).apply(groupResolver, topologyGraph);
+        new BindToComplementaryGroupPolicy(policy, consumerGroup, providerGroup)
+                .apply(groupResolver, topologyGraph);
         assertThat(topologyGraph.getVertex(1L).get(), policyMatcher.hasProviderSegment(POLICY_ID));
         assertThat(topologyGraph.getVertex(2L).get(), policyMatcher.hasProviderSegment(POLICY_ID));
         assertThat(topologyGraph.getVertex(5L).get(), not(policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE)));
@@ -98,7 +102,8 @@ public class BindToComplementaryGroupPolicyTest {
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
                 .thenReturn(Collections.singleton(1L));
 
-        new BindToComplementaryGroupPolicy(policy).apply(groupResolver, topologyGraph);
+        new BindToComplementaryGroupPolicy(policy, consumerGroup, providerGroup)
+                .apply(groupResolver, topologyGraph);
         assertThat(topologyGraph.getVertex(1L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));
         assertThat(topologyGraph.getVertex(2L).get(), policyMatcher.hasProviderSegment(POLICY_ID));
         assertThat(topologyGraph.getVertex(5L).get(), not(policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE)));
@@ -112,7 +117,8 @@ public class BindToComplementaryGroupPolicyTest {
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
                 .thenReturn(Collections.<Long>emptySet());
 
-        new BindToComplementaryGroupPolicy(policy).apply(groupResolver, topologyGraph);
+        new BindToComplementaryGroupPolicy(policy, consumerGroup, providerGroup)
+                .apply(groupResolver, topologyGraph);
         assertThat(topologyGraph.getVertex(1L).get(), policyMatcher.hasProviderSegment(POLICY_ID));
         assertThat(topologyGraph.getVertex(2L).get(), policyMatcher.hasProviderSegment(POLICY_ID));
         assertThat(topologyGraph.getVertex(5L).get(), policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE));
@@ -126,7 +132,8 @@ public class BindToComplementaryGroupPolicyTest {
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
                 .thenReturn(Sets.newHashSet(1L, 2L));
 
-        new BindToComplementaryGroupPolicy(policy).apply(groupResolver, topologyGraph);
+        new BindToComplementaryGroupPolicy(policy, consumerGroup, providerGroup)
+                .apply(groupResolver, topologyGraph);
         assertThat(topologyGraph.getVertex(1L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));
         assertThat(topologyGraph.getVertex(2L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));
         assertThat(topologyGraph.getVertex(3L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));
@@ -142,7 +149,8 @@ public class BindToComplementaryGroupPolicyTest {
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
                 .thenReturn(Sets.newHashSet(2L));
 
-        new BindToComplementaryGroupPolicy(policy).apply(groupResolver, topologyGraph);
+        new BindToComplementaryGroupPolicy(policy, consumerGroup, providerGroup)
+                .apply(groupResolver, topologyGraph);
         assertThat(topologyGraph.getVertex(1L).get(), policyMatcher.hasProviderSegment(POLICY_ID));
         assertThat(topologyGraph.getVertex(2L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));
         assertThat(topologyGraph.getVertex(3L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));
@@ -158,8 +166,8 @@ public class BindToComplementaryGroupPolicyTest {
 
         final PolicyDTO.Policy.BindToComplementaryGroupPolicy bindToComplementaryGroup = PolicyDTO.Policy
                 .BindToComplementaryGroupPolicy.newBuilder()
-                .setConsumerGroup(consumerGroup)
-                .setProviderGroup(providerGroup)
+                .setConsumerGroupId(consumerID)
+                .setProviderGroupId(providerID)
                 .build();
 
         final PolicyDTO.Policy policy = PolicyDTO.Policy.newBuilder()
@@ -172,7 +180,8 @@ public class BindToComplementaryGroupPolicyTest {
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
                 .thenReturn(Collections.singleton(3L));
 
-        new BindToComplementaryGroupPolicy(policy).apply(groupResolver, topologyGraph);
+        new BindToComplementaryGroupPolicy(policy, consumerGroup, providerGroup)
+                .apply(groupResolver, topologyGraph);
         assertThat(topologyGraph.getVertex(1L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));
         assertThat(topologyGraph.getVertex(2L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));
         assertThat(topologyGraph.getVertex(3L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));

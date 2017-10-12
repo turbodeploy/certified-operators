@@ -315,6 +315,7 @@ com.vmturbo.api.component/src/test/java/com/vmturbo/api/component/external/api/m
 com.vmturbo.api.component/src/test/java/com/vmturbo/api/component/external/api/mapper/GroupUseCaseParserTest.java -text
 com.vmturbo.api.component/src/test/java/com/vmturbo/api/component/external/api/mapper/LoginProviderMapperTest.java -text
 com.vmturbo.api.component/src/test/java/com/vmturbo/api/component/external/api/mapper/MarketMapperTest.java -text
+com.vmturbo.api.component/src/test/java/com/vmturbo/api/component/external/api/mapper/PolicyMapperTest.java -text
 com.vmturbo.api.component/src/test/java/com/vmturbo/api/component/external/api/mapper/ScenarioMapperTest.java -text
 com.vmturbo.api.component/src/test/java/com/vmturbo/api/component/external/api/mapper/SearchMapperTest.java -text
 com.vmturbo.api.component/src/test/java/com/vmturbo/api/component/external/api/mapper/ServiceEntityMapperTest.java -text
@@ -447,6 +448,8 @@ com.vmturbo.common.protobuf/src/main/java/com/vmturbo/common/protobuf/GroupDTOUt
 com.vmturbo.common.protobuf/src/main/java/com/vmturbo/common/protobuf/PlanDTOUtil.java -text
 com.vmturbo.common.protobuf/src/main/java/com/vmturbo/common/protobuf/SettingDTOUtil.java -text
 com.vmturbo.common.protobuf/src/main/java/com/vmturbo/common/protobuf/UnsupportedActionException.java -text
+com.vmturbo.common.protobuf/src/main/java/com/vmturbo/common/protobuf/group/GroupFetcher.java -text
+com.vmturbo.common.protobuf/src/main/java/com/vmturbo/common/protobuf/group/GroupFetchingException.java -text
 com.vmturbo.common.protobuf/src/main/protobuf/action/ActionDTO.proto -text
 com.vmturbo.common.protobuf/src/main/protobuf/action/ActionNotificationDTO.proto -text
 com.vmturbo.common.protobuf/src/main/protobuf/action/ActionsDebug.proto -text
@@ -473,6 +476,8 @@ com.vmturbo.common.protobuf/src/main/protobuf/topology/TopologyDTO.proto -text
 com.vmturbo.common.protobuf/src/test/java/com/vmturbo/common/protobuf/GroupDTOUtilTest.java -text
 com.vmturbo.common.protobuf/src/test/java/com/vmturbo/common/protobuf/PlanDTOUtilTest.java -text
 com.vmturbo.common.protobuf/src/test/java/com/vmturbo/common/protobuf/SettingDTOUtilTest.java -text
+com.vmturbo.common.protobuf/src/test/java/com/vmturbo/common/protobuf/group/GroupFetcherTest.java -text
+com.vmturbo.common.protobuf/src/test/java/com/vmturbo/common/protobuf/group/GroupTestUtil.java -text
 com.vmturbo.components.api.root/pom.xml -text
 com.vmturbo.components.api.test/pom.xml -text
 com.vmturbo.components.api.test/src/main/java/com/vmturbo/components/api/test/GrpcExceptionMatcher.java -text

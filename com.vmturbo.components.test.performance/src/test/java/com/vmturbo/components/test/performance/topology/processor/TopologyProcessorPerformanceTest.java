@@ -33,7 +33,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy.BindToGroupPolicy;
-import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyGrouping;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyGroupingID;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceImplBase;
 import com.vmturbo.common.protobuf.search.Search;
@@ -376,8 +376,8 @@ public class TopologyProcessorPerformanceTest {
                                       @Nonnull final Group providerGroup) {
         return Policy.newBuilder().setBindToGroup(
             BindToGroupPolicy.newBuilder()
-                .setConsumerGroup(PolicyGrouping.newBuilder().setGroup(consumerGroup).build())
-                .setProviderGroup(PolicyGrouping.newBuilder().setGroup(providerGroup).build())
+                .setConsumerGroupId(PolicyGroupingID.newBuilder().setGroupId(consumerGroup.getId()).build())
+                .setProviderGroupId(PolicyGroupingID.newBuilder().setGroupId(providerGroup.getId()).build())
         ).build();
     }
 

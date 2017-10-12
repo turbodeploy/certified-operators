@@ -12,6 +12,7 @@ import org.springframework.context.annotation.Import;
 import com.vmturbo.api.component.communication.CommunicationConfig;
 import com.vmturbo.api.component.external.api.mapper.MapperConfig;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
+import com.vmturbo.common.protobuf.group.GroupFetcher;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcher;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
 import com.vmturbo.auth.api.SpringSecurityConfig;
@@ -34,6 +35,9 @@ public class ServiceConfig {
 
     @Value("${supplyChainFetcherTimeoutSeconds}")
     private Long supplyChainFetcherTimeoutSeconds;
+
+    @Value("${groupFetcherTimeoutSeconds}")
+    private Long groupFetcherTimeoutSeconds;
 
     /**
      * We allow autowiring between different configuration objects, but not for a bean.
@@ -96,6 +100,14 @@ public class ServiceConfig {
     }
 
     @Bean
+    public GroupFetcher groupFetcher() {
+        return new GroupFetcher(
+                communicationConfig.groupChannel(),
+                Duration.ofSeconds(groupFetcherTimeoutSeconds)
+        );
+    }
+
+    @Bean
     public GroupsService groupsService() {
         return new GroupsService(
                 communicationConfig.actionsRpcService(),
@@ -126,7 +138,7 @@ public class ServiceConfig {
                                   communicationConfig.planRpcService(),
                                   mapperConfig.policyMapper(),
                                   mapperConfig.marketMapper(),
-                                  websocketConfig.websocketHandler());
+                                  groupFetcher(), websocketConfig.websocketHandler());
     }
 
     @Bean
@@ -138,7 +150,7 @@ public class ServiceConfig {
     public PoliciesService policiesService() {
         return new PoliciesService(
                 communicationConfig.policyRpcService(),
-                mapperConfig.policyMapper());
+                groupFetcher(), mapperConfig.policyMapper());
     }
 
     @Bean

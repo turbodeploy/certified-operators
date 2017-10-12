@@ -56,6 +56,7 @@ import com.vmturbo.api.component.external.api.mapper.MarketMapper;
 import com.vmturbo.api.component.external.api.mapper.PolicyMapper;
 import com.vmturbo.api.component.external.api.mapper.ScenarioMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
+import com.vmturbo.common.protobuf.group.GroupFetcher;
 import com.vmturbo.api.component.external.api.websocket.UINotificationChannel;
 import com.vmturbo.api.controller.MarketsController;
 import com.vmturbo.api.dto.MarketApiDTO;
@@ -269,7 +270,7 @@ public class MarketsServiceTest {
         public MarketsService marketsService() {
             return new MarketsService(actionSpecMapper(), uuidMapper(), actionRpcService(),
                     policyCpcService(), planRpcService(), policyMapper(), marketMapper(),
-                    uiNotificationChannel());
+                    groupFetcher(), uiNotificationChannel());
         }
 
         @Bean
@@ -334,6 +335,11 @@ public class MarketsServiceTest {
         @Bean
         public PolicyMapper policyMapper() {
             return Mockito.mock(PolicyMapper.class);
+        }
+
+        @Bean
+        public GroupFetcher groupFetcher() {
+            return Mockito.mock(GroupFetcher.class);
         }
 
         @Bean

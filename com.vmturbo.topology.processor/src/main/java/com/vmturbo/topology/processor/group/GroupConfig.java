@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.group;
 
+import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,6 +13,7 @@ import io.grpc.Channel;
 
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.GroupFetcher;
 import com.vmturbo.grpc.extensions.PingingChannelBuilder;
 import com.vmturbo.topology.processor.GlobalConfig;
 import com.vmturbo.topology.processor.entity.EntityConfig;
@@ -39,6 +41,9 @@ public class GroupConfig {
     @Value("${grpcPingIntervalSeconds}")
     private long grpcPingIntervalSeconds;
 
+    @Value("${groupFetcherTimeoutSeconds}")
+    private long groupFetcherTimeoutSeconds;
+
     @Value("${discoveredGroupUploadIntervalSeconds}")
     private long discoveredGroupUploadIntervalSeconds;
 
@@ -56,13 +61,19 @@ public class GroupConfig {
     }
 
     @Bean
+    public GroupFetcher groupFetcher() {
+        return new GroupFetcher(groupChannel(), Duration.ofSeconds(groupFetcherTimeoutSeconds));
+    }
+
+    @Bean
     public TopologyFilterFactory topologyFilterFactory() {
         return new TopologyFilterFactory();
     }
 
     @Bean
     public PolicyManager policyManager() {
-        return new PolicyManager(policyRpcService(), topologyFilterFactory(), new PolicyFactory());
+        return new PolicyManager(policyRpcService(), groupFetcher(),
+                topologyFilterFactory(), new PolicyFactory());
     }
 
     @Bean

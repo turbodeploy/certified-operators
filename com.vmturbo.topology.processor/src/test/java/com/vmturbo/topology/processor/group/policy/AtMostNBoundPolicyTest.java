@@ -22,6 +22,7 @@ import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyGrouping;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyGroupingID;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -44,13 +45,15 @@ public class AtMostNBoundPolicyTest {
 
     final PolicyGrouping consumerGroup = PolicyGroupingHelper.policyGrouping(
         staticGroupMembers(4L, 5L), EntityType.VIRTUAL_MACHINE_VALUE, 1234L);
+    final PolicyGroupingID consumerGroupID = PolicyGroupingHelper.policyGroupingID(1234L);
 
     final PolicyGrouping providerGroup = PolicyGroupingHelper.policyGrouping(
         staticGroupMembers(1L), EntityType.PHYSICAL_MACHINE_VALUE, 5678L);
+    final PolicyGroupingID providerGroupID = PolicyGroupingHelper.policyGroupingID(5678L);
 
     final PolicyDTO.Policy.AtMostNBoundPolicy atMostNBound = PolicyDTO.Policy.AtMostNBoundPolicy.newBuilder()
-        .setConsumerGroup(consumerGroup)
-        .setProviderGroup(providerGroup)
+        .setConsumerGroupId(consumerGroupID)
+        .setProviderGroupId(providerGroupID)
         .setCapacity(1.0f)
         .build();
 
@@ -89,7 +92,8 @@ public class AtMostNBoundPolicyTest {
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
             .thenReturn(Collections.<Long>emptySet());
 
-        new AtMostNBoundPolicy(policy).apply(groupResolver, topologyGraph);
+        new AtMostNBoundPolicy(policy, consumerGroup, providerGroup)
+                .apply(groupResolver, topologyGraph);
         assertThat(topologyGraph.getVertex(1L).get(),
             not(policyMatcher.hasProviderSegmentWithCapacity(POLICY_ID, 1.0f)));
         assertThat(topologyGraph.getVertex(2L).get(),
@@ -107,7 +111,8 @@ public class AtMostNBoundPolicyTest {
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
             .thenReturn(Collections.<Long>emptySet());
 
-        new AtMostNBoundPolicy(policy).apply(groupResolver, topologyGraph);
+        new AtMostNBoundPolicy(policy, consumerGroup, providerGroup)
+                .apply(groupResolver, topologyGraph);
         assertThat(topologyGraph.getVertex(1L).get(),
             not(policyMatcher.hasProviderSegment(POLICY_ID)));
         assertThat(topologyGraph.getVertex(2L).get(),
@@ -125,7 +130,8 @@ public class AtMostNBoundPolicyTest {
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
             .thenReturn(Sets.newHashSet(1L));
 
-        new AtMostNBoundPolicy(policy).apply(groupResolver, topologyGraph);
+        new AtMostNBoundPolicy(policy, consumerGroup, providerGroup)
+                .apply(groupResolver, topologyGraph);
         assertThat(topologyGraph.getVertex(1L).get(),
             policyMatcher.hasProviderSegmentWithCapacityAndUsed(POLICY_ID, 1.0f, 2.0f));
         assertThat(topologyGraph.getVertex(2L).get(),
@@ -149,8 +155,8 @@ public class AtMostNBoundPolicyTest {
             searchParametersCollection(), EntityType.STORAGE_VALUE, 5678L);
 
         final PolicyDTO.Policy.AtMostNBoundPolicy atMostNBoundPolicy = PolicyDTO.Policy.AtMostNBoundPolicy.newBuilder()
-            .setConsumerGroup(consumerGroup)
-            .setProviderGroup(providerGroup)
+            .setConsumerGroupId(consumerGroupID)
+            .setProviderGroupId(providerGroupID)
             .setCapacity(1.0f)
             .build();
 
@@ -167,6 +173,7 @@ public class AtMostNBoundPolicyTest {
         // TODO: This should not generate an exception when OM-21673 is implemented. Instead we should assert
         // the segmentation commodity was created with no provider.
         expectedException.expect(PolicyApplicationException.class);
-        new AtMostNBoundPolicy(policy).apply(groupResolver, topologyGraph);
+        new AtMostNBoundPolicy(policy, consumerGroup, providerGroup)
+                .apply(groupResolver, topologyGraph);
     }
 }
