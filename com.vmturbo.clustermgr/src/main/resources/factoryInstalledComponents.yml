@@ -40,6 +40,7 @@ topology-processor:
   discoveryTimeoutSeconds: 30
   validationTimeoutSeconds: 30
   topologyBroadcastIntervalMinutes: 10
+  groupFetcherTimeoutSeconds: 300
   kvStoreRetryIntervalMillis: 1000
   actionTimeoutSeconds: 30
   groupHost: 'group'
