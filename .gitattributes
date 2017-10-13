@@ -710,6 +710,7 @@ com.vmturbo.group.component/src/main/java/com/vmturbo/group/persistent/InvalidSe
 com.vmturbo.group.component/src/main/java/com/vmturbo/group/persistent/PolicyStore.java -text
 com.vmturbo.group.component/src/main/java/com/vmturbo/group/persistent/SettingPolicyFilter.java -text
 com.vmturbo.group.component/src/main/java/com/vmturbo/group/persistent/SettingPolicyInfoConverter.java -text
+com.vmturbo.group.component/src/main/java/com/vmturbo/group/persistent/SettingPolicyNotFoundException.java -text
 com.vmturbo.group.component/src/main/java/com/vmturbo/group/persistent/SettingPolicyTypeConverter.java -text
 com.vmturbo.group.component/src/main/java/com/vmturbo/group/persistent/SettingStore.java -text
 com.vmturbo.group.component/src/main/java/com/vmturbo/group/persistent/TargetCollectionUpdate.java -text

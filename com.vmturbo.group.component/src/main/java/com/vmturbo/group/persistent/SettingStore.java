@@ -53,6 +53,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValueType;
 import com.vmturbo.group.db.enums.SettingPolicyPolicyType;
 import com.vmturbo.group.db.tables.pojos.SettingPolicy;
+import com.vmturbo.group.db.tables.records.SettingPolicyRecord;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -407,6 +408,98 @@ public class SettingStore {
         return internalCreateSettingPolicy(settingPolicyInfo, SettingProto.SettingPolicy.Type.USER);
     }
 
+    /**
+     * Update an existing setting policy in the {@link SettingStore}, overwriting the
+     * existing {@link SettingPolicyInfo} with a new one.
+     *
+     * @param id The ID of the policy to update.
+     * @param newInfo The new {@link SettingPolicyInfo}. This will completely replace the old
+     *                info, and must pass validation.
+     * @return The updated {@link SettingProto.SettingPolicy}.
+     * @throws SettingPolicyNotFoundException If the policy to update doesn't exist.
+     * @throws InvalidSettingPolicyException If the update attempt would violate constraints on
+     *                                       the setting policy.
+     * @throws DuplicateNameException If there is already a setting policy with the same name as
+     *                                the new info (other than the policy to update).
+     * @throws DataAccessException If there is an error interacting with the database.
+     */
+    @Nonnull
+    public SettingProto.SettingPolicy updateSettingPolicy(final long id,
+                                          @Nonnull final SettingPolicyInfo newInfo)
+            throws SettingPolicyNotFoundException, InvalidSettingPolicyException,
+                DuplicateNameException, DataAccessException {
+        try {
+            return dsl.transactionResult(configuration -> {
+                final DSLContext context = DSL.using(configuration);
+
+                final SettingPolicyRecord record =
+                        context.fetchOne(SETTING_POLICY, SETTING_POLICY.ID.eq(id));
+                if (record == null) {
+                    throw new SettingPolicyNotFoundException(id);
+                }
+
+                // Explicitly search for an existing policy with the same name that's NOT
+                // the policy being edited. We do this because we want to know
+                // know when to throw a DuplicateNameException as opposed to a generic
+                // DataIntegrityException.
+                final Record1<Long> existingId =
+                        context.select(SETTING_POLICY.ID).from(SETTING_POLICY)
+                                .where(SETTING_POLICY.NAME.eq(newInfo.getName()))
+                                .and(SETTING_POLICY.ID.ne(id))
+                                .fetchOne();
+                if (existingId != null) {
+                    throw new DuplicateNameException(existingId.value1(), newInfo.getName());
+                }
+
+                final SettingProto.SettingPolicy.Type type =
+                        SettingPolicyTypeConverter.typeFromDb(record.getPolicyType());
+
+                // Validate the setting policy.
+                // This should throw an exception if it's invalid.
+                settingPolicyValidator.validateSettingPolicy(newInfo, type);
+
+                // Additional update-only validation for default policies
+                // to ensure certain fields are not changed.
+                if (type.equals(Type.DEFAULT)) {
+                    // For default setting policies we don't allow changes to names
+                    // or entity types.
+                    if (newInfo.getEntityType() != record.getEntityType()) {
+                        throw new InvalidSettingPolicyException("Illegal attempt to change the " +
+                                " entity type of a default setting policy.");
+                    }
+                    if (!newInfo.getName().equals(record.getName())) {
+                        throw new InvalidSettingPolicyException("Illegal attempt to change the " +
+                                " name of a default setting policy.");
+                    }
+                }
+
+                record.setEntityType(newInfo.getEntityType());
+                record.setName(newInfo.getName());
+                record.setSettingPolicyData(newInfo);
+                final int modifiedRecords = record.update();
+                if (modifiedRecords == 0) {
+                    // This should never happen, because we overwrote fields in the record,
+                    // and update() should always execute an UPDATE statement if some fields
+                    // got overwritten.
+                    throw new IllegalStateException("Failed to update record.");
+                }
+                return toSettingPolicy(record);
+            });
+        } catch (DataAccessException e) {
+            // Jooq will rethrow exceptions thrown in the transactionResult call
+            // wrapped in a DataAccessException. Check to see if that's why the transaction failed.
+            if (e.getCause() instanceof DuplicateNameException) {
+                throw (DuplicateNameException)e.getCause();
+            } else if (e.getCause() instanceof SettingPolicyNotFoundException) {
+                throw (SettingPolicyNotFoundException) e.getCause();
+            } else if (e.getCause() instanceof InvalidSettingPolicyException) {
+                throw (InvalidSettingPolicyException) e.getCause();
+            } else {
+                throw e;
+            }
+        }
+    }
+
 
     /**
      * Get setting policies matching a filter.
@@ -484,12 +577,30 @@ public class SettingStore {
      * @return An equivalent {@link SettingPolicy}.
      */
     @Nonnull
-    private SettingProto.SettingPolicy toSettingPolicy(@Nonnull final SettingPolicy jooqSettingPolicy) {
+    private SettingProto.SettingPolicy toSettingPolicy(
+            @Nonnull final SettingPolicy jooqSettingPolicy) {
         return SettingProto.SettingPolicy.newBuilder()
             .setId(jooqSettingPolicy.getId())
             .setSettingPolicyType(SettingPolicyTypeConverter.typeFromDb(
                     jooqSettingPolicy.getPolicyType()))
             .setInfo(jooqSettingPolicy.getSettingPolicyData())
+            .build();
+    }
+
+    /**
+     * Convert a {@link SettingPolicyRecord} retrieved from the database into a
+     * {@link SettingPolicy}.
+     *
+     * @param jooqRecord The record retrieved from the database via jooq.
+     * @return An equivalent {@link SettingPolicy}.
+     */
+    @Nonnull
+    private SettingProto.SettingPolicy toSettingPolicy(
+            @Nonnull final SettingPolicyRecord jooqRecord) {
+        return SettingProto.SettingPolicy.newBuilder()
+            .setId(jooqRecord.getId())
+            .setSettingPolicyType(SettingPolicyTypeConverter.typeFromDb(jooqRecord.getPolicyType()))
+            .setInfo(jooqRecord.getSettingPolicyData())
             .build();
     }
 

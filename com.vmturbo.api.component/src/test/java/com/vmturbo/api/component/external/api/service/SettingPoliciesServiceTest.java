@@ -6,9 +6,7 @@ import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
@@ -21,8 +19,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.google.common.collect.ImmutableMap;
-
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
@@ -33,21 +29,20 @@ import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
 import com.vmturbo.api.dto.setting.SettingsPolicyApiDTO;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
+import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceImplBase;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceImplBase;
 import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.Scope;
-import com.vmturbo.common.protobuf.setting.SettingProto.SearchSettingSpecsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
-import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceImplBase;
+import com.vmturbo.common.protobuf.setting.SettingProto.UpdateSettingPolicyRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.UpdateSettingPolicyResponse;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -103,16 +98,11 @@ public class SettingPoliciesServiceTest {
 
     private TestSettingPolicyService settingPolicyBackend = spy(new TestSettingPolicyService());
 
-    private TestSettingService settingBackend = spy(new TestSettingService());
-
-    private TestGroupService groupBackend = spy(new TestGroupService());
-
     private SettingsMapper settingsMapper = mock(SettingsMapper.class);
 
     @Before
     public void setup() throws IOException {
-        grpcTestServer = GrpcTestServer.withServices(settingBackend,
-                groupBackend, settingPolicyBackend);
+        grpcTestServer = GrpcTestServer.withServices(settingPolicyBackend);
         settingsPoliciesService = new SettingsPoliciesService(settingsMapper,
                 grpcTestServer.getChannel());
 
@@ -129,56 +119,25 @@ public class SettingPoliciesServiceTest {
     }
 
     @Test
-    public void testGetPoliciesNoInvolvedGroups() throws Exception {
-        when(settingPolicyBackend.listSettingPolicies(any()))
-            .thenReturn(Collections.singletonList(DEFAULT_POLICY));
-        // Map should be empty, since the policy is a default type.
-        when(settingsMapper.convertSettingsPolicy(DEFAULT_POLICY,
-                Collections.emptyMap())).thenReturn(RET_SP_DTO);
-        List<SettingsPolicyApiDTO> ret =
-                settingsPoliciesService.getSettingsPolicies(false, Collections.emptyList());
-        assertThat(ret, containsInAnyOrder(RET_SP_DTO));
-
-        verify(groupBackend, never()).getGroups(any());
-    }
-
-    /**
-     * This is basically {@link SettingPoliciesServiceTest#testGetPoliciesNoInvolvedGroups()},
-     * but passing in null instead of an empty list to
-     * {@link SettingsPoliciesService#getSettingsPolicies(boolean, List)}.
-     *
-     * @throws Exception If anything goes wrong.
-     */
-    @Test
     public void testGetPoliciesEntityTypesNull() throws Exception {
         when(settingPolicyBackend.listSettingPolicies(any()))
                 .thenReturn(Collections.singletonList(DEFAULT_POLICY));
         // Map should be empty, since the policy is a default type.
-        when(settingsMapper.convertSettingsPolicy(DEFAULT_POLICY,
-                Collections.emptyMap())).thenReturn(RET_SP_DTO);
+        when(settingsMapper.convertSettingPolicies(eq(Collections.singletonList(DEFAULT_POLICY))))
+            .thenReturn(Collections.singletonList(RET_SP_DTO));
         List<SettingsPolicyApiDTO> ret =
                 settingsPoliciesService.getSettingsPolicies(false, null);
         assertThat(ret, containsInAnyOrder(RET_SP_DTO));
-
-        verify(groupBackend, never()).getGroups(any());
     }
 
     @Test
-    public void testGetPoliciesWithGroups() throws Exception {
+    public void testGetPolicies() throws Exception {
         when(settingPolicyBackend.listSettingPolicies(any()))
                 .thenReturn(Collections.singletonList(SCOPE_POLICY));
-        when(groupBackend.getGroups(GetGroupsRequest.newBuilder()
-                .addId(GROUP_ID)
-                .build()))
-            .thenReturn(Collections.singletonList(Group.newBuilder()
-                .setId(GROUP_ID)
-                .setInfo(GroupInfo.newBuilder()
-                        .setName(GROUP_NAME))
-                .build()));
 
-        // Expect a group map of one input.
-        when(settingsMapper.convertSettingsPolicy(SCOPE_POLICY,
-                ImmutableMap.of(GROUP_ID, GROUP_NAME))).thenReturn(RET_SP_DTO);
+        when(settingsMapper.convertSettingPolicies(Collections.singletonList(SCOPE_POLICY)))
+                .thenReturn(Collections.singletonList(RET_SP_DTO));
+
         List<SettingsPolicyApiDTO> ret =
                 settingsPoliciesService.getSettingsPolicies(false, Collections.emptyList());
         assertThat(ret, containsInAnyOrder(RET_SP_DTO));
@@ -198,28 +157,19 @@ public class SettingPoliciesServiceTest {
         when(settingPolicyBackend.listSettingPolicies(any()))
                 .thenReturn(Arrays.asList(DEFAULT_POLICY, wrongEntityTypePolicy));
         // Map should be empty, since the policy is a default type.
-        when(settingsMapper.convertSettingsPolicy(DEFAULT_POLICY,
-                Collections.emptyMap())).thenReturn(RET_SP_DTO);
+        when(settingsMapper.convertSettingPolicies(eq(Collections.singletonList(DEFAULT_POLICY))))
+                .thenReturn(Collections.singletonList(RET_SP_DTO));
 
         List<SettingsPolicyApiDTO> ret =
                 settingsPoliciesService.getSettingsPolicies(false,
                     Collections.singletonList(
                         ServiceEntityMapper.toUIEntityType(EntityType.VIRTUAL_MACHINE.getNumber())));
         assertThat(ret, containsInAnyOrder(RET_SP_DTO));
-
-        verify(groupBackend, never()).getGroups(any());
     }
 
     @Test
     public void testCreatePolicy() throws Exception {
-
-        when(settingBackend.searchSettingSpecs(SearchSettingSpecsRequest.newBuilder()
-                .addSettingSpecName(SETTING_NAME)
-                .build()))
-                .thenReturn(Collections.singletonList(SETTING_SPEC));
-
-        when(settingsMapper.convertInputPolicy(eq(inputPolicy), eq(ImmutableMap.of(SETTING_NAME,
-                SETTING_SPEC))))
+        when(settingsMapper.convertInputPolicy(eq(inputPolicy)))
             .thenReturn(SCOPE_POLICY_INFO);
 
         when(settingPolicyBackend.createSettingPolicy(CreateSettingPolicyRequest.newBuilder()
@@ -229,17 +179,73 @@ public class SettingPoliciesServiceTest {
                 .setSettingPolicy(SCOPE_POLICY)
                 .build());
 
-        when(groupBackend.getGroups(GetGroupsRequest.newBuilder()
-                .addId(GROUP_ID)
-                .build()))
-            .thenReturn(Collections.singletonList(GROUP));
-
-        when(settingsMapper.convertSettingsPolicy(eq(SCOPE_POLICY),
-                    eq(ImmutableMap.of(GROUP_ID, GROUP_NAME))))
+        when(settingsMapper.convertSettingPolicy(eq(SCOPE_POLICY)))
             .thenReturn(RET_SP_DTO);
 
         SettingsPolicyApiDTO retDto = settingsPoliciesService.createSettingsPolicy(inputPolicy);
         assertEquals(retDto, RET_SP_DTO);
+    }
+
+    @Test
+    public void testUpdatePolicy() throws Exception {
+        final long id = 7;
+        when(settingsMapper.convertInputPolicy(eq(inputPolicy)))
+                .thenReturn(SCOPE_POLICY_INFO);
+        when(settingPolicyBackend.updateSettingPolicy(UpdateSettingPolicyRequest.newBuilder()
+                .setId(id)
+                .setNewInfo(SCOPE_POLICY_INFO)
+                .build()))
+            .thenReturn(UpdateSettingPolicyResponse.newBuilder()
+                .setSettingPolicy(SCOPE_POLICY)
+                .build());
+
+        when(settingsMapper.convertSettingPolicy(eq(SCOPE_POLICY)))
+            .thenReturn(RET_SP_DTO);
+
+        final SettingsPolicyApiDTO retDto =
+                settingsPoliciesService.editSettingsPolicy(Long.toString(id), inputPolicy);
+        assertEquals(retDto, RET_SP_DTO);
+    }
+
+    @Test(expected = OperationFailedException.class)
+    public void testUpdatePolicyExistingName() throws Exception {
+        final long id = 7;
+        when(settingsMapper.convertInputPolicy(eq(inputPolicy)))
+                .thenReturn(DEFAULT_POLICY_INFO);
+
+        when(settingPolicyBackend.updateSettingPolicyError(any()))
+                .thenReturn(Optional.of(Status.ALREADY_EXISTS.asException()));
+
+        settingsPoliciesService.editSettingsPolicy(Long.toString(id), inputPolicy);
+    }
+
+    @Test(expected = UnknownObjectException.class)
+    public void testUpdatePolicyNotFound() throws Exception {
+        final long id = 7;
+        when(settingsMapper.convertInputPolicy(eq(inputPolicy)))
+                .thenReturn(DEFAULT_POLICY_INFO);
+
+        when(settingPolicyBackend.updateSettingPolicyError(any()))
+                .thenReturn(Optional.of(Status.NOT_FOUND.asException()));
+
+        settingsPoliciesService.editSettingsPolicy(Long.toString(id), inputPolicy);
+    }
+
+    @Test(expected = InvalidOperationException.class)
+    public void testUpdatePolicyNotValid() throws Exception {
+        final long id = 7;
+        when(settingsMapper.convertInputPolicy(eq(inputPolicy)))
+                .thenReturn(DEFAULT_POLICY_INFO);
+
+        when(settingPolicyBackend.updateSettingPolicyError(any()))
+                .thenReturn(Optional.of(Status.INVALID_ARGUMENT.asException()));
+
+        settingsPoliciesService.editSettingsPolicy(Long.toString(id), inputPolicy);
+    }
+
+    @Test(expected = NumberFormatException.class)
+    public void testUpdatePolicyStringId() throws Exception {
+        settingsPoliciesService.editSettingsPolicy("blah", inputPolicy);
     }
 
     /**
@@ -249,13 +255,7 @@ public class SettingPoliciesServiceTest {
     @Test(expected = OperationFailedException.class)
     public void testCreateExistingPolicy() throws Exception {
 
-        when(settingBackend.searchSettingSpecs(SearchSettingSpecsRequest.newBuilder()
-                .addSettingSpecName(SETTING_NAME)
-                .build()))
-                .thenReturn(Collections.singletonList(SETTING_SPEC));
-
-        when(settingsMapper.convertInputPolicy(eq(inputPolicy), eq(ImmutableMap.of(SETTING_NAME,
-                SETTING_SPEC))))
+        when(settingsMapper.convertInputPolicy(eq(inputPolicy)))
             .thenReturn(DEFAULT_POLICY_INFO);
 
         when(settingPolicyBackend.createSettingPolicyError(any()))
@@ -266,38 +266,9 @@ public class SettingPoliciesServiceTest {
 
     @Test(expected = InvalidOperationException.class)
     public void testCreateInvalidPolicy() throws Exception {
-        when(settingBackend.searchSettingSpecs(SearchSettingSpecsRequest.newBuilder()
-                .addSettingSpecName(SETTING_NAME)
-                .build()))
-                .thenReturn(Collections.singletonList(SETTING_SPEC));
-
-        when(settingsMapper.convertInputPolicy(eq(inputPolicy), eq(ImmutableMap.of(SETTING_NAME,
-                SETTING_SPEC))))
-                .thenReturn(DEFAULT_POLICY_INFO);
-
-        when(settingPolicyBackend.createSettingPolicyError(any()))
-                .thenReturn(Optional.of(Status.INVALID_ARGUMENT.asException()));
+        when(settingsMapper.convertInputPolicy(any())).thenThrow(InvalidOperationException.class);
 
         settingsPoliciesService.createSettingsPolicy(inputPolicy);
-    }
-
-    @Test(expected = InvalidOperationException.class)
-    public void testCreatePolicySpecsNotFound() throws Exception {
-        when(settingBackend.searchSettingSpecs(any())).thenReturn(Collections.emptyList());
-
-        settingsPoliciesService.createSettingsPolicy(inputPolicy);
-    }
-
-    private static class TestSettingService extends SettingServiceImplBase {
-        public List<SettingSpec> searchSettingSpecs(SearchSettingSpecsRequest request) {
-            return Collections.emptyList();
-        }
-
-        public void searchSettingSpecs(SearchSettingSpecsRequest request,
-                                       StreamObserver<SettingSpec> responseObserver) {
-            searchSettingSpecs(request).forEach(responseObserver::onNext);
-            responseObserver.onCompleted();
-        }
     }
 
     private static class TestSettingPolicyService extends SettingPolicyServiceImplBase {
@@ -310,6 +281,14 @@ public class SettingPoliciesServiceTest {
         }
 
         public Optional<Throwable> createSettingPolicyError(CreateSettingPolicyRequest request) {
+            return Optional.empty();
+        }
+
+        public UpdateSettingPolicyResponse updateSettingPolicy(UpdateSettingPolicyRequest request) {
+            return UpdateSettingPolicyResponse.getDefaultInstance();
+        }
+
+        public Optional<Throwable> updateSettingPolicyError(UpdateSettingPolicyRequest request) {
             return Optional.empty();
         }
 
@@ -329,17 +308,16 @@ public class SettingPoliciesServiceTest {
                 responseObserver.onCompleted();
             }
         }
-    }
 
-    private static class TestGroupService extends GroupServiceImplBase {
-        public List<Group> getGroups(GetGroupsRequest request) {
-            return Collections.emptyList();
-        }
-
-        public void getGroups(GetGroupsRequest request,
-                              StreamObserver<Group> responseObserver) {
-            getGroups(request).forEach(responseObserver::onNext);
-            responseObserver.onCompleted();
+        public void updateSettingPolicy(UpdateSettingPolicyRequest request,
+                                        StreamObserver<UpdateSettingPolicyResponse> responseObserver) {
+            Optional<Throwable> error = updateSettingPolicyError(request);
+            if (error.isPresent()) {
+                responseObserver.onError(error.get());
+            } else {
+                responseObserver.onNext(updateSettingPolicy(request));
+                responseObserver.onCompleted();
+            }
         }
     }
 }

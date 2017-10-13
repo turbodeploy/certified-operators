@@ -63,6 +63,6 @@ public class MapperConfig {
 
     @Bean
     public SettingsMapper settingsMapper() {
-        return new SettingsMapper(settingManagersFile);
+        return new SettingsMapper(settingManagersFile, communicationConfig.groupChannel());
     }
 }

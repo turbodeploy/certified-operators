@@ -22,9 +22,12 @@ import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
+import com.vmturbo.common.protobuf.setting.SettingProto.UpdateSettingPolicyRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.UpdateSettingPolicyResponse;
 import com.vmturbo.group.persistent.DuplicateNameException;
 import com.vmturbo.group.persistent.InvalidSettingPolicyException;
 import com.vmturbo.group.persistent.SettingPolicyFilter;
+import com.vmturbo.group.persistent.SettingPolicyNotFoundException;
 import com.vmturbo.group.persistent.SettingStore;
 
 /**
@@ -66,6 +69,38 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
         } catch (DuplicateNameException e) {
             responseObserver.onError(Status.ALREADY_EXISTS
                 .withDescription(e.getMessage()).asException());
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void updateSettingPolicy(UpdateSettingPolicyRequest request,
+                                    StreamObserver<UpdateSettingPolicyResponse> responseObserver) {
+        if (!request.hasId() || !request.hasNewInfo()) {
+            responseObserver.onError(Status.INVALID_ARGUMENT
+                    .withDescription("Update request must have ID and new setting policy info.")
+                    .asException());
+            return;
+        }
+
+        try {
+            final SettingPolicy policy =
+                    settingStore.updateSettingPolicy(request.getId(), request.getNewInfo());
+            responseObserver.onNext(UpdateSettingPolicyResponse.newBuilder()
+                .setSettingPolicy(policy)
+                .build());
+            responseObserver.onCompleted();
+        } catch (DuplicateNameException e) {
+            responseObserver.onError(Status.ALREADY_EXISTS
+                    .withDescription(e.getMessage()).asException());
+        } catch (InvalidSettingPolicyException e) {
+            responseObserver.onError(Status.INVALID_ARGUMENT
+                    .withDescription(e.getMessage()).asException());
+        } catch (SettingPolicyNotFoundException e) {
+            responseObserver.onError(Status.NOT_FOUND
+                    .withDescription(e.getMessage()).asException());
         }
     }
 

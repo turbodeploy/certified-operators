@@ -11,6 +11,7 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -85,6 +86,7 @@ public class SettingStoreTest {
             .setName("test")
             .build();
 
+
     private String settingSpecJsonFile = "setting-test-json/setting-spec.json";
 
     @Autowired
@@ -94,11 +96,13 @@ public class SettingStoreTest {
 
     private SettingPolicyValidator settingPolicyValidator = mock(SettingPolicyValidator.class);
 
+    private IdentityProvider identityProviderSpy = spy(new IdentityProvider(0));
+
     @Before
     public void setUp() throws Exception {
         final DSLContext dsl = prepareDatabase();
-       settingStore = new SettingStore(settingSpecJsonFile, dsl,
-                new IdentityProvider(0), settingPolicyValidator);
+       settingStore = new SettingStore(settingSpecJsonFile, dsl, identityProviderSpy,
+               settingPolicyValidator);
     }
 
     private DSLContext prepareDatabase() throws Exception {
@@ -154,14 +158,113 @@ public class SettingStoreTest {
 
     @Test
     public void testCreateThenGetByName() throws Exception {
+        when(identityProviderSpy.next()).thenReturn(7L);
         SettingPolicy policy = settingStore.createSettingPolicy(info);
 
         assertEquals(info, policy.getInfo());
-        assertTrue(policy.hasId());
+        assertEquals(7L, policy.getId());
+        assertEquals(Type.USER, policy.getSettingPolicyType());
 
         Optional<SettingPolicy> gotPolicy = settingStore.getSettingPolicy(info.getName());
         assertTrue(gotPolicy.isPresent());
         assertEquals(policy, gotPolicy.get());
+    }
+
+    private final SettingPolicyInfo updatedInfo = SettingPolicyInfo.newBuilder(info)
+            .setName("test2")
+            .build();
+
+    @Test
+    public void testUpdateSettingPolicy() throws Exception {
+
+        final SettingPolicy policy = settingStore.createSettingPolicy(info);
+
+        final SettingPolicy updatedPolicy =
+                settingStore.updateSettingPolicy(policy.getId(), updatedInfo);
+        assertEquals(updatedInfo, updatedPolicy.getInfo());
+        Optional<SettingPolicy> gotPolicy = settingStore.getSettingPolicy(policy.getId());
+        assertTrue(gotPolicy.isPresent());
+        assertEquals(updatedPolicy, gotPolicy.get());
+    }
+
+    @Test(expected = SettingPolicyNotFoundException.class)
+    public void testUpdateSettingPolicyNotFound() throws Exception {
+        settingStore.updateSettingPolicy(7, info);
+    }
+
+    @Test(expected = InvalidSettingPolicyException.class)
+    public void testUpdateSettingPolicyWithInvalidInfo() throws Exception {
+        final SettingPolicy policy = settingStore.createSettingPolicy(info);
+
+        doThrow(new InvalidSettingPolicyException(""))
+            .when(settingPolicyValidator).validateSettingPolicy(eq(updatedInfo), any());
+
+        settingStore.updateSettingPolicy(policy.getId(), updatedInfo);
+    }
+
+    @Test(expected = DuplicateNameException.class)
+    public void testUpdateSettingPolicyToDuplicateName() throws Exception {
+        final SettingPolicy policy = settingStore.createSettingPolicy(info);
+
+        // Make sure there is another setting policy with the same name as the updated info.
+        settingStore.createSettingPolicy(
+            SettingPolicyInfo.newBuilder()
+                .setName(updatedInfo.getName())
+                .build());
+
+        settingStore.updateSettingPolicy(policy.getId(), updatedInfo);
+    }
+
+    @Test
+    public void testCreateAndGetDefaultSettingPolicy() throws Exception {
+        when(identityProviderSpy.next()).thenReturn(7L);
+        final SettingPolicy policy =
+                settingStore.internalCreateSettingPolicy(info, Type.DEFAULT);
+        assertEquals(7L, policy.getId());
+        assertEquals(info, policy.getInfo());
+        assertEquals(Type.DEFAULT, policy.getSettingPolicyType());
+
+        final Optional<SettingPolicy> gotPolicy =
+                settingStore.getSettingPolicy(policy.getId());
+        assertTrue(gotPolicy.isPresent());
+        assertEquals(policy, gotPolicy.get());
+    }
+
+    @Test
+    public void testUpdateDefaultSettingPolicy() throws Exception {
+        final SettingPolicyInfo updatedInfo = info.toBuilder()
+            .addSettings(Setting.newBuilder()
+                    .setSettingSpecName("set me")
+                    .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance()))
+            .build();
+        final SettingPolicy policy =
+                settingStore.internalCreateSettingPolicy(info, Type.DEFAULT);
+        final SettingPolicy updatedPolicy = settingStore.updateSettingPolicy(policy.getId(),
+            updatedInfo);
+
+        assertEquals(updatedInfo, updatedPolicy.getInfo());
+        assertEquals(policy.getId(), updatedPolicy.getId());
+
+        final Optional<SettingPolicy> gotPolicy =
+                settingStore.getSettingPolicy(updatedPolicy.getId());
+        assertTrue(gotPolicy.isPresent());
+        assertEquals(updatedPolicy, gotPolicy.get());
+    }
+
+    @Test(expected = InvalidSettingPolicyException.class)
+    public void testUpdateDefaultSettingPolicyChangeEntityTypeFail() throws Exception {
+        final SettingPolicy policy =
+                settingStore.internalCreateSettingPolicy(info, Type.DEFAULT);
+        settingStore.updateSettingPolicy(policy.getId(),
+                policy.getInfo().toBuilder().setEntityType(9001).build());
+    }
+
+    @Test(expected = InvalidSettingPolicyException.class)
+    public void testUpdateDefaultSettingPolicyChangeNameFail() throws Exception {
+        final SettingPolicy policy =
+                settingStore.internalCreateSettingPolicy(info, Type.DEFAULT);
+        settingStore.updateSettingPolicy(policy.getId(),
+                policy.getInfo().toBuilder().setName("blah").build());
     }
 
     @Test
@@ -577,4 +680,5 @@ public class SettingStoreTest {
         // Next iteration should succeed.
         assertFalse(creator.runIteration());
     }
+
 }

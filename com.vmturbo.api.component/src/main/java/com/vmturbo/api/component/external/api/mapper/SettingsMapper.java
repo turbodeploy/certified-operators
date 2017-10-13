@@ -22,6 +22,9 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Sets;
+
+import io.grpc.Channel;
 
 import com.vmturbo.api.dto.GroupApiDTO;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
@@ -30,7 +33,11 @@ import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
 import com.vmturbo.api.dto.setting.SettingsPolicyApiDTO;
 import com.vmturbo.api.enums.InputValueType;
 import com.vmturbo.api.enums.SettingScope;
+import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.common.protobuf.SettingDTOUtil;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.EntityTypeSet;
@@ -40,6 +47,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.Scope;
+import com.vmturbo.common.protobuf.setting.SettingProto.SearchSettingSpecsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingCategoryPath.SettingCategoryPathNode;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
@@ -48,6 +56,8 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValueType;
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.GsonPostProcessable;
 
@@ -67,16 +77,31 @@ public class SettingsMapper {
 
     private final SettingSpecMapper settingSpecMapper;
 
-    public SettingsMapper(@Nonnull final String specJsonFile) {
+    private final SettingPolicyMapper settingPolicyMapper;
+
+    private final GroupServiceBlockingStub groupService;
+
+    private final SettingServiceBlockingStub settingService;
+
+    public SettingsMapper(@Nonnull final String specJsonFile,
+                          @Nonnull final Channel groupComponentChannel) {
         this.managerMapping = loadManagerMappings(specJsonFile);
         this.settingSpecMapper = new DefaultSettingSpecMapper();
+        this.settingPolicyMapper = new DefaultSettingPolicyMapper(this);
+        this.groupService = GroupServiceGrpc.newBlockingStub(groupComponentChannel);
+        this.settingService = SettingServiceGrpc.newBlockingStub(groupComponentChannel);
     }
 
     @VisibleForTesting
     SettingsMapper(@Nonnull final SettingManagerMapping managerMapping,
-                  @Nonnull final SettingSpecMapper specMapper) {
+                   @Nonnull final SettingSpecMapper specMapper,
+                   @Nonnull final SettingPolicyMapper policyMapper,
+                   @Nonnull final Channel groupComponentChannel) {
         this.managerMapping = managerMapping;
         this.settingSpecMapper = specMapper;
+        this.settingPolicyMapper = policyMapper;
+        this.groupService = GroupServiceGrpc.newBlockingStub(groupComponentChannel);
+        this.settingService = SettingServiceGrpc.newBlockingStub(groupComponentChannel);
     }
 
     @Nonnull
@@ -155,21 +180,39 @@ public class SettingsMapper {
      * a matching {@link SettingPolicyInfo} that can be used inside XL.
      *
      * @param apiInputPolicy The {@link SettingsPolicyApiDTO} received from the user.
-     * @param specsByName A list of {@link SettingSpec}s arranged by name. Required to figure out
-     *                    how to interpret some data in the input.
      * @return The {@link SettingPolicyInfo} representing the input DTO for internal XL
      *         communication.
      */
     @Nonnull
-    public SettingPolicyInfo convertInputPolicy(@Nonnull final SettingsPolicyApiDTO apiInputPolicy,
-                                                @Nonnull final Map<String, SettingSpec> specsByName) {
+    public SettingPolicyInfo convertInputPolicy(@Nonnull final SettingsPolicyApiDTO apiInputPolicy)
+            throws InvalidOperationException {
+        final Map<String, SettingSpec> specsByName = new HashMap<>();
+        if (apiInputPolicy.getSettingsManagers() != null) {
+            final Set<String> involvedSettings = apiInputPolicy.getSettingsManagers().stream()
+                    .filter(settingMgr -> settingMgr.getSettings() != null)
+                    .flatMap(settingMgr -> settingMgr.getSettings().stream())
+                    .map(SettingApiDTO::getUuid)
+                    .collect(Collectors.toSet());
+
+            if (!involvedSettings.isEmpty()) {
+                settingService.searchSettingSpecs(SearchSettingSpecsRequest.newBuilder()
+                        .addAllSettingSpecName(involvedSettings)
+                        .build())
+                        .forEachRemaining(spec -> specsByName.put(spec.getName(), spec));
+            }
+
+            // Technically this shouldn't happen because we only return settings we support
+            // from the SettingsService.
+            if (!specsByName.keySet().equals(involvedSettings)) {
+                throw new InvalidOperationException("Attempted to create a settings policy with " +
+                        "invalid specs: " + Sets.difference(involvedSettings, specsByName.keySet()));
+            }
+        }
+
         final SettingPolicyInfo.Builder infoBuilder = SettingPolicyInfo.newBuilder()
             .setName(apiInputPolicy.getDisplayName());
 
-        if (apiInputPolicy.isDefault()) {
-            // We don't allow the creation of default policies.
-            throw new IllegalArgumentException("Default policies cannot be created.");
-        } else {
+        if (!apiInputPolicy.isDefault() && apiInputPolicy.getScopes() != null) {
             final Scope.Builder scopeBuilder = Scope.newBuilder();
             apiInputPolicy.getScopes().stream()
                     .map(GroupApiDTO::getUuid)
@@ -229,126 +272,53 @@ public class SettingsMapper {
     }
 
     /**
-     * Convert a {@link SettingPolicy} to a {@link SettingsPolicyApiDTO} that can be returned
-     * to API clients.
+     * Convert a list of {@link SettingPolicy} objects to {@link SettingsPolicyApiDTO}s that
+     * can be returned to API clients.
      *
-     * @param settingPolicy The {@link SettingPolicy}.
-     * @param groupNames A map of group names containing all groups the policy is scoped to. This
-     *                   is required to set the display names of the groups (which the API needs).
-     *                   Group IDs that are not found in the map will not be included in the
-     *                   resulting {@link SettingsPolicyApiDTO}.
-     * @return The resulting {@link SettingsPolicyApiDTO}.
+     * @param settingPolicies The setting policies retrieved from the group components.
+     * @return A list of {@link SettingsPolicyApiDTO} objects in the same order as the input list.
      */
-    @Nonnull
-    public SettingsPolicyApiDTO convertSettingsPolicy(
-            @Nonnull final SettingPolicy settingPolicy,
-            @Nonnull final Map<Long, String> groupNames) {
-        final SettingsPolicyApiDTO apiDto = new SettingsPolicyApiDTO();
-        apiDto.setUuid(Long.toString(settingPolicy.getId()));
-
-        final SettingPolicyInfo info = settingPolicy.getInfo();
-        apiDto.setDisplayName(info.getName());
-        apiDto.setEntityType(ServiceEntityMapper.toUIEntityType(info.getEntityType()));
-        apiDto.setDisabled(!info.getEnabled());
-        apiDto.setDefault(settingPolicy.getSettingPolicyType().equals(Type.DEFAULT));
-
-        if (info.hasScope()) {
-            apiDto.setScopes(info.getScope().getGroupsList().stream()
-                .map(groupId -> {
-                    String groupName = groupNames.get(groupId);
-                    if (groupName != null) {
-                        GroupApiDTO group = new GroupApiDTO();
-                        group.setUuid(Long.toString(groupId));
-                        group.setDisplayName(groupName);
-                        return Optional.of(group);
-                    } else {
-                        logger.warn("Group {} in scope of policy {} not found!", groupId,
-                                info.getName());
-                        return Optional.<GroupApiDTO>empty();
-                    }
-                })
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .collect(Collectors.toList()));
+    public List<SettingsPolicyApiDTO> convertSettingPolicies(
+            @Nonnull final List<SettingPolicy> settingPolicies) {
+        final Set<Long> involvedGroups = SettingDTOUtil.getInvolvedGroups(settingPolicies);
+        final Map<Long, String> groupNames = new HashMap<>();
+        if (!involvedGroups.isEmpty()) {
+            groupService.getGroups(GetGroupsRequest.newBuilder()
+                    .addAllId(involvedGroups)
+                    .build())
+                    .forEachRemaining(group -> groupNames.put(group.getId(),
+                            group.getInfo().getName()));
         }
 
-        // Do the actual settings mapping.
-        final Map<String, List<Setting>> settingsByMgr = info.getSettingsList().stream()
-                .collect(Collectors.groupingBy(setting ->
-                            managerMapping.getManagerUuid(setting.getSettingSpecName())
-                        .orElse(NO_MANAGER)));
-
-        final List<Setting> unhandledSettings = settingsByMgr.get(NO_MANAGER);
-        if (unhandledSettings != null && !unhandledSettings.isEmpty()) {
-            logger.warn("The following settings don't have a mapping in the API component." +
-                    " Not returning them to the user. Settings: {}", unhandledSettings.stream()
-                        .map(Setting::getSettingSpecName)
-                        .collect(Collectors.toSet()));
-        }
-
-        apiDto.setSettingsManagers(settingsByMgr.entrySet().stream()
-                // Don't return the specs that don't have a Manager mapping
-                .filter(entry -> !entry.getKey().equals(NO_MANAGER))
-                .map(entry -> {
-                    final SettingManagerInfo mgrInfo = managerMapping.getManagerInfo(entry.getKey())
-                            .orElseThrow(() -> new IllegalStateException("Manager ID " +
-                                    entry.getKey() + " not found despite being in the mappings earlier."));
-                    return createValMgrDto(entry.getKey(), mgrInfo, entry.getValue());
-                })
-                .collect(Collectors.toList()));
-
-        return apiDto;
+        return settingPolicies.stream()
+            .map(policy -> settingPolicyMapper.convertSettingPolicy(policy, groupNames))
+            .collect(Collectors.toList());
     }
 
     /**
-     * Create a {@link SettingsManagerApiDTO} containing setting values to return to the API.
-     * This will be a "thinner" manager - all the settings will only have the UUIDs and values.
+     * Convert a {@link SettingPolicy} object to a {@link SettingsPolicyApiDTO} that can
+     * be returned to API clients.
      *
-     * @param mgrId The ID of the setting manager.
-     * @param mgrInfo The {@link SettingManagerInfo} for the manager.
-     * @param settings The {@link Setting} objects containing setting values. All of these settings
-     *                 should be "managed" by this manager, but this method does not check.
-     * @return The {@link SettingsManagerApiDTO}.
+     * @param settingPolicy The setting policy retrieved from the group component.
+     * @return The list of {@link SettingsPolicyApiDTO}
      */
-    @Nonnull
-    @VisibleForTesting
-    SettingsManagerApiDTO createValMgrDto(@Nonnull final String mgrId,
-                                          @Nonnull final SettingManagerInfo mgrInfo,
-                                          @Nonnull final Collection<Setting> settings) {
-        final SettingsManagerApiDTO mgrApiDto = new SettingsManagerApiDTO();
-        mgrApiDto.setUuid(mgrId);
-        mgrApiDto.setDisplayName(mgrInfo.getDisplayName());
-        mgrApiDto.setCategory(mgrInfo.getDefaultCategory());
-
-        mgrApiDto.setSettings(settings.stream()
-                .map(setting -> {
-                    final SettingApiDTO apiDto = new SettingApiDTO();
-                    apiDto.setUuid(setting.getSettingSpecName());
-                    switch (setting.getValueCase()) {
-                        case BOOLEAN_SETTING_VALUE:
-                            apiDto.setValue(Boolean.toString(setting.getBooleanSettingValue().getValue()));
-                            break;
-                        case NUMERIC_SETTING_VALUE:
-                            apiDto.setValue(Float.toString(setting.getNumericSettingValue().getValue()));
-                            break;
-                        case STRING_SETTING_VALUE:
-                            apiDto.setValue(setting.getStringSettingValue().getValue());
-                            break;
-                        case ENUM_SETTING_VALUE:
-                            apiDto.setValue(setting.getEnumSettingValue().getValue());
-                            break;
-                    }
-                    return apiDto;
-                })
-                .collect(Collectors.toList()));
-        return mgrApiDto;
+    public SettingsPolicyApiDTO convertSettingPolicy(
+            @Nonnull final SettingPolicy settingPolicy) {
+        return convertSettingPolicies(Collections.singletonList(settingPolicy)).get(0);
     }
+
+    @VisibleForTesting
+    SettingManagerMapping getManagerMapping() {
+        return managerMapping;
+    }
+
 
     /**
      * Create a {@link SettingsManagerApiDTO} containing information about settings, but not their
      * values. This will be a "thicker" manager than the one created by
-     * {@link SettingsMapper#createValMgrDto(String, SettingManagerInfo, Collection)}, but none
-     * of the settings will have values (since this is only a description of what the settings are).
+     * {@link DefaultSettingPolicyMapper#createValMgrDto(String, SettingManagerInfo, Collection)},
+     * but none of the settings will have values (since this is only a description of what the
+     * settings are).
      *
      * @param mgrId The ID of the manager.
      * @param info The information about the manager.
@@ -374,7 +344,7 @@ public class SettingsMapper {
 
     /**
      * Infer the entity type based on the list of specs a policy applies to. Extracted from
-     * {@link SettingsMapper#convertInputPolicy(SettingsPolicyApiDTO, Map)} for easier testing.
+     * {@link SettingsMapper#convertInputPolicy(SettingsPolicyApiDTO)} for easier testing.
      * This is built on the assumption that, as in legacy, entity types can be inferred from the
      * settings. That assumption is not necessarily true in XL, but it will be true for the settings
      * we migrate from legacy.
@@ -399,6 +369,146 @@ public class SettingsMapper {
         }
         // At this point, we expect exactly one entity type.
         return entityTypesOpt.get().iterator().next();
+    }
+
+    /**
+     * A functional interface to allow separate testing for the actual conversion, and the
+     * code preceding the conversion (e.g. getting the involved groups).
+     */
+    @FunctionalInterface
+    @VisibleForTesting
+    interface SettingPolicyMapper {
+        /**
+         * Convert a {@link SettingPolicy} to a {@link SettingsPolicyApiDTO} that can be returned
+         * to API clients.
+         *
+         * @param settingPolicy The {@link SettingPolicy}.
+         * @param groupNames A map of group names containing all groups the policy is scoped to. This
+         *                   is required to set the display names of the groups (which the API needs).
+         *                   Group IDs that are not found in the map will not be included in the
+         *                   resulting {@link SettingsPolicyApiDTO}.
+         * @return The resulting {@link SettingsPolicyApiDTO}.
+         */
+        SettingsPolicyApiDTO convertSettingPolicy(@Nonnull final SettingPolicy settingPolicy,
+                                                  @Nonnull final Map<Long, String> groupNames);
+    }
+
+    /**
+     * The default/actual implementation of {@link SettingPolicyMapper}.
+     */
+    static class DefaultSettingPolicyMapper implements SettingPolicyMapper {
+
+        private final SettingsMapper mapper;
+
+        DefaultSettingPolicyMapper(@Nonnull final SettingsMapper mapper) {
+            this.mapper = mapper;
+        }
+
+        @Override
+        public SettingsPolicyApiDTO convertSettingPolicy(@Nonnull final SettingPolicy settingPolicy,
+                                                         @Nonnull final Map<Long, String> groupNames) {
+            final SettingsPolicyApiDTO apiDto = new SettingsPolicyApiDTO();
+            apiDto.setUuid(Long.toString(settingPolicy.getId()));
+
+            final SettingPolicyInfo info = settingPolicy.getInfo();
+            apiDto.setDisplayName(info.getName());
+            apiDto.setEntityType(ServiceEntityMapper.toUIEntityType(info.getEntityType()));
+            apiDto.setDisabled(!info.getEnabled());
+            apiDto.setDefault(settingPolicy.getSettingPolicyType().equals(Type.DEFAULT));
+
+            if (info.hasScope()) {
+                apiDto.setScopes(info.getScope().getGroupsList().stream()
+                        .map(groupId -> {
+                            String groupName = groupNames.get(groupId);
+                            if (groupName != null) {
+                                GroupApiDTO group = new GroupApiDTO();
+                                group.setUuid(Long.toString(groupId));
+                                group.setDisplayName(groupName);
+                                return Optional.of(group);
+                            } else {
+                                logger.warn("Group {} in scope of policy {} not found!", groupId,
+                                        info.getName());
+                                return Optional.<GroupApiDTO>empty();
+                            }
+                        })
+                        .filter(Optional::isPresent)
+                        .map(Optional::get)
+                        .collect(Collectors.toList()));
+            }
+
+            final SettingManagerMapping managerMapping = mapper.getManagerMapping();
+
+            // Do the actual settings mapping.
+            final Map<String, List<Setting>> settingsByMgr = info.getSettingsList().stream()
+                    .collect(Collectors.groupingBy(setting ->
+                            managerMapping.getManagerUuid(setting.getSettingSpecName())
+                                    .orElse(NO_MANAGER)));
+
+            final List<Setting> unhandledSettings = settingsByMgr.get(NO_MANAGER);
+            if (unhandledSettings != null && !unhandledSettings.isEmpty()) {
+                logger.warn("The following settings don't have a mapping in the API component." +
+                        " Not returning them to the user. Settings: {}", unhandledSettings.stream()
+                        .map(Setting::getSettingSpecName)
+                        .collect(Collectors.toSet()));
+            }
+
+            apiDto.setSettingsManagers(settingsByMgr.entrySet().stream()
+                    // Don't return the specs that don't have a Manager mapping
+                    .filter(entry -> !entry.getKey().equals(NO_MANAGER))
+                    .map(entry -> {
+                        final SettingManagerInfo mgrInfo = managerMapping.getManagerInfo(entry.getKey())
+                                .orElseThrow(() -> new IllegalStateException("Manager ID " +
+                                        entry.getKey() + " not found despite being in the mappings earlier."));
+                        return createValMgrDto(entry.getKey(), mgrInfo, entry.getValue());
+                    })
+                    .collect(Collectors.toList()));
+
+            return apiDto;
+        }
+
+        /**
+         * Create a {@link SettingsManagerApiDTO} containing setting values to return to the API.
+         * This will be a "thinner" manager - all the settings will only have the UUIDs and values.
+         *
+         * @param mgrId The ID of the setting manager.
+         * @param mgrInfo The {@link SettingManagerInfo} for the manager.
+         * @param settings The {@link Setting} objects containing setting values. All of these settings
+         *                 should be "managed" by this manager, but this method does not check.
+         * @return The {@link SettingsManagerApiDTO}.
+         */
+        @Nonnull
+        @VisibleForTesting
+        SettingsManagerApiDTO createValMgrDto(@Nonnull final String mgrId,
+                                              @Nonnull final SettingManagerInfo mgrInfo,
+                                              @Nonnull final Collection<Setting> settings) {
+            final SettingsManagerApiDTO mgrApiDto = new SettingsManagerApiDTO();
+            mgrApiDto.setUuid(mgrId);
+            mgrApiDto.setDisplayName(mgrInfo.getDisplayName());
+            mgrApiDto.setCategory(mgrInfo.getDefaultCategory());
+
+            mgrApiDto.setSettings(settings.stream()
+                    .map(setting -> {
+                        final SettingApiDTO apiDto = new SettingApiDTO();
+                        apiDto.setUuid(setting.getSettingSpecName());
+                        switch (setting.getValueCase()) {
+                            case BOOLEAN_SETTING_VALUE:
+                                apiDto.setValue(Boolean.toString(setting.getBooleanSettingValue().getValue()));
+                                break;
+                            case NUMERIC_SETTING_VALUE:
+                                apiDto.setValue(Float.toString(setting.getNumericSettingValue().getValue()));
+                                break;
+                            case STRING_SETTING_VALUE:
+                                apiDto.setValue(setting.getStringSettingValue().getValue());
+                                break;
+                            case ENUM_SETTING_VALUE:
+                                apiDto.setValue(setting.getEnumSettingValue().getValue());
+                                break;
+                        }
+                        return apiDto;
+                    })
+                    .collect(Collectors.toList()));
+            return mgrApiDto;
+        }
     }
 
     /**

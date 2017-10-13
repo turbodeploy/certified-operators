@@ -368,6 +368,23 @@ message GetSettingPolicyResponse {
     repeated SettingSpec setting_specs = 2;
 }
 
+message UpdateSettingPolicyRequest {
+    // The ID of the setting policy to edit.
+    // This should be set.
+    optional int64 id = 1;
+
+    // The updated SettingPolicyInfo to use for the setting policy.
+    // This info will completely override the existing
+    // info of the setting policy. Therefore it needs to be valid, with all relevant
+    // fields filled out.
+    optional SettingPolicyInfo new_info = 2;
+}
+
+message UpdateSettingPolicyResponse {
+    // The updated setting policy.
+    optional SettingPolicy setting_policy = 1;
+}
+
 // List the created SettingPolicies.
 // The SettingSpecs associated with the settings in the returned SettingPolicies
 // should be retrieved in a separate call.
@@ -383,6 +400,13 @@ service SettingPolicyService {
     // will return a INVALID_ARGUMENT status.
     // If a setting policy of the same name already exists, this will return a ALREADY_EXIST status.
     rpc CreateSettingPolicy (CreateSettingPolicyRequest) returns (CreateSettingPolicyResponse);
+
+    // Update an existing setting policy.
+    //
+    // If the setting policy is not found, this will return a NOT_FOUND status.
+    // If the edited setting policy is invalid, this will return an INVALID_ARGUMENT status.
+    // If a setting policy of the same name already exists, this will return an ALREADY_EXIST status.
+    rpc UpdateSettingPolicy(UpdateSettingPolicyRequest) returns (UpdateSettingPolicyResponse);
 
     // Fetch a specific SettingPolicy by its id or name.
     // If the SettingPolicy is not found, it will not be set in the response.

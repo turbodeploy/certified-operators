@@ -9,6 +9,9 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
@@ -19,13 +22,20 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
+import io.grpc.stub.StreamObserver;
+
+import com.vmturbo.api.component.external.api.mapper.SettingsMapper.DefaultSettingPolicyMapper;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper.DefaultSettingSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingManagerInfo;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingManagerMapping;
+import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingPolicyMapper;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingSpecMapper;
 import com.vmturbo.api.dto.GroupApiDTO;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
@@ -33,6 +43,11 @@ import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
 import com.vmturbo.api.dto.setting.SettingsPolicyApiDTO;
 import com.vmturbo.api.enums.InputValueType;
 import com.vmturbo.api.enums.SettingScope;
+import com.vmturbo.api.exceptions.InvalidOperationException;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceImplBase;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
@@ -45,6 +60,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.GlobalSettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.Scope;
+import com.vmturbo.common.protobuf.setting.SettingProto.SearchSettingSpecsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingCategoryPath;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingCategoryPath.SettingCategoryPathNode;
@@ -55,6 +71,8 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingTiebreaker;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValueType;
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceImplBase;
+import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class SettingsMapperTest {
@@ -89,13 +107,30 @@ public class SettingsMapperTest {
     private final SettingManagerInfo mgr1Info = new SettingManagerInfo(mgrName1, mgrCategory1,
                 Collections.singleton(settingSpec1.getName()));
 
+    private GrpcTestServer grpcServer;
+
+    private final TestGroupService groupBackend = spy(new TestGroupService());
+
+    private final TestSettingService settingBackend = spy(new TestSettingService());
+
+    @Before
+    public void setup() throws Exception {
+        grpcServer = GrpcTestServer.withServices(groupBackend, settingBackend);
+    }
+
+    @After
+    public void teardown() {
+        grpcServer.close();
+    }
+
     /**
      * Verify that a manager loaded from JSON file gets used to map
      * a setting spec as expected.
      */
     @Test
     public void testLoadEndToEnd() {
-        SettingsMapper mapper = new SettingsMapper("settingManagersTest.json");
+        SettingsMapper mapper = new SettingsMapper("settingManagersTest.json",
+                grpcServer.getChannel());
 
         final List<SettingsManagerApiDTO> ret =
                 mapper.toManagerDtos(Collections.singletonList(settingSpec1));
@@ -127,18 +162,20 @@ public class SettingsMapperTest {
 
     @Test
     public void testToMgrDto() {
-        SettingManagerMapping mapping = mock(SettingManagerMapping.class);
-        SettingSpecMapper specMapper = mock(SettingSpecMapper.class);
+        final SettingManagerMapping mapping = mock(SettingManagerMapping.class);
+        final SettingSpecMapper specMapper = mock(SettingSpecMapper.class);
+        final SettingPolicyMapper policyMapper = mock(SettingPolicyMapper.class);
         when(mapping.getManagerInfo(mgrId1))
             .thenReturn(Optional.of(new SettingManagerInfo(mgrName1, mgrCategory1,
                     Collections.singleton(settingSpec1.getName()))));
         when(mapping.getManagerUuid(settingSpec1.getName())).thenReturn(Optional.of(mgrId1));
 
-        SettingApiDTO settingApiDTO = new SettingApiDTO();
+        final SettingApiDTO settingApiDTO = new SettingApiDTO();
         settingApiDTO.setDisplayName("mockSetting");
         when(specMapper.settingSpecToApi(settingSpec1)).thenReturn(Optional.of(settingApiDTO));
 
-        SettingsMapper mapper = new SettingsMapper(mapping,  specMapper);
+        final SettingsMapper mapper = new SettingsMapper(mapping, specMapper,
+                policyMapper, grpcServer.getChannel());
         Optional<SettingsManagerApiDTO> mgrDtoOpt =
                 mapper.toManagerDto(Collections.singletonList(settingSpec1), mgrId1);
         assertTrue(mgrDtoOpt.isPresent());
@@ -152,25 +189,29 @@ public class SettingsMapperTest {
 
     @Test
     public void testMgrDtoNoMgr() {
-        SettingManagerMapping mapping = mock(SettingManagerMapping.class);
-        SettingSpecMapper specMapper = mock(SettingSpecMapper.class);
+        final SettingManagerMapping mapping = mock(SettingManagerMapping.class);
+        final SettingSpecMapper specMapper = mock(SettingSpecMapper.class);
+        final SettingPolicyMapper policyMapper = mock(SettingPolicyMapper.class);
         when(mapping.getManagerInfo(mgrId1)).thenReturn(Optional.empty());
         when(mapping.getManagerUuid(any())).thenReturn(Optional.empty());
-        SettingsMapper mapper = new SettingsMapper(mapping, specMapper);
+        final SettingsMapper mapper = new SettingsMapper(mapping, specMapper,
+                policyMapper, grpcServer.getChannel());
         assertFalse(mapper.toManagerDto(Collections.singleton(settingSpec1), mgrId1).isPresent());
     }
 
     @Test
     public void testMgrDtoNoSetting() {
-        SettingManagerMapping mapping = mock(SettingManagerMapping.class);
-        SettingSpecMapper specMapper = mock(SettingSpecMapper.class);
+        final SettingManagerMapping mapping = mock(SettingManagerMapping.class);
+        final SettingSpecMapper specMapper = mock(SettingSpecMapper.class);
+        final SettingPolicyMapper policyMapper = mock(SettingPolicyMapper.class);
         when(mapping.getManagerInfo(mgrId1))
                 .thenReturn(Optional.of(new SettingManagerInfo(mgrName1, mgrCategory1,
                         Collections.emptySet())));
         when(mapping.getManagerUuid(settingSpec1.getName())).thenReturn(Optional.empty());
         when(mapping.getManagerUuid(settingSpec2.getName())).thenReturn(Optional.of(mgrId1 + "suffix"));
 
-        SettingsMapper mapper = new SettingsMapper(mapping,  specMapper);
+        final SettingsMapper mapper = new SettingsMapper(mapping, specMapper,
+                policyMapper, grpcServer.getChannel());
         Optional<SettingsManagerApiDTO> mgrDtoOpt =
                 mapper.toManagerDto(Arrays.asList(settingSpec1, settingSpec2), mgrId1);
         assertTrue(mgrDtoOpt.isPresent());
@@ -185,6 +226,7 @@ public class SettingsMapperTest {
     public void testMgrDtos() {
         final SettingManagerMapping mapping = mock(SettingManagerMapping.class);
         final SettingSpecMapper specMapper = mock(SettingSpecMapper.class);
+        final SettingPolicyMapper policyMapper = mock(SettingPolicyMapper.class);
 
         final SettingApiDTO settingApiDTO1 = new SettingApiDTO();
         settingApiDTO1.setDisplayName("mockSetting1");
@@ -202,7 +244,8 @@ public class SettingsMapperTest {
         when(specMapper.settingSpecToApi(settingSpec1)).thenReturn(Optional.of(settingApiDTO1));
         when(specMapper.settingSpecToApi(settingSpec2)).thenReturn(Optional.of(settingApiDTO2));
 
-        final SettingsMapper mapper = new SettingsMapper(mapping,  specMapper);
+        final SettingsMapper mapper =
+                new SettingsMapper(mapping, specMapper, policyMapper, grpcServer.getChannel());
         final Map<String, SettingsManagerApiDTO> results = mapper.toManagerDtos(
                 Arrays.asList(settingSpec1, settingSpec2)).stream()
             .collect(Collectors.toMap(SettingsManagerApiDTO::getUuid, Function.identity()));
@@ -228,7 +271,9 @@ public class SettingsMapperTest {
     public void testMgrDtosUnhandledSpecs() {
         final SettingManagerMapping mapping = mock(SettingManagerMapping.class);
         final SettingSpecMapper specMapper = mock(SettingSpecMapper.class);
-        final SettingsMapper mapper = new SettingsMapper(mapping,  specMapper);
+        final SettingPolicyMapper policyMapper = mock(SettingPolicyMapper.class);
+        final SettingsMapper mapper =
+                new SettingsMapper(mapping,  specMapper, policyMapper, grpcServer.getChannel());
         when(mapping.getManagerUuid(settingSpec1.getName())).thenReturn(Optional.empty());
         assertTrue(mapper.toManagerDtos(Collections.singleton(settingSpec1)).isEmpty());
     }
@@ -327,27 +372,13 @@ public class SettingsMapperTest {
         assertEquals(ServiceEntityMapper.toUIEntityType(10), dto.getEntityType());
     }
 
-    @Test(expected = IllegalArgumentException.class)
-    public void testMapInputPolicyDefault() {
-        final SettingManagerMapping mapping = mock(SettingManagerMapping.class);
-        final SettingSpecMapper specMapper = mock(SettingSpecMapper.class);
-        final SettingsMapper mapper = new SettingsMapper(mapping,  specMapper);
-
-        final SettingsPolicyApiDTO settingsPolicyApiDTO = new SettingsPolicyApiDTO();
-        settingsPolicyApiDTO.setDisplayName("Test");
-        settingsPolicyApiDTO.setDefault(true);
-        settingsPolicyApiDTO.setEntityType(
-                ServiceEntityMapper.toUIEntityType(EntityType.VIRTUAL_MACHINE.getNumber()));
-
-        SettingPolicyInfo info =
-                mapper.convertInputPolicy(settingsPolicyApiDTO, Collections.emptyMap());
-    }
-
     @Test
-    public void testMapInputPolicy() {
+    public void testMapInputPolicy() throws InvalidOperationException {
         final SettingManagerMapping mapping = mock(SettingManagerMapping.class);
         final SettingSpecMapper specMapper = mock(SettingSpecMapper.class);
-        final SettingsMapper mapper = new SettingsMapper(mapping,  specMapper);
+        final SettingPolicyMapper policyMapper = mock(SettingPolicyMapper.class);
+        final SettingsMapper mapper =
+                new SettingsMapper(mapping,  specMapper, policyMapper, grpcServer.getChannel());
 
         final SettingsPolicyApiDTO settingsPolicyApiDTO = new SettingsPolicyApiDTO();
 
@@ -383,16 +414,23 @@ public class SettingsMapperTest {
                 .setEnumSettingValue(EnumSettingValue.newBuilder().setValue("VAL"))
                 .build();
 
-        final Map<String, SettingSpec> specMap = ImmutableMap.<String, SettingSpec>builder()
-            .put(boolSetting.getUuid(), SettingSpec.newBuilder()
-                .setBooleanSettingValueType(BooleanSettingValueType.getDefaultInstance()).build())
-            .put(numSetting.getUuid(), SettingSpec.newBuilder()
-                .setNumericSettingValueType(NumericSettingValueType.getDefaultInstance()).build())
-            .put(stringSetting.getUuid(), SettingSpec.newBuilder()
-                .setStringSettingValueType(StringSettingValueType.getDefaultInstance()).build())
-            .put(enumSetting.getUuid(), SettingSpec.newBuilder()
-                .setEnumSettingValueType(EnumSettingValueType.getDefaultInstance()).build())
-            .build();
+        when(settingBackend.searchSettingSpecs(any())).thenReturn(ImmutableList.of(
+            SettingSpec.newBuilder()
+                .setName(boolSetting.getUuid())
+                .setBooleanSettingValueType(BooleanSettingValueType.getDefaultInstance())
+                .build(),
+            SettingSpec.newBuilder()
+                .setName(numSetting.getUuid())
+                .setNumericSettingValueType(NumericSettingValueType.getDefaultInstance())
+                .build(),
+            SettingSpec.newBuilder()
+                .setName(stringSetting.getUuid())
+                .setStringSettingValueType(StringSettingValueType.getDefaultInstance())
+                .build(),
+            SettingSpec.newBuilder()
+                .setName(enumSetting.getUuid())
+                .setEnumSettingValueType(EnumSettingValueType.getDefaultInstance())
+                .build()));
 
         final SettingsManagerApiDTO settingMgr1 = new SettingsManagerApiDTO();
         settingMgr1.setSettings(Arrays.asList(boolSetting, numSetting));
@@ -412,7 +450,7 @@ public class SettingsMapperTest {
                 EntityType.VIRTUAL_MACHINE.getNumber()));
         settingsPolicyApiDTO.setDisabled(false);
 
-        final SettingPolicyInfo info = mapper.convertInputPolicy(settingsPolicyApiDTO, specMap);
+        final SettingPolicyInfo info = mapper.convertInputPolicy(settingsPolicyApiDTO);
         assertEquals(settingsPolicyApiDTO.getDisplayName(), info.getName());
         assertEquals(EntityType.VIRTUAL_MACHINE.getNumber(), info.getEntityType());
         assertEquals(true, info.getEnabled());
@@ -423,11 +461,29 @@ public class SettingsMapperTest {
                         strSettingProto, enumSettingProto));
     }
 
+    @Test(expected = InvalidOperationException.class)
+    public void testInputPolicyNoSpecs() throws InvalidOperationException {
+        final SettingManagerMapping mapping = mock(SettingManagerMapping.class);
+        final SettingSpecMapper specMapper = mock(SettingSpecMapper.class);
+        final SettingPolicyMapper policyMapper = mock(SettingPolicyMapper.class);
+        final SettingsMapper mapper =
+                new SettingsMapper(mapping,  specMapper, policyMapper, grpcServer.getChannel());
+
+        final SettingsPolicyApiDTO inputDto = new SettingsPolicyApiDTO();
+        final SettingsManagerApiDTO mgrDto = new SettingsManagerApiDTO();
+        final SettingApiDTO setting = new SettingApiDTO();
+        setting.setUuid("testSetting");
+        mgrDto.setSettings(Collections.singletonList(setting));
+        inputDto.setSettingsManagers(Collections.singletonList(mgrDto));
+
+        mapper.convertInputPolicy(inputDto);
+    }
+
     @Test
     public void testMapPolicyInfoToApiDto() {
         final SettingManagerMapping mapping = mock(SettingManagerMapping.class);
-        final SettingSpecMapper specMapper = mock(SettingSpecMapper.class);
-        final SettingsMapper mapper = new SettingsMapper(mapping,  specMapper);
+        final SettingsMapper mapper = mock(SettingsMapper.class);
+        final DefaultSettingPolicyMapper policyMapper = new DefaultSettingPolicyMapper(mapper);
 
         final long groupId = 7;
         final String groupName = "goat";
@@ -447,12 +503,13 @@ public class SettingsMapperTest {
                                     .setValue("AUTOMATIC"))))
                 .build();
 
+        when(mapper.getManagerMapping()).thenReturn(mapping);
         when(mapping.getManagerUuid(eq(settingSpec1.getName()))).thenReturn(Optional.of(mgrId1));
         when(mapping.getManagerInfo(mgrId1))
                 .thenReturn(Optional.of(mgr1Info));
 
         final SettingsPolicyApiDTO retDto =
-                mapper.convertSettingsPolicy(settingPolicy, ImmutableMap.of(groupId, groupName));
+                policyMapper.convertSettingPolicy(settingPolicy, ImmutableMap.of(groupId, groupName));
         assertEquals("foo", retDto.getDisplayName());
         assertEquals("1", retDto.getUuid());
         assertFalse(retDto.getDisabled());
@@ -471,16 +528,16 @@ public class SettingsMapperTest {
 
     @Test
     public void testValMgrDtoEnum() {
-        final SettingManagerMapping mapping = mock(SettingManagerMapping.class);
-        final SettingSpecMapper specMapper = mock(SettingSpecMapper.class);
-        final SettingsMapper mapper = new SettingsMapper(mapping,  specMapper);
+        final SettingsMapper mapper = mock(SettingsMapper.class);
+        final DefaultSettingPolicyMapper policyMapper = new DefaultSettingPolicyMapper(mapper);
 
         final SettingsManagerApiDTO mgr =
-            mapper.createValMgrDto(mgrId1, mgr1Info, Collections.singletonList(Setting.newBuilder()
-                .setSettingSpecName(settingSpec1.getName())
-                .setEnumSettingValue(EnumSettingValue.newBuilder()
-                        .setValue("AUTOMATIC"))
-                .build()));
+            policyMapper.createValMgrDto(mgrId1, mgr1Info, Collections.singletonList(
+                Setting.newBuilder()
+                    .setSettingSpecName(settingSpec1.getName())
+                    .setEnumSettingValue(EnumSettingValue.newBuilder()
+                            .setValue("AUTOMATIC"))
+                    .build()));
         assertEquals(mgrId1, mgr.getUuid());
         assertEquals(mgrName1, mgr.getDisplayName());
         assertEquals(mgrCategory1, mgr.getCategory());
@@ -492,16 +549,16 @@ public class SettingsMapperTest {
 
     @Test
     public void testValMgrDtoBool() {
-        final SettingManagerMapping mapping = mock(SettingManagerMapping.class);
-        final SettingSpecMapper specMapper = mock(SettingSpecMapper.class);
-        final SettingsMapper mapper = new SettingsMapper(mapping,  specMapper);
+        final SettingsMapper mapper = mock(SettingsMapper.class);
+        final DefaultSettingPolicyMapper policyMapper = new DefaultSettingPolicyMapper(mapper);
 
         final SettingsManagerApiDTO mgr =
-                mapper.createValMgrDto(mgrId1, mgr1Info, Collections.singletonList(Setting.newBuilder()
-                        .setSettingSpecName("setting")
-                        .setBooleanSettingValue(BooleanSettingValue.newBuilder()
-                                .setValue(true))
-                        .build()));
+            policyMapper.createValMgrDto(mgrId1, mgr1Info, Collections.singletonList(
+                Setting.newBuilder()
+                    .setSettingSpecName("setting")
+                    .setBooleanSettingValue(BooleanSettingValue.newBuilder()
+                            .setValue(true))
+                    .build()));
         assertEquals(mgrId1, mgr.getUuid());
         assertEquals(mgrName1, mgr.getDisplayName());
         assertEquals(mgrCategory1, mgr.getCategory());
@@ -513,16 +570,16 @@ public class SettingsMapperTest {
 
     @Test
     public void testValMgrDtoNum() {
-        final SettingManagerMapping mapping = mock(SettingManagerMapping.class);
-        final SettingSpecMapper specMapper = mock(SettingSpecMapper.class);
-        final SettingsMapper mapper = new SettingsMapper(mapping,  specMapper);
+        final SettingsMapper mapper = mock(SettingsMapper.class);
+        final DefaultSettingPolicyMapper policyMapper = new DefaultSettingPolicyMapper(mapper);
 
         final SettingsManagerApiDTO mgr =
-                mapper.createValMgrDto(mgrId1, mgr1Info, Collections.singletonList(Setting.newBuilder()
-                        .setSettingSpecName("setting")
-                        .setNumericSettingValue(NumericSettingValue.newBuilder()
-                                .setValue(2.7f))
-                        .build()));
+            policyMapper.createValMgrDto(mgrId1, mgr1Info, Collections.singletonList(
+                Setting.newBuilder()
+                    .setSettingSpecName("setting")
+                    .setNumericSettingValue(NumericSettingValue.newBuilder()
+                            .setValue(2.7f))
+                    .build()));
         assertEquals(mgrId1, mgr.getUuid());
         assertEquals(mgrName1, mgr.getDisplayName());
         assertEquals(mgrCategory1, mgr.getCategory());
@@ -534,16 +591,16 @@ public class SettingsMapperTest {
 
     @Test
     public void testValMgrDtoStr() {
-        final SettingManagerMapping mapping = mock(SettingManagerMapping.class);
-        final SettingSpecMapper specMapper = mock(SettingSpecMapper.class);
-        final SettingsMapper mapper = new SettingsMapper(mapping,  specMapper);
+        final SettingsMapper mapper = mock(SettingsMapper.class);
+        final DefaultSettingPolicyMapper policyMapper = new DefaultSettingPolicyMapper(mapper);
 
         final SettingsManagerApiDTO mgr =
-                mapper.createValMgrDto(mgrId1, mgr1Info, Collections.singletonList(Setting.newBuilder()
-                        .setSettingSpecName("setting")
-                        .setStringSettingValue(StringSettingValue.newBuilder()
-                                .setValue("foo"))
-                        .build()));
+            policyMapper.createValMgrDto(mgrId1, mgr1Info, Collections.singletonList(
+                Setting.newBuilder()
+                    .setSettingSpecName("setting")
+                    .setStringSettingValue(StringSettingValue.newBuilder()
+                            .setValue("foo"))
+                    .build()));
         assertEquals(mgrId1, mgr.getUuid());
         assertEquals(mgrName1, mgr.getDisplayName());
         assertEquals(mgrCategory1, mgr.getCategory());
@@ -557,7 +614,9 @@ public class SettingsMapperTest {
     public void testInferEntityTypeSuccess() {
         final SettingManagerMapping mapping = mock(SettingManagerMapping.class);
         final SettingSpecMapper specMapper = mock(SettingSpecMapper.class);
-        final SettingsMapper mapper = new SettingsMapper(mapping,  specMapper);
+        final SettingPolicyMapper policyMapper = mock(SettingPolicyMapper.class);
+        final SettingsMapper mapper =
+                new SettingsMapper(mapping,  specMapper, policyMapper, grpcServer.getChannel());
         final Map<String, SettingSpec> specMap = ImmutableMap.of("setting", SettingSpec.newBuilder()
                 .setEntitySettingSpec(EntitySettingSpec.newBuilder()
                         .setEntitySettingScope(EntitySettingScope.newBuilder()
@@ -571,7 +630,9 @@ public class SettingsMapperTest {
     public void testInferEntityTypeTwoTypes() {
         final SettingManagerMapping mapping = mock(SettingManagerMapping.class);
         final SettingSpecMapper specMapper = mock(SettingSpecMapper.class);
-        final SettingsMapper mapper = new SettingsMapper(mapping,  specMapper);
+        final SettingPolicyMapper policyMapper = mock(SettingPolicyMapper.class);
+        final SettingsMapper mapper =
+                new SettingsMapper(mapping,  specMapper, policyMapper, grpcServer.getChannel());
         final Map<String, SettingSpec> specMap = ImmutableMap.of("setting", SettingSpec.newBuilder()
             .setEntitySettingSpec(EntitySettingSpec.newBuilder()
                 .setEntitySettingScope(EntitySettingScope.newBuilder()
@@ -586,12 +647,91 @@ public class SettingsMapperTest {
     public void testInferEntityTypeNoType() {
         final SettingManagerMapping mapping = mock(SettingManagerMapping.class);
         final SettingSpecMapper specMapper = mock(SettingSpecMapper.class);
-        final SettingsMapper mapper = new SettingsMapper(mapping,  specMapper);
+        final SettingPolicyMapper policyMapper = mock(SettingPolicyMapper.class);
+        final SettingsMapper mapper =
+                new SettingsMapper(mapping, specMapper, policyMapper, grpcServer.getChannel());
         final Map<String, SettingSpec> specMap = ImmutableMap.of("setting", SettingSpec.newBuilder()
             .setEntitySettingSpec(EntitySettingSpec.newBuilder()
                 .setEntitySettingScope(EntitySettingScope.newBuilder()
                     .setAllEntityType(AllEntityType.getDefaultInstance())))
             .build());
         assertEquals(EntityType.VIRTUAL_MACHINE.getNumber(), mapper.inferEntityType(specMap));
+    }
+
+    @Test
+    public void testConvertSettingPoliciesNoInvolvedGroups() {
+        final SettingManagerMapping mapping = mock(SettingManagerMapping.class);
+        final SettingSpecMapper specMapper = mock(SettingSpecMapper.class);
+        final SettingPolicyMapper policyMapper = mock(SettingPolicyMapper.class);
+        final SettingsMapper mapper =
+                new SettingsMapper(mapping, specMapper, policyMapper, grpcServer.getChannel());
+
+        final SettingPolicy policy = SettingPolicy.getDefaultInstance();
+        final SettingsPolicyApiDTO retDto = new SettingsPolicyApiDTO();
+        when(policyMapper.convertSettingPolicy(policy, Collections.emptyMap()))
+                .thenReturn(retDto);
+        final List<SettingsPolicyApiDTO> result =
+                mapper.convertSettingPolicies(Collections.singletonList(policy));
+        assertThat(result, containsInAnyOrder(retDto));
+
+        verify(groupBackend, never()).getGroups(any(), any());
+    }
+
+    @Test
+    public void testConvertSettingPoliciesWithInvolvedGroups() {
+        final SettingManagerMapping mapping = mock(SettingManagerMapping.class);
+        final SettingSpecMapper specMapper = mock(SettingSpecMapper.class);
+        final SettingPolicyMapper policyMapper = mock(SettingPolicyMapper.class);
+        final SettingsMapper mapper =
+                new SettingsMapper(mapping, specMapper, policyMapper, grpcServer.getChannel());
+
+        final long groupId = 7L;
+        final String groupName = "krew";
+        final SettingPolicy policy = SettingPolicy.newBuilder()
+                .setSettingPolicyType(Type.USER)
+                .setInfo(SettingPolicyInfo.newBuilder()
+                    .setScope(Scope.newBuilder()
+                        .addGroups(groupId)))
+                .build();
+        final Group group = Group.newBuilder()
+                .setId(groupId)
+                .setInfo(GroupInfo.newBuilder()
+                    .setName(groupName))
+                .build();
+
+        final SettingsPolicyApiDTO retDto = new SettingsPolicyApiDTO();
+        when(policyMapper.convertSettingPolicy(policy, ImmutableMap.of(groupId, groupName)))
+                .thenReturn(retDto);
+        when(groupBackend.getGroups(GetGroupsRequest.newBuilder().addId(groupId).build()))
+            .thenReturn(Collections.singletonList(group));
+
+        final List<SettingsPolicyApiDTO> result =
+                mapper.convertSettingPolicies(Collections.singletonList(policy));
+        assertThat(result, containsInAnyOrder(retDto));
+        verify(groupBackend).getGroups(any(), any());
+    }
+
+    private static class TestGroupService extends GroupServiceImplBase {
+        public List<Group> getGroups(GetGroupsRequest request) {
+            return Collections.emptyList();
+        }
+
+        public void getGroups(GetGroupsRequest request,
+                              StreamObserver<Group> responseObserver) {
+            getGroups(request).forEach(responseObserver::onNext);
+            responseObserver.onCompleted();
+        }
+    }
+
+    private static class TestSettingService extends SettingServiceImplBase {
+        public List<SettingSpec> searchSettingSpecs(SearchSettingSpecsRequest request) {
+            return Collections.emptyList();
+        }
+
+        public void searchSettingSpecs(SearchSettingSpecsRequest request,
+                                       StreamObserver<SettingSpec> responseObserver) {
+            searchSettingSpecs(request).forEach(responseObserver::onNext);
+            responseObserver.onCompleted();
+        }
     }
 }

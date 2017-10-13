@@ -33,10 +33,13 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
+import com.vmturbo.common.protobuf.setting.SettingProto.UpdateSettingPolicyRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.UpdateSettingPolicyResponse;
 import com.vmturbo.components.api.test.GrpcExceptionMatcher;
 import com.vmturbo.group.persistent.DuplicateNameException;
 import com.vmturbo.group.persistent.InvalidSettingPolicyException;
 import com.vmturbo.group.persistent.SettingPolicyFilter;
+import com.vmturbo.group.persistent.SettingPolicyNotFoundException;
 import com.vmturbo.group.persistent.SettingStore;
 
 public class SettingPolicyRpcServiceTest {
@@ -141,6 +144,134 @@ public class SettingPolicyRpcServiceTest {
         assertThat(exception, GrpcExceptionMatcher.hasCode(Code.ALREADY_EXISTS)
                 .descriptionContains("foo"));
     }
+
+    @Test
+    public void testUpdatePolicy() throws Exception {
+        final SettingPolicy updatedPolicy = SettingPolicy.newBuilder()
+                .setId(7L)
+                .build();
+        final StreamObserver<UpdateSettingPolicyResponse> responseObserver =
+                (StreamObserver<UpdateSettingPolicyResponse>)mock(StreamObserver.class);
+        when(settingStore.updateSettingPolicy(eq(7L), eq(settingPolicyInfo)))
+            .thenReturn(updatedPolicy);
+
+        service.updateSettingPolicy(UpdateSettingPolicyRequest.newBuilder()
+                .setId(7L)
+                .setNewInfo(settingPolicyInfo)
+                .build(), responseObserver);
+
+        final ArgumentCaptor<UpdateSettingPolicyResponse> responseCaptor =
+                ArgumentCaptor.forClass(UpdateSettingPolicyResponse.class);
+        verify(responseObserver).onNext(responseCaptor.capture());
+        verify(responseObserver).onCompleted();
+
+        final UpdateSettingPolicyResponse response = responseCaptor.getValue();
+        assertEquals(updatedPolicy, response.getSettingPolicy());
+    }
+
+    @Test
+    public void testUpdatePolicyNoId() throws Exception {
+        final StreamObserver<UpdateSettingPolicyResponse> responseObserver =
+                (StreamObserver<UpdateSettingPolicyResponse>)mock(StreamObserver.class);
+
+        service.updateSettingPolicy(UpdateSettingPolicyRequest.newBuilder()
+                .setNewInfo(settingPolicyInfo)
+                .build(), responseObserver);
+
+        final ArgumentCaptor<StatusException> exceptionCaptor =
+                ArgumentCaptor.forClass(StatusException.class);
+        verify(responseObserver).onError(exceptionCaptor.capture());
+
+        final StatusException exception = exceptionCaptor.getValue();
+        assertThat(exception, GrpcExceptionMatcher.hasCode(Code.INVALID_ARGUMENT)
+                .descriptionContains("ID"));
+    }
+
+    @Test
+    public void testUpdatePolicyNoNewInfo() throws Exception {
+        final StreamObserver<UpdateSettingPolicyResponse> responseObserver =
+                (StreamObserver<UpdateSettingPolicyResponse>)mock(StreamObserver.class);
+
+        service.updateSettingPolicy(UpdateSettingPolicyRequest.newBuilder()
+                .setId(7L)
+                .build(), responseObserver);
+
+        final ArgumentCaptor<StatusException> exceptionCaptor =
+                ArgumentCaptor.forClass(StatusException.class);
+        verify(responseObserver).onError(exceptionCaptor.capture());
+
+        final StatusException exception = exceptionCaptor.getValue();
+        assertThat(exception, GrpcExceptionMatcher.hasCode(Code.INVALID_ARGUMENT)
+                .descriptionContains("new"));
+    }
+
+    @Test
+    public void testUpdatePolicyInvalid() throws Exception {
+        final String msg = "Das Problem";
+        final StreamObserver<UpdateSettingPolicyResponse> responseObserver =
+                (StreamObserver<UpdateSettingPolicyResponse>)mock(StreamObserver.class);
+        when(settingStore.updateSettingPolicy(eq(7L), eq(settingPolicyInfo)))
+                .thenThrow(new InvalidSettingPolicyException(msg));
+
+        service.updateSettingPolicy(UpdateSettingPolicyRequest.newBuilder()
+                .setId(7L)
+                .setNewInfo(settingPolicyInfo)
+                .build(), responseObserver);
+
+        final ArgumentCaptor<StatusException> exceptionCaptor =
+                ArgumentCaptor.forClass(StatusException.class);
+        verify(responseObserver).onError(exceptionCaptor.capture());
+
+        final StatusException exception = exceptionCaptor.getValue();
+        assertThat(exception, GrpcExceptionMatcher.hasCode(Code.INVALID_ARGUMENT)
+                .descriptionContains(msg));
+    }
+
+    @Test
+    public void testUpdatePolicyNotFound() throws Exception {
+        final long id = 7;
+        final StreamObserver<UpdateSettingPolicyResponse> responseObserver =
+                (StreamObserver<UpdateSettingPolicyResponse>)mock(StreamObserver.class);
+        when(settingStore.updateSettingPolicy(eq(id), eq(settingPolicyInfo)))
+                .thenThrow(new SettingPolicyNotFoundException(id));
+
+        service.updateSettingPolicy(UpdateSettingPolicyRequest.newBuilder()
+                .setId(id)
+                .setNewInfo(settingPolicyInfo)
+                .build(), responseObserver);
+
+        final ArgumentCaptor<StatusException> exceptionCaptor =
+                ArgumentCaptor.forClass(StatusException.class);
+        verify(responseObserver).onError(exceptionCaptor.capture());
+
+        final StatusException exception = exceptionCaptor.getValue();
+        assertThat(exception, GrpcExceptionMatcher.hasCode(Code.NOT_FOUND)
+                .descriptionContains(Long.toString(id)));
+    }
+
+    @Test
+    public void testUpdatePolicyDuplicateName() throws Exception {
+        final long id = 7;
+        final String name = "Das Name";
+        final StreamObserver<UpdateSettingPolicyResponse> responseObserver =
+                (StreamObserver<UpdateSettingPolicyResponse>)mock(StreamObserver.class);
+        when(settingStore.updateSettingPolicy(eq(id), eq(settingPolicyInfo)))
+                .thenThrow(new DuplicateNameException(id, name));
+
+        service.updateSettingPolicy(UpdateSettingPolicyRequest.newBuilder()
+                .setId(id)
+                .setNewInfo(settingPolicyInfo)
+                .build(), responseObserver);
+
+        final ArgumentCaptor<StatusException> exceptionCaptor =
+                ArgumentCaptor.forClass(StatusException.class);
+        verify(responseObserver).onError(exceptionCaptor.capture());
+
+        final StatusException exception = exceptionCaptor.getValue();
+        assertThat(exception, GrpcExceptionMatcher.hasCode(Code.ALREADY_EXISTS)
+                .descriptionContains(name));
+    }
+
 
     @Test
     public void testGetPolicyNotFound() throws Exception {
