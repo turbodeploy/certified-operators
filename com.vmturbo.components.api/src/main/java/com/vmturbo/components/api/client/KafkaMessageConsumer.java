@@ -62,6 +62,7 @@ public class KafkaMessageConsumer implements AutoCloseable {
         props.put("session.timeout.ms", 90000);
         props.put("max.poll.records", 1);
         props.put("max.poll.interval.ms", 90000);
+        props.put("fetch.max.bytes", 67108864);
         consumer = new KafkaConsumer<>(props);
         pollingThread = new Thread(this::runPoll, "kafka-consumer");
         pollingThread.start();
@@ -208,8 +209,8 @@ public class KafkaMessageConsumer implements AutoCloseable {
                 final CodedInputStream inputStream = CodedInputStream.newInstance(buffer);
                 inputStream.setSizeLimit(PROTOBUF_MESSAGE_MAX_LIMIT);
                 final T receivedMessage = deserializer.parseFrom(inputStream);
-                logger.debug("Received message: {}[{}]",
-                        () -> receivedMessage.getClass().getSimpleName(), () -> receivedMessage);
+                logger.debug("Received message: {}[{} bytes]",
+                        receivedMessage.getClass().getSimpleName(), buffer.length);
                 final OffsetAndMetadata offsetAndMetadata = new OffsetAndMetadata(offset + 1);
                 final long readLock = lock.readLock();
                 try {

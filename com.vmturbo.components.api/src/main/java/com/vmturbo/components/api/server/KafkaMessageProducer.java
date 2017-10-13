@@ -32,7 +32,9 @@ public class KafkaMessageProducer implements AutoCloseable {
         props.put("retries", 0);
         props.put("batch.size", 16384);
         props.put("linger.ms", 1);
-        props.put("buffer.memory", 33554432);
+        // pjs: set a max request size based on standard max protobuf serializabe size for now
+        props.put("max.request.size",67108864); // 64mb
+        props.put("buffer.memory", 67108864);
         props.put("key.serializer", StringSerializer.class.getName());
         props.put("value.serializer", ByteArraySerializer.class.getName());
 
@@ -42,9 +44,10 @@ public class KafkaMessageProducer implements AutoCloseable {
     private Future<RecordMetadata> sendKafkaMessage(@Nonnull final AbstractMessage serverMsg,
             @Nonnull final String topic) {
         Objects.requireNonNull(serverMsg);
-        logger.debug("Sending message {} to topic {}", serverMsg.getClass().getSimpleName(), topic);
+        byte[] payload = serverMsg.toByteArray();
+        logger.debug("Sending message {}[{} bytes] to topic {}", serverMsg.getClass().getSimpleName(), payload.length, topic);
         return producer.send(new ProducerRecord<String, byte[]>(topic,
-                Long.toString(msgCounter.incrementAndGet()), serverMsg.toByteArray()));
+                Long.toString(msgCounter.incrementAndGet()), payload));
     }
 
     @Override
