@@ -13,7 +13,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.function.DoubleBinaryOperator;
 import java.util.stream.Collectors;
 
 import org.checkerframework.checker.javari.qual.PolyRead;
@@ -30,7 +29,6 @@ import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.ede.ActionClassifier;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.topology.Topology;
-import com.vmturbo.platform.analysis.utilities.FunctionalOperator;
 
 /**
  * A set of related markets and the traders participating in them.
@@ -372,6 +370,11 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
                     @NonNull Collection<@NonNull Long> cliques) {
         @NonNull
         Trader newTrader = addTrader(modelSeller.getType(), state, basketSold, cliques);
+
+        // necessary in order to add the new seller to the list of active sellers
+        // available for placement
+        newTrader.getSettings().setCanAcceptNewCustomers(modelSeller.getSettings().
+                        canAcceptNewCustomers());
 
         Collection<Market> marketsToScan = basketSold.equals(modelSeller.getBasketSold()) ?
             getMarketsAsSeller(modelSeller) : markets_.values();
