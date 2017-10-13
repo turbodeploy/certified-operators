@@ -272,7 +272,10 @@ public class DockerEnvironment {
             return "localhost";
         } else {
             try {
-                return new URI(envVar).getHost();
+                final String host = new URI(envVar).getHost();
+                // If we can't extract a host from the URI, fall back
+                // to localhost.
+                return host == null ? "localhost" : host;
             } catch (URISyntaxException e) {
                 throw new RuntimeException(
                         "Could not get host name from DOCKER_HOST variable " + envVar, e);
