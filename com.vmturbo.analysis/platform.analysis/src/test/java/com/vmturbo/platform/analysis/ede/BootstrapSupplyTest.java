@@ -5,6 +5,8 @@ import static org.junit.Assert.*;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+
+import org.junit.Ignore;
 import org.junit.Test;
 
 import com.vmturbo.platform.analysis.actions.Action;
@@ -327,6 +329,7 @@ public class BootstrapSupplyTest {
      * VM1 CPU qty = 60, VM2 CPU qty = 60. PM1 total CPU = 100.
      * Expected result: Should move compute of one of the VMs to PM2.
      */
+    @Ignore
     @Test
     public void test_shopTogetherBootstrap_MoveWithAlreadyPlacedBuyer(){
         Economy economy = new Economy();

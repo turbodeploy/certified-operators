@@ -17,6 +17,8 @@ import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
+import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
+import com.vmturbo.platform.analysis.economy.CommoditySoldSettings;
 import com.vmturbo.platform.analysis.utilities.M2Utils;
 
 /**
@@ -88,6 +90,7 @@ public class TestUtils {
     public static Trader createStorage(Economy economy, List<Long> cliques, double storageCapacity, boolean isCloneable) {
         Trader st = createTrader(economy, ST_TYPE, cliques, Arrays.asList(ST_AMT), new double[]{storageCapacity}, isCloneable, false);
         st.getCommoditiesSold().get(st.getBasketSold().indexOf(ST_AMT)).setCapacity(300);
+        ((CommoditySoldSettings) st.getCommoditiesSold().get(st.getBasketSold().indexOf(ST_AMT))).setPriceFunction(PriceFunction.Cache.createStepPriceFunction(0.8, 1.0, 10000.0));
         st.getSettings().setCloneable(isCloneable);
         return st;
     }
@@ -102,7 +105,7 @@ public class TestUtils {
     }
 
     /**
-     * @param economy - Eceonomy where you want to add a VDC.
+     * @param economy - Economy where you want to add a VDC.
      * @return a VDC trader which is a guaranteed buyer.
      */
     public static Trader createVDC(Economy economy) {
