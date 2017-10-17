@@ -33,6 +33,9 @@ message PriceFunctionTO {
         optional float price_above = 3 [default = 1.0];
     }
 
+    message StepForCloud {
+    }
+
     message Inverse {
         optional float weight = 1 [default = 1.0];
     }
@@ -42,6 +45,7 @@ message PriceFunctionTO {
         StandardWeighted standard_weighted = 1;
         Constant constant = 2;
         Step step = 3;
-        Inverse inverse = 4;
+        StepForCloud step_for_cloud = 4;
+        Inverse inverse = 5;
     }
 }

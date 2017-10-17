@@ -65,11 +65,15 @@ class Cache {
         return pf;
     }
 
-    public static PriceFunction createInversePriceFunction(double constant) {
-        String key = String.format("InvPF-%.10f", constant);
+    public static synchronized PriceFunction createStepPriceFunctionForCloud() {
+        // the weight here is the price at 70% utilization
+        // TODO: use the per-commodity setting to drive resizes to a particular utilization
+        // TODO: reconsider this approach to use shoppingList based pricing
+        double weight = 11.11;
+        String key = "SPFC-" + weight;
         PriceFunction pf = pfMap.get(key);
         if (pf == null) {
-            pf = (u, seller, commSold, e) -> u > 1 ? Double.POSITIVE_INFINITY : 1/u;
+            pf = (u, seller, commSold, e) ->  u == 0 ? 0 : u > 1 ? Double.POSITIVE_INFINITY : weight;
             pfMap.put(key, pf);
         }
         return pf;

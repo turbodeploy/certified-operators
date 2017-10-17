@@ -30,13 +30,16 @@ public class FunctionalOperatorUtil {
                                                 commSold.getQuantity(), 0};
                     }};
 
-    // Return commSoldUsed when taking the action and add commBought with commSold when not taking the action
+    // when taking the action, Return commSoldUsed
+    // when not taking the action, return 0 if the buyer fits or INFINITY otherwise
     public static FunctionalOperator IGNORE_CONSUMPTION = (buyer, boughtIndex, commSold, seller, economy, take)
                     -> {if (take) {
                             return new double[]{commSold.getQuantity(), commSold.getPeakQuantity()};
                         } else {
-                            return new double[]{buyer.getQuantities()[boughtIndex] + commSold.getQuantity(),
-                                                buyer.getPeakQuantities()[boughtIndex] + commSold.getPeakQuantity()};
+                            return ((buyer.getQuantities()[boughtIndex] < commSold.getCapacity()) &&
+                                    (buyer.getPeakQuantities()[boughtIndex] < commSold.getCapacity())) ?
+                                    new double[]{0, 0} : new double[]{Double.POSITIVE_INFINITY,
+                                                    Double.POSITIVE_INFINITY};
                         }
                     };
 

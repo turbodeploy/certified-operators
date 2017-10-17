@@ -111,8 +111,8 @@ public class FunctionalOperatorUtilTest {
 
         double[] res2 = FunctionalOperatorUtil.IGNORE_CONSUMPTION.operate(sl2, 0,
                         pm.getCommoditySold(TestUtils.CPU), null, null, false);
-        Assert.assertEquals(80, res2[0], epsilon);
-        Assert.assertEquals(150, res2[1], epsilon);
+        Assert.assertEquals(0, res2[0], epsilon);
+        Assert.assertEquals(0, res2[1], epsilon);
     }
 
     /**
