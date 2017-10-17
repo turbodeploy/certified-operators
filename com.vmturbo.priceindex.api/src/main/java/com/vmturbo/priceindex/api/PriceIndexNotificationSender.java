@@ -1,4 +1,4 @@
-package com.vmturbo.market;
+package com.vmturbo.priceindex.api;
 
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;

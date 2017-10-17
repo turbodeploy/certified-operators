@@ -12,10 +12,12 @@ import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
 import com.vmturbo.priceindex.api.PriceIndexListener;
 
 /**
- * The websocket client connecting to the Price Index sender.
+ * A receiver for price index messages
  */
-class PriceIndexNotificationReceiver extends
+public class PriceIndexNotificationReceiver extends
         ComponentNotificationReceiver<PriceIndexMessage> {
+
+    public static final String PRICE_INDICES_TOPIC = "price-indices";
 
     /**
      * The listener for the server-side message processing.
@@ -28,7 +30,7 @@ class PriceIndexNotificationReceiver extends
      * @param messageReceiver The message receiver to get messages from
      * @param executorService  The executor service.
      */
-    PriceIndexNotificationReceiver(
+    public PriceIndexNotificationReceiver(
             @Nonnull final IMessageReceiver<PriceIndexMessage> messageReceiver,
             @Nonnull final ExecutorService executorService) {
         super(messageReceiver, executorService);

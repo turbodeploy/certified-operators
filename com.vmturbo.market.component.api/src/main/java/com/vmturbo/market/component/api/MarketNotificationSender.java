@@ -17,33 +17,23 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.communication.chunking.MessageChunker;
 import com.vmturbo.components.api.server.ComponentNotificationSender;
 import com.vmturbo.components.api.server.IMessageSender;
-import com.vmturbo.market.component.dto.MarketMessages.MarketComponentNotification;
 
 /**
  * Handles the websocket connections with clients using the
  * {@link com.vmturbo.market.component.api.MarketComponent} API.
  */
 public class MarketNotificationSender extends
-        ComponentNotificationSender<MarketComponentNotification> {
+        ComponentNotificationSender<ActionPlan> {
 
-    private final IMessageSender<MarketComponentNotification> topologySender;
-    private final IMessageSender<MarketComponentNotification> actionPlanSender;
-
-    // TODO remove in future after switch off websockets
-    private final long chunkSendDelayMs;
+    private final IMessageSender<ProjectedTopology> projectedTopologySender;
+    private final IMessageSender<ActionPlan> actionPlanSender;
 
     public MarketNotificationSender(@Nonnull final ExecutorService threadPool,
-            long chunkSendDelayMs,
-            @Nonnull IMessageSender<MarketComponentNotification> topologySender,
-            @Nonnull IMessageSender<MarketComponentNotification> actionPlanSender) {
+            @Nonnull IMessageSender<ProjectedTopology> projectedTopologySender,
+            @Nonnull IMessageSender<ActionPlan> actionPlanSender) {
         super(threadPool);
-        this.topologySender = Objects.requireNonNull(topologySender);
+        this.projectedTopologySender = Objects.requireNonNull(projectedTopologySender);
         this.actionPlanSender = Objects.requireNonNull(actionPlanSender);
-        if (chunkSendDelayMs < 0) {
-            throw new IllegalArgumentException("Chunk send delay must not be a negative value");
-        } else {
-            this.chunkSendDelayMs = chunkSendDelayMs;
-        }
     }
 
     /**
@@ -55,8 +45,7 @@ public class MarketNotificationSender extends
      * @param actionPlan The {@link ActionPlan} protobuf objects describing the actions to execute.
      */
     public void notifyActionsRecommended(@Nonnull final ActionPlan actionPlan) {
-        final MarketComponentNotification serverMessage = createNewMessage().setActionPlan(actionPlan).build();
-        sendMessage(actionPlanSender, serverMessage);
+        sendMessage(actionPlanSender, actionPlan);
     }
 
     /**
@@ -117,24 +106,17 @@ public class MarketNotificationSender extends
                 .build());
     }
 
-    private void sendTopologySegment(@Nonnull final ProjectedTopology topology) throws
+    private void sendTopologySegment(@Nonnull final ProjectedTopology segment) throws
             InterruptedException {
-        final MarketComponentNotification serverMessage =
-                createNewMessage().setProjectedTopology(topology).build();
-        Thread.sleep(chunkSendDelayMs);
-        sendMessage(topologySender, serverMessage);
-    }
-
-    @Nonnull
-    private MarketComponentNotification.Builder createNewMessage() {
-        return MarketComponentNotification.newBuilder()
-            .setBroadcastId(newMessageChainId());
+        getLogger().debug("Sending topology {} segment {}", segment::getTopologyId,
+                segment::getSegmentCase);
+        projectedTopologySender.sendMessage(segment);
     }
 
     @Override
     protected String describeMessage(
-            @Nonnull MarketComponentNotification marketComponentNotification) {
-        return MarketComponentNotification.class.getSimpleName() + "[" +
-                marketComponentNotification.getBroadcastId() + "]";
+            @Nonnull ActionPlan actionPlan) {
+        return ActionPlan.class.getSimpleName() + "[" +
+                actionPlan.getTopologyId() + "]";
     }
 }

@@ -90,6 +90,7 @@ import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.StoppingCondition;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyBroadcastRequest;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -99,6 +100,7 @@ import com.vmturbo.common.protobuf.topology.TopologyServiceGrpc.TopologyServiceB
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
+import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.client.WebsocketNotificationReceiver;
 import com.vmturbo.components.test.utilities.ComponentTestRule;
 import com.vmturbo.components.test.utilities.communication.ComponentStubHost;
@@ -108,8 +110,6 @@ import com.vmturbo.market.component.api.ActionsListener;
 import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.ProjectedTopologyListener;
 import com.vmturbo.market.component.api.impl.MarketComponentClient;
-import com.vmturbo.market.component.api.impl.MarketMessageReceiver;
-import com.vmturbo.market.component.dto.MarketMessages.MarketComponentNotification;
 import com.vmturbo.mediation.delegatingprobe.DelegatingProbeAccount;
 import com.vmturbo.platform.common.builders.EntityBuilders;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -157,7 +157,8 @@ public class PlacementPolicySysTest {
 
     private WebsocketNotificationReceiver<TopologyProcessorNotification> tpMessageReceiver;
     private WebsocketNotificationReceiver<Topology> tpTopologyReceiver;
-    private WebsocketNotificationReceiver<MarketComponentNotification> marketMessageReceiver;
+    private IMessageReceiver<ProjectedTopology> projectedTopologyReceiver;
+    private IMessageReceiver<ActionPlan> actionsReceiver;
 
     @Autowired
     private DiscoveryDriverController discoveryDriverController;
@@ -249,28 +250,26 @@ public class PlacementPolicySysTest {
         topologyService = TopologyServiceGrpc.newBlockingStub(
             componentTestRule.getCluster().newGrpcChannel("topology-processor"));
         if (true) {
+            // TODO: fix in OM-25492 or otherwise
             throw new NotImplementedException("TP connection to Kafka should be implemented");
         }
         tpMessageReceiver = null;
         tpTopologyReceiver = null;
-//                new TopologyProcessorMessageReceiver(componentTestRule.getCluster()
-//                .getConnectionConfig("topology-processor"), threadPool);
         topologyProcessor = TopologyProcessorClient.rpcAndNotification(
             componentTestRule.getCluster().getConnectionConfig("topology-processor"),
             threadPool, tpMessageReceiver, tpTopologyReceiver);
 
-        marketMessageReceiver = new MarketMessageReceiver(componentTestRule.getCluster()
-                .getConnectionConfig("market"), threadPool);
+        projectedTopologyReceiver = null;
+        actionsReceiver = null;
         marketComponent = MarketComponentClient.rpcAndNotification(
             componentTestRule.getCluster().getConnectionConfig("market"),
-            threadPool, marketMessageReceiver);
+            threadPool, projectedTopologyReceiver, actionsReceiver);
     }
 
     @After
     public void teardown() {
         try {
             tpMessageReceiver.close();
-            marketMessageReceiver.close();
 
             threadPool.shutdownNow();
             threadPool.awaitTermination(10, TimeUnit.MINUTES);

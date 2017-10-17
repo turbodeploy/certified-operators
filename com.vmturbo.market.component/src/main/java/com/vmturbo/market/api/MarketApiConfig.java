@@ -4,28 +4,29 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.web.socket.server.standard.ServerEndpointRegistration;
+import org.springframework.context.annotation.Import;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
-import com.vmturbo.communication.WebsocketServerTransportManager;
-import com.vmturbo.components.api.server.BroadcastWebsocketTransportManager;
-import com.vmturbo.components.api.server.WebsocketNotificationSender;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
+import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
+import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.market.MarketNotificationSender;
 import com.vmturbo.market.component.api.impl.MarketComponentClient;
-import com.vmturbo.market.component.dto.MarketMessages.MarketComponentNotification;
 
 /**
  * Spring configuration to provide the {@link com.vmturbo.market.component.api.MarketComponent} integration.
  */
 @Configuration
+@Import(BaseKafkaProducerConfig.class)
 public class MarketApiConfig {
 
-    @Value("${chunk.send.delay.msec:50}")
-    long chunkSendDelayMs;
+    @Autowired
+    private BaseKafkaProducerConfig baseKafkaProducerConfig;
 
     @Bean(destroyMethod = "shutdownNow")
     public ExecutorService apiServerThreadPool() {
@@ -36,34 +37,18 @@ public class MarketApiConfig {
 
     @Bean
     public MarketNotificationSender marketApi() {
-        return new MarketNotificationSender(apiServerThreadPool(), chunkSendDelayMs,
-                topologySender(), actionPlanSender());
+        return new MarketNotificationSender(apiServerThreadPool(),
+                projectedTopologySender(), actionPlanSender());
     }
 
     @Bean
-    public WebsocketNotificationSender<MarketComponentNotification> actionPlanSender() {
-        return new WebsocketNotificationSender<>(apiServerThreadPool());
+    public IMessageSender<ActionPlan> actionPlanSender() {
+        return baseKafkaProducerConfig.kafkaMessageSender().messageSender(MarketComponentClient.ACTION_PLANS_TOPIC);
     }
 
     @Bean
-    public WebsocketNotificationSender<MarketComponentNotification> topologySender() {
-        return new WebsocketNotificationSender<>(apiServerThreadPool());
+    public IMessageSender<ProjectedTopology> projectedTopologySender() {
+        return baseKafkaProducerConfig.kafkaMessageSender().messageSender(MarketComponentClient.PROJECTED_TOPOLOGIES_TOPIC);
     }
 
-    @Bean
-    public WebsocketServerTransportManager marketApiTransportManager() {
-        return BroadcastWebsocketTransportManager.createTransportManager(apiServerThreadPool(),
-                actionPlanSender(), topologySender());
-    }
-
-    /**
-     * This bean configures endpoint to bind it to a specific address (path).
-     *
-     * @return bean
-     */
-    @Bean
-    public ServerEndpointRegistration marketApiEndpointRegistration() {
-        return new ServerEndpointRegistration(MarketComponentClient.WEBSOCKET_PATH,
-                marketApiTransportManager());
-    }
 }

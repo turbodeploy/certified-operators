@@ -12,21 +12,26 @@ import org.springframework.web.socket.server.standard.ServerEndpointExporter;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
 import com.vmturbo.commons.idgen.IdentityInitializer;
+import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.components.api.test.IntegrationTestServer;
+import com.vmturbo.components.api.test.SenderReceiverPair;
+import com.vmturbo.market.MarketNotificationSender;
+import com.vmturbo.market.component.api.impl.MarketComponentClient;
 
 /**
  * API server-side Spring configuration.
  */
 @Configuration
 @EnableWebMvc
-public class TestApiServerConfig extends MarketApiConfig {
+public class TestApiServerConfig {
 
     @Value("#{environment['" + IntegrationTestServer.FIELD_TEST_NAME + "']}")
     public String testName;
 
     @Bean
-    @Override
     public ExecutorService apiServerThreadPool() {
         final ThreadFactory threadFactory =
                         new ThreadFactoryBuilder().setNameFormat("srv-" + testName + "-%d").build();
@@ -47,4 +52,20 @@ public class TestApiServerConfig extends MarketApiConfig {
     public IdentityInitializer identityInitializer() {
         return new IdentityInitializer(0);
     }
+
+    @Bean
+    public MarketNotificationSender marketNotificationSender() {
+        return new MarketNotificationSender(apiServerThreadPool(),projectedTopologySender(),actionPlanSender());
+    }
+
+    @Bean
+    public IMessageSender<ActionPlan> actionPlanSender() {
+        return new SenderReceiverPair<ActionPlan>();
+    }
+
+    @Bean
+    public IMessageSender<ProjectedTopology> projectedTopologySender() {
+        return new SenderReceiverPair<ProjectedTopology>();
+    }
+
 }

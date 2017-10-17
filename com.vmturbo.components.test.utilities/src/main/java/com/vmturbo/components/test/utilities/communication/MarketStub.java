@@ -1,26 +1,29 @@
 package com.vmturbo.components.test.utilities.communication;
 
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+
 import javax.annotation.Nonnull;
 
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.web.socket.server.standard.ServerEndpointRegistration;
 
-import com.vmturbo.communication.WebsocketServerTransportManager;
-import com.vmturbo.components.api.server.BroadcastWebsocketTransportManager;
-import com.vmturbo.components.api.server.WebsocketNotificationSender;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
+import com.vmturbo.components.api.server.IMessageSender;
+import com.vmturbo.components.api.server.KafkaMessageProducer;
 import com.vmturbo.components.test.utilities.communication.ComponentStubHost.StubConfiguration;
 import com.vmturbo.components.test.utilities.communication.MarketStub.MarketStubConfig;
+import com.vmturbo.components.test.utilities.component.DockerEnvironment;
 import com.vmturbo.market.MarketNotificationSender;
 import com.vmturbo.market.component.api.impl.MarketComponentClient;
-import com.vmturbo.market.component.dto.MarketMessages.MarketComponentNotification;
 
 /**
  * Stub implementation of market service. It is able to receive notifications instead of real
  * market component.
  */
-public class MarketStub extends AbstractNotificationSenderStub<MarketStubConfig> {
+public class MarketStub implements NotificationSenderStub<MarketStubConfig> {
 
     private MarketNotificationSender backend;
 
@@ -30,7 +33,6 @@ public class MarketStub extends AbstractNotificationSenderStub<MarketStubConfig>
 
     @Override
     public void initialize(@Nonnull final ApplicationContext context) {
-        super.initialize(context);
         backend = context.getBean(MarketNotificationSender.class);
     }
 
@@ -39,35 +41,35 @@ public class MarketStub extends AbstractNotificationSenderStub<MarketStubConfig>
         return MarketStubConfig.class;
     }
 
+    @Override
+    public void waitForEndpoints(int numOfEndpoints, long timeout, @Nonnull TimeUnit timeUnit)
+            throws InterruptedException, TimeoutException {
+        // no-op
+    }
+
     @Configuration
     public static class MarketStubConfig extends StubConfiguration {
 
         @Bean
         public MarketNotificationSender marketApiBackend() {
-            return new MarketNotificationSender(threadPool, 10L, topologySender(),
-                    notificationSender());
+            return new MarketNotificationSender(threadPool, topologySender(),
+                    actionPlanSender());
         }
 
         @Bean
-        public ServerEndpointRegistration marketApiEndpointRegistration() {
-            return new ServerEndpointRegistration(MarketComponentClient.WEBSOCKET_PATH,
-                    transportManager());
+        public KafkaMessageProducer messageSender() {
+            return new KafkaMessageProducer(DockerEnvironment.getDockerHostName() + ":" +
+                    Integer.toString(DockerEnvironment.KAFKA_EXTERNAL_PORT));
         }
 
         @Bean
-        public WebsocketNotificationSender<MarketComponentNotification> notificationSender() {
-            return new WebsocketNotificationSender<>(threadPool);
+        public IMessageSender<ActionPlan> actionPlanSender() {
+            return messageSender().messageSender(MarketComponentClient.ACTION_PLANS_TOPIC);
         }
 
         @Bean
-        public WebsocketNotificationSender<MarketComponentNotification> topologySender() {
-            return new WebsocketNotificationSender<>(threadPool);
-        }
-
-        @Bean
-        public WebsocketServerTransportManager transportManager() {
-            return BroadcastWebsocketTransportManager.createTransportManager(threadPool,
-                    notificationSender(), topologySender());
+        public IMessageSender<ProjectedTopology> topologySender() {
+            return messageSender().messageSender(MarketComponentClient.PROJECTED_TOPOLOGIES_TOPIC);
         }
     }
 }

@@ -1,6 +1,5 @@
 package com.vmturbo.market.component.api.impl;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Objects;
@@ -12,8 +11,6 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.google.protobuf.CodedInputStream;
-
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.Start;
@@ -21,18 +18,16 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.chunking.ChunkingReceiver;
 import com.vmturbo.communication.chunking.RemoteIterator;
-import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.components.api.client.ComponentNotificationReceiver;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.market.component.api.ActionsListener;
 import com.vmturbo.market.component.api.ProjectedTopologyListener;
-import com.vmturbo.market.component.dto.MarketMessages.MarketComponentNotification;
 
 /**
- * The websocket client connecting to the Market Component.
+ * The notification receiver connecting to the Market Component.
  */
-class MarketComponentNotificationReceiver extends
-        ComponentNotificationReceiver<MarketComponentNotification> {
+public class MarketComponentNotificationReceiver extends
+        ComponentNotificationReceiver<ActionPlan> {
 
     private final Set<ActionsListener> actionsListenersSet =
             Collections.newSetFromMap(new ConcurrentHashMap<>());
@@ -41,11 +36,13 @@ class MarketComponentNotificationReceiver extends
                     Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final ChunkingReceiver<TopologyEntityDTO> topologyChunkReceiver;
 
-    MarketComponentNotificationReceiver(
-            @Nonnull final IMessageReceiver<MarketComponentNotification> messageReceiver,
+    public MarketComponentNotificationReceiver(
+            @Nonnull final IMessageReceiver<ProjectedTopology> projectedTopologyReceiver,
+            @Nonnull final IMessageReceiver<ActionPlan> actionPlanReceiver,
             @Nonnull final ExecutorService executorService) {
-        super(messageReceiver, executorService);
+        super(actionPlanReceiver, executorService);
         topologyChunkReceiver = new ChunkingReceiver<>(executorService);
+        projectedTopologyReceiver.addListener(this::processProjectedTopology);
     }
 
     void addActionsListener(@Nonnull final ActionsListener listener) {
@@ -57,18 +54,9 @@ class MarketComponentNotificationReceiver extends
     }
 
     @Override
-    protected void processMessage(@Nonnull final MarketComponentNotification message)
+    protected void processMessage(@Nonnull final ActionPlan message)
             throws MarketComponentException {
-        switch (message.getTypeCase()) {
-            case ACTION_PLAN:
-                processActions(message.getActionPlan());
-                break;
-            case PROJECTED_TOPOLOGY:
-                processProjectedTopology(message.getProjectedTopology());
-                break;
-            default:
-                throw new MarketComponentException("Message type unrecognized: " + message);
-        }
+        processActions(message);
     }
 
     private void processActions(@Nonnull final ActionPlan actions) {
@@ -84,7 +72,7 @@ class MarketComponentNotificationReceiver extends
         }
     }
 
-    private void processProjectedTopology(@Nonnull final ProjectedTopology topology) {
+    private void processProjectedTopology(@Nonnull final ProjectedTopology topology, @Nonnull Runnable commitCommand) {
         final long topologyId = topology.getTopologyId();
         switch (topology.getSegmentCase()) {
             case START:
@@ -99,6 +87,7 @@ class MarketComponentNotificationReceiver extends
             case END:
                 topologyChunkReceiver.finishTopologyBroadcast(topology.getTopologyId(),
                         topology.getEnd().getTotalCount());
+                commitCommand.run();
                 break;
             default:
                 getLogger().warn("Unknown broadcast data segment received: {}",

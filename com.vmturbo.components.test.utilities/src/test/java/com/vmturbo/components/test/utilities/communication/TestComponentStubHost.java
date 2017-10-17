@@ -11,16 +11,15 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.components.api.client.IMessageReceiver;
-import com.vmturbo.components.api.client.WebsocketNotificationReceiver;
 import com.vmturbo.components.test.utilities.component.ComponentUtils;
 import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.impl.MarketComponentClient;
-import com.vmturbo.market.component.dto.MarketMessages.MarketComponentNotification;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TopologyProcessorNotification;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClient;
@@ -45,13 +44,17 @@ public class TestComponentStubHost {
                     .setHostAndPort("localhost", ComponentUtils.GLOBAL_HTTP_PORT)
                     .build();
 
-            final IMessageReceiver<MarketComponentNotification> messageReceiver =
-                    new WebsocketNotificationReceiver<>(config,
-                            MarketComponentClient.WEBSOCKET_PATH, threadPool,
-                            MarketComponentNotification::parseFrom);
+            // TODO add real message receivers here (OM-25222)
+            if (true) {
+                throw new UnsupportedOperationException("Implement real message receiver");
+            }
+
+            final IMessageReceiver<ActionPlan> actionPlanReceiver = null;
+            final IMessageReceiver<ProjectedTopology> projectedTopologyReceiver = null;
+
             // Test that the market component stub works.
             final MarketComponent mkt =
-                    MarketComponentClient.rpcAndNotification(config, threadPool, messageReceiver);
+                    MarketComponentClient.rpcAndNotification(config, threadPool, projectedTopologyReceiver, actionPlanReceiver);
 
             final CompletableFuture<ActionPlan> actionPlanFuture = new CompletableFuture<>();
             mkt.addActionsListener(actionPlanFuture::complete);
@@ -65,10 +68,6 @@ public class TestComponentStubHost {
             final ActionPlan actionPlan = actionPlanFuture.get(10, TimeUnit.SECONDS);
             Assert.assertEquals(1, actionPlan.getId());
 
-            // TODO add real message receivers here (OM-25222)
-            if (true) {
-                throw new UnsupportedOperationException("Implement real message receiver");
-            }
             // Test that the topology processor stub works.
             final IMessageReceiver<TopologyProcessorNotification> tpMessageReceiver = null;
             final IMessageReceiver<Topology> tpTopologyReceiver = null;

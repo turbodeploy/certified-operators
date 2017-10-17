@@ -20,7 +20,7 @@ import com.vmturbo.history.topology.TopologyListenerConfig;
 import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.impl.MarketClientConfig;
 import com.vmturbo.priceindex.api.impl.PriceIndexClientConfig;
-import com.vmturbo.priceindex.api.impl.PriceIndexReceiver;
+import com.vmturbo.priceindex.api.impl.PriceIndexNotificationReceiver;
 
 /**
  * Configuration for the PriceIndex Listener for the History component
@@ -105,8 +105,8 @@ public class MarketListenerConfig {
      * Register the listener for PriceIndex information with the Market.
      */
     @Bean
-    public PriceIndexReceiver priceIndexReceiver() {
-        final PriceIndexReceiver client = priceIndexClientConfig.priceIndexReceiver();
+    public PriceIndexNotificationReceiver priceIndexReceiver() {
+        final PriceIndexNotificationReceiver client = priceIndexClientConfig.priceIndexReceiver();
         client.setPriceIndexListener(marketListener());
         return client;
     }

@@ -16,7 +16,7 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.market.MarketNotificationSender;
 import com.vmturbo.market.runner.Analysis.AnalysisState;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
-import com.vmturbo.market.PriceIndexNotificationSender;
+import com.vmturbo.priceindex.api.PriceIndexNotificationSender;
 import com.vmturbo.proactivesupport.DataMetricHistogram;
 
 /**

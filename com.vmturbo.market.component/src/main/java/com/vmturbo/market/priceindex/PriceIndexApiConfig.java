@@ -4,25 +4,29 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.web.socket.server.standard.ServerEndpointRegistration;
+import org.springframework.context.annotation.Import;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
-import com.vmturbo.communication.WebsocketServerTransportManager;
-import com.vmturbo.components.api.server.BroadcastWebsocketTransportManager;
-import com.vmturbo.components.api.server.WebsocketNotificationSender;
-import com.vmturbo.market.PriceIndexNotificationSender;
+import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
+import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
-import com.vmturbo.priceindex.api.impl.PriceIndexReceiver;
+import com.vmturbo.priceindex.api.PriceIndexNotificationSender;
+import com.vmturbo.priceindex.api.impl.PriceIndexNotificationReceiver;
 
 /**
  * Spring configuration to provide the {@link com.vmturbo.priceindex.api}
  * integration.
  */
 @Configuration
+@Import(BaseKafkaProducerConfig.class)
 public class PriceIndexApiConfig {
+
+    @Autowired
+    BaseKafkaProducerConfig kafkaProducerConfig;
 
     /**
      * Constructs the sender thread pool.
@@ -48,31 +52,16 @@ public class PriceIndexApiConfig {
      */
     @Bean
     public PriceIndexNotificationSender priceIndexNotificationSender() {
-        return new PriceIndexNotificationSender(apiSenderThreadPool(), priceIndexWebsocketNotificationSender());
-    }
-
-    @Bean
-    public WebsocketNotificationSender<PriceIndexMessage> priceIndexWebsocketNotificationSender() {
-        return new WebsocketNotificationSender<>(apiSenderThreadPool());
-    }
-
-    @Bean
-    public WebsocketServerTransportManager priceIndexTransportManager() {
-        return BroadcastWebsocketTransportManager.createTransportManager(apiSenderThreadPool(),
-                priceIndexWebsocketNotificationSender());
+        return new PriceIndexNotificationSender(apiSenderThreadPool(), priceIndexMessageSender());
     }
 
     /**
-     * This bean configures sender endpoint to bind it to a specific address (path).
-     * The Server means Sender in this context.
-     * TODO: The underlying API needs to change.
-     *
-     * @return Sender endpoint registration.
+     * Create a wrapper around a kafka producer that sends PriceIndexMessage objects
+     * @return a kafka producer wrapper object to send price indices with
      */
     @Bean
-    public ServerEndpointRegistration priceIndexApiEndpointRegistration() {
-        return new ServerEndpointRegistration(PriceIndexReceiver.WEBSOCKET_PATH,
-                priceIndexTransportManager());
+    public IMessageSender<PriceIndexMessage> priceIndexMessageSender() {
+        return kafkaProducerConfig.kafkaMessageSender().messageSender(PriceIndexNotificationReceiver.PRICE_INDICES_TOPIC);
     }
 
 }

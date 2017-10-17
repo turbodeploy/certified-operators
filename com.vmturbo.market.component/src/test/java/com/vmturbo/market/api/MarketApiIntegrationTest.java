@@ -18,18 +18,16 @@ import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
-import com.vmturbo.components.api.client.IMessageReceiver;
-import com.vmturbo.components.api.client.WebsocketNotificationReceiver;
 import com.vmturbo.components.api.test.IntegrationTestServer;
-import com.vmturbo.market.component.api.ActionsListener;
 import com.vmturbo.market.MarketNotificationSender;
+import com.vmturbo.market.component.api.ActionsListener;
 import com.vmturbo.market.component.api.impl.MarketComponentClient;
-import com.vmturbo.market.component.dto.MarketMessages.MarketComponentNotification;
 
 /**
  * Integration test for Market API client and server.
@@ -47,7 +45,6 @@ public class MarketApiIntegrationTest {
     private MarketNotificationSender notificationSender;
 
     protected MarketComponentClient market;
-    private WebsocketNotificationReceiver notificationReceiver;
 
     @Rule
     public TestName testName = new TestName();
@@ -67,15 +64,11 @@ public class MarketApiIntegrationTest {
         threadPool = Executors.newCachedThreadPool(threadFactory);
 
         integrationTestServer = new IntegrationTestServer(testName, TestApiServerConfig.class);
-        notificationReceiver =
-                new WebsocketNotificationReceiver<>(integrationTestServer.connectionConfig(),
-                        MarketComponentClient.WEBSOCKET_PATH, threadPool,
-                        MarketComponentNotification::parseFrom);
         market = MarketComponentClient.rpcAndNotification(integrationTestServer.connectionConfig(),
-                threadPool, notificationReceiver);
+                threadPool, integrationTestServer.getBean("projectedTopologySender"),
+                integrationTestServer.getBean("actionPlanSender"));
 
         notificationSender = integrationTestServer.getBean(MarketNotificationSender.class);
-        integrationTestServer.waitForRegisteredEndpoints(1, TIMEOUT_MS);
 
         logger.debug("Finished @Before");
     }
@@ -83,7 +76,6 @@ public class MarketApiIntegrationTest {
     @After
     public final void shutdown() throws Exception {
         logger.debug("Starting @After");
-        notificationReceiver.close();
         integrationTestServer.close();
         logger.debug("Finished @After");
     }
@@ -111,18 +103,6 @@ public class MarketApiIntegrationTest {
         final ActionPlan receivedActions = actionCaptor.getValue();
         Assert.assertEquals(actionPlan.getActionCount(), receivedActions.getActionCount());
         Assert.assertEquals(actionPlan.getAction(0), receivedActions.getAction(0));
-    }
-
-    /**
-     * Test that closing a client-side endpoint unregisters it
-     * on the server.
-     *
-     * @throws Exception If anything goes wrong.
-     */
-    @Test
-    public void testEndpointClear() throws Exception {
-        notificationReceiver.close();
-        integrationTestServer.waitForRegisteredEndpoints(0, TIMEOUT_MS);
     }
 
     private Action createAction() {

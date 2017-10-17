@@ -853,8 +853,6 @@ com.vmturbo.market.component.api/src/main/java/com/vmturbo/market/component/api/
 com.vmturbo.market.component.api/src/main/java/com/vmturbo/market/component/api/impl/MarketComponentException.java -text
 com.vmturbo.market.component.api/src/main/java/com/vmturbo/market/component/api/impl/MarketComponentNotificationReceiver.java -text
 com.vmturbo.market.component.api/src/main/java/com/vmturbo/market/component/api/impl/MarketComponentRestClient.java -text
-com.vmturbo.market.component.api/src/main/java/com/vmturbo/market/component/api/impl/MarketMessageReceiver.java -text
-com.vmturbo.market.component.api/src/main/protobuf/MarketComponentDTO.proto -text
 com.vmturbo.market.component/pom.xml -text
 com.vmturbo.market.component/src/main/java/com/vmturbo/market/MarketComponent.java -text
 com.vmturbo.market.component/src/main/java/com/vmturbo/market/MarketGlobalConfig.java -text
@@ -998,8 +996,6 @@ com.vmturbo.priceindex.api/src/main/java/com/vmturbo/priceindex/api/PriceIndexLi
 com.vmturbo.priceindex.api/src/main/java/com/vmturbo/priceindex/api/PriceIndexNotificationSender.java -text
 com.vmturbo.priceindex.api/src/main/java/com/vmturbo/priceindex/api/impl/PriceIndexClientConfig.java -text
 com.vmturbo.priceindex.api/src/main/java/com/vmturbo/priceindex/api/impl/PriceIndexNotificationReceiver.java -text
-com.vmturbo.priceindex.api/src/main/java/com/vmturbo/priceindex/api/impl/PriceIndexReceiver.java -text
-com.vmturbo.priceindex.api/src/main/java/com/vmturbo/priceindex/api/impl/PriceIndexRestReceiver.java -text
 com.vmturbo.proactive.loader/pom.xml -text
 com.vmturbo.proactive.loader/src/main/java/com/turbonomic/telemetry/Driver.java -text
 com.vmturbo.proactive.loader/src/main/java/com/turbonomic/telemetry/ElasticLoadingException.java -text

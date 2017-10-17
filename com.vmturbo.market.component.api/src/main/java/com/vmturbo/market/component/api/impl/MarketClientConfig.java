@@ -4,17 +4,21 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Lazy;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
+import com.vmturbo.components.api.client.BaseKafkaConsumerConfig;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.market.component.api.MarketComponent;
-import com.vmturbo.market.component.dto.MarketMessages.MarketComponentNotification;
 
 /**
  * Spring configuration to import to connecto to Market instance.
@@ -23,7 +27,11 @@ import com.vmturbo.market.component.dto.MarketMessages.MarketComponentNotificati
  */
 @Configuration
 @Lazy
+@Import(BaseKafkaConsumerConfig.class)
 public class MarketClientConfig {
+
+    @Autowired
+    private BaseKafkaConsumerConfig baseKafkaConfig;
 
     @Value("${marketHost}")
     private String marketHost;
@@ -31,19 +39,24 @@ public class MarketClientConfig {
     @Value("${server.port}")
     private int httpPort;
 
-    @Value("${websocket.pong.timeout}")
-    private long websocketPongTimeout;
+    @Bean
+    protected IMessageReceiver<ActionPlan> actionPlanReceiver() {
+        return baseKafkaConfig.kafkaConsumer().messageReceiver(
+                MarketComponentClient.ACTION_PLANS_TOPIC,
+                ActionPlan::parseFrom);
+    }
 
     @Bean
-    protected IMessageReceiver<MarketComponentNotification> marketClientNotificationReceiver() {
-        return new MarketMessageReceiver(marketClientConnectionConfig(), marketClientThreadPool());
+    protected IMessageReceiver<ProjectedTopology> projectedTopologyReceiver() {
+        return baseKafkaConfig.kafkaConsumer().messageReceiver(
+                MarketComponentClient.PROJECTED_TOPOLOGIES_TOPIC,
+                ProjectedTopology::parseFrom);
     }
 
     @Bean
     protected ComponentApiConnectionConfig marketClientConnectionConfig() {
         return ComponentApiConnectionConfig.newBuilder()
                 .setHostAndPort(marketHost, httpPort)
-                .setPongMessageTimeout(websocketPongTimeout)
                 .build();
     }
 
@@ -57,6 +70,6 @@ public class MarketClientConfig {
     @Bean
     public MarketComponent marketComponent() {
         return MarketComponentClient.rpcAndNotification(marketClientConnectionConfig(),
-                marketClientThreadPool(), marketClientNotificationReceiver());
+                marketClientThreadPool(), projectedTopologyReceiver(), actionPlanReceiver());
     }
 }
