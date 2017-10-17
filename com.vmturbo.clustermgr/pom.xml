@@ -3,7 +3,7 @@
     <parent>
         <groupId>com.vmturbo</groupId>
         <artifactId>Turbonomic-XL</artifactId>
-        <version>7.0.b7-SNAPSHOT</version>
+        <version>7.0.b8-SNAPSHOT</version>
         <relativePath>../build</relativePath>
     </parent>
 
