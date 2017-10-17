@@ -24,6 +24,11 @@ message EconomySettingsTO {
 
     // flag to enable estimates
     required bool estimates = 6 [default = false];
+
+    // The quote factor is a number (between 0 and 1), so that Move actions are
+    // only generated if best-quote < quote-factor * current-quote. That means that if we only want
+    // Moves that result in at least 25% improvement we should use a quote-factor of 0.75.
+    required float quote_factor = 7 [default = 0.75];
 }
 
 // A detailed, exact statement of particulars about a commodity a buyer needs to buy (but may not be

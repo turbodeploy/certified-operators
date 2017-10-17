@@ -174,6 +174,7 @@ public class AnalysisServer implements AutoCloseable {
         settings.setExpenseMetricFactor(settingsTO.getExpenseMetricFactor());
         settings.setRateOfResize(settingsTO.getRateOfResize());
         settings.setEstimatesEnabled(settingsTO.getEstimates());
+        settings.setQuoteFactor(settingsTO.getQuoteFactor());
         return instInfo;
     }
 
