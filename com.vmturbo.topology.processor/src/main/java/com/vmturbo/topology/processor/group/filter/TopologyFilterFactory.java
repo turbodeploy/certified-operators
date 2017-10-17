@@ -6,7 +6,6 @@ import java.util.function.Predicate;
 import java.util.function.ToIntFunction;
 import java.util.function.ToLongFunction;
 import java.util.regex.Pattern;
-
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.search.Search;

@@ -40,6 +40,7 @@ import com.vmturbo.topology.processor.api.server.TopologyBroadcast;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
+import com.vmturbo.topology.processor.group.settings.SettingsManager;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.rest.TopologyController.SendTopologyResponse;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
@@ -98,10 +99,16 @@ public class TopologyControllerTest {
         }
 
         @Bean
+        SettingsManager settingsManager() {
+            return Mockito.mock(SettingsManager.class);
+        }
+
+        @Bean
         TopologyHandler topologyHandler() {
             return new TopologyHandler(0, apiController(), entityStore(),
                 identityProvider(), policyManager(),
-                discoveredTemplatesNotifier(), discoveredGroupUploader());
+                discoveredTemplatesNotifier(), discoveredGroupUploader(),
+                settingsManager());
         }
 
         @Bean

@@ -1306,6 +1306,7 @@ com.vmturbo.topology.processor/src/main/java/com/vmturbo/topology/processor/grou
 com.vmturbo.topology.processor/src/main/java/com/vmturbo/topology/processor/group/policy/PolicyApplicationException.java -text
 com.vmturbo.topology.processor/src/main/java/com/vmturbo/topology/processor/group/policy/PolicyFactory.java -text
 com.vmturbo.topology.processor/src/main/java/com/vmturbo/topology/processor/group/policy/PolicyManager.java -text
+com.vmturbo.topology.processor/src/main/java/com/vmturbo/topology/processor/group/settings/SettingsManager.java -text
 com.vmturbo.topology.processor/src/main/java/com/vmturbo/topology/processor/identity/EntityDescriptor.java -text
 com.vmturbo.topology.processor/src/main/java/com/vmturbo/topology/processor/identity/EntityMetadataDescriptor.java -text
 com.vmturbo.topology.processor/src/main/java/com/vmturbo/topology/processor/identity/EntryData.java -text
@@ -1432,6 +1433,7 @@ com.vmturbo.topology.processor/src/test/java/com/vmturbo/topology/processor/grou
 com.vmturbo.topology.processor/src/test/java/com/vmturbo/topology/processor/group/policy/PolicyManagerTest.java -text
 com.vmturbo.topology.processor/src/test/java/com/vmturbo/topology/processor/group/policy/PolicyMatcher.java -text
 com.vmturbo.topology.processor/src/test/java/com/vmturbo/topology/processor/group/policy/PolicyTest.java -text
+com.vmturbo.topology.processor/src/test/java/com/vmturbo/topology/processor/group/settings/SettingsManagerTest.java -text
 com.vmturbo.topology.processor/src/test/java/com/vmturbo/topology/processor/identity/EntityDescriptorMock.java -text
 com.vmturbo.topology.processor/src/test/java/com/vmturbo/topology/processor/identity/IdentityProviderImplTest.java -text
 com.vmturbo.topology.processor/src/test/java/com/vmturbo/topology/processor/identity/IdentityRpcServiceTest.java -text

@@ -86,12 +86,12 @@ public class PolicyManagerTest {
         when(filterFactory.newGroupResolver()).thenReturn(groupResolver);
         when(groupFetcher.getGroupings(Sets.newHashSet(id1, id2, id3, id4))).thenReturn(groupingMap);
 
-        // set up a mock Actions RPC server
+        // set up a mock Group RPC server
         grpcServer = GrpcTestServer.withServices(policyServiceBackend);
         final PolicyServiceGrpc.PolicyServiceBlockingStub policyRpcService =
             PolicyServiceGrpc.newBlockingStub(grpcServer.getChannel());
 
-        // set up the ActionsService to test
+        // set up the GroupService to test
         policyManager = new com.vmturbo.topology.processor.group.policy.PolicyManager(
             policyRpcService, groupFetcher, filterFactory, new PolicyFactory());
     }

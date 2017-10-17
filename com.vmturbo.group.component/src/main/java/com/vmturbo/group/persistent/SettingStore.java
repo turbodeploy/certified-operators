@@ -21,7 +21,6 @@ import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
 import javax.annotation.Nonnull;
 
 import org.apache.commons.lang3.StringUtils;
@@ -67,6 +66,7 @@ public class SettingStore {
 
     // map to store the setting spec, indexed by setting name
     private final ImmutableMap<String, SettingSpec> settingSpecMap;
+
 
     /**
      * A DSLContext with which to interact with an underlying persistent datastore.
@@ -813,4 +813,5 @@ public class SettingStore {
             return errors;
         }
     }
+
 }

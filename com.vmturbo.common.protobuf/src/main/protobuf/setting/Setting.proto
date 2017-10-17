@@ -305,6 +305,8 @@ message SettingPolicyInfo {
 message Scope {
     // The ids of the groups to which a SettingPolicy should be bound.
     repeated int64 groups = 1;
+    // TODO : karthikt - OM-25478. Add api support for setting clusters
+    repeated int64 clusters = 2;
 }
 
 // Used to request a single SettingSpec
@@ -393,6 +395,49 @@ message ListSettingPoliciesRequest {
     optional SettingPolicy.Type type_filter = 1;
 }
 
+// Settings associated with an entity
+message EntitySettings {
+    // OID of entity. this is a required field
+    optional int64 entity_oid = 1;
+
+    repeated Setting settings = 2;
+}
+
+message UploadEntitySettingsRequest {
+    // required field
+    optional int64 topology_id = 1;
+
+    // required field
+    optional int64 topology_context_id = 2;
+
+    repeated EntitySettings entity_settings = 3;
+}
+
+message UploadEntitySettingsResponse {
+}
+
+message GetEntitySettingsRequest {
+    // If topologyId and topologyContextId is not provided, then the Settings
+    // resolved from the latest topology is returned. If only one of ids is
+    // provided, it will be ignored and the entity-settings for the latest
+    // topology will be returned.
+    optional int64 topology_id = 1;
+    optional int64 topology_context_id = 2;
+
+    // List of entity OIDs for which the Settings has to be returned.
+    // If the OID list is absent, the settings for all Entities are returned.
+    repeated int64 entities = 3;
+}
+
+message GetEntitySettingsResponse {
+    // send the topologyId and topologyContextId along with the entitySetting
+    // mapping. this will be useful in cases when the client doesn't
+    // specify the Ids.
+    optional int64 topology_id = 1;
+    optional int64 topology_context_id = 2;
+    repeated EntitySettings entity_settings = 3;
+}
+
 // The SettingPolicyService provides RPC's for CRUD-type operations related to SettingPolicy objects.
 service SettingPolicyService {
     // Create a setting policy
@@ -414,4 +459,12 @@ service SettingPolicyService {
 
     // List setting policies.
     rpc ListSettingPolicies (ListSettingPoliciesRequest) returns (stream SettingPolicy);
+
+    // Store the Entities and their associated Settings
+    // karthikt : Should we stream this from the client instead of sending in
+    // one request as the number of entites could be huge?
+    rpc UploadEntitySettings(UploadEntitySettingsRequest) returns (UploadEntitySettingsResponse);
+
+    // Retrieve Entities and their associated Settings
+    rpc GetEntitySettings(GetEntitySettingsRequest) returns (GetEntitySettingsResponse);
 }

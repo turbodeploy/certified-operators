@@ -3,7 +3,6 @@ package com.vmturbo.group.service;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Stream;
-
 import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
@@ -20,10 +19,11 @@ import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyResponse
 import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
-import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.UpdateSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.UpdateSettingPolicyResponse;
+import com.vmturbo.common.protobuf.setting.SettingProto.UploadEntitySettingsRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.UploadEntitySettingsResponse;
 import com.vmturbo.group.persistent.DuplicateNameException;
 import com.vmturbo.group.persistent.InvalidSettingPolicyException;
 import com.vmturbo.group.persistent.SettingPolicyFilter;
@@ -166,6 +166,30 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
             filterBuilder.withType(request.getTypeFilter());
         }
         settingStore.getSettingPolicies(filterBuilder.build()).forEach(responseObserver::onNext);
+        responseObserver.onCompleted();
+    }
+
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void uploadEntitySettings(final UploadEntitySettingsRequest request,
+            final StreamObserver<UploadEntitySettingsResponse> responseObserver) {
+
+        if (!request.hasTopologyId() || !request.hasTopologyContextId()) {
+            logger.error("Missing topologId {} or topologyContexId argument {}",
+                request.hasTopologyId(), request.hasTopologyContextId());
+            responseObserver.onError(Status.INVALID_ARGUMENT
+                .withDescription("Missing topologyId and/or topologyContexId argument!")
+                .asException());
+            return;
+        }
+
+        if (request.getEntitySettingsCount() > 0) {
+            // TODO : karthikt - OM-25472. Store the settings
+        }
+        responseObserver.onNext(UploadEntitySettingsResponse.newBuilder().build());
         responseObserver.onCompleted();
     }
 }

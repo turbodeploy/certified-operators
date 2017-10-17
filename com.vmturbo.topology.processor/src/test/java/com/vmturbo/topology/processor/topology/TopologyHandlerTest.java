@@ -5,7 +5,6 @@ import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
 import java.util.Map;
-
 import javax.annotation.Nonnull;
 
 import org.junit.Before;
@@ -27,6 +26,7 @@ import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.entity.EntityValidator;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
+import com.vmturbo.topology.processor.group.settings.SettingsManager;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
 import com.vmturbo.topology.processor.targets.TargetStore;
@@ -50,13 +50,16 @@ public class TopologyHandlerTest {
             Mockito.mock(DiscoveredTemplateDeploymentProfileNotifier.class);
     private final DiscoveredGroupUploader discoveredGroupUploader =
             Mockito.mock(DiscoveredGroupUploader.class);
+    private final SettingsManager settingsManager =
+            Mockito.mock(SettingsManager.class);
+
 
     @Before
     public void init() {
         final IdentityProvider identityProvider = Mockito.mock(IdentityProvider.class);
         topologyHandler = new TopologyHandler(realtimeTopologyContextId, topoBroadcastManager,
                 entityStore, identityProvider, policyManager,
-            discoveredTemplateDeploymentProfileNotifier, discoveredGroupUploader);
+                discoveredTemplateDeploymentProfileNotifier, discoveredGroupUploader, settingsManager);
         when(identityProvider.getTopologyId()).thenReturn(topologyId);
     }
 

@@ -5,11 +5,14 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
 
@@ -25,6 +28,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingSpec;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesRequest;
@@ -35,6 +39,8 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.UpdateSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.UpdateSettingPolicyResponse;
+import com.vmturbo.common.protobuf.setting.SettingProto.UploadEntitySettingsRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.UploadEntitySettingsResponse;
 import com.vmturbo.components.api.test.GrpcExceptionMatcher;
 import com.vmturbo.group.persistent.DuplicateNameException;
 import com.vmturbo.group.persistent.InvalidSettingPolicyException;
@@ -383,6 +389,53 @@ public class SettingPolicyRpcServiceTest {
                 responseObserver);
 
         verify(responseObserver, times(2)).onNext(eq(settingPolicy));
+        verify(responseObserver).onCompleted();
+    }
+
+    @Test
+    public void testUploadEntitySettingsMissingArguments() {
+        final StreamObserver<UploadEntitySettingsResponse> responseObserver =
+                (StreamObserver<UploadEntitySettingsResponse>)mock(StreamObserver.class);
+
+        service.uploadEntitySettings(UploadEntitySettingsRequest.newBuilder()
+                .build(), responseObserver);
+
+        final ArgumentCaptor<StatusException> exceptionCaptor =
+                ArgumentCaptor.forClass(StatusException.class);
+        verify(responseObserver).onError(exceptionCaptor.capture());
+
+        StatusException exception = exceptionCaptor.getValue();
+        assertThat(exception, GrpcExceptionMatcher
+                .hasCode(Code.INVALID_ARGUMENT)
+                .descriptionContains("Missing topologyId and/or topologyContexId argument!"));
+    }
+
+    @Test
+    public void testUploadEntitySettings() {
+        final StreamObserver<UploadEntitySettingsResponse> responseObserver =
+                (StreamObserver<UploadEntitySettingsResponse>)mock(StreamObserver.class);
+
+        EntitySettings es =
+            EntitySettings.newBuilder()
+                .setEntityOid(1234)
+                .addAllSettings(settingPolicyInfo.getSettingsList())
+            .build();
+
+        List<EntitySettings> esList = new LinkedList<>();
+        esList.add(es);
+
+        long topologyId = 1111;
+        long topologyContexId = 7777;
+        UploadEntitySettingsRequest.Builder request =
+            UploadEntitySettingsRequest.newBuilder()
+                .setTopologyId(topologyId)
+                .setTopologyContextId(topologyContexId)
+                .addAllEntitySettings(esList);
+
+        final ArgumentCaptor<UploadEntitySettingsResponse> responseCaptor =
+                ArgumentCaptor.forClass(UploadEntitySettingsResponse.class);
+        service.uploadEntitySettings(request.build(), responseObserver);
+        verify(responseObserver).onNext(responseCaptor.capture());
         verify(responseObserver).onCompleted();
     }
 

@@ -8,7 +8,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
 import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
@@ -35,7 +34,7 @@ public class GroupResolver {
     }
 
     /**
-     * Resolve the members of a policy grouping. If the policy grouping uses a {@link Group}
+     * * Resolve the members of a policy grouping. If the policy grouping uses a {@link Group}
      * then delegate to {@link #resolve(Group, TopologyGraph)}, otherwise (the grouping
      * uses a {@link Cluster}) just return the cluster members' OIDs.
      *

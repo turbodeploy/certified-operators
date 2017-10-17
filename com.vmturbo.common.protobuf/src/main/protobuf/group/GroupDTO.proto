@@ -221,6 +221,17 @@ message GetClustersRequest {
     optional ClusterInfo.Type type_filter = 3;
 }
 
+message GetClusterRequest {
+    // The ID of the cluster to look for.
+    optional int64 cluster_id = 1;
+}
+
+message GetClusterResponse {
+    // If present, the cluster associated with
+    // the ID in the request.
+    optional Cluster cluster = 1;
+}
+
 // A service responsible for group operations.
 service GroupService {
     // Create a group
@@ -258,17 +269,6 @@ service DiscoveredCollectionsService {
     // Each call to this method is atomic - either all groups will be added, overriding
     // existing groups, or none of them will be.
     rpc StoreDiscoveredCollections(StoreDiscoveredCollectionsRequest) returns (StoreDiscoveredCollectionsResponse);
-}
-
-message GetClusterRequest {
-    // The ID of the cluster to look for.
-    optional int64 cluster_id = 1;
-}
-
-message GetClusterResponse {
-    // If present, the cluster associated with
-    // the ID in the request.
-    optional Cluster cluster = 1;
 }
 
 // The cluster service is responsible for cluster operations.

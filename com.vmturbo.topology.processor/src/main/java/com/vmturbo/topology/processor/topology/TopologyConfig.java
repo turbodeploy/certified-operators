@@ -52,7 +52,8 @@ public class TopologyConfig {
                 identityProviderConfig.identityProvider(),
                 groupConfig.policyManager(),
                 discoveredTemplateDeploymentProfileConfig.discoveredTemplatesUploader(),
-                groupConfig.discoveredGroupUploader());
+                groupConfig.discoveredGroupUploader(),
+                groupConfig.settingsManager());
     }
 
     @Bean

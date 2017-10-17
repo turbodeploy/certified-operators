@@ -1,9 +1,10 @@
 package com.vmturbo.topology.processor.topology;
 
 import java.util.Collection;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
-
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
@@ -11,6 +12,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.communication.CommunicationException;
@@ -19,8 +21,11 @@ import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
 import com.vmturbo.topology.processor.api.server.TopologyBroadcast;
 import com.vmturbo.topology.processor.entity.EntityStore;
+import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
+import com.vmturbo.topology.processor.group.filter.TopologyFilterFactory;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
+import com.vmturbo.topology.processor.group.settings.SettingsManager;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.templates.DiscoveredTemplateDeploymentProfileNotifier;
 import com.vmturbo.topology.processor.topology.TopologyGraph.Vertex;
@@ -46,13 +51,16 @@ public class TopologyHandler {
 
     private final DiscoveredGroupUploader discoveredGroupUploader;
 
+    private final SettingsManager settingsManager;
+
     public TopologyHandler(final long realtimeTopologyContextId,
                            @Nonnull final TopoBroadcastManager topoBroadcastManager,
                            @Nonnull final EntityStore entityStore,
                            @Nonnull final IdentityProvider identityProvider,
                            @Nonnull final PolicyManager policyManager,
                            @Nonnull final DiscoveredTemplateDeploymentProfileNotifier discoveredTemplateDeploymentProfileNotifier,
-                           @Nonnull final DiscoveredGroupUploader discoveredGroupUploader) {
+                           @Nonnull final DiscoveredGroupUploader discoveredGroupUploader,
+                           @Nonnull final SettingsManager settingsManager) {
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.topoBroadcastManager = Objects.requireNonNull(topoBroadcastManager);
         this.entityStore = Objects.requireNonNull(entityStore);
@@ -60,6 +68,7 @@ public class TopologyHandler {
         this.policyManager = Objects.requireNonNull(policyManager);
         this.discoveredTemplateDeploymentProfileNotifier = Objects.requireNonNull(discoveredTemplateDeploymentProfileNotifier);
         this.discoveredGroupUploader = Objects.requireNonNull(discoveredGroupUploader);
+        this.settingsManager = Objects.requireNonNull(settingsManager);
     }
 
     /**
@@ -101,6 +110,14 @@ public class TopologyHandler {
             // it won't be impossible.
             //
             // TODO: Other places that construct topology should also do this (AnalysisService, TopologyController).
+
+            // karthikt - In the pipeline approach, we would have to traverse the graph in each stage.
+            //   If the graph is huge and there are many stages, it would inefficient. Another option
+            //   is to have all the operations together and apply them at once. This will involve
+            //   just one traversal of the graph. This assumes that these operations would not
+            //   transform the graph(i.e changes the structure of the graph). If there is structural
+            //   tranformation of graph, then the pipeline approach is the better one
+
             try {
                 discoveredGroupUploader.processQueuedGroups();
             } catch (RuntimeException e) {
@@ -113,6 +130,22 @@ public class TopologyHandler {
             } catch (RuntimeException e) {
                 // TODO: We probably shouldn't continue to broadcast if we cannot successfully apply policy information.
                 logger.error("Unable to apply policies due to error: ", e);
+            }
+
+            logger.info("Start applying settings for topology context {}", realtimeTopologyContextId);
+            try {
+                TopologyFilterFactory topologyFilterFactory = new TopologyFilterFactory();
+                // TODO: karthikt - OM-25473. Use the same groupResolver for both Policy
+                // TODO: and Settings. Then We can memoize the resolved groups
+                GroupResolver groupResolver = new GroupResolver(topologyFilterFactory);
+                Map<Long, List<Setting>> entitySettings  = settingsManager.applySettings(groupResolver, graph);
+                logger.info("Finished applying settings. Sending the entitySetting mapping of size {} to Group component",
+                    entitySettings.size());
+                settingsManager.sendEntitySettings(identityProvider.getTopologyId(),
+                    realtimeTopologyContextId, entitySettings);
+            } catch (RuntimeException e) {
+                // TODO: karthikt - Should we stop broadcast if we fail to apply settings?
+                logger.error("Unable to apply settings due to error: ", e);
             }
 
             return broadcastTopology(realtimeTopologyContextId,
