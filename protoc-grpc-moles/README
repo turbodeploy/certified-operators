@@ -1,0 +1,32 @@
+This is a protobuf compiler plugin to generate spyable service implementations
+    (they're called moles because they're created to be spies).
+
+Testing classes that depend on gRPC services is a big pain. The best way I've found to work with it
+is to define "test" gRPC services, which provide methods that can be overridden using Mockito.spy()
+ -> Mockito.when() to control their behaviour. However, having to do this manually for every new
+ unit test class - and having to maintain these - is annoying, time-consuming, and error-prone.
+
+This plugin does that dirty work for us. It generates service moles (i.e. implementations that can
+become spies!) for gRPC services.
+
+The class that does the heavy lifting is the ServiceMoleGenerator. The code flow is fairly
+straightforward - go through the defined services and methods in each input file, and generate a
+matching service. In addition to the usual "void method(Request, StreamObserver)" we generate
+"Response method(Request)" and "Optional<Throwable> methodError(Request)" methods.
+ This integrates better with Mockito. You can just do:
+
+    TestServiceMole service = Mockito.spy(new TestServiceMole());
+    when(service.method(eq(request))).thenReturn(response);
+
+    // Call the method that uses testService.
+
+For an example of what it's like to use these moles see TestDependentClass.
+
+This change does not include replacing all existing test implementations of gRPC services.
+That will come separately to keep the delta small.
+
+Structure:
+    plugin <- This is the code for the actual plugin.
+    test <- This is the code for test modules. These are "integration" tests - the modules use the
+            plugin to generate moles for specific protobuf files, and may run unit tests on the
+            generated code.

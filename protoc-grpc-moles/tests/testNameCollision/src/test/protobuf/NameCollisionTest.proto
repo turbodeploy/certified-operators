@@ -1,0 +1,15 @@
+syntax = "proto2";
+package nameCollision;
+
+message TestRequest {
+    optional int64 id = 1;
+}
+
+message TestResponse {
+    optional int64 id = 1;
+}
+
+// The name of the service is the same as the name of the .proto file.
+service NameCollisionTest {
+    rpc DoSomething(TestRequest) returns (TestResponse);
+}

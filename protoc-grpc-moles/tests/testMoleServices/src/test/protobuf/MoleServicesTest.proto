@@ -1,0 +1,21 @@
+syntax = "proto2";
+package com.vmturbo.protoc.grpc.moles.testMoleServices;
+
+message TestRequest {
+    optional int64 id = 1;
+}
+
+message TestResponse {
+    optional int64 id = 1;
+}
+
+// Service methods with simple client inputs.
+service TheService {
+    rpc NoStreamMethod(TestRequest) returns (TestResponse);
+
+    rpc ServerStreamMethod(TestRequest) returns (stream TestResponse);
+
+    rpc ClientStreamMethod(stream TestRequest) returns (TestResponse);
+
+    rpc TwoStreamMethod(stream TestRequest) returns (stream TestResponse);
+}

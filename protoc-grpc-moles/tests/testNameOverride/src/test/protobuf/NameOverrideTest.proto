@@ -1,0 +1,18 @@
+syntax = "proto2";
+package com.vmturbo.protoc.grpc.mock.testNameOverride;
+
+// We're overriding the package and outer class. Everything should still work.
+option java_package = "com.vmturbo.grpc.mock.name.collision";
+option java_outer_classname = "NameOverrideProto";
+
+message TestRequest {
+    optional int64 id = 1;
+}
+
+message TestResponse {
+    optional int64 id = 1;
+}
+
+service NameOverrideTest {
+    rpc DoSomething(TestRequest) returns (TestResponse);
+}
