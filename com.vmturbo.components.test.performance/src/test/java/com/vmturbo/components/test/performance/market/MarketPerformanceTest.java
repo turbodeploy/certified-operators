@@ -106,7 +106,7 @@ public class MarketPerformanceTest {
         final long start = System.currentTimeMillis();
         final CompletableFuture<ActionPlan> actionPlanFuture = new CompletableFuture<>();
         marketComponent.addActionsListener(new TestActionsListener(actionPlanFuture));
-        final ActionPlan receivedActionPlan = actionPlanFuture.get(10, TimeUnit.MINUTES);
+        final ActionPlan receivedActionPlan = actionPlanFuture.get(20, TimeUnit.MINUTES);
 
         logger.info("Took {} seconds to receive action plan of size {} for topology of size {}.",
                 (System.currentTimeMillis() - start) / 1000.0f,
