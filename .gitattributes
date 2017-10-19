@@ -815,6 +815,7 @@ com.vmturbo.history/src/test/java/com/vmturbo/history/market/PlanStatsWriterTest
 com.vmturbo.history/src/test/java/com/vmturbo/history/market/PriceIndexListenerLiveVsPlanTest.java -text
 com.vmturbo.history/src/test/java/com/vmturbo/history/stats/LiveStatsAggregatorTest.java -text
 com.vmturbo.history/src/test/java/com/vmturbo/history/stats/LiveStatsDBTest.java -text
+com.vmturbo.history/src/test/java/com/vmturbo/history/stats/LiveStatsReaderTest.java -text
 com.vmturbo.history/src/test/java/com/vmturbo/history/stats/LiveStatsWriterTest.java -text
 com.vmturbo.history/src/test/java/com/vmturbo/history/stats/MarketStatsAccumulatorTest.java -text
 com.vmturbo.history/src/test/java/com/vmturbo/history/stats/PlanStatsAggregatorTest.java -text

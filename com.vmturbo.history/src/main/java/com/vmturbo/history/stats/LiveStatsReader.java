@@ -67,6 +67,7 @@ import org.jooq.Result;
 import org.jooq.Select;
 import org.jooq.Table;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableList;
@@ -96,8 +97,10 @@ public class LiveStatsReader {
 
     // Partition the list of entities to read into chunks of this size in order not to flood the DB.
     private static final int ENTITIES_PER_CHUNK = 50000;
-    // time (MS) to specify a window before startTime and after endTime = 30 secs half-window = 1 min
-    private static final long TIME_HALF_WINDOW_MS = Duration.of(30, ChronoUnit.SECONDS).toMillis();
+    // time (MS) to specify a window before startTime and after endTime = 1 min (must be even #)
+    private static final long TIME_WINDOW_MS = Duration.of(60, ChronoUnit.SECONDS).toMillis();
+    @VisibleForTesting
+    static final long TIME_HALF_WINDOW_MS = TIME_WINDOW_MS / 2;
 
     private final HistorydbIO historydbIO;
 
@@ -129,6 +132,8 @@ public class LiveStatsReader {
      * This requires looking up the entity type for each entity id in the list, and and then iterating
      * over the time-based tables for that entity type.
      *
+     * The time interval is widened to ensure we capture past stats when startTime == endTime.
+     *
      * @param entityIds a list of primary-level entities to gather stats from; groups have been
      *                  expanded before we get here
      * @param startTime the timestamp of the oldest stats to gather; the default is "now"
@@ -144,14 +149,14 @@ public class LiveStatsReader {
 
 
         // get most recent date from _latest database
-        final Optional<Timestamp> mostRecentTimestamp = historydbIO.getMostRecentTimestamp();
-        if (!mostRecentTimestamp.isPresent()) {
+        final Optional<Timestamp> mostRecentDbTimestamp = historydbIO.getMostRecentTimestamp();
+        if (!mostRecentDbTimestamp.isPresent()) {
             // no data persisted yet; just return an empty answer
             return Collections.emptyList();
         }
-        long now = mostRecentTimestamp.get().getTime();
-        startTime = applyTimeDefault(startTime, now - TIME_HALF_WINDOW_MS);
-        endTime = applyTimeDefault(endTime, now + TIME_HALF_WINDOW_MS);
+        long mostRecentTimestamp = mostRecentDbTimestamp.get().getTime();
+        startTime = applyTimeDefault(startTime, mostRecentTimestamp - TIME_HALF_WINDOW_MS);
+        endTime = applyTimeDefault(endTime, mostRecentTimestamp + TIME_HALF_WINDOW_MS);
 
         Map<String, String> entityClsMap = historydbIO.getTypesForEntities(entityIds);
 
@@ -202,7 +207,7 @@ public class LiveStatsReader {
         }
 
         // if requested, add counts
-        addCountStats(startTime, entityClsMap, commodityNames, answer);
+        addCountStats(mostRecentTimestamp, entityClsMap, commodityNames, answer);
         Duration overallElapsed = Duration.between(overallStart, Instant.now());
         logger.debug("total stats returned: {}, overall elapsed: {}", answer.size(), overallElapsed);
         return answer;
@@ -402,18 +407,18 @@ public class LiveStatsReader {
      *
      * If the commodityNames list is null or empty, then include all count-based stats.
      *
-     * @param snapshot_time the time of the current snapshot
+     * @param currentSnapshotTime the time of the current snapshot
      * @param entityClassMap map from entity OID to entity class name
      * @param commodityNames a list of the commodity names to filter on
      * @param countStatsRecords the list that count stats will be added to
      */
-    private void addCountStats(long snapshot_time,
+    private void addCountStats(long currentSnapshotTime,
                                @Nonnull Map<String, String> entityClassMap,
                                @Nullable List<String> commodityNames,
                                @Nonnull List<Record> countStatsRecords) {
 
         // use the startTime for the all counted stats
-        final Timestamp snapshotTime = new Timestamp(snapshot_time);
+        final Timestamp snapshotTimestamp = new Timestamp(currentSnapshotTime);
 
         // derive list of calculated metrics
         List<String> filteredCommodityNames = Lists.newArrayList(countPerSEsMetrics);
@@ -481,7 +486,7 @@ public class LiveStatsReader {
                         continue;
                 }
             }
-            countRecord.setSnapshotTime(snapshotTime);
+            countRecord.setSnapshotTime(snapshotTimestamp);
             countRecord.setPropertyType(commodityName);
             countRecord.setAvgValue(statValue);
             countRecord.setRelation(RelationType.COMMODITIES_FROM_ATTRIBUTES);

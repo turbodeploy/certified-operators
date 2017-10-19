@@ -204,8 +204,7 @@ public class StatsHistoryServiceTest {
                 .thenReturn(statsRecordsList);
 
         // act
-        statsHistoryService.getAveragedEntityStats(testStatsRequest,
-            mockStatSnapshotStreamObserver);
+        statsHistoryService.getAveragedEntityStats(testStatsRequest, mockStatSnapshotStreamObserver);
 
         // assert
         verify(mockLivestatsreader).getFullMarketStatsRecords(eq(startDate), eq(endDate),
@@ -254,10 +253,11 @@ public class StatsHistoryServiceTest {
 
     /**
      * Test stats request when the UUID is neither the well known UUID "Market"
-     * nor a a known scenario, i.e. to be treated as a service entity.
+     * nor a known scenario, i.e. to be treated as a service entity. The startTime and endTime
+     * are specified.
      */
     @Test
-    public void testEntityStats() throws Exception {
+    public void testEntityStatsWithTimeRange() throws Exception {
         // arrange
         when(historyDbio.entityIdIsPlan(ENTITY_UUID)).thenReturn(false);
         ScenariosRecord scenariosRecord = new ScenariosRecord();
