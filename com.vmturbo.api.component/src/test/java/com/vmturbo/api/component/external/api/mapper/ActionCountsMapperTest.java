@@ -13,7 +13,7 @@ import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
-import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsResponse.TypeCount;
+import com.vmturbo.common.protobuf.action.ActionDTO.TypeCount;
 
 /**
  * Unit tests for the {@link ActionSpecMapper}.
@@ -85,5 +85,8 @@ public class ActionCountsMapperTest {
         Assert.assertEquals(ActionTypeMapper.toApi(actionType), stat.getFilters().get(0).getValue());
         Assert.assertEquals(Float.valueOf(val), stat.getValue());
         Assert.assertEquals(Float.valueOf(val), stat.getValues().getAvg());
+        Assert.assertEquals(Float.valueOf(val), stat.getValues().getMax());
+        Assert.assertEquals(Float.valueOf(val), stat.getValues().getMin());
+        Assert.assertEquals(Float.valueOf(val), stat.getValues().getTotal());
     }
 }

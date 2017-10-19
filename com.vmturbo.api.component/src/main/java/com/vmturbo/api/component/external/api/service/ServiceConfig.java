@@ -58,6 +58,7 @@ public class ServiceConfig {
     public ActionsService actionsService() {
         return new ActionsService(communicationConfig.actionsRpcService(),
                                   mapperConfig.actionSpecMapper(),
+                                  communicationConfig.repositoryApi(),
                                   communicationConfig.getRealtimeTopologyContextId());
     }
 

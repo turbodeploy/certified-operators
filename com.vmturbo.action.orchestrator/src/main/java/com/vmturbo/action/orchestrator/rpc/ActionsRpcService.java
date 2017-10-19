@@ -14,6 +14,7 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 
 import io.grpc.Status;
@@ -42,12 +43,16 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.DeleteActionsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.DeleteActionsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByEntityRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByEntityResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByEntityResponse.ActionCountsByEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.MultiActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.TopologyContextInfoRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.TopologyContextResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.TypeCount;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceImplBase;
 
 /**
@@ -250,6 +255,27 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         }
     }
 
+    @Override
+    public void getActionCountsByEntity(GetActionCountsByEntityRequest request,
+                                        StreamObserver<GetActionCountsByEntityResponse> response) {
+        if (!request.hasFilter() || !request.getFilter().hasInvolvedEntities()) {
+            response.onError(Status.INVALID_ARGUMENT
+                .withDescription("Get action counts by entity need provide a action filter and entities.")
+                .asException());
+        }
+        final Optional<ActionStore> contextStore =
+            actionStorehouse.getStore(request.getTopologyContextId());
+        if (contextStore.isPresent()) {
+            final Multimap<Long, ActionView> actionViewsMap =
+                new QueryFilter(Optional.of(request.getFilter()))
+                    .filterActionViewsByEntityId(contextStore.get());
+            observeActionCountsByEntity(actionViewsMap, response);
+        }
+        else {
+            contextNotFoundError(response, request.getTopologyContextId());
+        }
+    }
+
     /**
      * {@inheritDoc}
      */
@@ -354,12 +380,7 @@ public class ActionsRpcService extends ActionsServiceImplBase {
 
     static void observeActionCounts(@Nonnull final Stream<ActionView> actionViewStream,
                                      @Nonnull final StreamObserver<GetActionCountsResponse> responseObserver) {
-        final Map<ActionType, Long> actionsByType = actionViewStream
-            .map(ActionView::getRecommendation)
-            .map(ActionDTO.Action::getInfo)
-            .collect(Collectors.groupingBy(
-                ActionDTOUtil::getActionInfoActionType,
-                Collectors.counting()));
+        final Map<ActionType, Long> actionsByType = getActionsByType(actionViewStream);
 
         final GetActionCountsResponse.Builder respBuilder = GetActionCountsResponse.newBuilder()
             .setTotal(actionsByType.values().stream()
@@ -367,13 +388,52 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                 .sum());
 
         actionsByType.entrySet().stream()
-            .map(typeCount -> GetActionCountsResponse.TypeCount.newBuilder()
+            .map(typeCount -> TypeCount.newBuilder()
                 .setType(typeCount.getKey())
                 .setCount(typeCount.getValue()))
             .forEach(respBuilder::addCountsByType);
 
         responseObserver.onNext(respBuilder.build());
         responseObserver.onCompleted();
+    }
+
+    /**
+     * Count action type for each entity. And for one entity, it could have multiple action type and
+     * for each action type, it could have a few actions.
+     *
+     * @param actionViewsMap Key is entity Id, value is its related action views.
+     * @param response contains final relationship between entity with action type.
+     */
+    static void observeActionCountsByEntity(@Nonnull final Multimap<Long, ActionView> actionViewsMap,
+                                            @Nonnull StreamObserver<GetActionCountsByEntityResponse> response) {
+        GetActionCountsByEntityResponse.Builder actionCountsByEntityResponseBuilder =
+            GetActionCountsByEntityResponse.newBuilder();
+        actionViewsMap.asMap().entrySet().stream()
+            .forEach(entry -> {
+                // TODO: implement more group mechanism such as group by mode, state.
+                final Map<ActionType, Long> actionsByType = getActionsByType(entry.getValue().stream());
+
+                final ActionCountsByEntity.Builder actionCountsByEntityBuilder = ActionCountsByEntity.newBuilder()
+                    .setEntityId(entry.getKey());
+
+                actionsByType.entrySet().stream()
+                    .map(typeCount -> TypeCount.newBuilder()
+                        .setType(typeCount.getKey())
+                        .setCount(typeCount.getValue()))
+                    .forEach(actionCountsByEntityBuilder::addCountsByType);
+                actionCountsByEntityResponseBuilder.addActionCountsByEntity(actionCountsByEntityBuilder.build());
+            });
+        response.onNext(actionCountsByEntityResponseBuilder.build());
+        response.onCompleted();
+    }
+
+    private static Map<ActionType, Long> getActionsByType(@Nonnull final Stream<ActionView> actionViewStream) {
+        return actionViewStream
+            .map(ActionView::getRecommendation)
+            .map(ActionDTO.Action::getInfo)
+            .collect(Collectors.groupingBy(
+                ActionDTOUtil::getActionInfoActionType,
+                Collectors.counting()));
     }
 
     private static AcceptActionResponse acceptanceError(@Nonnull final String error) {

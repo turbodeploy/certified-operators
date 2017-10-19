@@ -1,5 +1,6 @@
 package com.vmturbo.action.orchestrator.action;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.spy;
@@ -8,10 +9,16 @@ import static org.mockito.Mockito.when;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.junit.Test;
+import org.mockito.Mockito;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Multimap;
+
+import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.LiveActionStore;
 import com.vmturbo.action.orchestrator.store.PlanActionStore;
 import com.vmturbo.common.protobuf.action.ActionDTO;
@@ -28,6 +35,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Move;
  */
 public class QueryFilterTest {
     private static final long ACTION_PLAN_ID = 9876;
+
+    private final ActionStore actionStore = Mockito.mock(ActionStore.class);
 
     private final ActionQueryFilter visibleFilter = ActionQueryFilter.newBuilder()
         .setVisible(true)
@@ -52,18 +61,18 @@ public class QueryFilterTest {
     @Test
     public void testEmptyFilter() throws Exception {
         final QueryFilter filter = new QueryFilter(Optional.empty());
-        final ActionView actionView = notExecutableMoveAction(1L, 2L, 3L);
+        final ActionView actionView = notExecutableMoveAction(0L, 1L, 2L, 3L);
         when(actionView.getMode()).thenReturn(ActionMode.DISABLED);
 
         // Even if the visibility is false, the spec should still pass the test if no visibility
         // filter is included.
         assertTrue(filter.test(actionView, view -> false));
-        assertTrue(filter.test(executableMoveAction(4L, 5L, 6L), actionSpec -> false));
+        assertTrue(filter.test(executableMoveAction(0L, 4L, 5L, 6L), actionSpec -> false));
     }
 
     @Test
     public void testExecutableDisabledNotVisible() throws Exception {
-        final ActionView actionView = notExecutableMoveAction(1l, 2L, 3L);
+        final ActionView actionView = notExecutableMoveAction(0L, 1l, 2L, 3L);
         when(actionView.getMode()).thenReturn(ActionMode.DISABLED);
 
         assertFalse(new QueryFilter(Optional.of(visibleFilter))
@@ -74,7 +83,7 @@ public class QueryFilterTest {
 
     @Test
     public void testManualNotExecutableNotVisible() throws Exception {
-        final ActionView actionView = notExecutableMoveAction(1l, 2L, 3L);
+        final ActionView actionView = notExecutableMoveAction(0L, 1l, 2L, 3L);
         when(actionView.getMode()).thenReturn(ActionMode.MANUAL);
 
         assertFalse(new QueryFilter(Optional.of(visibleFilter)).test(actionView, LiveActionStore.VISIBILITY_PREDICATE));
@@ -83,7 +92,7 @@ public class QueryFilterTest {
 
     @Test
     public void testManualReadyAndExecutableVisible() throws Exception {
-        final ActionView actionView = executableMoveAction(1l, 2L, 3L);
+        final ActionView actionView = executableMoveAction(0L, 1l, 2L, 3L);
         when(actionView.getMode()).thenReturn(ActionMode.MANUAL);
 
         assertTrue(new QueryFilter(Optional.of(visibleFilter))
@@ -94,7 +103,7 @@ public class QueryFilterTest {
 
     @Test
     public void testManualVisibleNotSetDoesNotFilter() throws Exception {
-        final ActionView actionView = notExecutableMoveAction(1l, 2L, 3L);
+        final ActionView actionView = notExecutableMoveAction(0L, 1l, 2L, 3L);
         when(actionView.getMode()).thenReturn(ActionMode.MANUAL);
 
         assertTrue(new QueryFilter(Optional.of(allFilter)).test(actionView, LiveActionStore.VISIBILITY_PREDICATE));
@@ -102,7 +111,7 @@ public class QueryFilterTest {
 
     @Test
     public void testRecommendVisible() throws Exception {
-        final ActionView actionView = notExecutableMoveAction(1l, 2L, 3L);
+        final ActionView actionView = notExecutableMoveAction(0L, 1l, 2L, 3L);
         when(actionView.getMode()).thenReturn(ActionMode.RECOMMEND);
 
         assertTrue(new QueryFilter(Optional.of(allFilter)).test(actionView, PlanActionStore.VISIBILITY_PREDICATE));
@@ -110,7 +119,7 @@ public class QueryFilterTest {
 
     @Test
     public void testStateMatch() throws Exception {
-        final ActionView actionView = notExecutableMoveAction(1l, 2L, 3L);
+        final ActionView actionView = notExecutableMoveAction(0L, 1l, 2L, 3L);
         when(actionView.getMode()).thenReturn(ActionMode.RECOMMEND);
         when(actionView.getState()).thenReturn(ActionState.SUCCEEDED);
 
@@ -120,7 +129,7 @@ public class QueryFilterTest {
 
     @Test
     public void testStateNoMatch() throws Exception {
-        final ActionView actionView = notExecutableMoveAction(1l, 2L, 3L);
+        final ActionView actionView = notExecutableMoveAction(0L, 1l, 2L, 3L);
         when(actionView.getMode()).thenReturn(ActionMode.RECOMMEND);
 
         assertFalse(new QueryFilter(Optional.of(succeededFilter))
@@ -129,7 +138,7 @@ public class QueryFilterTest {
 
     @Test
     public void testStateAndVisibleMatch() throws Exception {
-        final ActionView actionView = notExecutableMoveAction(1l, 2L, 3L);
+        final ActionView actionView = notExecutableMoveAction(0L, 1l, 2L, 3L);
         when(actionView.getMode()).thenReturn(ActionMode.MANUAL);
 
         // Using PlanActionStore's visibility predicate, so the
@@ -140,7 +149,7 @@ public class QueryFilterTest {
 
     @Test
     public void testStateAndVisibleNoMatch() throws Exception {
-        final ActionView actionView = notExecutableMoveAction(1l, 2L, 3L);
+        final ActionView actionView = notExecutableMoveAction(0L, 1l, 2L, 3L);
         when(actionView.getMode()).thenReturn(ActionMode.MANUAL);
 
         // Using LiveActionStore's visibility predicate, so the
@@ -151,7 +160,7 @@ public class QueryFilterTest {
 
     @Test
     public void testInvolvedEntitiesNoMatch() {
-        final ActionView actionView = executableMoveAction(1L, 2L, 3L);
+        final ActionView actionView = executableMoveAction(0L, 1L, 2L, 3L);
         final List<Long> involvedEntities = Arrays.asList(4L, 5L);
 
         final ActionQueryFilter filter = ActionQueryFilter.newBuilder()
@@ -165,7 +174,7 @@ public class QueryFilterTest {
 
     @Test
     public void testEmptyInvolvedEntities() {
-        final ActionView actionView = executableMoveAction(1L, 2L, 3L);
+        final ActionView actionView = executableMoveAction(0L, 1L, 2L, 3L);
         final List<Long> involvedEntities = Collections.emptyList();
 
         final ActionQueryFilter filter = ActionQueryFilter.newBuilder()
@@ -179,7 +188,7 @@ public class QueryFilterTest {
 
     @Test
     public void testInvolvedEntitiesMatch() {
-        final ActionView actionView = executableMoveAction(1L, 2L, 3L);
+        final ActionView actionView = executableMoveAction(0L, 1L, 2L, 3L);
         final List<Long> involvedEntities = Arrays.asList(1L, 5L);
 
         final ActionQueryFilter filter = ActionQueryFilter.newBuilder()
@@ -191,9 +200,55 @@ public class QueryFilterTest {
                                     .test(actionView, PlanActionStore.VISIBILITY_PREDICATE));
     }
 
-    private ActionView executableMoveAction(long sourceId, long destId, long targetId) {
+    @Test
+    public void testFilterActionViewsByEntity() {
+        final ActionView actionView1 = executableMoveAction(123L, 1L, 2L, 10L);
+        final ActionView actionView2 = executableMoveAction(124L, 1L, 3L, 11L);
+        final ActionView actionView3 = executableMoveAction(125L, 4L, 2L, 12L);
+        final List<Long> involvedEntities = Arrays.asList(1L, 4L, 6L);
+
+        final Map<Long, ActionView> actionViews = ImmutableMap.of(
+            actionView1.getId(), actionView1, actionView2.getId(), actionView2, actionView3.getId(),
+            actionView3);
+        when(actionStore.getActionViews()).thenReturn(actionViews);
+        when(actionStore.getVisibilityPredicate()).thenReturn(PlanActionStore.VISIBILITY_PREDICATE);
+
+        final ActionQueryFilter filter = ActionQueryFilter.newBuilder()
+            .setInvolvedEntities(InvolvedEntities.newBuilder()
+                .addAllOids(involvedEntities).build())
+            .build();
+
+        final Multimap<Long, ActionView> testMap = new QueryFilter(Optional.of(filter))
+            .filterActionViewsByEntityId(actionStore);
+        assertEquals(2, testMap.keySet().size());
+        assertTrue(testMap.containsKey(1L));
+        assertEquals(2, testMap.get(1L).size());
+        assertEquals(1, testMap.get(4L).size());
+    }
+
+    @Test
+    public void testFilterActionViewsByEntityNoMatch() {
+        final ActionView actionView1 = executableMoveAction(0L, 1L, 2L, 3L);
+        final List<Long> involvedEntities = Arrays.asList(6L);
+
+        final Map<Long, ActionView> actionViews = ImmutableMap.of(
+            actionView1.getId(), actionView1);
+        when(actionStore.getActionViews()).thenReturn(actionViews);
+        when(actionStore.getVisibilityPredicate()).thenReturn(PlanActionStore.VISIBILITY_PREDICATE);
+
+        final ActionQueryFilter filter = ActionQueryFilter.newBuilder()
+            .setInvolvedEntities(InvolvedEntities.newBuilder()
+                .addAllOids(involvedEntities).build())
+            .build();
+
+        final Multimap<Long, ActionView> testMap = new QueryFilter(Optional.of(filter))
+            .filterActionViewsByEntityId(actionStore);
+        assertTrue(testMap.isEmpty());
+    }
+
+    private ActionView executableMoveAction(long id, long sourceId, long destId, long targetId) {
         final ActionDTO.Action action = ActionDTO.Action.newBuilder()
-                .setId(0L)
+                .setId(id)
                 .setImportance(0)
                 .setExecutable(true)
                 .setExplanation(Explanation.newBuilder().build())
@@ -207,10 +262,9 @@ public class QueryFilterTest {
         return spy(new Action(action, ACTION_PLAN_ID));
     }
 
-
-    private ActionView notExecutableMoveAction(long sourceId, long destId, long targetId) {
+    private ActionView notExecutableMoveAction(long id, long sourceId, long destId, long targetId) {
         final ActionDTO.Action action = ActionDTO.Action.newBuilder()
-                .setId(0L)
+                .setId(id)
                 .setImportance(0)
                 .setExplanation(Explanation.newBuilder().build())
                 .setExecutable(false)
@@ -223,5 +277,4 @@ public class QueryFilterTest {
 
         return spy(new Action(action, ACTION_PLAN_ID));
     }
-
 }

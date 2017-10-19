@@ -534,6 +534,17 @@ message ActionQueryFilter {
     }
 }
 
+// The number of actions of a specific type that match the criteria in
+// the request.
+message TypeCount {
+
+    // The type of the action this message pertains to.
+    optional ActionType type = 1;
+
+    // The number of actions of the type that match the request criteria.
+    optional int64 count = 2;
+}
+
 // A message used to address a single action within a topology context.
 message SingleActionRequest {
     // The topology context the action belongs to.
@@ -632,23 +643,6 @@ message GetActionCountsRequest {
 
 // The response message to GetActionCounts.
 message GetActionCountsResponse {
-
-    // If necessary, this can be extracted into another message (e.g. if we want
-    // TopologyContextResponse to return organized action count information too.
-    // At the time of this writing (Feb 23, 2017) there are no users of TopologyContextResponse,
-    // so deferring the extraction for later).
-
-    // The number of actions of a specific type that match the criteria in
-    // the request.
-    message TypeCount {
-
-        // The type of the action this message pertains to.
-        optional ActionType type = 1;
-
-        // The number of actions of the type that match the request criteria.
-        optional int64 count = 2;
-    }
-
     // The total number of actions matching the criteria in the request.
     optional int64 total = 1;
 
@@ -657,6 +651,35 @@ message GetActionCountsResponse {
     // is the number of distinct ActionType values.
     // The order of the list (w.r.t. TypeCount.type) is not guaranteed.
     repeated TypeCount counts_by_type = 2;
+}
+
+// The request message to get actions counts by each entity.
+message GetActionCountsByEntityRequest {
+    // The topology context for which to retrieve actions.
+    optional int64 topology_context_id = 1;
+
+    // A filter to be applied to the actions retrieved. It is required in order to call
+    // GetActionCountsByEntity function.
+    optional ActionQueryFilter filter = 2;
+}
+
+// The response message to GetActionCountsByEntity.
+message GetActionCountsByEntityResponse {
+    // Contains relationship from a entity to related list of action TypeCount. One entity could
+    // multiple action type and each action type could have multiple actions.
+    message ActionCountsByEntity {
+        // Id of entity
+        optional int64 entity_id = 1;
+
+        // The actions in the request organized by type. And they are belong to a entity.
+        // Each ActionType will appear at most once in this list. so the maximum size of the list
+        // is the number of distinct ActionType values. And the sum of the list action counts will
+        // be the total action counts of this entity.
+        repeated TypeCount counts_by_type = 2;
+    }
+
+    // List of ActionCountsByEntity, it contains all requested entities.
+    repeated ActionCountsByEntity action_counts_by_entity = 1;
 }
 
 
@@ -695,4 +718,11 @@ service ActionsService {
     // Returns a NOT_FOUND status if the ActionService doesn't know about the
     // GetActionCountsRequest.topology_context_id.
     rpc GetActionCounts(GetActionCountsRequest) returns (GetActionCountsResponse);
+
+    // Get information about the counts of actions by entity level. For one entity, it could have
+    // multiple action types, and for each action type, it could have a few action counts. It requires
+    // parameter provide involved entities ids, otherwise it will return INVALID_ARGUMENT status.
+    // Returns a NOT_FOUND status if the ActionService doesn't know about the
+    // GetActionCountsByEntityRequest.topology_context_id.
+    rpc getActionCountsByEntity(GetActionCountsByEntityRequest) returns (GetActionCountsByEntityResponse);
 }

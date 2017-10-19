@@ -16,7 +16,7 @@ import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.utils.DateTimeUtil;
-import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsResponse.TypeCount;
+import com.vmturbo.common.protobuf.action.ActionDTO.TypeCount;
 
 /**
  * Static utility responsible for mapping {@link TypeCount}s to the appropriate
@@ -67,6 +67,10 @@ public class ActionCountsMapper {
 
                         final StatValueApiDTO valueDto = new StatValueApiDTO();
                         valueDto.setAvg(floatVal);
+                        // need to include max, min and total value, even though they are same.
+                        valueDto.setMax(floatVal);
+                        valueDto.setMin(floatVal);
+                        valueDto.setTotal(floatVal);
                         statDto.setValues(valueDto);
                         return statDto;
                     })
