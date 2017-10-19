@@ -89,9 +89,7 @@ public class TestUtils {
      */
     public static Trader createStorage(Economy economy, List<Long> cliques, double storageCapacity, boolean isCloneable) {
         Trader st = createTrader(economy, ST_TYPE, cliques, Arrays.asList(ST_AMT), new double[]{storageCapacity}, isCloneable, false);
-        st.getCommoditiesSold().get(st.getBasketSold().indexOf(ST_AMT)).setCapacity(300);
         ((CommoditySoldSettings) st.getCommoditiesSold().get(st.getBasketSold().indexOf(ST_AMT))).setPriceFunction(PriceFunction.Cache.createStepPriceFunction(0.8, 1.0, 10000.0));
-        st.getSettings().setCloneable(isCloneable);
         return st;
     }
 
