@@ -221,6 +221,7 @@ public class ServiceConfig {
         return new SupplyChainFetcher(communicationConfig.repositoryChannel(),
                 communicationConfig.actionOrchestratorChannel(),
                 communicationConfig.repositoryApi(),
+                groupExpander(),
                 Duration.ofSeconds(supplyChainFetcherTimeoutSeconds));
     }
 

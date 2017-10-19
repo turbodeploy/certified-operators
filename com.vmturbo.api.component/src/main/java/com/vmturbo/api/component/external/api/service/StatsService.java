@@ -5,7 +5,9 @@ import static com.vmturbo.api.component.external.api.mapper.StatsMapper.toStatsS
 
 import java.time.Clock;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -22,9 +24,11 @@ import org.apache.logging.log4j.Logger;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.ServiceEntityApiDTO;
@@ -32,7 +36,6 @@ import com.vmturbo.api.dto.input.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.input.statistic.StatScopesApiInputDTO;
 import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
-import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.IStatsService;
 import com.vmturbo.api.utils.DateTimeUtil;
@@ -140,6 +143,10 @@ public class StatsService implements IStatsService {
 
         // determine the list of entity OIDs to query for this operation
         final Set<Long> entityStatsOids = groupExpander.expandUuid(uuid);
+        // if empty expansion and not "Market", must be an empty group or cluster; quick return
+        if (entityStatsOids.isEmpty() && !UuidMapper.isRealtimeMarket(uuid)) {
+            return Collections.emptyList();
+        }
 
         // choose LinkedList to make appending more efficient. This list will only be read once.
         final List<StatSnapshotApiDTO> stats = Lists.newLinkedList();
@@ -195,14 +202,21 @@ public class StatsService implements IStatsService {
             throws Exception {
 
         // determine the list of entity OIDs to query for this operation
-        final Set<Long> expandedUuidList = groupExpander.expandUuidList(inputDto.getScopes());
+        final Set<String> seedUuids = Sets.newHashSet(inputDto.getScopes());
+        final Set<Long> expandedUuids = groupExpander.expandUuids(
+                seedUuids);
+        // if not a global scope, then expanded OIDs are expected
+        if (UuidMapper.hasLimitedScope(seedUuids) && expandedUuids.isEmpty()) {
+            // empty expanded list; return an empty stats list
+            return Lists.newArrayList();
+        }
 
         // create a map of OID -> empty EntityStatsApiDTO for the Service Entity OIDs given;
         // evaluate the Optional for each ServiceEntityApiDTO returned, and throw an exception if
         // the corresponding oid is not found
         Map<Long, EntityStatsApiDTO> entityStatsMap = new HashMap<>();
         for (Map.Entry<Long, Optional<ServiceEntityApiDTO>> entry : repositoryApi
-                .getServiceEntitiesById(expandedUuidList).entrySet()) {
+                .getServiceEntitiesById(expandedUuids).entrySet()) {
             final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
             ServiceEntityApiDTO serviceEntity = entry.getValue().orElseThrow(()
                     -> new UnknownObjectException(
@@ -220,7 +234,7 @@ public class StatsService implements IStatsService {
                 || DateTimeUtil.parseTime(inputDto.getPeriod().getStartDate()) < clockTimeNow) {
             // fetch the historical stats for the given entities using the given search spec
             Iterator<EntityStats> historicalStatsIterator = statsServiceRpc.getEntityStats(
-                    StatsMapper.toEntityStatsRequest(expandedUuidList, inputDto.getPeriod()));
+                    StatsMapper.toEntityStatsRequest(expandedUuids, inputDto.getPeriod()));
             while (historicalStatsIterator.hasNext()) {
                 EntityStats entityStats = historicalStatsIterator.next();
                 final long entityOid = entityStats.getOid();
@@ -239,7 +253,7 @@ public class StatsService implements IStatsService {
                 && DateTimeUtil.parseTime(endDateParam) > clockTimeNow) {
             // fetch the projected stats for each of the given entities
             Iterator<EntityStats> projectedStatsIterator = statsServiceRpc.getProjectedEntityStats(
-                    StatsMapper.toProjectedStatsRequest(expandedUuidList, inputDto.getPeriod()));
+                    StatsMapper.toProjectedStatsRequest(expandedUuids, inputDto.getPeriod()));
 
             while (projectedStatsIterator.hasNext()) {
                 EntityStats projectedEntityStats = projectedStatsIterator.next();
@@ -250,7 +264,7 @@ public class StatsService implements IStatsService {
                         // this indicates a bug in History Component
                         logger.error("Too many entity stats ({}) for: {} -> {}; taking the first.",
                                 projectedEntityStats.getStatSnapshotsCount(),
-                                expandedUuidList,
+                                expandedUuids,
                                 projectedEntityStats.getStatSnapshotsList());
                     }
                     long entityOid = projectedEntityStats.getOid();

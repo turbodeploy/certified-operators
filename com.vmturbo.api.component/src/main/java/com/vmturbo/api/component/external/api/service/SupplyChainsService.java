@@ -5,7 +5,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -62,15 +61,10 @@ public class SupplyChainsService implements ISupplyChainsService {
             throw new RuntimeException("UUIDs list is empty");
         }
 
-        // expand groups and clusters in UUIDs
-        List<String> expandedUuids = groupExpander.expandUuidList(uuids).stream()
-                .map(l -> Long.toString(l))
-                .collect(Collectors.toList());
-
-        // request the supply chain for the expanded list
+        // request the supply chain for the items, including expanding groups and clusters
         return supplyChainFetcher.newOperation()
                 .topologyContextId(liveTopologyContextId)
-                .seedUuid(expandedUuids)
+                .addSeedUuids(uuids)
                 .entityTypes(entityTypes)
                 .environmentType(environmentType)
                 .supplyChainDetailType(supplyChainDetailType)
@@ -103,21 +97,14 @@ public class SupplyChainsService implements ISupplyChainsService {
             // full topology - not implemented
             throw ApiUtils.notImplementedInXL();
         }
-        // expand groups and clusters in UUIDs
-        List<String> expandedUuids =
-                groupExpander.expandUuidList(uuids)
-                        .stream()
-                        .map(l -> Long.toString(l))
-                        .collect(Collectors.toList());
-
         // grab the 'groupBy' criteria list, if any
         final List<EntitiesCountCriteria> criteriaToGroupBy = supplyChainStatsApiInputDTO.getGroupBy();
 
-        // fetch the supplychain for the expanded list of seeds; always include entities
+        // fetch the supplychain for the list of seeds; includes group and cluster expansion
         SupplyChainFetcher.OperationBuilder supplyChainFetcher = this.supplyChainFetcher
                 .newOperation()
                 .topologyContextId(liveTopologyContextId)
-                .seedUuid(expandedUuids)
+                .addSeedUuids(uuids)
                 .entityTypes(supplyChainStatsApiInputDTO.getTypes())
                 .supplyChainDetailType(SupplyChainDetailType.entity)
                 .includeHealthSummary(isHealthSummaryNeeded(criteriaToGroupBy));

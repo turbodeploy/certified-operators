@@ -1,5 +1,9 @@
 package com.vmturbo.api.component.external.api.util;
 
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.junit.Assert.assertThat;
+
 import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -15,11 +19,14 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.assertj.core.util.Sets;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 import org.springframework.web.client.RestTemplate;
+
+import com.google.common.collect.ImmutableList;
 
 import io.grpc.stub.StreamObserver;
 
@@ -54,6 +61,7 @@ public class SupplyChainFetcherTest {
     private final SupplyChainServiceMock supplyChainServiceBackend =
         Mockito.spy(new SupplyChainServiceMock());
     private RepositoryApiMock repositoryApiBackend;
+    private GroupExpander groupExpander = Mockito.mock(GroupExpander.class);
 
     @Before
     public void setup() throws IOException {
@@ -72,7 +80,29 @@ public class SupplyChainFetcherTest {
 
         // set up the ActionsService under test
         supplyChainFetcher = new SupplyChainFetcher(grpcServer.getChannel(), grpcServer.getChannel(),
-                repositoryApiBackend, timeoutDuration);
+                repositoryApiBackend, groupExpander, timeoutDuration);
+    }
+
+    /**
+     * Fetch of an OID that isn't known and isn't the distinguished "Market" returns an empty
+     * supplychain.
+     *
+     * @throws Exception should never happen in this test
+     */
+    @Test
+    public void testEmptyGroupExpansion() throws Exception {
+        // arrange
+        final ImmutableList<String> supplyChainSeedUuids = ImmutableList.of("x");
+        final Set<String> supplyChainSeedUuidSet = Sets.newHashSet(supplyChainSeedUuids);
+
+        // act
+        SupplychainApiDTO result = supplyChainFetcher.newOperation()
+                .addSeedUuids(supplyChainSeedUuidSet)
+                .fetch();
+
+        // assert
+        assertThat(result.getSeMap(), notNullValue());
+        assertThat(result.getSeMap().size(), equalTo(0));
     }
 
     /**
@@ -142,7 +172,7 @@ public class SupplyChainFetcherTest {
         // act
         final SupplychainApiDTO result = supplyChainFetcher.newOperation()
                 .topologyContextId(LIVE_TOPOLOGY_ID)
-                .seedUuid("Market")
+                .addSeedUuid("Market")
                 .includeHealthSummary(true)
                 .supplyChainDetailType(SupplyChainDetailType.entity)
                 .fetch();

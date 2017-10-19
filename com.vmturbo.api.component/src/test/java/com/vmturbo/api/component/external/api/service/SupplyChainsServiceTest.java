@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.external.api.service;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -9,13 +10,16 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyListOf;
 import static org.mockito.Matchers.anyLong;
+import static org.mockito.Matchers.anySetOf;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 
+import org.assertj.core.util.Sets;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -65,7 +69,7 @@ public class SupplyChainsServiceTest {
                 .thenReturn(supplyChainFetcherOperationBuilderMock);
         when(supplyChainFetcherOperationBuilderMock.topologyContextId(anyLong()))
                 .thenReturn(supplyChainFetcherOperationBuilderMock);
-        when(supplyChainFetcherOperationBuilderMock.seedUuid(anyListOf(String.class)))
+        when(supplyChainFetcherOperationBuilderMock.addSeedUuids(anySetOf(String.class)))
                 .thenReturn(supplyChainFetcherOperationBuilderMock);
         when(supplyChainFetcherOperationBuilderMock.environmentType(any(EnvironmentType.class)))
                 .thenReturn(supplyChainFetcherOperationBuilderMock);
@@ -85,7 +89,8 @@ public class SupplyChainsServiceTest {
     public void testGetSupplyChainStatsGroupByEntityType() throws Exception {
         // arrange
         final ImmutableList<String> searchUuids = ImmutableList.of("1");
-        when(groupExpanderMock.expandUuidList(eq(searchUuids))).thenReturn(
+        final Set<String> searchUuidSet = Sets.newHashSet(searchUuids);
+        when(groupExpanderMock.expandUuids(eq(searchUuidSet))).thenReturn(
                 ImmutableSet.of(1L));
         // set up to return three entity types
         SupplychainApiDTO answer = new SupplychainApiDTO();
@@ -142,7 +147,8 @@ public class SupplyChainsServiceTest {
     public void testGetSupplyChainStatsGroupBySeverity() throws Exception {
         // arrange
         final ImmutableList<String> searchUuids = ImmutableList.of("1");
-        when(groupExpanderMock.expandUuidList(eq(searchUuids))).thenReturn(
+        final Set<String> searchUuidSet = Sets.newHashSet(searchUuids);
+        when(groupExpanderMock.expandUuids(eq(searchUuidSet))).thenReturn(
                 ImmutableSet.of(1L));
         // set up to return three entity types
         SupplychainApiDTO answer = new SupplychainApiDTO();
@@ -227,7 +233,8 @@ public class SupplyChainsServiceTest {
     public void testGetSupplyChainStatsGroupByEntityTypeAndSeverity() throws Exception {
         // arrange
         final ImmutableList<String> searchUuids = ImmutableList.of("1");
-        when(groupExpanderMock.expandUuidList(eq(searchUuids))).thenReturn(
+        final Set<String> searchUuidSet = Sets.newHashSet(searchUuids);
+        when(groupExpanderMock.expandUuids(eq(searchUuidSet))).thenReturn(
                 ImmutableSet.of(1L));
         // set up to return three entity types
         SupplychainApiDTO answer = new SupplychainApiDTO();
@@ -358,7 +365,6 @@ public class SupplyChainsServiceTest {
             }
         });
     }
-
 
     /**
      * Test the 'equals()' method of FilterSet to be used as the key in tabulating

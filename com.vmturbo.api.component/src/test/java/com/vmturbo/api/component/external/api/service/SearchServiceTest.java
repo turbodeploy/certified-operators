@@ -12,8 +12,10 @@ import static org.mockito.Mockito.when;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.assertj.core.util.Sets;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -118,6 +120,7 @@ public class SearchServiceTest {
                 supplyChainTestUtils.createServiceEntityApiDTO(4));
 
         List<String> scopes = Lists.newArrayList(CLUSTER_OID);
+        Set<String> scopesSet = Sets.newHashSet(scopes);
         List<String> types = Lists.newArrayList("PhysicalMachine");
         when(repositoryApi.getSearchResults(null, types, UuidMapper.UI_REAL_TIME_MARKET_STR, null,
                 null))
@@ -145,13 +148,13 @@ public class SearchServiceTest {
 
         // we need to set up these mocks to support the builder pattern
         when(mockOperationBuilder.topologyContextId(anyLong())).thenReturn(mockOperationBuilder);
-        when(mockOperationBuilder.seedUuid(anyObject())).thenReturn(mockOperationBuilder);
+        when(mockOperationBuilder.addSeedUuids(anyObject())).thenReturn(mockOperationBuilder);
         when(mockOperationBuilder.entityTypes(anyObject())).thenReturn(mockOperationBuilder);
         when(mockOperationBuilder.environmentType(anyObject())).thenReturn(mockOperationBuilder);
         when(mockOperationBuilder.includeHealthSummary(anyBoolean())).thenReturn(mockOperationBuilder);
         when(mockOperationBuilder.supplyChainDetailType(anyObject())).thenReturn(mockOperationBuilder);
         when(mockOperationBuilder.fetch()).thenReturn(mockSupplychainApiDto);
-        when(groupExpander.expandUuidList(eq(scopes))).thenReturn(ImmutableSet.of(1L, 2L, 3L, 4L));
+        when(groupExpander.expandUuids(eq(scopesSet))).thenReturn(ImmutableSet.of(1L, 2L, 3L, 4L));
 
         // Act
         Collection<BaseApiDTO> results = searchService.getSearchResults(null, types, scopes, null, null, null);

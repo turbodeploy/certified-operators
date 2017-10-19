@@ -339,46 +339,41 @@ public class LiveStatsReader {
 
             // Go through the entity counts by time, and for each timestamp create
             // ratio properties based on the various counts.
-            entityCountsByTime.entrySet().forEach(snapshotEntityCounts -> {
-                final Timestamp snapshotTime = snapshotEntityCounts.getKey();
-
-                final Map<String, Float> entityCounts = snapshotEntityCounts.getValue();
-                requestedRatioProps.forEach(ratioPropName -> {
-                    double ratio = 0;
-                    switch (ratioPropName) {
-                        case NUM_VMS_PER_HOST: {
-                            final Float numHosts = entityCounts.get(NUM_HOSTS);
-                            ratio = numHosts != null && numHosts > 0 ?
+            entityCountsByTime.forEach((snapshotTime, entityCounts) -> requestedRatioProps.forEach(ratioPropName -> {
+                double ratio = 0;
+                switch (ratioPropName) {
+                    case NUM_VMS_PER_HOST: {
+                        final Float numHosts = entityCounts.get(NUM_HOSTS);
+                        ratio = numHosts != null && numHosts > 0 ?
                                 entityCounts.getOrDefault(NUM_VMS, 0f) / numHosts : 0;
-                            break;
-                        }
-                        case NUM_VMS_PER_STORAGE: {
-                            final Float numStorages = entityCounts.get(NUM_STORAGES);
-                            ratio = numStorages != null && numStorages > 0 ?
-                                entityCounts.getOrDefault(NUM_VMS, 0f) / numStorages: 0;
-                            break;
-                        }
-                        case NUM_CNT_PER_HOST: {
-                            final Float numHosts = entityCounts.get(NUM_HOSTS);
-                            ratio = numHosts != null && numHosts > 0 ?
-                                entityCounts.getOrDefault(NUM_CONTAINERS, 0f) / numHosts : 0;
-                            break;
-                        }
-                        case NUM_CNT_PER_STORAGE:
-                            final Float numStorages = entityCounts.get(NUM_STORAGES);
-                            ratio = numStorages != null && numStorages > 0 ?
-                                entityCounts.getOrDefault(NUM_CONTAINERS, 0f) / numStorages : 0;
-                            break;
-                        default:
-                            throw new IllegalStateException("Illegal stat name: " + ratioPropName);
+                        break;
                     }
-                    final MarketStatsLatestRecord countRecord = new MarketStatsLatestRecord();
-                    countRecord.setSnapshotTime(snapshotTime);
-                    countRecord.setPropertyType(ratioPropName);
-                    countRecord.setAvgValue(ratio);
-                    answer.add(countRecord);
-                });
-            });
+                    case NUM_VMS_PER_STORAGE: {
+                        final Float numStorages = entityCounts.get(NUM_STORAGES);
+                        ratio = numStorages != null && numStorages > 0 ?
+                                entityCounts.getOrDefault(NUM_VMS, 0f) / numStorages : 0;
+                        break;
+                    }
+                    case NUM_CNT_PER_HOST: {
+                        final Float numHosts = entityCounts.get(NUM_HOSTS);
+                        ratio = numHosts != null && numHosts > 0 ?
+                                entityCounts.getOrDefault(NUM_CONTAINERS, 0f) / numHosts : 0;
+                        break;
+                    }
+                    case NUM_CNT_PER_STORAGE:
+                        final Float numStorages = entityCounts.get(NUM_STORAGES);
+                        ratio = numStorages != null && numStorages > 0 ?
+                                entityCounts.getOrDefault(NUM_CONTAINERS, 0f) / numStorages : 0;
+                        break;
+                    default:
+                        throw new IllegalStateException("Illegal stat name: " + ratioPropName);
+                }
+                final MarketStatsLatestRecord countRecord = new MarketStatsLatestRecord();
+                countRecord.setSnapshotTime(snapshotTime);
+                countRecord.setPropertyType(ratioPropName);
+                countRecord.setAvgValue(ratio);
+                answer.add(countRecord);
+            }));
         }
 
 

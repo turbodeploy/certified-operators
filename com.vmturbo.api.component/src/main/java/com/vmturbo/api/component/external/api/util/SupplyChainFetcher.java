@@ -3,12 +3,14 @@ package com.vmturbo.api.component.external.api.util;
 import java.net.NoRouteToHostException;
 import java.time.Duration;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -23,13 +25,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.base.MoreObjects;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 
 import io.grpc.Channel;
 import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.dto.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.SupplychainApiDTO;
 import com.vmturbo.api.dto.SupplychainEntryDTO;
@@ -58,14 +61,13 @@ public class SupplyChainFetcher {
     private final SupplyChainServiceStub supplyChainRpcService;
     private final EntitySeverityServiceBlockingStub severityRpcService;
     private final RepositoryApi repositoryApi;
+    private final GroupExpander groupExpander;
     private final Duration supplyChainFetcherTimeoutSeconds;
-
-    private static final Collection<String> GLOBAL_SCOPE_SUPPLY_CHAIN = ImmutableList.of(
-            "GROUP-VirtualMachine", "GROUP-PhysicalMachineByCluster", "Market");
 
     public SupplyChainFetcher(@Nonnull final Channel supplyChainChannel,
                               @Nonnull final Channel entitySeverityChannel,
                               @Nonnull final RepositoryApi repositoryApi,
+                              @Nonnull final GroupExpander groupExpander,
                               @Nonnull final Duration supplyChainFetcherTimeoutSeconds) {
         Objects.requireNonNull(supplyChainChannel);
         Objects.requireNonNull(entitySeverityChannel);
@@ -75,6 +77,7 @@ public class SupplyChainFetcher {
 
         this.severityRpcService = EntitySeverityServiceGrpc.newBlockingStub(entitySeverityChannel);
         this.repositoryApi = repositoryApi;
+        this.groupExpander = groupExpander;
         this.supplyChainFetcherTimeoutSeconds = supplyChainFetcherTimeoutSeconds;
     }
 
@@ -90,9 +93,9 @@ public class SupplyChainFetcher {
     public class OperationBuilder {
 
         // all fields are optional; see the setter for each field for a description
-        private List<String> seedUuids;
         private long topologyContextId;
-        private List<String> entityTypes;
+        private final Set<String> seedUuids = Sets.newHashSet();
+        private final List<String> entityTypes = Lists.newLinkedList();
         private EnvironmentType environmentType;
         private SupplyChainDetailType supplyChainDetailType;
         private Boolean includeHealthSummary = false;
@@ -104,8 +107,9 @@ public class SupplyChainFetcher {
          * @param seedUuid a single UUID to serve as the seed for the supplychain generation
          * @return the flow-style OperationBuilder for this SupplyChainFetcher
          */
-        OperationBuilder seedUuid(String seedUuid) {
-            this.seedUuids = Lists.newArrayList(seedUuid);
+        @SuppressWarnings("SameParameterValue")
+        OperationBuilder addSeedUuid(@Nonnull final String seedUuid) {
+            seedUuids.add(seedUuid);
             return this;
         }
 
@@ -117,8 +121,10 @@ public class SupplyChainFetcher {
          *              is the union of the supplychains from each seed
          * @return the flow-style OperationBuilder for this SupplyChainFetcher
          */
-        public OperationBuilder seedUuid(List<String> uuids) {
-            this.seedUuids = uuids;
+        public OperationBuilder addSeedUuids(@Nullable Collection<String> uuids) {
+            if (uuids != null) {
+                this.seedUuids.addAll(uuids);
+            }
             return this;
         }
 
@@ -140,8 +146,10 @@ public class SupplyChainFetcher {
          * @param entityTypes a list of the entity types to be included in the result
          * @return the flow-style OperationBuilder for this SupplyChainFetcher
          */
-        public OperationBuilder entityTypes(List<String> entityTypes) {
-            this.entityTypes = entityTypes;
+        public OperationBuilder entityTypes(@Nullable List<String> entityTypes) {
+            if (entityTypes != null) {
+                this.entityTypes.addAll(entityTypes);
+            }
             return this;
         }
 
@@ -154,7 +162,7 @@ public class SupplyChainFetcher {
          * @param environmentType what environment to limit the responses to
          * @return the flow-style OperationBuilder for this SupplyChainFetcher
          */
-        public OperationBuilder environmentType(EnvironmentType environmentType) {
+        public OperationBuilder environmentType(@Nullable EnvironmentType environmentType) {
             this.environmentType = environmentType;
             return this;
         }
@@ -168,7 +176,7 @@ public class SupplyChainFetcher {
          * @param supplyChainDetailType what level of detail to include in the supplychain result
          * @return the flow-style OperationBuilder for this SupplyChainFetcher
          */
-        public OperationBuilder supplyChainDetailType(SupplyChainDetailType supplyChainDetailType) {
+        public OperationBuilder supplyChainDetailType(@Nullable SupplyChainDetailType supplyChainDetailType) {
             this.supplyChainDetailType = supplyChainDetailType;
             return this;
         }
@@ -207,12 +215,13 @@ public class SupplyChainFetcher {
                         supplyChainRpcService,
                         severityRpcService,
                         repositoryApi,
-                        supplyChainFetcherTimeoutSeconds).fetch();
+                        groupExpander, supplyChainFetcherTimeoutSeconds).fetch();
             } catch (TimeoutException |ExecutionException | InterruptedException e) {
                 throw new OperationFailedException("Error fetching supply chain: " + toString() +
                         ": " + e.getMessage());
             }
         }
+
     }
 
     /**
@@ -231,13 +240,14 @@ public class SupplyChainFetcher {
         private final Logger logger = LogManager.getLogger();
 
         private final Long topologyContextId;
-        private final List<String> seedUuids;
+        private final Set<String> seedUuids;
         private final List<String> entityTypes;
         private final EnvironmentType environmentType;
         private final SupplyChainDetailType supplyChainDetailType;
         private final Boolean includeHealthSummary;
         private final SupplyChainServiceStub supplyChainRpcService;
         private final EntitySeverityServiceBlockingStub severityRpcService;
+        private final GroupExpander groupExpander;
 
         private final CompletableFuture<SupplychainApiDTO> supplyChainFuture;
 
@@ -250,15 +260,16 @@ public class SupplyChainFetcher {
 
 
         private SupplyChainFetchOperation(@Nullable Long topologyContextId,
-                                          @Nullable List<String> seedUuids,
+                                          @Nullable Set<String> seedUuids,
                                           @Nullable List<String> entityTypes,
                                           @Nullable EnvironmentType environmentType,
                                           @Nullable SupplyChainDetailType supplyChainDetailType,
-                                          @Nullable Boolean includeHealthSummary,
-                                          @Nullable SupplyChainServiceStub supplyChainRpcService,
-                                          @Nullable EntitySeverityServiceBlockingStub severityRpcService,
-                                          @Nullable RepositoryApi repositoryApi,
-                                          @Nullable Duration supplyChainFetcherTimeoutSeconds) {
+                                          boolean includeHealthSummary,
+                                          @Nonnull SupplyChainServiceStub supplyChainRpcService,
+                                          @Nonnull EntitySeverityServiceBlockingStub severityRpcService,
+                                          @Nonnull RepositoryApi repositoryApi,
+                                          @Nonnull GroupExpander groupExpander,
+                                          @Nonnull Duration supplyChainFetcherTimeoutSeconds) {
             this.topologyContextId = topologyContextId;
             this.seedUuids = seedUuids;
             this.entityTypes = entityTypes;
@@ -270,6 +281,7 @@ public class SupplyChainFetcher {
             this.supplyChainRpcService = supplyChainRpcService;
             this.severityRpcService = severityRpcService;
             this.repositoryApi = repositoryApi;
+            this.groupExpander = groupExpander;
 
             this.supplyChainFetcherTimeoutSeconds = supplyChainFetcherTimeoutSeconds;
 
@@ -295,11 +307,23 @@ public class SupplyChainFetcher {
          * @return The {@link SupplychainApiDTO} populated with the supply chain search results.
          */
         SupplychainApiDTO fetch() throws InterruptedException, ExecutionException, TimeoutException {
+
             final SupplyChainRequest.Builder requestBuilder = SupplyChainRequest.newBuilder();
 
-            // If global, do not specify a starting vertex
-            if (!isGlobalSupplyChainSearch()) {
-                requestBuilder.addAllStartingEntityOid(seedUuids.stream()
+            // if list of seed uuids has limited scope,then expand it; if global scope, don't expand
+            if (UuidMapper.hasLimitedScope(seedUuids)) {
+                // expand any groups in the input list of seeds
+                Set<String> expandedUuids = groupExpander.expandUuids(seedUuids).stream()
+                        .map(l -> Long.toString(l))
+                        .collect(Collectors.toSet());
+                // empty expanded list?  If so, return immediately
+                if (expandedUuids.isEmpty()) {
+                    SupplychainApiDTO emptySupplyChain = new SupplychainApiDTO();
+                    emptySupplyChain.setSeMap(Collections.emptyMap());
+                    return emptySupplyChain;
+                }
+                // otherwise add the expanded list of seed uuids to the request
+                requestBuilder.addAllStartingEntityOid(expandedUuids.stream()
                         .map(Long::valueOf)
                         .collect(Collectors.toList()));
             }
@@ -315,19 +339,6 @@ public class SupplyChainFetcher {
 
             return supplyChainFuture.get(supplyChainFetcherTimeoutSeconds.getSeconds(),
                     TimeUnit.SECONDS);
-        }
-
-        /**
-         * Detect whether this is a global or scoped supplychain search. If there are no seeds,
-         * or a single seed in the list GLOBAL_SCOPE_SUPPLY_CHAIN (e.g. "Market"),
-         * then this is a global supplychain search.
-         *
-         * @return true iff there are either no seed uuids, or a single seed UUID
-         * in GLOBAL_SCOPE_SUPPLY_CHAIN
-         */
-        private boolean isGlobalSupplyChainSearch() {
-            return seedUuids == null || (seedUuids.size() == 1
-                    && GLOBAL_SCOPE_SUPPLY_CHAIN.contains(seedUuids.get(0)));
         }
 
         /**

@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -20,6 +21,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.util.CollectionUtils;
 
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
@@ -169,13 +171,12 @@ public class SearchService implements ISearchService {
             Collection<ServiceEntityApiDTO> serviceEntities = repositoryApi.getSearchResults(query,
                     types, UuidMapper.UI_REAL_TIME_MARKET_STR, state, groupType);
 
-            // expand the 'scopes' and derive a list of ServiceEntities; TODO: restrict to scopes
-            List<String> scopeServiceEntityIds = groupExpander.expandUuidList(scopes).stream()
-                    .map(l -> Long.toString(l))
-                    .collect(Collectors.toList());
+            // expand to include the supplychain for the 'scopes', some of which may be groups or
+            // clusters, and derive a list of ServiceEntities
+            Set<String> scopeServiceEntityIds = Sets.newHashSet(scopes);
             SupplychainApiDTO supplychain = supplyChainFetcher.newOperation()
                     .topologyContextId(uuidMapper.fromUuid(UuidMapper.UI_REAL_TIME_MARKET_STR).oid())
-                    .seedUuid(scopeServiceEntityIds)
+                    .addSeedUuids(scopeServiceEntityIds)
                     .entityTypes(types)
                     .environmentType(environmentType)
                     .includeHealthSummary(false)

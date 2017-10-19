@@ -7,7 +7,6 @@ import static com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import static com.vmturbo.common.protobuf.group.GroupDTO.Group;
 
 import java.util.Collections;
-import java.util.List;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
@@ -55,7 +54,7 @@ public class GroupExpander {
      * @return UUIDs if the given uuid is for a Group or Cluster; otherwise just the given uuid
      */
     public @Nonnull Set<Long> expandUuid(@Nonnull String uuid) {
-        return expandUuidList(Collections.singletonList(uuid));
+        return expandUuids(Collections.singleton(uuid));
     }
 
     /**
@@ -64,16 +63,16 @@ public class GroupExpander {
      *
      * If the list contains the special UUID "Market", then return an empty list.
      *
-     * @param uuidList a list of UUIDs for which Cluster or Group UUIDs will be expanded.
+     * @param uuidSet a list of UUIDs for which Cluster or Group UUIDs will be expanded.
      * @return UUIDs from each Group or Cluster in the input list; other UUIDs are passed through
      */
-    public @Nonnull Set<Long> expandUuidList(@Nonnull List<String> uuidList) {
+    public @Nonnull Set<Long> expandUuids(@Nonnull Set<String> uuidSet) {
 
         Set<Long> answer = Sets.newHashSet();
-        for (String uuidString : uuidList) {
+        for (String uuidString : uuidSet) {
             // sanity-check the uuidString
             if (StringUtils.isEmpty(uuidString)) {
-                throw new IllegalArgumentException("Empty uuid string given: " + uuidList);
+                throw new IllegalArgumentException("Empty uuid string given: " + uuidSet);
             }
             // is this the special "Market" uuid string?
             if (uuidString.equals(UuidMapper.UI_REAL_TIME_MARKET_STR)) {
@@ -109,4 +108,6 @@ public class GroupExpander {
         }
         return answer;
     }
+
+
 }
