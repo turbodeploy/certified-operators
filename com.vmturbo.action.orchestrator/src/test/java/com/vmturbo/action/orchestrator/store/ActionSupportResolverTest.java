@@ -16,6 +16,7 @@ import io.grpc.stub.StreamObserver;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.TargetResolutionException;
+import com.vmturbo.common.protobuf.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
@@ -54,15 +55,13 @@ public class ActionSupportResolverTest {
     private Collection<Action> resolvedBySupportActions;
 
     @Before
-    public void setup() throws TargetResolutionException, IOException {
+    public void setup() throws TargetResolutionException, IOException, UnsupportedActionException {
         TestActionCapabilitiesRpcService actionCapabilitiesService =
                 new TestActionCapabilitiesRpcService(createActionCapabilities());
 
         testServer = GrpcTestServer.withServices(actionCapabilitiesService);
         actionCapabilitiesStub =
                 ProbeActionCapabilitiesServiceGrpc.newBlockingStub(testServer.getChannel());
-        Mockito.when(actionExecutor.getProbeId(Mockito.any(ActionDTO.Action.class)))
-                .thenReturn(probeId);
         filter = new ActionSupportResolver(actionCapabilitiesStub, actionExecutor);
         resolvedBySupportActions = filter.resolveActionsSupporting(getTestedActions());
     }

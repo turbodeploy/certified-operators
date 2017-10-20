@@ -26,6 +26,8 @@ import org.mockito.Mockito;
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.execution.ActionTranslator;
+import com.vmturbo.action.orchestrator.execution.TargetResolutionException;
+import com.vmturbo.common.protobuf.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
@@ -85,7 +87,7 @@ public class LiveActionStoreTest {
 
     @SuppressWarnings("unchecked")
     @Before
-    public void setup() {
+    public void setup() throws TargetResolutionException, UnsupportedActionException {
         when(filter.resolveActionsSupporting(anyCollection())).thenAnswer(invocationOnMock
                 -> invocationOnMock.getArguments()[0]);
         filter.resolveActionsSupporting(new LinkedList<>());

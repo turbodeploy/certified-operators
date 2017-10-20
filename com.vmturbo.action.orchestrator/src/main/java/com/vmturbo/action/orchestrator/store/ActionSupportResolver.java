@@ -18,6 +18,7 @@ import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.TargetResolutionException;
 import com.vmturbo.common.protobuf.ActionDTOUtil;
+import com.vmturbo.common.protobuf.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.topology.Probe.GetProbeActionCapabilitiesRequest;
@@ -53,25 +54,20 @@ public class ActionSupportResolver {
      * @return actions with setted isSupported fields
      */
     public Collection<Action> resolveActionsSupporting(Collection<Action> actions) {
-        Map<Action, Long> actionsProbes = actions.stream().collect(Collectors.toMap(Function.identity(),
-                    this::getProbeIdOfAction));
-        Set<Long> probeIds = actionsProbes.values().stream().collect(Collectors.toSet());
-        Map<Long, List<ProbeActionCapability>> probeCapabilities = getCapabilitiesForProbes(probeIds);
-        Map<Action, List<ProbeActionCapability>> actionsAndCapabilities = actionsProbes.entrySet()
-                .stream().collect(Collectors.toMap(actionAndProbe -> actionAndProbe.getKey(),
-                        actionAndProbe -> probeCapabilities.get(actionAndProbe.getValue())));
-        Set<Action> filteredForUiActions = new HashSet<>();
-        actionsAndCapabilities.entrySet().stream().forEach(entry ->
-                filteredForUiActions.add(resolveIfActionSupported(entry)));
-        return filteredForUiActions;
-    }
-
-    private long getProbeIdOfAction(Action action) {
         try {
-            return actionExecutor.getProbeId(action.getRecommendation());
-        } catch (TargetResolutionException ex) {
-            logger.warn("Cannot resolve probe for action: {}", action);
-            return -1l;
+            final Map<Action, Long> actionsProbes = actionExecutor.getProbeIdsForActions(actions);
+            Set<Long> probeIds = actionsProbes.values().stream().collect(Collectors.toSet());
+            Map<Long, List<ProbeActionCapability>> probeCapabilities = getCapabilitiesForProbes(probeIds);
+            Map<Action, List<ProbeActionCapability>> actionsAndCapabilities = actionsProbes.entrySet()
+                    .stream()
+                    .collect(Collectors.toMap(actionAndProbe -> actionAndProbe.getKey(),
+                            actionAndProbe -> probeCapabilities.get(actionAndProbe.getValue())));
+            Set<Action> filteredForUiActions = new HashSet<>();
+            actionsAndCapabilities.entrySet().stream().forEach(entry -> filteredForUiActions.add(resolveIfActionSupported(entry)));
+            return filteredForUiActions;
+        } catch (TargetResolutionException | UnsupportedActionException ex) {
+            logger.warn("Cannot resolve support level for actions{}{}", actions, ex);
+            return actions;
         }
     }
 
