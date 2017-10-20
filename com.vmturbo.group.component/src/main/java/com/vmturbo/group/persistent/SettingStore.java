@@ -500,6 +500,53 @@ public class SettingStore {
         }
     }
 
+    /**
+     * Delete a setting policy.
+     *
+     * @param id The ID of the setting policy to delete.
+     * @return The deleted {@link SettingProto.SettingPolicy}.
+     * @throws SettingPolicyNotFoundException If the setting policy does not exist.
+     * @throws InvalidSettingPolicyException If the setting policy is a DEFAULT policy.
+     */
+    @Nonnull
+    public SettingProto.SettingPolicy deleteSettingPolicy(final long id)
+            throws SettingPolicyNotFoundException, InvalidSettingPolicyException {
+        try {
+            return dsl.transactionResult(configuration -> {
+                final DSLContext context = DSL.using(configuration);
+
+                final SettingPolicyRecord record =
+                        context.fetchOne(SETTING_POLICY, SETTING_POLICY.ID.eq(id));
+                if (record == null) {
+                    throw new SettingPolicyNotFoundException(id);
+                }
+
+                if (record.getPolicyType().equals(SettingPolicyPolicyType.default_)) {
+                    throw new InvalidSettingPolicyException("Cannot delete default policies.");
+                }
+
+                final int modifiedRecords = record.delete();
+                if (modifiedRecords == 0) {
+                    // This should never happen, because the record definitely exists if we
+                    // got to this point.
+                    throw new IllegalStateException("Failed to delete record.");
+                }
+
+                return toSettingPolicy(record);
+            });
+        } catch (DataAccessException e) {
+            // Jooq will rethrow exceptions thrown in the transactionResult call
+            // wrapped in a DataAccessException. Check to see if that's why the transaction failed.
+            if (e.getCause() instanceof SettingPolicyNotFoundException) {
+                throw (SettingPolicyNotFoundException) e.getCause();
+            } else if (e.getCause() instanceof InvalidSettingPolicyException) {
+                throw (InvalidSettingPolicyException) e.getCause();
+            } else {
+                throw e;
+            }
+        }
+    }
+
 
     /**
      * Get setting policies matching a filter.

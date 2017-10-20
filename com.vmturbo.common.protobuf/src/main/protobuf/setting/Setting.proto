@@ -387,6 +387,14 @@ message UpdateSettingPolicyResponse {
     optional SettingPolicy setting_policy = 1;
 }
 
+message DeleteSettingPolicyRequest {
+    // The ID of the policy to delete.
+    optional int64 id = 1;
+}
+
+message DeleteSettingPolicyResponse {
+}
+
 // List the created SettingPolicies.
 // The SettingSpecs associated with the settings in the returned SettingPolicies
 // should be retrieved in a separate call.
@@ -452,6 +460,13 @@ service SettingPolicyService {
     // If the edited setting policy is invalid, this will return an INVALID_ARGUMENT status.
     // If a setting policy of the same name already exists, this will return an ALREADY_EXIST status.
     rpc UpdateSettingPolicy(UpdateSettingPolicyRequest) returns (UpdateSettingPolicyResponse);
+
+    // Delete an existing setting policy.
+    //
+    // If the setting policy is not found, this will return a NOT_FOUND status.
+    // If the setting policy is a default policy, this will return an INVALID_ARGUMENT status because
+    // default policies can't be deleted.
+    rpc DeleteSettingPolicy(DeleteSettingPolicyRequest) returns (DeleteSettingPolicyResponse);
 
     // Fetch a specific SettingPolicy by its id or name.
     // If the SettingPolicy is not found, it will not be set in the response.

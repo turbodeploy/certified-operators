@@ -14,6 +14,8 @@ import io.grpc.stub.StreamObserver;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceImplBase;
 import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyResponse;
+import com.vmturbo.common.protobuf.setting.SettingProto.DeleteSettingPolicyRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.DeleteSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesRequest;
@@ -100,6 +102,34 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
                     .withDescription(e.getMessage()).asException());
         } catch (SettingPolicyNotFoundException e) {
             responseObserver.onError(Status.NOT_FOUND
+                    .withDescription(e.getMessage()).asException());
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void deleteSettingPolicy(DeleteSettingPolicyRequest request,
+                                    StreamObserver<DeleteSettingPolicyResponse> responseObserver) {
+        if (!request.hasId()) {
+            responseObserver.onError(Status.INVALID_ARGUMENT
+                    .withDescription("Delete request must have ID.")
+                    .asException());
+            return;
+        }
+
+        try {
+            logger.info("Attempting to delete setting policy {}...", request.getId());
+            settingStore.deleteSettingPolicy(request.getId());
+            logger.info("Deleted setting policy: {}", request.getId());
+            responseObserver.onNext(DeleteSettingPolicyResponse.getDefaultInstance());
+            responseObserver.onCompleted();
+        } catch (SettingPolicyNotFoundException e) {
+            responseObserver.onError(Status.NOT_FOUND
+                    .withDescription(e.getMessage()).asException());
+        } catch (InvalidSettingPolicyException e) {
+            responseObserver.onError(Status.INVALID_ARGUMENT
                     .withDescription(e.getMessage()).asException());
         }
     }

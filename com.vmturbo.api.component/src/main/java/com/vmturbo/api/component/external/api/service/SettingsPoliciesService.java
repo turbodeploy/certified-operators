@@ -30,6 +30,7 @@ import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyResponse;
+import com.vmturbo.common.protobuf.setting.SettingProto.DeleteSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
@@ -156,7 +157,21 @@ public class SettingsPoliciesService implements ISettingsPoliciesService {
 
     @Override
     public boolean deleteSettingsPolicy(String uuid) throws Exception {
-        throw ApiUtils.notImplementedInXL();
+        final long id = Long.valueOf(uuid);
+        try {
+            spService.deleteSettingPolicy(DeleteSettingPolicyRequest.newBuilder()
+                    .setId(id)
+                    .build());
+        } catch (StatusRuntimeException e) {
+            if (e.getStatus().getCode().equals(Code.INVALID_ARGUMENT)) {
+                throw new InvalidOperationException(e.getStatus().getDescription());
+            } else if (e.getStatus().getCode().equals(Code.NOT_FOUND)) {
+                throw new UnknownObjectException(e.getStatus().getDescription());
+            } else {
+                throw e;
+            }
+        }
+        return true;
     }
 
     @Override

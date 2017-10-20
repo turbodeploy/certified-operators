@@ -27,6 +27,8 @@ import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyResponse;
+import com.vmturbo.common.protobuf.setting.SettingProto.DeleteSettingPolicyRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.DeleteSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyRequest;
@@ -278,6 +280,64 @@ public class SettingPolicyRpcServiceTest {
                 .descriptionContains(name));
     }
 
+    @Test
+    public void testDeletePolicy() throws Exception {
+        final long id = 7;
+        final StreamObserver<DeleteSettingPolicyResponse> responseObserver =
+                (StreamObserver<DeleteSettingPolicyResponse>)mock(StreamObserver.class);
+        service.deleteSettingPolicy(DeleteSettingPolicyRequest.newBuilder()
+                .setId(id)
+                .build(), responseObserver);
+
+        final ArgumentCaptor<DeleteSettingPolicyResponse> responseCaptor =
+                ArgumentCaptor.forClass(DeleteSettingPolicyResponse.class);
+        verify(responseObserver).onNext(responseCaptor.capture());
+        verify(responseObserver).onCompleted();
+
+        assertEquals(DeleteSettingPolicyResponse.getDefaultInstance(), responseCaptor.getValue());
+        verify(settingStore).deleteSettingPolicy(eq(id));
+    }
+
+    @Test
+    public void testDeletePolicyNotFound() throws Exception {
+        final long id = 7;
+        final StreamObserver<DeleteSettingPolicyResponse> responseObserver =
+                (StreamObserver<DeleteSettingPolicyResponse>)mock(StreamObserver.class);
+        when(settingStore.deleteSettingPolicy(eq(id)))
+            .thenThrow(new SettingPolicyNotFoundException(id));
+        service.deleteSettingPolicy(DeleteSettingPolicyRequest.newBuilder()
+                .setId(id)
+                .build(), responseObserver);
+
+        final ArgumentCaptor<StatusException> exceptionCaptor =
+                ArgumentCaptor.forClass(StatusException.class);
+        verify(responseObserver).onError(exceptionCaptor.capture());
+
+        final StatusException exception = exceptionCaptor.getValue();
+        assertThat(exception, GrpcExceptionMatcher.hasCode(Code.NOT_FOUND)
+                .descriptionContains(Long.toString(id)));
+    }
+
+    @Test
+    public void testDeletePolicyInvalid() throws Exception {
+        final long id = 7;
+        final String error = "ERRORMSG";
+        final StreamObserver<DeleteSettingPolicyResponse> responseObserver =
+                (StreamObserver<DeleteSettingPolicyResponse>)mock(StreamObserver.class);
+        when(settingStore.deleteSettingPolicy(eq(id)))
+                .thenThrow(new InvalidSettingPolicyException(error));
+        service.deleteSettingPolicy(DeleteSettingPolicyRequest.newBuilder()
+                .setId(id)
+                .build(), responseObserver);
+
+        final ArgumentCaptor<StatusException> exceptionCaptor =
+                ArgumentCaptor.forClass(StatusException.class);
+        verify(responseObserver).onError(exceptionCaptor.capture());
+
+        final StatusException exception = exceptionCaptor.getValue();
+        assertThat(exception, GrpcExceptionMatcher.hasCode(Code.INVALID_ARGUMENT)
+                .descriptionContains(error));
+    }
 
     @Test
     public void testGetPolicyNotFound() throws Exception {

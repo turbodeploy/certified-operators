@@ -268,6 +268,25 @@ public class SettingStoreTest {
     }
 
     @Test
+    public void testDeleteSettingPolicy() throws Exception {
+        final SettingPolicy policy = settingStore.createSettingPolicy(info);
+        final SettingPolicy deletedPolicy = settingStore.deleteSettingPolicy(policy.getId());
+        assertEquals(policy, deletedPolicy);
+        assertFalse(settingStore.getSettingPolicy(policy.getId()).isPresent());
+    }
+
+    @Test(expected = InvalidSettingPolicyException.class)
+    public void testDeleteDefaultFail() throws Exception {
+        final SettingPolicy policy = settingStore.internalCreateSettingPolicy(info, Type.DEFAULT);
+        settingStore.deleteSettingPolicy(policy.getId());
+    }
+
+    @Test(expected = SettingPolicyNotFoundException.class)
+    public void testDeleteNotFound() throws Exception {
+        settingStore.deleteSettingPolicy(77);
+    }
+
+    @Test
     public void testGetAllPolicies() throws Exception {
         final SettingPolicy policy = settingStore.createSettingPolicy(info);
         final SettingPolicy policy2 = settingStore.createSettingPolicy(SettingPolicyInfo.newBuilder()

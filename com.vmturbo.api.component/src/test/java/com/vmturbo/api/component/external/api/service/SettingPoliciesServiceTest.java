@@ -3,10 +3,12 @@ package com.vmturbo.api.component.external.api.service;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
@@ -35,6 +37,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceImplBase;
 import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyResponse;
+import com.vmturbo.common.protobuf.setting.SettingProto.DeleteSettingPolicyRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.DeleteSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.Scope;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
@@ -248,6 +252,39 @@ public class SettingPoliciesServiceTest {
         settingsPoliciesService.editSettingsPolicy("blah", inputPolicy);
     }
 
+    @Test
+    public void testDeletePolicy() throws Exception {
+        final long id = 7;
+        assertTrue(settingsPoliciesService.deleteSettingsPolicy(Long.toString(id)));
+        verify(settingPolicyBackend).deleteSettingPolicy(
+                eq(DeleteSettingPolicyRequest.newBuilder()
+                    .setId(id)
+                    .build()), any());
+    }
+
+    @Test(expected = UnknownObjectException.class)
+    public void testDeletePolicyNotFound() throws Exception {
+        final long id = 7;
+        when(settingPolicyBackend.deleteSettingPolicyError(eq(DeleteSettingPolicyRequest.newBuilder()
+                .setId(id)
+                .build()))).thenReturn(Optional.of(Status.NOT_FOUND.asException()));
+        settingsPoliciesService.deleteSettingsPolicy(Long.toString(id));
+    }
+
+    @Test(expected = InvalidOperationException.class)
+    public void testDeletePolicyInvalidDelete() throws Exception {
+        final long id = 7;
+        when(settingPolicyBackend.deleteSettingPolicyError(eq(DeleteSettingPolicyRequest.newBuilder()
+                .setId(id)
+                .build()))).thenReturn(Optional.of(Status.INVALID_ARGUMENT.asException()));
+        settingsPoliciesService.deleteSettingsPolicy(Long.toString(id));
+    }
+
+    @Test(expected = NumberFormatException.class)
+    public void testDeletePolicyInvalidId() throws Exception {
+        settingsPoliciesService.deleteSettingsPolicy("blah");
+    }
+
     /**
      * Technically the UI should prevent duplicate names from being created (it does right now),
      * but we still want to test that case in the API.
@@ -292,12 +329,18 @@ public class SettingPoliciesServiceTest {
             return Optional.empty();
         }
 
+        public Optional<Throwable> deleteSettingPolicyError(DeleteSettingPolicyRequest request) {
+            return Optional.empty();
+        }
+
+        @Override
         public void listSettingPolicies(ListSettingPoliciesRequest request,
                                         StreamObserver<SettingPolicy> responseObserver) {
             listSettingPolicies(request).forEach(responseObserver::onNext);
             responseObserver.onCompleted();
         }
 
+        @Override
         public void createSettingPolicy(CreateSettingPolicyRequest request,
                                         StreamObserver<CreateSettingPolicyResponse> responseObserver) {
             Optional<Throwable> error = createSettingPolicyError(request);
@@ -309,6 +352,7 @@ public class SettingPoliciesServiceTest {
             }
         }
 
+        @Override
         public void updateSettingPolicy(UpdateSettingPolicyRequest request,
                                         StreamObserver<UpdateSettingPolicyResponse> responseObserver) {
             Optional<Throwable> error = updateSettingPolicyError(request);
@@ -319,5 +363,18 @@ public class SettingPoliciesServiceTest {
                 responseObserver.onCompleted();
             }
         }
+
+        @Override
+        public void deleteSettingPolicy(DeleteSettingPolicyRequest request,
+                                        StreamObserver<DeleteSettingPolicyResponse> responseObserver) {
+            Optional<Throwable> error = deleteSettingPolicyError(request);
+            if (error.isPresent()) {
+                responseObserver.onError(error.get());
+            } else {
+                responseObserver.onNext(DeleteSettingPolicyResponse.getDefaultInstance());
+                responseObserver.onCompleted();
+            }
+        }
+
     }
 }
