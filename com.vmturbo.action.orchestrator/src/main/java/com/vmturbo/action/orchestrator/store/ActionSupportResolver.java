@@ -1,7 +1,9 @@
 package com.vmturbo.action.orchestrator.store;
 
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -13,6 +15,7 @@ import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.util.CollectionUtils;
 
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
@@ -21,7 +24,8 @@ import com.vmturbo.common.protobuf.ActionDTOUtil;
 import com.vmturbo.common.protobuf.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
-import com.vmturbo.common.protobuf.topology.Probe.GetProbeActionCapabilitiesRequest;
+import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapabilities;
+import com.vmturbo.common.protobuf.topology.Probe.ListProbeActionCapabilitiesRequest;
 import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability;
 import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability.ActionCapability;
 import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability.ActionCapabilityElement;
@@ -57,13 +61,18 @@ public class ActionSupportResolver {
         try {
             final Map<Action, Long> actionsProbes = actionExecutor.getProbeIdsForActions(actions);
             Set<Long> probeIds = actionsProbes.values().stream().collect(Collectors.toSet());
-            Map<Long, List<ProbeActionCapability>> probeCapabilities = getCapabilitiesForProbes(probeIds);
-            Map<Action, List<ProbeActionCapability>> actionsAndCapabilities = actionsProbes.entrySet()
-                    .stream()
-                    .collect(Collectors.toMap(actionAndProbe -> actionAndProbe.getKey(),
-                            actionAndProbe -> probeCapabilities.get(actionAndProbe.getValue())));
+            Map<Long, List<ProbeActionCapability>> probeCapabilities =
+                    getCapabilitiesForProbes(probeIds);
+            Map<Action, List<ProbeActionCapability>> actionsAndCapabilities =
+                    actionsProbes.entrySet()
+                            .stream()
+                            .collect(Collectors.toMap(actionAndProbe -> actionAndProbe.getKey(),
+                                    actionAndProbe -> probeCapabilities.get(
+                                            actionAndProbe.getValue())));
             Set<Action> filteredForUiActions = new HashSet<>();
-            actionsAndCapabilities.entrySet().stream().forEach(entry -> filteredForUiActions.add(resolveIfActionSupported(entry)));
+            actionsAndCapabilities.entrySet()
+                    .stream()
+                    .forEach(entry -> filteredForUiActions.add(resolveActionProbeSupport(entry)));
             return filteredForUiActions;
         } catch (TargetResolutionException | UnsupportedActionException ex) {
             logger.warn("Cannot resolve support level for actions{}{}", actions, ex);
@@ -71,7 +80,10 @@ public class ActionSupportResolver {
         }
     }
 
-    private Action resolveIfActionSupported(Entry<Action, List<ProbeActionCapability>> entry) {
+    private Action resolveActionProbeSupport(Entry<Action, List<ProbeActionCapability>> entry) {
+        if (CollectionUtils.isEmpty(entry.getValue())) {
+            return entry.getKey();
+        }
         for (ProbeActionCapability capability : entry.getValue()) {
             for (ActionCapabilityElement element : capability.getCapabilityElementList()) {
                 if (isActionTypesMatchesCapabilityActionType(entry, element)) {
@@ -103,14 +115,22 @@ public class ActionSupportResolver {
     }
 
     private Map<Long, List<ProbeActionCapability>> getCapabilitiesForProbes(Set<Long> probeIds) {
-        return probeIds.stream().collect(Collectors.toMap(Function.identity(),
-                this::getProbeActionCapabiliies));
-    }
-
-    private List<ProbeActionCapability> getProbeActionCapabiliies(long probeId) {
-        return actionCapabilitiesBlockingStub.getProbeActionCapabilities(
-                GetProbeActionCapabilitiesRequest.newBuilder()
-                        .setProbeId(probeId)
-                        .build()).getActionCapabilitiesList();
+        Iterator<ProbeActionCapabilities> actionCapabilitiesIterator =
+                actionCapabilitiesBlockingStub.listProbeActionCapabilities(
+                        ListProbeActionCapabilitiesRequest.newBuilder()
+                                .addAllProbeIds(probeIds)
+                                .build());
+        Map<Long, List<ProbeActionCapability>> probesCapabilities = new HashMap<>();
+        actionCapabilitiesIterator.forEachRemaining(capabilitiesOfProbe -> {
+            if (!capabilitiesOfProbe.hasActionCapabilitiesList()) {
+                logger.warn("Cannot resolve action capabilities for probe {}",
+                        capabilitiesOfProbe.getProbeId());
+            } else {
+                probesCapabilities.put(capabilitiesOfProbe.getProbeId(),
+                        capabilitiesOfProbe.getActionCapabilitiesList()
+                                .getActionCapabilitiesList());
+            }
+        });
+        return probesCapabilities;
     }
 }

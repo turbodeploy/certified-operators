@@ -28,8 +28,11 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
+import com.vmturbo.common.protobuf.topology.Probe.ActionCapabilitiesList;
+import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapabilities;
 import com.vmturbo.common.protobuf.topology.Probe.GetProbeActionCapabilitiesRequest;
 import com.vmturbo.common.protobuf.topology.Probe.GetProbeActionCapabilitiesResponse;
+import com.vmturbo.common.protobuf.topology.Probe.ListProbeActionCapabilitiesRequest;
 import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability;
 import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability.ActionCapability;
 import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability.ActionCapabilityElement;
@@ -48,7 +51,7 @@ public class ActionSupportResolverTest {
     private final ActionExecutor actionExecutor = Mockito.mock(ActionExecutor.class);
 
     private final TestActionCapabilitiesRpcService actionCapabilitiesService =
-            new TestActionCapabilitiesRpcService(createActionCapabilities());
+            new TestActionCapabilitiesRpcService(probeId, createActionCapabilities());
 
     @Rule
     public GrpcTestServer testServer = GrpcTestServer.newServer(actionCapabilitiesService);
@@ -160,9 +163,13 @@ public class ActionSupportResolverTest {
     private static class TestActionCapabilitiesRpcService extends
             ProbeActionCapabilitiesServiceImplBase {
 
-        private List<ProbeActionCapability> actionCapabilities;
+        private final List<ProbeActionCapability> actionCapabilities;
 
-        public TestActionCapabilitiesRpcService(List<ProbeActionCapability> actionCapabilities) {
+        private final long probeId;
+
+        public TestActionCapabilitiesRpcService(long probeId, List<ProbeActionCapability>
+                actionCapabilities) {
+            this.probeId = probeId;
             this.actionCapabilities = actionCapabilities;
         }
 
@@ -172,6 +179,17 @@ public class ActionSupportResolverTest {
             responseObserver.onNext(GetProbeActionCapabilitiesResponse.newBuilder()
                     .addAllActionCapabilities(actionCapabilities)
                     .build());
+            responseObserver.onCompleted();
+        }
+
+        @Override
+        public void listProbeActionCapabilities(ListProbeActionCapabilitiesRequest request,
+                StreamObserver<ProbeActionCapabilities> responseObserver) {
+            ProbeActionCapabilities probeCapabilities = ProbeActionCapabilities.newBuilder()
+                    .setProbeId(probeId).setActionCapabilitiesList(
+                            ActionCapabilitiesList.newBuilder().addAllActionCapabilities
+                                    (actionCapabilities).build()).build();
+            responseObserver.onNext(probeCapabilities);
             responseObserver.onCompleted();
         }
     }

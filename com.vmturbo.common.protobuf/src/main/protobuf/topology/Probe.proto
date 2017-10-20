@@ -55,6 +55,25 @@ message GetProbeActionCapabilitiesResponse {
     repeated ProbeActionCapability action_capabilities = 1;
 }
 
+// Request for ProbeActionsCapabilitiesService to get ActionCapabilities for all provided probes
+message ListProbeActionCapabilitiesRequest {
+    repeated int64 probe_ids = 1;
+}
+
+// Represents some sertain probe and action capabilities of this probe
+// If there is no probe with provided id then ActionCapabilitiesList shouldn't be set
+// If there is probe with provided id but there is no capabilities for this probe then
+// ActionCapabilitiesList should be initialized by empty collection
+message ProbeActionCapabilities {
+    required int64 probe_id = 1;
+    optional ActionCapabilitiesList action_capabilities_list = 2;
+}
+
+// Represents set of action capabilities
+message ActionCapabilitiesList {
+    repeated ProbeActionCapability action_capabilities = 1;
+}
+
 // Service for getting action capabilities of probe with certain probe_id which can be filtered
 // by entity_type of action capability.
 service ProbeActionCapabilitiesService {
@@ -62,4 +81,9 @@ service ProbeActionCapabilitiesService {
     // capabilities filtered by entity_type. If entity_type of request will not provided then it
     // returns all action capabilities of the probe.
     rpc GetProbeActionCapabilities(GetProbeActionCapabilitiesRequest) returns (GetProbeActionCapabilitiesResponse);
+
+    // Returns action capabilities for the list of probes. if there is no probe with some of
+    // provided id then action capabilities for this probe will be empty
+    rpc ListProbeActionCapabilities(ListProbeActionCapabilitiesRequest) returns
+        (stream ProbeActionCapabilities);
 }

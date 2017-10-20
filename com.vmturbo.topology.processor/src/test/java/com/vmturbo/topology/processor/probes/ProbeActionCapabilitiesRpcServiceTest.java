@@ -1,7 +1,10 @@
 package com.vmturbo.topology.processor.probes;
 
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
@@ -15,10 +18,11 @@ import com.google.common.collect.ImmutableList;
 
 import io.grpc.stub.StreamObserver;
 
-import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.topology.Probe;
+import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapabilities;
 import com.vmturbo.common.protobuf.topology.Probe.GetProbeActionCapabilitiesRequest;
 import com.vmturbo.common.protobuf.topology.Probe.GetProbeActionCapabilitiesResponse;
+import com.vmturbo.common.protobuf.topology.Probe.ListProbeActionCapabilitiesRequest;
 import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO;
@@ -37,6 +41,8 @@ public class ProbeActionCapabilitiesRpcServiceTest {
 
     private static final long NOT_EXISTING_PROBE_ID = 2l;
 
+    private static final long EMPTY_PROBE = 3l;
+
     private static final TestObserver observer = new TestObserver();
 
     private final ProbeStore probeStore = Mockito.mock(ProbeStore.class);
@@ -49,11 +55,13 @@ public class ProbeActionCapabilitiesRpcServiceTest {
     public void setup() {
         initTestedProbeCapabilities();
         final ProbeInfo probeInfo =
-                populateProbeInfo("ProbeType", "Category", sdkActionCapabilities);
+                populateProbeInfo(sdkActionCapabilities);
         Mockito.when(probeStore.getProbe(PROBE_ID))
                 .thenReturn(Optional.of(probeInfo));
         Mockito.when(probeStore.getProbe(NOT_EXISTING_PROBE_ID))
                 .thenReturn(Optional.empty());
+        Mockito.when(probeStore.getProbe(EMPTY_PROBE)).thenReturn(Optional
+                .of(populateProbeInfo(Collections.emptyList())));
     }
 
     /**
@@ -119,19 +127,29 @@ public class ProbeActionCapabilitiesRpcServiceTest {
         Assert.assertEquals(ImmutableList.of(), observer.getActionCapabilities());
     }
 
+    @Test
+    public void testListProbeActionCapabilities() {
+        ListProbeActionCapabilitiesRequest request = ListProbeActionCapabilitiesRequest
+                .newBuilder().addProbeIds(PROBE_ID).addProbeIds(EMPTY_PROBE).build();
+        ListProbeActionCapabilitiesTestObserver streamObserver
+                = new ListProbeActionCapabilitiesTestObserver();
+        service.listProbeActionCapabilities(request, streamObserver);
+        Assert.assertEquals(SdkToProbeActionsConverter.convert(sdkActionCapabilities),
+                streamObserver.getProbesCapabilities().get(PROBE_ID));
+        Assert.assertEquals(Collections.emptyList(), streamObserver.getProbesCapabilities().get(
+                EMPTY_PROBE));
+    }
+
     /**
      * Populates ProbeInfo builder by certain data.
      *
-     * @param probeType Probe Type to set to ProbeInfo
-     * @param category Probe category to set to probe
      * @param actionCapabilities policies to add to probeInfo.
      * @return populated builder
      */
-    private static ProbeInfo populateProbeInfo(@Nonnull String probeType, @Nonnull String category,
-            @Nonnull List<ActionPolicyDTO> actionCapabilities) {
+    private static ProbeInfo populateProbeInfo(@Nonnull List<ActionPolicyDTO> actionCapabilities) {
         return ProbeInfo.newBuilder()
-                .setProbeType(probeType)
-                .setProbeCategory(category)
+                .setProbeType("ProbeType")
+                .setProbeCategory("Category")
                 .addAllActionPolicy(actionCapabilities)
                 .build();
     }
@@ -164,6 +182,32 @@ public class ProbeActionCapabilitiesRpcServiceTest {
             return actionCapabilities;
         }
 
+    }
+
+    private static class ListProbeActionCapabilitiesTestObserver implements
+            StreamObserver<ProbeActionCapabilities> {
+
+        private final Map<Long, List<ProbeActionCapability>> probesCapabilities = new HashMap<>();
+
+        public Map<Long, List<ProbeActionCapability>> getProbesCapabilities() {
+            return probesCapabilities;
+        }
+
+        @Override
+        public void onNext(ProbeActionCapabilities actionCapabilitiesOfProbe) {
+            probesCapabilities.put(actionCapabilitiesOfProbe.getProbeId(),
+                    actionCapabilitiesOfProbe.getActionCapabilitiesList().getActionCapabilitiesList());
+        }
+
+        @Override
+        public void onError(Throwable throwable) {
+
+        }
+
+        @Override
+        public void onCompleted() {
+
+        }
     }
 
 }

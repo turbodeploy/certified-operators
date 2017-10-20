@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.probes;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -10,13 +11,13 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.collect.ImmutableList;
-
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 
-import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.topology.Probe.ActionCapabilitiesList;
+import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapabilities;
+import com.vmturbo.common.protobuf.topology.Probe.ListProbeActionCapabilitiesRequest;
 import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability;
 import com.vmturbo.common.protobuf.topology.Probe.GetProbeActionCapabilitiesRequest;
 import com.vmturbo.common.protobuf.topology.Probe.GetProbeActionCapabilitiesResponse;
@@ -75,7 +76,52 @@ public class ProbeActionCapabilitiesRpcService extends ProbeActionCapabilitiesSe
     }
 
     /**
+     * Gets action capabilities for all probes provided in request. If there is not probe with
+     * provided probeId then capabilities for this probe will be empty.
+     * @param request contains probeIds list to get capabilities
+     * @param responseObserver contains action capabilities for each probe
+     */
+    @Override
+    public void listProbeActionCapabilities(@Nonnull ListProbeActionCapabilitiesRequest request,
+            StreamObserver<ProbeActionCapabilities> responseObserver) {
+        final List<Long> probeIds = request.getProbeIdsList();
+        for (long id : probeIds) {
+            addActionCapabilitiesOfProbeToResponse(responseObserver, id);
+        }
+        responseObserver.onCompleted();
+    }
+
+    private void addActionCapabilitiesOfProbeToResponse(
+            StreamObserver<ProbeActionCapabilities> responseObserver, long id) {
+        final ProbeActionCapabilities.Builder responseBuilder = ProbeActionCapabilities
+                .newBuilder().setProbeId(id);
+        final Optional<ProbeInfo> probeInfo = probeStore.getProbe(id);
+        if (!probeInfo.isPresent()) {
+            responseObserver.onNext(responseBuilder.build());
+        } else {
+            final List<ProbeActionCapability> actionCapabilities = SdkToProbeActionsConverter
+                    .convert(probeInfo.get().getActionPolicyList());
+            responseObserver.onNext(responseBuilder.setActionCapabilitiesList(
+                    ActionCapabilitiesList.newBuilder().addAllActionCapabilities(actionCapabilities)
+                            .build()).build());
+        }
+    }
+
+    private Optional<ProbeInfo> getProbeInfo(@Nonnull StreamObserver responseObserver, long probeId) {
+        final Optional<ProbeInfo> probeInfo = probeStore.getProbe(probeId);
+        if (!probeInfo.isPresent()) {
+            String errorMessage = String.format("There is no probe with probeId=%s", probeId);
+            logger.warn(errorMessage);
+            responseObserver.onError(new StatusRuntimeException(Status.NOT_FOUND.withDescription
+                    (errorMessage)));
+            responseObserver.onCompleted();
+        }
+        return probeInfo;
+    }
+
+    /**
      * Returnes action capabilities of probe converted from sdk-format action policies.
+     *
      * @param request request contains probeId and may contain entityType
      * @param probe ProbeInfo
      * @return
