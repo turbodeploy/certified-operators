@@ -62,8 +62,6 @@ public class ActionsServiceTest {
     private final TestActionsRpcService actionsServiceBackend =
             Mockito.spy(new TestActionsRpcService());
 
-    private GrpcTestServer grpcServer;
-
     private ActionsService actionsServiceUnderTest;
 
     private RepositoryApi repositoryApi = Mockito.mock(RepositoryApi.class);
@@ -77,24 +75,21 @@ public class ActionsServiceTest {
     private final String UUID = "12345";
 
     @Rule
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsServiceBackend);
+
+    @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
     @Before
     public void setup() throws IOException {
 
         // set up a mock Actions RPC server
-        grpcServer = GrpcTestServer.withServices(actionsServiceBackend);
         actionSpecMapper = Mockito.mock(ActionSpecMapper.class);
         actionsRpcService = ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());
 
         // set up the ActionsService to test
         actionsServiceUnderTest = new ActionsService(actionsRpcService, actionSpecMapper,
             repositoryApi, REALTIME_TOPOLOGY_ID);
-    }
-
-    @After
-    public void teardown() {
-        grpcServer.close();
     }
 
     /**

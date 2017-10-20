@@ -7,6 +7,7 @@ import static org.mockito.Mockito.when;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -21,19 +22,16 @@ public class TopologyRpcServiceTest {
 
     private TopologyServiceGrpc.TopologyServiceBlockingStub topologyRpcClient;
 
-    private GrpcTestServer server;
     private TopologyHandler topologyHandler = Mockito.mock(TopologyHandler.class);
+
+    private TopologyRpcService topologyRpcServiceBackend = new TopologyRpcService(topologyHandler);
+
+    @Rule
+    public GrpcTestServer server = GrpcTestServer.newServer(topologyRpcServiceBackend);
 
     @Before
     public void startup() throws Exception {
-        TopologyRpcService topologyRpcServiceBackend = new TopologyRpcService(topologyHandler);
-        server = GrpcTestServer.withServices(topologyRpcServiceBackend);
         topologyRpcClient = TopologyServiceGrpc.newBlockingStub(server.getChannel());
-    }
-
-    @After
-    public void teardown() throws Exception {
-        server.close();
     }
 
     @Test

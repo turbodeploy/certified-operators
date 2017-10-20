@@ -7,6 +7,7 @@ import java.util.List;
 
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -46,7 +47,11 @@ public class ActionSupportResolverTest {
 
     private final ActionExecutor actionExecutor = Mockito.mock(ActionExecutor.class);
 
-    private GrpcTestServer testServer;
+    private final TestActionCapabilitiesRpcService actionCapabilitiesService =
+            new TestActionCapabilitiesRpcService(createActionCapabilities());
+
+    @Rule
+    public GrpcTestServer testServer = GrpcTestServer.newServer(actionCapabilitiesService);
 
     private ProbeActionCapabilitiesServiceBlockingStub actionCapabilitiesStub;
 
@@ -56,10 +61,6 @@ public class ActionSupportResolverTest {
 
     @Before
     public void setup() throws TargetResolutionException, IOException, UnsupportedActionException {
-        TestActionCapabilitiesRpcService actionCapabilitiesService =
-                new TestActionCapabilitiesRpcService(createActionCapabilities());
-
-        testServer = GrpcTestServer.withServices(actionCapabilitiesService);
         actionCapabilitiesStub =
                 ProbeActionCapabilitiesServiceGrpc.newBlockingStub(testServer.getChannel());
         filter = new ActionSupportResolver(actionCapabilitiesStub, actionExecutor);

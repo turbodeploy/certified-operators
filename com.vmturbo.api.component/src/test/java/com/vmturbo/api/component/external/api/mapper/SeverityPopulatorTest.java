@@ -12,6 +12,7 @@ import java.util.function.Supplier;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 
 import com.google.common.collect.ImmutableList;
@@ -31,8 +32,6 @@ import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeveri
 import com.vmturbo.components.api.test.GrpcTestServer;
 
 public class SeverityPopulatorTest {
-    private GrpcTestServer grpcServer;
-
     private EntitySeverityHandler actionOrchestratorImpl = new EntitySeverityHandler();
     private EntitySeverityServiceBlockingStub entitySeverityRpc;
     private final int realtimeTopologyContextId = 0;
@@ -40,18 +39,15 @@ public class SeverityPopulatorTest {
     private final ServiceEntityApiDTO vm1 = new ServiceEntityApiDTO();
     private final ServiceEntityApiDTO vm2 = new ServiceEntityApiDTO();
 
+    @Rule
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(actionOrchestratorImpl);
+
     @Before
     public void setup() throws IOException {
-        grpcServer = GrpcTestServer.withServices(actionOrchestratorImpl);
         entitySeverityRpc = EntitySeverityServiceGrpc.newBlockingStub(grpcServer.getChannel());
 
         vm1.setUuid("1");
         vm2.setUuid("2");
-    }
-
-    @After
-    public void teardown() {
-        grpcServer.close();
     }
 
     @Test

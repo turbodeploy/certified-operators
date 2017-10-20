@@ -17,6 +17,7 @@ import java.util.stream.Stream;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
@@ -42,8 +43,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 public class ActionTranslatorTest {
 
     private ActionTranslator translator;
-
-    private GrpcTestServer server;
 
     private final long actionPlanId = 1234;
 
@@ -72,17 +71,14 @@ public class ActionTranslatorTest {
             }
         });
 
+    @Rule
+    public GrpcTestServer server = GrpcTestServer.newServer(entityServiceBackend);
+
     @Before
     public void setup() throws IOException {
         MockitoAnnotations.initMocks(this);
 
-        server = GrpcTestServer.withServices(entityServiceBackend);
         translator = new ActionTranslator(server.getChannel());
-    }
-
-    @After
-    public void teardown() {
-        server.close();
     }
 
     @Test

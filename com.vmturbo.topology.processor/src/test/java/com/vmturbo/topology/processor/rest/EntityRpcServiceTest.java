@@ -19,6 +19,7 @@ import javax.annotation.Nonnull;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -46,9 +47,13 @@ import com.vmturbo.topology.processor.targets.TargetStore;
 public class EntityRpcServiceTest {
     private TargetStore targetStore = Mockito.mock(TargetStore.class);
     private EntityStore entityStore = Mockito.mock(EntityStore.class);
+    private final EntityRpcService entityRpcServiceBackend =
+            new EntityRpcService(entityStore, targetStore);
+
+    @Rule
+    public GrpcTestServer server = GrpcTestServer.newServer(entityRpcServiceBackend);
 
     private EntityServiceGrpc.EntityServiceBlockingStub entityServiceClient;
-    private GrpcTestServer server;
 
     private static final long TARGET_ID = 1234L;
     private final PhysicalMachineData fastHostProperties = PhysicalMachineData.newBuilder()
@@ -67,18 +72,11 @@ public class EntityRpcServiceTest {
 
     @Before
     public void setup() throws Exception {
-        final EntityRpcService entityRpcServiceBackend = new EntityRpcService(entityStore, targetStore);
-        server = GrpcTestServer.withServices(entityRpcServiceBackend);
         entityServiceClient = EntityServiceGrpc.newBlockingStub(server.getChannel());
 
         Mockito.when(entityStore.getEntity(Mockito.anyLong())).thenReturn(Optional.empty());
         addEntity(1, ImmutableMap.of(1L, 1L));
         addEntity(2, ImmutableMap.of(1L, 1L));
-    }
-
-    @After
-    public void teardown() {
-        server.close();
     }
 
     /**

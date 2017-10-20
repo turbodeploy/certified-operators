@@ -19,6 +19,7 @@ import java.util.Optional;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 
 import io.grpc.Status;
@@ -98,15 +99,15 @@ public class SettingPoliciesServiceTest {
 
     private SettingsPoliciesService settingsPoliciesService;
 
-    private GrpcTestServer grpcTestServer;
-
     private TestSettingPolicyService settingPolicyBackend = spy(new TestSettingPolicyService());
 
     private SettingsMapper settingsMapper = mock(SettingsMapper.class);
 
+    @Rule
+    public GrpcTestServer grpcTestServer = GrpcTestServer.newServer(settingPolicyBackend);
+
     @Before
     public void setup() throws IOException {
-        grpcTestServer = GrpcTestServer.withServices(settingPolicyBackend);
         settingsPoliciesService = new SettingsPoliciesService(settingsMapper,
                 grpcTestServer.getChannel());
 
@@ -115,11 +116,6 @@ public class SettingPoliciesServiceTest {
         setting.setUuid(SETTING_NAME);
         mgr.setSettings(Collections.singletonList(setting));
         inputPolicy.setSettingsManagers(Collections.singletonList(mgr));
-    }
-
-    @After
-    public void teardown() {
-        grpcTestServer.close();
     }
 
     @Test

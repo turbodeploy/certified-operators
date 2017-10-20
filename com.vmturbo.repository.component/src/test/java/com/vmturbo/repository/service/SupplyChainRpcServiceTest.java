@@ -44,8 +44,6 @@ public class SupplyChainRpcServiceTest {
     private SupplyChainRpcService supplyChainBackend =
         new SupplyChainRpcService(graphDBService, supplyChainService);
 
-    private GrpcTestServer server;
-
     private SupplyChainServiceBlockingStub supplyChainStub;
 
     private final SupplyChainNode pmNode = SupplyChainNode.newBuilder()
@@ -60,17 +58,14 @@ public class SupplyChainRpcServiceTest {
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
+    @Rule
+    public GrpcTestServer server = GrpcTestServer.newServer(supplyChainBackend);
+
     @Before
     public void setup() throws IOException {
         MockitoAnnotations.initMocks(this);
 
-        server = GrpcTestServer.withServices(supplyChainBackend);
         supplyChainStub = SupplyChainServiceGrpc.newBlockingStub(server.getChannel());
-    }
-
-    @After
-    public void teardown() {
-        server.close();
     }
 
     @Test

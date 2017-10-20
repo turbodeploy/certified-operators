@@ -9,6 +9,7 @@ import java.util.stream.StreamSupport;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -52,20 +53,14 @@ public class EchoRpcServiceTest {
      * It provides an easy way to initialize a server for testing and get
      * a channel to it, without worrying about the details.
      */
-    private GrpcTestServer server;
+    @Rule
+    public GrpcTestServer server = GrpcTestServer.newServer(echoRpcServiceBackend);
 
     private static final String ECHO = "test";
 
     @Before
     public void startup() throws IOException {
-        server = GrpcTestServer.withServices(echoRpcServiceBackend);
-
         echoRpcServiceClient = EchoServiceGrpc.newBlockingStub(server.getChannel());
-    }
-
-    @After
-    public void teardown() {
-        server.close();
     }
 
     @Test

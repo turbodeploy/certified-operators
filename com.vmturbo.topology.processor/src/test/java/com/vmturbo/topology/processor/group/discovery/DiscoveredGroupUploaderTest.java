@@ -26,6 +26,7 @@ import java.util.Optional;
 
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 
 import com.google.common.collect.ImmutableMap;
@@ -45,8 +46,6 @@ public class DiscoveredGroupUploaderTest {
 
     private final TestDiscoveredService uploadServiceSpy = spy(new TestDiscoveredService());
 
-    private GrpcTestServer server;
-
     private final DiscoveredGroupInterpreter converter = mock(DiscoveredGroupInterpreter.class);
 
     private InterpretedGroup interpretedGroup = mock(InterpretedGroup.class);
@@ -54,9 +53,11 @@ public class DiscoveredGroupUploaderTest {
     private Map<Long, List<InterpretedGroup>> queuedGroup =
                 ImmutableMap.of(TARGET_ID, Collections.singletonList(interpretedGroup));
 
+    @Rule
+    public GrpcTestServer server = GrpcTestServer.newServer(uploadServiceSpy);
+
     @Before
     public void setup() throws Exception {
-        server = GrpcTestServer.withServices(uploadServiceSpy);
         recorderSpy = spy(new DiscoveredGroupUploader(server.getChannel(), converter));
         when(interpretedGroup.getDtoAsCluster()).thenReturn(Optional.empty());
         when(interpretedGroup.getDtoAsGroup()).thenReturn(Optional.empty());

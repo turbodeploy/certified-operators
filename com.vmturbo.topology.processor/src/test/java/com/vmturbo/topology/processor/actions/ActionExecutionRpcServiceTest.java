@@ -56,7 +56,8 @@ public class ActionExecutionRpcServiceTest {
 
     private ActionExecutionServiceBlockingStub actionExecutionStub;
 
-    private GrpcTestServer server;
+    @Rule
+    public GrpcTestServer server = GrpcTestServer.newServer(actionExecutionBackend);
 
     @Before
     public void setup() throws IOException {
@@ -64,15 +65,8 @@ public class ActionExecutionRpcServiceTest {
 
         Mockito.when(entityStore.getEntity(Mockito.anyLong())).thenReturn(Optional.empty());
 
-        server = GrpcTestServer.withServices(actionExecutionBackend);
         actionExecutionStub = ActionExecutionServiceGrpc.newBlockingStub(server.getChannel());
     }
-
-    @After
-    public void teardown() {
-        server.close();
-    }
-
 
     /**
      * Test that properly formatted actions go to the {@link OperationManager}

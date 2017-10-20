@@ -24,6 +24,7 @@ import java.util.stream.Collectors;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 
 import com.google.common.collect.ImmutableList;
@@ -107,21 +108,12 @@ public class SettingsMapperTest {
     private final SettingManagerInfo mgr1Info = new SettingManagerInfo(mgrName1, mgrCategory1,
                 Collections.singleton(settingSpec1.getName()));
 
-    private GrpcTestServer grpcServer;
-
     private final TestGroupService groupBackend = spy(new TestGroupService());
 
     private final TestSettingService settingBackend = spy(new TestSettingService());
 
-    @Before
-    public void setup() throws Exception {
-        grpcServer = GrpcTestServer.withServices(groupBackend, settingBackend);
-    }
-
-    @After
-    public void teardown() {
-        grpcServer.close();
-    }
+    @Rule
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(groupBackend, settingBackend);
 
     /**
      * Verify that a manager loaded from JSON file gets used to map

@@ -21,8 +21,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Matchers;
@@ -74,8 +74,6 @@ public class SettingsManagerTest {
 
     private SettingPolicyServiceBlockingStub settingPolicyServiceClient;
 
-    private GrpcTestServer grpcServer;
-
     private final TestGroupService testGroupService = spy(new TestGroupService());
 
     private final TestClusterService testClusterService = spy(new TestClusterService());
@@ -109,20 +107,17 @@ public class SettingsManagerTest {
         new LinkedList<Setting>(Arrays.asList(new Setting[]{setting1, setting2}));
     private final SettingPolicy settingPolicy2 = createUserSettingPolicy("sp2", inputSettings2);
 
+    @Rule
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(testGroupService,
+            testClusterService, testSettingService);
+
     @Before
     public void setup() throws Exception {
-
-        grpcServer = GrpcTestServer.withServices(testGroupService, testClusterService, testSettingService);
         settingPolicyServiceClient = SettingPolicyServiceGrpc.newBlockingStub(grpcServer.getChannel());
         clusterServiceClient = ClusterServiceGrpc.newBlockingStub(grpcServer.getChannel());
         groupServiceClient = GroupServiceGrpc.newBlockingStub(grpcServer.getChannel());
         settingsManager = new SettingsManager(settingPolicyServiceClient, groupServiceClient,
             clusterServiceClient, topologyFilterFactory);
-    }
-
-    @After
-    public void teardown() {
-        grpcServer.close();
     }
 
     @Test

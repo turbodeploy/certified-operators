@@ -28,7 +28,6 @@ import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.when;
 
 public class ActionDeletionRpcTest {
-    private GrpcTestServer grpcServer;
     private ActionsServiceBlockingStub actionOrchestratorServiceClient;
 
     private final ActionStorehouse actionStorehouse = Mockito.mock(ActionStorehouse.class);
@@ -36,24 +35,21 @@ public class ActionDeletionRpcTest {
 
     private final long topologyContextId = 3;
 
+    private ActionsRpcService actionsRpcService =
+            new ActionsRpcService(actionStorehouse, Mockito.mock(ActionExecutor.class), Mockito.mock(ActionTranslator.class));
+
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
+
+    @Rule
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsRpcService);
 
     @Before
     public void setup() throws Exception {
         IdentityGenerator.initPrefix(0);
 
-        ActionsRpcService actionsRpcService =
-            new ActionsRpcService(actionStorehouse, Mockito.mock(ActionExecutor.class), Mockito.mock(ActionTranslator.class));
-
-        grpcServer = GrpcTestServer.withServices(actionsRpcService);
         actionOrchestratorServiceClient = ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());
         when(actionStorehouse.getStore(topologyContextId)).thenReturn(Optional.of(actionStore));
-    }
-
-    @After
-    public void teardown() {
-        grpcServer.close();
     }
 
     @Test

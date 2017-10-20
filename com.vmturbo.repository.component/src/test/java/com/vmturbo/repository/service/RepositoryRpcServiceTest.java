@@ -1,5 +1,7 @@
 package com.vmturbo.repository.service;
 
+import static org.mockito.Mockito.mock;
+
 import java.util.NoSuchElementException;
 
 import org.junit.After;
@@ -34,47 +36,36 @@ import com.vmturbo.repository.topology.protobufs.TopologyProtobufsManager;
 /*
  *  Test Repository RPC functions
  */
-@RunWith(MockitoJUnitRunner.class)
 public class RepositoryRpcServiceTest {
 
-    private GrpcTestServer grpcServer;
     private RepositoryClient repoClient;
-    private RepositoryRpcService repoRpcService;
     private final long topologyContextId = 1111;
     private final long topologyId = 2222;
     private RepositoryServiceBlockingStub repositoryService;
 
-    @Mock
-    private TopologyProtobufsManager topologyProtobufsManager;
+    private TopologyProtobufsManager topologyProtobufsManager = mock(TopologyProtobufsManager.class);
 
-    @Mock
-    private TopologyProtobufReader topologyProtobufReader;
+    private TopologyProtobufReader topologyProtobufReader = mock(TopologyProtobufReader.class);
 
-    @Mock
-    private TopologyProtobufHandler topologyProtobufHandler;
+    private TopologyProtobufHandler topologyProtobufHandler = mock(TopologyProtobufHandler.class);
 
-    @Mock
-    private TopologyEventHandler topologyEventHandler;
+    private TopologyEventHandler topologyEventHandler = mock(TopologyEventHandler.class);
+
+    private RepositoryRpcService repoRpcService = new RepositoryRpcService(
+            topologyProtobufsManager,
+            topologyEventHandler);
+
+    @Rule
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(repoRpcService);
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
     @Before
     public void setUp() throws Exception {
-
-        repoRpcService = new RepositoryRpcService(
-                topologyProtobufsManager,
-                topologyEventHandler);
-
-        grpcServer = GrpcTestServer.withServices(repoRpcService);
         repoClient = new RepositoryClient(grpcServer.getChannel());
         repositoryService = RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel());
 
-    }
-
-    @After
-    public void teardown() {
-        grpcServer.close();
     }
 
     @Test
@@ -131,7 +122,7 @@ public class RepositoryRpcServiceTest {
         Mockito.when(topologyProtobufsManager.createTopologyProtobufReader(
                     topologyId)).thenReturn(topologyProtobufReader);
 
-        ArangoDBException arangoException = Mockito.mock(ArangoDBException.class);
+        ArangoDBException arangoException = mock(ArangoDBException.class);
         Mockito.doThrow(arangoException)
                 .when(topologyEventHandler).dropDatabase(
                     new TopologyID(topologyContextId,

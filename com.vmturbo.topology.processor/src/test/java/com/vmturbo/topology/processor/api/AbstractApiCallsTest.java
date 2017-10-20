@@ -60,9 +60,10 @@ public abstract class AbstractApiCallsTest {
 
     protected EntityServiceGrpc.EntityServiceBlockingStub entityServiceBlockingStub;
 
+    /**
+     * Not using it as a Rule because we get the services from the {@link IntegrationTestServer}.
+     */
     private GrpcTestServer grpcServer;
-
-    private GrpcTestServer grpcEntityServer;
 
     private IMessageReceiver<TopologyProcessorNotification> notificationReceiver;
     private IMessageReceiver<Topology> topologyReceiver;
@@ -78,8 +79,10 @@ public abstract class AbstractApiCallsTest {
         integrationTestServer = new IntegrationTestServer(testName, TestApiServerConfig.class);
 
 
-        grpcServer = GrpcTestServer.withServices(
+        grpcServer = GrpcTestServer.newServer(
                 integrationTestServer.getBean(ActionExecutionRpcService.class));
+        grpcServer.start();
+
         notificationReceiver = integrationTestServer.getBean("notificationsConnection");
         topologyReceiver = integrationTestServer.getBean("topologyConnection");
         topologyProcessor =

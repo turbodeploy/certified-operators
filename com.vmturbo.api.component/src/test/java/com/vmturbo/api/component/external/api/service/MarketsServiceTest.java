@@ -56,7 +56,6 @@ import com.vmturbo.api.component.external.api.mapper.MarketMapper;
 import com.vmturbo.api.component.external.api.mapper.PolicyMapper;
 import com.vmturbo.api.component.external.api.mapper.ScenarioMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
-import com.vmturbo.common.protobuf.group.GroupFetcher;
 import com.vmturbo.api.component.external.api.websocket.UINotificationChannel;
 import com.vmturbo.api.controller.MarketsController;
 import com.vmturbo.api.dto.MarketApiDTO;
@@ -72,6 +71,7 @@ import com.vmturbo.api.serviceinterfaces.IUsersService;
 import com.vmturbo.api.validators.InputDTOValidator;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.GroupFetcher;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.CreatePlanRequest;
@@ -311,7 +311,9 @@ public class MarketsServiceTest {
         @Bean
         public GrpcTestServer grpcTestServer() {
             try {
-                return GrpcTestServer.withServices(planService());
+                final GrpcTestServer testServer = GrpcTestServer.newServer(planService());
+                testServer.start();
+                return testServer;
             } catch (IOException e) {
                 throw new BeanCreationException("Failed to create test channel", e);
             }

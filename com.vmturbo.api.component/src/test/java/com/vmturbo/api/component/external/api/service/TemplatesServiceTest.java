@@ -82,8 +82,6 @@ public class TemplatesServiceTest {
 
     private final TestTemplateSpecService templateSpecService = Mockito.spy(new TestTemplateSpecService());
 
-    private GrpcTestServer grpcServer;
-
     private TemplatesService templatesService;
 
     private TemplateMapper templateMapper;
@@ -93,18 +91,15 @@ public class TemplatesServiceTest {
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
+    @Rule
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(templateService, templateSpecService);
+
     @Before
     public void setup() throws IOException {
-        grpcServer = GrpcTestServer.withServices(templateService, templateSpecService);
         templateMapper = new TemplateMapper();
         templatesService = new TemplatesService(TemplateServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             templateMapper, TemplateSpecServiceGrpc.newBlockingStub(grpcServer.getChannel()));
 
-    }
-
-    @After
-    public void teardown() {
-        grpcServer.close();
     }
 
     @Test

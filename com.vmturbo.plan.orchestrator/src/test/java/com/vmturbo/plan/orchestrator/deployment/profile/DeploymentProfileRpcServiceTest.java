@@ -9,6 +9,7 @@ import java.util.Set;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -28,27 +29,22 @@ import com.vmturbo.plan.orchestrator.plan.DiscoveredNotSupportedOperationExcepti
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 
 public class DeploymentProfileRpcServiceTest {
-    private DeploymentProfileRpcService deploymentProfileRpcService;
+    private DeploymentProfileDaoImpl deploymentProfileDao =
+            Mockito.mock(DeploymentProfileDaoImpl.class);
 
-    private GrpcTestServer grpcServer;
+    private DeploymentProfileRpcService deploymentProfileRpcService =
+            new DeploymentProfileRpcService(deploymentProfileDao);
 
     private DeploymentProfileServiceBlockingStub deploymentProfileServiceBlockingStub;
 
-    private DeploymentProfileDaoImpl deploymentProfileDao;
+    @Rule
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(deploymentProfileRpcService);
 
     @Before
     public void init() throws Exception {
-        deploymentProfileDao = Mockito.mock(DeploymentProfileDaoImpl.class);
-        deploymentProfileRpcService = new DeploymentProfileRpcService(deploymentProfileDao);
-        grpcServer = GrpcTestServer.withServices(deploymentProfileRpcService);
         deploymentProfileServiceBlockingStub = DeploymentProfileServiceGrpc.newBlockingStub(
             grpcServer.getChannel()
         );
-    }
-
-    @After
-    public void shutdown() {
-        grpcServer.close();
     }
 
     @Test

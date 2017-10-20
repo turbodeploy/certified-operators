@@ -19,6 +19,7 @@ import java.util.Optional;
 import org.assertj.core.util.Lists;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mock;
 import org.mockito.Mockito;
@@ -76,8 +77,6 @@ public class GroupsServiceTest {
     @Mock
     private Channel channelMock;
 
-    private GrpcTestServer grpcServer;
-
     private GroupServiceSpyRecruit groupServiceSpy = spy(new GroupServiceSpyRecruit());
 
     private ClusterServiceSpyRecruit clusterServiceSpy = spy(new ClusterServiceSpyRecruit());
@@ -85,11 +84,12 @@ public class GroupsServiceTest {
     private FilterApiDTO groupFilterApiDTO = new FilterApiDTO();
     private FilterApiDTO clusterFilterApiDTO = new FilterApiDTO();
 
+    @Rule
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(groupServiceSpy, clusterServiceSpy);
+
     @Before
     public void init() throws Exception {
         MockitoAnnotations.initMocks(this);
-
-        grpcServer = GrpcTestServer.withServices(groupServiceSpy, clusterServiceSpy);
 
         channelMock = Mockito.mock(Channel.class);
         ActionsServiceGrpc.ActionsServiceBlockingStub actionsRpcService = ActionsServiceGrpc.newBlockingStub(channelMock);
@@ -111,11 +111,6 @@ public class GroupsServiceTest {
         clusterFilterApiDTO.setFilterType(CLUSTER_FILTER_TYPE);
         clusterFilterApiDTO.setExpVal(CLUSTER_TEST_PATTERN);
         clusterFilterApiDTO.setExpType(EQ_MATCH_TYPE);
-    }
-
-    @After
-    public void teardown() {
-        grpcServer.close();
     }
 
     /**

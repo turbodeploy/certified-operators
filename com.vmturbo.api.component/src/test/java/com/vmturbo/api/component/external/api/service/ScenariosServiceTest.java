@@ -58,8 +58,6 @@ public class ScenariosServiceTest {
     private final TestScenarioRpcService scenarioServiceBackend =
             Mockito.spy(new TestScenarioRpcService());
 
-    private GrpcTestServer grpcServer;
-
     private ScenariosService scenariosService;
 
     private ScenarioMapper scenarioMapper;
@@ -67,9 +65,11 @@ public class ScenariosServiceTest {
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
+    @Rule
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(scenarioServiceBackend);
+
     @Before
     public void setup() throws IOException {
-        grpcServer = GrpcTestServer.withServices(scenarioServiceBackend);
 
         final RepositoryApi repositoryApi = Mockito.mock(RepositoryApi.class);
         Mockito.when(repositoryApi.getServiceEntitiesById(Mockito.any()))
@@ -79,11 +79,6 @@ public class ScenariosServiceTest {
         scenariosService = new ScenariosService(grpcServer.getChannel(), scenarioMapper);
 
         apiDTOJson = objectMapper.writeValueAsString(scenarioMapper.toScenarioApiDTO(SCENARIO_RESPONSE));
-    }
-
-    @After
-    public void teardown() {
-        grpcServer.close();
     }
 
     @Test

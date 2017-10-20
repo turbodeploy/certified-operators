@@ -7,6 +7,7 @@ import io.grpc.stub.StreamObserver;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
@@ -55,19 +56,15 @@ public class ActionExecutorTest {
     @Captor
     private ArgumentCaptor<ExecuteActionRequest> actionSpecCaptor;
 
-    private GrpcTestServer server;
+    @Rule
+    public GrpcTestServer server =
+            GrpcTestServer.newServer(actionExecutionBackend, entityServiceBackend);
 
     @Before
     public void setup() throws IOException {
         MockitoAnnotations.initMocks(this);
 
-        server = GrpcTestServer.withServices(actionExecutionBackend, entityServiceBackend);
         actionExecutor = new ActionExecutor(server.getChannel());
-    }
-
-    @After
-    public void teardown() {
-        server.close();
     }
 
     @Test

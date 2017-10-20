@@ -22,6 +22,7 @@ import javax.annotation.Nullable;
 import org.assertj.core.util.Sets;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 import org.springframework.web.client.RestTemplate;
@@ -63,18 +64,18 @@ public class SupplyChainFetcherTest {
     private RepositoryApiMock repositoryApiBackend;
     private GroupExpander groupExpander = Mockito.mock(GroupExpander.class);
 
+    @Rule
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(severityServiceBackend,
+            supplyChainServiceBackend);
+
     @Before
     public void setup() throws IOException {
 
-        // set up a mock Actions RPC server
-        GrpcTestServer grpcServer = GrpcTestServer.withServices(severityServiceBackend,
-                supplyChainServiceBackend);
         Duration timeoutDuration = Duration.ofMinutes(1);
 
         // set up the mockseverity RPC
         EntitySeverityServiceBlockingStub entitySeverityRpc =
-                EntitySeverityServiceGrpc.newBlockingStub(GrpcTestServer.withServices(
-                        new EntitySeverityServiceImplBase(){}).getChannel());
+                EntitySeverityServiceGrpc.newBlockingStub(grpcServer.getChannel());
         repositoryApiBackend =
                 Mockito.spy(new RepositoryApiMock(entitySeverityRpc));
 

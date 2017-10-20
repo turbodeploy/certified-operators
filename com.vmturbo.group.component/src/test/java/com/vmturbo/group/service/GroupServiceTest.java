@@ -20,6 +20,7 @@ import com.vmturbo.group.persistent.PolicyStore.PolicyDeleteException;
 import io.grpc.stub.StreamObserver;
 
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
@@ -45,7 +46,6 @@ import com.google.common.collect.Lists;
 @SuppressWarnings("unchecked")
 @RunWith(MockitoJUnitRunner.class)
 public class GroupServiceTest {
-    private GrpcTestServer testServer;
 
     private AtomicReference<List<Long>> mockDataReference = new AtomicReference<>(Collections.emptyList());
 
@@ -59,9 +59,11 @@ public class GroupServiceTest {
 
     private GroupService groupService;
 
+    @Rule
+    public GrpcTestServer testServer = GrpcTestServer.newServer(searchServiceHandler);
+
     @Before
     public void setUp() throws Exception {
-        testServer = GrpcTestServer.withServices(searchServiceHandler);
         SearchServiceBlockingStub searchServiceRpc = SearchServiceGrpc.newBlockingStub(testServer.getChannel());
         groupService = new GroupService(groupStore, policyStore, searchServiceRpc);
     }

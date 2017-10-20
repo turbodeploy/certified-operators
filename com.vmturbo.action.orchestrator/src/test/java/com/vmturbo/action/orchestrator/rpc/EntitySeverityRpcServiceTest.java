@@ -8,6 +8,7 @@ import java.util.stream.StreamSupport;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -30,7 +31,6 @@ import static org.mockito.Mockito.when;
  * Tests for Entity Severity service.
  */
 public class EntitySeverityRpcServiceTest {
-    private GrpcTestServer grpcServer;
     private EntitySeverityServiceBlockingStub severityServiceClient;
 
     private final ActionStorehouse actionStorehouse = Mockito.mock(ActionStorehouse.class);
@@ -38,19 +38,17 @@ public class EntitySeverityRpcServiceTest {
     private final EntitySeverityCache severityCache = Mockito.mock(EntitySeverityCache.class);
     private final long topologyContextId = 3;
 
+    private final EntitySeverityRpcService entitySeverityRpcService =
+            new EntitySeverityRpcService(actionStorehouse);
+
+    @Rule
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(entitySeverityRpcService);
+
     @Before
     public void setup() throws IOException {
         IdentityGenerator.initPrefix(0);
 
-        EntitySeverityRpcService entitySeverityRpcService = new EntitySeverityRpcService(actionStorehouse);
-
-        grpcServer = GrpcTestServer.withServices(entitySeverityRpcService);
         severityServiceClient = EntitySeverityServiceGrpc.newBlockingStub(grpcServer.getChannel());
-    }
-
-    @After
-    public void teardown() {
-        grpcServer.close();
     }
 
     @Test

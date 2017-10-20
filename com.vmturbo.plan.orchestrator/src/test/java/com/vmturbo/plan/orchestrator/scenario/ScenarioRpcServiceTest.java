@@ -12,7 +12,6 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import org.flywaydb.core.Flyway;
-import org.jooq.DSLContext;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -62,12 +61,16 @@ public class ScenarioRpcServiceTest {
 
     private ScenarioRpcService scenarioRpcService;
 
-    private GrpcTestServer grpcServer;
-
     private ScenarioServiceBlockingStub scenarioServiceClient;
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
+
+    /**
+     * Not a rule, because we need the DB config for the service that goes
+     * into the server.
+     */
+    private GrpcTestServer grpcServer;
 
     @Before
     public void setup() throws Exception {
@@ -78,8 +81,6 @@ public class ScenarioRpcServiceTest {
 
     private void prepareDatabase() throws Exception {
         flyway = dbConfig.flyway();
-        final DSLContext dsl = dbConfig.dsl();
-        scenarioRpcService = new ScenarioRpcService(dsl, new IdentityInitializer(0));
 
         // Clean the database and bring it up to the production configuration before running test
         flyway.clean();
@@ -87,7 +88,9 @@ public class ScenarioRpcServiceTest {
     }
 
     private void prepareGrpc() throws Exception {
-        grpcServer = GrpcTestServer.withServices(scenarioRpcService);
+        scenarioRpcService = new ScenarioRpcService(dbConfig.dsl(), new IdentityInitializer(0));
+        grpcServer = GrpcTestServer.newServer(scenarioRpcService);
+        grpcServer.start();
         scenarioServiceClient = ScenarioServiceGrpc.newBlockingStub(grpcServer.getChannel());
     }
 

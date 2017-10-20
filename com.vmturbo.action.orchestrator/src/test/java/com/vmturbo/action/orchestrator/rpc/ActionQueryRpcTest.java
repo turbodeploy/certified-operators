@@ -65,7 +65,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
 public class ActionQueryRpcTest {
 
-    private GrpcTestServer grpcServer;
     private ActionsServiceBlockingStub actionOrchestratorServiceClient;
 
     private final ActionStorehouse actionStorehouse = Mockito.mock(ActionStorehouse.class);
@@ -79,25 +78,21 @@ public class ActionQueryRpcTest {
     private final long actionPlanId = 2;
     private final long topologyContextId = 3;
 
+    private ActionsRpcService actionsRpcService =
+            new ActionsRpcService(actionStorehouse, Mockito.mock(ActionExecutor.class), actionTranslator);
+
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
+
+    @Rule
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsRpcService);
 
     @Before
     public void setup() throws Exception {
         IdentityGenerator.initPrefix(0);
-
-        ActionsRpcService actionsRpcService =
-            new ActionsRpcService(actionStorehouse, Mockito.mock(ActionExecutor.class), actionTranslator);
-
-        grpcServer = GrpcTestServer.withServices(actionsRpcService);
         actionOrchestratorServiceClient = ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());
 
         when(actionStorehouse.getStore(topologyContextId)).thenReturn(Optional.of(actionStore));
-    }
-
-    @After
-    public void teardown() {
-        grpcServer.close();
     }
 
     /**

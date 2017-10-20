@@ -12,6 +12,7 @@ import java.util.stream.StreamSupport;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -26,25 +27,19 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class TemplateSpecRpcServiceTest {
 
-    private TemplateSpecRpcService templateSpecRpcService;
+    private TemplateSpecParser templateSpecParser = Mockito.mock(TemplateSpecParser.class);
 
-    private GrpcTestServer grpcServer;
+    private TemplateSpecRpcService templateSpecRpcService =
+            new TemplateSpecRpcService(templateSpecParser);
+
+    @Rule
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(templateSpecRpcService);
 
     private TemplateSpecServiceBlockingStub templateSpecServiceBlockingStub;
 
-    private TemplateSpecParser templateSpecParser;
-
     @Before
     public void init() throws Exception {
-        templateSpecParser = Mockito.mock(TemplateSpecParser.class);
-        templateSpecRpcService = new TemplateSpecRpcService(templateSpecParser);
-        grpcServer = GrpcTestServer.withServices(templateSpecRpcService);
         templateSpecServiceBlockingStub = TemplateSpecServiceGrpc.newBlockingStub(grpcServer.getChannel());
-    }
-
-    @After
-    public void shutdown() {
-        grpcServer.close();
     }
 
     @Test

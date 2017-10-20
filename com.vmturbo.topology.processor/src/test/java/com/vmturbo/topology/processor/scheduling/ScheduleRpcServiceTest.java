@@ -6,6 +6,7 @@ import java.util.concurrent.TimeUnit;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -18,31 +19,25 @@ import com.vmturbo.components.api.test.GrpcTestServer;
  */
 public class ScheduleRpcServiceTest {
 
-    private ScheduleRpcService scheduleRpcServiceBackend;
-
-    private ScheduleServiceGrpc.ScheduleServiceBlockingStub scheduleRpcServiceClient;
-
-    private GrpcTestServer server;
     private com.vmturbo.topology.processor.scheduling.Scheduler scheduler =
             Mockito.mock(com.vmturbo.topology.processor.scheduling.Scheduler.class);
+
+    private ScheduleRpcService scheduleRpcServiceBackend = new ScheduleRpcService(scheduler);
+
+    private ScheduleServiceGrpc.ScheduleServiceBlockingStub scheduleRpcServiceClient;
 
     private static final long INTERVAL_MINUTES = 1;
     private static final long INITIAL_BROADCAST_INTERVAL_MINUTES = 10;
     private static final long DELAY_MS = 100;
 
-
     private static final long TARGET_ID = 7;
+
+    @Rule
+    public GrpcTestServer server = GrpcTestServer.newServer(scheduleRpcServiceBackend);
 
     @Before
     public void startup() throws Exception {
-        scheduleRpcServiceBackend = new ScheduleRpcService(scheduler);
-        server = GrpcTestServer.withServices(scheduleRpcServiceBackend);
         scheduleRpcServiceClient = ScheduleServiceGrpc.newBlockingStub(server.getChannel());
-    }
-
-    @After
-    public void teardown() throws Exception {
-        server.close();
     }
 
     @Test

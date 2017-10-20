@@ -15,6 +15,7 @@ import java.util.Objects;
 import javax.annotation.Nonnull;
 
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -44,13 +45,13 @@ public class GroupFetcherTest {
     private ClusterServiceMock clusterServiceBackend = Mockito.spy(new ClusterServiceMock());
 
 
+    @Rule
+    public GrpcTestServer grpcTestServer =
+            GrpcTestServer.newServer(groupServiceBackend, clusterServiceBackend);
+
     @Before
     public void setup() throws IOException{
-
-        GrpcTestServer grpcTestServer =
-                GrpcTestServer.withServices(groupServiceBackend, clusterServiceBackend);
         groupFetcher = new GroupFetcher(grpcTestServer.getChannel(), Duration.ofSeconds(60L));
-
     }
 
     @Test

@@ -32,7 +32,6 @@ import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcTestServer;
 
 public class ActionsDebugRpcTest {
-    private GrpcTestServer grpcServer;
     private ActionsDebugServiceBlockingStub actionOrchestratorServiceClient;
 
     private final ActionStorehouse actionStorehouse = Mockito.mock(ActionStorehouse.class);
@@ -45,24 +44,21 @@ public class ActionsDebugRpcTest {
         .addAction(ActionOrchestratorTestUtils.createMoveRecommendation(1))
         .build();
 
+    private final ActionsDebugRpcService actionsDebugRpcService =
+            new ActionsDebugRpcService(actionStorehouse);
+
+    @Rule
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsDebugRpcService);
+
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
     @Before
     public void setup() throws Exception {
         IdentityGenerator.initPrefix(0);
-        final ActionsDebugRpcService actionsDebugRpcService = new ActionsDebugRpcService(actionStorehouse);
 
-        grpcServer = GrpcTestServer.withServices(actionsDebugRpcService);
         actionOrchestratorServiceClient = ActionsDebugServiceGrpc.newBlockingStub(grpcServer.getChannel());
         when(actionStorehouse.getStore(TOPOLOGY_CONTEXT_ID)).thenReturn(Optional.of(actionStore));
-    }
-
-    @After
-    public void teardown() {
-        if (grpcServer != null) {
-            grpcServer.close();
-        }
     }
 
     @Test

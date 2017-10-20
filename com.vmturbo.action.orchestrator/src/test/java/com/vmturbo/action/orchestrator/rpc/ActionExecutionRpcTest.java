@@ -18,6 +18,7 @@ import org.hamcrest.CoreMatchers;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -53,7 +54,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
  * Tests for action execution RPCs.
  */
 public class ActionExecutionRpcTest {
-    private GrpcTestServer grpcServer;
     private ActionsServiceBlockingStub actionOrchestratorServiceClient;
 
     private final IActionFactory actionFactory = new ActionFactory();
@@ -79,24 +79,21 @@ public class ActionExecutionRpcTest {
     private final static long TOPOLOGY_CONTEXT_ID = 3;
     private final static long ACTION_ID = 9999;
 
+    private final ActionsRpcService actionsRpcService =
+            new ActionsRpcService(actionStorehouse, actionExecutor, actionTranslator);
+
+    @Rule
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsRpcService);
+
     @SuppressWarnings("unchecked")
     @Before
     public void setup() throws Exception {
         IdentityGenerator.initPrefix(0);
-        final ActionsRpcService actionsRpcService =
-            new ActionsRpcService(actionStorehouse, actionExecutor, actionTranslator);
-
-        grpcServer = GrpcTestServer.withServices(actionsRpcService);
 
         actionOrchestratorServiceClient = ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);
         when(actionStoreLoader.loadActionStores()).thenReturn(Collections.emptyList());
         when(actionStoreFactory.getContextTypeName(anyLong())).thenReturn("foo");
-    }
-
-    @After
-    public void teardown() {
-        grpcServer.close();
     }
 
     /**

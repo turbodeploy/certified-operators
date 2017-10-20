@@ -29,6 +29,7 @@ import javax.annotation.Nonnull;
 
 import org.assertj.core.util.Lists;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
@@ -124,10 +125,12 @@ public class StatsServiceTest {
                                     "VDCCommodity",
                                     "VMPMAccessCommodity");
 
+    @Rule
+    public GrpcTestServer testServer = GrpcTestServer.newServer(testStatsHistoryService,
+            testClusterService, groupServiceTest);
+
     @Before
     public void setUp() throws IOException {
-        GrpcTestServer testServer = GrpcTestServer.withServices(testStatsHistoryService,
-                testClusterService, groupServiceTest);
         StatsHistoryServiceBlockingStub statsServiceRpc = StatsHistoryServiceGrpc.newBlockingStub(testServer.getChannel());
         groupExpander = Mockito.mock(GroupExpander.class);
 

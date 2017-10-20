@@ -20,6 +20,7 @@ import java.util.Optional;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
@@ -45,8 +46,6 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 
 public class SettingsServiceTest {
 
-    private GrpcTestServer grpcServer;
-
     private TestSettingRpcService settingRpcServiceSpy = spy(new TestSettingRpcService());
 
     private SettingServiceBlockingStub settingServiceStub;
@@ -67,21 +66,18 @@ public class SettingsServiceTest {
                     .setDefault("MANUAL"))
             .build();
 
+    @Rule
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(settingRpcServiceSpy);
+
     @Before
     public void setup() throws IOException {
         MockitoAnnotations.initMocks(this);
-        grpcServer = GrpcTestServer.withServices(settingRpcServiceSpy);
         settingServiceStub = SettingServiceGrpc.newBlockingStub(grpcServer.getChannel());
 
         settingsService = new SettingsService(settingServiceStub, settingsMapper);
 
         when(settingRpcServiceSpy.getAllSettingSpec(any()))
                 .thenReturn(Arrays.asList(vmSettingSpec));
-    }
-
-    @After
-    public void teardown() {
-        grpcServer.close();
     }
 
     @Captor

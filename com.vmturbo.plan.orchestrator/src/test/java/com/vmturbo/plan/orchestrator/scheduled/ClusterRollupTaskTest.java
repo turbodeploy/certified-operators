@@ -16,6 +16,7 @@ import java.util.Optional;
 import javax.annotation.Nonnull;
 
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
@@ -45,38 +46,40 @@ public class ClusterRollupTaskTest {
     private static final String CRON_TRIGGER_SCHEDULE = "*/1 * * * * *";
 
 
-    private StatsHistoryServiceImplBase statsHistoryService;
+    private StatsHistoryServiceImplBase statsHistoryService = Mockito.spy(new StatsHistoryServiceImplBase() {
+        @Override
+        public void computeClusterRollup(ClusterRollupRequest request,
+                StreamObserver<ClusterRollupResponse> responseObserver) {
+            responseObserver.onNext(
+                    ClusterRollupResponse.newBuilder().build());
+            responseObserver.onCompleted();
+        }
+    });
+
+    private ClusterServiceImplBase clusterService = Mockito.spy(new ClusterServiceImplBase() {
+        @Override
+        public void getClusters(GetClustersRequest request,
+                                io.grpc.stub.StreamObserver<Cluster> responseObserver) {
+            clusterServiceHelper.onGetClusters();
+            responseObserver.onCompleted();
+        }
+    });
+
     private StatsHistoryServiceBlockingStub statsHistoryClient;
-    private ClusterServiceImplBase clusterService;
     private ClusterServiceBlockingStub clusterServiceClient;
     private ThreadPoolTaskScheduler threadPoolTaskScheduler;
     private CronTrigger cronTrigger;
     private final ClusterServiceHelper clusterServiceHelper = new ClusterServiceHelper();
 
+    @Rule
+    public GrpcTestServer grpcTestServer =
+            GrpcTestServer.newServer(statsHistoryService, clusterService);
+
     @Before
     public void init() throws Exception {
-        statsHistoryService = Mockito.spy(new StatsHistoryServiceImplBase() {
-            @Override
-            public void computeClusterRollup(ClusterRollupRequest request,
-                                             StreamObserver<ClusterRollupResponse> responseObserver) {
-                responseObserver.onNext(
-                        ClusterRollupResponse.newBuilder().build());
-                responseObserver.onCompleted();
-            }
-        });
-        GrpcTestServer statsHistoryRpc = GrpcTestServer.withServices(statsHistoryService);
-        statsHistoryClient = StatsHistoryServiceGrpc.newBlockingStub(statsHistoryRpc.getChannel());
+        statsHistoryClient = StatsHistoryServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
 
-        clusterService = Mockito.spy(new ClusterServiceImplBase() {
-            @Override
-            public void getClusters(GetClustersRequest request,
-                                    io.grpc.stub.StreamObserver<Cluster> responseObserver) {
-                clusterServiceHelper.onGetClusters();
-                responseObserver.onCompleted();
-            }
-        });
-        GrpcTestServer clusterServiceRpc = GrpcTestServer.withServices(clusterService);
-        clusterServiceClient = ClusterServiceGrpc.newBlockingStub(clusterServiceRpc.getChannel());
+        clusterServiceClient = ClusterServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
 
         threadPoolTaskScheduler = new ThreadPoolTaskScheduler();
         threadPoolTaskScheduler.setPoolSize(1);

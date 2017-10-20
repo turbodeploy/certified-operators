@@ -9,6 +9,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -33,24 +34,21 @@ import com.vmturbo.topology.processor.util.Probes;
  */
 public class IdentityRpcServiceTest {
     private IdentityServiceGrpc.IdentityServiceBlockingStub identityRpcClient;
-    private GrpcTestServer server;
+
     private final ProbeStore probeStore = Mockito.mock(ProbeStore.class);
 
+    private final IdentityRpcService identityRpcServiceBackend = new IdentityRpcService(probeStore);
     /**
      * Counter to assign unique types/categories to generated ProbeInfos.
      */
     private AtomicInteger probeInfoCounter = new AtomicInteger(0);
 
+    @Rule
+    public GrpcTestServer server = GrpcTestServer.newServer(identityRpcServiceBackend);
+
     @Before
     public void startup() throws Exception {
-        IdentityRpcService identityRpcServiceBackend = new IdentityRpcService(probeStore);
-        server = GrpcTestServer.withServices(identityRpcServiceBackend);
         identityRpcClient = IdentityServiceGrpc.newBlockingStub(server.getChannel());
-    }
-
-    @After
-    public void teardown() throws Exception {
-        server.close();
     }
 
     /**

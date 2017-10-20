@@ -17,6 +17,7 @@ import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
@@ -60,8 +61,6 @@ public class AnalysisServiceTest {
 
     private AnalysisServiceBlockingStub analysisService;
 
-    private GrpcTestServer grpcServer;
-
     private final long returnEntityNum = 1337;
 
     private final long planId = 123;
@@ -84,10 +83,12 @@ public class AnalysisServiceTest {
             .setDisplayName("test2")
             .setEntityType(2);
 
+    @Rule
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(analysisServiceBackend);
+
     @Before
     public void setup() throws IOException, InterruptedException {
         MockitoAnnotations.initMocks(this);
-        grpcServer = GrpcTestServer.withServices(analysisServiceBackend);
 
         analysisService = AnalysisServiceGrpc.newBlockingStub(grpcServer.getChannel());
 
@@ -101,11 +102,6 @@ public class AnalysisServiceTest {
         when(topologyHandler.broadcastTopology(anyLong(), anyLong(), Mockito.any()))
                 .thenReturn(broadcastInfo);
         when(identityProvider.getTopologyId()).thenReturn(topologyId);
-    }
-
-    @After
-    public void teardown() {
-        grpcServer.close();
     }
 
     /**

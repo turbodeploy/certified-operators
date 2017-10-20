@@ -62,8 +62,10 @@ public class PlanTestConfig {
     }
 
     @Bean
-    protected PlanServiceBlockingStub planServiceClient() throws IOException {
-        return PlanServiceGrpc.newBlockingStub(planGrpcServer().getChannel());
+    protected GrpcTestServer analysisGrpcServer() throws IOException {
+        final GrpcTestServer server = GrpcTestServer.newServer(analysisServer());
+        server.start();
+        return server;
     }
 
     @Bean
@@ -72,13 +74,15 @@ public class PlanTestConfig {
     }
 
     @Bean
-    protected GrpcTestServer planGrpcServer() throws IOException {
-        return GrpcTestServer.withServices(planServer());
+    protected PlanServiceBlockingStub planClient() throws IOException {
+        return PlanServiceGrpc.newBlockingStub(planGrpcServer().getChannel());
     }
 
     @Bean
-    protected GrpcTestServer analysisGrpcServer() throws IOException {
-        return GrpcTestServer.withServices(analysisServer());
+    protected GrpcTestServer planGrpcServer() throws IOException {
+        final GrpcTestServer server = GrpcTestServer.newServer(planServer());
+        server.start();
+        return server;
     }
 
     @Bean

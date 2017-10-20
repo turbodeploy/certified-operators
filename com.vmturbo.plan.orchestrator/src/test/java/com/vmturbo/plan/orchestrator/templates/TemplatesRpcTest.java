@@ -13,6 +13,7 @@ import java.util.Set;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -39,28 +40,21 @@ import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO;
  */
 public class TemplatesRpcTest {
 
-    private TemplatesRpcService templatesRpcService;
+    private TemplatesDao templatesDao = Mockito.mock(TemplatesDao.class);
 
-    private GrpcTestServer grpcServer;
+    private TemplatesRpcService templatesRpcService = new TemplatesRpcService(templatesDao);
 
     private TemplateServiceBlockingStub templateServiceBlockingStub;
 
-    private TemplatesDao templatesDao;
-
     private TemplateSpecParser templateSpecParser;
+
+    @Rule
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(templatesRpcService);
 
     @Before
     public void init() throws Exception {
-        templatesDao = Mockito.mock(TemplatesDao.class);
         templateSpecParser = Mockito.mock(TemplateSpecParser.class);
-        templatesRpcService = new TemplatesRpcService(templatesDao);
-        grpcServer = GrpcTestServer.withServices(templatesRpcService);
         templateServiceBlockingStub = TemplateServiceGrpc.newBlockingStub(grpcServer.getChannel());
-    }
-
-    @After
-    public void shutdown() {
-        grpcServer.close();
     }
 
     @Test

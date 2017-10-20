@@ -11,10 +11,11 @@ import static org.mockito.Mockito.when;
 
 import java.util.HashMap;
 import java.util.Map;
+
 import javax.annotation.Nonnull;
 
-import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
@@ -23,6 +24,7 @@ import com.google.common.collect.Sets;
 
 import io.grpc.stub.StreamObserver;
 
+import com.vmturbo.common.protobuf.group.GroupFetcher;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy.BindToGroupPolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyGrouping;
@@ -31,7 +33,6 @@ import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyRequest;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.common.protobuf.group.GroupFetcher;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
@@ -77,7 +78,8 @@ public class PolicyManagerTest {
     private final Policy policy12 = bindToGroup(group1, group2, 12L);
     private final Policy policy34 = bindToGroup(group3, group4, 34L);
 
-    private GrpcTestServer grpcServer;
+    @Rule
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(policyServiceBackend);
 
     private com.vmturbo.topology.processor.group.policy.PolicyManager policyManager;
 
@@ -86,19 +88,12 @@ public class PolicyManagerTest {
         when(filterFactory.newGroupResolver()).thenReturn(groupResolver);
         when(groupFetcher.getGroupings(Sets.newHashSet(id1, id2, id3, id4))).thenReturn(groupingMap);
 
-        // set up a mock Group RPC server
-        grpcServer = GrpcTestServer.withServices(policyServiceBackend);
         final PolicyServiceGrpc.PolicyServiceBlockingStub policyRpcService =
             PolicyServiceGrpc.newBlockingStub(grpcServer.getChannel());
 
         // set up the GroupService to test
         policyManager = new com.vmturbo.topology.processor.group.policy.PolicyManager(
             policyRpcService, groupFetcher, filterFactory, new PolicyFactory());
-    }
-
-    @After
-    public void teardown() {
-        grpcServer.close();
     }
 
     @Test
