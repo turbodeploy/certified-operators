@@ -10,6 +10,8 @@ import io.grpc.Channel;
 
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTranslator;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.ProbeActionCapabilitiesServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ProbeActionCapabilitiesServiceGrpc.ProbeActionCapabilitiesServiceBlockingStub;
 
@@ -71,7 +73,10 @@ public class ActionStoreFactory implements IActionStoreFactory {
             final ProbeActionCapabilitiesServiceBlockingStub actionCapabilitiesServiceBlockingStub =
                     ProbeActionCapabilitiesServiceGrpc.newBlockingStub(topologyProcessorChannel);
             final ActionExecutor actionExecutor = new ActionExecutor(topologyProcessorChannel);
+            final SettingPolicyServiceBlockingStub settingPolicyServiceBlockingStub =
+                    SettingPolicyServiceGrpc.newBlockingStub(topologyProcessorChannel);
             return new LiveActionStore(actionFactory, topologyContextId,
+                    settingPolicyServiceBlockingStub,
                     new ActionSupportResolver(actionCapabilitiesServiceBlockingStub,
                             actionExecutor));
         } else {

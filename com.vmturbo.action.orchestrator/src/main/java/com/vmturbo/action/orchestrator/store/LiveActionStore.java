@@ -1,5 +1,6 @@
 package com.vmturbo.action.orchestrator.store;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -11,9 +12,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Queue;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
@@ -26,11 +29,19 @@ import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionEvent.NotRecommendedEvent;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.action.QueryFilter;
+import com.vmturbo.common.protobuf.ActionDTOUtil;
+import com.vmturbo.common.protobuf.UnsupportedActionException;
+import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 
 /**
@@ -51,6 +62,8 @@ public class LiveActionStore implements ActionStore {
     private final IActionFactory actionFactory;
 
     private final long topologyContextId;
+
+    private final SettingPolicyServiceBlockingStub settingPolicyServiceStub;
 
     private final EntitySeverityCache severityCache;
 
@@ -92,10 +105,12 @@ public class LiveActionStore implements ActionStore {
      */
     public LiveActionStore(@Nonnull final IActionFactory actionFactory,
                            final long topologyContextId,
+                           @Nonnull final SettingPolicyServiceBlockingStub settingServiceStub,
                            @Nonnull final ActionSupportResolver actionSupportResolver) {
         this.actionFactory = Objects.requireNonNull(actionFactory);
         this.topologyContextId = topologyContextId;
         this.severityCache = new EntitySeverityCache(QueryFilter.VISIBILITY_FILTER);
+        this.settingPolicyServiceStub = Objects.requireNonNull(settingServiceStub);
         this.actionSupportResolver = actionSupportResolver;
     }
 
@@ -246,15 +261,35 @@ public class LiveActionStore implements ActionStore {
              */
             final long planId = actionPlan.getId();
 
-            // Add new READY actions
+            final List<Action> existingActions = new ArrayList<>();
+            final List<ActionDTO.Action> newActions = new ArrayList<>();
+
             actionPlan.getActionList().forEach(recommendedAction -> {
-                final ActionInfo info = recommendedAction.getInfo();
-                final Action action = recommendations.take(info)
-                        .orElse(actionFactory.newAction(recommendedAction, planId));
-                if (action.getState() == ActionState.READY) {
-                    actions.put(action.getId(), action);
+                Optional<Action> action = recommendations.take(recommendedAction.getInfo());
+                if (action.isPresent()){
+                    existingActions.add(action.get());
+                } else {
+                    newActions.add(recommendedAction);
                 }
             });
+            final Set<Long> entitiesToRetrieve = newActions.stream().flatMap(newAction -> {
+                try {
+                    return ActionDTOUtil.getInvolvedEntities(newAction).stream();
+                } catch (UnsupportedActionException e) {
+                    logger.error("Recommendation contains unsupported action", e);
+                    return Stream.empty();
+                }
+            }).collect(Collectors.toSet());
+
+            final Map<Long, List<Setting>> entitySettingMap =
+                    retrieveEntityToSettingListMap(entitiesToRetrieve,
+                            actionPlan.getTopologyId(), actionPlan.getTopologyContextId());
+
+            Stream.concat(existingActions.stream(),
+                          newActions.stream().map(newAction ->
+                            actionFactory.newAction(newAction, entitySettingMap, planId)))
+                    .filter(action -> action.getState() == ActionState.READY)
+                    .forEach(action -> actions.put(action.getId(), action));
 
             filterActionsByCapabilityForUiDisplaying();
 
@@ -367,5 +402,20 @@ public class LiveActionStore implements ActionStore {
     private boolean isAcceptedAndIncomplete(@Nonnull final Action action) {
         final ActionState state = action.getState();
         return (state == ActionState.QUEUED || state == ActionState.IN_PROGRESS);
+    }
+
+    private Map<Long, List<Setting>> retrieveEntityToSettingListMap(final Set<Long> entities,
+                                                                    final long topologyContextId,
+                                                                    final long topologyId) {
+        GetEntitySettingsRequest request = GetEntitySettingsRequest.newBuilder()
+                .addAllEntities(entities)
+                .setTopologyContextId(topologyContextId)
+                .setTopologyId(topologyId)
+                .build();
+        GetEntitySettingsResponse response = settingPolicyServiceStub.getEntitySettings(request);
+        return Collections.unmodifiableMap(
+                response.getEntitySettingsList().stream()
+                        .collect(Collectors.toMap(EntitySettings::getEntityOid,
+                                EntitySettings::getSettingsList)));
     }
 }

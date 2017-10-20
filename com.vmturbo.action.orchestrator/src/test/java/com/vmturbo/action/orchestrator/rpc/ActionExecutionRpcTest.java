@@ -15,12 +15,13 @@ import static org.mockito.Mockito.when;
 import java.util.Collections;
 
 import org.hamcrest.CoreMatchers;
-import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
+
+import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
@@ -46,6 +47,14 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceImplBase;
+import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -72,9 +81,6 @@ public class ActionExecutionRpcTest {
     private final ActionSupportResolver filter = Mockito.mock
             (ActionSupportResolver.class);
 
-    private final ActionStore actionStoreSpy =
-        Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID, filter));
-
     private final static long ACTION_PLAN_ID = 2;
     private final static long TOPOLOGY_CONTEXT_ID = 3;
     private final static long ACTION_ID = 9999;
@@ -82,13 +88,22 @@ public class ActionExecutionRpcTest {
     private final ActionsRpcService actionsRpcService =
             new ActionsRpcService(actionStorehouse, actionExecutor, actionTranslator);
 
+    private final TestSettingRpcService settingRpcService = Mockito.spy(new TestSettingRpcService());
+
     @Rule
-    public GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsRpcService);
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsRpcService, settingRpcService);
+
+    private ActionStore actionStoreSpy;
 
     @SuppressWarnings("unchecked")
     @Before
     public void setup() throws Exception {
         IdentityGenerator.initPrefix(0);
+
+        final SettingPolicyServiceBlockingStub stub =
+                SettingPolicyServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        actionStoreSpy =
+                Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID, stub, filter));
 
         actionOrchestratorServiceClient = ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);
@@ -286,5 +301,23 @@ public class ActionExecutionRpcTest {
             .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
             .addAction(recommendation)
             .build();
+    }
+
+    private class TestSettingRpcService extends SettingPolicyServiceImplBase {
+        @Override
+        public void getEntitySettings(GetEntitySettingsRequest request,
+                                      StreamObserver<GetEntitySettingsResponse> responseObserver) {
+            responseObserver.onNext(GetEntitySettingsResponse.newBuilder()
+                    .addEntitySettings(EntitySettings.newBuilder()
+                            .setEntityOid(1L).addSettings(Setting.newBuilder()
+                                .setBooleanSettingValue(BooleanSettingValue.newBuilder()
+                                        .setValue(true).build())
+                                .setSettingSpecName("abc")
+                                .build())
+                            .build())
+                    .build()
+            );
+            responseObserver.onCompleted();
+        }
     }
 }

@@ -49,7 +49,7 @@ public class GroupFetcher {
     }
 
     /**
-     *
+     * Get full PolicyGroupings that match PolicyGroupingIDs
      * @param sought set of {@link PolicyGroupingID}s to search for
      * @return map of {@link PolicyGroupingID} to {@link PolicyGrouping}
      * @throws GroupFetchingException if the group fetch operation fails for some reason
@@ -62,7 +62,7 @@ public class GroupFetcher {
                 .map(PolicyGroupingID::getClusterId).collect(Collectors.toSet());
         Set<Long> groupIds = sought.stream().filter(PolicyGroupingID::hasGroupId)
                 .map(PolicyGroupingID::getGroupId).collect(Collectors.toSet());
-        if(!groupIds.isEmpty()){
+        if (!groupIds.isEmpty()) {
             try {
                 GroupsFetchOperation groupsFetchOperation = new GroupsFetchOperation(
                         groupIds, groupRpcService, timeout);
@@ -75,7 +75,7 @@ public class GroupFetcher {
             }
 
         }
-        if(!clusterIds.isEmpty()){
+        if (!clusterIds.isEmpty()) {
             try {
                 ClustersFetchOperation clustersFetchOperation = new ClustersFetchOperation(
                         clusterIds, clusterRpcService, timeout);
@@ -103,7 +103,7 @@ public class GroupFetcher {
         }
 
         @Override
-        void makeRpcCall(){
+        void makeRpcCall() {
             rpcService.getGroups(request, this);
         }
 
@@ -126,7 +126,7 @@ public class GroupFetcher {
         }
 
         @Override
-        void makeRpcCall(){
+        void makeRpcCall() {
             rpcService.getClusters(request, this);
         }
 
@@ -142,7 +142,7 @@ public class GroupFetcher {
      * @param <CollectionsResponseType> The type of response returned in a stream from the RPC service
      * @param <CollectionsServiceType> The type of RPC service
      */
-    private static abstract class CollectionsFetchOperation<CollectionsRequestType,
+    private abstract static class CollectionsFetchOperation<CollectionsRequestType,
             CollectionsResponseType, CollectionsServiceType> implements
             StreamObserver<CollectionsResponseType> {
 
@@ -158,7 +158,7 @@ public class GroupFetcher {
 
         CollectionsFetchOperation(@Nonnull Set<Long> collectionIds,
                                   @Nonnull CollectionsServiceType service,
-                                  @Nonnull Duration timeoutDuration){
+                                  @Nonnull Duration timeoutDuration) {
             rpcService = Objects.requireNonNull(service);
             timeout = Objects.requireNonNull(timeoutDuration);
             ids = Objects.requireNonNull(collectionIds);
@@ -192,7 +192,7 @@ public class GroupFetcher {
         }
 
         @Override
-        public void onCompleted(){
+        public void onCompleted() {
             responseFuture.complete(response);
         }
     }

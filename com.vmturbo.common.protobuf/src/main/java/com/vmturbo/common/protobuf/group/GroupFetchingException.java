@@ -9,11 +9,11 @@ public class GroupFetchingException extends Exception {
         super(message);
     }
 
-    public GroupFetchingException(String message, Throwable cause){
+    public GroupFetchingException(String message, Throwable cause) {
         super(message, cause);
     }
 
-    public GroupFetchingException(Throwable cause){
+    public GroupFetchingException(Throwable cause) {
         super(cause);
     }
 

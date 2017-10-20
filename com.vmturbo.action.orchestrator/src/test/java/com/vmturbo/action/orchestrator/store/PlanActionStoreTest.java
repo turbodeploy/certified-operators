@@ -82,7 +82,8 @@ public class PlanActionStoreTest {
 
         // Enforce that all actions created with this factory get the same recommendation time
         // so that actions can be easily compared.
-        when(actionFactory.newAction(any(ActionDTO.Action.class), any(), anyLong())).thenAnswer(
+        when(actionFactory.newAction(any(ActionDTO.Action.class),
+                any(LocalDateTime.class), anyLong())).thenAnswer(
             invocation -> {
                 Object[] args = invocation.getArguments();
                 return new Action((ActionDTO.Action) args[0], actionRecommendationTime, (Long) args[2]);

@@ -12,6 +12,8 @@ import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
 import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -23,6 +25,8 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.mockito.Mockito;
 
+import io.grpc.stub.StreamObserver;
+
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.execution.ActionTranslator;
@@ -31,7 +35,18 @@ import com.vmturbo.common.protobuf.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
+
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceImplBase;
+import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.components.api.test.GrpcTestServer;
 
 /**
  * Integration tests related to the LiveActionStore.
@@ -70,6 +85,14 @@ public class LiveActionStoreTest {
 
         @Nonnull
         @Override
+        public Action newAction(@Nonnull final ActionDTO.Action recommendation,
+                                @Nonnull final Map<Long, List<Setting>> entitySettingsMap,
+                                long actionPlanId){
+            return spy(new Action(recommendation, entitySettingsMap, actionPlanId));
+        }
+
+        @Nonnull
+        @Override
         public Action newAction(@Nonnull ActionDTO.Action recommendation, @Nonnull LocalDateTime recommendationTime, long actionPlanId) {
             return spy(new Action(recommendation, recommendationTime, actionPlanId));
         }
@@ -79,15 +102,23 @@ public class LiveActionStoreTest {
 
     private final ActionTranslator actionTranslator = mock(ActionTranslator.class);
 
-    private final ActionSupportResolver filter = Mockito.mock
-            (ActionSupportResolver.class);
+    private final ActionSupportResolver filter = Mockito.mock(ActionSupportResolver.class);
 
-    private final ActionStore actionStore =
-        new LiveActionStore(new SpyActionFactory(), TOPOLOGY_CONTEXT_ID, filter);
+    private final TestSettingRpcService settingRpcService = Mockito.spy(new TestSettingRpcService());
+
+    @Rule
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(settingRpcService);
+
+    private SettingPolicyServiceBlockingStub stub;
+    private ActionStore actionStore;
 
     @SuppressWarnings("unchecked")
     @Before
     public void setup() throws TargetResolutionException, UnsupportedActionException {
+
+        stub = SettingPolicyServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        actionStore = new LiveActionStore(new SpyActionFactory(), TOPOLOGY_CONTEXT_ID, stub, filter);
+
         when(filter.resolveActionsSupporting(anyCollection())).thenAnswer(invocationOnMock
                 -> invocationOnMock.getArguments()[0]);
         filter.resolveActionsSupporting(new LinkedList<>());
@@ -154,7 +185,8 @@ public class LiveActionStoreTest {
     public void testPopulateNotRecommendedAreClearedAndRemoved() throws Exception {
         // Can't use spies when checking for action state because action state machine will call
         // methods in the original action, not in the spy.
-        ActionStore actionStore = new LiveActionStore(new ActionFactory(), TOPOLOGY_CONTEXT_ID, filter);
+        ActionStore actionStore =
+                new LiveActionStore(new ActionFactory(), TOPOLOGY_CONTEXT_ID, stub, filter);
 
         ActionDTO.Action.Builder firstMove = move(vm1, hostA, hostB);
 
@@ -337,5 +369,23 @@ public class LiveActionStoreTest {
     @Test
     public void testGetTopologyContextId() {
         assertEquals(TOPOLOGY_CONTEXT_ID, actionStore.getTopologyContextId());
+    }
+
+    private class TestSettingRpcService extends SettingPolicyServiceImplBase {
+        @Override
+        public void getEntitySettings(GetEntitySettingsRequest request,
+                                      StreamObserver<GetEntitySettingsResponse> responseObserver) {
+            responseObserver.onNext(GetEntitySettingsResponse.newBuilder()
+                    .addEntitySettings(EntitySettings.newBuilder()
+                            .setEntityOid(1L).addSettings(Setting.newBuilder()
+                                    .setBooleanSettingValue(BooleanSettingValue.newBuilder()
+                                            .setValue(true).build())
+                                    .setSettingSpecName("abc")
+                                    .build())
+                            .build())
+                    .build()
+            );
+            responseObserver.onCompleted();
+        }
     }
 }

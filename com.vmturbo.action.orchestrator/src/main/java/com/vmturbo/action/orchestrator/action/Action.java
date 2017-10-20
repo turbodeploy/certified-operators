@@ -1,6 +1,8 @@
 package com.vmturbo.action.orchestrator.action;
 
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.UnaryOperator;
@@ -26,6 +28,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.proactivesupport.DataMetricGauge;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 
@@ -113,8 +116,24 @@ public class Action implements ActionView {
         this.actionTranslation = savedState.actionTranslation;
     }
 
+    // TODO (Michelle Neuburger 2017-10-17) deal with presence/absence of entity settings
+    // (this affects the ActionFactory class too)
+    // entity settings are only relevant with the LiveActionStore
     public Action(@Nonnull final ActionDTO.Action recommendation,
                   @Nonnull final LocalDateTime recommendationTime,
+                  final long actionPlanId) {
+        this.recommendation = Objects.requireNonNull(recommendation);
+        this.actionPlanId = actionPlanId;
+        this.recommendationTime = Objects.requireNonNull(recommendationTime);
+        this.stateMachine = ActionStateMachine.newInstance(this);
+        this.executableStep = Optional.empty();
+        this.decision = new Decision();
+        this.actionTranslation = new ActionTranslation(this.recommendation);
+    }
+
+    public Action(@Nonnull final ActionDTO.Action recommendation,
+                  @Nonnull final LocalDateTime recommendationTime,
+                  @Nonnull final Map<Long, List<Setting>> entitySettings,
                   final long actionPlanId) {
         this.recommendation = Objects.requireNonNull(recommendation);
         this.actionPlanId = actionPlanId;
@@ -139,6 +158,12 @@ public class Action implements ActionView {
     public Action(@Nonnull final ActionDTO.Action recommendation,
                   final long actionPlanId) {
         this(recommendation, LocalDateTime.now(), actionPlanId);
+    }
+
+    public Action(@Nonnull final ActionDTO.Action recommendation,
+                  @Nonnull final Map<Long, List<Setting>> entitySettings,
+                  final long actionPlanId) {
+        this(recommendation, LocalDateTime.now(), entitySettings, actionPlanId);
     }
 
     /**
@@ -218,6 +243,7 @@ public class Action implements ActionView {
     public ActionMode getMode() {
         // TODO: (DavidBlinn, August 2016). Proper support for action modes.
         // Determine the mode based on action type for now.
+        // TODO: (Michelle Neuburger 2017-10-17) find this using stored EntitySettings
         switch (recommendation.getInfo().getActionTypeCase()) {
             case MOVE: case RESIZE: case ACTIVATE: case DEACTIVATE:
                 return recommendation.getSupportingLevel() == SupportLevel.SHOW_ONLY
