@@ -26,7 +26,7 @@ import com.vmturbo.mediation.common.tests.probes.PredefinedAccountProbe;
 import com.vmturbo.mediation.common.tests.probes.ProbeWithDefaultAccValues;
 import com.vmturbo.mediation.common.tests.util.NotValidatableProbe;
 import com.vmturbo.mediation.common.tests.util.ProbeConfig;
-import com.vmturbo.mediation.common.tests.util.ProbeConfiguration;
+import com.vmturbo.mediation.common.tests.util.IntegrationTestProbeConfiguration;
 import com.vmturbo.mediation.common.tests.util.ProbeValidator;
 import com.vmturbo.mediation.common.tests.util.SdkProbe;
 import com.vmturbo.mediation.common.tests.util.SdkTarget;
@@ -65,7 +65,7 @@ public class ExternalProbeTestIT extends AbstractIntegrationTest {
      * @return probe representation
      * @throws Exception if some errors occur.
      */
-    private SdkProbe registerProbe(ProbeConfiguration probeConfig, String probeType)
+    private SdkProbe registerProbe(IntegrationTestProbeConfiguration probeConfig, String probeType)
                     throws Exception {
         getLogger().debug("Creating probe with id: " + probeType);
 

@@ -38,9 +38,8 @@ import io.prometheus.client.CollectorRegistry;
 import com.vmturbo.mediation.client.MediationComponentConfig;
 import com.vmturbo.mediation.client.MediationComponentMain;
 import com.vmturbo.mediation.common.tests.util.IRemoteMediation;
-import com.vmturbo.mediation.common.tests.util.ProbeConfiguration;
+import com.vmturbo.mediation.common.tests.util.IntegrationTestProbeConfiguration;
 import com.vmturbo.mediation.common.tests.util.SdkProbe;
-import com.vmturbo.mediation.common.tests.util.SdkTarget;
 import com.vmturbo.mediation.common.tests.util.TestConstants;
 import com.vmturbo.mediation.common.tests.util.ThreadNaming;
 import com.vmturbo.mediation.common.tests.util.WebsocketServer;
@@ -162,13 +161,13 @@ public abstract class AbstractIntegrationTest {
         return container;
     }
 
-    protected SdkProbe createSdkProbe(ProbeConfiguration probeConfig, String probeType)
+    protected SdkProbe createSdkProbe(IntegrationTestProbeConfiguration probeConfig, String probeType)
                     throws Exception {
         return createSdkProbe(probeConfig, probeType, true);
     }
 
-    protected SdkProbe createSdkProbe(ProbeConfiguration probeConfig, String probeType,
-                    boolean awaitRegistered) throws Exception {
+    protected SdkProbe createSdkProbe(IntegrationTestProbeConfiguration probeConfig, String probeType,
+                                      boolean awaitRegistered) throws Exception {
         final SdkProbe probe = new SdkProbe(probeConfig, probeType);
         final SdkContainer container = startSdkComponent(probe);
         if (awaitRegistered) {
@@ -177,7 +176,7 @@ public abstract class AbstractIntegrationTest {
         return probe;
     }
 
-    private ClassLoader createClassLoader(String instanceId, ProbeConfiguration probeConfig)
+    private ClassLoader createClassLoader(String instanceId, IntegrationTestProbeConfiguration probeConfig)
                     throws IOException {
         final File componentDir = tmpFolder.newFolder("component-" + instanceId);
         final URL filename = componentDir.toURI().toURL();
@@ -195,7 +194,7 @@ public abstract class AbstractIntegrationTest {
      * @param probeConfig probe configuration to get probe and executor classes from
      * @throws IOException on exception occur.
      */
-    private static void writeSpringConfigForProbe(File destFile, ProbeConfiguration probeConfig)
+    private static void writeSpringConfigForProbe(File destFile, IntegrationTestProbeConfiguration probeConfig)
                     throws IOException {
         try (final Writer writer = new FileWriter(destFile)) {
             writer.write("<beans xmlns=\"http://www.springframework.org/schema/beans\"\n");

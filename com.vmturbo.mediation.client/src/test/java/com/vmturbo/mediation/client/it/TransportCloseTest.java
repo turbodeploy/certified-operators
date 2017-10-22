@@ -6,7 +6,7 @@ import org.junit.Test;
 import com.vmturbo.mediation.common.tests.probes.EternalWorkingProbe;
 import com.vmturbo.mediation.common.tests.util.NotValidatableProbe;
 import com.vmturbo.mediation.common.tests.util.ProbeConfig;
-import com.vmturbo.mediation.common.tests.util.ProbeConfiguration;
+import com.vmturbo.mediation.common.tests.util.IntegrationTestProbeConfiguration;
 import com.vmturbo.mediation.common.tests.util.SdkProbe;
 import com.vmturbo.mediation.common.tests.util.SdkTarget;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
@@ -28,7 +28,7 @@ public class TransportCloseTest extends AbstractIntegrationTest {
      */
     @Test
     public void testCloseWhenDiscovery() throws Exception {
-        final ProbeConfiguration probeConfig =
+        final IntegrationTestProbeConfiguration probeConfig =
                         new NotValidatableProbe(EternalWorkingProbe.class, ProbeConfig.Empty);
         final SdkProbe probe = new SdkProbe(probeConfig, "empty-probe");
         final SdkTarget target = new SdkTarget(probe, testName.getMethodName());
@@ -57,7 +57,7 @@ public class TransportCloseTest extends AbstractIntegrationTest {
      */
     @Test
     public void testCloseWhenValidation() throws Exception {
-        final ProbeConfiguration probeConfig =
+        final IntegrationTestProbeConfiguration probeConfig =
                         new NotValidatableProbe(EternalWorkingProbe.class, ProbeConfig.Empty);
         final SdkProbe probe = new SdkProbe(probeConfig, "empty-probe");
         final SdkTarget target = new SdkTarget(probe, testName.getMethodName());
