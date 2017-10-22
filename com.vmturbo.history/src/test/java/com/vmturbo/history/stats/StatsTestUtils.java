@@ -18,7 +18,7 @@ import com.google.gson.stream.JsonReader;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommodityBoughtList;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.reports.db.EntityType;
@@ -32,6 +32,7 @@ public class StatsTestUtils {
     private static final Gson GSON = ComponentGsonFactory.createGsonNoPrettyPrint();
     public static final String TEST_VM_PATH = "topology/tak_test1_vm_dto.json";
     public static final String TEST_APP_PATH = "topology/guestload_tak_test1_app_dto.json";
+    public static final String TEST_APP_WITHOUT_PROVIDER_PATH = "topology/test2_app_without_provider_dto.json";
     public static final String TEST_PM_PATH = "topology/hp-esx_pm_dto.json";
     private static CommodityType CPU_COMMODITY_TYPE = CommodityType.newBuilder()
             .setType(CommonDTO.CommodityDTO.CommodityType.CPU_VALUE).build();
@@ -51,9 +52,9 @@ public class StatsTestUtils {
                         .setDisplayName("VM-" + oid)
                         .setEntityType(CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE_VALUE)
                         // 999 is the provider id. Don't care that it doesn't exist.
-                        .putCommodityBoughtMap(providerId, CommodityBoughtList.newBuilder()
-                            .addCommodityBought(cpuBought)
-                            .build())
+                        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                            .setProviderId(providerId)
+                            .addCommodityBought(cpuBought))
                         .build();
     }
 
@@ -66,15 +67,14 @@ public class StatsTestUtils {
     }
 
     public static TopologyEntityDTO vm(long oid, long sellerOid, double cpuUsed) {
-        CommodityBoughtList commodityBoughtList =
-                CommodityBoughtList.newBuilder()
-                        .addCommodityBought(cpuBought(cpuUsed))
-                        .build();
         return TopologyEntityDTO.newBuilder()
                         .setOid(oid)
                         .setDisplayName("VM-" + oid)
                         .setEntityType(CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE_VALUE)
-                        .putCommodityBoughtMap(sellerOid, commodityBoughtList).build();
+                        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                            .setProviderId(sellerOid)
+                            .addCommodityBought(cpuBought(cpuUsed)))
+                        .build();
     }
 
     public static TopologyDTO.CommoditySoldDTO cpu(double used) {

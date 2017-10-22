@@ -17,11 +17,34 @@ message TopologyEntityDTO {
     // list of commodities sold
     repeated CommoditySoldDTO commoditySoldList = 4;
 
-    // map of commodities bought, indexed by provider oid
-    map<int64, CommodityBoughtList> commodityBoughtMap = 5;
+    // list of commodities bought group
+    repeated CommoditiesBoughtFromProvider commodities_bought_from_providers = 5;
 
-    message CommodityBoughtList {
-        repeated CommodityBoughtDTO commodityBought = 1;
+    // The commodities bought by this entity from a given provider. An entity may buy multiples sets
+    // of commodities from the same provider and may not have providers. Consider the following potential
+    // CommodityBoughtGroupings:
+    // ["host1" -> { FOO, BAR }] and ["host1" -> { FOO }, "host1" -> { BAR }] and [ -> { QUX }]
+    // In the top expression, the entity must buy FOO and BAR commodities from THE SAME provider and
+    // that provider is currently "host1". If the market were to try to have this entity buy BAR commodity
+    // from "host2" instead of "host1", the entity would also have to buy its FOO from "host2" as well.
+    // In the second expression, the entity also must buy FOO and BAR commodities, but those are permitted
+    // to come from DIFFERENT providers, it just happens that at this moment in time they are coming
+    // from the same "host1" provider. So if the market were to decide to have this entity buy BAR
+    // from "host2", it could continue to buy FOO from "host1" without issue.
+    // In the third expressions, the entity want to but QUX, but it doesn't have a particular supplider.
+    message CommoditiesBoughtFromProvider {
+        // id of provider, it could be empty when the entity is currently unplaced, or not have a
+        // supplier for a particular set of commodities that it is buying
+        optional int64 provider_id = 1;
+
+        // entity type of provider. it represents commodities should bought
+        // from which kind of entity type. Right now, it will not been used by Market, but in future,
+        // this value could be useful in Market.
+        // TODO: To make sure provider entity type is always non-empty.
+        optional int32 provider_entity_type = 2;
+
+        // a list of commodities bought from this provider
+        repeated CommodityBoughtDTO commodity_bought = 3;
     }
 
     // entity state
@@ -36,6 +59,15 @@ message TopologyEntityDTO {
     message ProviderPolicy {
         // if the entity could be a potential provider for new consumer
         optional bool isAvailableAsProvider = 1 [default = true];
+    }
+
+    // specified properties required for the behavior of the entity as a consumer.
+    optional ConsumerPolicy consumerPolicy = 9;
+
+    message ConsumerPolicy {
+        // shopsTogether comes from Probe discovery and will be passed to Market. If shopsTogether
+        // is true, it allows Market to decide whether move related entities to different Biclique.
+        optional bool shopsTogether = 1 [default = false];
     }
 }
 

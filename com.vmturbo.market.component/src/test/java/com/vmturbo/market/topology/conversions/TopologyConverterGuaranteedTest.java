@@ -1,6 +1,8 @@
 package com.vmturbo.market.topology.conversions;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 import java.util.List;
 import java.util.Set;
@@ -16,7 +18,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommodityBoughtList;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.analysis.InvalidTopologyException;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -57,10 +59,10 @@ public class TopologyConverterGuaranteedTest {
         TopologyEntityDTO vdc2 = TopologyEntityDTO.newBuilder()
                         .setOid(VDC2_OID)
                         .setEntityType(EntityType.VIRTUAL_DATACENTER_VALUE)
-                        .putCommodityBoughtMap(HOST_OID, CommodityBoughtList.newBuilder()
+                        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                            .setProviderId(HOST_OID)
                             .addCommodityBought(CommodityBoughtDTO.newBuilder()
-                                .setCommodityType(MEM_ALLOC))
-                                .build())
+                                .setCommodityType(MEM_ALLOC)))
                         .build();
         // Guaranteed buyer because it is a DPod
         TopologyEntityDTO dpod = TopologyEntityDTO.newBuilder()

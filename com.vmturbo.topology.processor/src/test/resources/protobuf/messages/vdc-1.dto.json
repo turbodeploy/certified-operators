@@ -15,6 +15,9 @@
   "providerPolicy": {
     "availableForPlacement": false
   },
+  "consumerPolicy" : {
+    "shopsTogether": true
+  },
   "virtual_datacenter_data": {
     "pmUuid": [
       "UID-PM1-111-111",

@@ -1,5 +1,11 @@
 package com.vmturbo.topology.processor.group.filter;
 
+import static com.vmturbo.topology.processor.group.filter.FilterUtils.filterOids;
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
+
 import java.util.HashMap;
 import java.util.Map;
 
@@ -10,16 +16,10 @@ import org.junit.rules.ExpectedException;
 
 import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommodityBoughtList;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.group.filter.TraversalFilter.TraversalToDepthFilter;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
-
-import static com.vmturbo.topology.processor.group.filter.FilterUtils.filterOids;
-import static org.hamcrest.CoreMatchers.is;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.empty;
 
 /**
  * Test traversal to a fixed depth.
@@ -201,7 +201,9 @@ public class TraversalToDepthFilterTest {
             .setEntityType(entityType.getNumber());
 
         for (long producer : producers) {
-            builder.putCommodityBoughtMap(producer, CommodityBoughtList.getDefaultInstance());
+            builder.addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderId(producer)
+                .build());
         }
 
         return builder;

@@ -1,6 +1,7 @@
 package com.vmturbo.systest.policy;
 
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -13,6 +14,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 
 /**
  * A utility class that provides methods for static import for matching on analysis results.
@@ -169,7 +171,10 @@ public class AnalysisResultsMatchers {
 
             private boolean isConsumerOf(@Nonnull final TopologyEntityDTO entity,
                                          final long providerOid) {
-                return entity.getCommodityBoughtMapMap().keySet().contains(providerOid);
+                return entity.getCommoditiesBoughtFromProvidersList().stream()
+                    .map(CommoditiesBoughtFromProvider::getProviderId)
+                    .collect(Collectors.toSet())
+                    .contains(providerOid);
             }
 
             @Override

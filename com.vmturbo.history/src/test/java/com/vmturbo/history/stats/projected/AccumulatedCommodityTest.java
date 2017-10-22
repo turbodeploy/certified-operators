@@ -3,6 +3,8 @@ package com.vmturbo.history.stats.projected;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 
+import java.util.OptionalLong;
+
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
@@ -110,8 +112,8 @@ public class AccumulatedCommodityTest {
                 .setPeak(4)
                 .build();
 
-        commodity.recordBoughtCommodity(dto, 1, 5);
-        commodity.recordBoughtCommodity(dto, 2, 5);
+        commodity.recordBoughtCommodity(dto, 1L, 5);
+        commodity.recordBoughtCommodity(dto, 2L, 5);
 
         final StatRecord expectedStatRecord = StatRecord.newBuilder()
                 .setName(COMMODITY)
@@ -126,6 +128,34 @@ public class AccumulatedCommodityTest {
                 .setValues(StatValue.newBuilder().setAvg(3).setMax(3).setMin(3).setTotal(6).build())
                 .setPeak(StatValue.newBuilder().setAvg(4).setMax(4).setMin(4).setTotal(8).build())
                 .build();
+
+        assertEquals(expectedStatRecord, commodity.toStatRecord().get());
+    }
+
+    @Test
+    public void testAccumulatedBoughtCommodityWithoutProvider() {
+        final AccumulatedBoughtCommodity commodity =
+            new AccumulatedBoughtCommodity(COMMODITY);
+
+        final CommodityBoughtDTO dto = CommodityBoughtDTO.newBuilder()
+            .setCommodityType(MEM_COMMODITY_TYPE)
+            .setUsed(3)
+            .setPeak(4)
+            .build();
+
+        commodity.recordBoughtCommodity(dto, null, 0);
+        commodity.recordBoughtCommodity(dto, null, 0);
+
+        final StatRecord expectedStatRecord = StatRecord.newBuilder()
+            .setName(COMMODITY)
+            .setCapacity(0)
+            .setUnits(COMMODITY_UNITS)
+            .setRelation(RelationType.COMMODITIESBOUGHT.getLiteral())
+            .setCurrentValue(3)
+            .setUsed(StatValue.newBuilder().setAvg(3).setMax(3).setMin(3).setTotal(6).build())
+            .setValues(StatValue.newBuilder().setAvg(3).setMax(3).setMin(3).setTotal(6).build())
+            .setPeak(StatValue.newBuilder().setAvg(4).setMax(4).setMin(4).setTotal(8).build())
+            .build();
 
         assertEquals(expectedStatRecord, commodity.toStatRecord().get());
     }
@@ -145,8 +175,8 @@ public class AccumulatedCommodityTest {
                 .setPeak(4)
                 .build();
 
-        commodity.recordBoughtCommodity(dto, 1, 5);
-        commodity.recordBoughtCommodity(dto, 1, 5);
+        commodity.recordBoughtCommodity(dto, 1L, 5);
+        commodity.recordBoughtCommodity(dto, 1L, 5);
 
         final StatRecord record = commodity.toStatRecord().get();
         assertEquals(Long.toString(1), record.getProviderUuid());

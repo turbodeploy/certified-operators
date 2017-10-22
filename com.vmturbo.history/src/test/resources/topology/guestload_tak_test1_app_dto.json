@@ -3,8 +3,8 @@
     "entityType": 33,
     "oid": "71799586836370",
     "displayName": "GuestLoad[tak_test1]",
-    "commodityBoughtMap": {
-      "71799586836273": {
+    "commoditiesBoughtFromProviders": [
+      { "providerId" : 71799586836273,
         "commodityBought": [
           {
             "commodityType": {
@@ -35,7 +35,7 @@
           }
         ]
       }
-    },
+    ],
     "entityState": "POWERED_ON",
     "entityPropertyMap": {
       "origin": "PROXY",

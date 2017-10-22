@@ -1,7 +1,7 @@
 package com.vmturbo.topology.processor.group.policy;
 
 import java.util.List;
-import java.util.Map.Entry;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -23,7 +23,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommodityBoughtList;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
@@ -221,36 +221,67 @@ public abstract class PlacementPolicy {
                 .map(Vertex::getTopologyEntityDtoBuilder);
             if (optionalConsumer.isPresent()) {
                 final TopologyEntityDTO.Builder consumer = optionalConsumer.get();
-                final List<Entry<Long, CommodityBoughtList>> providersOfType =
-                    consumer.getCommodityBoughtMapMap().entrySet().stream()
-                        .filter(entry -> isProviderOfType(entry.getKey(), topologyGraph, providerType))
-                        .collect(Collectors.toList());
-
+                // Separate commoditiesBoughtFromProvider into two category: Key is True: which provider
+                // entity type matched with providerType parameter, Key is False: which provider entity
+                // type doesn't match with providerType parameter.
+                final Map<Boolean, List<CommoditiesBoughtFromProvider>> providersOfTypeMap =
+                    consumer.getCommoditiesBoughtFromProvidersList().stream()
+                        .collect(Collectors.partitioningBy(commodityBoughtGroup ->
+                            checkIfCommodityBoughtEntityType(commodityBoughtGroup, topologyGraph, providerType)));
+                // All Commodity Bought which provider entity type is matched with providerType parameter
+                final List<CommoditiesBoughtFromProvider> providersOfType = providersOfTypeMap.get(true);
+                // All Commodity Bought which provider entity type not matched with providerType parameter
+                final List<CommoditiesBoughtFromProvider> nonProvidersOfType = providersOfTypeMap.get(false);
+                // If there is no matched provider type, it means the consumer does't buy any commodity
+                // from this provider type. For example, VM1 buying ST1, and VM2 not buying ST at all,
+                // If create a policy to Force VM1 and VM2 to buy ST1, it should throw exception, because
+                // VM2 doesn't buy any Storage type.
                 if (providersOfType.isEmpty()) {
-                    // No providers of the given type found. The correct thing to do here is to create a new
-                    // bundle of commodities bought that will be of the providerType. Unfortunately, the
-                    // topology representation does not currently support buying a commodity without a provider
-                    // (see OM-21673). For now, just throw an exception to note that the policy cannot be applied.
-                    throw new PolicyApplicationException("Unable to apply consumer segment when no providers of type "
-                        + providerType);
-                } else {
-                    // For each bundle of commodities bought for the entity type that matches the provider type,
-                    // add the segmentation commodity.
-                    addCommodityBoughtForProviders(segmentationCommodity, consumer, providersOfType);
+                    throw new PolicyApplicationException("Unable to apply consumer segment when no " +
+                        "provider type " + providerType);
                 }
+                // For each bundle of commodities bought for the entity type that matches the provider type,
+                // add the segmentation commodity.
+                addCommodityBoughtForProviders(segmentationCommodity, consumer, providersOfType, nonProvidersOfType);
             }
+        }
+    }
+
+    /**
+     * Check if commodity bought has same provider entity type as providerType parameter.
+     *
+     * @param commodityBoughtGrouping Contains a bundle of commodity bought.
+     * @param topologyGraph The graph containing the topology.
+     * @param providerType The type of provider that will be providing the segment commodity
+     *                     these consumers must be buying.
+     * @return boolean type represents if provider entity type matches.
+     */
+    private boolean checkIfCommodityBoughtEntityType(@Nonnull CommoditiesBoughtFromProvider commodityBoughtGrouping,
+                                                     @Nonnull final TopologyGraph topologyGraph,
+                                                     final int providerType) {
+        // TODO: After we guarantee that commodity type always have provider entity type, we will not
+        // need to check topology graph to get provider entity type.
+        if (commodityBoughtGrouping.hasProviderEntityType()) {
+            return commodityBoughtGrouping.getProviderEntityType() == providerType;
+        }
+        else {
+            return commodityBoughtGrouping.hasProviderId() &&
+                isProviderOfType(commodityBoughtGrouping.getProviderId(), topologyGraph, providerType);
         }
     }
 
     private void addCommodityBoughtForProviders(@Nonnull CommodityBoughtDTO segmentationCommodity,
                                                 @Nonnull final TopologyEntityDTO.Builder consumer,
-                                                @Nonnull final List<Entry<Long, CommodityBoughtList>> providersOfType) {
-        providersOfType.forEach(providerEntry -> consumer.putCommodityBoughtMap(providerEntry.getKey(),
-            CommodityBoughtList.newBuilder(providerEntry.getValue())
+                                                @Nonnull final List<CommoditiesBoughtFromProvider> providersOfType,
+                                                @Nonnull final List<CommoditiesBoughtFromProvider> nonProvidersOfType) {
+        consumer.clearCommoditiesBoughtFromProviders();
+        consumer.addAllCommoditiesBoughtFromProviders(nonProvidersOfType);
+        providersOfType.forEach(providerCommodityGrouping -> consumer.addCommoditiesBoughtFromProviders(
+            CommoditiesBoughtFromProvider.newBuilder(providerCommodityGrouping)
                 .addCommodityBought(segmentationCommodity)
-                .build()));
+                .build()
+        ));
     }
-
 
     /**
      * Construct a commodityType suitable for application with this policy.
@@ -331,8 +362,8 @@ public abstract class PlacementPolicy {
      * @return Whether the provider is of the {@code providerEntityType}.
      */
     protected boolean isProviderOfType(final long providerId,
-                                     @Nonnull final TopologyGraph topologyGraph,
-                                     final int providerEntityType) {
+                                       @Nonnull final TopologyGraph topologyGraph,
+                                       final int providerEntityType) {
         return topologyGraph.getVertex(providerId)
             .map(vertex -> vertex.getEntityType() == providerEntityType)
             .orElse(false);

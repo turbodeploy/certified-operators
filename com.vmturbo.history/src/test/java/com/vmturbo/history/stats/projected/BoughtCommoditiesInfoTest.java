@@ -16,7 +16,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommodityBoughtList;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.reports.db.RelationType;
 
@@ -25,24 +25,24 @@ public class BoughtCommoditiesInfoTest {
     private static final TopologyEntityDTO VM_1 = TopologyEntityDTO.newBuilder()
             .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
             .setOid(1)
-            .putCommodityBoughtMap(7, CommodityBoughtList.newBuilder()
-                    .addCommodityBought(CommodityBoughtDTO.newBuilder()
-                            .setCommodityType(COMMODITY_TYPE)
-                            .setUsed(2)
-                            .setPeak(3))
-                    .build())
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderId(7)
+                .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                    .setCommodityType(COMMODITY_TYPE)
+                    .setUsed(2)
+                    .setPeak(3)))
             .build();
 
     private static final TopologyEntityDTO VM_2 = TopologyEntityDTO.newBuilder()
             .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
             .setOid(2)
             // Buying from a different provider than VM_1
-            .putCommodityBoughtMap(8, CommodityBoughtList.newBuilder()
-                    .addCommodityBought(CommodityBoughtDTO.newBuilder()
-                            .setCommodityType(COMMODITY_TYPE)
-                            .setUsed(2)
-                            .setPeak(3))
-                    .build())
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderId(8)
+                .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                    .setCommodityType(COMMODITY_TYPE)
+                    .setUsed(2)
+                    .setPeak(3)))
             .build();
 
     @Test
@@ -70,18 +70,16 @@ public class BoughtCommoditiesInfoTest {
         final TopologyEntityDTO vm = TopologyEntityDTO.newBuilder()
                 .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
                 .setOid(1)
-                .putCommodityBoughtMap(7, CommodityBoughtList.newBuilder()
-                        // Buying the same commodity twice, with different values.
-                        // Expect the LATER value.
-                        .addCommodityBought(CommodityBoughtDTO.newBuilder()
-                                .setCommodityType(COMMODITY_TYPE)
-                                .setUsed(1)
-                                .setPeak(2))
-                        .addCommodityBought(CommodityBoughtDTO.newBuilder()
-                                .setCommodityType(COMMODITY_TYPE)
-                                .setUsed(3)
-                                .setPeak(4))
-                        .build())
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                    .setProviderId(7)
+                    .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                        .setCommodityType(COMMODITY_TYPE)
+                        .setUsed(1)
+                        .setPeak(2))
+                    .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                        .setCommodityType(COMMODITY_TYPE)
+                        .setUsed(3)
+                        .setPeak(4)))
                 .build();
 
         final SoldCommoditiesInfo soldCommoditiesInfo = Mockito.mock(SoldCommoditiesInfo.class);
@@ -181,7 +179,86 @@ public class BoughtCommoditiesInfoTest {
                 .build();
 
         assertEquals(expectedStatRecord, record);
+    }
 
+    @Test
+    public void testBoughtCommodityWithoutProviderSingle() {
+        final TopologyEntityDTO VM_NO_PROVIDER = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
+            .setOid(2)
+            // no provider id
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                    .setCommodityType(COMMODITY_TYPE)
+                    .setUsed(2)
+                    .setPeak(3)))
+            .build();
+        final SoldCommoditiesInfo soldCommoditiesInfo = Mockito.mock(SoldCommoditiesInfo.class);
+
+        final BoughtCommoditiesInfo info =
+            BoughtCommoditiesInfo.newBuilder()
+                .addEntity(VM_NO_PROVIDER)
+                .addEntity(VM_1)
+                .build(soldCommoditiesInfo);
+
+        final StatRecord record =
+            info.getAccumulatedRecord(COMMODITY, Collections.singleton(VM_NO_PROVIDER.getOid())).get();
+
+        final StatRecord expectedStatRecord = StatRecord.newBuilder()
+            .setName(COMMODITY)
+            .setCapacity((float)0.0)
+            .setUnits(COMMODITY_UNITS)
+            .setRelation(RelationType.COMMODITIESBOUGHT.getLiteral())
+            .setCurrentValue(2)
+            .setUsed(StatValue.newBuilder().setAvg(2).setMax(2).setMin(2).setTotal(2).build())
+            .setValues(StatValue.newBuilder().setAvg(2).setMax(2).setMin(2).setTotal(2).build())
+            .setPeak(StatValue.newBuilder().setAvg(3).setMax(3).setMin(3).setTotal(3).build())
+            .build();
+
+        assertEquals(expectedStatRecord, record);
+    }
+
+    @Test
+    public void testBoughtCommodityWithoutProviderWholeMarket() {
+        final TopologyEntityDTO VM_NO_PROVIDER = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
+            .setOid(4)
+            // no provider id
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                    .setCommodityType(COMMODITY_TYPE)
+                    .setUsed(6)
+                    .setPeak(9)))
+            .build();
+
+        final SoldCommoditiesInfo soldCommoditiesInfo = Mockito.mock(SoldCommoditiesInfo.class);
+        final double providerCapacity = 5.0;
+        Mockito.when(soldCommoditiesInfo.getCapacity( Mockito.eq(COMMODITY), Mockito.eq(7L)))
+            .thenReturn(Optional.of(providerCapacity));
+        Mockito.when(soldCommoditiesInfo.getCapacity( Mockito.eq(COMMODITY), Mockito.eq(4L)))
+            .thenReturn(Optional.of(providerCapacity));
+
+        final BoughtCommoditiesInfo info =
+            BoughtCommoditiesInfo.newBuilder()
+                .addEntity(VM_NO_PROVIDER)
+                .addEntity(VM_1)
+                .build(soldCommoditiesInfo);
+
+        final StatRecord expectedStatRecord = StatRecord.newBuilder()
+            .setName(COMMODITY)
+            .setCapacity((float)providerCapacity)
+            .setUnits(COMMODITY_UNITS)
+            .setRelation(RelationType.COMMODITIESBOUGHT.getLiteral())
+            .setCurrentValue(4)
+            // Used and values are the same thing
+            .setUsed(StatValue.newBuilder().setAvg(4).setMax(6).setMin(2).setTotal(8).build())
+            .setValues(StatValue.newBuilder().setAvg(4).setMax(6).setMin(2).setTotal(8).build())
+            .setPeak(StatValue.newBuilder().setAvg(6).setMax(9).setMin(3).setTotal(12).build())
+            .build();
+
+        final StatRecord record =
+            info.getAccumulatedRecord(COMMODITY, Collections.emptySet()).get();
+        assertEquals(expectedStatRecord, record);
     }
 
     @Test
@@ -214,5 +291,4 @@ public class BoughtCommoditiesInfoTest {
         assertFalse(info.getAccumulatedRecord(COMMODITY,
                 Collections.singleton(VM_1.getOid())).isPresent());
     }
-
 }

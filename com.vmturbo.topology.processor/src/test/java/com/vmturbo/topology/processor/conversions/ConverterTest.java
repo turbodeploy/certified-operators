@@ -20,9 +20,10 @@ import com.google.common.collect.Maps;
 import com.google.protobuf.Descriptors.FieldDescriptor;
 import com.google.protobuf.util.JsonFormat;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommodityBoughtList;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.builders.EntityBuilders;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -58,13 +59,17 @@ public class ConverterTest {
         TopologyEntityDTO vmTopologyDTO = findEntity(topologyDTOs, EntityType.VIRTUAL_MACHINE_VALUE);
         assertEquals(vmProbeDTO.getDisplayName(), vmTopologyDTO.getDisplayName());
         assertEquals(3, vmTopologyDTO.getCommoditySoldListCount()); // 2xVCPU, 1xVMem
-        assertEquals(2, vmTopologyDTO.getCommodityBoughtMap().size()); // buying from two providers
+        assertEquals(2, vmTopologyDTO.getCommoditiesBoughtFromProvidersCount()); // buying from two providers
 
-        CommodityBoughtList vmCommBoughtList = vmTopologyDTO.getCommodityBoughtMap().get(PM_OID);
-        assertNotNull(vmCommBoughtList);
-        assertEquals(3, vmCommBoughtList.getCommodityBoughtCount()); // Mem, CPU, Ballooning
-        assertTrue(isActive(vmCommBoughtList, CommodityType.CPU_VALUE));
-        assertFalse(isActive(vmCommBoughtList, CommodityType.BALLOONING_VALUE));
+        CommoditiesBoughtFromProvider vmCommBoughtGrouping = vmTopologyDTO.getCommoditiesBoughtFromProvidersList().stream()
+            .filter(commodityBoughtGrouping -> commodityBoughtGrouping.getProviderId() == PM_OID)
+            .findFirst()
+            .get();
+
+        assertNotNull(vmCommBoughtGrouping);
+        assertEquals(3, vmCommBoughtGrouping.getCommodityBoughtCount()); // Mem, CPU, Ballooning
+        assertTrue(isActive(vmCommBoughtGrouping.getCommodityBoughtList(), CommodityType.CPU_VALUE));
+        assertFalse(isActive(vmCommBoughtGrouping.getCommodityBoughtList(), CommodityType.BALLOONING_VALUE));
 
         TopologyEntityDTO pmTopologyDTO = findEntity(topologyDTOs, EntityType.PHYSICAL_MACHINE_VALUE);
         assertTrue(isActive(pmTopologyDTO, CommodityType.CPU_VALUE));
@@ -75,11 +80,11 @@ public class ConverterTest {
         return dtos.stream().filter(entity -> entity.getEntityType() == entityType).findFirst().get();
     }
 
-    private boolean isActive(CommodityBoughtList list, int commodityType) {
-        return list.getCommodityBoughtList().stream()
-                        .filter(comm -> comm.getCommodityType().getType() == commodityType)
-                        .findFirst().get()
-                        .getActive();
+    private boolean isActive(List<CommodityBoughtDTO> list, int commodityType) {
+        return list.stream()
+            .filter(comm -> comm.getCommodityType().getType() == commodityType)
+            .findFirst().get()
+            .getActive();
     }
 
     private boolean isActive(TopologyEntityDTO dto, int commSoldType) {
@@ -118,6 +123,7 @@ public class ConverterTest {
         // In case someone changes the test file
         assertEquals("A Value", vdcPropertiesMap.get("A Key"));
         assertFalse(vdcTopologyDTO.getProviderPolicy().getIsAvailableAsProvider());
+        assertTrue(vdcTopologyDTO.getConsumerPolicy().getShopsTogether());
     }
 
     @Test

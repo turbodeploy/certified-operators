@@ -13,6 +13,7 @@ import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.repository.constant.RepoObjectType;
 
 /**
@@ -63,14 +64,16 @@ public class IncrementalTopologyRelationshipRecorder {
                 }
                 unknownProvidersMap.removeAll(oid);
             }
-            Set<Long> providers = dto.getCommodityBoughtMapMap().keySet();
-            for (Long provider : providers) {
-                Integer providerType = idTypes.get(provider);
-                if (providerType != null) {
-                    providerRels.put(seType, providerType);
-                } else {
-                    // the DTO of this provider wasn't processed yet, so its type is still unknown
-                    unknownProvidersMap.put(provider,  seType);
+
+            for (CommoditiesBoughtFromProvider provider : dto.getCommoditiesBoughtFromProvidersList()) {
+                if (provider.hasProviderId()) {
+                    Integer providerType = idTypes.get(provider.getProviderId());
+                    if (providerType != null) {
+                        providerRels.put(seType, providerType);
+                    }
+                    else {
+                        unknownProvidersMap.put(provider.getProviderId(), seType);
+                    }
                 }
             }
         }

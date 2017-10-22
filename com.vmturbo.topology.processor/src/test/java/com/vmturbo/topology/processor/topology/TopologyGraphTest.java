@@ -1,5 +1,13 @@
 package com.vmturbo.topology.processor.topology;
 
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+
 import java.util.Collections;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -13,16 +21,8 @@ import org.junit.rules.ExpectedException;
 import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommodityBoughtList;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.topology.processor.topology.TopologyGraph.Vertex;
-
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.is;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 
 public class TopologyGraphTest {
 
@@ -39,19 +39,27 @@ public class TopologyGraphTest {
     private final TopologyEntityDTO.Builder entity2 = TopologyEntityDTO.newBuilder()
         .setOid(2L)
         .setEntityType(2)
-        .putCommodityBoughtMap(1L, CommodityBoughtList.getDefaultInstance());
+        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+            .setProviderId(1L)
+            .build());
     private final TopologyEntityDTO.Builder entity3 = TopologyEntityDTO.newBuilder()
         .setOid(3L)
         .setEntityType(3)
-        .putCommodityBoughtMap(1L, CommodityBoughtList.getDefaultInstance());
+        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+            .setProviderId(1L)
+            .build());
     private final TopologyEntityDTO.Builder entity4 = TopologyEntityDTO.newBuilder()
         .setOid(4L)
         .setEntityType(4)
-        .putCommodityBoughtMap(2L, CommodityBoughtList.getDefaultInstance());
+        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+            .setProviderId(2L)
+            .build());
     private final TopologyEntityDTO.Builder entity5 = TopologyEntityDTO.newBuilder()
         .setOid(5L)
         .setEntityType(5)
-        .putCommodityBoughtMap(2L, CommodityBoughtList.getDefaultInstance());
+        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+            .setProviderId(2L)
+            .build());
 
     private final Map<Long, TopologyEntityDTO.Builder> topologyMap = ImmutableMap.of(
         1L, entity1,
@@ -85,7 +93,9 @@ public class TopologyGraphTest {
         final TopologyEntityDTO.Builder entity4Duplicate = TopologyEntityDTO.newBuilder()
             .setOid(4L)
             .setEntityType(4)
-            .putCommodityBoughtMap(2L, CommodityBoughtList.getDefaultInstance());
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderId(2L)
+                .build());
 
         final Map<Long, TopologyEntityDTO.Builder> topologyMap = ImmutableMap.of(
             1L, entity1,
@@ -149,8 +159,10 @@ public class TopologyGraphTest {
         final TopologyEntityDTO.Builder entity3 = TopologyEntityDTO.newBuilder()
             .setOid(3L)
             .setEntityType(3)
-            .putCommodityBoughtMap(1L, CommodityBoughtList.getDefaultInstance())
-            .putCommodityBoughtMap(2L, CommodityBoughtList.getDefaultInstance());
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderId(1L))
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+            .setProviderId(2L));
 
         final Map<Long, TopologyEntityDTO.Builder> topologyMap = ImmutableMap.of(
             1L, entity1,
@@ -261,8 +273,10 @@ public class TopologyGraphTest {
         final TopologyEntityDTO.Builder entity3 = TopologyEntityDTO.newBuilder()
             .setOid(3L)
             .setEntityType(3)
-            .putCommodityBoughtMap(1L, CommodityBoughtList.getDefaultInstance())
-            .putCommodityBoughtMap(2L, CommodityBoughtList.getDefaultInstance());
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderId(1L))
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderId(2L));
 
         final Map<Long, TopologyEntityDTO.Builder> topologyMap = ImmutableMap.of(
             1L, entity1,

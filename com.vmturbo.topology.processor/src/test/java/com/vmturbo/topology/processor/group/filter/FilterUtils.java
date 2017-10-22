@@ -9,7 +9,7 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommodityBoughtList;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 import com.vmturbo.topology.processor.topology.TopologyGraph.Vertex;
@@ -94,7 +94,9 @@ public class FilterUtils {
      */
     private static void addCommodityBoughtMap(TopologyEntityDTO.Builder builder, long... producers) {
         for (long producer : producers) {
-            builder.putCommodityBoughtMap(producer, CommodityBoughtList.getDefaultInstance());
+            builder.addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderId(producer)
+                .build());
         }
     }
 }

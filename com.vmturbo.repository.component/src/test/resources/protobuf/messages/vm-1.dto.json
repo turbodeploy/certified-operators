@@ -40,8 +40,10 @@
       "isThin": true
     }
   ],
-  "commodityBoughtMap" : {
-    "102" : {
+  "commoditiesBoughtFromProviders": [
+    {
+      "providerId": 102,
+      "providerEntityType": 0,
       "commodityBought": [
         {
           "commodityType": {
@@ -61,7 +63,9 @@
         }
       ]
     },
-    "205" : {
+    {
+      "providerId": 205,
+      "providerEntityType": 0,
       "commodityBought": [
         {
           "commodityType": {
@@ -73,11 +77,11 @@
         }
       ]
     }
-  },
+  ],
   "entityState": "POWERED_ON",
   "entityPropertyMap": {
-    "common_dto.EntityDTO.VirtualMachineData.vmState" : "connected: true\n",
-    "shopTogether" : "false",
-    "common_dto.EntityDTO.VirtualMachineData.ipAddress" : "[10.0.1.15]"
+    "common_dto.EntityDTO.VirtualMachineData.vmState": "connected: true\n",
+    "shopTogether": "false",
+    "common_dto.EntityDTO.VirtualMachineData.ipAddress": "[10.0.1.15]"
   }
 }

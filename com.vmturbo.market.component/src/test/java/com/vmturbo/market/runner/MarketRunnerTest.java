@@ -21,6 +21,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.market.MarketNotificationSender;
@@ -165,12 +166,11 @@ public class MarketRunnerTest {
         TopologyEntityDTO buyer = TopologyEntityDTO.newBuilder()
             .setEntityType(1000) // This must not be a VDC, which is ignored in M2
             .setOid(entityCount++)
-            .putCommodityBoughtMap(sellerOid, TopologyEntityDTO.CommodityBoughtList.newBuilder()
-                    .addCommodityBought(CommodityBoughtDTO.newBuilder()
-                            .setCommodityType(commType)
-                            .setUsed(used)
-                            .build()) // commodity bought
-                    .build()) // commodity bought list
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderId(sellerOid)
+                .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                    .setCommodityType(commType)
+                    .setUsed(used)))
             .build(); // buyer
         return buyer;
     }

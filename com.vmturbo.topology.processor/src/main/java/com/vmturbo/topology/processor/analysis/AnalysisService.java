@@ -147,6 +147,9 @@ public class AnalysisService extends AnalysisServiceImplBase {
             if (addition != null) {
                 final int addCount = addition.hasAdditionCount() ? addition.getAdditionCount() : 1;
                 for (int i = 0; i < addCount; ++i) {
+                    // TODO: We need to remove provider Id of commodity bought for all clone entities,
+                    // and it requires to refactor TopologyConverter class in order to convert related
+                    // commodity bought to correct Biclique commodity bought. (see OM-25520)
                     final TopologyEntityDTO clone = TopologyEntityDTO.newBuilder(entity)
                             // This may get confusing if there are multiple clone entities,
                             // but the display name isn't supposed to uniquely identify

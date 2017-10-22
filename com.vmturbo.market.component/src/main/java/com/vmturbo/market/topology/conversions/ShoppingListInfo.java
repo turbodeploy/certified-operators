@@ -1,8 +1,11 @@
 package com.vmturbo.market.topology.conversions;
 
-import javax.annotation.Nonnull;
+import java.util.List;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 
 /**
@@ -21,19 +24,19 @@ public class ShoppingListInfo {
     public final long buyerId;
 
     /**
-     * The current seller of the shopping list.
+     * The current seller of the shopping list and it is optional.
      */
-    public final long sellerId;
+    public final Long sellerId;
 
     /**
      * The commodity list used to create the shopping list.
      */
-    public final TopologyEntityDTO.CommodityBoughtList commodities;
+    public final List<CommodityBoughtDTO> commodities;
 
     public ShoppingListInfo(final long id,
                             final long buyerId,
-                            final long sellerId,
-                            @Nonnull final TopologyEntityDTO.CommodityBoughtList commodities) {
+                            @Nullable final Long sellerId,
+                            @Nonnull final List<CommodityBoughtDTO> commodities) {
         this.id = id;
         this.buyerId = buyerId;
         this.sellerId = sellerId;

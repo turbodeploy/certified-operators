@@ -12,7 +12,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommodityBoughtList;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.components.test.utilities.utils.TopologyUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.repository.constant.RepoObjectType.RepoEntityType;
@@ -32,7 +32,7 @@ public class IncrementalTopologyRelationshipRecorderTest {
     private final TopologyEntityDTO physicalMachine = TopologyEntityDTO.newBuilder()
         .setOid(1234567890L)
         .setEntityType(EntityType.PHYSICAL_MACHINE.getNumber())
-        .putCommodityBoughtMap(71930913569376L, CommodityBoughtList.getDefaultInstance())
+        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder().setProviderId(71930913569376L).build())
         .build();
 
     private final List<TopologyEntityDTO> pmChunk = Collections.singletonList(physicalMachine);

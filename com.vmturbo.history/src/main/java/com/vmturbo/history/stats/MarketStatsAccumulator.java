@@ -30,7 +30,7 @@ import com.google.common.collect.Multimap;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommodityBoughtList;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.history.SharedMetrics;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.utils.HistoryStatsUtils;
@@ -323,17 +323,16 @@ public class MarketStatsAccumulator {
             @Nonnull Map<Long, Map<Integer, Double>> capacities,
             @Nonnull Multimap<Long, DelayedCommodityBoughtWriter> delayedCommoditiesBought)
             throws VmtDbException {
-        for (Map.Entry<Long, CommodityBoughtList> commodityBoughtEntry :
-                entityDTO.getCommodityBoughtMapMap().entrySet()) {
-            Long providerId = commodityBoughtEntry.getKey();
-            Map<Integer, Double> soldCapacities = capacities.get(providerId);
+        for (CommoditiesBoughtFromProvider commodityBoughtGrouping : entityDTO.getCommoditiesBoughtFromProvidersList()) {
+            Long providerId = commodityBoughtGrouping.hasProviderId() ?
+                    commodityBoughtGrouping.getProviderId() : null;
             DelayedCommodityBoughtWriter queueCommoditiesBlock = new DelayedCommodityBoughtWriter(snapshotTime,
-                    entityDTO.getOid(), providerId, commodityBoughtEntry.getValue(), capacities);
-            if (soldCapacities == null) {
-                // save the block to run later once the capacities are available
+                    entityDTO.getOid(), providerId, commodityBoughtGrouping.getCommodityBoughtList(), capacities);
+
+            if (providerId != null && capacities.get(providerId) == null) {
                 delayedCommoditiesBought.put(providerId, queueCommoditiesBlock);
-            } else {
-                // queue this commodity right now
+            }
+            else {
                 queueCommoditiesBlock.queCommoditiesNow();
             }
         }
@@ -346,16 +345,18 @@ public class MarketStatsAccumulator {
      */
     public class DelayedCommodityBoughtWriter {
         private final long snapshotTime;
-        private final long oid;
-        private final long providerId;
-        private final CommodityBoughtList value;
+        private final long entityOid;
+        private final Long providerId;
+        private final List<CommodityBoughtDTO> value;
         private final Map<Long, Map<Integer, Double>> capacities;
 
-        public DelayedCommodityBoughtWriter(long snapshotTime, long oid, long providerId,
-                                            @Nonnull CommodityBoughtList value,
+        public DelayedCommodityBoughtWriter(long snapshotTime,
+                                            long entityOid,
+                                            @Nullable Long providerId,
+                                            @Nonnull List<CommodityBoughtDTO> value,
                                             @Nonnull Map<Long, Map<Integer, Double>> capacities) {
             this.snapshotTime = snapshotTime;
-            this.oid = oid;
+            this.entityOid = entityOid;
             this.providerId = providerId;
             this.value = value;
             this.capacities = capacities;
@@ -363,7 +364,7 @@ public class MarketStatsAccumulator {
 
         public void queCommoditiesNow() throws VmtDbException {
             queueCommoditiesBought(snapshotTime,
-                    oid, providerId, value, capacities);
+                entityOid, providerId, value, capacities);
         }
     }
 
@@ -452,11 +453,11 @@ public class MarketStatsAccumulator {
      * @param commodityBoughtList the list of commodities bought
      * @param capacities a map seller ID -> (map commodity type -> capacity for that commodity)
      */
-    private void queueCommoditiesBought(long snapshotTime, Long buyerId, Long providerId,
-                                           CommodityBoughtList commodityBoughtList,
+    private void queueCommoditiesBought(long snapshotTime, Long buyerId, @Nullable Long providerId,
+                                        List<CommodityBoughtDTO> commodityBoughtList,
                                            Map<Long, Map<Integer, Double>> capacities)
             throws VmtDbException {
-        for (CommodityBoughtDTO commodityBoughtDTO : commodityBoughtList.getCommodityBoughtList()) {
+        for (CommodityBoughtDTO commodityBoughtDTO : commodityBoughtList) {
             final int commType = commodityBoughtDTO.getCommodityType().getType();
             String mixedCaseCommodityName = HistoryStatsUtils.formatCommodityName(commType);
             if (mixedCaseCommodityName == null) {
@@ -468,14 +469,18 @@ public class MarketStatsAccumulator {
             if (isExcludedCommodity(mixedCaseCommodityName)) {
                 continue;
             }
-
-            Map<Integer, Double> soldCapacities = capacities.get(providerId);
-            if (soldCapacities == null || !soldCapacities.containsKey(commType)) {
-                logger.debug("Missing commodity sold {} of entity {}, seller entity {}",
-                        mixedCaseCommodityName, buyerId, providerId);
-                continue;
+            // set default value to -1, it will be adjust to null when commodity bought has no provider id.
+            Double capacity = -1.0;
+            if (providerId != null) {
+                Map<Integer, Double> soldCapacities = capacities.get(providerId);
+                if (soldCapacities == null || !soldCapacities.containsKey(commType)) {
+                    logger.debug("Missing commodity sold {} of entity {}, seller entity {}",
+                            mixedCaseCommodityName, buyerId, providerId);
+                    continue;
+                }
+                capacity = soldCapacities.get(commType);
             }
-            Double capacity = soldCapacities.get(commType);
+
             capacity = adjustCapacity(capacity);
 
             // set the values specific to each row and persist each

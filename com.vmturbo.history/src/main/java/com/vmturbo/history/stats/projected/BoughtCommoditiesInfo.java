@@ -71,7 +71,7 @@ class BoughtCommoditiesInfo {
      *         if there is no information for the commodity over the target entities.
      */
     Optional<StatRecord> getAccumulatedRecord(@Nonnull final String commodityName,
-                                                     @Nonnull final Set<Long> targetEntities) {
+                                              @Nonnull final Set<Long> targetEntities) {
         final Map<Long, Map<Long, CommodityBoughtDTO>> boughtByEntityId =
                 boughtCommodities.get(commodityName);
         final AccumulatedBoughtCommodity overallCommoditiesBought =
@@ -81,12 +81,15 @@ class BoughtCommoditiesInfo {
         } else if (targetEntities.isEmpty()) {
             // No entities = looping over all the entities.
             boughtByEntityId.forEach((entityId, boughtFromProviders) ->
-                    boughtFromProviders.forEach((providerId, commodityBought) -> {
-                        Optional<Double> capacity =
-                                soldCommoditiesInfo.getCapacity(commodityName, providerId);
-                        if (capacity.isPresent()) {
-                            overallCommoditiesBought.recordBoughtCommodity(commodityBought,providerId, capacity.get());
-                        } else {
+                boughtFromProviders.forEach((providerId, commodityBought) -> {
+                        Optional<Double> capacity = (providerId != null) ?
+                            soldCommoditiesInfo.getCapacity(commodityName, providerId) :
+                            Optional.empty();
+                        if (providerId == null || capacity.isPresent()) {
+                            overallCommoditiesBought.recordBoughtCommodity(commodityBought,
+                                providerId, capacity.orElse(0.0));
+                        }
+                        else {
                             logger.warn("Entity {} buying commodity {} from provider {}," +
                                             " but provider is not selling it!", entityId, commodityName,
                                     providerId);
@@ -96,21 +99,24 @@ class BoughtCommoditiesInfo {
             // A specific set of entities.
             targetEntities.forEach(entityId -> {
                 final Map<Long, CommodityBoughtDTO> entitiesProviders =
-                        boughtByEntityId.get(entityId);
+                    boughtByEntityId.get(entityId);
                 if (entitiesProviders == null) {
                     logger.warn("Entity {} not buying anything...");
                 } else {
                     entitiesProviders.forEach((providerId, commodityBought) -> {
-                        final Optional<Double> capacity =
-                                soldCommoditiesInfo.getCapacity(commodityName, providerId);
-                        if (capacity.isPresent()) {
-                            overallCommoditiesBought.recordBoughtCommodity(commodityBought,
-                                    providerId, capacity.get());
-                        } else {
-                            logger.warn("No capacity found for {} by provider {}",
+                            final Optional<Double> capacity = (providerId != null) ?
+                                soldCommoditiesInfo.getCapacity(commodityName, providerId) :
+                                Optional.empty();
+                            if (providerId == null || capacity.isPresent()) {
+                                overallCommoditiesBought.recordBoughtCommodity(commodityBought,
+                                    providerId, capacity.orElse(0.0));
+                            }
+                            else {
+                                logger.warn("No capacity found for {} by provider {}",
                                     commodityName, providerId);
-                        }
-                    });
+                            }
+
+                        });
                 }
             });
         }
@@ -126,27 +132,39 @@ class BoughtCommoditiesInfo {
 
         private Builder() {}
 
+        /**
+         * Add entity's commodity bought into boughtCommodities map structure. If there are multiple
+         * same type commodity bought from same providerId or no provider Id, we will pick the last one
+         * among those commodity bought.
+         *
+         * @param entity project topology entity needs to process.
+         * @return Builder object contains commodity bought of project topology.
+         */
         @Nonnull
         Builder addEntity(@Nonnull final TopologyEntityDTO entity) {
-            entity.getCommodityBoughtMapMap().forEach((providerId, commoditiesBought) -> {
-                commoditiesBought.getCommodityBoughtList().forEach(commodityBought -> {
+        entity.getCommoditiesBoughtFromProvidersList().stream().forEach(commodityBoughtGrouping -> {
+            commodityBoughtGrouping.getCommodityBoughtList().stream()
+                .forEach(commodityBought -> {
                     final String commodity = HistoryStatsUtils.formatCommodityName(
-                            commodityBought.getCommodityType().getType());
+                        commodityBought.getCommodityType().getType());
+                    final Long providerId = (commodityBoughtGrouping.hasProviderId()) ?
+                        commodityBoughtGrouping.getProviderId() : null;
                     final Map<Long, Map<Long, CommodityBoughtDTO>> entityBuyers =
-                            boughtCommodities.computeIfAbsent(commodity, k -> new HashMap<>());
+                        boughtCommodities.computeIfAbsent(commodity, k -> new HashMap<>());
                     final Map<Long, CommodityBoughtDTO> thisEntityBoughtCommodities =
-                            entityBuyers.computeIfAbsent(entity.getOid(), k -> new HashMap<>());
+                        entityBuyers.computeIfAbsent(entity.getOid(), k -> new HashMap<>());
                     final CommodityBoughtDTO prev =
-                            thisEntityBoughtCommodities.put(providerId, commodityBought);
+                        thisEntityBoughtCommodities.put(providerId, commodityBought);
                     if (prev != null) {
                         logger.warn("Entity {} is buying commodity {} from {} more" +
-                                        " than once. Previous: {}", entity.getOid(),
-                                commodityBought.getCommodityType(),
-                                providerId, prev.getCommodityType());
+                                " than once. Previous: {}", entity.getOid(),
+                            commodityBought.getCommodityType(),
+                            providerId, prev.getCommodityType());
                     }
                 });
-            });
-            return this;
+            }
+        );
+        return this;
         }
 
         /**
@@ -161,5 +179,4 @@ class BoughtCommoditiesInfo {
             return new BoughtCommoditiesInfo(soldCommoditiesInfo, boughtCommodities);
         }
     }
-
 }

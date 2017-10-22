@@ -1,7 +1,6 @@
 package com.vmturbo.repository.dto;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 public class ServiceEntityRepoDTO {
@@ -23,7 +22,7 @@ public class ServiceEntityRepoDTO {
 
     private List<String> providers;
 
-    private Map<String, List<CommodityBoughtRepoDTO>> commodityBoughtMap;
+    private List<CommoditiesBoughtRepoFromProviderDTO> commoditiesBoughtRepoFromProviderDTOList;
 
     private List<CommoditySoldRepoDTO> commoditySoldList;
 
@@ -99,12 +98,12 @@ public class ServiceEntityRepoDTO {
         this.providers = providers;
     }
 
-    public Map<String, List<CommodityBoughtRepoDTO>> getCommodityBoughtMap() {
-        return commodityBoughtMap;
+    public List<CommoditiesBoughtRepoFromProviderDTO> getCommoditiesBoughtRepoFromProviderDTOList() {
+        return commoditiesBoughtRepoFromProviderDTOList;
     }
 
-    public void setCommodityBoughtMap(Map<String, List<CommodityBoughtRepoDTO>> commodityBoughtMap) {
-        this.commodityBoughtMap = commodityBoughtMap;
+    public void setCommoditiesBoughtRepoFromProviderDTOList(List<CommoditiesBoughtRepoFromProviderDTO> commoditiesBoughtRepoFromProviderDTOList) {
+        this.commoditiesBoughtRepoFromProviderDTOList = commoditiesBoughtRepoFromProviderDTOList;
     }
 
     public List<CommoditySoldRepoDTO> getCommoditySoldList() {
@@ -117,7 +116,7 @@ public class ServiceEntityRepoDTO {
 
     @Override
     public int hashCode() {
-        return Objects.hash(commodityBoughtMap, commoditySoldList, displayName,
+        return Objects.hash(commoditiesBoughtRepoFromProviderDTOList, commoditySoldList, displayName,
                             entityType, oid, priceIndex, priceIndexProjected, providers, severity,
                             state, uuid);
     }
@@ -131,7 +130,7 @@ public class ServiceEntityRepoDTO {
             return false;
         }
         ServiceEntityRepoDTO that = (ServiceEntityRepoDTO)obj;
-        return Objects.equals(commodityBoughtMap, that.commodityBoughtMap) &&
+        return Objects.equals(commoditiesBoughtRepoFromProviderDTOList, that.commoditiesBoughtRepoFromProviderDTOList) &&
                Objects.equals(commoditySoldList, that.commoditySoldList) &&
                Objects.equals(displayName, that.displayName) &&
                Objects.equals(entityType, that.entityType) &&
@@ -150,8 +149,8 @@ public class ServiceEntityRepoDTO {
                 + ", entityType=" + entityType + ", priceIndex=" + priceIndex
                 + ", priceIndexProjected=" + priceIndexProjected
                 + ", state=" + state + ", severity=" + severity + ", oid=" + oid
-                + ", providers=" + providers + ", commodityBoughtMap="
-                + commodityBoughtMap + ", commoditySoldList=" + commoditySoldList + "]";
+                + ", providers=" + providers + ", commoditiesBoughtRepoFromProviderDTOList="
+                + commoditiesBoughtRepoFromProviderDTOList + ", commoditySoldList=" + commoditySoldList + "]";
     }
 
 

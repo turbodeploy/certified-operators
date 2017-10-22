@@ -1,20 +1,21 @@
 package com.vmturbo.repository.topology;
 
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+
+import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.repository.constant.RepoObjectState;
 import com.vmturbo.repository.constant.RepoObjectType;
+import com.vmturbo.repository.dto.CommoditiesBoughtRepoFromProviderDTO;
 import com.vmturbo.repository.dto.CommodityBoughtRepoDTO;
 import com.vmturbo.repository.dto.CommoditySoldRepoDTO;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
@@ -39,18 +40,21 @@ public class TopologyConverter {
             se.setUuid(String.valueOf(t.getOid()));
             se.setState(mapEntityState(t.getEntityState()));
 
-            // Commodities bought map
-            Map<String, List<CommodityBoughtRepoDTO>> commodityBoughtMap = new HashMap<>();
-            t.getCommodityBoughtMap().forEach( (provider,commBoughtList) -> {
-                final String provId = Long.toString(provider);
-                commodityBoughtMap.put(provId, commBoughtList.getCommodityBoughtList().stream()
-                        .map(comm -> CommodityMapper.convert(seOid, provId, comm))
-                        .collect(Collectors.toList()));
+            // Commodities bought list
+            List<CommoditiesBoughtRepoFromProviderDTO> commoditiesBoughtRepoFromProviderDTOList = Lists.newArrayList();
+            t.getCommoditiesBoughtFromProvidersList().forEach(commoditiesBoughtFromProvider -> {
+                commoditiesBoughtRepoFromProviderDTOList.add(
+                    CommodityMapper.convert(commoditiesBoughtFromProvider, seOid));
             });
-            se.setCommodityBoughtMap(commodityBoughtMap);
 
-            // Provider list
-            se.setProviders(new ArrayList<>(commodityBoughtMap.keySet()));
+
+            se.setCommoditiesBoughtRepoFromProviderDTOList(commoditiesBoughtRepoFromProviderDTOList);
+
+            // Only set the valid provider list
+            se.setProviders(commoditiesBoughtRepoFromProviderDTOList.stream().filter(
+                commoditiesBoughtRepoFromProviderDTO -> commoditiesBoughtRepoFromProviderDTO.getProviderId() != null)
+                    .map(grouping -> String.valueOf(grouping.getProviderId()))
+                    .collect(Collectors.toList()));
 
             // Commodities sold list
             se.setCommoditySoldList(t.getCommoditySoldListList().stream().map(comm ->
@@ -121,6 +125,24 @@ public class TopologyConverter {
 
         private static String mapCommodityType(int type) {
             return RepoObjectType.mapCommodityType(type);
+        }
+
+        private static CommoditiesBoughtRepoFromProviderDTO convert(
+            CommoditiesBoughtFromProvider commoditiesBoughtFromProvider, String seOid) {
+            final String provId = commoditiesBoughtFromProvider.hasProviderId() ?
+                Long.toString(commoditiesBoughtFromProvider.getProviderId())
+                : null;
+            CommoditiesBoughtRepoFromProviderDTO commoditiesBoughtRepoFromProviderDTO =
+                new CommoditiesBoughtRepoFromProviderDTO();
+            commoditiesBoughtRepoFromProviderDTO.setCommodityBoughtRepoDTOs(
+                commoditiesBoughtFromProvider.getCommodityBoughtList().stream()
+                    .map(comm -> CommodityMapper.convert(seOid, provId, comm))
+                    .collect(Collectors.toList()));
+            commoditiesBoughtRepoFromProviderDTO.setProviderId(commoditiesBoughtFromProvider.hasProviderId() ?
+                commoditiesBoughtFromProvider.getProviderId() : null);
+            commoditiesBoughtRepoFromProviderDTO.setProviderEntityType(commoditiesBoughtFromProvider.hasProviderEntityType() ?
+                commoditiesBoughtFromProvider.getProviderEntityType() : null);
+            return commoditiesBoughtRepoFromProviderDTO;
         }
     }
 }

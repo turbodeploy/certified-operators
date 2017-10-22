@@ -102,7 +102,6 @@ public class GraphServiceEntityController {
         LOGGER.debug("Searching for service entities with IDs {} in topology {}", requestedIds, topologyId);
         final Either<String, Collection<ServiceEntityApiDTO>> result =
                 graphDBService.findMultipleEntities(Optional.of(topologyId), Sets.newHashSet(requestedIds));
-
         return Match(result).of(
                 Case(Right($()), entities -> ResponseEntity.ok(entities)),
                 Case(Left($()), err -> ResponseEntity.ok(Collections.emptyList())));

@@ -209,84 +209,90 @@ public class TopologyEntitiesHandlerTest {
      * @throws InvalidTopologyException not supposed to happen here
      */
     @Test
-    public void shopTogehterTest() throws IOException, InvalidTopologyException {
-        List<CommonDTO.EntityDTO> probeDTOs = messagesFromJsonFile("protobuf/messages/entities.json",
+    public void shopTogetherTest() throws IOException, InvalidTopologyException {
+        List<CommonDTO.EntityDTO> nonShopTogetherProbeDTOs = messagesFromJsonFile("protobuf/messages/nonShopTogetherEntities.json",
             EntityDTO::newBuilder);
         Map<Long, CommonDTO.EntityDTO> map = Maps.newHashMap();
-        IntStream.range(0, probeDTOs.size()).forEach(i -> map.put((long)i, probeDTOs.get(i)));
+        IntStream.range(0, nonShopTogetherProbeDTOs.size()).forEach(i -> map.put((long)i, nonShopTogetherProbeDTOs.get(i)));
 
-        List<TopologyEntityDTO> topoDTOs = Converter.convert(map).stream()
+        List<TopologyEntityDTO> nonShopTogetherTopoDTOs = Converter.convert(map).stream()
             .map(TopologyEntityDTO.Builder::build)
             .collect(Collectors.toList());
 
-        // ====== Shop together ======
-        final Set<TraderTO> traderDTOs =
-            TopologyConverter.shopTogetherConverter(TopologyType.REALTIME)
-                .convertToMarket(topoDTOs);
+        TopologyConverter togetherConverter = new TopologyConverter(TopologyType.REALTIME);
+        final Set<TraderTO> traderDTOs = togetherConverter.convertToMarket(nonShopTogetherTopoDTOs);
 
         // No DSPMAccess and Datastore commodities sold
-        final long ddSoldShopTogether = countSoldCommodities(traderDTOs, DSPM_OR_DATASTORE_PATTERN);
+        final long nspDdSoldShopTogether = countSoldCommodities(traderDTOs, DSPM_OR_DATASTORE_PATTERN);
+        assertEquals(0, nspDdSoldShopTogether);
+
+        // No DSPMAccess and Datastore commodities bought
+        long nspDdBoughtShopTogether = countBoughtCommodities(traderDTOs, DSPM_OR_DATASTORE_PATTERN);
+        assertEquals(0, nspDdBoughtShopTogether);
+
+        // Some BiClique commodities sold
+        long bcSoldNonShopTogether = countSoldCommodities(traderDTOs, BC_PATTERN);
+        assertTrue(bcSoldNonShopTogether > 0);
+
+        // Some BiClique commodities bought
+        long bcBoughtNonShopTogether = countBoughtCommodities(traderDTOs, BC_PATTERN);
+        assertTrue(bcBoughtNonShopTogether > 0);
+
+        // Clique counts are zero for all Trader DTOs
+        final Set<Integer> allCliqueCounts = traderDTOs.stream()
+            .map(TraderTO::getCliquesCount)
+            .collect(Collectors.toSet());
+        assertEquals(Sets.newHashSet(0), allCliqueCounts);
+
+        // ====== shop together ======
+        List<CommonDTO.EntityDTO> shopTogetherProbeDTOs = messagesFromJsonFile("protobuf/messages/shopTogetherEntities.json",
+            EntityDTO::newBuilder);
+        Map<Long, CommonDTO.EntityDTO> shopTogetherMap = Maps.newHashMap();
+        IntStream.range(0, shopTogetherProbeDTOs.size()).forEach(i -> shopTogetherMap.put((long)i, shopTogetherProbeDTOs.get(i)));
+
+        List<TopologyEntityDTO> shopTogetherTopoDTOs = Converter.convert(shopTogetherMap).stream()
+            .map(TopologyEntityDTO.Builder::build)
+            .collect(Collectors.toList());
+
+        TopologyConverter shopTogetherConverter = new TopologyConverter(TopologyType.REALTIME);
+        final Set<TraderTO> shopTogetherTraderDTOs = shopTogetherConverter.convertToMarket(shopTogetherTopoDTOs);
+
+        // No DSPMAccess and Datastore commodities sold
+        long ddSoldShopTogether = countSoldCommodities(shopTogetherTraderDTOs, DSPM_OR_DATASTORE_PATTERN);
         assertEquals(0, ddSoldShopTogether);
 
         // No DSPMAccess and Datastore commodities bought
-        long ddBoughtShopTogether = countBoughtCommodities(traderDTOs, DSPM_OR_DATASTORE_PATTERN);
-        assertEquals(0, ddBoughtShopTogether);
+        long ddBoughtNonShopTogether = countBoughtCommodities(shopTogetherTraderDTOs, DSPM_OR_DATASTORE_PATTERN);
+        assertEquals(0, ddBoughtNonShopTogether);
 
-        // No BiClique commodities sold
-        final long bcSoldShopTogether = countSoldCommodities(traderDTOs, BC_PATTERN);
+        //No BiClique commodities sold
+        final long bcSoldShopTogether = countSoldCommodities(shopTogetherTraderDTOs, BC_PATTERN);
         assertEquals(0, bcSoldShopTogether);
 
         // No BiClique commodities bought
-        final long bcBoughtShopTogether = countBoughtCommodities(traderDTOs, BC_PATTERN);
+        final long bcBoughtShopTogether = countBoughtCommodities(shopTogetherTraderDTOs, BC_PATTERN);
         assertEquals(0, bcBoughtShopTogether);
-
         // Each storage is member of exactly one biclique (check using the 'cliques' property)
-        final Set<Integer> stCliqueCounts = traderDTOs.stream()
+        final Set<Integer> stCliqueCounts = shopTogetherTraderDTOs.stream()
             .filter(trader -> trader.getDebugInfoNeverUseInCode().startsWith("STORAGE"))
             .map(TraderTO::getCliquesCount)
             .collect(Collectors.toSet());
         assertEquals(Sets.newHashSet(1), stCliqueCounts);
 
         // Each PM is member of one or more bicliques (check using the 'cliques' property)
-        final Set<Integer> pmCliqueCounts = traderDTOs.stream()
+        final Set<Integer> pmCliqueCounts = shopTogetherTraderDTOs.stream()
             .filter(trader -> trader.getDebugInfoNeverUseInCode().startsWith("PHYSICAL_MACHINE"))
             .map(TraderTO::getCliquesCount)
             .collect(Collectors.toSet());
         assertFalse(pmCliqueCounts.contains(0));
 
         // All other traders don't have bicliques (check using the 'cliques' property
-        final Set<Integer> otherCliqueCounts = traderDTOs.stream()
-                        .filter(trader -> !trader.getDebugInfoNeverUseInCode().startsWith("PHYSICAL_MACHINE")
-                            && !trader.getDebugInfoNeverUseInCode().startsWith("STORAGE"))
-                        .map(TraderTO::getCliquesCount)
-                        .collect(Collectors.toSet());
+        final Set<Integer> otherCliqueCounts = shopTogetherTraderDTOs.stream()
+            .filter(trader -> !trader.getDebugInfoNeverUseInCode().startsWith("PHYSICAL_MACHINE")
+                && !trader.getDebugInfoNeverUseInCode().startsWith("STORAGE"))
+            .map(TraderTO::getCliquesCount)
+            .collect(Collectors.toSet());
         assertEquals(Sets.newHashSet(0), otherCliqueCounts);
-
-        // ====== Non shop together ======
-        final Set<TraderTO> nstTraderDTOs = new TopologyConverter(TopologyType.REALTIME)
-                        .convertToMarket(topoDTOs);
-
-        // No DSPMAccess and Datastore commodities sold
-        long ddSoldNonShopTogether = countSoldCommodities(nstTraderDTOs, DSPM_OR_DATASTORE_PATTERN);
-        assertEquals(0, ddSoldNonShopTogether);
-
-        // No DSPMAccess and Datastore commodities bought
-        long ddBoughtNonShopTogether = countBoughtCommodities(nstTraderDTOs, DSPM_OR_DATASTORE_PATTERN);
-        assertEquals(0, ddBoughtNonShopTogether);
-
-        // Some BiClique commodities sold
-        long bcSoldNonShopTogether = countSoldCommodities(nstTraderDTOs, BC_PATTERN);
-        assertTrue(bcSoldNonShopTogether > 0);
-
-        // Some BiClique commodities bought
-        long bcBoughtNonShopTogether = countBoughtCommodities(nstTraderDTOs, BC_PATTERN);
-        assertTrue(bcBoughtNonShopTogether > 0);
-
-        // Clique counts are zero for all Trader DTOs
-        final Set<Integer> allCliqueCounts = nstTraderDTOs.stream()
-                        .map(TraderTO::getCliquesCount)
-                        .collect(Collectors.toSet());
-        assertEquals(Sets.newHashSet(0), allCliqueCounts);
     }
 
     /**

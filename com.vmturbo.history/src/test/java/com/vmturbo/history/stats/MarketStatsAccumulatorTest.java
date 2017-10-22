@@ -16,6 +16,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import org.apache.commons.collections.map.HashedMap;
 import org.jooq.DSLContext;
 import org.jooq.InsertSetMoreStep;
 import org.jooq.Query;
@@ -71,6 +72,7 @@ public class MarketStatsAccumulatorTest {
     private TopologyEntityDTO testPm;
     private TopologyEntityDTO testVm;
     private TopologyEntityDTO testApp;
+    private TopologyEntityDTO testAppWithoutProvider;
 
     @Mock
     private HistorydbIO historydbIO;
@@ -95,6 +97,8 @@ public class MarketStatsAccumulatorTest {
         try {
             testVm = StatsTestUtils.generateEntityDTO(StatsTestUtils.TEST_VM_PATH);
             testApp = StatsTestUtils.generateEntityDTO(StatsTestUtils.TEST_APP_PATH);
+            testAppWithoutProvider =
+                StatsTestUtils.generateEntityDTO(StatsTestUtils.TEST_APP_WITHOUT_PROVIDER_PATH);
             testPm = StatsTestUtils.generateEntityDTO(StatsTestUtils.TEST_PM_PATH);
         } catch (Exception e) {
             throw new RuntimeException("Cannot load DTO's", e);
@@ -207,6 +211,33 @@ public class MarketStatsAccumulatorTest {
         verify(historydbIO, times(7)).execute(eq(BasedbIO.Style.FORCED), eq(mockInsertStmt));
         // no additional unused getCommodityInsertStatement fetched => 7
         verify(historydbIO, times(7)).getCommodityInsertStatement(StatsTestUtils.APP_LATEST_TABLE);
+    }
+
+    @Test
+    public void testPersistCommoditiesBoughtWithoutProvider() throws Exception {
+        // arrange
+        InsertSetMoreStep mockInsertStmt = createMockInsertQuery(StatsTestUtils.APP_LATEST_TABLE);
+
+        MarketStatsAccumulator marketStatsAccumulator = new MarketStatsAccumulator(APP_ENTITY_TYPE,
+            historydbIO, WRITE_TOPOLOGY_CHUNK_SIZE, commoditiesToExclude);
+
+        Map<Long, Map<Integer, Double>> capacities = Mockito.mock(HashedMap.class);
+        Multimap<Long, DelayedCommodityBoughtWriter> delayedCommoditiesBought = HashMultimap.create();
+
+        // act
+        for (int i=0; i < 10; i++) {
+            marketStatsAccumulator.persistCommoditiesBought(SNAPSHOT_TIME, testAppWithoutProvider,
+                capacities, delayedCommoditiesBought);
+        }
+        // flush the stats, triggering the final insert
+        marketStatsAccumulator.writeQueuedRows();
+
+        // assert
+        // 10 * 2 commodities -> 20 rows; 3 at a time -> 7 inserts;
+        verify(historydbIO, times(7)).execute(eq(BasedbIO.Style.FORCED), eq(mockInsertStmt));
+        // no additional unused getCommodityInsertStatement fetched => 7
+        verify(historydbIO, times(7)).getCommodityInsertStatement(StatsTestUtils.APP_LATEST_TABLE);
+
     }
 
     /**

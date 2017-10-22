@@ -44,8 +44,8 @@
         "active": true
       }
     ],
-    "commodityBoughtMap": {
-      "71799586835426": {
+    "commoditiesBoughtFromProviders": [
+      { "providerId" : 71799586835426,
         "commodityBought": [
           {
             "commodityType": {
@@ -67,7 +67,7 @@
           }
         ]
       },
-      "71799586834736": {
+      { "providerId" : 71799586834736,
         "commodityBought": [
           {
             "commodityType": {
@@ -116,7 +116,7 @@
           }
         ]
       },
-      "71799586835424": {
+      { "providerId" : 71799586835424,
         "commodityBought": [
           {
             "commodityType": {
@@ -237,7 +237,7 @@
           }
         ]
       }
-    },
+    ],
     "entityState": "POWERED_OFF",
     "entityPropertyMap": {
       "common_dto.EntityDTO.VirtualMachineData.vmState": "connected: true\n",

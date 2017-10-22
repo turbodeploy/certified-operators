@@ -18,7 +18,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommodityBoughtList;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.utils.TopologyOrganizer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -138,9 +138,9 @@ public class PlanStatsAggregatorTest {
                     .setDisplayName("VM-" + oid)
                     .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                     // 999 is the provider id. Don't care that it doesn't exist.
-                    .putCommodityBoughtMap(999, CommodityBoughtList.newBuilder()
-                        .addCommodityBought(cpuBought)
-                        .build())
+                    .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(999)
+                        .addCommodityBought(cpuBought))
                     .build();
     }
 

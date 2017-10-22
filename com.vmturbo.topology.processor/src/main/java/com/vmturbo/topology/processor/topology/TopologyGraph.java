@@ -6,12 +6,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 
 /**
  * A graph built from the topology.
@@ -174,7 +176,7 @@ public class TopologyGraph {
                            @Nonnull final Map<Long, TopologyEntityDTO.Builder> topologyMap) {
         final Vertex vertex = getOrCreateVertex(topologyEntityDTO);
 
-        for (Long producerOid : topologyEntityDTO.getCommodityBoughtMapMap().keySet()) {
+        for (Long producerOid : getCommodityBoughtProviderIds(topologyEntityDTO)) {
             final Vertex producer = getOrCreateVertex(topologyMap.get(producerOid));
 
             // Note that producers and consumers are lists, but we do not perform an explicit check
@@ -193,6 +195,20 @@ public class TopologyGraph {
             vertex.producers.add(producer);
             producer.consumers.add(vertex);
         }
+    }
+
+    /**
+     * Get a set of provider ids of entity's commodity bought list. And all these provider ids will
+     * be producers of this entity. For commodity bought without provider id will be filtered out.
+     *
+     * @param topologyEntityDTO The entity to add a vertex for.
+     * @return A set of provider ids.
+     */
+    private Set<Long> getCommodityBoughtProviderIds(@Nonnull final TopologyEntityDTO.Builder topologyEntityDTO) {
+        return topologyEntityDTO.getCommoditiesBoughtFromProvidersList().stream()
+            .filter(CommoditiesBoughtFromProvider::hasProviderId)
+            .map(CommoditiesBoughtFromProvider::getProviderId)
+            .collect(Collectors.toSet());
     }
 
     /**

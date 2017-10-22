@@ -157,15 +157,14 @@ public class PolicyMatcher {
             @Override
             public boolean matches(Object o) {
                 final Vertex v = (Vertex)o;
-                return v.getTopologyEntityDtoBuilder().getCommodityBoughtMapMap().entrySet().stream()
-                    .filter(entry -> entry.getValue()
-                        .getCommodityBoughtList().stream()
+                return v.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList().stream()
+                    .anyMatch(commodityBoughtGroup -> commodityBoughtGroup.getCommodityBoughtList().stream()
                         .anyMatch(commodity ->
                             commodity.getCommodityType().getType() == CommodityType.SEGMENTATION_VALUE &&
-                                providerIsExpectedEntityType(entry.getKey()) &&
-                                commodity.getCommodityType().getKey().equals(Long.toString(segmentId))))
-                    .findFirst()
-                    .isPresent();
+                                (!commodityBoughtGroup.hasProviderId() ||
+                                    (commodityBoughtGroup.hasProviderId() &&
+                                        providerIsExpectedEntityType(commodityBoughtGroup.getProviderId())))
+                                && commodity.getCommodityType().getKey().equals(Long.toString(segmentId))));
             }
 
             @Override

@@ -1,7 +1,9 @@
 package com.vmturbo.topology.processor.conversions;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -16,6 +18,7 @@ import com.google.common.collect.Sets;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
@@ -56,16 +59,19 @@ public class Converter {
         // Cache the oids. Using entrySet().stream() to void parallelism.
         entityDTOs.entrySet().stream().forEach(entry -> providerOIDs.put(entry.getValue().getId(), entry.getKey()));
         ImmutableList.Builder<TopologyDTO.TopologyEntityDTO.Builder> builder = ImmutableList.builder();
-        entityDTOs.forEach((oid, dto) -> builder.add(newTopologyEntityDTO(dto, oid, providerOIDs)));
+        entityDTOs.forEach((oid, dto) -> builder.add(
+            newTopologyEntityDTO(dto, oid, providerOIDs)));
         return builder.build();
     }
 
     public static TopologyDTO.TopologyEntityDTO.Builder newTopologyEntityDTO(CommonDTO.EntityDTO dto,
-                                                                             long oid, Map<String, Long> providerOIDs) {
+                                                                             long oid,
+                                                                             Map<String, Long> providerOIDs) {
         final int entityType = type(dto);
         final String displayName = dto.getDisplayName();
         final TopologyDTO.EntityState entityState = entityState(dto.getPowerState());
         final boolean availableAsProvider = dto.getProviderPolicy().getAvailableForPlacement();
+        final boolean isShopTogether = dto.getConsumerPolicy().getShopsTogether();
 
         List<TopologyDTO.CommoditySoldDTO> soldList = Lists.newArrayList();
         dto.getCommoditiesSoldList()
@@ -74,7 +80,8 @@ public class Converter {
             .forEach(soldList::add);
 
         // Map from provider oid to list of commodities bought
-        Map<Long, List<TopologyDTO.CommodityBoughtDTO>> boughtMap = Maps.newHashMap();
+        final Map<Long, List<TopologyDTO.CommodityBoughtDTO>> boughtMap = Maps.newHashMap();
+        final Map<Long, Integer> providerTypeMap = Maps.newHashMap();
         for (CommodityBought commodityBought : dto.getCommoditiesBoughtList()) {
             Long providerOid = providerOIDs.get(commodityBought.getProviderId());
             if (providerOid == null) {
@@ -89,6 +96,14 @@ public class Converter {
                         commodityBought.getProviderId());
                 continue;
             }
+
+            // TODO: Right now, we not guarantee that commodity bought will always have provider entity
+            // type. In order to implement that, we need to have additional check that if commodity bought
+            // doesn't have provider type, we use its provider id to find out entity type.
+            if (commodityBought.hasProviderType()) {
+                providerTypeMap.put(providerOid, commodityBought.getProviderType().getNumber());
+            }
+
             commodityBought.getBoughtList().stream()
                 .map(Converter::newCommodityBoughtDTO)
                 .forEach(topologyCommodityDTO -> boughtMap
@@ -130,16 +145,18 @@ public class Converter {
         if (dto.hasOrigin()) {
             entityPropertyMap.put("origin", dto.getOrigin().toString()); // TODO: DISCOVERED/PROXY use number?
         }
-        entityPropertyMap.put("shopTogether", String.valueOf(dto.getConsumerPolicy().getShopsTogether()));
+
         return newTopologyEntityDTO(
                 entityType,
                 oid,
                 displayName,
                 soldList,
                 boughtMap,
+                providerTypeMap,
                 entityState,
                 entityPropertyMap,
-                availableAsProvider
+                availableAsProvider,
+                isShopTogether
         );
     }
 
@@ -149,28 +166,40 @@ public class Converter {
             String displayName,
             List<TopologyDTO.CommoditySoldDTO> soldList,
             Map<Long, List<TopologyDTO.CommodityBoughtDTO>> boughtMap,
+            Map<Long, Integer> providerTypeMap,
             TopologyDTO.EntityState entityState,
             Map<String, String> entityPropertyMap,
-            boolean availableAsProvider
+            boolean availableAsProvider,
+            boolean isShopTogether
         ) {
-        Map<Long, TopologyDTO.TopologyEntityDTO.CommodityBoughtList> map = Maps.newHashMap();
-        boughtMap.forEach((k, v) -> map
-                .put(k, TopologyDTO.TopologyEntityDTO.CommodityBoughtList.newBuilder()
-                        .addAllCommodityBought(v)
-                        .build()));
-        TopologyDTO.TopologyEntityDTO.ProviderPolicy policy =
-                TopologyDTO.TopologyEntityDTO.ProviderPolicy.newBuilder()
-                    .setIsAvailableAsProvider(availableAsProvider)
-                    .build();
+        final List<TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider> commodityBoughtGroups = new ArrayList<>();
+        boughtMap.forEach((providerId, commodityBoughtList) -> {
+            final CommoditiesBoughtFromProvider.Builder commodityBoughtGroupingBuilder =
+                CommoditiesBoughtFromProvider.newBuilder()
+                    .setProviderId(providerId)
+                    .addAllCommodityBought(commodityBoughtList);
+            Optional.ofNullable(providerTypeMap.get(providerId))
+                .ifPresent(providerType -> commodityBoughtGroupingBuilder.setProviderEntityType(providerType));
+            commodityBoughtGroups.add(commodityBoughtGroupingBuilder.build());
+        });
+        TopologyDTO.TopologyEntityDTO.ProviderPolicy providerPolicy =
+            TopologyDTO.TopologyEntityDTO.ProviderPolicy.newBuilder()
+                .setIsAvailableAsProvider(availableAsProvider)
+                .build();
+        TopologyDTO.TopologyEntityDTO.ConsumerPolicy consumerPolicy =
+            TopologyDTO.TopologyEntityDTO.ConsumerPolicy.newBuilder()
+                .setShopsTogether(isShopTogether)
+                .build();
         return TopologyDTO.TopologyEntityDTO.newBuilder()
             .setEntityType(entityType)
             .setOid(oid)
             .setDisplayName(displayName)
             .setEntityState(entityState)
-            .setProviderPolicy(policy)
+            .setProviderPolicy(providerPolicy)
+            .setConsumerPolicy(consumerPolicy)
             .putAllEntityPropertyMap(entityPropertyMap)
             .addAllCommoditySoldList(soldList)
-            .putAllCommodityBoughtMap(map);
+            .addAllCommoditiesBoughtFromProviders(commodityBoughtGroups);
     }
 
     private static TopologyDTO.EntityState entityState(CommonDTO.EntityDTO.PowerState powerState) {

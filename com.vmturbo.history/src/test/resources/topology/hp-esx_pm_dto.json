@@ -282,8 +282,8 @@
       "active": true
     }
   ],
-  "commodityBoughtMap": {
-    "71799586834736": {
+  "commoditiesBoughtFromProviders": [
+    { "providerId" : 71799586834736,
       "commodityBought": [
         {
           "commodityType": {
@@ -305,7 +305,7 @@
         }
       ]
     },
-    "71799586834208": {
+    { "providerId" : 71799586834208,
       "commodityBought": [
         {
           "commodityType": {
@@ -345,7 +345,7 @@
         }
       ]
     },
-    "71799586835088": {
+    { "providerId" : 71799586835088,
       "commodityBought": [
         {
           "commodityType": {
@@ -367,7 +367,7 @@
         }
       ]
     },
-    "71799586834816": {
+    { "providerId" : 71799586834816,
       "commodityBought": [
         {
           "commodityType": {
@@ -389,7 +389,7 @@
         }
       ]
     },
-    "71799586835008": {
+    { "providerId" : 71799586835008,
       "commodityBought": [
         {
           "commodityType": {
@@ -411,7 +411,7 @@
         }
       ]
     },
-    "71799586834880": {
+    { "providerId" : 71799586834880,
       "commodityBought": [
         {
           "commodityType": {
@@ -433,7 +433,7 @@
         }
       ]
     }
-  },
+  ],
   "entityState": "POWERED_ON",
   "entityPropertyMap": {
     "common_dto.EntityDTO.PhysicalMachineData.numCpuSockets": "1",

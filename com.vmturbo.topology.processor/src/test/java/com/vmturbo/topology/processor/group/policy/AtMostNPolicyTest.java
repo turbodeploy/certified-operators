@@ -143,10 +143,8 @@ public class AtMostNPolicyTest {
     }
 
     /**
-     * This test should eventually assert that a new bundle of commodities bought is created for VM4
-     * (since it is not currently buying from storage) and the existing bundle of commodities bought
-     * is reused on VM5 (since it is already buying from storage). For now, we expect an exception
-     * because buying a commodity from no provider is currently unsupported (see OM-21673).
+     * This test should eventually assert that a PolicyApplication Exception will be thrown for VM4
+     * (since it is not currently buying from storage).
      */
     @Test
     public void testApplyVmToStorageAffinity() throws GroupResolutionException, PolicyApplicationException {
@@ -169,8 +167,6 @@ public class AtMostNPolicyTest {
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
             .thenReturn(Collections.singleton(3L));
 
-        // TODO: This should not generate an exception when OM-21673 is implemented. Instead we should assert
-        // the segmentation commodity was created with no provider.
         expectedException.expect(PolicyApplicationException.class);
         new AtMostNPolicy(policy, consumerGroup, providerGroup)
                 .apply(groupResolver, topologyGraph);

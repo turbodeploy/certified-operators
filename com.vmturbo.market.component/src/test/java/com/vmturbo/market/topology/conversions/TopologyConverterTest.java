@@ -19,7 +19,6 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.assertj.core.util.Maps;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -35,8 +34,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommodityBoughtList;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommodityBoughtList.Builder;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.analysis.InvalidTopologyException;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -267,11 +265,10 @@ public class TopologyConverterTest {
                             .setCommodityType(commodityType)
                             .build())
                         // commodities bought so it is not bottom of the supply chain
-                        .putCommodityBoughtMap(10L, CommodityBoughtList.newBuilder()
+                        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                            .setProviderId(10L)
                             .addCommodityBought(CommodityBoughtDTO.newBuilder()
-                                .setCommodityType(commodityType)
-                                .build())
-                            .build())
+                                .setCommodityType(commodityType)))
                         .build();
         TraderTO planVm = convert(Sets.newHashSet(vm), TopologyType.PLAN).iterator().next();
         TraderTO realtimeVm = convert(Sets.newHashSet(vm), TopologyType.REALTIME).iterator().next();
@@ -376,22 +373,17 @@ public class TopologyConverterTest {
                                         .setType(CommodityDTO.CommodityType.CPU_VALUE)
                                         .build())
                         .build();
-        TopologyEntityDTO.CommodityBoughtList topologyDSPMBought =
-                    TopologyEntityDTO.CommodityBoughtList.newBuilder()
-                        .addCommodityBought(CommodityBoughtDTO.newBuilder()
-                                .setCommodityType(CommodityType.newBuilder()
-                                        .setType(CommodityDTO.CommodityType.DSPM_ACCESS_VALUE)
-                                        .build())
-                                .build())
-                        .build();
-        final TopologyEntityDTO.CommodityBoughtList topologyCPUBought =
-                    TopologyEntityDTO.CommodityBoughtList.newBuilder()
-                        .addCommodityBought(CommodityBoughtDTO.newBuilder()
-                                .setCommodityType(CommodityType.newBuilder()
-                                        .setType(CommodityDTO.CommodityType.CPU_VALUE)
-                                        .build())
-                                .build())
-                        .build();
+        final List<CommodityBoughtDTO> topologyDSPMBought =
+                    Lists.newArrayList(CommodityBoughtDTO.newBuilder()
+                        .setCommodityType(CommodityType.newBuilder()
+                        .setType(CommodityDTO.CommodityType.DSPM_ACCESS_VALUE))
+                    .build());
+
+        final List<CommodityBoughtDTO> topologyCPUBought =
+                    Lists.newArrayList(CommodityBoughtDTO.newBuilder()
+                        .setCommodityType(CommodityType.newBuilder()
+                            .setType(CommodityDTO.CommodityType.CPU_VALUE))
+                        .build());
 
         NumericIDAllocator idAllocator = new NumericIDAllocator();
         final int base = idAllocator.allocate("BICLIQUE");
@@ -427,7 +419,9 @@ public class TopologyConverterTest {
                         .setEntityType(10)
                         .setOid(10000L)
                         .addCommoditySoldList(topologyDSPMSold)
-                        .putCommodityBoughtMap(10000L, topologyCPUBought)
+                        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                            .setProviderId(10000L)
+                            .addAllCommodityBought(topologyCPUBought))
                         .putEntityPropertyMap("dummy", "dummy")
                         .build();
         // create a topology entity DTO with DSPM bought
@@ -435,7 +429,9 @@ public class TopologyConverterTest {
                         .setOid(20000L)
                         .setEntityType(20)
                         .addCommoditySoldList(topologyCPUSold)
-                        .putCommodityBoughtMap(111, topologyDSPMBought)
+                        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                            .setProviderId(111)
+                            .addAllCommodityBought(topologyDSPMBought))
                         .putEntityPropertyMap("dummy", "dummy")
                         .build();
         // create trader DTO corresponds to originalEntity

@@ -16,8 +16,9 @@
       "isThin": true
     }
   ],
-  "commodityBoughtMap" : {
-    "100" : {
+  "commoditiesBoughtFromProviders" : [
+    { "providerId" : 100,
+      "providerEntityType" : 14,
       "commodityBought": [
         {
           "commodityType": {
@@ -29,7 +30,7 @@
         }
       ]
     }
-  },
+  ],
   "entityState": "POWERED_ON",
   "entityPropertyMap" : {
     "common_dto.EntityDTO.VirtualDatacenterData.vdc_type_props" : "role: PRODUCER\nnestedConsumer: true\n",

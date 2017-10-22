@@ -1,12 +1,12 @@
 package com.vmturbo.repository.topology;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
+import java.util.Optional;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -14,8 +14,9 @@ import org.junit.Test;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommodityBoughtList;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.repository.constant.RepoObjectType;
+import com.vmturbo.repository.dto.CommoditiesBoughtRepoFromProviderDTO;
 import com.vmturbo.repository.dto.CommodityBoughtRepoDTO;
 import com.vmturbo.repository.dto.CommoditySoldRepoDTO;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
@@ -133,22 +134,31 @@ public class TopologyConverterTest {
 
     private static void verifyCommodityBought(
             final TopologyEntityDTO seTopoDTO, final ServiceEntityRepoDTO seRepoDTO) {
-        Map<String, List<CommodityBoughtRepoDTO>> repoCommoditiesBoughtMap = seRepoDTO.getCommodityBoughtMap();
-        Map<Long, CommodityBoughtList> topoCommoditiesBoughtMap = seTopoDTO.getCommodityBoughtMap();
+        List<CommoditiesBoughtRepoFromProviderDTO> commoditiesBoughtRepoFromProviderDTOList =
+                seRepoDTO.getCommoditiesBoughtRepoFromProviderDTOList();
+        List<CommoditiesBoughtFromProvider> topoCommoditiesBoughtList =
+                seTopoDTO.getCommoditiesBoughtFromProvidersList();
 
-        assertEquals(topoCommoditiesBoughtMap.size(), repoCommoditiesBoughtMap.size());
+        assertEquals(topoCommoditiesBoughtList.size(), commoditiesBoughtRepoFromProviderDTOList.size());
 
-        for (Entry<String, List<CommodityBoughtRepoDTO>> entry : repoCommoditiesBoughtMap.entrySet()) {
-            final String provider = entry.getKey();
-            final List<CommodityBoughtRepoDTO> repoCommoditiesBought = entry.getValue();
-            List<CommodityBoughtDTO> topoCommoditiesBought =
-                    topoCommoditiesBoughtMap.get(Long.parseLong(provider)).getCommodityBoughtList();
+        for (CommoditiesBoughtRepoFromProviderDTO boughtRepoGrouping : commoditiesBoughtRepoFromProviderDTOList) {
+            final Long provider = boughtRepoGrouping.getProviderId();
+            final List<CommodityBoughtRepoDTO> repoCommoditiesBought =
+                    boughtRepoGrouping.getCommodityBoughtRepoDTOs();
+            Optional<CommoditiesBoughtFromProvider> commodityBoughtList =
+                    topoCommoditiesBoughtList.stream().
+                    filter(commoditiesBoughtFromProvider ->
+                            commoditiesBoughtFromProvider.getProviderId() == provider)
+                    .findFirst();
+            CommoditiesBoughtFromProvider grouping = commodityBoughtList.orElse(null);
+            assertNotNull("commodity bought grouping is null", grouping);
+            List<CommodityBoughtDTO> topoCommoditiesBought = grouping.getCommodityBoughtList();
 
             assertEquals(topoCommoditiesBought.size(), repoCommoditiesBought.size());
 
             for (int i = 0; i < topoCommoditiesBought.size(); i++) {
                 verifyCommodityBought(seRepoDTO.getOid(),
-                                      provider,
+                                      String.valueOf(provider),
                                       topoCommoditiesBought.get(i),
                                       repoCommoditiesBought.get(i));
             }

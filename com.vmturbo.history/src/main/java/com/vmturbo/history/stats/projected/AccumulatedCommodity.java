@@ -5,6 +5,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -91,7 +92,7 @@ abstract class AccumulatedCommodity {
     static class AccumulatedBoughtCommodity extends AccumulatedCommodity {
 
         /**
-         * The providers that sold this commodity.
+         * The providers that sold this commodity, and the value could be null.
          */
         private Set<Long> providers = new HashSet<>();
 
@@ -102,14 +103,15 @@ abstract class AccumulatedCommodity {
         /**
          * Record a commodity bought by some entity in the topology. The ID of the buyer
          * doesn't matter, and it's up to the caller to ensure there are no repeats in the
-         * input.
+         * input. And provider id could be null when commodity bought without any provider id such as
+         * unplaced entities.
          *
          * @param commodityBoughtDTO The DTO describing the bought commodity.
          * @param providerId The ID of the provider selling this commodity.
          * @param capacity The provider's capacity of this commodity.
          */
         void recordBoughtCommodity(@Nonnull final CommodityBoughtDTO commodityBoughtDTO,
-                                   final long providerId,
+                                   @Nullable final Long providerId,
                                    final double capacity) {
             recordUsed(commodityBoughtDTO.getUsed());
             recordPeak(commodityBoughtDTO.getPeak());
@@ -123,8 +125,8 @@ abstract class AccumulatedCommodity {
 
             builder.setRelation(RelationType.COMMODITIESBOUGHT.getLiteral());
 
-            // For now, only set the provider UUID if there is exactly one provider.
-            if (providers.size() == 1) {
+            // For now, only set the provider UUID if there is exactly one provider and it is not null.
+            if (providers.size() == 1 && providers.iterator().next() != null) {
                 builder.setProviderUuid(Long.toString(providers.iterator().next()));
             }
 

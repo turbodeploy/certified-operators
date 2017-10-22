@@ -41,6 +41,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.Units;
 import com.vmturbo.commons.analysis.AnalysisUtil;
@@ -139,7 +140,7 @@ public class TopologyConverter {
     // these entities (acting as sellers) when includeGuaranteedBuyer is false.
     private @Nonnull List<Long> guaranteedList = new ArrayList<Long>();
 
- // a map to keep the oid to traderTO mapping, it also includes newly cloned traderTO
+    // a map to keep the oid to traderTO mapping, it also includes newly cloned traderTO
     private Map<Long, EconomyDTOs.TraderTO> oidToTraderTOMap = Maps.newHashMap();
 
     // Biclique stuff
@@ -151,11 +152,6 @@ public class TopologyConverter {
     // Note: the commodity key is composed of entity type and entity ID (which is different from
     // OID)
     private BiMap<String, Long> accessesByKey = HashBiMap.create();
-    // When shopTogether is enabled, we don't create biclique commodities. Instead we add the
-    // biclique IDs to the allCliques property of each trader that is a member of bicliques.
-    // In both cases (shop-together and non-shop-together) we eliminate the DSPMAccess commodities
-    // and datastore commodities (both bought and sold).
-    private boolean shopTogether = false;
 
     private Set<EconomyDTOs.CommoditySoldTO> EMPTY_SET = Sets.newHashSet();
     private Set<Long> EMPTY_LONG_SET = Sets.newHashSet();
@@ -169,7 +165,6 @@ public class TopologyConverter {
     public static TopologyConverter shopTogetherConverter(TopologyType topologyType) {
         TopologyConverter converter = new TopologyConverter(
             INCLUDE_GUARANTEED_BUYER_DEFAULT, topologyType);
-        converter.shopTogether = true;
         return converter;
     }
 
@@ -194,7 +189,11 @@ public class TopologyConverter {
                 entityOidToDto.put(entity.getOid(), entity);
                 if (isPlan && CONTAINER_TYPES.contains(entityType)) {
                     // VMs and ContainerPods
-                    providersOfContainers.addAll(entity.getCommodityBoughtMapMap().keySet());
+                    providersOfContainers.addAll(entity.getCommoditiesBoughtFromProvidersList()
+                        .stream()
+                        .filter(CommoditiesBoughtFromProvider::hasProviderId)
+                        .map(CommoditiesBoughtFromProvider::getProviderId)
+                        .collect(Collectors.toSet()));
                 }
             }
         }
@@ -210,7 +209,6 @@ public class TopologyConverter {
     private Set<EconomyDTOs.TraderTO> convertToMarket() throws InvalidTopologyException {
         logger.info("Converting topologyEntityDTOs to traderTOs");
         logger.debug("Start creating bicliques");
-
         BiMap<Long, String> oidToUuidMap = HashBiMap.create();
         for (TopologyDTO.TopologyEntityDTO dto : entityOidToDto.values()) {
             dto.getCommoditySoldListList().stream()
@@ -315,8 +313,8 @@ public class TopologyConverter {
      */
     private TopologyDTO.TopologyEntityDTO traderTOtoTopologyDTO(EconomyDTOs.TraderTO traderTO,
                     @Nonnull final Map<Long, TopologyDTO.TopologyEntityDTO> traderOidToEntityDTO) {
-        Map<Long, TopologyDTO.TopologyEntityDTO.CommodityBoughtList> topoDTOCommBoughtMap =
-                        Maps.newHashMap();
+        List<TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider> topoDTOCommonBoughtGrouping =
+            new ArrayList<>();
         long pmOid = 0L;
         List<Long> storageOidList = new ArrayList<>();
         // for a VM, find its associated PM to ST list map
@@ -350,8 +348,14 @@ public class TopologyConverter {
                     commBoughtTOtoCommBoughtDTO(commBought).ifPresent(commList::add);
                 }
             }
-            topoDTOCommBoughtMap.put(sl.getSupplier(), TopologyDTO.TopologyEntityDTO
-                .CommodityBoughtList.newBuilder().addAllCommodityBought(commList).build());
+            final CommoditiesBoughtFromProvider.Builder commoditiesBoughtFromProviderBuilder =
+                TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider.newBuilder()
+                    .addAllCommodityBought(commList);
+            // if Market still can not find a placement, we should not set provider Id.
+            if (sl.hasSupplier()) {
+                commoditiesBoughtFromProviderBuilder.setProviderId(sl.getSupplier());
+            }
+            topoDTOCommonBoughtGrouping.add(commoditiesBoughtFromProviderBuilder.build());
         }
 
         TopologyDTO.EntityState entityState = TopologyDTO.EntityState.POWERED_ON;
@@ -372,10 +376,15 @@ public class TopologyConverter {
                             : TopologyDTO.EntityState.SUSPENDED;
         }
 
-        TopologyDTO.TopologyEntityDTO.ProviderPolicy policy =
-                TopologyDTO.TopologyEntityDTO.ProviderPolicy.newBuilder()
-                    .setIsAvailableAsProvider(traderTO.getSettings().getCanAcceptNewCustomers())
-                    .build();
+        TopologyDTO.TopologyEntityDTO.ProviderPolicy providerPolicy =
+            TopologyDTO.TopologyEntityDTO.ProviderPolicy.newBuilder()
+                .setIsAvailableAsProvider(traderTO.getSettings().getCanAcceptNewCustomers())
+                .build();
+        TopologyDTO.TopologyEntityDTO.ConsumerPolicy consumerPolicy =
+            TopologyDTO.TopologyEntityDTO.ConsumerPolicy.newBuilder()
+                .setShopsTogether(traderTO.getSettings().getIsShopTogether())
+                .build();
+
         TopologyDTO.TopologyEntityDTO.Builder entityDTO =
                 TopologyDTO.TopologyEntityDTO.newBuilder()
                     .setEntityType(traderTO.getType())
@@ -383,8 +392,9 @@ public class TopologyConverter {
                     .setEntityState(entityState)
                     .setDisplayName(displayName)
                     .addAllCommoditySoldList(retrieveCommSoldList(traderTO))
-                    .putAllCommodityBoughtMap(topoDTOCommBoughtMap)
-                    .setProviderPolicy(policy);
+                    .addAllCommoditiesBoughtFromProviders(topoDTOCommonBoughtGrouping)
+                    .setProviderPolicy(providerPolicy)
+                    .setConsumerPolicy(consumerPolicy);
         if (originalTrader == null) {
             // this is a clone trader
             originalTrader = traderOidToEntityDTO.get(traderTO.getCloneOf());
@@ -479,9 +489,10 @@ public class TopologyConverter {
     private EconomyDTOs.TraderTO topologyDTOtoTraderTO(
             @Nonnull final TopologyDTO.TopologyEntityDTO topologyDTO)
                             throws InvalidTopologyException {
+        final boolean shopTogether = topologyDTO.getConsumerPolicy().getShopsTogether();
         final EconomyDTOs.TraderStateTO state = traderState(topologyDTO);
         final boolean active = EconomyDTOs.TraderStateTO.ACTIVE.equals(state);
-        final boolean bottomOfSupplyChain = topologyDTO.getCommodityBoughtMapMap().isEmpty();
+        final boolean bottomOfSupplyChain = topologyDTO.getCommoditiesBoughtFromProvidersList().isEmpty();
         final boolean topOfSupplyChain = topologyDTO.getCommoditySoldListList().isEmpty();
         final int entityType = topologyDTO.getEntityType();
         boolean clonable = EntitySettings.BooleanKey.ENABLE_PROVISION.value(topologyDTO);
@@ -543,7 +554,12 @@ public class TopologyConverter {
     private boolean guaranteedBuyer(TopologyDTO.TopologyEntityDTO topologyDTO) {
         int entityType = topologyDTO.getEntityType();
         return (entityType == EntityType.VIRTUAL_DATACENTER_VALUE)
-                        && topologyDTO.getCommodityBoughtMapMap().keySet().stream()
+                        && topologyDTO.getCommoditiesBoughtFromProvidersList()
+                            .stream()
+                            .filter(CommoditiesBoughtFromProvider::hasProviderId)
+                            .map(CommoditiesBoughtFromProvider::getProviderId)
+                            .collect(Collectors.toSet())
+                        .stream()
                         .map(entityOidToDto::get)
                         .map(TopologyDTO.TopologyEntityDTO::getEntityType)
                         .anyMatch(type -> AnalysisUtil.GUARANTEED_SELLER_TYPES.contains(type))
@@ -578,14 +594,15 @@ public class TopologyConverter {
     @Nonnull
     private List<EconomyDTOs.ShoppingListTO> createAllShoppingLists(
             @Nonnull final TopologyDTO.TopologyEntityDTO topologyEntity) {
-        return topologyEntity.getCommodityBoughtMapMap().entrySet().stream()
+        return topologyEntity.getCommoditiesBoughtFromProvidersList().stream()
             // skip converting shoppinglist that buys from VDC
-            .filter(commBoughtMap -> !guaranteedList.contains(commBoughtMap.getKey()))
-            .map(commBoughtMap -> createShoppingList(
+            .filter(commBoughtGrouping -> !guaranteedList.contains(commBoughtGrouping.getProviderId()))
+            .map(commBoughtGrouping -> createShoppingList(
                     topologyEntity.getOid(),
                     topologyEntity.getEntityType(),
-                    commBoughtMap.getKey(),
-                    commBoughtMap.getValue()))
+                    topologyEntity.getConsumerPolicy().getShopsTogether(),
+                    getProviderId(commBoughtGrouping),
+                    commBoughtGrouping.getCommodityBoughtList()))
             .collect(Collectors.toList());
     }
 
@@ -601,32 +618,34 @@ public class TopologyConverter {
     private EconomyDTOs.ShoppingListTO createShoppingList(
             final long buyerOid,
             final long entityType,
-            final long providerOid,
-            @Nonnull final TopologyDTO.TopologyEntityDTO.CommodityBoughtList commoditiesBought) {
-        TopologyDTO.TopologyEntityDTO provider = entityOidToDto.get(providerOid);
+            final boolean shopTogether,
+            @Nullable final Long providerOid,
+            @Nonnull final List<TopologyDTO.CommodityBoughtDTO> commoditiesBought) {
+        TopologyDTO.TopologyEntityDTO provider = (providerOid != null) ? entityOidToDto.get(providerOid) : null;
         float moveCost = !isPlan && (entityType == EntityType.VIRTUAL_MACHINE_VALUE
                 && provider != null // this check is for testing purposes
                 && provider.getEntityType() == EntityType.STORAGE_VALUE)
                         ? (float)(totalStorageAmountBought(buyerOid) / Units.KIBI)
                         : 0.0f;
-        Set<EconomyDTOs.CommodityBoughtTO> values = commoditiesBought.getCommodityBoughtList()
+        Set<EconomyDTOs.CommodityBoughtTO> values = commoditiesBought
             .stream()
             .filter(topoCommBought -> topoCommBought.getActive())
-            .map(topoCommBought -> convertCommodityBought(topoCommBought, providerOid))
+            .map(topoCommBought -> convertCommodityBought(topoCommBought, providerOid, shopTogether))
             .filter(comm -> comm != null) // Null for DSPMAccess/Datastore and shop-together
             .collect(Collectors.toSet());
         final long id = shoppingListId++;
-        final EconomyDTOs.ShoppingListTO economyShoppingList = EconomyDTOs.ShoppingListTO
+        final EconomyDTOs.ShoppingListTO.Builder economyShoppingListBuilder = EconomyDTOs.ShoppingListTO
                 .newBuilder()
                 .addAllCommoditiesBought(values)
-                .setSupplier(providerOid)
                 .setOid(id)
                 .setStorageMoveCost(moveCost)
-                .setMovable(AnalysisUtil.MOVABLE_TYPES.contains((int)entityType))
-                .build();
+                .setMovable(AnalysisUtil.MOVABLE_TYPES.contains((int)entityType));
+        if (providerOid != null) {
+            economyShoppingListBuilder.setSupplier(providerOid);
+        }
         shoppingListOidToInfos.put(id,
             new ShoppingListInfo(id, buyerOid, providerOid, commoditiesBought));
-        return economyShoppingList;
+        return economyShoppingListBuilder.build();
     }
 
     /**
@@ -637,10 +656,9 @@ public class TopologyConverter {
      * @return total used storage amount bought
      */
     private double totalStorageAmountBought(long buyerOid) {
-        return entityOidToDto.get(buyerOid).getCommodityBoughtMapMap().entrySet().stream()
+        return entityOidToDto.get(buyerOid).getCommoditiesBoughtFromProvidersList().stream()
             .filter(this::isStorage)
-            .map(Map.Entry::getValue)
-            .map(TopologyDTO.TopologyEntityDTO.CommodityBoughtList::getCommodityBoughtList)
+            .map(CommoditiesBoughtFromProvider::getCommodityBoughtList)
             .flatMap(List::stream)
             .filter(this::isStorageAmount)
             .mapToDouble(TopologyDTO.CommodityBoughtDTO::getUsed)
@@ -648,14 +666,25 @@ public class TopologyConverter {
     }
 
     /**
-     * Checks whether the entry's key is the OID of a Storage.
+     * Checks whether the provider id of commodity bought group is the OID of a Storage.
      *
-     * @param entry a Map entry where the key is an oid
-     * @return whether the entry's key is the oid of a Storage
+     * @param grouping a group of Commodity bought
+     * @return whether the provider id is the oid of a Storage
      */
-    private boolean isStorage(Map.Entry<Long, ?> entry) {
-        TopologyDTO.TopologyEntityDTO entity = entityOidToDto.get(entry.getKey());
+
+    private boolean isStorage(CommoditiesBoughtFromProvider grouping) {
+        if (!grouping.hasProviderId()) {
+            return false;
+        }
+        TopologyDTO.TopologyEntityDTO entity = entityOidToDto.get(grouping.getProviderId());
         return entity != null && entity.getEntityType() == EntityType.STORAGE_VALUE;
+    }
+
+    @Nullable
+    private Long getProviderId(CommoditiesBoughtFromProvider commodityBoughtGrouping) {
+        return commodityBoughtGrouping.hasProviderId() ?
+            commodityBoughtGrouping.getProviderId() :
+            null;
     }
 
     /**
@@ -668,19 +697,17 @@ public class TopologyConverter {
         return comm.getCommodityType().getType() == CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE;
     }
 
-    @Nullable
     private EconomyDTOs.CommodityBoughtTO convertCommodityBought(
-            @Nonnull final TopologyDTO.CommodityBoughtDTO topologyCommBought, long providerOid) {
+            @Nonnull final TopologyDTO.CommodityBoughtDTO topologyCommBought,
+            @Nullable final Long providerOid,
+            final boolean shopTogether) {
         CommodityType type = topologyCommBought.getCommodityType();
         return isBicliqueCommodity(type)
             ? shopTogether
                 // skip DSPMAcess and Datastore commodities in the case of shop-together
                 ? null
                 // convert them to biclique commodities if not shop-together
-                : bcCommodityBought(bicliquer.getBcKey(
-                    String.valueOf(providerOid),
-                    String.valueOf(accessesByKey.get(type.getKey()))
-                    ))
+                : generateBcCommodityBoughtTO(providerOid, type)
             // all other commodities - convert to DTO regardless of shop-together
             : EconomyDTOs.CommodityBoughtTO.newBuilder()
                 .setQuantity((float)topologyCommBought.getUsed())
@@ -689,8 +716,40 @@ public class TopologyConverter {
                 .build();
     }
 
+    /**
+     * Generate Biclique commodity bought based on providerOid parameter. And if can not generate
+     * Biclique commodity, it will return null. And all those null will be filtered out at createShoppingList
+     * function.
+     *
+     * @param providerOid Oid of provider, it could be null.
+     * @param type Commodity Bought type.
+     * @return Biclique Commodity bought.
+     */
+    @Nullable
+    private EconomyDTOs.CommodityBoughtTO generateBcCommodityBoughtTO(@Nullable final Long providerOid,
+                                                                      final CommodityType type) {
+        if(providerOid == null) {
+            // TODO: After we remove provider ids of commodity bought for clone entities of Plan,
+            // then we need to refactor TopologyConverter class to allow this case.
+            logger.error("Biclique commodity bought type {} doesn't have provider id");
+            return null;
+        }
+        final Optional<String> bcKey = getBcKeyWithProvider(providerOid, type);
+        if (!bcKey.isPresent()) {
+            return null;
+        }
+        return bcCommodityBought(bcKey.get());
+    }
+
     @Nonnull
-    private EconomyDTOs.CommodityBoughtTO bcCommodityBought(String bcKey) {
+    private Optional<String> getBcKeyWithProvider(Long providerOid, CommodityType type) {
+        return Optional.ofNullable(bicliquer.getBcKey(
+                String.valueOf(providerOid),
+                String.valueOf(accessesByKey.get(type.getKey()))));
+    }
+
+    @Nonnull
+    private EconomyDTOs.CommodityBoughtTO bcCommodityBought(@Nonnull String bcKey) {
         return bcCommodityBoughtMap.computeIfAbsent(bcKey,
             key -> EconomyDTOs.CommodityBoughtTO.newBuilder()
                 .setSpecification(bcSpec(key))
@@ -703,6 +762,7 @@ public class TopologyConverter {
                             throws InvalidTopologyException {
         // DSPMAccess and Datastore commodities are always dropped (shop-together or not)
         List<String> exceptions = Lists.newArrayList();
+        final boolean shopTogether = topologyDTO.getConsumerPolicy().getShopsTogether();
         List<EconomyDTOs.CommoditySoldTO> list = topologyDTO.getCommoditySoldListList().stream()
             .filter(commSold -> commSold.getActive())
             .filter(commSold -> !isBicliqueCommodity(commSold.getCommodityType()))
@@ -1261,9 +1321,8 @@ public class TopologyConverter {
         // however, because the definition of ShoppingListInfo requires providerOid and
         // commodityBoughtList, we have to give some dummy values
         list.forEach(l -> shoppingListOidToInfos.put(l.getNewShoppingList(),
-                    new ShoppingListInfo(l.getNewShoppingList(), l.getBuyer(), -1,
-                        TopologyDTO.TopologyEntityDTO.CommodityBoughtList.newBuilder()
-                            .build())));
+                    new ShoppingListInfo(l.getNewShoppingList(), l.getBuyer(), null,
+                        Lists.newArrayList())));
         return;
     }
 }

@@ -1,6 +1,10 @@
 package com.vmturbo.market.runner;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
 
 import java.time.LocalDateTime;
 import java.util.Set;
@@ -14,7 +18,7 @@ import com.google.common.collect.Sets;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommodityBoughtList;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.market.runner.Analysis.AnalysisState;
@@ -92,12 +96,11 @@ public class AnalysisTest {
         return TopologyEntityDTO.newBuilder()
             .setEntityType(1000)
             .setOid(7)
-            .putCommodityBoughtMap(10, CommodityBoughtList.newBuilder()
-                    .addCommodityBought(CommodityBoughtDTO.newBuilder()
-                            .setCommodityType(CommodityType.newBuilder().setType(1).build())
-                            .setUsed(-1)
-                            .build()) // commodity bought
-                    .build()) // commodity bought list
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderId(10)
+                .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                    .setCommodityType(CommodityType.newBuilder().setType(1).build())
+                    .setUsed(-1)))
             .build(); // buyer
     }
 
