@@ -63,6 +63,7 @@ public class MarketPerformanceTest {
     private MarketComponent marketComponent;
     private IMessageReceiver<ActionPlan> actionsReceiver;
     private IMessageReceiver<ProjectedTopology> projectedTopologyReceiver;
+    private KafkaMessageConsumer kafkaMessageConsumer;
 
     private ExecutorService threadPool = Executors.newCachedThreadPool();
 
@@ -70,7 +71,7 @@ public class MarketPerformanceTest {
     public void setup() {
         final ComponentApiConnectionConfig connectionConfig =
                 componentTestRule.getCluster().getConnectionConfig("market");
-        KafkaMessageConsumer kafkaMessageConsumer = new KafkaMessageConsumer(DockerEnvironment.getDockerHostName() + ":" +
+        kafkaMessageConsumer = new KafkaMessageConsumer(DockerEnvironment.getDockerHostName() + ":" +
                 Integer.toString(DockerEnvironment.KAFKA_EXTERNAL_PORT),"market-perf-test");
         actionsReceiver = kafkaMessageConsumer.messageReceiver(MarketComponentClient.ACTION_PLANS_TOPIC,ActionPlan::parseFrom);
         projectedTopologyReceiver = kafkaMessageConsumer.messageReceiver(MarketComponentClient.PROJECTED_TOPOLOGIES_TOPIC,ProjectedTopology::parseFrom);
@@ -80,6 +81,7 @@ public class MarketPerformanceTest {
 
     @After
     public void teardown() {
+        kafkaMessageConsumer.close();
         try {
             threadPool.shutdownNow();
             threadPool.awaitTermination(10, TimeUnit.MINUTES);
