@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <project xmlns="http://maven.apache.org/POM/4.0.0"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <parent>
         <groupId>com.vmturbo</groupId>
         <artifactId>protoc-grpc-moles-test</artifactId>
@@ -10,8 +10,7 @@
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
-    <artifactId>testNameCollision</artifactId>
-    <description>This is a pure protobuf test - just want to make sure that the plugin handles this kind of proto.</description>
+    <artifactId>testMoleImport</artifactId>
 
     <properties>
       <checkstyle.path>${project.basedir}/../../../build/checkstyle.xml</checkstyle.path>

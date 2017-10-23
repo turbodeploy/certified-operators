@@ -5,22 +5,20 @@
     <parent>
         <artifactId>protoc-grpc-moles</artifactId>
         <groupId>com.vmturbo</groupId>
-        <version>7.0.b7-SNAPSHOT</version>
+        <version>7.0.b8-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
     <artifactId>protoc-grpc-moles-plugin</artifactId>
 
     <properties>
-        <google.java.format.version>1.1</google.java.format.version>
         <checkstyle.path>${project.basedir}/../../build/checkstyle.xml</checkstyle.path>
     </properties>
 
     <dependencies>
         <dependency>
-            <groupId>com.google.googlejavaformat</groupId>
-            <artifactId>google-java-format</artifactId>
-            <version>${google.java.format.version}</version>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>protoc-plugin-common</artifactId>
         </dependency>
         <dependency>
             <groupId>org.antlr</groupId>

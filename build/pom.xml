@@ -118,7 +118,16 @@
         <profile>
             <id>protoc-spring-rest</id>
             <modules>
+                <module>../protoc-plugin-common</module>
                 <module>../protoc-spring-rest</module>
+            </modules>
+        </profile>
+
+        <profile>
+            <id>protoc-grpc-moles</id>
+            <modules>
+                <module>../protoc-plugin-common</module>
+                <module>../protoc-grpc-moles</module>
             </modules>
         </profile>
 
@@ -381,7 +390,9 @@
                 <module>../syslog</module>
                 <module>../db</module>
                 <module>../com.vmturbo.arangodb</module>
+                <module>../protoc-plugin-common</module>
                 <module>../protoc-spring-rest</module>
+                <module>../protoc-grpc-moles</module>
                 <module>../diags</module>
                 <module>../kafka</module>
                 <module>../zookeeper</module>
@@ -849,7 +860,17 @@
             <!-- Protobuf spring REST generator -->
             <dependency>
                 <groupId>com.vmturbo</groupId>
+                <artifactId>protoc-plugin-common</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
                 <artifactId>protoc-spring-rest-plugin</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>protoc-grpc-moles-plugin</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <!-- Dependencies from XL -->

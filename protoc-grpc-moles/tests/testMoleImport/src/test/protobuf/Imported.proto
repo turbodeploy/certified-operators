@@ -1,0 +1,6 @@
+syntax = "proto2";
+package com.vmturbo.protoc.grpc.moles.testImport;
+
+message ImportedMsg {
+    optional int64 id = 1;
+}

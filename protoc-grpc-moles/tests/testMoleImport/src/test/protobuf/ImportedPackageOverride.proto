@@ -1,0 +1,9 @@
+syntax = "proto2";
+package com.vmturbo.protoc.grpc.moles.testImport;
+
+option java_package = "com.vmturbo.protoc.testOverride";
+option java_outer_classname = "NiceOuterClass";
+
+message ImportPkgOverrideMsg {
+    optional int64 id = 1;
+}

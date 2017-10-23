@@ -30,12 +30,24 @@
                             <version>${project.version}</version>
                             <mainClass>com.vmturbo.protoc.spring.rest.Main</mainClass>
                         </protocPlugin>
+                        <protocPlugin>
+                            <id>grpc-moles</id>
+                            <groupId>com.vmturbo</groupId>
+                            <artifactId>protoc-grpc-moles-plugin</artifactId>
+                            <version>${project.version}</version>
+                            <mainClass>com.vmturbo.protoc.grpc.moles.Main</mainClass>
+                        </protocPlugin>
                     </protocPlugins>
                 </configuration>
                 <dependencies>
                     <dependency>
                         <groupId>com.vmturbo</groupId>
                         <artifactId>protoc-spring-rest-plugin</artifactId>
+                        <version>${project.version}</version>
+                    </dependency>
+                    <dependency>
+                        <groupId>com.vmturbo</groupId>
+                        <artifactId>protoc-grpc-moles-plugin</artifactId>
                         <version>${project.version}</version>
                     </dependency>
                 </dependencies>

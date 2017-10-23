@@ -1,0 +1,12 @@
+syntax = "proto2";
+package com.vmturbo.protoc.grpc.moles.testImport;
+
+import "Imported.proto";
+import "ImportedPackageOverride.proto";
+
+// Test the case where a service uses an imported message as input/output.
+service ImportTestService {
+    rpc Test(ImportedMsg) returns (ImportedMsg);
+
+    rpc TestPkgOverrige(ImportPkgOverrideMsg) returns (ImportPkgOverrideMsg);
+}

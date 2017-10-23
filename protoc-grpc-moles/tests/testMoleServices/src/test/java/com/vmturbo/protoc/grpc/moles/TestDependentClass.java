@@ -27,7 +27,7 @@ import io.grpc.inprocess.InProcessServerBuilder;
 
 import com.vmturbo.protoc.grpc.moles.testMoleServices.MoleServicesTest.TestRequest;
 import com.vmturbo.protoc.grpc.moles.testMoleServices.MoleServicesTest.TestResponse;
-import com.vmturbo.protoc.grpc.moles.testMoleServices.TestMoleServicesTestServices.TheServiceMole;
+import com.vmturbo.protoc.grpc.moles.testMoleServices.MoleServicesTestMoles.TheServiceMole;
 import com.vmturbo.protoc.grpc.moles.testMoleServices.TheServiceGrpc;
 import com.vmturbo.protoc.grpc.moles.testMoleServices.TheServiceGrpc.TheServiceBlockingStub;
 

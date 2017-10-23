@@ -28,7 +28,7 @@ import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.protoc.grpc.moles.testMoleServices.MoleServicesTest.TestRequest;
 import com.vmturbo.protoc.grpc.moles.testMoleServices.MoleServicesTest.TestResponse;
-import com.vmturbo.protoc.grpc.moles.testMoleServices.TestMoleServicesTestServices.TheServiceMole;
+import com.vmturbo.protoc.grpc.moles.testMoleServices.MoleServicesTestMoles.TheServiceMole;
 
 
 public class TestMoleServices {
