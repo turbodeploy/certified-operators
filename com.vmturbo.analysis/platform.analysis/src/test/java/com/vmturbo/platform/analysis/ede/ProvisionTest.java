@@ -5,7 +5,6 @@ import static org.junit.Assert.assertTrue;
 import java.util.Arrays;
 import java.util.List;
 
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -434,7 +433,7 @@ public class ProvisionTest {
         Trader st2 = TestUtils.createStorage(economy, Arrays.asList(0l), 300, true);
         st2.getSettings().setMaxDesiredUtil(0.9);
         st2.changeState(TraderState.INACTIVE);
-        st2.setDebugInfoNeverUseInCode("ST2");
+        st2.setDebugInfoNeverUseInCode("DS2");
         // Place vm1 on pm1 and st1.
         Trader vm1 = TestUtils.createVM(economy);
         TestUtils.createAndPlaceShoppingList(economy,
@@ -484,7 +483,7 @@ public class ProvisionTest {
         Trader st2 = TestUtils.createStorage(economy, Arrays.asList(0l), 300, true);
         st2.getSettings().setMaxDesiredUtil(0.9);
         st2.changeState(TraderState.INACTIVE);
-        st2.setDebugInfoNeverUseInCode("ST2");
+        st2.setDebugInfoNeverUseInCode("DS2");
         // Place vm1 on pm1 and st1.
         Trader vm1 = TestUtils.createVM(economy);
         TestUtils.createAndPlaceShoppingList(economy,
@@ -515,9 +514,7 @@ public class ProvisionTest {
      * CPU, memory and storage utilization higher than max desired utilization.
      * There is 1 inactive PM with not enough CPU and memory.
      * Expected result: 2 PROVISION_BY_SUPPLY actions (for PM and DS).
-     * TEST FAILS, THERE IS A BUG
      */
-    @Ignore
     @Test
     public void testProvisionDecisions_HighUtilCPUMemoryStorageAmount_PMInactiveNotEnoughCPUMemory() {
         Economy economy = new Economy();
@@ -562,9 +559,7 @@ public class ProvisionTest {
      * CPU, memory and storage utilization higher than max desired utilization.
      * There is 1 inactive DS with not enough storage.
      * Expected result: 2 PROVISION_BY_SUPPLY actions (for PM and DS).
-     * TEST FAILS, THERE IS A BUG
      */
-    @Ignore
     @Test
     public void testProvisionDecisions_HighUtilCPUMemoryStorageAmount_DSInactiveNotEnoughStorage() {
         Economy economy = new Economy();
@@ -578,7 +573,7 @@ public class ProvisionTest {
         Trader st2 = TestUtils.createStorage(economy, Arrays.asList(0l), 100, true);
         st2.getSettings().setMaxDesiredUtil(0.9);
         st2.changeState(TraderState.INACTIVE);
-        st2.setDebugInfoNeverUseInCode("ST2");
+        st2.setDebugInfoNeverUseInCode("DS2");
         // Place vm1 on pm1 and st1.
         Trader vm1 = TestUtils.createVM(economy);
         TestUtils.createAndPlaceShoppingList(economy,
@@ -609,9 +604,7 @@ public class ProvisionTest {
      * CPU, memory and storage utilization higher than max desired utilization.
      * There is 1 inactive PM with not enough CPU and memory and 1 inactive DS with not enough storage.
      * Expected result: 2 ACTIVATE actions (for PM and DS).
-     * TEST FAILS, THERE IS A BUG
      */
-    @Ignore
     @Test
     public void testProvisionDecisions_HighUtilCPUMemoryStorageAmount_PMAndDSInactiveNotEnoughCPUMemoryStorage() {
         Economy economy = new Economy();
@@ -629,7 +622,7 @@ public class ProvisionTest {
         Trader st2 = TestUtils.createStorage(economy, Arrays.asList(0l), 100, true);
         st2.getSettings().setMaxDesiredUtil(0.9);
         st2.changeState(TraderState.INACTIVE);
-        st2.setDebugInfoNeverUseInCode("ST2");
+        st2.setDebugInfoNeverUseInCode("DS2");
         // Place vm1 on pm1 and st1.
         Trader vm1 = TestUtils.createVM(economy);
         TestUtils.createAndPlaceShoppingList(economy,
@@ -660,9 +653,7 @@ public class ProvisionTest {
      * CPU, memory and storage utilization higher than max desired utilization.
      * There is 1 inactive PM with not enough CPU and memory and 1 inactive DS.
      * Expected result: 1 PROVISION_BU_SUPPLY action (for PM) and 1 ACTIVATE action (for DS).
-     * TEST FAILS, THERE IS A BUG
      */
-    @Ignore
     @Test
     public void testProvisionDecisions_HighUtilCPUMemoryStorageAmount_PMAndDSInactiveNotEnoughCPUMemory() {
         Economy economy = new Economy();
@@ -680,7 +671,7 @@ public class ProvisionTest {
         Trader st2 = TestUtils.createStorage(economy, Arrays.asList(0l), 300, true);
         st2.getSettings().setMaxDesiredUtil(0.9);
         st2.changeState(TraderState.INACTIVE);
-        st2.setDebugInfoNeverUseInCode("ST2");
+        st2.setDebugInfoNeverUseInCode("DS2");
         // Place vm1 on pm1 and st1.
         Trader vm1 = TestUtils.createVM(economy);
         TestUtils.createAndPlaceShoppingList(economy,
@@ -712,9 +703,7 @@ public class ProvisionTest {
      * CPU, memory and storage utilization higher than max desired utilization.
      * There is 1 inactive PM and 1 inactive DS with not enough storage.
      * Expected result: 1 PROVISION_BY_SUPPLY action (for DS) and 1 ACTIVATE action (for PM).
-     * TEST FAILS, THERE IS A BUG
      */
-    @Ignore
     @Test
     public void testProvisionDecisions_HighUtilCPUMemoryStorageAmount_PMAndDSInactiveNotEnoughStorage() {
         Economy economy = new Economy();
@@ -732,7 +721,7 @@ public class ProvisionTest {
         Trader st2 = TestUtils.createStorage(economy, Arrays.asList(0l), 100, true);
         st2.getSettings().setMaxDesiredUtil(0.9);
         st2.changeState(TraderState.INACTIVE);
-        st2.setDebugInfoNeverUseInCode("ST2");
+        st2.setDebugInfoNeverUseInCode("DS2");
         // Place vm1 on pm1 and st1.
         Trader vm1 = TestUtils.createVM(economy);
         TestUtils.createAndPlaceShoppingList(economy,
@@ -746,6 +735,60 @@ public class ProvisionTest {
                         Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm2, new double[]{46, 46}, pm1);
         TestUtils.createAndPlaceShoppingList(economy,
                         Arrays.asList(TestUtils.ST_AMT), vm2, new double[]{140}, st1);
+        vm2.setDebugInfoNeverUseInCode("VM2");
+        economy.populateMarketsWithSellers();
+
+        List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy),
+                                                                        new Ede());
+
+        assertAllCount(actions, 4);
+        assertProvisionBySupplyCount(actions, 1);
+        assertActivateCount(actions, 1);
+        assertMoveCount(actions, 2);
+    }
+
+    /**
+     * Setup economy with 2 PMs selling CPU and memory
+     * and 2 VMs buying from PMs.
+     * CPU, memory and storage utilization higher than max desired utilization.
+     * There are 2 inactive PMs from which 1 does not have enough CPU and memory
+     * Expected result: 1 PROVISION_BY_SUPPLY and 1 ACTIVATE action (for the 2 PMs).
+     */
+    @Test
+    public void testProvisionDecisions_TwoHighUtilCPUMemory_TwoPMInactive1NotEnoughCPUMemory() {
+        Economy economy = new Economy();
+        economy.getSettings().setEstimatesEnabled(false);
+        Trader pm1 = TestUtils.createPM(economy, Arrays.asList(0l), 100, 100, true);
+        pm1.getSettings().setMaxDesiredUtil(0.9);
+        pm1.setDebugInfoNeverUseInCode("PM1");
+        Trader pm2 = TestUtils.createPM(economy, Arrays.asList(0l), 100, 100, true);
+        pm2.getSettings().setMaxDesiredUtil(0.9);
+        pm2.setDebugInfoNeverUseInCode("PM2");
+        Trader pm3 = TestUtils.createPM(economy, Arrays.asList(0l), 30, 30, true);
+        pm3.getSettings().setMaxDesiredUtil(0.9);
+        pm3.changeState(TraderState.INACTIVE);
+        pm3.setDebugInfoNeverUseInCode("PM3");
+        Trader pm4 = TestUtils.createPM(economy, Arrays.asList(0l), 100, 100, true);
+        pm4.getSettings().setMaxDesiredUtil(0.9);
+        pm4.changeState(TraderState.INACTIVE);
+        pm4.setDebugInfoNeverUseInCode("PM4");
+        // Place vm1 and vm2 on pm1.
+        Trader vm1 = TestUtils.createVM(economy);
+        TestUtils.createAndPlaceShoppingList(economy,
+                        Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm1, new double[]{46, 46}, pm1);
+        vm1.setDebugInfoNeverUseInCode("VM1");
+        Trader vm2 = TestUtils.createVM(economy);
+        TestUtils.createAndPlaceShoppingList(economy,
+                        Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm2, new double[]{46, 46}, pm1);
+        vm2.setDebugInfoNeverUseInCode("VM2");
+        // Place vm3 and vm4 on pm2.
+        Trader vm3 = TestUtils.createVM(economy);
+        TestUtils.createAndPlaceShoppingList(economy,
+                        Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm3, new double[]{46, 46}, pm2);
+        vm3.setDebugInfoNeverUseInCode("VM1");
+        Trader vm4 = TestUtils.createVM(economy);
+        TestUtils.createAndPlaceShoppingList(economy,
+                        Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm4, new double[]{46, 46}, pm2);
         vm2.setDebugInfoNeverUseInCode("VM2");
         economy.populateMarketsWithSellers();
 

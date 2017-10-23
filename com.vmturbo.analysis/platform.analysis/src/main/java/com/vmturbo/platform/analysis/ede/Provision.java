@@ -112,41 +112,56 @@ public class Provision {
                 if (mostProfitableTrader == null) {
                     break;
                 }
-                Action provisionAction;
+                Action provisionAction = null;
                 double origRoI = ledger.getTraderIncomeStatements().get(
                                 mostProfitableTrader.getEconomyIndex()).getROI();
                 double oldRevenue = ledger.getTraderIncomeStatements().get(
                                 mostProfitableTrader.getEconomyIndex()).getRevenues();
 
-                Trader provisionedTrader;
+                Trader provisionedTrader = null;
+                boolean successfulEvaluation = false;
                 if (!market.getInactiveSellers().isEmpty()) {
                     // TODO: pick a trader that is closest to the mostProfitableTrader to activate
                     // reactivate a suspended seller
-                    provisionAction = new Activate(economy, market.getInactiveSellers().
-                                    get(0), market, mostProfitableTrader);
-                    actions.add(provisionAction.take());
-                    provisionedTrader = ((Activate)provisionAction).getTarget();
-                } else {
+                    List<Trader> copiedInactiveSellers = new ArrayList<>(market.getInactiveSellers());
+                    for (Trader seller : copiedInactiveSellers) {
+                        provisionAction = new Activate(economy, seller, market, mostProfitableTrader);
+                        actions.add(provisionAction.take());
+                        provisionedTrader = ((Activate)provisionAction).getTarget();
+
+                        actions.addAll(placementAfterProvisionAction(economy, market, mostProfitableTrader));
+
+                        if (!evaluateAcceptanceCriteria(economy, ledger, origRoI, mostProfitableTrader,
+                                        provisionedTrader, pb.getMostProfitableCommRev())) {
+                            logger.warn("rollback provisioning of a new trader if the RoI of the "
+                            + "modelSeller does not go down");
+                            // remove IncomeStatement from ledger and rollback actions
+                            rollBackActionAndUpdateLedger(ledger, provisionedTrader, actions, provisionAction);
+                            actions.clear();
+                            continue;
+                        }
+                        successfulEvaluation = true;
+                        break;
+                    }
+                }
+                if (!successfulEvaluation) {
                     // provision a new trader
                     provisionAction = new ProvisionBySupply(economy,
                                     mostProfitableTrader);
                     actions.add(provisionAction.take());
                     provisionedTrader = ((ProvisionBySupply)provisionAction).getProvisionedSeller();
                     ledger.addTraderIncomeStatement(provisionedTrader);
-                }
 
-                // run placement after adding a new seller to the economy
-                actions.addAll(Placement.prefPlacementDecisions(economy,
-                                new ArrayList<ShoppingList>(mostProfitableTrader.getCustomers())));
-                actions.addAll(Placement.prefPlacementDecisions(economy, market.getBuyers()));
+                    actions.addAll(placementAfterProvisionAction(economy, market, mostProfitableTrader));
 
-                if (!evaluateAcceptanceCriteria(economy, ledger, origRoI, mostProfitableTrader,
-                                                provisionedTrader, pb.getMostProfitableCommRev())) {
-                    logger.warn("rollback provisioning of a new trader if the RoI of the "
-                                    + "modelSeller does not go down");
-                    // remove IncomeStatement from ledger and rollback actions
-                    rollBackActionAndUpdateLedger(ledger, provisionedTrader, actions, provisionAction);
-                    break;
+                    if (!evaluateAcceptanceCriteria(economy, ledger, origRoI, mostProfitableTrader,
+                                    provisionedTrader, pb.getMostProfitableCommRev())) {
+                        logger.warn("rollback provisioning of a new trader if the RoI of the "
+                                        + "modelSeller does not go down");
+                        // remove IncomeStatement from ledger and rollback actions
+                        rollBackActionAndUpdateLedger(ledger, provisionedTrader, actions, provisionAction);
+                        break;
+                    }
                 }
                 ((ActionImpl)provisionAction).setImportance(oldRevenue - ledger
                                 .getTraderIncomeStatements().get(mostProfitableTrader
@@ -159,6 +174,26 @@ public class Provision {
         // market to populate.
         GuaranteedBuyerHelper.processGuaranteedbuyerInfo(economy);
         return allActions;
+    }
+
+    /**
+     * Return a list of move actions to optimize the placement of the traders in a
+     * market, after a provision or activation of a seller.
+     *
+     * @param economy - the economy where the market exist
+     * @param market - the market whose traders we move
+     * @param mostProfitableTrader - the most profitable trader of the market
+     *
+     * @return list of move actions
+     */
+    public static @NonNull List<@NonNull Action> placementAfterProvisionAction(@NonNull Economy economy
+                    , @NonNull Market market
+                    , @NonNull Trader mostProfitableTrader) {
+        List<@NonNull Action> actions = new ArrayList<>();
+        actions.addAll(Placement.prefPlacementDecisions(economy,
+                        new ArrayList<ShoppingList>(mostProfitableTrader.getCustomers())));
+        actions.addAll(Placement.prefPlacementDecisions(economy, market.getBuyers()));
+        return actions;
     }
 
     /**
