@@ -25,6 +25,8 @@ import javax.annotation.concurrent.ThreadSafe;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import io.grpc.StatusRuntimeException;
+
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionEvent.NotRecommendedEvent;
 import com.vmturbo.action.orchestrator.action.ActionView;
@@ -407,15 +409,20 @@ public class LiveActionStore implements ActionStore {
     private Map<Long, List<Setting>> retrieveEntityToSettingListMap(final Set<Long> entities,
                                                                     final long topologyContextId,
                                                                     final long topologyId) {
-        GetEntitySettingsRequest request = GetEntitySettingsRequest.newBuilder()
-                .addAllEntities(entities)
-                .setTopologyContextId(topologyContextId)
-                .setTopologyId(topologyId)
-                .build();
-        GetEntitySettingsResponse response = settingPolicyServiceStub.getEntitySettings(request);
-        return Collections.unmodifiableMap(
-                response.getEntitySettingsList().stream()
-                        .collect(Collectors.toMap(EntitySettings::getEntityOid,
-                                EntitySettings::getSettingsList)));
+        try {
+            GetEntitySettingsRequest request = GetEntitySettingsRequest.newBuilder()
+                    .addAllEntities(entities)
+                    .setTopologyContextId(topologyContextId)
+                    .setTopologyId(topologyId)
+                    .build();
+            GetEntitySettingsResponse response = settingPolicyServiceStub.getEntitySettings(request);
+            return Collections.unmodifiableMap(
+                    response.getEntitySettingsList().stream()
+                            .collect(Collectors.toMap(EntitySettings::getEntityOid,
+                                    EntitySettings::getSettingsList)));
+        } catch (StatusRuntimeException e) {
+            logger.error("Failed to retrieve entity settings due to error: " + e.getMessage());
+            return Collections.emptyMap();
+        }
     }
 }

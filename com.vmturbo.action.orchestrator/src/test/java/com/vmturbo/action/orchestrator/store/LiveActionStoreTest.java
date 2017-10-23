@@ -6,14 +6,18 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyCollection;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -25,7 +29,9 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.mockito.Mockito;
 
-import io.grpc.stub.StreamObserver;
+import com.google.common.collect.ImmutableMap;
+
+import io.grpc.Status;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
@@ -35,16 +41,13 @@ import com.vmturbo.common.protobuf.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
-
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
-import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceImplBase;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
-
+import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 
@@ -104,12 +107,14 @@ public class LiveActionStoreTest {
 
     private final ActionSupportResolver filter = Mockito.mock(ActionSupportResolver.class);
 
-    private final TestSettingRpcService settingRpcService = Mockito.spy(new TestSettingRpcService());
+    private final SettingPolicyServiceMole settingRpcService =
+            Mockito.spy(new SettingPolicyServiceMole());
 
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(settingRpcService);
 
     private SettingPolicyServiceBlockingStub stub;
+    private SpyActionFactory spyActionFactory = spy(new SpyActionFactory());
     private ActionStore actionStore;
 
     @SuppressWarnings("unchecked")
@@ -117,7 +122,7 @@ public class LiveActionStoreTest {
     public void setup() throws TargetResolutionException, UnsupportedActionException {
 
         stub = SettingPolicyServiceGrpc.newBlockingStub(grpcServer.getChannel());
-        actionStore = new LiveActionStore(new SpyActionFactory(), TOPOLOGY_CONTEXT_ID, stub, filter);
+        actionStore = new LiveActionStore(spyActionFactory, TOPOLOGY_CONTEXT_ID, stub, filter);
 
         when(filter.resolveActionsSupporting(anyCollection())).thenAnswer(invocationOnMock
                 -> invocationOnMock.getArguments()[0]);
@@ -371,21 +376,45 @@ public class LiveActionStoreTest {
         assertEquals(TOPOLOGY_CONTEXT_ID, actionStore.getTopologyContextId());
     }
 
-    private class TestSettingRpcService extends SettingPolicyServiceImplBase {
-        @Override
-        public void getEntitySettings(GetEntitySettingsRequest request,
-                                      StreamObserver<GetEntitySettingsResponse> responseObserver) {
-            responseObserver.onNext(GetEntitySettingsResponse.newBuilder()
-                    .addEntitySettings(EntitySettings.newBuilder()
-                            .setEntityOid(1L).addSettings(Setting.newBuilder()
-                                    .setBooleanSettingValue(BooleanSettingValue.newBuilder()
-                                            .setValue(true).build())
-                                    .setSettingSpecName("abc")
-                                    .build())
-                            .build())
-                    .build()
-            );
-            responseObserver.onCompleted();
-        }
+    @Test
+    public void testGetEntitySettings() {
+        final Setting setting = Setting.newBuilder()
+                .setSettingSpecName("name")
+                .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance())
+                .build();
+        when(settingRpcService.getEntitySettings(any()))
+                .thenReturn(GetEntitySettingsResponse.newBuilder()
+                        .addEntitySettings(EntitySettings.newBuilder()
+                                .setEntityOid(vm1)
+                                .addSettings(setting))
+                        .build());
+
+        ActionPlan plan = ActionPlan.newBuilder()
+                .setTopologyId(topologyId)
+                .setId(firstPlanId)
+                .addAction(move(vm1, hostA, hostB))
+                .build();
+
+        actionStore.populateRecommendedActions(plan);
+        verify(spyActionFactory).newAction(any(),
+                eq(ImmutableMap.of(vm1, Collections.singletonList(setting))),
+                eq(firstPlanId));
+        assertEquals(1, actionStore.size());
+    }
+
+    @Test
+    public void testGetEntitySettingsError() {
+        when(settingRpcService.getEntitySettingsError(any()))
+                .thenReturn(Optional.of(Status.INTERNAL.asException()));
+
+        ActionPlan plan = ActionPlan.newBuilder()
+                .setTopologyId(topologyId)
+                .setId(firstPlanId)
+                .addAction(move(vm1, hostA, hostB))
+                .addAction(move(vm2, hostB, hostC))
+                .build();
+
+        actionStore.populateRecommendedActions(plan);
+        assertEquals(2, actionStore.size());
     }
 }
