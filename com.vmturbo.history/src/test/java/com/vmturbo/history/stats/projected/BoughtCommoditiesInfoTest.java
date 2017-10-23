@@ -66,6 +66,59 @@ public class BoughtCommoditiesInfoTest {
         assertFalse(info.getAccumulatedRecord(COMMODITY, Collections.singleton(1384L)).isPresent());
     }
 
+    /**
+     * Test registering two commodities with the same type but different keys. Both are saved.
+     */
+    @Test
+    public void testBoughtCommodityDifferentKeys() {
+        final TopologyEntityDTO vm = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
+                .setOid(1)
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                    .setProviderId(7)
+                    .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                        .setCommodityType(COMMODITY_TYPE)
+                        .setUsed(1)
+                        .setPeak(2))
+                    .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                        .setCommodityType(COMMODITY_TYPE_WITH_KEY)
+                        .setUsed(3)
+                        .setPeak(4)))
+                .build();
+
+        final SoldCommoditiesInfo soldCommoditiesInfo = Mockito.mock(SoldCommoditiesInfo.class);
+        final double providerCapacity = 5.0;
+        Mockito.when(soldCommoditiesInfo.getCapacity( Mockito.eq(COMMODITY), Mockito.eq(7L)))
+                .thenReturn(Optional.of(providerCapacity));
+        final BoughtCommoditiesInfo info = BoughtCommoditiesInfo.newBuilder()
+                .addEntity(vm)
+                .build(soldCommoditiesInfo);
+
+        final StatRecord expectedStatRecord = StatRecord.newBuilder()
+                .setName(COMMODITY)
+                // For now, capacity is the total capacity.
+                .setCapacity(2 * (float)providerCapacity)
+                .setUnits(COMMODITY_UNITS)
+                .setRelation(RelationType.COMMODITIESBOUGHT.getLiteral())
+                // Current value is the avg of used - 1 & 3
+                .setCurrentValue(2)
+                .setProviderUuid(Long.toString(7))
+                // Used and values are the same thing
+                .setUsed(StatValue.newBuilder().setAvg(2).setMax(3).setMin(1).setTotal(4).build())
+                .setValues(StatValue.newBuilder().setAvg(2).setMax(3).setMin(1).setTotal(4).build())
+                .setPeak(StatValue.newBuilder().setAvg(3).setMax(4).setMin(2).setTotal(6).build())
+                .build();
+
+        final StatRecord record =
+                info.getAccumulatedRecord(COMMODITY, Collections.singleton(vm.getOid()))
+                        .orElseThrow(() -> new RuntimeException("expected record"));
+        assertEquals(expectedStatRecord, record);
+
+    }
+    /**
+     * Test registering exactly the same commodity - {type, key} - twice. The first is taken;
+     * the second is ignored.
+     */
     @Test
     public void testBoughtCommodityDuplicate() {
         final TopologyEntityDTO vm = TopologyEntityDTO.newBuilder()
@@ -94,20 +147,21 @@ public class BoughtCommoditiesInfoTest {
         final StatRecord expectedStatRecord = StatRecord.newBuilder()
                 .setName(COMMODITY)
                 // For now, capacity is the total capacity.
-                .setCapacity(2 * (float)providerCapacity)
+                .setCapacity((float)providerCapacity)
                 .setUnits(COMMODITY_UNITS)
                 .setRelation(RelationType.COMMODITIESBOUGHT.getLiteral())
                 // Current value is the avg of used.
-                .setCurrentValue(2)
+                .setCurrentValue(1)
                 .setProviderUuid(Long.toString(7))
                 // Used and values are the same thing
-                .setUsed(StatValue.newBuilder().setAvg(2).setMax(3).setMin(1).setTotal(4).build())
-                .setValues(StatValue.newBuilder().setAvg(2).setMax(3).setMin(1).setTotal(4).build())
-                .setPeak(StatValue.newBuilder().setAvg(3).setMax(4).setMin(2).setTotal(6).build())
+                .setUsed(StatValue.newBuilder().setAvg(1).setMax(1).setMin(1).setTotal(1).build())
+                .setValues(StatValue.newBuilder().setAvg(1).setMax(1).setMin(1).setTotal(1).build())
+                .setPeak(StatValue.newBuilder().setAvg(2).setMax(2).setMin(2).setTotal(2).build())
                 .build();
 
         final StatRecord record =
-                info.getAccumulatedRecord(COMMODITY, Collections.singleton(vm.getOid())).get();
+                info.getAccumulatedRecord(COMMODITY, Collections.singleton(vm.getOid()))
+                        .orElseThrow(() -> new RuntimeException("expected record"));
         assertEquals(expectedStatRecord, record);
 
     }
@@ -142,7 +196,8 @@ public class BoughtCommoditiesInfoTest {
                 .build();
 
         final StatRecord record =
-                info.getAccumulatedRecord(COMMODITY, Collections.emptySet()).get();
+                info.getAccumulatedRecord(COMMODITY, Collections.emptySet())
+                        .orElseThrow(() -> new RuntimeException("Expected record"));
         assertEquals(expectedStatRecord, record);
     }
 
@@ -160,7 +215,8 @@ public class BoughtCommoditiesInfoTest {
                         .build(soldCommoditiesInfo);
 
         final StatRecord record =
-                info.getAccumulatedRecord(COMMODITY, Collections.singleton(VM_1.getOid())).get();
+                info.getAccumulatedRecord(COMMODITY, Collections.singleton(VM_1.getOid()))
+                        .orElseThrow(() -> new RuntimeException("Expected record"));
 
         final StatRecord expectedStatRecord = StatRecord.newBuilder()
                 .setName(COMMODITY)
@@ -201,7 +257,8 @@ public class BoughtCommoditiesInfoTest {
                 .build(soldCommoditiesInfo);
 
         final StatRecord record =
-            info.getAccumulatedRecord(COMMODITY, Collections.singleton(VM_NO_PROVIDER.getOid())).get();
+            info.getAccumulatedRecord(COMMODITY, Collections.singleton(VM_NO_PROVIDER.getOid()))
+                    .orElseThrow(() -> new RuntimeException("Expected record"));
 
         final StatRecord expectedStatRecord = StatRecord.newBuilder()
             .setName(COMMODITY)
@@ -256,7 +313,9 @@ public class BoughtCommoditiesInfoTest {
             .build();
 
         final StatRecord record =
-            info.getAccumulatedRecord(COMMODITY, Collections.emptySet()).get();
+            info.getAccumulatedRecord(COMMODITY, Collections.emptySet())
+                    .orElseThrow(() -> new RuntimeException("Expected record"));
+
         assertEquals(expectedStatRecord, record);
     }
 
