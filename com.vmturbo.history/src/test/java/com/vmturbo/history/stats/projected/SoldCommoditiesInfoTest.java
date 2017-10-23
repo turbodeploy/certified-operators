@@ -2,6 +2,7 @@ package com.vmturbo.history.stats.projected;
 
 import static com.vmturbo.history.stats.projected.ProjectedStatsTestConstants.COMMODITY;
 import static com.vmturbo.history.stats.projected.ProjectedStatsTestConstants.COMMODITY_TYPE;
+import static com.vmturbo.history.stats.projected.ProjectedStatsTestConstants.COMMODITY_TYPE_WITH_KEY;
 import static com.vmturbo.history.stats.projected.ProjectedStatsTestConstants.COMMODITY_UNITS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -47,7 +48,7 @@ public class SoldCommoditiesInfoTest {
                 .build();
 
         assertFalse(info.getCapacity(COMMODITY, 1L).isPresent());
-        assertFalse(info.getAccumulatedRecord(COMMODITY, Collections.emptySet()).isPresent());
+        assertFalse(info.getAccumulatedRecords(COMMODITY, Collections.emptySet()).isPresent());
     }
 
     @Test
@@ -57,7 +58,8 @@ public class SoldCommoditiesInfoTest {
                 .addEntity(PM_1)
                 .build();
 
-        assertEquals(Double.valueOf(4), info.getCapacity(COMMODITY, 1L).get());
+        assertEquals(Double.valueOf(4), info.getCapacity(COMMODITY, 1L)
+                .orElseThrow(() -> new RuntimeException("expected capacity")));
     }
 
     @Test
@@ -68,7 +70,8 @@ public class SoldCommoditiesInfoTest {
                 .addEntity(PM_2)
                 .build();
 
-        final StatRecord record = info.getAccumulatedRecord(COMMODITY, Collections.emptySet()).get();
+        final StatRecord record = info.getAccumulatedRecords(COMMODITY, Collections.emptySet())
+                .orElseThrow(() -> new RuntimeException("expected record"));
 
         final StatRecord expectedStatRecord = StatRecord.newBuilder()
                 .setName(COMMODITY)
@@ -97,7 +100,8 @@ public class SoldCommoditiesInfoTest {
                 .build();
 
         final StatRecord record =
-                info.getAccumulatedRecord(COMMODITY, Sets.newHashSet(1L, 2L)).get();
+                info.getAccumulatedRecords(COMMODITY, Sets.newHashSet(1L, 2L))
+                        .orElseThrow(() -> new RuntimeException("expected record"));
 
         final StatRecord expectedStatRecord = StatRecord.newBuilder()
                 .setName(COMMODITY)
@@ -112,24 +116,100 @@ public class SoldCommoditiesInfoTest {
                 .setValues(StatValue.newBuilder().setAvg(2).setMax(2).setMin(2).setTotal(4).build())
                 .setPeak(StatValue.newBuilder().setAvg(3).setMax(3).setMin(3).setTotal(6).build())
                 .build();
-
         assertEquals(expectedStatRecord, record);
     }
 
     @Test
-    public void testSoldCommoditiesDuplicate() {
+    public void testSoldCommoditiesDuplicateDifferentKey() {
+
+        // with a different key, both commodities are recorded
+        final StatRecord expectedStatRecord = StatRecord.newBuilder()
+                .setName(COMMODITY)
+                // capacity is sum of the two capacities (4+11) added in testSameCommodities() below
+                .setCapacity(11)
+                .setUnits(COMMODITY_UNITS)
+                .setRelation(RelationType.COMMODITIES.getLiteral())
+                // the average
+                .setCurrentValue(3.5F)
+                // Used and values are the same thing
+                .setUsed(StatValue.newBuilder().setAvg(3.5F).setMax(5).setMin(2).setTotal(7).build())
+                .setValues(StatValue.newBuilder().setAvg(3.5F).setMax(5).setMin(2).setTotal(7).build())
+                .setPeak(StatValue.newBuilder().setAvg(4.5F).setMax(6).setMin(3).setTotal(9).build())
+                .build();
+        testAddTwoCommodities(expectedStatRecord, COMMODITY_TYPE, COMMODITY_TYPE_WITH_KEY);
+    }
+
+    /**
+     * In this test we add two commodies with the same CommodityType with the default key,
+     * i.e. {type: "Mem", key: ""}.
+     */
+    @Test
+    public void testSoldCommoditiesDuplicateNoKey() {
+
+        // the values are from the first record persisted; the second record is ignored.
+        final StatRecord expectedStatRecord = StatRecord.newBuilder()
+                .setName(COMMODITY)
+                .setCapacity(4)
+                .setUnits(COMMODITY_UNITS)
+                .setRelation(RelationType.COMMODITIES.getLiteral())
+                .setCurrentValue(2)
+                // Used and values are the same thing
+                .setUsed(StatValue.newBuilder().setAvg(2).setMax(2).setMin(2).setTotal(2).build())
+                .setValues(StatValue.newBuilder().setAvg(2).setMax(2).setMin(2).setTotal(2).build())
+                .setPeak(StatValue.newBuilder().setAvg(3).setMax(3).setMin(3).setTotal(3).build())
+                .build();
+        testAddTwoCommodities(expectedStatRecord, COMMODITY_TYPE, COMMODITY_TYPE);
+    }
+
+    /**
+     * In this test we add two commodies with the same CommodityType with a specific key,
+     * i.e. {type: "Mem", key: "key"}.
+     */
+    @Test
+    public void testSoldCommoditiesDuplicateSameKey() {
+
+        // the values are from the first record persisted; the second record is ignored.
+        final StatRecord expectedStatRecord = StatRecord.newBuilder()
+                .setName(COMMODITY)
+                .setCapacity(4)
+                .setUnits(COMMODITY_UNITS)
+                .setRelation(RelationType.COMMODITIES.getLiteral())
+                .setCurrentValue(2)
+                // Used and values are the same thing
+                .setUsed(StatValue.newBuilder().setAvg(2).setMax(2).setMin(2).setTotal(2).build())
+                .setValues(StatValue.newBuilder().setAvg(2).setMax(2).setMin(2).setTotal(2).build())
+                .setPeak(StatValue.newBuilder().setAvg(3).setMax(3).setMin(3).setTotal(3).build())
+                .build();
+        testAddTwoCommodities(expectedStatRecord, COMMODITY_TYPE_WITH_KEY, COMMODITY_TYPE_WITH_KEY);
+    }
+
+    /**
+     * Utility to add two commodity sold records and compare the result to the expected.
+     * The values of the two records are defined here; the goal is to test behavior with
+     * different CommodityType inputs for each of the two records.
+     * <ul>
+     * <li>Commodity Sold 1:  used=2, peak=3, capacity=4
+     * <li>Commodity Sold 2:  used=5, peak=6, capacity=7
+     * </ul>
+     *
+     * @param expectedStatRecord the expected result after adding the two commodities
+     * @param commodityType1 the first CommodityType (type and key)
+     * @param commodityType2 the second CommodityType (type and key)
+     */
+    private void testAddTwoCommodities(StatRecord expectedStatRecord, CommodityType commodityType1,
+                                       CommodityType commodityType2) {
         final TopologyEntityDTO pm = TopologyEntityDTO.newBuilder()
                 .setEntityType(EntityType.PHYSICAL_MACHINE.getNumber())
                 .setOid(1)
                 .addCommoditySoldList(CommoditySoldDTO.newBuilder()
-                        .setCommodityType(COMMODITY_TYPE)
+                        .setCommodityType(commodityType1)
                         .setUsed(2)
                         .setPeak(3)
                         .setCapacity(4))
                 // The same commodity spec, different values. Expect match on the
                 // latest value.
                 .addCommoditySoldList(CommoditySoldDTO.newBuilder()
-                        .setCommodityType(COMMODITY_TYPE)
+                        .setCommodityType(commodityType2)
                         .setUsed(5)
                         .setPeak(6)
                         .setCapacity(7))
@@ -139,25 +219,10 @@ public class SoldCommoditiesInfoTest {
                 .addEntity(pm)
                 .build();
 
-        final StatRecord record =
-                info.getAccumulatedRecord(COMMODITY, Collections.emptySet()).get();
-
-        final StatRecord expectedStatRecord = StatRecord.newBuilder()
-                .setName(COMMODITY)
-                // For now, capacity is the total capacity.
-                .setCapacity(7)
-                .setUnits(COMMODITY_UNITS)
-                .setRelation(RelationType.COMMODITIES.getLiteral())
-                // Current value is the avg of used.
-                .setCurrentValue(5)
-                // Used and values are the same thing
-                .setUsed(StatValue.newBuilder().setAvg(5).setMax(5).setMin(5).setTotal(5).build())
-                .setValues(StatValue.newBuilder().setAvg(5).setMax(5).setMin(5).setTotal(5).build())
-                .setPeak(StatValue.newBuilder().setAvg(6).setMax(6).setMin(6).setTotal(6).build())
-                .build();
+        final StatRecord record = info.getAccumulatedRecords(COMMODITY, Collections.emptySet())
+                        .orElseThrow(() -> new RuntimeException("expected record"));
 
         assertEquals(expectedStatRecord, record);
-
     }
 
     @Test
@@ -167,7 +232,7 @@ public class SoldCommoditiesInfoTest {
                 .addEntity(PM_2)
                 .build();
 
-        assertFalse(info.getAccumulatedRecord(COMMODITY, Sets.newHashSet(999L)).isPresent());
+        assertFalse(info.getAccumulatedRecords(COMMODITY, Sets.newHashSet(999L)).isPresent());
     }
 
     @Test
@@ -177,7 +242,7 @@ public class SoldCommoditiesInfoTest {
                 .addEntity(PM_2)
                 .build();
 
-        assertFalse(info.getAccumulatedRecord("beer", Sets.newHashSet(1L)).isPresent());
+        assertFalse(info.getAccumulatedRecords("beer", Sets.newHashSet(1L)).isPresent());
     }
 
     @Test
@@ -194,6 +259,6 @@ public class SoldCommoditiesInfoTest {
                         .build())
                 .build();
 
-        assertFalse(info.getAccumulatedRecord("CPU", Sets.newHashSet(PM_1.getOid())).isPresent());
+        assertFalse(info.getAccumulatedRecords("CPU", Sets.newHashSet(PM_1.getOid())).isPresent());
     }
 }

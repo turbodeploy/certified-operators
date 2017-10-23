@@ -121,7 +121,7 @@ class TopologyCommoditiesSnapshot {
             // This is probably a "regular" commodity.
             final List<StatRecord> retList = new ArrayList<>();
 
-            soldCommoditiesInfo.getAccumulatedRecord(commodityName, targetEntities)
+            soldCommoditiesInfo.getAccumulatedRecords(commodityName, targetEntities)
                     .ifPresent(retList::add);
 
             boughtCommoditiesInfo.getAccumulatedRecord(commodityName, targetEntities)

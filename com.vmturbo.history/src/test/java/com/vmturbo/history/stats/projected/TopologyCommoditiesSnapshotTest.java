@@ -33,7 +33,7 @@ public class TopologyCommoditiesSnapshotTest {
     @Before
     public void setup() {
         soldCommoditiesInfo = Mockito.mock(SoldCommoditiesInfo.class);
-        Mockito.when(soldCommoditiesInfo.getAccumulatedRecord(Mockito.any(), Mockito.any()))
+        Mockito.when(soldCommoditiesInfo.getAccumulatedRecords(Mockito.any(), Mockito.any()))
                .thenReturn(Optional.empty());
         boughtCommoditiesInfo = Mockito.mock(BoughtCommoditiesInfo.class);
         Mockito.when(boughtCommoditiesInfo.getAccumulatedRecord(Mockito.any(), Mockito.any()))
@@ -121,7 +121,7 @@ public class TopologyCommoditiesSnapshotTest {
                         Collections.emptySet())
                         .collect(Collectors.toList());
 
-        Mockito.verify(soldCommoditiesInfo).getAccumulatedRecord(
+        Mockito.verify(soldCommoditiesInfo).getAccumulatedRecords(
                 Mockito.eq("Mem"), Mockito.eq(Collections.emptySet()));
         Mockito.verify(boughtCommoditiesInfo).getAccumulatedRecord(
                 Mockito.eq("Mem"), Mockito.eq(Collections.emptySet()));
@@ -135,7 +135,7 @@ public class TopologyCommoditiesSnapshotTest {
                 new TopologyCommoditiesSnapshot(soldCommoditiesInfo, boughtCommoditiesInfo,
                         entityCountInfo, 1);
 
-        Mockito.when(soldCommoditiesInfo.getAccumulatedRecord(
+        Mockito.when(soldCommoditiesInfo.getAccumulatedRecords(
                     Mockito.eq(COMMODITY), Mockito.eq(Collections.emptySet())))
                .thenReturn(Optional.of(DUMMY_1));
 
@@ -171,7 +171,7 @@ public class TopologyCommoditiesSnapshotTest {
                 new TopologyCommoditiesSnapshot(soldCommoditiesInfo, boughtCommoditiesInfo,
                         entityCountInfo, 1);
 
-        Mockito.when(soldCommoditiesInfo.getAccumulatedRecord(
+        Mockito.when(soldCommoditiesInfo.getAccumulatedRecords(
                 Mockito.eq(COMMODITY), Mockito.eq(Collections.emptySet())))
                 .thenReturn(Optional.of(DUMMY_1));
         Mockito.when(boughtCommoditiesInfo.getAccumulatedRecord(

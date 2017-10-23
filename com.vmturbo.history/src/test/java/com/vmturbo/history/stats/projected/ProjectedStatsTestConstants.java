@@ -1,13 +1,19 @@
 package com.vmturbo.history.stats.projected;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO;
 
 /**
  * Constants for this test package.
  */
 public class ProjectedStatsTestConstants {
     final static CommodityType COMMODITY_TYPE = CommodityType.newBuilder()
-            .setType(com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.MEM.getNumber())
+            .setType(CommonDTO.CommodityDTO.CommodityType.MEM_VALUE)
+            .build();
+
+    final static CommodityType COMMODITY_TYPE_WITH_KEY = CommodityType.newBuilder()
+            .setType(CommonDTO.CommodityDTO.CommodityType.MEM_VALUE)
+            .setKey("key")
             .build();
 
     final static String COMMODITY = "Mem";

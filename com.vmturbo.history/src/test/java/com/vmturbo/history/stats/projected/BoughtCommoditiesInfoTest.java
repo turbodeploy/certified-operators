@@ -2,6 +2,7 @@ package com.vmturbo.history.stats.projected;
 
 import static com.vmturbo.history.stats.projected.ProjectedStatsTestConstants.COMMODITY;
 import static com.vmturbo.history.stats.projected.ProjectedStatsTestConstants.COMMODITY_TYPE;
+import static com.vmturbo.history.stats.projected.ProjectedStatsTestConstants.COMMODITY_TYPE_WITH_KEY;
 import static com.vmturbo.history.stats.projected.ProjectedStatsTestConstants.COMMODITY_UNITS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -86,25 +87,23 @@ public class BoughtCommoditiesInfoTest {
         final double providerCapacity = 5.0;
         Mockito.when(soldCommoditiesInfo.getCapacity( Mockito.eq(COMMODITY), Mockito.eq(7L)))
                 .thenReturn(Optional.of(providerCapacity));
-
-        final BoughtCommoditiesInfo info =
-                BoughtCommoditiesInfo.newBuilder()
-                        .addEntity(vm)
-                        .build(soldCommoditiesInfo);
+        final BoughtCommoditiesInfo info = BoughtCommoditiesInfo.newBuilder()
+                .addEntity(vm)
+                .build(soldCommoditiesInfo);
 
         final StatRecord expectedStatRecord = StatRecord.newBuilder()
                 .setName(COMMODITY)
                 // For now, capacity is the total capacity.
-                .setCapacity((float)providerCapacity)
+                .setCapacity(2 * (float)providerCapacity)
                 .setUnits(COMMODITY_UNITS)
                 .setRelation(RelationType.COMMODITIESBOUGHT.getLiteral())
                 // Current value is the avg of used.
-                .setCurrentValue(3)
+                .setCurrentValue(2)
                 .setProviderUuid(Long.toString(7))
                 // Used and values are the same thing
-                .setUsed(StatValue.newBuilder().setAvg(3).setMax(3).setMin(3).setTotal(3).build())
-                .setValues(StatValue.newBuilder().setAvg(3).setMax(3).setMin(3).setTotal(3).build())
-                .setPeak(StatValue.newBuilder().setAvg(4).setMax(4).setMin(4).setTotal(4).build())
+                .setUsed(StatValue.newBuilder().setAvg(2).setMax(3).setMin(1).setTotal(4).build())
+                .setValues(StatValue.newBuilder().setAvg(2).setMax(3).setMin(1).setTotal(4).build())
+                .setPeak(StatValue.newBuilder().setAvg(3).setMax(4).setMin(2).setTotal(6).build())
                 .build();
 
         final StatRecord record =

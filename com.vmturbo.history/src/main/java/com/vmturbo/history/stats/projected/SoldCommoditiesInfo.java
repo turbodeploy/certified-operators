@@ -1,5 +1,6 @@
 package com.vmturbo.history.stats.projected;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -10,6 +11,9 @@ import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.Multimap;
 
 import jdk.nashorn.internal.ir.annotations.Immutable;
 
@@ -38,10 +42,10 @@ class SoldCommoditiesInfo {
      * account the commodity spec keys. But the stats API doesn't currently support commodity
      * spec keys anyway.
      */
-    private final Map<String, Map<Long, CommoditySoldDTO>> soldCommodities;
+    private final Map<String, Multimap<Long, CommoditySoldDTO>> soldCommodities;
 
     private SoldCommoditiesInfo(
-            @Nonnull final Map<String, Map<Long, CommoditySoldDTO>> soldCommodities) {
+            @Nonnull final Map<String, Multimap<Long, CommoditySoldDTO>> soldCommodities) {
         this.soldCommodities = Collections.unmodifiableMap(soldCommodities);
     }
 
@@ -62,24 +66,23 @@ class SoldCommoditiesInfo {
      *         if there is no information for the commodity over the target entities.
      */
     @Nonnull
-    Optional<StatRecord> getAccumulatedRecord(@Nonnull final String commodityName,
-                                              @Nonnull final Set<Long> targetEntities) {
-        final Map<Long, CommoditySoldDTO> soldByEntityId =
+    Optional<StatRecord> getAccumulatedRecords(@Nonnull final String commodityName,
+                                               @Nonnull final Set<Long> targetEntities) {
+        final Multimap<Long, CommoditySoldDTO> soldByEntityId =
                 soldCommodities.get(commodityName);
         final AccumulatedSoldCommodity overallCommoditySold =
                 new AccumulatedSoldCommodity(commodityName);
         if (soldByEntityId == null) {
             // If this commodity is not sold, we don't return anything.
         } else if (targetEntities.isEmpty()) {
-            soldByEntityId.forEach((entityId, commoditySold) -> {
-                overallCommoditySold.recordSoldCommodity(commoditySold);
-            });
+            soldByEntityId.asMap().forEach((entityId, commoditySoldList) ->
+                    commoditySoldList.forEach(overallCommoditySold::recordSoldCommodity));
         } else {
             // We have some number of entities, and we accumulate the stats from all the entities.
             targetEntities.forEach(entityId -> {
-                final CommoditySoldDTO commoditySoldDTO = soldByEntityId.get(entityId);
-                if (commoditySoldDTO != null) {
-                    overallCommoditySold.recordSoldCommodity(commoditySoldDTO);
+                final Collection<CommoditySoldDTO> commoditySoldDTOs = soldByEntityId.get(entityId);
+                if (commoditySoldDTOs != null) {
+                    commoditySoldDTOs.forEach(overallCommoditySold::recordSoldCommodity);
                 } else {
                     logger.warn("Requested commodity {} not sold by entity {}", commodityName, entityId);
                 }
@@ -88,12 +91,20 @@ class SoldCommoditiesInfo {
         return overallCommoditySold.toStatRecord();
     }
 
+    /**
+     * Compute the total capacity over all commodities sold by a given provider.
+     *
+     * @param commodityName name of the commodity to average over
+     * @param providerId the ID of the provider of these commodities
+     * @return the total capacity over all commodities sold by this provider
+     */
     @Nonnull
     public Optional<Double> getCapacity(@Nonnull final String commodityName,
                                         @Nonnull final Long providerId) {
         return Optional.ofNullable(soldCommodities.get(commodityName))
-                .map(providers -> providers.get(providerId))
-                .map(CommoditySoldDTO::getCapacity);
+                .map(providers -> providers.asMap().get(providerId))
+                .map(commoditiesSold -> commoditiesSold.stream()
+                        .mapToDouble(CommoditySoldDTO::getCapacity).sum());
     }
 
     /**
@@ -101,7 +112,7 @@ class SoldCommoditiesInfo {
      */
     static class Builder {
 
-        private final Map<String, Map<Long, CommoditySoldDTO>> soldCommodities =
+        private final Map<String, Multimap<Long, CommoditySoldDTO>> soldCommodities =
                 new HashMap<>();
 
         private Builder() {}
@@ -111,18 +122,9 @@ class SoldCommoditiesInfo {
             entity.getCommoditySoldListList().forEach(commoditySold -> {
                 final String commodity = HistoryStatsUtils.formatCommodityName(
                         commoditySold.getCommodityType().getType());
-                final Map<Long, CommoditySoldDTO> entitySellers =
-                        soldCommodities.computeIfAbsent(commodity, k -> new HashMap<>());
-                // An entity may sell each commodity more than once, if the
-                // commodity key is different. At the time of this writing the stats
-                // API doesn't specify commodity keys, so we ignore them.
-                final CommoditySoldDTO prev = entitySellers.put(entity.getOid(), commoditySold);
-                if (prev != null) {
-                    logger.warn("Entity {} selling commodity {} more than once. Previous: {}",
-                            entity.getOid(),
-                            commoditySold.getCommodityType(),
-                            prev.getCommodityType());
-                }
+                final Multimap<Long, CommoditySoldDTO> entitySellers =
+                        soldCommodities.computeIfAbsent(commodity, k -> ArrayListMultimap.create());
+                saveIfNoCollision(entity, commoditySold, entitySellers);
             });
             return this;
         }
@@ -131,6 +133,32 @@ class SoldCommoditiesInfo {
         SoldCommoditiesInfo build() {
             return new SoldCommoditiesInfo(soldCommodities);
         }
-    }
 
+        /**
+         * Check to see if the given commodity type (including key) for the given seller is already
+         * listed in the commoditiesSoldMap.
+         *
+         * @param sellerEntity the ServiceEntity of the seller
+         * @param commodityToAdd the new commodity to check for "already listed"
+         * @param commoditiesSoldMap the map from Seller OID to Collection of Commodities
+         *                           already Bought from that Seller
+         */
+        private void saveIfNoCollision(@Nonnull TopologyEntityDTO sellerEntity,
+                                       CommoditySoldDTO commodityToAdd,
+                                       Multimap<Long, CommoditySoldDTO> commoditiesSoldMap) {
+            // check if a previous commodity for this seller has same CommodiyType (type & key)
+            boolean prevCommodityRecorded = commoditiesSoldMap.get(sellerEntity.getOid()).stream()
+                    .anyMatch(prevCommodityDto -> (prevCommodityDto.getCommodityType().equals(
+                            commodityToAdd.getCommodityType())));
+            if (prevCommodityRecorded) {
+                // previous commodity with the same key; print a warning and don't save it
+                logger.warn("Entity {} selling commodity type { {} } more than once.",
+                        sellerEntity.getOid(),
+                        commodityToAdd.getCommodityType());
+            } else {
+                // no previous commodity with this same key; save the new one
+                commoditiesSoldMap.put(sellerEntity.getOid(), commodityToAdd);
+            }
+        }
+    }
 }
