@@ -37,7 +37,7 @@ public class DockerEnvironment {
      * Port used for access kafka broker instance from the outside. Used to connect from
      * notification senders stubs.
      */
-    public static int KAFKA_EXTERNAL_PORT = 9093;
+    private static int KAFKA_EXTERNAL_PORT = 9093;
 
     private static final String XMX_SUFFIX = "_XMX_MB";
 
@@ -266,7 +266,7 @@ public class DockerEnvironment {
      * @return
      */
     @Nonnull
-    public static String getDockerHostName() {
+    private static String getDockerHostName() {
         final String envVar = System.getenv("DOCKER_HOST");
         if (envVar == null) {
             return "localhost";
@@ -281,5 +281,10 @@ public class DockerEnvironment {
                         "Could not get host name from DOCKER_HOST variable " + envVar, e);
             }
         }
+    }
+
+    @Nonnull
+    public static String getKafkaBootstrapServers() {
+        return getDockerHostName() + ":" + Integer.toString(KAFKA_EXTERNAL_PORT);
     }
 }

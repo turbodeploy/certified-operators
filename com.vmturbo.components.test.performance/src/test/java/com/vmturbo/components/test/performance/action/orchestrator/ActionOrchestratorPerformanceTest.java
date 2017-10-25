@@ -23,8 +23,8 @@ import tec.units.ri.unit.MetricPrefix;
 
 import com.vmturbo.action.orchestrator.api.ActionOrchestrator;
 import com.vmturbo.action.orchestrator.api.ActionsListener;
-import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClient;
-import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorMessageReceiver;
+import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorNotificationReceiver;
+import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionOrchestratorNotification;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
@@ -34,13 +34,15 @@ import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.commons.idgen.IdentityGenerator;
-import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
+import com.vmturbo.components.api.client.IMessageReceiver;
+import com.vmturbo.components.api.client.KafkaMessageConsumer;
 import com.vmturbo.components.test.utilities.ComponentTestRule;
 import com.vmturbo.components.test.utilities.alert.Alert;
 import com.vmturbo.components.test.utilities.communication.ComponentStubHost;
 import com.vmturbo.components.test.utilities.communication.MarketStub;
 import com.vmturbo.components.test.utilities.component.ComponentCluster;
 import com.vmturbo.components.test.utilities.component.ComponentUtils;
+import com.vmturbo.components.test.utilities.component.DockerEnvironment;
 import com.vmturbo.components.test.utilities.utils.ActionPlanGenerator;
 
 @Alert({"ao_populate_store_duration_seconds_sum{store_type='Live'}/5minutes",
@@ -73,27 +75,26 @@ public class ActionOrchestratorPerformanceTest {
 
     private ActionOrchestrator actionOrchestrator;
     private ActionsServiceBlockingStub actionsService;
-    private ActionOrchestratorMessageReceiver messageReceiver;
+    private KafkaMessageConsumer messageConsumer;
+    private IMessageReceiver<ActionOrchestratorNotification> messageReceiver;
     private ExecutorService threadPool = Executors.newCachedThreadPool();
 
     @Before
     public void setup() {
         actionOrchestratorChannel = componentTestRule.getCluster().newGrpcChannel("action-orchestrator");
 
-        final ComponentApiConnectionConfig connectionConfig = componentTestRule.getCluster()
-                .getConnectionConfig("action-orchestrator");
-        messageReceiver = new ActionOrchestratorMessageReceiver(connectionConfig, threadPool);
-        actionOrchestrator =
-                ActionOrchestratorClient.rpcAndNotification(connectionConfig, threadPool,
-                        messageReceiver);
+        messageConsumer = new KafkaMessageConsumer(DockerEnvironment.getKafkaBootstrapServers(),
+                "action-orchestrator-perf-test");
+        messageReceiver = messageConsumer.messageReceiver(
+                ActionOrchestratorNotificationReceiver.ACTIONS_TOPIC,
+                ActionOrchestratorNotification::parseFrom);
         actionsService = ActionsServiceGrpc.newBlockingStub(actionOrchestratorChannel);
     }
 
     @After
     public void teardown() {
         try {
-            messageReceiver.close();
-
+            messageConsumer.close();
             threadPool.shutdownNow();
             threadPool.awaitTermination(10, TimeUnit.MINUTES);
         } catch (Exception e) {

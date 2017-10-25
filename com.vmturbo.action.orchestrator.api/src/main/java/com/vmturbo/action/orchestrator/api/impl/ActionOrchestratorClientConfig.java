@@ -5,18 +5,20 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import io.grpc.Channel;
 
+import com.vmturbo.action.orchestrator.api.ActionOrchestrator;
 import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionOrchestratorNotification;
-import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
+import com.vmturbo.components.api.client.BaseKafkaConsumerConfig;
 import com.vmturbo.components.api.client.IMessageReceiver;
-import com.vmturbo.components.api.client.WebsocketNotificationReceiver;
 import com.vmturbo.grpc.extensions.PingingChannelBuilder;
 
 /**
@@ -25,16 +27,14 @@ import com.vmturbo.grpc.extensions.PingingChannelBuilder;
  * default.
  */
 @Configuration
+@Import({BaseKafkaConsumerConfig.class})
 public class ActionOrchestratorClientConfig {
+
+    @Autowired
+    private BaseKafkaConsumerConfig baseKafkaConsumerConfig;
 
     @Value("${actionOrchestratorHost}")
     private String actionOrchestratorHost;
-
-    @Value("${server.port}")
-    private int httpPort;
-
-    @Value("${websocket.pong.timeout}")
-    private long websocketPongTimeout;
 
     @Value("${server.grpcPort}")
     private int grpcPort;
@@ -50,25 +50,16 @@ public class ActionOrchestratorClientConfig {
     }
 
     @Bean
-    protected ComponentApiConnectionConfig actionOrchestratorClientConnectionConfig() {
-        return ComponentApiConnectionConfig.newBuilder()
-                .setHostAndPort(actionOrchestratorHost, httpPort)
-                .setPongMessageTimeout(websocketPongTimeout)
-                .build();
-    }
-
-    @Bean
     protected IMessageReceiver<ActionOrchestratorNotification> actionOrchestratorClientMessageReceiver() {
-        return new WebsocketNotificationReceiver<>(actionOrchestratorClientConnectionConfig(),
-                ActionOrchestratorClient.WEBSOCKET_PATH, actionOrchestratorClientThreadPool(),
-                ActionOrchestratorNotification::parseFrom);
+        return baseKafkaConsumerConfig.kafkaConsumer()
+                .messageReceiver(ActionOrchestratorNotificationReceiver.ACTIONS_TOPIC,
+                        ActionOrchestratorNotification::parseFrom);
     }
 
     @Bean
-    public ActionOrchestratorClient actionOrchestratorClient() {
-        return ActionOrchestratorClient.rpcAndNotification(
-                actionOrchestratorClientConnectionConfig(), actionOrchestratorClientThreadPool(),
-                actionOrchestratorClientMessageReceiver());
+    public ActionOrchestrator actionOrchestratorClient() {
+        return new ActionOrchestratorNotificationReceiver(actionOrchestratorClientMessageReceiver(),
+                actionOrchestratorClientThreadPool());
     }
 
     @Bean

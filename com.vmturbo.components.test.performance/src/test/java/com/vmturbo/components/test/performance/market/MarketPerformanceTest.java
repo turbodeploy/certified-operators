@@ -71,8 +71,9 @@ public class MarketPerformanceTest {
     public void setup() {
         final ComponentApiConnectionConfig connectionConfig =
                 componentTestRule.getCluster().getConnectionConfig("market");
-        kafkaMessageConsumer = new KafkaMessageConsumer(DockerEnvironment.getDockerHostName() + ":" +
-                Integer.toString(DockerEnvironment.KAFKA_EXTERNAL_PORT),"market-perf-test");
+        kafkaMessageConsumer =
+                new KafkaMessageConsumer(DockerEnvironment.getKafkaBootstrapServers(),
+                        "market-perf-test");
         actionsReceiver = kafkaMessageConsumer.messageReceiver(MarketComponentClient.ACTION_PLANS_TOPIC,ActionPlan::parseFrom);
         projectedTopologyReceiver = kafkaMessageConsumer.messageReceiver(MarketComponentClient.PROJECTED_TOPOLOGIES_TOPIC,ProjectedTopology::parseFrom);
         marketComponent = MarketComponentClient.rpcAndNotification(connectionConfig, threadPool,

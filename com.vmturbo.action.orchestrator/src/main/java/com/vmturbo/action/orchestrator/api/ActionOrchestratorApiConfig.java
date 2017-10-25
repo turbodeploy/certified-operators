@@ -4,23 +4,27 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.web.socket.server.standard.ServerEndpointRegistration;
+import org.springframework.context.annotation.Import;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
-import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClient;
+import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorNotificationReceiver;
 import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionOrchestratorNotification;
-import com.vmturbo.communication.WebsocketServerTransportManager;
-import com.vmturbo.components.api.server.BroadcastWebsocketTransportManager;
-import com.vmturbo.components.api.server.WebsocketNotificationSender;
+import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
+import com.vmturbo.components.api.server.IMessageSender;
 
 /**
  * Spring configuration to provide the {@link com.vmturbo.market.component.api.MarketComponent} integration.
  */
 @Configuration
+@Import({BaseKafkaProducerConfig.class})
 public class ActionOrchestratorApiConfig {
+
+    @Autowired
+    private BaseKafkaProducerConfig baseKafkaProducerConfig;
 
     @Bean(destroyMethod = "shutdownNow")
     public ExecutorService apiServerThreadPool() {
@@ -36,25 +40,8 @@ public class ActionOrchestratorApiConfig {
     }
 
     @Bean
-    public WebsocketNotificationSender<ActionOrchestratorNotification> notificationSender() {
-        return new WebsocketNotificationSender<>(apiServerThreadPool());
+    public IMessageSender<ActionOrchestratorNotification> notificationSender() {
+        return baseKafkaProducerConfig.kafkaMessageSender()
+                .messageSender(ActionOrchestratorNotificationReceiver.ACTIONS_TOPIC);
     }
-
-    @Bean
-    public WebsocketServerTransportManager transportManager() {
-        return BroadcastWebsocketTransportManager.createTransportManager(apiServerThreadPool(),
-                notificationSender());
-    }
-
-    /**
-     * This bean configures endpoint to bind it to a specific address (path).
-     *
-     * @return bean
-     */
-    @Bean
-    public ServerEndpointRegistration apiEndpointRegistration() {
-        return new ServerEndpointRegistration(ActionOrchestratorClient.WEBSOCKET_PATH,
-                transportManager());
-    }
-
 }

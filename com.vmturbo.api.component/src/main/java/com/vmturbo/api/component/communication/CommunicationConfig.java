@@ -13,7 +13,6 @@ import org.springframework.web.client.RestTemplate;
 
 import io.grpc.Channel;
 
-import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClient;
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
 import com.vmturbo.clustermgr.api.impl.ClusterMgrClient;
@@ -119,17 +118,11 @@ public class CommunicationConfig {
     }
 
     @Bean
-    public ActionOrchestratorClient actionOrchestratorClient() throws CommunicationException, InterruptedException, URISyntaxException {
-        return aoClientConfig.actionOrchestratorClient();
-    }
-
-    @Bean
     public ApiComponentActionListener apiComponentActionListener()
         throws CommunicationException, InterruptedException, URISyntaxException {
         final ApiComponentActionListener actionsListener =
             new ApiComponentActionListener(websocketConfig.websocketHandler());
-
-        actionOrchestratorClient().addActionsListener(actionsListener);
+        aoClientConfig.actionOrchestratorClient().addActionsListener(actionsListener);
         return actionsListener;
     }
 

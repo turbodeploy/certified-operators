@@ -58,8 +58,7 @@ public class MarketStub implements NotificationSenderStub<MarketStubConfig> {
 
         @Bean
         public KafkaMessageProducer messageSender() {
-            return new KafkaMessageProducer(DockerEnvironment.getDockerHostName() + ":" +
-                    Integer.toString(DockerEnvironment.KAFKA_EXTERNAL_PORT));
+            return new KafkaMessageProducer(DockerEnvironment.getKafkaBootstrapServers());
         }
 
         @Bean

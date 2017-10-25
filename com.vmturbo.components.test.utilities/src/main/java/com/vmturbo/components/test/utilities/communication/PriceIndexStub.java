@@ -52,8 +52,7 @@ public class PriceIndexStub implements NotificationSenderStub<PriceIndexStubConf
 
         @Bean
         public KafkaMessageProducer kafkaMessageProducer() {
-            return new KafkaMessageProducer(DockerEnvironment.getDockerHostName() + ":" +
-                    Integer.toString(DockerEnvironment.KAFKA_EXTERNAL_PORT));
+            return new KafkaMessageProducer(DockerEnvironment.getKafkaBootstrapServers());
         }
 
         @Bean

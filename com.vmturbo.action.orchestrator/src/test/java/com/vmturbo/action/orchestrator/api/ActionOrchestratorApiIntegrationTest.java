@@ -9,7 +9,6 @@ import org.apache.logging.log4j.Logger;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -22,12 +21,13 @@ import org.mockito.MockitoAnnotations;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
-import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClient;
-import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorMessageReceiver;
+import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorNotificationReceiver;
+import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionOrchestratorNotification;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionFailure;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionProgress;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionSuccess;
+import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.test.IntegrationTestServer;
 
 /**
@@ -43,7 +43,7 @@ public class ActionOrchestratorApiIntegrationTest {
 
     private ActionOrchestratorNotificationSender notificationSender;
 
-    private ActionOrchestratorClient actionOrchestrator;
+    private ActionOrchestratorNotificationReceiver actionOrchestrator;
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
@@ -63,7 +63,7 @@ public class ActionOrchestratorApiIntegrationTest {
     @Captor
     private ArgumentCaptor<ActionFailure> failureCaptor;
 
-    private ActionOrchestratorMessageReceiver messageReceiver;
+    private IMessageReceiver<ActionOrchestratorNotification> messageReceiver;
 
     @Before
     public final void init() throws Exception {
@@ -77,23 +77,18 @@ public class ActionOrchestratorApiIntegrationTest {
         final ExecutorService threadPool = Executors.newCachedThreadPool(threadFactory);
 
         integrationTestServer = new IntegrationTestServer(testName, TestApiServerConfig.class);
-        messageReceiver =
-                new ActionOrchestratorMessageReceiver(integrationTestServer.connectionConfig(),
-                        threadPool);
-        actionOrchestrator = ActionOrchestratorClient.rpcAndNotification(
-                integrationTestServer.connectionConfig(), threadPool, messageReceiver);
+        messageReceiver = integrationTestServer.getBean("notificationsChannel");
+        actionOrchestrator =
+                new ActionOrchestratorNotificationReceiver(messageReceiver, threadPool);
 
         notificationSender =
                 integrationTestServer.getBean(ActionOrchestratorNotificationSender.class);
-        integrationTestServer.waitForRegisteredEndpoints(1, TIMEOUT_MS);
-
         logger.debug("Finished @Before");
     }
 
     @After
     public final void shutdown() throws Exception {
         logger.debug("Starting @After");
-        messageReceiver.close();
         integrationTestServer.close();
         logger.debug("Finished @After");
     }
@@ -177,18 +172,5 @@ public class ActionOrchestratorApiIntegrationTest {
         final ActionFailure failure = failureCaptor.getValue();
         Assert.assertEquals("error", failure.getErrorDescription());
         Assert.assertEquals(2345, failure.getActionId());
-    }
-
-    /**
-     * Test that closing a client-side endpoint unregisters it
-     * on the server.
-     *
-     * @throws Exception If anything goes wrong.
-     */
-    @Ignore("Fails intermittently on build server. Not reproducible locally. Please fix.")
-    @Test
-    public void testEndpointClear() throws Exception {
-        messageReceiver.close();
-        integrationTestServer.waitForRegisteredEndpoints(0, TIMEOUT_MS);
     }
 }

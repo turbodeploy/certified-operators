@@ -145,13 +145,8 @@ build/vmt-presentation/srv/www/htdocs/vmt-logo.png -text
 com.vmturbo.action.orchestrator.api/pom.xml -text
 com.vmturbo.action.orchestrator.api/src/main/java/com/vmturbo/action/orchestrator/api/ActionOrchestrator.java -text
 com.vmturbo.action.orchestrator.api/src/main/java/com/vmturbo/action/orchestrator/api/ActionsListener.java -text
-com.vmturbo.action.orchestrator.api/src/main/java/com/vmturbo/action/orchestrator/api/impl/ActionOrchestratorClient.java -text
 com.vmturbo.action.orchestrator.api/src/main/java/com/vmturbo/action/orchestrator/api/impl/ActionOrchestratorClientConfig.java -text
-com.vmturbo.action.orchestrator.api/src/main/java/com/vmturbo/action/orchestrator/api/impl/ActionOrchestratorException.java -text
-com.vmturbo.action.orchestrator.api/src/main/java/com/vmturbo/action/orchestrator/api/impl/ActionOrchestratorMessageReceiver.java -text
 com.vmturbo.action.orchestrator.api/src/main/java/com/vmturbo/action/orchestrator/api/impl/ActionOrchestratorNotificationReceiver.java -text
-com.vmturbo.action.orchestrator.api/src/main/java/com/vmturbo/action/orchestrator/api/impl/ActionOrchestratorRestApi.java -text
-com.vmturbo.action.orchestrator.api/src/main/java/com/vmturbo/action/orchestrator/api/impl/ActionOrchestratorRestClient.java -text
 com.vmturbo.action.orchestrator.api/src/main/protobuf/ActionOrchestratorDTO.proto -text
 com.vmturbo.action.orchestrator/pom.xml -text
 com.vmturbo.action.orchestrator/src/main/java/com/vmturbo/action/orchestrator/ActionOrchestratorComponent.java -text

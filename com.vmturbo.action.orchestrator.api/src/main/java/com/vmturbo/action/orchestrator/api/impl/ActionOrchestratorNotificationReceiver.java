@@ -9,6 +9,9 @@ import java.util.function.Consumer;
 
 import javax.annotation.Nonnull;
 
+import org.apache.kafka.common.errors.ApiException;
+
+import com.vmturbo.action.orchestrator.api.ActionOrchestrator;
 import com.vmturbo.action.orchestrator.api.ActionsListener;
 import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionOrchestratorNotification;
 import com.vmturbo.components.api.client.ComponentNotificationReceiver;
@@ -17,13 +20,19 @@ import com.vmturbo.components.api.client.IMessageReceiver;
 /**
  * The websocket client connecting to the Action Orchestrator.
  */
-class ActionOrchestratorNotificationReceiver
-        extends ComponentNotificationReceiver<ActionOrchestratorNotification> {
+public class ActionOrchestratorNotificationReceiver extends
+        ComponentNotificationReceiver<ActionOrchestratorNotification> implements
+        ActionOrchestrator {
+
+    /**
+     * Kafka topic to receive action orchestrator actions notifications.
+     */
+    public static final String ACTIONS_TOPIC = "action-orchestrator-actions";
 
     private final Set<ActionsListener> actionsListenersSet =
             Collections.newSetFromMap(new ConcurrentHashMap<>());
 
-    ActionOrchestratorNotificationReceiver(
+    public ActionOrchestratorNotificationReceiver(
             @Nonnull final IMessageReceiver<ActionOrchestratorNotification> messageReceiver,
             @Nonnull final ExecutorService executorService) {
         super(messageReceiver, executorService);
@@ -31,7 +40,7 @@ class ActionOrchestratorNotificationReceiver
 
     @Override
     protected void processMessage(@Nonnull final ActionOrchestratorNotification message)
-            throws ActionOrchestratorException {
+            throws ApiException {
         switch (message.getTypeCase()) {
             case ACTION_PLAN:
                 doWithListeners(
@@ -54,7 +63,7 @@ class ActionOrchestratorNotificationReceiver
                     message.getTypeCase());
                 break;
             default:
-                throw new ActionOrchestratorException("Message type unrecognized: " + message);
+                throw new ApiException("Message type unrecognized: " + message);
         }
     }
 
@@ -73,7 +82,8 @@ class ActionOrchestratorNotificationReceiver
         }
     }
 
-    void addActionsListener(@Nonnull final ActionsListener listener) {
+    @Override
+    public void addActionsListener(@Nonnull final ActionsListener listener) {
         actionsListenersSet.add(Objects.requireNonNull(listener));
     }
 }
