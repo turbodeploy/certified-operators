@@ -1,10 +1,15 @@
 package com.vmturbo.components.test.performance.action.orchestrator;
 
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
@@ -17,14 +22,19 @@ import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 
-import io.grpc.Channel;
+import com.google.common.collect.ImmutableList;
 
+import io.grpc.Channel;
+import io.grpc.stub.StreamObserver;
 import tec.units.ri.unit.MetricPrefix;
 
 import com.vmturbo.action.orchestrator.api.ActionOrchestrator;
 import com.vmturbo.action.orchestrator.api.ActionsListener;
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorNotificationReceiver;
 import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionOrchestratorNotification;
+import com.vmturbo.common.protobuf.ActionDTOUtil;
+import com.vmturbo.common.protobuf.UnsupportedActionException;
+import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
@@ -33,11 +43,20 @@ import com.vmturbo.common.protobuf.action.ActionDTO.DeleteActionsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass.EntityInfo;
+import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass.GetEntitiesInfoRequest;
+import com.vmturbo.common.protobuf.topology.EntityServiceGrpc.EntityServiceImplBase;
+import com.vmturbo.common.protobuf.topology.Probe.GetProbeActionCapabilitiesRequest;
+import com.vmturbo.common.protobuf.topology.Probe.GetProbeActionCapabilitiesResponse;
+import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability;
+import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability.ActionCapabilityElement;
+import com.vmturbo.common.protobuf.topology.ProbeActionCapabilitiesServiceGrpc.ProbeActionCapabilitiesServiceImplBase;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.client.KafkaMessageConsumer;
 import com.vmturbo.components.test.utilities.ComponentTestRule;
 import com.vmturbo.components.test.utilities.alert.Alert;
+import com.vmturbo.components.test.utilities.communication.ComponentStubHost;
 import com.vmturbo.components.test.utilities.component.ComponentCluster;
 import com.vmturbo.components.test.utilities.component.ComponentUtils;
 import com.vmturbo.components.test.utilities.component.DockerEnvironment;
@@ -53,6 +72,8 @@ public class ActionOrchestratorPerformanceTest {
 
     private static final Logger logger = LogManager.getLogger();
 
+    private EntityServiceStub entityServiceStub = new EntityServiceStub();
+
     private Channel actionOrchestratorChannel;
 
     @Rule
@@ -60,9 +81,11 @@ public class ActionOrchestratorPerformanceTest {
             .withComponentCluster(ComponentCluster.newBuilder()
                 .withService(ComponentCluster.newService("action-orchestrator")
                         .withConfiguration("marketHost", ComponentUtils.getDockerHostRoute())
+                        .withConfiguration("topologyProcessorHost", ComponentUtils.getDockerHostRoute())
                         .withMemLimit(2.5, MetricPrefix.GIGA)
                         .logsToLogger(logger)))
-        .withoutStubs()
+        .withStubs(ComponentStubHost.newBuilder()
+                .withGrpcServices(new ProbeActionCapabilitiesServiceStub(), entityServiceStub))
         .scrapeClusterAndLocalMetricsToInflux();
 
     @BeforeClass
@@ -136,6 +159,7 @@ public class ActionOrchestratorPerformanceTest {
         final ActionPlanGenerator actionPlanGenerator = new ActionPlanGenerator();
         final ActionPlan sendActionPlan = actionPlanGenerator.generate(actionPlanSize, 1,
             ComponentUtils.REALTIME_TOPOLOGY_CONTEXT);
+        entityServiceStub.loadEntitiesForActionPlan(sendActionPlan);
         populateActions(actionOrchestrator, sendActionPlan, "LIVE");
 
         fetchActions(actionsService, FilteredActionRequest.newBuilder().setFilter(
@@ -221,4 +245,63 @@ public class ActionOrchestratorPerformanceTest {
             actionPlanFuture.complete(actionPlan);
         }
     }
+
+    /**
+     * Entity Service Stub that provides bare-bones entity information for entities referenced in
+     * an action plan.
+     */
+    public class EntityServiceStub extends EntityServiceImplBase {
+
+        private Map<Long,EntityInfo> entitiesForActionPlan = new HashMap<>();
+
+        public void loadEntitiesForActionPlan(ActionPlan actionPlan) throws UnsupportedActionException {
+            // create simple entities for each action in the plan
+            entitiesForActionPlan = ActionDTOUtil.getInvolvedEntities(actionPlan.getActionList()).stream()
+                    .map(entityId -> EntityInfo.newBuilder().setEntityId(entityId).build())
+                    .collect(Collectors.toMap(EntityInfo::getEntityId, Function.identity()));
+        }
+
+        @Override
+        public void getEntitiesInfo(final GetEntitiesInfoRequest request, final StreamObserver<EntityInfo> responseObserver) {
+            for (final Long entityId : request.getEntityIdsList()) {
+                EntityInfo entityInfo = entitiesForActionPlan.get(entityId);
+                if (entityInfo != null) {
+                    responseObserver.onNext(entityInfo);
+                }
+            }
+            responseObserver.onCompleted();
+        }
+    }
+
+    public class ProbeActionCapabilitiesServiceStub extends ProbeActionCapabilitiesServiceImplBase {
+        @Nonnull
+        private List<ProbeActionCapability> createActionCapabilitiesList() {
+            // creating a single action capability for the purposes of the test
+            ProbeActionCapability supportedCapability = ProbeActionCapability.newBuilder()
+                    .addCapabilityElement(ActionCapabilityElement.newBuilder()
+                            .setActionType(ActionDTO.ActionType.MOVE)
+                            .setActionCapability(ProbeActionCapability.ActionCapability.SUPPORTED)
+                            .build())
+                    .build();
+            return ImmutableList.of(supportedCapability);
+        }
+
+        /**
+         * Stub method that returns a fixed set of probe action capabilities as test data.
+         * @param request
+         * @param responseObserver
+         */
+        @Override
+        public void getProbeActionCapabilities(final GetProbeActionCapabilitiesRequest request,
+                                               final StreamObserver<GetProbeActionCapabilitiesResponse> responseObserver) {
+            List<ProbeActionCapability> allCapabilities = createActionCapabilitiesList();
+            GetProbeActionCapabilitiesResponse response =
+                    GetProbeActionCapabilitiesResponse.newBuilder()
+                            .addAllActionCapabilities(allCapabilities)
+                            .build();
+            responseObserver.onNext(response);
+            responseObserver.onCompleted();
+        }
+    }
+
 }

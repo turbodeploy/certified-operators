@@ -22,11 +22,11 @@ public class ActionOrchestratorApiConfig {
 
     @Bean
     public ActionOrchestratorNotificationSender actionOrchestratorNotificationSender() {
-        return new ActionOrchestratorNotificationSender(notificationSender());
+        return new ActionOrchestratorNotificationSender(actionOrchestratorMessageSender());
     }
 
     @Bean
-    public IMessageSender<ActionOrchestratorNotification> notificationSender() {
+    public IMessageSender<ActionOrchestratorNotification> actionOrchestratorMessageSender() {
         return baseKafkaProducerConfig.kafkaMessageSender()
                 .messageSender(ActionOrchestratorNotificationReceiver.ACTIONS_TOPIC);
     }
