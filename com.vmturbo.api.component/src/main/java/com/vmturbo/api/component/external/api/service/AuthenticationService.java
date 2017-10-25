@@ -144,6 +144,8 @@ public class AuthenticationService implements IAuthenticationService {
                 user.setUuid(dto.getUuid());
                 user.setLoginProvider(LoginProviderMapper.toApi(dto.getProvider()));
                 user.setAuthToken(dto.getToken());
+                // TODO: it's a hack to avoid infinite loop, remove it when OM-24011 is fixed
+                setSessionMaxInactiveInterval(0);
                 return user;
             }
         } catch (AuthenticationException e) {
@@ -187,6 +189,21 @@ public class AuthenticationService implements IAuthenticationService {
         final HttpServletRequest request = ((ServletRequestAttributes)attrs).getRequest();
         if (request != null && request.getSession(false) != null) {
             request.changeSessionId();
+        }
+    }
+
+    /**
+     * Specifies the time, in seconds, between client requests before the
+     * servlet container will invalidate this session. A zero or negative time
+     * indicates that the session should never timeout.
+     *
+     * @param interval An integer specifying the number of seconds
+     */
+    private void setSessionMaxInactiveInterval(int interval) {
+        final RequestAttributes attrs = RequestContextHolder.currentRequestAttributes();
+        final HttpServletRequest request = ((ServletRequestAttributes)attrs).getRequest();
+        if (request != null && request.getSession() != null) {
+            request.getSession().setMaxInactiveInterval(interval);
         }
     }
 }
