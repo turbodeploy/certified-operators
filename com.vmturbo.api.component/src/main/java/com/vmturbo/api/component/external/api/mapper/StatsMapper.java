@@ -193,8 +193,9 @@ public class StatsMapper {
         }
         if (statApiInput.getStatistics() != null) {
             for (StatApiInputDTO stat : statApiInput.getStatistics()) {
-                requestBuilder.addCommodityName(stat.getName());
-
+                if (stat.getName() != null) {
+                    requestBuilder.addCommodityName(stat.getName());
+                }
                 // TODO (roman, June 2, 2017) OM-20291: Handle filters, relatedEntityType,
                 // and groupBy on a per-statistic basis. Just printing warnings for now.
                 if (stat.getFilters() != null && !stat.getFilters().isEmpty()) {
@@ -253,7 +254,9 @@ public class StatsMapper {
         inputDto.getStatistics().forEach(statApiInputDTO -> {
             // If necessary we can add support for other parts of the StatPeriodApiInputDTO,
             // and extend the Projected Stats API to serve the additional functionality.
-            builder.addCommodityName(statApiInputDTO.getName());
+            if (statApiInputDTO.getName() != null) {
+                builder.addCommodityName(statApiInputDTO.getName());
+            }
         });
         return builder.build();
     }
