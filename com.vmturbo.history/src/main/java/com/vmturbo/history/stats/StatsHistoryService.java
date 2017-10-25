@@ -221,9 +221,7 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
 
                 final StatsFilter statsFilter = request.getFilter();
                 List<Record> statDBRecords = liveStatsReader.getStatsRecords(
-                        request.getEntitiesList().stream()
-                                .map(id -> Long.toString(id))
-                                .collect(Collectors.toList()),
+                        Collections.singletonList(Long.toString(entityOid)),
                         statsFilter.getStartDate(), statsFilter.getEndDate(),
                         statsFilter.getCommodityNameList());
                 EntityStats.Builder statsForEntity = EntityStats.newBuilder()
