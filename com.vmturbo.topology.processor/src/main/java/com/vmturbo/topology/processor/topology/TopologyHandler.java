@@ -99,6 +99,8 @@ public class TopologyHandler {
             // without ever having all of them in memory. Only worry is concurrent
             // modifications.
             TopologyGraph graph = new TopologyGraph(entityStore.constructTopology());
+            TopologyFilterFactory topologyFilterFactory = new TopologyFilterFactory();
+            GroupResolver groupResolver = new GroupResolver(topologyFilterFactory);
 
             // TODO: (dblinn, 1/10/2017): I'd like to have a reusable TopologyPipeline here.
             // that has a fixed sequence of stages that feed the output of one stage to the
@@ -126,7 +128,7 @@ public class TopologyHandler {
             }
             logger.info("Beginning policy application for context {}", realtimeTopologyContextId);
             try {
-                policyManager.applyPolicies(graph);
+                policyManager.applyPolicies(graph, groupResolver);
             } catch (RuntimeException e) {
                 // TODO: We probably shouldn't continue to broadcast if we cannot successfully apply policy information.
                 logger.error("Unable to apply policies due to error: ", e);
@@ -134,10 +136,6 @@ public class TopologyHandler {
 
             logger.info("Start applying settings for topology context {}", realtimeTopologyContextId);
             try {
-                TopologyFilterFactory topologyFilterFactory = new TopologyFilterFactory();
-                // TODO: karthikt - OM-25473. Use the same groupResolver for both Policy
-                // TODO: and Settings. Then We can memoize the resolved groups
-                GroupResolver groupResolver = new GroupResolver(topologyFilterFactory);
                 Map<Long, List<Setting>> entitySettings  = settingsManager.applySettings(groupResolver, graph);
                 logger.info("Finished applying settings. Sending the entitySetting mapping of size {} to Group component",
                     entitySettings.size());

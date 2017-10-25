@@ -6,6 +6,10 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
@@ -193,5 +197,96 @@ public class GroupResolverTest {
 
         final GroupResolver resolver = new GroupResolver(new TopologyFilterFactory());
         assertThat(resolver.resolve(dynamicGroup, topologyGraph), contains(10L));
+    }
+
+    /**
+     * Test group resolver cache for dynamic groups.
+     *
+     * @throws GroupResolutionException when a group cannot be resolved
+     *
+     */
+    @Test
+    public void testGroupResolverCacheDynamicGroups() throws GroupResolutionException {
+
+        final long groupId = 9999L;
+        // Group members of type PM or VM
+        final Group dynamicGroup = Group.newBuilder()
+                .setId(groupId)
+                .setInfo(GroupInfo.newBuilder()
+                    .setSearchParametersCollection(SearchParametersCollection.newBuilder()
+                        .addSearchParameters(SearchParameters.newBuilder()
+                            .setStartingFilter(Search.PropertyFilter.newBuilder()
+                                .setPropertyName("entityType")
+                                .setNumericFilter(NumericFilter.newBuilder()
+                                    .setComparisonOperator(ComparisonOperator.EQ)
+                                    .setValue(EntityType.PHYSICAL_MACHINE_VALUE)
+                                    )
+                                )
+                                .addSearchFilter(SearchFilter.newBuilder()
+                                    .setTraversalFilter(TraversalFilter.newBuilder()
+                                        .setTraversalDirection(TraversalDirection.PRODUCES)
+                                        .setStoppingCondition(StoppingCondition.newBuilder()
+                                            .setStoppingPropertyFilter(Search.PropertyFilter.newBuilder()
+                                                .setPropertyName("entityType")
+                                                .setNumericFilter(NumericFilter.newBuilder()
+                                                    .setComparisonOperator(ComparisonOperator.EQ)
+                                                    .setValue(EntityType.VIRTUAL_MACHINE_VALUE))
+                                            )
+                                        )
+                                    )
+                                )
+                            )
+                        )
+                    )
+                .build();
+
+        final GroupResolver resolver = spy(new GroupResolver(new TopologyFilterFactory()));
+        resolver.resolve(dynamicGroup, topologyGraph);
+        resolver.resolve(dynamicGroup, topologyGraph);
+        resolver.resolve(dynamicGroup, topologyGraph);
+        // resolveDynamicGroup should only be called once as the subsequent calls will
+        // return from the cache
+        verify(resolver, times(1)).resolveDynamicGroup(eq(groupId), any(), any(), eq(topologyGraph));
+    }
+
+    /**
+     * Test group resolver cache for static groups.
+     *
+     * @throws GroupResolutionException when a group cannot be resolved
+     *
+     */
+    @Test
+    public void testGroupResolverCacheStaticGroups() throws GroupResolutionException {
+
+        final long groupId = 9999L;
+        final Group staticGroup =
+            Group.newBuilder()
+                .setId(groupId)
+                .setInfo(GroupInfo.newBuilder()
+                    .setStaticGroupMembers(StaticGroupMembers.newBuilder()
+                        .addAllStaticMemberOids(Arrays.asList(1L, 2L))))
+                .build();
+
+        final GroupResolver resolver = spy(new GroupResolver(new TopologyFilterFactory()));
+        resolver.resolve(staticGroup, topologyGraph);
+        resolver.resolve(staticGroup, topologyGraph);
+        resolver.resolve(staticGroup, topologyGraph);
+        // resolveStaticGroup should be called only once as subsequent calls will
+        // return from the cache
+        verify(resolver, times(1)).resolveStaticGroup(staticGroup);
+    }
+
+    /**
+     * Test when the groupId is missing.
+     *
+     * @throws GroupResolutionException when a group cannot be resolved
+     *
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testResolveWithMissingGroupId() throws GroupResolutionException {
+
+        final Group group = Group.newBuilder().build();
+        final GroupResolver resolver = new GroupResolver(Mockito.mock(TopologyFilterFactory.class));
+        resolver.resolve(group, topologyGraph);
     }
 }

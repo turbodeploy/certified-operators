@@ -38,8 +38,8 @@ import com.vmturbo.topology.processor.topology.TopologyGraph;
  * Responsible for resolving the Entities -> Settings mapping as well as
  * applying settings which transform the entities in the topology.
  * One example where the Settings application would lead to transformation is
- * Derived caluclations:
- *      Sometimes probes specifies a formula for calculating capacity
+ * derived calculations:
+ *      Sometimes a probe specifies a formula for calculating capacity
  *      e.g. value * multiply_by_factor(Memory_Provisioned_Factor,
  *      CPU_Provisioned_Factor, Storage_Provisoned_Factor).
  *      The actual settings values for the multiply_by_factor has to be applied

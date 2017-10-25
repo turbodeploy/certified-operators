@@ -24,6 +24,7 @@ import com.vmturbo.topology.processor.conversions.ConverterTest;
 import com.vmturbo.topology.processor.entity.EntitiesValidationException;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.entity.EntityValidator;
+import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.group.settings.SettingsManager;
@@ -76,7 +77,8 @@ public class TopologyHandlerTest {
         verify(entitiesListener, Mockito.times(4)).append(Mockito.any(TopologyEntityDTO.class));
         verify(entitiesListener).finish();
         verify(discoveredGroupUploader).processQueuedGroups();
-        verify(policyManager).applyPolicies(Mockito.any(TopologyGraph.class));
+        verify(policyManager).applyPolicies(Mockito.any(TopologyGraph.class),
+            Mockito.any(GroupResolver.class));
         verify(discoveredTemplateDeploymentProfileNotifier).sendTemplateDeploymentProfileData();
     }
 

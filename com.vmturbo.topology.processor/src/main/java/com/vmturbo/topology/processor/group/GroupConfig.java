@@ -13,11 +13,11 @@ import io.grpc.Channel;
 
 import com.vmturbo.common.protobuf.group.ClusterServiceGrpc;
 import com.vmturbo.common.protobuf.group.ClusterServiceGrpc.ClusterServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.GroupFetcher;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
-import com.vmturbo.common.protobuf.group.GroupFetcher;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.grpc.extensions.PingingChannelBuilder;
@@ -95,7 +95,7 @@ public class GroupConfig {
     @Bean
     public PolicyManager policyManager() {
         return new PolicyManager(policyRpcService(), groupFetcher(),
-                topologyFilterFactory(), new PolicyFactory());
+                new PolicyFactory());
     }
 
     @Bean

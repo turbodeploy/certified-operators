@@ -15,6 +15,7 @@ import org.apache.logging.log4j.Logger;
 import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.common.protobuf.GroupDTOUtil;
+import com.vmturbo.common.protobuf.group.GroupFetcher;
 import com.vmturbo.common.protobuf.group.GroupFetchingException;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy.PolicyDetailCase;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyGrouping;
@@ -22,12 +23,10 @@ import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyGroupingID;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyRequest;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
-import com.vmturbo.common.protobuf.group.GroupFetcher;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
-import com.vmturbo.topology.processor.group.filter.TopologyFilterFactory;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 /**
@@ -48,11 +47,6 @@ public class PolicyManager {
     final GroupFetcher groupFetcher;
 
     /**
-     * The factory to use when creating topology filters for group resolution.
-     */
-    final TopologyFilterFactory topologyFilterFactory;
-
-    /**
      * The factory to use to create policies.
      */
     final PolicyFactory policyFactory;
@@ -67,14 +61,13 @@ public class PolicyManager {
      * Create a new policy manager.
      *
      * @param policyService The service to use to retrieve policy definitions.
-     * @param topologyFilterFactory The factory to use when creating topology filters for group resolution.
+     * @param groupFetcher Class to fetch group info.
+     * @param policyFactory The factory used to create policies.
      */
     public PolicyManager(@Nonnull final PolicyServiceBlockingStub policyService,
                          @Nonnull final GroupFetcher groupFetcher,
-                         @Nonnull final TopologyFilterFactory topologyFilterFactory,
                          @Nonnull final PolicyFactory policyFactory) {
         this.policyService = Objects.requireNonNull(policyService);
-        this.topologyFilterFactory = Objects.requireNonNull(topologyFilterFactory);
         this.policyFactory = Objects.requireNonNull(policyFactory);
         this.groupFetcher = Objects.requireNonNull(groupFetcher);
     }
@@ -85,10 +78,11 @@ public class PolicyManager {
      * TODO: This is a stub implementation that only exists right now to exercise group resolution for policy-groups.
      *
      * @param graph The topology graph on which to apply the policies.
+     * @param groupResolver The resolver for the groups that the policy applies to.
      */
-    public void applyPolicies(@Nonnull final TopologyGraph graph) {
+    public void applyPolicies(@Nonnull final TopologyGraph graph,
+                              @Nonnull final GroupResolver groupResolver) {
         try (DataMetricTimer timer = POLICY_APPLICATION_SUMMARY.startTimer()) {
-            final GroupResolver resolver = topologyFilterFactory.newGroupResolver();
             final long startTime = System.currentTimeMillis();
 
             final Iterator<PolicyResponse> policyIter =
@@ -105,13 +99,13 @@ public class PolicyManager {
                 Map<PolicyGroupingID, PolicyGrouping> groups = groupFetcher.getGroupings(groupIds);
                 for (PolicyResponse response : policyResponses) {
                     PlacementPolicy policy = policyFactory.newPolicy(response.getPolicy(), groups);
-                    applyPolicy(resolver, policy, graph);
+                    applyPolicy(groupResolver, policy, graph);
 
                     final PolicyDetailCase policyType = response.getPolicy().getPolicyDetailCase();
                     int curCountOfType = policyTypeMap.computeIfAbsent(policyType, pt -> 0);
                     policyTypeMap.put(policyType, curCountOfType + 1);
                 }
-            } catch (GroupFetchingException e){
+            } catch (GroupFetchingException e) {
                 throw new RuntimeException(e);
             }
             final long durationMs = System.currentTimeMillis() - startTime;

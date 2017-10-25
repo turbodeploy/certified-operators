@@ -23,6 +23,8 @@ import io.swagger.annotations.ApiOperation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.entity.IdentifiedEntityDTO;
+import com.vmturbo.topology.processor.group.GroupResolver;
+import com.vmturbo.topology.processor.group.filter.TopologyFilterFactory;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
@@ -82,7 +84,7 @@ public class TopologyController {
     public ResponseEntity<Collection<TopologyEntityDTO>> getTopology() {
         TopologyGraph graph = new TopologyGraph(entityStore.constructTopology());
         try {
-            policyManager.applyPolicies(graph);
+            policyManager.applyPolicies(graph, new GroupResolver(new TopologyFilterFactory()));
             return new ResponseEntity<>(
                 graph.vertices()
                     .map(Vertex::getTopologyEntityDtoBuilder)

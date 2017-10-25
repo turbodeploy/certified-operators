@@ -21,7 +21,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import com.google.common.collect.Sets;
-
 import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.common.protobuf.group.GroupFetcher;
@@ -68,7 +67,7 @@ public class PolicyManagerTest {
     private final PolicyGroupingID id4 = PolicyGroupingHelper.policyGroupingID(4L);
 
     private final Map<PolicyGroupingID, PolicyGrouping> groupingMap =
-            new HashMap<PolicyGroupingID, PolicyGrouping>(){{
+            new HashMap<PolicyGroupingID, PolicyGrouping>() {{
                 put(id1, group1);
                 put(id2, group2);
                 put(id3, group3);
@@ -85,7 +84,6 @@ public class PolicyManagerTest {
 
     @Before
     public void setup() throws Exception {
-        when(filterFactory.newGroupResolver()).thenReturn(groupResolver);
         when(groupFetcher.getGroupings(Sets.newHashSet(id1, id2, id3, id4))).thenReturn(groupingMap);
 
         final PolicyServiceGrpc.PolicyServiceBlockingStub policyRpcService =
@@ -93,13 +91,13 @@ public class PolicyManagerTest {
 
         // set up the GroupService to test
         policyManager = new com.vmturbo.topology.processor.group.policy.PolicyManager(
-            policyRpcService, groupFetcher, filterFactory, new PolicyFactory());
+            policyRpcService, groupFetcher, new PolicyFactory());
     }
 
     @Test
     public void testApplyPoliciesResolvesGroups() throws Exception {
         ArgumentCaptor<PolicyGrouping> groupArguments = ArgumentCaptor.forClass(PolicyGrouping.class);
-        policyManager.applyPolicies(topologyGraph);
+        policyManager.applyPolicies(topologyGraph, groupResolver);
 
         verify(groupResolver, times(4)).resolve(groupArguments.capture(), eq(topologyGraph));
         assertThat(groupArguments.getAllValues(), containsInAnyOrder(group1, group2, group3, group4));
@@ -112,7 +110,7 @@ public class PolicyManagerTest {
         when(groupResolver.resolve(eq(group1), eq(topologyGraph)))
             .thenThrow(new GroupResolutionException("error!"));
 
-        policyManager.applyPolicies(topologyGraph);
+        policyManager.applyPolicies(topologyGraph, groupResolver);
 
         verify(groupResolver, atLeast(2)).resolve(groupArguments.capture(), eq(topologyGraph));
         assertThat(groupArguments.getAllValues(), hasItems(group3, group4));
