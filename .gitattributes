@@ -589,12 +589,7 @@ com.vmturbo.components.test.utilities/src/main/java/com/vmturbo/components/test/
 com.vmturbo.components.test.utilities/src/main/java/com/vmturbo/components/test/utilities/alert/report/NumberFormatter.java -text
 com.vmturbo.components.test.utilities/src/main/java/com/vmturbo/components/test/utilities/alert/report/PerformanceTestNameComparator.java -text
 com.vmturbo.components.test.utilities/src/main/java/com/vmturbo/components/test/utilities/alert/report/ResultsTabulator.java -text
-com.vmturbo.components.test.utilities/src/main/java/com/vmturbo/components/test/utilities/communication/AbstractNotificationSenderStub.java -text
 com.vmturbo.components.test.utilities/src/main/java/com/vmturbo/components/test/utilities/communication/ComponentStubHost.java -text
-com.vmturbo.components.test.utilities/src/main/java/com/vmturbo/components/test/utilities/communication/MarketStub.java -text
-com.vmturbo.components.test.utilities/src/main/java/com/vmturbo/components/test/utilities/communication/NotificationSenderStub.java -text
-com.vmturbo.components.test.utilities/src/main/java/com/vmturbo/components/test/utilities/communication/PriceIndexStub.java -text
-com.vmturbo.components.test.utilities/src/main/java/com/vmturbo/components/test/utilities/communication/TopologyProcessorStub.java -text
 com.vmturbo.components.test.utilities/src/main/java/com/vmturbo/components/test/utilities/component/ComponentCluster.java -text
 com.vmturbo.components.test.utilities/src/main/java/com/vmturbo/components/test/utilities/component/ComponentHealthCheck.java -text
 com.vmturbo.components.test.utilities/src/main/java/com/vmturbo/components/test/utilities/component/ComponentUtils.java -text
@@ -650,10 +645,6 @@ com.vmturbo.components.test.utilities/src/test/java/com/vmturbo/components/test/
 com.vmturbo.components.test.utilities/src/test/java/com/vmturbo/components/test/utilities/alert/report/PerformanceTestNameComparatorTest.java -text
 com.vmturbo.components.test.utilities/src/test/java/com/vmturbo/components/test/utilities/alert/report/ResultsTabulatorTest.java -text
 com.vmturbo.components.test.utilities/src/test/java/com/vmturbo/components/test/utilities/communication/GrpcStubTest.java -text
-com.vmturbo.components.test.utilities/src/test/java/com/vmturbo/components/test/utilities/communication/MarketStubTest.java -text
-com.vmturbo.components.test.utilities/src/test/java/com/vmturbo/components/test/utilities/communication/PriceIndexStubTest.java -text
-com.vmturbo.components.test.utilities/src/test/java/com/vmturbo/components/test/utilities/communication/TestComponentStubHost.java -text
-com.vmturbo.components.test.utilities/src/test/java/com/vmturbo/components/test/utilities/communication/TopologyProcessorStubTest.java -text
 com.vmturbo.components.test.utilities/src/test/java/com/vmturbo/components/test/utilities/component/ComponentClusterComponentTest.java -text
 com.vmturbo.components.test.utilities/src/test/java/com/vmturbo/components/test/utilities/component/ComponentClusterTest.java -text
 com.vmturbo.components.test.utilities/src/test/java/com/vmturbo/components/test/utilities/component/ComponentHealthCheckTest.java -text
@@ -854,6 +845,7 @@ com.vmturbo.market.component/pom.xml -text
 com.vmturbo.market.component/src/main/java/com/vmturbo/market/MarketComponent.java -text
 com.vmturbo.market.component/src/main/java/com/vmturbo/market/MarketGlobalConfig.java -text
 com.vmturbo.market.component/src/main/java/com/vmturbo/market/api/MarketApiConfig.java -text
+com.vmturbo.market.component/src/main/java/com/vmturbo/market/api/MarketKafkaSender.java -text
 com.vmturbo.market.component/src/main/java/com/vmturbo/market/priceindex/PriceIndexApiConfig.java -text
 com.vmturbo.market.component/src/main/java/com/vmturbo/market/runner/Analysis.java -text
 com.vmturbo.market.component/src/main/java/com/vmturbo/market/runner/MarketRunner.java -text
@@ -1268,6 +1260,7 @@ com.vmturbo.topology.processor/src/main/java/com/vmturbo/topology/processor/api/
 com.vmturbo.topology.processor/src/main/java/com/vmturbo/topology/processor/api/server/TopologyBroadcast.java svneol=native#text/x-java
 com.vmturbo.topology.processor/src/main/java/com/vmturbo/topology/processor/api/server/TopologyProcessorApiConfig.java -text
 com.vmturbo.topology.processor/src/main/java/com/vmturbo/topology/processor/api/server/TopologyProcessorApiSecurityConfig.java -text
+com.vmturbo.topology.processor/src/main/java/com/vmturbo/topology/processor/api/server/TopologyProcessorKafkaSender.java -text
 com.vmturbo.topology.processor/src/main/java/com/vmturbo/topology/processor/api/server/TopologyProcessorNotificationSender.java -text
 com.vmturbo.topology.processor/src/main/java/com/vmturbo/topology/processor/communication/BaseMessageHandler.java -text
 com.vmturbo.topology.processor/src/main/java/com/vmturbo/topology/processor/communication/ExpiringMessageHandler.java -text

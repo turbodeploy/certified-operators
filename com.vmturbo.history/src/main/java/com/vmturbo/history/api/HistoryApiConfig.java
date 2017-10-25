@@ -28,7 +28,7 @@ public class HistoryApiConfig {
 
     @Bean
     public HistoryNotificationSender historyNotificationSender() {
-        return new HistoryNotificationSender(historyApiServerThreadPool(), notificationSender());
+        return new HistoryNotificationSender(notificationSender());
     }
 
     @Bean

@@ -21,6 +21,7 @@ import org.junit.Rule;
 import org.junit.Test;
 
 import io.grpc.Channel;
+
 import tec.units.ri.unit.MetricPrefix;
 
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
@@ -30,20 +31,19 @@ import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChain
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.components.test.utilities.ComponentTestRule;
-import com.vmturbo.components.test.utilities.utils.TopologyUtils;
 import com.vmturbo.components.test.utilities.alert.Alert;
-import com.vmturbo.components.test.utilities.communication.ComponentStubHost;
-import com.vmturbo.components.test.utilities.communication.MarketStub;
-import com.vmturbo.components.test.utilities.communication.TopologyProcessorStub;
 import com.vmturbo.components.test.utilities.component.ComponentCluster;
 import com.vmturbo.components.test.utilities.component.ComponentUtils;
 import com.vmturbo.components.test.utilities.component.ServiceHealthCheck.BasicServiceHealthCheck;
+import com.vmturbo.components.test.utilities.utils.TopologyUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.repository.api.Repository;
 import com.vmturbo.repository.api.RepositoryListener;
 import com.vmturbo.repository.api.impl.RepositoryMessageReceiver;
 import com.vmturbo.repository.api.impl.RepositoryNotificationReceiver;
 import com.vmturbo.topology.processor.api.server.TopologyBroadcast;
+import com.vmturbo.topology.processor.api.server.TopologyProcessorKafkaSender;
+import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
 
 /**
  * Performance tests for the repository component.
@@ -55,11 +55,6 @@ import com.vmturbo.topology.processor.api.server.TopologyBroadcast;
     "jvm_memory_bytes_used_max"})
 public class RepositoryPerformanceTest {
     private static final Logger logger = LogManager.getLogger();
-
-    private TopologyProcessorStub topologyProcessorStub = new TopologyProcessorStub();
-
-    // MarketStub is currently unused except to avoid connection error messages.
-    private MarketStub marketStub = new MarketStub();
 
     private Repository repository;
     private SupplyChainServiceBlockingStub supplyChainService;
@@ -78,8 +73,7 @@ public class RepositoryPerformanceTest {
                 .withConfiguration("marketHost", ComponentUtils.getDockerHostRoute())
                 .withMemLimit(4, MetricPrefix.GIGA)
                 .logsToLogger(logger)))
-        .withStubs(ComponentStubHost.newBuilder()
-            .withNotificationStubs(topologyProcessorStub, marketStub))
+        .withoutStubs()
         .scrapeServicesAndLocalMetricsToInflux("repository");
 
     @Before
@@ -182,9 +176,11 @@ public class RepositoryPerformanceTest {
     private long sendTopology(final int topologySize) throws InterruptedException {
         final List<TopologyEntityDTO> topoDTOs = TopologyUtils.generateTopology(topologySize);
 
+        final TopologyProcessorNotificationSender topologySender = TopologyProcessorKafkaSender
+                .create(threadPool, componentTestRule.getKafkaMessageProducer());
         final TopologyBroadcast topologyBroadcast =
-            topologyProcessorStub.getBackend().broadcastTopology(
-                ComponentUtils.REALTIME_TOPOLOGY_CONTEXT, 10, TopologyType.REALTIME);
+                topologySender.broadcastTopology(ComponentUtils.REALTIME_TOPOLOGY_CONTEXT, 10,
+                        TopologyType.REALTIME);
         topoDTOs.forEach(entity -> {
             try {
                 topologyBroadcast.append(entity);

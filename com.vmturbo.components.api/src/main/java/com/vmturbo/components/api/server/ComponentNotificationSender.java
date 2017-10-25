@@ -1,7 +1,6 @@
 package com.vmturbo.components.api.server;
 
 import java.util.Objects;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 
 import javax.annotation.Nonnull;
@@ -10,8 +9,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.protobuf.AbstractMessage;
-
-import com.vmturbo.components.api.client.ComponentNotificationReceiver;
 
 /**
  * Contains server-side boilerplate to send Protobuf notifications using underlying
@@ -23,13 +20,7 @@ public abstract class ComponentNotificationSender<ServerMsg extends AbstractMess
 
     private final Logger logger = LogManager.getLogger(getClass());
 
-    private final ExecutorService executorService;
     private final AtomicLong messageChainIdCounter = new AtomicLong(0);
-
-    protected ComponentNotificationSender(@Nonnull final ExecutorService executorService) {
-        this.executorService = Objects.requireNonNull(executorService);
-    }
-
     /**
      * Return the ID to use for a new message chain. All subclasses should use this method instead
      * of assigning their own message IDs.
@@ -66,11 +57,6 @@ public abstract class ComponentNotificationSender<ServerMsg extends AbstractMess
      * @return string representation of a message
      */
     protected abstract String describeMessage(@Nonnull ServerMsg serverMsg);
-
-    @Nonnull
-    protected ExecutorService getExecutorService() {
-        return executorService;
-    }
 
     @Nonnull
     protected Logger getLogger() {

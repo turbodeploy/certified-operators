@@ -54,11 +54,14 @@ import com.vmturbo.common.protobuf.topology.TopologyServiceGrpc.TopologyServiceB
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.components.api.client.IMessageReceiver;
+import com.vmturbo.components.api.client.KafkaMessageConsumer;
+import com.vmturbo.components.api.server.KafkaMessageProducer;
 import com.vmturbo.components.test.utilities.ComponentTestRule;
 import com.vmturbo.components.test.utilities.alert.Alert;
 import com.vmturbo.components.test.utilities.communication.ComponentStubHost;
 import com.vmturbo.components.test.utilities.component.ComponentCluster;
 import com.vmturbo.components.test.utilities.component.ComponentUtils;
+import com.vmturbo.components.test.utilities.component.DockerEnvironment;
 import com.vmturbo.components.test.utilities.utils.TopologyUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.sdk.examples.stressProbe.StressAccount;
@@ -73,6 +76,7 @@ import com.vmturbo.topology.processor.api.TargetListener;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TopologyProcessorNotification;
+import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TopologyProcessorNotificationOrBuilder;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClient;
 
 @Alert({
@@ -87,8 +91,8 @@ public class TopologyProcessorPerformanceTest {
     private TopologyServiceBlockingStub topologyService;
 
     private TopologyProcessor topologyProcessor;
-    private IMessageReceiver<Topology> messageReceiver;
-    private IMessageReceiver<TopologyProcessorNotification> topologyReceiver;
+    private IMessageReceiver<TopologyProcessorNotification> messageReceiver;
+    private IMessageReceiver<Topology> topologyReceiver;
 
     private ExecutorService threadPool = Executors.newCachedThreadPool();
 
@@ -116,12 +120,19 @@ public class TopologyProcessorPerformanceTest {
     public void setup() {
         final ComponentApiConnectionConfig connectionConfig =
                 componentTestRule.getCluster().getConnectionConfig("topology-processor");
-        // TODO create receivers here.
-//        messageReceiver = new TopologyProcessorMessageReceiver(connectionConfig, threadPool);
+        final KafkaMessageConsumer kafkaMessageConsumer =
+                new KafkaMessageConsumer(DockerEnvironment.getKafkaBootstrapServers(),
+                        "tp-performance-test");
+        messageReceiver =
+                kafkaMessageConsumer.messageReceiver(TopologyProcessorClient.NOTIFICATIONS_TOPIC,
+                        TopologyProcessorNotification::parseFrom);
+        topologyReceiver = kafkaMessageConsumer.messageReceiver(
+                TopologyProcessorClient.TOPOLOGY_BROADCAST_TOPIC, Topology::parseFrom);
+
         topologyService = TopologyServiceGrpc.newBlockingStub(
                 componentTestRule.getCluster().newGrpcChannel("topology-processor"));
         topologyProcessor = TopologyProcessorClient.rpcAndNotification(connectionConfig, threadPool,
-                topologyReceiver, messageReceiver);
+                messageReceiver, topologyReceiver);
     }
 
     @After

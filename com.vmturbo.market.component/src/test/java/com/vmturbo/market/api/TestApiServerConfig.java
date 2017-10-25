@@ -55,7 +55,8 @@ public class TestApiServerConfig {
 
     @Bean
     public MarketNotificationSender marketNotificationSender() {
-        return new MarketNotificationSender(apiServerThreadPool(),projectedTopologySender(),actionPlanSender());
+        return new MarketNotificationSender(apiServerThreadPool(), projectedTopologySender(),
+                actionPlanSender());
     }
 
     @Bean

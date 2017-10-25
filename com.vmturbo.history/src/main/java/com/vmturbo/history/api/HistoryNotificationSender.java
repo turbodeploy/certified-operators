@@ -23,9 +23,7 @@ public class HistoryNotificationSender extends ComponentNotificationSender<Histo
 
     private final IMessageSender<HistoryComponentNotification> sender;
 
-    HistoryNotificationSender(@Nonnull final ExecutorService executorService,
-            @Nonnull IMessageSender<HistoryComponentNotification> sender) {
-        super(executorService);
+    public HistoryNotificationSender(@Nonnull IMessageSender<HistoryComponentNotification> sender) {
         this.sender = Objects.requireNonNull(sender);
     }
 

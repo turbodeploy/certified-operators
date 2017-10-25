@@ -1,7 +1,6 @@
 package com.vmturbo.sample.component.notifications;
 
 import java.util.Objects;
-import java.util.concurrent.ExecutorService;
 
 import javax.annotation.Nonnull;
 
@@ -31,9 +30,8 @@ public class SampleComponentNotificationSender extends
 
     private final IMessageSender<SampleNotification> sender;
 
-    protected SampleComponentNotificationSender(@Nonnull final ExecutorService executorService,
+    protected SampleComponentNotificationSender(
             @Nonnull IMessageSender<SampleNotification> sender) {
-        super(executorService);
         this.sender = Objects.requireNonNull(sender);
     }
 

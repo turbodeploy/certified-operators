@@ -1,7 +1,6 @@
 package com.vmturbo.plan.orchestrator.plan;
 
 import java.util.Objects;
-import java.util.concurrent.ExecutorService;
 
 import javax.annotation.Nonnull;
 
@@ -16,9 +15,7 @@ public class PlanNotificationSender extends ComponentNotificationSender<PlanInst
 
     private final IMessageSender<PlanInstance> sender;
 
-    public PlanNotificationSender(@Nonnull final ExecutorService threadPool,
-            @Nonnull IMessageSender<PlanInstance> sender) {
-        super(threadPool);
+    public PlanNotificationSender(@Nonnull IMessageSender<PlanInstance> sender) {
         this.sender = Objects.requireNonNull(sender);
     }
 

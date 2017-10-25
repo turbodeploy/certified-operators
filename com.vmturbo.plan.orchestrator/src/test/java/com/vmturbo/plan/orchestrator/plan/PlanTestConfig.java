@@ -90,17 +90,10 @@ public class PlanTestConfig {
         return Mockito.spy(new TestAnalysisService());
     }
 
-     @Bean
-     public PlanNotificationSender planNotificationSender() {
-         return new PlanNotificationSender(planThreadPool(), messageChannel());
-     }
-
-     @Bean(destroyMethod = "shutdownNow")
-     public ExecutorService planThreadPool() {
-         final ThreadFactory threadFactory = new ThreadFactoryBuilder().setNameFormat("plan-api-%d")
-                 .build();
-         return Executors.newCachedThreadPool(threadFactory);
-     }
+    @Bean
+    public PlanNotificationSender planNotificationSender() {
+        return new PlanNotificationSender(messageChannel());
+    }
 
     @Bean
     public PlanServiceImplBase planServer() throws IOException {

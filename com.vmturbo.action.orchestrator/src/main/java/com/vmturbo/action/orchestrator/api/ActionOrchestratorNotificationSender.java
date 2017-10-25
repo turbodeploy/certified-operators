@@ -22,9 +22,8 @@ public class ActionOrchestratorNotificationSender extends
 
     private final IMessageSender<ActionOrchestratorNotification> sender;
 
-    ActionOrchestratorNotificationSender(@Nonnull final ExecutorService threadPool,
+    ActionOrchestratorNotificationSender(
             @Nonnull IMessageSender<ActionOrchestratorNotification> sender) {
-        super(threadPool);
         this.sender = Objects.requireNonNull(sender);
     }
 

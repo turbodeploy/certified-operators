@@ -1,18 +1,13 @@
 package com.vmturbo.market.priceindex;
 
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadFactory;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
 import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
 import com.vmturbo.components.api.server.IMessageSender;
+import com.vmturbo.market.api.MarketKafkaSender;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
 import com.vmturbo.priceindex.api.PriceIndexNotificationSender;
 import com.vmturbo.priceindex.api.impl.PriceIndexNotificationReceiver;
@@ -29,30 +24,13 @@ public class PriceIndexApiConfig {
     BaseKafkaProducerConfig kafkaProducerConfig;
 
     /**
-     * Constructs the sender thread pool.
-     * Requires 1 thread.
-     *
-     * @return The sender single-threaded thread pool.
-     */
-    @Bean(destroyMethod = "shutdownNow")
-    public ExecutorService apiSenderThreadPool() {
-        // Requires more than 1 thread in order to work (proven empirically).
-        return Executors.newCachedThreadPool(threadFactory());
-    }
-
-    @Bean
-    public ThreadFactory threadFactory() {
-        return new ThreadFactoryBuilder().setNameFormat("priceindex-api-sender-%d").build();
-    }
-
-    /**
      * Constructs the sender backend.
      *
      * @return The Sender API backend.
      */
     @Bean
     public PriceIndexNotificationSender priceIndexNotificationSender() {
-        return new PriceIndexNotificationSender(apiSenderThreadPool(), priceIndexMessageSender());
+        return MarketKafkaSender.createPriceIndexSender(kafkaProducerConfig.kafkaMessageSender());
     }
 
     /**

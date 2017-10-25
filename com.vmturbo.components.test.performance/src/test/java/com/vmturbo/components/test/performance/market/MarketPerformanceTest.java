@@ -26,8 +26,6 @@ import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.client.KafkaMessageConsumer;
 import com.vmturbo.components.test.utilities.ComponentTestRule;
 import com.vmturbo.components.test.utilities.alert.Alert;
-import com.vmturbo.components.test.utilities.communication.ComponentStubHost;
-import com.vmturbo.components.test.utilities.communication.TopologyProcessorStub;
 import com.vmturbo.components.test.utilities.component.ComponentCluster;
 import com.vmturbo.components.test.utilities.component.ComponentUtils;
 import com.vmturbo.components.test.utilities.component.DockerEnvironment;
@@ -36,6 +34,8 @@ import com.vmturbo.market.component.api.ActionsListener;
 import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.impl.MarketComponentClient;
 import com.vmturbo.topology.processor.api.server.TopologyBroadcast;
+import com.vmturbo.topology.processor.api.server.TopologyProcessorKafkaSender;
+import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
 
 /**
  * Performance tests for the market component.
@@ -45,9 +45,6 @@ public class MarketPerformanceTest {
 
     private static final Logger logger = LogManager.getLogger();
 
-    private TopologyProcessorStub topologyProcessorStub =
-            new TopologyProcessorStub();
-
     @Rule
     public ComponentTestRule componentTestRule = ComponentTestRule.newBuilder()
              .withComponentCluster(ComponentCluster.newBuilder()
@@ -56,8 +53,7 @@ public class MarketPerformanceTest {
                                 ComponentUtils.getDockerHostRoute())
                             .withMemLimit(4, MetricPrefix.GIGA)
                             .logsToLogger(logger)))
-            .withStubs(ComponentStubHost.newBuilder()
-                .withNotificationStubs(topologyProcessorStub))
+            .withoutStubs()
             .scrapeClusterAndLocalMetricsToInflux();
 
     private MarketComponent marketComponent;
@@ -94,9 +90,12 @@ public class MarketPerformanceTest {
     private void testTopology(int topologySize) throws Exception {
         final List<TopologyEntityDTO> topoDTOs = TopologyUtils.generateTopology(topologySize);
 
+        final TopologyProcessorNotificationSender tpNotificationSender =
+                TopologyProcessorKafkaSender.create(threadPool,
+                        componentTestRule.getKafkaMessageProducer());
         final TopologyBroadcast topologyBroadcast =
-                topologyProcessorStub.getBackend().broadcastTopology(
-                        ComponentUtils.REALTIME_TOPOLOGY_CONTEXT, 10, TopologyType.REALTIME);
+                tpNotificationSender.broadcastTopology(ComponentUtils.REALTIME_TOPOLOGY_CONTEXT, 10,
+                        TopologyType.REALTIME);
         topoDTOs.forEach(entity -> {
             try {
                 topologyBroadcast.append(entity);

@@ -61,8 +61,8 @@ public class TopologyProcessorApiConfig {
     @Bean
     public TopologyProcessorNotificationSender topologyProcessorNotificationSender() {
         final TopologyProcessorNotificationSender backend =
-                new TopologyProcessorNotificationSender(apiServerThreadPool(), topologySender(),
-                        notificationSender());
+                TopologyProcessorKafkaSender.create(apiServerThreadPool(),
+                        baseKafkaServerConfig.kafkaMessageSender());
         targetConfig.targetStore().addListener(backend);
         probeConfig.probeStore().addListener(backend);
         return backend;

@@ -51,11 +51,14 @@ public class TopologyProcessorNotificationSender
     private final Map<Class<? extends Operation>, OperationNotifier> operationsListeners;
     private final IMessageSender<Topology> topologySender;
     private final IMessageSender<TopologyProcessorNotification> notificationSender;
+    private final ExecutorService threadPool;
+
 
     public TopologyProcessorNotificationSender(@Nonnull final ExecutorService threadPool,
             @Nonnull IMessageSender<Topology> topologySender,
             @Nonnull IMessageSender<TopologyProcessorNotification> notificationSender) {
-        super(threadPool);
+        super();
+        this.threadPool = Objects.requireNonNull(threadPool);
         this.topologySender = Objects.requireNonNull(topologySender);
         this.notificationSender = Objects.requireNonNull(notificationSender);
         operationsListeners = new HashMap<>();
@@ -164,7 +167,7 @@ public class TopologyProcessorNotificationSender
     private void sendTopologySegment(final @Nonnull Topology segment) throws InterruptedException {
         getLogger().debug("Sending topology {} segment {}", segment::getTopologyId,
                 segment::getSegmentCase);
-        topologySender.sendMessage(segment);
+        topologySender.sendMessageSync(segment);
     }
 
     private TopologyProcessorNotification.Builder createNewMessage() {
@@ -299,7 +302,7 @@ public class TopologyProcessorNotificationSender
                     .build();
             // As startup message holds no data, it's safe to return immediately. There is not
             // problem, if it will hang in memory at the same time, as the first chunk.
-            initialMessage = getExecutorService().submit(() -> {
+            initialMessage = threadPool.submit(() -> {
                 sendTopologySegment(subMessage);
                 return null;
             });

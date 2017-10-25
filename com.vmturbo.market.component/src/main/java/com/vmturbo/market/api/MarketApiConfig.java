@@ -37,8 +37,8 @@ public class MarketApiConfig {
 
     @Bean
     public MarketNotificationSender marketApi() {
-        return new MarketNotificationSender(apiServerThreadPool(),
-                projectedTopologySender(), actionPlanSender());
+        return MarketKafkaSender.createMarketSender(apiServerThreadPool(),
+                baseKafkaProducerConfig.kafkaMessageSender());
     }
 
     @Bean

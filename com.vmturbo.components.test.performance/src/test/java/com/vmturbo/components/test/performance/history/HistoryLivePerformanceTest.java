@@ -12,13 +12,13 @@ import org.junit.Rule;
 import org.junit.Test;
 
 import io.grpc.Channel;
+
 import tec.units.ri.unit.MetricPrefix;
 
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
-import com.vmturbo.components.api.client.WebsocketNotificationReceiver;
+import com.vmturbo.components.api.server.KafkaMessageProducer;
 import com.vmturbo.components.test.utilities.ComponentTestRule;
 import com.vmturbo.components.test.utilities.alert.Alert;
-import com.vmturbo.components.test.utilities.communication.ComponentStubHost;
 import com.vmturbo.components.test.utilities.component.ComponentCluster;
 import com.vmturbo.components.test.utilities.component.ComponentUtils;
 import com.vmturbo.history.component.api.HistoryComponentNotifications.StatsAvailable;
@@ -50,8 +50,7 @@ public class HistoryLivePerformanceTest extends HistoryPerformanceTest {
                 .withMemLimit(2048, MetricPrefix.MEGA)
                 .withHealthCheckTimeoutMinutes(10)
                 .logsToLogger(logger)))
-        .withStubs(ComponentStubHost.newBuilder()
-            .withNotificationStubs(topologyProcessorStub, marketStub, priceIndexStub))
+        .withoutStubs()
         .scrapeClusterAndLocalMetricsToInflux();
 
     @Before
@@ -91,6 +90,12 @@ public class HistoryLivePerformanceTest extends HistoryPerformanceTest {
     @Test
     public void test200kLiveTopology() throws Exception {
         executeTest(200_000, ComponentUtils.REALTIME_TOPOLOGY_CONTEXT, 30);
+    }
+
+    @Nonnull
+    @Override
+    protected KafkaMessageProducer getKafkaMessageProducer() {
+        return componentTestRule.getKafkaMessageProducer();
     }
 
     @Override

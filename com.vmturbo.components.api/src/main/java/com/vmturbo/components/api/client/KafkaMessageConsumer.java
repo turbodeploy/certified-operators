@@ -63,6 +63,7 @@ public class KafkaMessageConsumer implements AutoCloseable {
         props.put("max.poll.records", 1);
         props.put("max.poll.interval.ms", 90000);
         props.put("fetch.max.bytes", 67108864);
+        props.put("auto.offset.reset", "earliest");
         consumer = new KafkaConsumer<>(props);
         pollingThread = new Thread(this::runPoll, "kafka-consumer");
         pollingThread.start();

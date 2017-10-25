@@ -13,29 +13,33 @@ import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.junit.Before;
 
-import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
-import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
+import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.api.client.WebsocketNotificationReceiver;
-import com.vmturbo.components.test.utilities.utils.TopologyUtils;
-import com.vmturbo.components.test.utilities.communication.MarketStub;
-import com.vmturbo.components.test.utilities.communication.PriceIndexStub;
-import com.vmturbo.components.test.utilities.communication.TopologyProcessorStub;
+import com.vmturbo.components.api.server.KafkaMessageProducer;
 import com.vmturbo.components.test.utilities.component.ComponentUtils;
+import com.vmturbo.components.test.utilities.utils.TopologyUtils;
 import com.vmturbo.history.component.api.HistoryComponent;
+import com.vmturbo.market.MarketNotificationSender;
+import com.vmturbo.market.api.MarketKafkaSender;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessagePayload;
+import com.vmturbo.priceindex.api.PriceIndexNotificationSender;
 import com.vmturbo.topology.processor.api.server.TopologyBroadcast;
+import com.vmturbo.topology.processor.api.server.TopologyProcessorKafkaSender;
+import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
 
 public abstract class HistoryPerformanceTest {
     protected static final Logger logger = LogManager.getLogger();
 
-    protected TopologyProcessorStub topologyProcessorStub = new TopologyProcessorStub();
-    protected MarketStub marketStub = new MarketStub();
-    protected PriceIndexStub priceIndexStub = new PriceIndexStub();
+    private MarketNotificationSender marketSender;
+    private TopologyProcessorNotificationSender tpSender;
+    private PriceIndexNotificationSender piSender;
 
     protected HistoryComponent historyComponent;
     protected WebsocketNotificationReceiver historyMessageReceiver;
@@ -73,7 +77,17 @@ public abstract class HistoryPerformanceTest {
      */
     protected abstract CompletableFuture<Long> getStatsAvailableFuture();
 
+    @Nonnull
+    protected abstract KafkaMessageProducer getKafkaMessageProducer();
+
     public static final long DEFAULT_STATS_TIMEOUT_MINUTES = 10;
+
+    @Before
+    public void createSenders() {
+        tpSender = TopologyProcessorKafkaSender.create(threadPool, getKafkaMessageProducer());
+        marketSender = MarketKafkaSender.createMarketSender(threadPool, getKafkaMessageProducer());
+        piSender = MarketKafkaSender.createPriceIndexSender(getKafkaMessageProducer());
+    }
 
     protected void executeTest(final int topologySize, final long topologyContextId) throws Exception {
         // Execute the test with a default timeout of 10 minutes.
@@ -103,10 +117,8 @@ public abstract class HistoryPerformanceTest {
         logger.info("Sending {} entity topology...", topoDTOs.size());
 
         final TopologyBroadcast topologyBroadcast =
-            topologyProcessorStub.getBackend().broadcastTopology(
-                topologyContextId,
-                SOURCE_TOPOLOGY_ID,
-                ComponentUtils.topologyType(topologyContextId));
+                tpSender.broadcastTopology(topologyContextId, SOURCE_TOPOLOGY_ID,
+                        ComponentUtils.topologyType(topologyContextId));
         topoDTOs.forEach(entity -> {
             try {
                 topologyBroadcast.append(entity);
@@ -122,7 +134,7 @@ public abstract class HistoryPerformanceTest {
                                          final long topologyContextId) throws Exception {
         logger.info("Sending {} entity projected {} topology...", topoDTOs.size(), getTestContextType());
 
-        marketStub.getBackend().notifyProjectedTopology(
+        marketSender.notifyProjectedTopology(
             SOURCE_TOPOLOGY_ID, PROJECTED_TOPOLOGY_ID, topologyContextId,
             ComponentUtils.topologyType(topologyContextId), CREATION_TIME, topoDTOs);
     }
@@ -142,7 +154,7 @@ public abstract class HistoryPerformanceTest {
             );
         });
 
-        priceIndexStub.getBackend().sendPriceIndex(SOURCE_TOPOLOGY_ID, CREATION_TIME, builder.build());
+        piSender.sendPriceIndex(SOURCE_TOPOLOGY_ID, CREATION_TIME, builder.build());
     }
 
     protected void fetchStats(final long topologyContextId) throws Exception {

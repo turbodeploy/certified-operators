@@ -33,7 +33,7 @@ public class RepositoryApiConfig {
 
     @Bean
     public RepositoryNotificationSender repositoryNotificationSender() {
-        return new RepositoryNotificationSender(threadPool(), notificationSender());
+        return new RepositoryNotificationSender(notificationSender());
     }
 
     @Bean

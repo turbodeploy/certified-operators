@@ -1,7 +1,6 @@
 package com.vmturbo.priceindex.api;
 
 import java.util.Objects;
-import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -22,12 +21,8 @@ public class PriceIndexNotificationSender extends ComponentNotificationSender<Pr
     private final IMessageSender<PriceIndexMessage> sender;
     /**
      * Constructs the backend.
-     *
-     * @param threadPool The thread pool required to send messages.
      */
-    public PriceIndexNotificationSender(final @Nonnull ExecutorService threadPool, @Nonnull
-            IMessageSender<PriceIndexMessage> sender) {
-        super(threadPool);
+    public PriceIndexNotificationSender(@Nonnull IMessageSender<PriceIndexMessage> sender) {
         this.sender = Objects.requireNonNull(sender);
     }
 

@@ -15,6 +15,7 @@ import io.grpc.Channel;
 import tec.units.ri.unit.MetricPrefix;
 
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
+import com.vmturbo.components.api.server.KafkaMessageProducer;
 import com.vmturbo.components.test.utilities.ComponentTestRule;
 import com.vmturbo.components.test.utilities.alert.Alert;
 import com.vmturbo.components.test.utilities.communication.ComponentStubHost;
@@ -49,8 +50,7 @@ public class HistoryPlanPerformanceTest extends HistoryPerformanceTest {
                 .withMemLimit(2, MetricPrefix.GIGA)
                 .withHealthCheckTimeoutMinutes(10)
                 .logsToLogger(logger)))
-        .withStubs(ComponentStubHost.newBuilder()
-            .withNotificationStubs(topologyProcessorStub, marketStub, priceIndexStub))
+        .withoutStubs()
         .scrapeClusterAndLocalMetricsToInflux();
 
     @Before
@@ -95,6 +95,12 @@ public class HistoryPlanPerformanceTest extends HistoryPerformanceTest {
     @Override
     protected String getTestContextType() {
         return "plan";
+    }
+
+    @Nonnull
+    @Override
+    protected KafkaMessageProducer getKafkaMessageProducer() {
+        return componentTestRule.getKafkaMessageProducer();
     }
 
     @Override

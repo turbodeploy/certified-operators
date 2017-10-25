@@ -38,12 +38,12 @@ import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.client.KafkaMessageConsumer;
 import com.vmturbo.components.test.utilities.ComponentTestRule;
 import com.vmturbo.components.test.utilities.alert.Alert;
-import com.vmturbo.components.test.utilities.communication.ComponentStubHost;
-import com.vmturbo.components.test.utilities.communication.MarketStub;
 import com.vmturbo.components.test.utilities.component.ComponentCluster;
 import com.vmturbo.components.test.utilities.component.ComponentUtils;
 import com.vmturbo.components.test.utilities.component.DockerEnvironment;
 import com.vmturbo.components.test.utilities.utils.ActionPlanGenerator;
+import com.vmturbo.market.MarketNotificationSender;
+import com.vmturbo.market.api.MarketKafkaSender;
 
 @Alert({"ao_populate_store_duration_seconds_sum{store_type='Live'}/5minutes",
         "ao_populate_store_duration_seconds_sum{store_type='Plan'}/5minutes",
@@ -52,8 +52,6 @@ import com.vmturbo.components.test.utilities.utils.ActionPlanGenerator;
 public class ActionOrchestratorPerformanceTest {
 
     private static final Logger logger = LogManager.getLogger();
-
-    private MarketStub marketStub = new MarketStub();
 
     private Channel actionOrchestratorChannel;
 
@@ -64,8 +62,7 @@ public class ActionOrchestratorPerformanceTest {
                         .withConfiguration("marketHost", ComponentUtils.getDockerHostRoute())
                         .withMemLimit(2.5, MetricPrefix.GIGA)
                         .logsToLogger(logger)))
-        .withStubs(ComponentStubHost.newBuilder()
-            .withNotificationStubs(marketStub))
+        .withoutStubs()
         .scrapeClusterAndLocalMetricsToInflux();
 
     @BeforeClass
@@ -76,8 +73,8 @@ public class ActionOrchestratorPerformanceTest {
     private ActionOrchestrator actionOrchestrator;
     private ActionsServiceBlockingStub actionsService;
     private KafkaMessageConsumer messageConsumer;
-    private IMessageReceiver<ActionOrchestratorNotification> messageReceiver;
     private ExecutorService threadPool = Executors.newCachedThreadPool();
+    private MarketNotificationSender marketNotificationSender;
 
     @Before
     public void setup() {
@@ -85,10 +82,15 @@ public class ActionOrchestratorPerformanceTest {
 
         messageConsumer = new KafkaMessageConsumer(DockerEnvironment.getKafkaBootstrapServers(),
                 "action-orchestrator-perf-test");
-        messageReceiver = messageConsumer.messageReceiver(
-                ActionOrchestratorNotificationReceiver.ACTIONS_TOPIC,
-                ActionOrchestratorNotification::parseFrom);
+        final IMessageReceiver<ActionOrchestratorNotification> messageReceiver =
+                messageConsumer.messageReceiver(
+                        ActionOrchestratorNotificationReceiver.ACTIONS_TOPIC,
+                        ActionOrchestratorNotification::parseFrom);
         actionsService = ActionsServiceGrpc.newBlockingStub(actionOrchestratorChannel);
+        marketNotificationSender = MarketKafkaSender.createMarketSender(threadPool,
+                componentTestRule.getKafkaMessageProducer());
+        actionOrchestrator =
+                new ActionOrchestratorNotificationReceiver(messageReceiver, threadPool);
     }
 
     @After
@@ -181,7 +183,7 @@ public class ActionOrchestratorPerformanceTest {
         actionOrchestrator.addActionsListener(new TestActionsListener(actionPlanFuture));
 
         final long start = System.currentTimeMillis();
-        marketStub.getBackend().notifyActionsRecommended(actionPlan);
+        marketNotificationSender.notifyActionsRecommended(actionPlan);
         final ActionPlan receivedActionPlan = actionPlanFuture.get(10, TimeUnit.MINUTES);
 
         logger.info("Took {} seconds to receive and process {} action plan of size {}.",

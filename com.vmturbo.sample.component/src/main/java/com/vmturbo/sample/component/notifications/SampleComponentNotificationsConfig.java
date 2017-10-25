@@ -65,8 +65,7 @@ public class SampleComponentNotificationsConfig {
      */
     @Bean
     public SampleComponentNotificationSender sampleComponentNotificationSender() {
-        return new SampleComponentNotificationSender(echoNotificationsThreadPool(),
-                notificationSender());
+        return new SampleComponentNotificationSender(notificationSender());
     }
 
     @Bean

@@ -11,7 +11,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
 import io.grpc.Channel;
 
 import com.vmturbo.action.orchestrator.api.ActionOrchestrator;
@@ -128,14 +127,7 @@ public class PlanConfig {
 
     @Bean
     public PlanNotificationSender planNotificationSender() {
-        return new PlanNotificationSender(planThreadPool(), notificationSender());
-    }
-
-    @Bean(destroyMethod = "shutdownNow")
-    public ExecutorService planThreadPool() {
-        final ThreadFactory threadFactory = new ThreadFactoryBuilder().setNameFormat("plan-api-%d")
-                .build();
-        return Executors.newCachedThreadPool(threadFactory);
+        return new PlanNotificationSender(notificationSender());
     }
 
     @Bean(destroyMethod = "shutdownNow")

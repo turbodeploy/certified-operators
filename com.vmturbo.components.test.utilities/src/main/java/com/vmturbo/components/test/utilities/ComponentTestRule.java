@@ -18,8 +18,10 @@ import org.junit.runners.model.Statement;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import com.vmturbo.components.api.server.KafkaMessageProducer;
 import com.vmturbo.components.test.utilities.communication.ComponentStubHost;
 import com.vmturbo.components.test.utilities.component.ComponentCluster;
+import com.vmturbo.components.test.utilities.component.DockerEnvironment;
 import com.vmturbo.components.test.utilities.metric.MetricsWarehouse;
 import com.vmturbo.components.test.utilities.metric.MetricsWarehouseVisitor;
 import com.vmturbo.components.test.utilities.metric.scraper.CAdvisorMetricsScraper;
@@ -41,6 +43,8 @@ public class ComponentTestRule implements TestRule {
     private final Optional<MetricsWarehouse> metricsWarehouse;
 
     private String testName;
+
+    private KafkaMessageProducer kafkaMessageProducer;
 
     private ComponentTestRule(@Nonnull final ComponentCluster componentCluster,
                              @Nonnull final ComponentStubHost componentStubHost,
@@ -89,6 +93,9 @@ public class ComponentTestRule implements TestRule {
 
         metricsWarehouse.ifPresent(warehouse -> warehouse.initialize(componentCluster));
         logger.info("Completed setup for test {}!", testName);
+
+        kafkaMessageProducer =
+                new KafkaMessageProducer(DockerEnvironment.getKafkaBootstrapServers());
     }
 
     private void teardown() {
@@ -125,6 +132,10 @@ public class ComponentTestRule implements TestRule {
         return new ComponentRuleSetter();
     }
 
+    public KafkaMessageProducer getKafkaMessageProducer() {
+        return kafkaMessageProducer;
+    }
+
     /**
      * Utility builder class to enforce that the user set a {@link ComponentCluster} for this
      * rule at compile-time.
@@ -148,6 +159,11 @@ public class ComponentTestRule implements TestRule {
         public MetricsWarehouseSetter withStubs(
                 @Nonnull final ComponentStubHost.Builder componentStubHostBuilder) {
             return new MetricsWarehouseSetter(componentCluster, componentStubHostBuilder.build());
+        }
+
+        public MetricsWarehouseSetter withoutStubs() {
+            return new MetricsWarehouseSetter(componentCluster,
+                    ComponentStubHost.newBuilder().build());
         }
     }
     /**

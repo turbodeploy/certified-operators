@@ -1,12 +1,8 @@
 package com.vmturbo.action.orchestrator.api;
 
 import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadFactory;
 
 import org.mockito.Mockito;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.converter.HttpMessageConverter;
@@ -15,15 +11,12 @@ import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 import org.springframework.web.socket.server.standard.ServerEndpointExporter;
 
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
 import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionOrchestratorNotification;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.EntitySeverityCache;
 import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.components.api.ComponentGsonFactory;
-import com.vmturbo.components.api.test.IntegrationTestServer;
 import com.vmturbo.components.api.test.SenderReceiverPair;
 
 /**
@@ -33,22 +26,11 @@ import com.vmturbo.components.api.test.SenderReceiverPair;
 @EnableWebMvc
 public class TestApiServerConfig extends WebMvcConfigurerAdapter {
 
-    @Value("#{environment['" + IntegrationTestServer.FIELD_TEST_NAME + "']}")
-    public String testName;
-
     // START bean definitions for API backend.
 
     @Bean
-    public ExecutorService apiServerThreadPool() {
-        final ThreadFactory threadFactory =
-                        new ThreadFactoryBuilder().setNameFormat("srv-" + testName + "-%d").build();
-        return Executors.newCachedThreadPool(threadFactory);
-    }
-
-    @Bean
     public ActionOrchestratorNotificationSender actionOrchestratorApi() {
-        return new ActionOrchestratorNotificationSender(apiServerThreadPool(),
-                notificationsChannel());
+        return new ActionOrchestratorNotificationSender(notificationsChannel());
     }
 
     @Bean

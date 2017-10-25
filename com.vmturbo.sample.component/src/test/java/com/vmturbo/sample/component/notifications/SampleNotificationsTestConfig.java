@@ -59,8 +59,7 @@ public class SampleNotificationsTestConfig {
      */
     @Bean
     public SampleComponentNotificationSender echoNotificationsBackend() {
-        return new SampleComponentNotificationSender(echoNotificationsThreadPool(),
-                notificationSender());
+        return new SampleComponentNotificationSender(notificationSender());
     }
 
     /**
@@ -69,8 +68,7 @@ public class SampleNotificationsTestConfig {
      */
     @Bean
     public SampleComponentNotificationSender sampleComponentNotificationSender() {
-        return new SampleComponentNotificationSender(echoNotificationsThreadPool(),
-                notificationSender());
+        return new SampleComponentNotificationSender(notificationSender());
     }
 
     @Bean

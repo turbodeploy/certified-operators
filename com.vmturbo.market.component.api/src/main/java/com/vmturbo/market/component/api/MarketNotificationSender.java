@@ -27,11 +27,12 @@ public class MarketNotificationSender extends
 
     private final IMessageSender<ProjectedTopology> projectedTopologySender;
     private final IMessageSender<ActionPlan> actionPlanSender;
+    private final ExecutorService threadPool;
 
-    public MarketNotificationSender(@Nonnull final ExecutorService threadPool,
+    public MarketNotificationSender(@Nonnull ExecutorService threadPool,
             @Nonnull IMessageSender<ProjectedTopology> projectedTopologySender,
             @Nonnull IMessageSender<ActionPlan> actionPlanSender) {
-        super(threadPool);
+        this.threadPool = Objects.requireNonNull(threadPool);
         this.projectedTopologySender = Objects.requireNonNull(projectedTopologySender);
         this.actionPlanSender = Objects.requireNonNull(actionPlanSender);
     }
@@ -63,7 +64,7 @@ public class MarketNotificationSender extends
     public void notifyProjectedTopology(final long srcTopologyId, final long projectedTopologyId,
             final long topologyContextId, final TopologyType topologyType, final long creationTime,
             @Nonnull final Collection<TopologyEntityDTO> projectedTopo) {
-        getExecutorService().submit(() -> {
+        threadPool.submit(() -> {
             try {
                 notifyTopologyInternal(srcTopologyId, projectedTopologyId, topologyContextId,
                         topologyType, creationTime, projectedTopo);

@@ -1,7 +1,6 @@
 package com.vmturbo.repository;
 
 import java.util.Objects;
-import java.util.concurrent.ExecutorService;
 
 import javax.annotation.Nonnull;
 
@@ -19,9 +18,7 @@ public class RepositoryNotificationSender extends
 
     private final IMessageSender<RepositoryNotification> sender;
 
-    public RepositoryNotificationSender(@Nonnull final ExecutorService threadPool,
-            @Nonnull IMessageSender<RepositoryNotification> sender) {
-        super(threadPool);
+    public RepositoryNotificationSender(@Nonnull IMessageSender<RepositoryNotification> sender) {
         this.sender = Objects.requireNonNull(sender);
     }
 
