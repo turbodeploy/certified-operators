@@ -83,12 +83,13 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClient;
     "tp_broadcast_duration_seconds_sum/5minutes",
     "tp_discovery_duration_seconds_sum/5minutes"
 })
-@Ignore("Temporarily unavailable. Waiting for implementation")
 public class TopologyProcessorPerformanceTest {
 
     private static final Logger logger = LogManager.getLogger();
 
     private TopologyServiceBlockingStub topologyService;
+
+    private KafkaMessageConsumer kafkaMessageConsumer;
 
     private TopologyProcessor topologyProcessor;
     private IMessageReceiver<TopologyProcessorNotification> messageReceiver;
@@ -120,8 +121,7 @@ public class TopologyProcessorPerformanceTest {
     public void setup() {
         final ComponentApiConnectionConfig connectionConfig =
                 componentTestRule.getCluster().getConnectionConfig("topology-processor");
-        final KafkaMessageConsumer kafkaMessageConsumer =
-                new KafkaMessageConsumer(DockerEnvironment.getKafkaBootstrapServers(),
+        kafkaMessageConsumer = new KafkaMessageConsumer(DockerEnvironment.getKafkaBootstrapServers(),
                         "tp-performance-test");
         messageReceiver =
                 kafkaMessageConsumer.messageReceiver(TopologyProcessorClient.NOTIFICATIONS_TOPIC,
@@ -137,6 +137,7 @@ public class TopologyProcessorPerformanceTest {
 
     @After
     public void teardown() {
+        kafkaMessageConsumer.close();
         try {
             threadPool.shutdownNow();
             threadPool.awaitTermination(10, TimeUnit.MINUTES);
