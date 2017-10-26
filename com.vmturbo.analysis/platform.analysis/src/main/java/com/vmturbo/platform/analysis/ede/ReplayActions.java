@@ -14,6 +14,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 import com.vmturbo.platform.analysis.actions.Action;
+import com.vmturbo.platform.analysis.actions.ActionType;
 import com.vmturbo.platform.analysis.actions.Activate;
 import com.vmturbo.platform.analysis.actions.CompoundMove;
 import com.vmturbo.platform.analysis.actions.Deactivate;
@@ -74,82 +75,119 @@ public class ReplayActions {
         LinkedList<Action> actions = new LinkedList<>();
         actions_.forEach(a -> {
             try {
-                if (a instanceof Move) {
-                    Move oldAction = (Move) a;
-                    Move m = new Move(economy,
-                         translateShoppingList(oldAction.getTarget(), economy, topology),
-                         translateTrader(oldAction.getDestination(), economy, "Move"));
-                    // move will fail if supplier has changed handling actions already taken
-                    m.take();
-                    actions.add(m);
-                } else if (a instanceof Resize) {
-                    Resize oldAction = (Resize) a;
-                    Trader newSellingTrader = translateTrader(oldAction.getSellingTrader(),
-                                                              economy, "Resize");
-                    Resize r = new Resize(economy, newSellingTrader,
-                     oldAction.getResizedCommoditySpec(),
-                     newSellingTrader.getCommoditySold(oldAction.getResizedCommoditySpec()),
-                     newSellingTrader.getBasketSold().indexOf(oldAction.getResizedCommoditySpec()),
-                           oldAction.getNewCapacity());
-                    r.take();
-                    actions.add(r);
-                } else if (a instanceof ProvisionByDemand) {
+                if (a.getType() == ActionType.MOVE) {
+                    Move oldAction = (Move)a;
+                    // Target shopping list is movable and destination trader
+                    // can accept customer, generate move action
+                    Trader newTargetTrader = translateTrader(oldAction.getDestination(), economy, "Move");
+                    ShoppingList newShoppingList = translateShoppingList(oldAction.getTarget(), economy, topology);
+                    if (newShoppingList.isMovable() && newTargetTrader.getSettings().canAcceptNewCustomers()) {
+                        Move m = new Move(economy, newShoppingList, newTargetTrader);
+                        // move will fail if supplier has changed handling actions already taken
+                        m.take();
+                        actions.add(m);
+                    }
+                } else if (a.getType() == ActionType.RESIZE) {
+                    Resize oldAction = (Resize)a;
+                    Trader newSellingTrader = translateTrader(oldAction.getSellingTrader(), economy, "Resize");
+                    CommoditySold newSoldCommodity = newSellingTrader.getCommoditySold(
+                                    oldAction.getResizedCommoditySpec());
+                    // new commodity of trader still resizable, then take the action
+                    if (newSoldCommodity.getSettings().isResizable()) {
+                        Resize r = new Resize(economy, newSellingTrader,
+                                        oldAction.getResizedCommoditySpec(), newSoldCommodity,
+                                        newSellingTrader.getBasketSold().indexOf(
+                                                        oldAction.getResizedCommoditySpec()),
+                                        oldAction.getNewCapacity());
+                        r.take();
+                        actions.add(r);
+                    }
+                } else if (a.getType() == ActionType.PROVISION_BY_DEMAND) {
                     ProvisionByDemand oldAction = (ProvisionByDemand) a;
-                    ProvisionByDemand pbd = new ProvisionByDemand(economy,
-                       translateShoppingList(oldAction.getModelBuyer(), economy, topology),
-                       translateTrader(oldAction.getModelSeller(), economy, "ProvisionByDemand"));
-                    pbd.take();
-                    Long oid = oldAction.getOid();
-                    topology.addProvisionedTrader(pbd.getProvisionedSeller(), oid);
-                    topology.getEconomy().getMarketsAsBuyer(pbd.getProvisionedSeller()).keySet()
-                            .stream().forEach(topology::addProvisionedShoppingList);
-                    actions.add(pbd);
-                } else if (a instanceof ProvisionBySupply) {
+                    // Model seller of provision by demand action is still cloneable,
+                    // then take the action
+                    Trader newTrader = translateTrader(oldAction.getModelSeller(), economy, "ProvisionByDemand");
+                    if(newTrader.getSettings().isCloneable()) {
+                        ProvisionByDemand pbd = new ProvisionByDemand(economy,
+                                        translateShoppingList(oldAction.getModelBuyer(), economy, topology),
+                                        newTrader);
+                        pbd.take();
+                        Long oid = oldAction.getOid();
+                        topology.addProvisionedTrader(pbd.getProvisionedSeller(), oid);
+                        topology.getEconomy().getMarketsAsBuyer(pbd.getProvisionedSeller()).keySet()
+                                 .stream().forEach(topology::addProvisionedShoppingList);
+                        actions.add(pbd);
+                    }
+                } else if (a.getType() == ActionType.PROVISION_BY_SUPPLY) {
                     ProvisionBySupply oldAction = (ProvisionBySupply) a;
-                    ProvisionBySupply pbs = new ProvisionBySupply(economy,
-                                 translateTrader(oldAction.getModelSeller(), economy, "ProvisionBySupply"));
-                    pbs.take();
-                    Long oid = oldAction.getOid();
-                    topology.addProvisionedTrader(pbs.getProvisionedSeller(), oid);
-                    topology.getEconomy().getMarketsAsBuyer(pbs.getProvisionedSeller()).keySet()
-                            .stream().forEach(topology::addProvisionedShoppingList);
-                    actions.add(pbs);
-                } else if (a instanceof Activate) {
+                    // Model seller of provision by supply action is still cloneable,
+                    // then take the action
+                    Trader newTrader = translateTrader(oldAction.getModelSeller(), economy, "ProvisionBySupply");
+                    if(newTrader.getSettings().isCloneable()) {
+                        ProvisionBySupply pbs = new ProvisionBySupply(economy, newTrader);
+                        pbs.take();
+                        Long oid = oldAction.getOid();
+                        topology.addProvisionedTrader(pbs.getProvisionedSeller(), oid);
+                        topology.getEconomy().getMarketsAsBuyer(pbs.getProvisionedSeller()).keySet()
+                                .stream().forEach(topology::addProvisionedShoppingList);
+                        actions.add(pbs);
+                    }
+                } else if (a.getType() == ActionType.ACTIVATE) {
                     Activate oldAction = (Activate) a;
-                    Activate act = new Activate(economy,
-                         translateTrader(oldAction.getTarget(), economy, "Activate1"),
-                         oldAction.getSourceMarket(),
-                         translateTrader(oldAction.getModelSeller(), economy, "Activate2"));
-                    act.take();
-                    actions.add(act);
-                } else if (a instanceof Deactivate) {
+                    // Model seller of activate action should be cloneable
+                    Trader newTrader = translateTrader(oldAction.getModelSeller(), economy, "Activate2");
+                    if(newTrader.getSettings().isCloneable()) {
+                        Activate act = new Activate(economy,
+                                        translateTrader(oldAction.getTarget(), economy, "Activate1"),
+                                        oldAction.getSourceMarket(),
+                                        newTrader);
+                        act.take();
+                        actions.add(act);
+                    }
+                } else if (a.getType() == ActionType.DEACTIVATE) {
                     Deactivate oldAction = (Deactivate) a;
-                    Deactivate deact = new Deactivate(economy,
-                           translateTrader(oldAction.getTarget(), economy, "Deactivate"),
-                           oldAction.getSourceMarket());
-                    deact.take();
-                    actions.add(deact);
-                } else if (a instanceof Reconfigure) {
+                    // Target of deactivate action should be suspendable
+                    Trader newTrader = translateTrader(oldAction.getTarget(), economy, "Deactivate");
+                    if(oldAction.getTarget().getSettings().isSuspendable()) {
+                        Deactivate deact = new Deactivate(economy, newTrader, oldAction.getSourceMarket());
+                        deact.take();
+                        actions.add(deact);
+                    }
+                } else if (a.getType() == ActionType.RECONFIGURE) {
                     Reconfigure oldAction = (Reconfigure) a;
                     Reconfigure reconf = new Reconfigure(economy,
                                translateShoppingList(oldAction.getTarget(), economy, topology));
                     // nothing to do
                     reconf.take();
                     actions.add(reconf);
-                } else if (a instanceof CompoundMove) {
-                        CompoundMove oldAction = (CompoundMove) a;
+                } else if (a.getType() == ActionType.COMPOUND_MOVE) {
+                    CompoundMove oldAction = (CompoundMove)a;
+                    Trader newTrader = translateTrader(oldAction.getActionTarget(), economy,
+                                    "CompoundMove");
+                    // If trader shoptogether is false, no need to replay compound move
+                    if (newTrader.getSettings().isShopTogether()) {
                         List<Move> oldMoves = oldAction.getConstituentMoves();
                         List<ShoppingList> shoppingLists = new LinkedList<>();
                         List<Trader> destinationTraders = new LinkedList<>();
+                        boolean movable = true;
                         for (Move move : oldMoves) {
-                            shoppingLists.add(translateShoppingList(move.getTarget(),
-                                                                    economy, topology));
-                            destinationTraders.add(translateTrader(move.getDestination(),
-                                                                   economy, "Move"));
+                            if (!move.getTarget().isMovable()) {
+                                movable = false;
+                                break;
+                            }
+                            shoppingLists.add(translateShoppingList(move.getTarget(), economy,
+                                            topology));
+                            destinationTraders.add(translateTrader(move.getDestination(), economy,
+                                            "Move"));
                         }
-                        CompoundMove compound = new CompoundMove(economy, shoppingLists, destinationTraders);
-                        compound.take();
-                        actions.add(compound);
+                        // Movable false on any shopping list, means no compound move
+                        if (movable) {
+                            CompoundMove compound = new CompoundMove(economy, shoppingLists,
+                                            destinationTraders);
+                            compound.take();
+                            actions.add(compound);
+                        }
+                    }
                 } else {
                     logger.warn("uncovered action " + a.toString());
                 }
