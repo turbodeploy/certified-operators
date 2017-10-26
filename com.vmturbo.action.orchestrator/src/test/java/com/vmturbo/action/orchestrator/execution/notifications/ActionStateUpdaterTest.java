@@ -1,5 +1,7 @@
 package com.vmturbo.action.orchestrator.execution.notifications;
 
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.junit.Before;
@@ -15,6 +17,7 @@ import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep.Status;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
@@ -22,7 +25,9 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionFailure;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionProgress;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionSuccess;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 
+import static com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils.makeSettingMap;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.never;
@@ -50,8 +55,9 @@ public class ActionStateUpdaterTest {
             .setMove(Move.newBuilder().setDestinationId(1).setSourceId(2).setTargetId(3)))
         .setExplanation(Explanation.newBuilder().build())
         .build();
+    private final Map<Long, List<Setting>> settingMap = makeSettingMap(3L, ActionMode.MANUAL);
 
-    private final Action testAction = new Action(recommendation, 4);
+    private final Action testAction = new Action(recommendation, settingMap, 4);
 
     @Before
     public void setup() {

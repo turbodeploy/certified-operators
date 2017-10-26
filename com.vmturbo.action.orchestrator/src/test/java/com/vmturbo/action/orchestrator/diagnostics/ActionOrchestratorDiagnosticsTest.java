@@ -5,6 +5,7 @@ import java.io.ByteArrayOutputStream;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.zip.ZipInputStream;
@@ -37,6 +38,9 @@ import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.EntitySeverityCache;
 import com.vmturbo.action.orchestrator.store.IActionFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreFactory;
+import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.components.common.DiagnosticsWriter;
 
 import static org.mockito.Matchers.anyLong;
@@ -234,8 +238,10 @@ public class ActionOrchestratorDiagnosticsTest {
 
     private void testSingleAction(@Nullable final Consumer<Action> actionModifier)
             throws Exception {
-        final Action action = actionFactory.newAction(
-                ActionOrchestratorTestUtils.createMoveRecommendation(1), 0L);
+        final ActionDTO.Action rec = ActionOrchestratorTestUtils.createMoveRecommendation(1);
+        final Map<Long, List<Setting>> settings = ActionOrchestratorTestUtils
+                .makeSettingMap(rec.getInfo().getMove().getTargetId(), ActionMode.MANUAL);
+        final Action action = actionFactory.newAction(rec, settings, 0L);
         if (actionModifier != null) {
             actionModifier.accept(action);
         }

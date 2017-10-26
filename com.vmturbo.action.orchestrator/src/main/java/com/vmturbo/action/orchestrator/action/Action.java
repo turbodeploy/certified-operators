@@ -1,6 +1,8 @@
 package com.vmturbo.action.orchestrator.action;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -22,7 +24,6 @@ import com.vmturbo.action.orchestrator.action.ActionTranslation.TranslationStatu
 import com.vmturbo.action.orchestrator.state.machine.StateMachine;
 import com.vmturbo.action.orchestrator.state.machine.Transition.TransitionResult;
 import com.vmturbo.common.protobuf.action.ActionDTO;
-import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
@@ -70,6 +71,11 @@ public class Action implements ActionView {
     private Optional<ExecutableStep> executableStep;
 
     /**
+     * The map of entity IDs to the settings that apply to those entities.
+     */
+    private final Map<Long, List<Setting>> entitySettings;
+
+    /**
      * The translation for this action.
      *
      * Actions are translated from the market's domain-agnostic action recommendations into
@@ -114,11 +120,9 @@ public class Action implements ActionView {
         }
         this.stateMachine = ActionStateMachine.newInstance(this, savedState.currentState);
         this.actionTranslation = savedState.actionTranslation;
+        this.entitySettings = new HashMap<>();
     }
 
-    // TODO (Michelle Neuburger 2017-10-17) deal with presence/absence of entity settings
-    // (this affects the ActionFactory class too)
-    // entity settings are only relevant with the LiveActionStore
     public Action(@Nonnull final ActionDTO.Action recommendation,
                   @Nonnull final LocalDateTime recommendationTime,
                   final long actionPlanId) {
@@ -129,6 +133,7 @@ public class Action implements ActionView {
         this.executableStep = Optional.empty();
         this.decision = new Decision();
         this.actionTranslation = new ActionTranslation(this.recommendation);
+        this.entitySettings = new HashMap<>();
     }
 
     public Action(@Nonnull final ActionDTO.Action recommendation,
@@ -142,6 +147,7 @@ public class Action implements ActionView {
         this.executableStep = Optional.empty();
         this.decision = new Decision();
         this.actionTranslation = new ActionTranslation(this.recommendation);
+        this.entitySettings = Objects.requireNonNull(entitySettings);
     }
 
     public Action(Action prototype, ActionDTO.Action.SupportLevel supportLevel) {
@@ -153,6 +159,7 @@ public class Action implements ActionView {
         this.stateMachine = prototype.stateMachine;
         this.recommendation = ActionDTO.Action.newBuilder(prototype.recommendation)
                 .setSupportingLevel(supportLevel).build();
+        this.entitySettings = new HashMap<>();
     }
 
     public Action(@Nonnull final ActionDTO.Action recommendation,
@@ -234,23 +241,49 @@ public class Action implements ActionView {
     }
 
     /**
-     * Get The mode of the action. The action mode is established by checking the policy for the action
+     * Get the mode of the action. The action mode is established by checking the policy for the action
      * when it is received by the action orchestrator.
      *
+     * The mode is determined by the strictest policy that applies to any entity involved in the action.
+     * The default mode is RECOMMEND for actions of unrecognized type, and MANUAL for actions of
+     * recognized type with sufficient SupportLevel.
      * @return The {@link ActionMode} that currently applies to the action.
      */
     @Override
     public ActionMode getMode() {
         // TODO: (DavidBlinn, August 2016). Proper support for action modes.
         // Determine the mode based on action type for now.
-        // TODO: (Michelle Neuburger 2017-10-17) find this using stored EntitySettings
+        // TODO: (Michelle Neuburger, 2017-10-23). Other action types besides Move.
+        // TODO: Determine which settings apply when action involves more than one entity.
+        ActionMode mode;
         switch (recommendation.getInfo().getActionTypeCase()) {
-            case MOVE: case RESIZE: case ACTIVATE: case DEACTIVATE:
-                return recommendation.getSupportingLevel() == SupportLevel.SHOW_ONLY
-                        ? ActionMode.RECOMMEND
-                        : ActionMode.MANUAL;
+            case MOVE:
+                long targetId = recommendation.getInfo().getMove().getTargetId();
+                List<Setting> targetSettings =
+                        entitySettings.getOrDefault(targetId, Collections.emptyList());
+                // ASSUMPTION: all move settings will have specs prefixed by "move"
+                mode = targetSettings.stream()
+                        .filter(s -> s.getSettingSpecName().toLowerCase().startsWith("move") &&
+                                s.hasEnumSettingValue())
+                        .map(s -> ActionMode.valueOf(s.getEnumSettingValue().getValue()).getNumber())
+                        .min(Integer::compareTo)
+                        .map(ActionMode::forNumber)
+                        .orElse(ActionMode.MANUAL);
+                break;
+            case RESIZE: case ACTIVATE: case DEACTIVATE:
+                mode = ActionMode.MANUAL;
+                break;
             default:
-                return ActionMode.RECOMMEND;
+                mode = ActionMode.RECOMMEND;
+        }
+        switch (recommendation.getSupportingLevel()) {
+            case UNSUPPORTED:
+                return ActionMode.DISABLED;
+            case SHOW_ONLY:
+                return (mode.getNumber() > ActionMode.RECOMMEND_VALUE) ?
+                        ActionMode.RECOMMEND : mode;
+            default:
+                return mode;
         }
     }
 

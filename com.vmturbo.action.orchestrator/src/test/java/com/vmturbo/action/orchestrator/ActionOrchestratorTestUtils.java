@@ -1,5 +1,9 @@
 package com.vmturbo.action.orchestrator;
 
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 import javax.annotation.Nonnull;
@@ -12,7 +16,10 @@ import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
+import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 
 /**
  * Utility methods for Action Orchestrator tests.
@@ -51,7 +58,7 @@ public class ActionOrchestratorTestUtils {
     @Nonnull
     public static ActionDTO.Action createResizeRecommendation(final long actionId,
                                                               final long targetId,
-                                                              @Nonnull final com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType resizeCommodity,
+                                                              @Nonnull final CommodityDTO.CommodityType resizeCommodity,
                                                               final double oldCapacity,
                                                               final double newCapacity) {
         return baseAction(actionId)
@@ -66,14 +73,14 @@ public class ActionOrchestratorTestUtils {
 
     @Nonnull
     public static ActionDTO.Action createResizeRecommendation(final long actionId,
-                                                              @Nonnull final com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType resizeCommodity) {
+                                                              @Nonnull final CommodityDTO.CommodityType resizeCommodity) {
         return createResizeRecommendation(actionId, TARGET_ID, resizeCommodity, 1.0, 2.0);
     }
 
     @Nonnull
     public static ActionSpec resizeActionSpec(final long actionId, final long actionPlanId) {
         return baseActionSpec(actionPlanId)
-                .setRecommendation(createResizeRecommendation(actionId, com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.VMEM))
+                .setRecommendation(createResizeRecommendation(actionId, CommodityDTO.CommodityType.VMEM))
                 .build();
     }
 
@@ -127,6 +134,17 @@ public class ActionOrchestratorTestUtils {
                 .setRecommendationTime(System.currentTimeMillis())
                 .setActionMode(ActionMode.MANUAL)
                 .setIsExecutable(true);
+    }
+
+    public static Map<Long, List<Setting>> makeSettingMap(long entity, ActionMode mode) {
+        Map<Long, List<Setting>> result = new HashMap<>();
+        List<Setting> settings = Collections.singletonList(Setting.newBuilder()
+                .setSettingSpecName("moveVM")
+                .setEnumSettingValue(EnumSettingValue.newBuilder()
+                        .setValue(mode.toString()).build())
+                .build());
+        result.put(entity, settings);
+        return result;
     }
 
 }

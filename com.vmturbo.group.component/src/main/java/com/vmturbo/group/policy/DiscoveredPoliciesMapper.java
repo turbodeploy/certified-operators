@@ -39,7 +39,7 @@ public class DiscoveredPoliciesMapper {
     private static final String MESSAGE = "{}. Buyers : \"{}\" ({}). Sellers : \"{}\" ({}).";
     /**
      * Convert a discovered policy spec (representing e.g. a DRS rules)
-     * to an {@link InputPolocy}.
+     * to an {@link InputPolicy}.
      *
      * @param spec the discovered policy
      * @return a representation of the policy that can be saved in the DB

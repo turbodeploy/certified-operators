@@ -274,6 +274,8 @@ public class LiveActionStore implements ActionStore {
                     newActions.add(recommendedAction);
                 }
             });
+            // TODO: (Michelle Neuburger 2017-10-26) retrieve settings for all actions' entities,
+            // TODO: not just new ones, and refresh existing actions' entity setting map (OM-26182)
             final Set<Long> entitiesToRetrieve = newActions.stream().flatMap(newAction -> {
                 try {
                     return ActionDTOUtil.getInvolvedEntities(newAction).stream();
