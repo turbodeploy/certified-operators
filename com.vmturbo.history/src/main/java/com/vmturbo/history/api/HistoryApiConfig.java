@@ -4,20 +4,24 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.web.socket.server.standard.ServerEndpointRegistration;
+import org.springframework.context.annotation.Import;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
-import com.vmturbo.communication.WebsocketServerTransportManager;
-import com.vmturbo.components.api.server.BroadcastWebsocketTransportManager;
-import com.vmturbo.components.api.server.WebsocketNotificationSender;
+import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
+import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.history.component.api.HistoryComponentNotifications.HistoryComponentNotification;
 import com.vmturbo.history.component.api.impl.HistoryComponentNotificationReceiver;
 
 @Configuration
+@Import({BaseKafkaProducerConfig.class})
 public class HistoryApiConfig {
+
+    @Autowired
+    private BaseKafkaProducerConfig kafkaProducerConfig;
 
     @Bean(destroyMethod = "shutdownNow")
     public ExecutorService historyApiServerThreadPool() {
@@ -28,24 +32,13 @@ public class HistoryApiConfig {
 
     @Bean
     public HistoryNotificationSender historyNotificationSender() {
-        return new HistoryNotificationSender(notificationSender());
+        return new HistoryNotificationSender(historyMessageSender());
     }
 
     @Bean
-    public WebsocketNotificationSender<HistoryComponentNotification> notificationSender() {
-        return new WebsocketNotificationSender<>(historyApiServerThreadPool());
-    }
-
-    @Bean
-    public WebsocketServerTransportManager transportManager() {
-        return BroadcastWebsocketTransportManager.createTransportManager
-                (historyApiServerThreadPool(), notificationSender());
-    }
-
-    @Bean
-    public ServerEndpointRegistration historyApiEndpointRegistration() {
-        return new ServerEndpointRegistration(HistoryComponentNotificationReceiver.WEBSOCKET_PATH,
-                transportManager());
+    public IMessageSender<HistoryComponentNotification> historyMessageSender() {
+        return kafkaProducerConfig.kafkaMessageSender()
+                .messageSender(HistoryComponentNotificationReceiver.NOTIFICATION_TOPIC);
     }
 
     @Bean

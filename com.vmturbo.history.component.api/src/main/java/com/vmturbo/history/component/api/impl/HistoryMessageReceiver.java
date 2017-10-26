@@ -1,27 +1,26 @@
 package com.vmturbo.history.component.api.impl;
 
-import java.util.concurrent.ExecutorService;
-
 import javax.annotation.Nonnull;
 
-import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
-import com.vmturbo.components.api.client.WebsocketNotificationReceiver;
+import com.vmturbo.components.api.client.IMessageReceiver;
+import com.vmturbo.components.api.client.KafkaMessageConsumer;
 import com.vmturbo.history.component.api.HistoryComponentNotifications.HistoryComponentNotification;
 
 /**
- * Websocket message receiver for History clients.
+ * Utility class to create history message receiver.
  */
-public class HistoryMessageReceiver extends
-        WebsocketNotificationReceiver<HistoryComponentNotification> {
+public class HistoryMessageReceiver {
+
     /**
-     * Constructs message receiver.
+     * Creates message receiver for history component.
      *
-     * @param connectionConfig connection config
-     * @param threadPool thread pool to use
+     * @param kafkaMessageConsumer Kafka message consumer to get messages from
+     * @return message receiver.
      */
-    public HistoryMessageReceiver(@Nonnull ComponentApiConnectionConfig connectionConfig,
-            @Nonnull ExecutorService threadPool) {
-        super(connectionConfig, HistoryComponentNotificationReceiver.WEBSOCKET_PATH, threadPool,
+    public static IMessageReceiver<HistoryComponentNotification> create(
+            @Nonnull KafkaMessageConsumer kafkaMessageConsumer) {
+        return kafkaMessageConsumer.messageReceiver(
+                HistoryComponentNotificationReceiver.NOTIFICATION_TOPIC,
                 HistoryComponentNotification::parseFrom);
     }
 }

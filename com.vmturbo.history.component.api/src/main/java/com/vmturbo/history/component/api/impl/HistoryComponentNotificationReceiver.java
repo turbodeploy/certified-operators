@@ -19,7 +19,7 @@ public class HistoryComponentNotificationReceiver
         extends ComponentNotificationReceiver<HistoryComponentNotification>
         implements HistoryComponent {
 
-    public static final String WEBSOCKET_PATH = "/history-api";
+    public static final String NOTIFICATION_TOPIC = "historyNotifications";
 
     private final Set<StatsListener> statsListeners =
             Collections.synchronizedSet(new HashSet<>());

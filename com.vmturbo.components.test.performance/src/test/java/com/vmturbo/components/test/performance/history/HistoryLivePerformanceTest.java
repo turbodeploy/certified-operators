@@ -16,11 +16,13 @@ import io.grpc.Channel;
 import tec.units.ri.unit.MetricPrefix;
 
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
+import com.vmturbo.components.api.client.KafkaMessageConsumer;
 import com.vmturbo.components.api.server.KafkaMessageProducer;
 import com.vmturbo.components.test.utilities.ComponentTestRule;
 import com.vmturbo.components.test.utilities.alert.Alert;
 import com.vmturbo.components.test.utilities.component.ComponentCluster;
 import com.vmturbo.components.test.utilities.component.ComponentUtils;
+import com.vmturbo.components.test.utilities.component.DockerEnvironment;
 import com.vmturbo.history.component.api.HistoryComponentNotifications.StatsAvailable;
 import com.vmturbo.history.component.api.impl.HistoryComponentNotificationReceiver;
 import com.vmturbo.history.component.api.impl.HistoryMessageReceiver;
@@ -38,6 +40,7 @@ import com.vmturbo.history.component.api.impl.HistoryMessageReceiver;
 public class HistoryLivePerformanceTest extends HistoryPerformanceTest {
     private final CompletableFuture<Long> statsAvailableFuture = new CompletableFuture<>();
     private StatsListener statsListener = new StatsListener(statsAvailableFuture);
+    private KafkaMessageConsumer messageConsumer;
 
     @Rule
     public ComponentTestRule componentTestRule = ComponentTestRule.newBuilder()
@@ -55,8 +58,9 @@ public class HistoryLivePerformanceTest extends HistoryPerformanceTest {
 
     @Before
     public void setup() {
-        historyMessageReceiver = new HistoryMessageReceiver(
-                componentTestRule.getCluster().getConnectionConfig("history"), threadPool);
+        messageConsumer = new KafkaMessageConsumer(DockerEnvironment.getKafkaBootstrapServers(),
+                "HistoryPerformanceTest");
+        historyMessageReceiver = HistoryMessageReceiver.create(messageConsumer);
         historyComponent =
                 new HistoryComponentNotificationReceiver(historyMessageReceiver, threadPool);
         historyComponent.addStatsListener(statsListener);
@@ -68,8 +72,7 @@ public class HistoryLivePerformanceTest extends HistoryPerformanceTest {
     @After
     public void teardown() {
         try {
-            historyMessageReceiver.close();
-
+            messageConsumer.close();
             threadPool.shutdownNow();
             threadPool.awaitTermination(10, TimeUnit.MINUTES);
         } catch (Exception e) {

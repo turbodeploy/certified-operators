@@ -19,7 +19,6 @@ import com.vmturbo.history.component.api.HistoryComponentNotifications.StatsAvai
  */
 @ThreadSafe
 public class HistoryNotificationSender extends ComponentNotificationSender<HistoryComponentNotification> {
-    private final Logger logger = LogManager.getLogger();
 
     private final IMessageSender<HistoryComponentNotification> sender;
 
@@ -29,7 +28,7 @@ public class HistoryNotificationSender extends ComponentNotificationSender<Histo
 
     public void statsAvailable(final long topologyContextId) {
         final long messageChainId = newMessageChainId();
-        logger.info("Stats available for context: {}", topologyContextId);
+        getLogger().info("Stats available for context: {}", topologyContextId);
 
         sendMessage(sender,
             HistoryComponentNotification.newBuilder()

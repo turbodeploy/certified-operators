@@ -20,11 +20,13 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.client.WebsocketNotificationReceiver;
 import com.vmturbo.components.api.server.KafkaMessageProducer;
 import com.vmturbo.components.test.utilities.component.ComponentUtils;
 import com.vmturbo.components.test.utilities.utils.TopologyUtils;
 import com.vmturbo.history.component.api.HistoryComponent;
+import com.vmturbo.history.component.api.HistoryComponentNotifications.HistoryComponentNotification;
 import com.vmturbo.market.MarketNotificationSender;
 import com.vmturbo.market.api.MarketKafkaSender;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
@@ -42,7 +44,7 @@ public abstract class HistoryPerformanceTest {
     private PriceIndexNotificationSender piSender;
 
     protected HistoryComponent historyComponent;
-    protected WebsocketNotificationReceiver historyMessageReceiver;
+    protected IMessageReceiver<HistoryComponentNotification> historyMessageReceiver;
     protected StatsHistoryServiceBlockingStub statsService;
     protected ExecutorService threadPool = Executors.newCachedThreadPool();
 

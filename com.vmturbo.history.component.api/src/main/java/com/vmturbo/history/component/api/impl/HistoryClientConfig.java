@@ -4,17 +4,19 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Lazy;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import io.grpc.Channel;
 
-import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
-import com.vmturbo.components.api.client.WebsocketNotificationReceiver;
+import com.vmturbo.components.api.client.BaseKafkaConsumerConfig;
+import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.grpc.extensions.PingingChannelBuilder;
 import com.vmturbo.history.component.api.HistoryComponent;
 import com.vmturbo.history.component.api.HistoryComponentNotifications.HistoryComponentNotification;
@@ -26,6 +28,7 @@ import com.vmturbo.history.component.api.HistoryComponentNotifications.HistoryCo
  */
 @Configuration
 @Lazy
+@Import({BaseKafkaConsumerConfig.class})
 public class HistoryClientConfig {
 
     @Value("${historyHost}")
@@ -34,11 +37,8 @@ public class HistoryClientConfig {
     @Value("${server.grpcPort}")
     private int grpcPort;
 
-    @Value("${server.port}")
-    private int httpPort;
-
-    @Value("${websocket.pong.timeout}")
-    private long websocketPongTimeout;
+    @Autowired
+    private BaseKafkaConsumerConfig kafkaConsumerConfig;
 
     @Bean(destroyMethod = "shutdownNow")
     protected ExecutorService historyClientThreadPool() {
@@ -48,18 +48,8 @@ public class HistoryClientConfig {
     }
 
     @Bean
-    public ComponentApiConnectionConfig historyClientConnectionConfig() {
-        return ComponentApiConnectionConfig.newBuilder()
-                .setHostAndPort(historyHost, httpPort)
-                .setPongMessageTimeout(websocketPongTimeout)
-                .build();
-    }
-
-    @Bean
-    public WebsocketNotificationReceiver<HistoryComponentNotification> historyClientMessageReceiver() {
-        return new WebsocketNotificationReceiver<>(historyClientConnectionConfig(),
-                HistoryComponentNotificationReceiver.WEBSOCKET_PATH, historyClientThreadPool(),
-                HistoryComponentNotification::parseFrom);
+    public IMessageReceiver<HistoryComponentNotification> historyClientMessageReceiver() {
+        return HistoryMessageReceiver.create(kafkaConsumerConfig.kafkaConsumer());
     }
 
     @Bean
