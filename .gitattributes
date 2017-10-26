@@ -913,6 +913,7 @@ com.vmturbo.mediation.delegatingprobe/src/test/java/com/vmturbo/mediation/delega
 com.vmturbo.mediation.delegatingprobe/src/test/resources/log4j.properties -text
 com.vmturbo.mediation.delegatingprobe/src/test/resources/log4j2-test.xml -text
 com.vmturbo.mediation.hyperv.component/pom.xml -text
+com.vmturbo.mediation.netapp.component/pom.xml -text
 com.vmturbo.mediation.openstack.component/pom.xml -text
 com.vmturbo.mediation.stressprobe.component/pom.xml -text
 com.vmturbo.mediation.ucs.component/pom.xml -text

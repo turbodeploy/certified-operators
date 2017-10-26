@@ -98,6 +98,8 @@ public class DockerEnvironment {
             .put("MEDIATION_VMAX_DEBUG_PORT", "8000")
             .put("MEDIATION_HYPERV_PORT", "8080")
             .put("MEDIATION_HYPERV_DEBUG_PORT", "8000")
+            .put("MEDIATION_NETAPP_PORT", "8080")
+            .put("MEDIATION_NETAPP_DEBUG_PORT", "8000")
             .put("MEDIATION_OPENSTACK_DEBUG_PORT", "8000")
             .put("MEDIATION_COMPELLENT_DEBUG_PORT", "8000")
             // MEMORY LIMITS and XMX Settings
@@ -128,6 +130,8 @@ public class DockerEnvironment {
             .put("MEDIATION_VCENTER_MEM_LIMIT_MB", "512")
             .put("MEDIATION_HYPERV_XMX_MB", "384")
             .put("MEDIATION_HYPERV_MEM_LIMIT_MB", "512")
+            .put("MEDIATION_NETAPP_XMX_MB", "384")
+            .put("MEDIATION_NETAPP_MEM_LIMIT_MB", "512")
             .put("MEDIATION_STRESSPROBE_XMX_MB", "768")
             .put("MEDIATION_STRESSPROBE_MEM_LIMIT_MB", "1024")
             .put("MEDIATION_DELEGATINGPROBE_XMX_MB", "384")
@@ -153,6 +157,7 @@ public class DockerEnvironment {
             .put("PLAN_ORCHESTRATOR_SYSTEM_PROPERTIES", "")
             .put("MEDIATION_VCENTER_SYSTEM_PROPERTIES", "")
             .put("MEDIATION_HYPERV_SYSTEM_PROPERTIES", "")
+            .put("MEDIATION_NETAPP_SYSTEM_PROPERTIES", "")
             .put("MEDIATION_STRESSPROBE_SYSTEM_PROPERTIES", "")
             .put("MEDIATION_DELEGATINGPROBE_SYSTEM_PROPERTIES", "")
             .build();

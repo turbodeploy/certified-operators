@@ -264,3 +264,16 @@ services:
     volumes:
       - mediation-hyperv:/home/turbonomic/data
     restart: always
+
+  mediation-netapp-prod:
+    extends:
+      file: common-services.yml
+      service: prod-component
+    image: turbonomic/com.vmturbo.mediation.netapp.component
+    environment:
+      consul_host: consul
+      component_type: mediation-netapp
+      instance_id: mediation-netapp-1
+    volumes:
+      - mediation-netapp:/home/turbonomic/data
+    restart: always

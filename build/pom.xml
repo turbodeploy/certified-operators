@@ -237,6 +237,7 @@
                 <module>../com.vmturbo.mediation.aix.component</module>
                 <module>../com.vmturbo.mediation.vmax.component</module>
                 <module>../com.vmturbo.mediation.hyperv.component</module>
+                <module>../com.vmturbo.mediation.netapp.component</module>
                 <module>../com.vmturbo.mediation.compellent.component</module>
                 <module>../com.vmturbo.mediation.openstack.component</module>
                 <module>../com.vmturbo.mediation.stressprobe.component</module>
@@ -293,6 +294,13 @@
             <id>mediation-hyperv</id>
             <modules>
                 <module>../com.vmturbo.mediation.hyperv.component</module>
+            </modules>
+        </profile>
+
+        <profile>
+            <id>mediation-netapp</id>
+            <modules>
+                <module>../com.vmturbo.mediation.netapp.component</module>
             </modules>
         </profile>
 
@@ -441,6 +449,7 @@
                 <module>../com.vmturbo.mediation.aix.component</module>
                 <module>../com.vmturbo.mediation.compellent.component</module>
                 <module>../com.vmturbo.mediation.hyperv.component</module>
+                <module>../com.vmturbo.mediation.netapp.component</module>
                 <module>../com.vmturbo.mediation.vmax.component</module>
                 <module>../com.vmturbo.mediation.stressprobe.component</module>
                 <module>../com.vmturbo.mediation.delegatingprobe</module>

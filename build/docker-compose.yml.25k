@@ -34,6 +34,7 @@ volumes:
   plan-orchestrator: *localdriver
   mediation-vcenter: *localdriver
   mediation-hyperv: *localdriver
+  mediation-netapp: *localdriver
   kafka1-log: *localdriver
   zoo1-data: *localdriver
 
@@ -199,6 +200,15 @@ services:
     extends:
       file: prod-services.yml
       service: mediation-hyperv-prod
+    environment:
+      JAVA_OPTS: "-Xmx1536M"
+    mem_limit: 2048M
+    depends_on: *clustermgrdep
+
+  mediation-netapp:
+    extends:
+      file: prod-services.yml
+      service: mediation-netapp-prod
     environment:
       JAVA_OPTS: "-Xmx1536M"
     mem_limit: 2048M
