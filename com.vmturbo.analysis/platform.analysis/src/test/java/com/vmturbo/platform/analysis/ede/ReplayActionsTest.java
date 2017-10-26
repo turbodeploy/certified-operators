@@ -93,6 +93,17 @@ public class ReplayActionsTest {
         pm1.getCommoditySold(CPU).setCapacity(100);
         first.getCommodityBought(shoppingLists[0],CPU).setQuantity(42);
 
+        // Shopping lists already on supplier need to be movable for this test
+        // PM2 should accept new customers for this test
+        // ReplayActions checks these before replaying action
+        shoppingLists[0].setMovable(true);
+        shoppingLists[1].setMovable(true);
+        shoppingLists[2].setMovable(true);
+        pm1.getSettings().setCanAcceptNewCustomers(true);
+        pm2.getSettings().setCanAcceptNewCustomers(true);
+        st1.getSettings().setCanAcceptNewCustomers(true);
+        st2.getSettings().setCanAcceptNewCustomers(true);
+
         firstTopology = new Topology();
         first.setTopology(firstTopology);
         Field traderOidField = Topology.class.getDeclaredField("traderOids_");

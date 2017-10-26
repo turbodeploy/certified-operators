@@ -93,6 +93,10 @@ public class ActionClassifierTest {
         pm1.getCommoditySold(CPU).setCapacity(100);
         first.getCommodityBought(shoppingLists[0], CPU).setQuantity(42);
 
+        // Deactivating pm1 for replay suspension test
+        // Make sure suspendable is true on it
+        pm1.getSettings().setSuspendable(true);
+
         firstTopology = new Topology();
         first.setTopology(firstTopology);
         Field traderOidField = Topology.class.getDeclaredField("traderOids_");
