@@ -667,6 +667,7 @@ com.vmturbo.components.test.utilities/src/test/java/com/vmturbo/components/test/
 com.vmturbo.components.test.utilities/src/test/java/com/vmturbo/components/test/utilities/utils/GroupGeneratorTest.java -text
 com.vmturbo.components.test.utilities/src/test/java/com/vmturbo/components/test/utilities/utils/TopologyUtilsTest.java -text
 com.vmturbo.components.test.utilities/src/test/resources/log4j2.xml -text
+com.vmturbo.components.test.utilities/src/test/resources/pathAnchor -text
 com.vmturbo.components.test.utilities/src/test/resources/topologies/classic/test.customer.markets.topology -text
 com.vmturbo.components/pom.xml -text
 com.vmturbo.consul/docker/Dockerfile -text

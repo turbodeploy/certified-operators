@@ -1,6 +1,7 @@
 package com.vmturbo.components.test.utilities.component;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -72,5 +73,19 @@ public class DockerEnvironmentTest {
         final Map<String, String> environment = DockerEnvironment.getEnvironmentVariables(components);
         assertEquals("-Dsome.system.property=foo -Dother.system.property=bar",
             environment.get("MARKET_SYSTEM_PROPERTIES"));
+    }
+
+    /**
+     * Verify that we can find the docker-compose.yml and docker-compose.test.yml files
+     */
+    @Test
+    public void testGetComposeFilesPath() {
+        // test the DockerEnvironment.getDockerComposeFiles() static method.
+        String[] paths = DockerEnvironment.getDockerComposeFiles();
+        // we expect two .yml files in the list
+        assertEquals(2, paths.length);
+        for( String path : paths) {
+            assertTrue(path.endsWith(".yml"));
+        }
     }
 }

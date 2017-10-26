@@ -7,10 +7,12 @@ import java.net.URL;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -21,7 +23,6 @@ import com.google.common.collect.ImmutableMap;
 import com.palantir.docker.compose.connection.DockerMachine;
 import com.palantir.docker.compose.connection.DockerMachine.LocalBuilder;
 import com.palantir.docker.compose.connection.DockerMachine.RemoteBuilder;
-import com.sun.corba.se.impl.logging.UtilSystemException;
 
 import com.vmturbo.components.test.utilities.component.ComponentCluster.Component;
 
@@ -197,13 +198,26 @@ public class DockerEnvironment {
             // Go up to top-level XL directory.
             // This won't work if the layout of the modules changes!
             Path rootDir = path.getParent().getParent().getParent().getParent();
-            // This is a sanity check - it's not foolproof as the code base changes.
-            if (!rootDir.toString().toLowerCase().endsWith("xl")) {
-                throw new IllegalStateException("Going up four levels from pathAnchor didn't " +
-                    "take us to the top-level XL folder!");
-            }
+
+            // create the list of docker-compose files we want to load
             final String pathStr = rootDir.toString() + File.separator + "build" + File.separator;
-            return new String[]{pathStr + "/docker-compose.yml", pathStr + "/docker-compose.test.yml"};
+
+            // separate the files into list of those that exist and those that don't
+            Map<Boolean, List<String>> foundAndNotFoundFiles =
+                Stream.of("docker-compose.yml","docker-compose.test.yml")
+                    .map(filename -> pathStr + filename)
+                    .map(File::new)
+                    .collect(Collectors.partitioningBy(File::exists,
+                        Collectors.mapping(File::toString, Collectors.toList())));
+
+            // if any of the files don't exist, throw an error
+            if (foundAndNotFoundFiles.get(false).size() > 0) {
+                throw new IllegalStateException("File(s) not found: " + String.join(",", foundAndNotFoundFiles.get(false)));
+            }
+
+            // otherwise, all of the files exist -- return the paths to the files
+            List<String> files = foundAndNotFoundFiles.get(true);
+            return files.toArray(new String[files.size()]);
         } catch (URISyntaxException e) {
             throw new IllegalStateException("Resource from classloader has invalid URL.", e);
         }
