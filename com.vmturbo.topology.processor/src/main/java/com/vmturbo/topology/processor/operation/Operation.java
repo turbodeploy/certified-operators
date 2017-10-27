@@ -80,7 +80,7 @@ public abstract class Operation {
                      @Nonnull final IdentityProvider identityProvider) {
         Objects.requireNonNull(identityProvider);
         this.startTime = LocalDateTime.now();
-        this.id = identityProvider.getOperationId();
+        this.id = identityProvider.generateOperationId();
         this.targetId = targetId;
         this.probeId = probeId;
         this.status = Status.IN_PROGRESS;

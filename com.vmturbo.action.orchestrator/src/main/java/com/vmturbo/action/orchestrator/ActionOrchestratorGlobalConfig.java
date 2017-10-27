@@ -3,6 +3,7 @@ package com.vmturbo.action.orchestrator;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -17,6 +18,7 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import io.grpc.Channel;
 
 import com.vmturbo.components.api.ComponentGsonFactory;
+import com.vmturbo.grpc.extensions.PingingChannelBuilder;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 
@@ -27,7 +29,14 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 @Configuration
 @Import({TopologyProcessorClientConfig.class})
 public class ActionOrchestratorGlobalConfig {
+    @Value("${groupHost}")
+    private String groupHost;
 
+    @Value("${server.grpcPort}")
+    private int grpcPort;
+
+    @Value("${grpcPingIntervalSeconds}")
+    private long grpcPingIntervalSeconds;
 
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
@@ -78,5 +87,13 @@ public class ActionOrchestratorGlobalConfig {
     @Bean
     public Channel topologyProcessorChannel() {
         return tpClientConfig.topologyProcessorChannel();
+    }
+
+    @Bean
+    public Channel groupChannel() {
+        return PingingChannelBuilder.forAddress(groupHost, grpcPort)
+                .setPingInterval(grpcPingIntervalSeconds, TimeUnit.SECONDS)
+                .usePlaintext(true)
+                .build();
     }
 }

@@ -3,6 +3,7 @@
 action-orchestrator:
   marketHost: 'market'
   topologyProcessorHost: 'topology-processor'
+  groupHost: 'group'
   dbHost: 'db'
   dbPort: 3306
   authHost: 'auth'

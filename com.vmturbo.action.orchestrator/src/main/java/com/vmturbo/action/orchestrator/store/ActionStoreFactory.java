@@ -40,6 +40,9 @@ public class ActionStoreFactory implements IActionStoreFactory {
     public static final String PLAN_CONTEXT_TYPE_NAME = "plan";
     public static final String LIVE_CONTEXT_TYPE_NAME = "live";
 
+    private final ProbeActionCapabilitiesServiceBlockingStub actionCapabilitiesService;
+    private final SettingPolicyServiceBlockingStub settingPolicyService;
+
     /**
      * Create a new ActionStoreFactory.
      *
@@ -53,12 +56,17 @@ public class ActionStoreFactory implements IActionStoreFactory {
                               @Nonnull final ActionTranslator actionTranslator,
                               final long realtimeTopologyContextId,
                               @Nonnull final DSLContext databaseDslContext,
-                              @Nonnull final Channel topologyProcessorChannel) {
+                              @Nonnull final Channel topologyProcessorChannel,
+                              @Nonnull final Channel groupChannel) {
         this.actionFactory = Objects.requireNonNull(actionFactory);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.databaseDslContext = Objects.requireNonNull(databaseDslContext);
         this.actionTranslator = Objects.requireNonNull(actionTranslator);
-        this.topologyProcessorChannel = topologyProcessorChannel;
+        this.topologyProcessorChannel = Objects.requireNonNull(topologyProcessorChannel);
+        this.actionCapabilitiesService =
+                ProbeActionCapabilitiesServiceGrpc.newBlockingStub(topologyProcessorChannel);
+        this.settingPolicyService =
+                SettingPolicyServiceGrpc.newBlockingStub(groupChannel);
     }
 
     /**
@@ -70,14 +78,10 @@ public class ActionStoreFactory implements IActionStoreFactory {
     @Override
     public ActionStore newStore(final long topologyContextId) {
         if (topologyContextId == realtimeTopologyContextId) {
-            final ProbeActionCapabilitiesServiceBlockingStub actionCapabilitiesServiceBlockingStub =
-                    ProbeActionCapabilitiesServiceGrpc.newBlockingStub(topologyProcessorChannel);
             final ActionExecutor actionExecutor = new ActionExecutor(topologyProcessorChannel);
-            final SettingPolicyServiceBlockingStub settingPolicyServiceBlockingStub =
-                    SettingPolicyServiceGrpc.newBlockingStub(topologyProcessorChannel);
             return new LiveActionStore(actionFactory, topologyContextId,
-                    settingPolicyServiceBlockingStub,
-                    new ActionSupportResolver(actionCapabilitiesServiceBlockingStub,
+                    settingPolicyService,
+                    new ActionSupportResolver(actionCapabilitiesService,
                             actionExecutor));
         } else {
             return new PlanActionStore(actionFactory, databaseDslContext, topologyContextId);

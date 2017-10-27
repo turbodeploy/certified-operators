@@ -68,7 +68,7 @@ public class AnalysisService extends AnalysisServiceImplBase {
                 .map(TopologyEntityDTO.Builder::build)
                 .collect(Collectors.toList());
             // We need to assign a new topology ID to this latest topology.
-            topologyId = identityProvider.getTopologyId();
+            topologyId = identityProvider.generateTopologyId();
         } else {
             topologyId = request.getTopologyId();
             logger.info("Received analysis request for projected topology {}", topologyId);

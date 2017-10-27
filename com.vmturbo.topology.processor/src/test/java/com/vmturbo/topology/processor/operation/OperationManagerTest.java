@@ -110,7 +110,7 @@ public class OperationManagerTest {
     @Before
     public void setup() throws Exception {
         IdentityGenerator.initPrefix(0);
-        when(identityProvider.getOperationId()).thenAnswer((invocation) -> IdentityGenerator.next());
+        when(identityProvider.generateOperationId()).thenAnswer((invocation) -> IdentityGenerator.next());
 
         probeId = IdentityGenerator.next();
         when(identityProvider.getProbeId(any())).thenReturn(probeId);

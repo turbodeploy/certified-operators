@@ -37,8 +37,9 @@ public class ActionStoreConfig {
         return new ActionStoreFactory(actionFactory(),
             actionTranslator(),
             actionOrchestratorGlobalConfig.realtimeTopologyContextId(),
-            databaseConfig.dsl(), actionOrchestratorGlobalConfig.topologyProcessorChannel()
-        );
+            databaseConfig.dsl(),
+            actionOrchestratorGlobalConfig.topologyProcessorChannel(),
+            actionOrchestratorGlobalConfig.groupChannel());
     }
 
     @Bean

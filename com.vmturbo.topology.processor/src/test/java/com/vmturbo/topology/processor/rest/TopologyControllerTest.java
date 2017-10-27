@@ -145,7 +145,7 @@ public class TopologyControllerTest {
         entityStore = wac.getBean(EntityStore.class);
 
         IdentityProvider identityProvider = wac.getBean(IdentityProvider.class);
-        Mockito.when(identityProvider.getTopologyId()).thenReturn(0L);
+        Mockito.when(identityProvider.generateTopologyId()).thenReturn(0L);
     }
 
     /**

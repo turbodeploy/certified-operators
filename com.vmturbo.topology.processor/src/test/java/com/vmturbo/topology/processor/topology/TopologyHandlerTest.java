@@ -61,7 +61,7 @@ public class TopologyHandlerTest {
         topologyHandler = new TopologyHandler(realtimeTopologyContextId, topoBroadcastManager,
                 entityStore, identityProvider, policyManager,
                 discoveredTemplateDeploymentProfileNotifier, discoveredGroupUploader, settingsManager);
-        when(identityProvider.getTopologyId()).thenReturn(topologyId);
+        when(identityProvider.generateTopologyId()).thenReturn(topologyId);
     }
 
     @Test

@@ -14,7 +14,6 @@ import java.util.stream.Collectors;
 
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
-import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -101,7 +100,7 @@ public class AnalysisServiceTest {
         // what the number is, since it just comes back in the gRPC response.
         when(topologyHandler.broadcastTopology(anyLong(), anyLong(), Mockito.any()))
                 .thenReturn(broadcastInfo);
-        when(identityProvider.getTopologyId()).thenReturn(topologyId);
+        when(identityProvider.generateTopologyId()).thenReturn(topologyId);
     }
 
     /**

@@ -237,7 +237,7 @@ public class IdentityProviderImpl implements IdentityProvider {
     /** {@inheritDoc}
      */
     @Override
-    public long getOperationId() {
+    public long generateOperationId() {
         return IdentityGenerator.next();
     }
 
@@ -245,7 +245,7 @@ public class IdentityProviderImpl implements IdentityProvider {
      * {@inheritDoc}
      */
     @Override
-    public long getTopologyId() {
+    public long generateTopologyId() {
         return IdentityGenerator.next();
     }
 

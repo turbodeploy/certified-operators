@@ -95,6 +95,7 @@ public class TopologyHandler {
         }
 
         try (DataMetricTimer timer = TOPOLOGY_BROADCAST_SUMMARY.startTimer()) {
+            final long newTopologyId = identityProvider.generateTopologyId();
             // TODO (roman, Dec 6 2016): Construct entity stream in the entity store
             // without ever having all of them in memory. Only worry is concurrent
             // modifications.
@@ -139,7 +140,7 @@ public class TopologyHandler {
                 Map<Long, List<Setting>> entitySettings  = settingsManager.applySettings(groupResolver, graph);
                 logger.info("Finished applying settings. Sending the entitySetting mapping of size {} to Group component",
                     entitySettings.size());
-                settingsManager.sendEntitySettings(identityProvider.getTopologyId(),
+                settingsManager.sendEntitySettings(newTopologyId,
                     realtimeTopologyContextId, entitySettings);
             } catch (RuntimeException e) {
                 // TODO: karthikt - Should we stop broadcast if we fail to apply settings?
@@ -147,7 +148,7 @@ public class TopologyHandler {
             }
 
             return broadcastTopology(realtimeTopologyContextId,
-                identityProvider.getTopologyId(),
+                newTopologyId,
                 graph.vertices()
                     .map(Vertex::getTopologyEntityDtoBuilder)
                     .map(TopologyEntityDTO.Builder::build)

@@ -71,7 +71,7 @@ public interface IdentityProvider extends Diagnosable {
      *
      * @return The OID to use to identify the operation.
      */
-    long getOperationId();
+    long generateOperationId();
 
     /**
      * Generate an ID for a new topology for topologies broadcast to the reset of
@@ -79,5 +79,5 @@ public interface IdentityProvider extends Diagnosable {
      *
      * @return The OID to use to identify a topology.
      */
-    long getTopologyId();
+    long generateTopologyId();
 }

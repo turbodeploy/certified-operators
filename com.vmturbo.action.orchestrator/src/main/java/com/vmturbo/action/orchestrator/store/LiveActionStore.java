@@ -290,7 +290,7 @@ public class LiveActionStore implements ActionStore {
 
             final Map<Long, List<Setting>> entitySettingMap =
                     retrieveEntityToSettingListMap(entitiesToRetrieve,
-                            actionPlan.getTopologyId(), actionPlan.getTopologyContextId());
+                            actionPlan.getTopologyContextId(), actionPlan.getTopologyId());
 
             Stream.concat(existingActions.stream(),
                           newActions.stream().map(newAction ->
