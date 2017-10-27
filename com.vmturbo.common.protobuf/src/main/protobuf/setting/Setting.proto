@@ -424,26 +424,56 @@ message UploadEntitySettingsRequest {
 message UploadEntitySettingsResponse {
 }
 
-message GetEntitySettingsRequest {
-    // If topologyId and topologyContextId is not provided, then the Settings
-    // resolved from the latest topology is returned. If only one of ids is
-    // provided, it will be ignored and the entity-settings for the latest
-    // topology will be returned.
-    optional int64 topology_id = 1;
-    optional int64 topology_context_id = 2;
+// This message is used to look up a topology to retrieve entity settings from.
+message TopologySelection {
+    // The topology context to look in.
+    // If not present, use the realtime topology context.
+    optional int64 topology_context_id = 1;
 
-    // List of entity OIDs for which the Settings has to be returned.
-    // If the OID list is absent, the settings for all Entities are returned.
-    repeated int64 entities = 3;
+    // The topology ID to look for within the topology context.
+    // If not present, use the latest topology in the topology context.
+    // Note that if the topology_id is set to a topology not in the realtime topology context,
+    // the topology_context_id HAS to be set to find the topology.
+    optional int64 topology_id = 2;
+}
+
+// This filter restricts the entity settings returned by the service.
+message EntitySettingFilter {
+    // List of entity OIDs to return settings for.
+    // If the OID list is absent or empty, return the settings for all entities.
+    repeated int64 entities = 1;
+}
+
+message GetEntitySettingsRequest {
+    // Specifies the topology to draw the settings from.
+    // If not present, get the settings from the most recent
+    // realtime topology.
+    optional TopologySelection topology_selection = 1;
+
+    // The filter to apply to the actual settings to retrieve. Use this
+    // to restrict the amount of settings (e.g. the Action Orchestrator
+    // may not care about Topology settings).
+    optional EntitySettingFilter setting_filter = 2;
 }
 
 message GetEntitySettingsResponse {
-    // send the topologyId and topologyContextId along with the entitySetting
-    // mapping. this will be useful in cases when the client doesn't
-    // specify the Ids.
-    optional int64 topology_id = 1;
-    optional int64 topology_context_id = 2;
-    repeated EntitySettings entity_settings = 3;
+
+    message SettingsForEntity {
+        // The ID of the entity
+        // This will always be set.
+        optional int64 entity_id = 1;
+
+        // The settings on the entity that match the filter in the request.
+        // This list may be empty if no matching settings exist.
+        repeated Setting settings = 2;
+    }
+
+    // The settings that match the filters in the request.
+    // If the request contains an explicit set of entities to get settings for, the
+    // response will contain an entry for every specified entity. If the request is
+    // for all entities, the response will only return entries for entities that have settings
+    // matching the parameters in the request.
+    repeated SettingsForEntity settings = 1;
 }
 
 // The SettingPolicyService provides RPC's for CRUD-type operations related to SettingPolicy objects.
@@ -480,6 +510,8 @@ service SettingPolicyService {
     // one request as the number of entites could be huge?
     rpc UploadEntitySettings(UploadEntitySettingsRequest) returns (UploadEntitySettingsResponse);
 
-    // Retrieve Entities and their associated Settings
+    // Retrieve settings associated with a selection of entities.
+    //
+    // Returns a NOT_FOUND status if there is no setting information for the selected topology.
     rpc GetEntitySettings(GetEntitySettingsRequest) returns (GetEntitySettingsResponse);
 }

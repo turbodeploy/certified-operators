@@ -10,6 +10,7 @@ import org.springframework.context.annotation.Import;
 
 import com.vmturbo.common.protobuf.setting.SettingProtoREST.SettingPolicyServiceController;
 import com.vmturbo.common.protobuf.setting.SettingProtoREST.SettingServiceController;
+import com.vmturbo.group.persistent.EntitySettingStore;
 import com.vmturbo.group.persistent.SettingStore;
 import com.vmturbo.group.service.SettingPolicyRpcService;
 import com.vmturbo.group.service.SettingRpcService;
@@ -34,12 +35,20 @@ public class SettingConfig {
     @Value("${createDefaultSettingPolicyRetryIntervalSec}")
     private long createDefaultSettingPolicyRetryIntervalSec;
 
+    @Value("${realtimeTopologyContextId}")
+    private long realtimeTopologyContextId;
+
     @Bean
     public SettingStore settingStore() {
         return new SettingStore(settingSpecJsonFile, databaseConfig.dsl(),
                 identityProviderConfig.identityProvider(),
                 arangoDBConfig.groupStore(),
                 createDefaultSettingPolicyRetryIntervalSec, TimeUnit.SECONDS);
+    }
+
+    @Bean
+    public EntitySettingStore entitySettingStore() {
+        return new EntitySettingStore(realtimeTopologyContextId);
     }
 
     @Bean
@@ -54,7 +63,7 @@ public class SettingConfig {
 
     @Bean
     public SettingPolicyRpcService settingPolicyService() {
-        return new SettingPolicyRpcService(settingStore());
+        return new SettingPolicyRpcService(settingStore(), entitySettingStore());
     }
 
     @Bean

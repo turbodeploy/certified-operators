@@ -46,6 +46,7 @@ import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolic
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse.SettingsForEntity;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -384,8 +385,8 @@ public class LiveActionStoreTest {
                 .build();
         when(settingRpcService.getEntitySettings(any()))
                 .thenReturn(GetEntitySettingsResponse.newBuilder()
-                        .addEntitySettings(EntitySettings.newBuilder()
-                                .setEntityOid(vm1)
+                        .addSettings(SettingsForEntity.newBuilder()
+                                .setEntityId(vm1)
                                 .addSettings(setting))
                         .build());
 

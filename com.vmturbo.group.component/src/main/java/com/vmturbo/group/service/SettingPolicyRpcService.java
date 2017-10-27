@@ -1,5 +1,7 @@
 package com.vmturbo.group.service;
 
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Stream;
@@ -16,6 +18,10 @@ import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyReque
 import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.DeleteSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.DeleteSettingPolicyResponse;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse.SettingsForEntity;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesRequest;
@@ -27,6 +33,8 @@ import com.vmturbo.common.protobuf.setting.SettingProto.UpdateSettingPolicyRespo
 import com.vmturbo.common.protobuf.setting.SettingProto.UploadEntitySettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.UploadEntitySettingsResponse;
 import com.vmturbo.group.persistent.DuplicateNameException;
+import com.vmturbo.group.persistent.EntitySettingStore;
+import com.vmturbo.group.persistent.EntitySettingStore.NoSettingsForTopologyException;
 import com.vmturbo.group.persistent.InvalidSettingPolicyException;
 import com.vmturbo.group.persistent.SettingPolicyFilter;
 import com.vmturbo.group.persistent.SettingPolicyNotFoundException;
@@ -42,8 +50,12 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
 
     private final SettingStore settingStore;
 
-    public SettingPolicyRpcService(@Nonnull final SettingStore settingStore) {
+    private final EntitySettingStore entitySettingStore;
+
+    public SettingPolicyRpcService(@Nonnull final SettingStore settingStore,
+                                   @Nonnull final EntitySettingStore entitySettingStore) {
         this.settingStore = Objects.requireNonNull(settingStore);
+        this.entitySettingStore = Objects.requireNonNull(entitySettingStore);
     }
 
     /**
@@ -216,10 +228,38 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
             return;
         }
 
-        if (request.getEntitySettingsCount() > 0) {
-            // TODO : karthikt - OM-25472. Store the settings
-        }
+        entitySettingStore.storeEntitySettings(request.getTopologyContextId(),
+                request.getTopologyId(), request.getEntitySettingsList().stream());
+
         responseObserver.onNext(UploadEntitySettingsResponse.newBuilder().build());
         responseObserver.onCompleted();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void getEntitySettings(final GetEntitySettingsRequest request,
+                          final StreamObserver<GetEntitySettingsResponse> responseObserver) {
+        try {
+            final Map<Long, List<Setting>> results = entitySettingStore.getEntitySettings(
+                    request.getTopologySelection(),
+                    request.getSettingFilter());
+
+            final GetEntitySettingsResponse.Builder respBuilder =
+                    GetEntitySettingsResponse.newBuilder();
+            results.forEach((oid, settings) -> respBuilder.addSettings(
+                SettingsForEntity.newBuilder()
+                    .setEntityId(oid)
+                    .addAllSettings(settings)
+                    .build()));
+
+            responseObserver.onNext(respBuilder.build());
+            responseObserver.onCompleted();
+        } catch (NoSettingsForTopologyException e) {
+            logger.error("Topology not found for entity settings request: {}", e.getMessage());
+            responseObserver.onError(Status.NOT_FOUND
+                .withDescription(e.getMessage()).asException());
+        }
     }
 }

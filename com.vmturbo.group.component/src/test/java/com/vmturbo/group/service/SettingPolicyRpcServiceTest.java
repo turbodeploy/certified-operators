@@ -1,16 +1,18 @@
 package com.vmturbo.group.service;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
@@ -18,6 +20,8 @@ import java.util.stream.Stream;
 
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
+
+import com.google.common.collect.ImmutableMap;
 
 import io.grpc.Status.Code;
 import io.grpc.StatusException;
@@ -29,8 +33,12 @@ import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyReque
 import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.DeleteSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.DeleteSettingPolicyResponse;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingFilter;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse.SettingsForEntity;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesRequest;
@@ -39,12 +47,15 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
+import com.vmturbo.common.protobuf.setting.SettingProto.TopologySelection;
 import com.vmturbo.common.protobuf.setting.SettingProto.UpdateSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.UpdateSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.UploadEntitySettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.UploadEntitySettingsResponse;
 import com.vmturbo.components.api.test.GrpcExceptionMatcher;
 import com.vmturbo.group.persistent.DuplicateNameException;
+import com.vmturbo.group.persistent.EntitySettingStore;
+import com.vmturbo.group.persistent.EntitySettingStore.NoSettingsForTopologyException;
 import com.vmturbo.group.persistent.InvalidSettingPolicyException;
 import com.vmturbo.group.persistent.SettingPolicyFilter;
 import com.vmturbo.group.persistent.SettingPolicyNotFoundException;
@@ -72,7 +83,10 @@ public class SettingPolicyRpcServiceTest {
             .setInfo(settingPolicyInfo)
             .build();
 
-    private final SettingPolicyRpcService service = new SettingPolicyRpcService(settingStore);
+    private final EntitySettingStore entitySettingStore = mock(EntitySettingStore.class);
+
+    private final SettingPolicyRpcService service =
+            new SettingPolicyRpcService(settingStore, entitySettingStore);
 
     @Test
     public void testCreatePolicy() throws Exception {
@@ -497,6 +511,89 @@ public class SettingPolicyRpcServiceTest {
         service.uploadEntitySettings(request.build(), responseObserver);
         verify(responseObserver).onNext(responseCaptor.capture());
         verify(responseObserver).onCompleted();
+    }
+
+    @Test
+    public void testGetEntitySettings() throws NoSettingsForTopologyException {
+        final StreamObserver<GetEntitySettingsResponse> responseObserver =
+                (StreamObserver<GetEntitySettingsResponse>)mock(StreamObserver.class);
+
+        final TopologySelection topologyFilter = TopologySelection.newBuilder()
+                .setTopologyId(7L)
+                .setTopologyContextId(8L)
+                .build();
+
+        final EntitySettingFilter settingsFilter = EntitySettingFilter.newBuilder()
+                .addEntities(7L)
+                .build();
+
+        final Setting setting = Setting.newBuilder()
+                .setSettingSpecName("name")
+                .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance())
+                .build();
+
+        when(entitySettingStore.getEntitySettings(eq(topologyFilter), eq(settingsFilter)))
+                .thenReturn(ImmutableMap.of(7L, Collections.singletonList(setting)));
+
+        service.getEntitySettings(GetEntitySettingsRequest.newBuilder()
+                .setTopologySelection(topologyFilter)
+                .setSettingFilter(settingsFilter)
+                .build(), responseObserver);
+
+        final ArgumentCaptor<GetEntitySettingsResponse> respCaptor =
+                ArgumentCaptor.forClass(GetEntitySettingsResponse.class);
+        verify(responseObserver).onNext(respCaptor.capture());
+        verify(responseObserver).onCompleted();
+
+        final GetEntitySettingsResponse response = respCaptor.getValue();
+        final List<SettingsForEntity> settingList = response.getSettingsList();
+        assertEquals(1, settingList.size());
+        final SettingsForEntity settingsForEntity = settingList.get(0);
+        assertEquals(7L, settingsForEntity.getEntityId());
+        assertThat(settingsForEntity.getSettingsList(), containsInAnyOrder(setting));
+    }
+
+    @Test
+    public void testGetEntitySettingsEntityNotFound() throws NoSettingsForTopologyException {
+        final StreamObserver<GetEntitySettingsResponse> responseObserver =
+                (StreamObserver<GetEntitySettingsResponse>)mock(StreamObserver.class);
+        final EntitySettingFilter settingsFilter = EntitySettingFilter.newBuilder()
+                .addEntities(7L) // SUppose this entity is not found.
+                .build();
+        when(entitySettingStore.getEntitySettings(eq(TopologySelection.getDefaultInstance()),
+                    eq(settingsFilter)))
+                .thenReturn(ImmutableMap.of(7L, Collections.emptyList()));
+
+        service.getEntitySettings(GetEntitySettingsRequest.newBuilder()
+                .setSettingFilter(settingsFilter)
+                .build(), responseObserver);
+
+        final ArgumentCaptor<GetEntitySettingsResponse> respCaptor =
+                ArgumentCaptor.forClass(GetEntitySettingsResponse.class);
+        verify(responseObserver).onNext(respCaptor.capture());
+        verify(responseObserver).onCompleted();
+
+        final GetEntitySettingsResponse response = respCaptor.getValue();
+        final List<SettingsForEntity> settingList = response.getSettingsList();
+        assertEquals(1, settingList.size());
+        final SettingsForEntity settingsForEntity = settingList.get(0);
+        assertEquals(7L, settingsForEntity.getEntityId());
+        assertTrue(settingsForEntity.getSettingsList().isEmpty());
+    }
+
+    @Test
+    public void testGetEntitySettingsTopologyNotFound() throws NoSettingsForTopologyException {
+        final StreamObserver<GetEntitySettingsResponse> responseObserver =
+                (StreamObserver<GetEntitySettingsResponse>)mock(StreamObserver.class);
+        when(entitySettingStore.getEntitySettings(any(), any()))
+            .thenThrow(new NoSettingsForTopologyException(1, 2));
+        service.getEntitySettings(GetEntitySettingsRequest.getDefaultInstance(), responseObserver);
+
+        final ArgumentCaptor<StatusException> exceptionCaptor =
+                ArgumentCaptor.forClass(StatusException.class);
+        verify(responseObserver).onError(exceptionCaptor.capture());
+        assertThat(exceptionCaptor.getValue(),
+            GrpcExceptionMatcher.hasCode(Code.NOT_FOUND).anyDescription());
     }
 
 }

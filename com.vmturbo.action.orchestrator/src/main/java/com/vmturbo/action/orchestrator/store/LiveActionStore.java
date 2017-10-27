@@ -40,10 +40,13 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingFilter;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse.SettingsForEntity;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.setting.SettingProto.TopologySelection;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 
 /**
@@ -413,15 +416,17 @@ public class LiveActionStore implements ActionStore {
                                                                     final long topologyId) {
         try {
             GetEntitySettingsRequest request = GetEntitySettingsRequest.newBuilder()
-                    .addAllEntities(entities)
-                    .setTopologyContextId(topologyContextId)
-                    .setTopologyId(topologyId)
+                    .setTopologySelection(TopologySelection.newBuilder()
+                            .setTopologyContextId(topologyContextId)
+                            .setTopologyId(topologyId))
+                    .setSettingFilter(EntitySettingFilter.newBuilder()
+                            .addAllEntities(entities))
                     .build();
             GetEntitySettingsResponse response = settingPolicyServiceStub.getEntitySettings(request);
             return Collections.unmodifiableMap(
-                    response.getEntitySettingsList().stream()
-                            .collect(Collectors.toMap(EntitySettings::getEntityOid,
-                                    EntitySettings::getSettingsList)));
+                    response.getSettingsList().stream()
+                            .collect(Collectors.toMap(SettingsForEntity::getEntityId,
+                                    SettingsForEntity::getSettingsList)));
         } catch (StatusRuntimeException e) {
             logger.error("Failed to retrieve entity settings due to error: " + e.getMessage());
             return Collections.emptyMap();

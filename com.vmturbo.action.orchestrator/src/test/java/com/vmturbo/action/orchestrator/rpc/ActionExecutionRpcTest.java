@@ -54,6 +54,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse.SettingsForEntity;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -308,8 +309,9 @@ public class ActionExecutionRpcTest {
         public void getEntitySettings(GetEntitySettingsRequest request,
                                       StreamObserver<GetEntitySettingsResponse> responseObserver) {
             responseObserver.onNext(GetEntitySettingsResponse.newBuilder()
-                    .addEntitySettings(EntitySettings.newBuilder()
-                            .setEntityOid(1L).addSettings(Setting.newBuilder()
+                    .addSettings(SettingsForEntity.newBuilder()
+                            .setEntityId(1L)
+                            .addSettings(Setting.newBuilder()
                                 .setBooleanSettingValue(BooleanSettingValue.newBuilder()
                                         .setValue(true).build())
                                 .setSettingSpecName("abc")

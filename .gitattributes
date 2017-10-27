@@ -692,6 +692,7 @@ com.vmturbo.group.component/src/main/java/com/vmturbo/group/identity/IdentityPro
 com.vmturbo.group.component/src/main/java/com/vmturbo/group/persistent/ClusterStore.java -text
 com.vmturbo.group.component/src/main/java/com/vmturbo/group/persistent/DatabaseException.java -text
 com.vmturbo.group.component/src/main/java/com/vmturbo/group/persistent/DuplicateNameException.java -text
+com.vmturbo.group.component/src/main/java/com/vmturbo/group/persistent/EntitySettingStore.java -text
 com.vmturbo.group.component/src/main/java/com/vmturbo/group/persistent/GroupStore.java -text
 com.vmturbo.group.component/src/main/java/com/vmturbo/group/persistent/InvalidSettingPolicyException.java -text
 com.vmturbo.group.component/src/main/java/com/vmturbo/group/persistent/PolicyStore.java -text
@@ -717,6 +718,7 @@ com.vmturbo.group.component/src/main/resources/setting/setting-spec.json -text
 com.vmturbo.group.component/src/test/java/com/vmturbo/group/GroupComponentTest.java -text
 com.vmturbo.group.component/src/test/java/com/vmturbo/group/persistent/ArangoDBFixtures.java -text
 com.vmturbo.group.component/src/test/java/com/vmturbo/group/persistent/DiscoveredPoliciesMapperTest.java -text
+com.vmturbo.group.component/src/test/java/com/vmturbo/group/persistent/EntitySettingStoreTest.java -text
 com.vmturbo.group.component/src/test/java/com/vmturbo/group/persistent/GroupStoreTest.java -text
 com.vmturbo.group.component/src/test/java/com/vmturbo/group/persistent/PolicyStoreTest.java -text
 com.vmturbo.group.component/src/test/java/com/vmturbo/group/persistent/SettingPolicyValidatorTest.java -text
