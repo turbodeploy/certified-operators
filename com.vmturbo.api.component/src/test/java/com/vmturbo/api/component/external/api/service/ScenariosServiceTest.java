@@ -19,8 +19,8 @@ import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ScenarioMapper;
-import com.vmturbo.api.dto.ScenarioApiDTO;
-import com.vmturbo.api.dto.input.ScenarioApiInputDTO;
+import com.vmturbo.api.dto.scenario.ScenarioApiDTO;
+import com.vmturbo.api.dto.scenario.ScenarioApiDTO;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.GetScenariosOptions;
@@ -112,9 +112,9 @@ public class ScenariosServiceTest {
 
     @Test
     public void testCreateScenario() throws Exception {
-        final ScenarioApiInputDTO scenarioApiInputDTO = new ScenarioApiInputDTO();
-        scenarioApiInputDTO.setDisplayName(SCENARIO_RESPONSE.getScenarioInfo().getName());
-        ScenarioApiDTO result = scenariosService.createScenario(scenarioApiInputDTO);
+        final ScenarioApiDTO scenarioApiDTO = new ScenarioApiDTO();
+        scenarioApiDTO.setDisplayName(SCENARIO_RESPONSE.getScenarioInfo().getName());
+        ScenarioApiDTO result = scenariosService.createScenario(scenarioApiDTO);
         Assert.assertEquals(apiDTOJson, objectMapper.writeValueAsString(result));
 
         Mockito.verify(scenarioServiceBackend).createScenario(
@@ -127,7 +127,7 @@ public class ScenariosServiceTest {
         ScenarioApiDTO result = scenariosService.configureScenario(
                 SCENARIO_RESPONSE.getId(), SCENARIO_RESPONSE.getScenarioInfo().getName(), null,
                 null, null, null, null, null, null, null, null, null, null, null,
-                new ScenarioApiInputDTO());
+                new ScenarioApiDTO());
 
         Assert.assertEquals(apiDTOJson, objectMapper.writeValueAsString(result));
         Mockito.verify(scenarioServiceBackend).updateScenario(
@@ -144,7 +144,7 @@ public class ScenariosServiceTest {
         scenariosService.configureScenario(
                 0L, "newName", null,
                 null, null, null, null, null, null, null, null, null, null, null,
-                new ScenarioApiInputDTO());
+                new ScenarioApiDTO());
     }
 
     @Test

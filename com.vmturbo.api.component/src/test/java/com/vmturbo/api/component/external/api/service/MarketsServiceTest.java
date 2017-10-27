@@ -58,7 +58,7 @@ import com.vmturbo.api.component.external.api.mapper.ScenarioMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.websocket.UINotificationChannel;
 import com.vmturbo.api.controller.MarketsController;
-import com.vmturbo.api.dto.MarketApiDTO;
+import com.vmturbo.api.dto.market.MarketApiDTO;
 import com.vmturbo.api.handler.GlobalExceptionHandler;
 import com.vmturbo.api.serviceinterfaces.IBusinessUnitsService;
 import com.vmturbo.api.serviceinterfaces.IGroupsService;

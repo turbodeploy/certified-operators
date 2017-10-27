@@ -9,7 +9,7 @@ import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import com.vmturbo.api.dto.WidgetsetApiDTO;
+import com.vmturbo.api.dto.widget.WidgetsetApiDTO;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.IWidgetSetsService;
 import com.vmturbo.commons.idgen.IdentityGenerator;

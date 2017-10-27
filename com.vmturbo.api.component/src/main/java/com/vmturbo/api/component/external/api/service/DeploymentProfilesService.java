@@ -4,7 +4,7 @@ import java.util.List;
 
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.dto.deploymentprofile.DeploymentProfileApiDTO;
-import com.vmturbo.api.dto.input.deploymentprofile.DeploymentProfileApiInputDTO;
+import com.vmturbo.api.dto.deploymentprofile.DeploymentProfileApiInputDTO;
 import com.vmturbo.api.serviceinterfaces.IDeploymentProfilesService;
 
 public class DeploymentProfilesService implements IDeploymentProfilesService {

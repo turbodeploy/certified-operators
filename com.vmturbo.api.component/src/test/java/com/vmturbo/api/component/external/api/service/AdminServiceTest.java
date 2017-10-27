@@ -14,7 +14,7 @@ import org.springframework.context.support.PropertySourcesPlaceholderConfigurer;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
-import com.vmturbo.api.dto.ProductVersionDTO;
+import com.vmturbo.api.dto.admin.ProductVersionDTO;
 
 /**
  * Test services for the /admin endpoint.

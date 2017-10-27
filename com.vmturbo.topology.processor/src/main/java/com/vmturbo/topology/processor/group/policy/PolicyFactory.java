@@ -44,10 +44,10 @@ public class PolicyFactory {
                 return new AtMostNPolicy(policyDefinition,
                         groups.get(policyDefinition.getAtMostN().getConsumerGroupId()),
                         groups.get(policyDefinition.getAtMostN().getProviderGroupId()));
-            case AT_MOST_N_BOUND:
+            case AT_MOST_NBOUND:
                 return new AtMostNBoundPolicy(policyDefinition,
-                        groups.get(policyDefinition.getAtMostNBound().getConsumerGroupId()),
-                        groups.get(policyDefinition.getAtMostNBound().getProviderGroupId()));
+                        groups.get(policyDefinition.getAtMostNbound().getConsumerGroupId()),
+                        groups.get(policyDefinition.getAtMostNbound().getProviderGroupId()));
             case MUST_RUN_TOGETHER:
                 return new MustRunTogetherPolicy(policyDefinition,
                         groups.get(policyDefinition.getMustRunTogether().getConsumerGroupId()),

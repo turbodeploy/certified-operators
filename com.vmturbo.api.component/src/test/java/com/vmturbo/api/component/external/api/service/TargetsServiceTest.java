@@ -54,8 +54,8 @@ import com.google.gson.Gson;
 
 import com.vmturbo.api.controller.TargetsController;
 import com.vmturbo.api.dto.ErrorApiDTO;
-import com.vmturbo.api.dto.InputFieldApiDTO;
-import com.vmturbo.api.dto.TargetApiDTO;
+import com.vmturbo.api.dto.target.InputFieldApiDTO;
+import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.InputValueType;
 import com.vmturbo.api.handler.GlobalExceptionHandler;
 import com.vmturbo.api.utils.ParamStrings;

@@ -5,9 +5,9 @@ import java.util.List;
 import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.api.component.external.api.util.ApiUtils;
-import com.vmturbo.api.dto.LogEntryApiDTO;
+import com.vmturbo.api.dto.notification.LogEntryApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
-import com.vmturbo.api.dto.input.statistic.StatPeriodApiInputDTO;
+import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.serviceinterfaces.INotificationService;
 

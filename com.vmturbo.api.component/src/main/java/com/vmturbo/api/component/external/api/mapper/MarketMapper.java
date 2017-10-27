@@ -12,8 +12,8 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.api.MarketNotificationDTO.MarketNotification;
 import com.vmturbo.api.MarketNotificationDTO.StatusNotification;
-import com.vmturbo.api.dto.MarketApiDTO;
-import com.vmturbo.api.dto.ScenarioApiDTO;
+import com.vmturbo.api.dto.market.MarketApiDTO;
+import com.vmturbo.api.dto.scenario.ScenarioApiDTO;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 

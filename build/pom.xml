@@ -18,7 +18,7 @@
         <!-- MT Version from which to resolve cross-branch dependencies on common code -->
         <vmturbo.mt.branch.version>6.1.0-SNAPSHOT</vmturbo.mt.branch.version>
         <!-- API and UX project version to import -->
-        <vmturbo.api-ux.version>7.0.b6-SNAPSHOT</vmturbo.api-ux.version>
+        <vmturbo.api-ux.version>6.1.0-SNAPSHOT</vmturbo.api-ux.version>
         <!-- Reports project version to import -->
         <vmturbo.reports.version>7.0.b6-SNAPSHOT</vmturbo.reports.version>
 

@@ -14,8 +14,8 @@ import org.junit.Test;
 import com.google.common.collect.Lists;
 
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
-import com.vmturbo.api.dto.FilterApiDTO;
-import com.vmturbo.api.dto.GroupApiDTO;
+import com.vmturbo.api.dto.group.FilterApiDTO;
+import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.common.protobuf.group.GroupDTO.Cluster;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;

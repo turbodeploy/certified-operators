@@ -31,8 +31,9 @@ import com.google.common.collect.ImmutableSet;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.dto.action.ActionApiDTO;
-import com.vmturbo.api.dto.ServiceEntityApiDTO;
-import com.vmturbo.api.dto.input.ActionApiInputDTO;
+import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.api.dto.action.ActionApiInputDTO;
+import com.vmturbo.api.enums.ActionType;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
@@ -107,7 +108,7 @@ public class ActionSpecMapperTest {
         assertEquals("Destination", actionApiDTO.getNewEntity().getDisplayName());
         assertEquals("2", actionApiDTO.getNewValue());
 
-        assertEquals("MOVE", actionApiDTO.getActionType());
+        assertEquals(ActionType.MOVE, actionApiDTO.getActionType());
         assertEquals("default explanation", actionApiDTO.getRisk().getDescription());
 
         assertTrue(actionApiDTO.getDetails().startsWith("Move"));
@@ -132,7 +133,7 @@ public class ActionSpecMapperTest {
         assertEquals("Destination", actionApiDTO.getNewEntity().getDisplayName());
         assertEquals("2", actionApiDTO.getNewValue());
 
-        assertEquals("MOVE", actionApiDTO.getActionType());
+        assertEquals(ActionType.MOVE, actionApiDTO.getActionType());
         assertEquals("default explanation", actionApiDTO.getRisk().getDescription());
 
         assertTrue(actionApiDTO.getDetails().startsWith("Start"));
@@ -159,7 +160,7 @@ public class ActionSpecMapperTest {
         assertEquals("Destination", actionApiDTO.getNewEntity().getDisplayName());
         assertEquals("2", actionApiDTO.getNewValue());
 
-        assertEquals("CHANGE", actionApiDTO.getActionType());
+        assertEquals(ActionType.CHANGE, actionApiDTO.getActionType());
         assertEquals("default explanation", actionApiDTO.getRisk().getDescription());
     }
 
@@ -188,7 +189,7 @@ public class ActionSpecMapperTest {
         assertEquals("Target", actionApiDTO.getTarget().getDisplayName());
         assertEquals("1", actionApiDTO.getCurrentValue());
 
-        assertEquals("RECONFIGURE", actionApiDTO.getActionType());
+        assertEquals( ActionType.RECONFIGURE, actionApiDTO.getActionType());
         assertEquals(
             "Reconfigure C 0 'Target' which requires Cpu Allocation but is hosted by C 1 'Source' " +
                 "which does not provide Cpu Allocation",
@@ -221,7 +222,7 @@ public class ActionSpecMapperTest {
         assertEquals("c0", actionApiDTO.getNewEntity().getClassName());
         assertEquals("-1", actionApiDTO.getNewEntity().getUuid());
 
-        assertEquals("PROVISION", actionApiDTO.getActionType());
+        assertEquals(ActionType.PROVISION, actionApiDTO.getActionType());
     }
 
     @Test
@@ -249,7 +250,7 @@ public class ActionSpecMapperTest {
             mapper.mapActionSpecToActionApiDTO(buildActionSpec(resizeInfo, resize));
         assertEquals("EntityToResize", actionApiDTO.getTarget().getDisplayName());
         assertEquals(targetId, Long.parseLong(actionApiDTO.getTarget().getUuid()));
-        assertEquals("RESIZE", actionApiDTO.getActionType());
+        assertEquals(ActionType.RESIZE, actionApiDTO.getActionType());
         assertEquals(CommodityDTO.CommodityType.CPU.name(),
                 actionApiDTO.getRisk().getReasonCommodity());
     }
@@ -276,7 +277,7 @@ public class ActionSpecMapperTest {
                         mapper.mapActionSpecToActionApiDTO(buildActionSpec(activateInfo, activate));
         assertEquals("EntityToActivate", actionApiDTO.getTarget().getDisplayName());
         assertEquals(targetId, Long.parseLong(actionApiDTO.getTarget().getUuid()));
-        assertEquals("START", actionApiDTO.getActionType());
+        assertEquals(ActionType.START, actionApiDTO.getActionType());
         Assert.assertThat(actionApiDTO.getRisk().getReasonCommodity().split(","),
             IsArrayContainingInAnyOrder.arrayContainingInAnyOrder(
                     CommodityDTO.CommodityType.CPU.name(),
@@ -307,7 +308,7 @@ public class ActionSpecMapperTest {
                                         buildActionSpec(deactivateInfo, deactivate));
         assertEquals(entityToDeactivateName, actionApiDTO.getTarget().getDisplayName());
         assertEquals(targetId, Long.parseLong(actionApiDTO.getTarget().getUuid()));
-        assertEquals("DEACTIVATE", actionApiDTO.getActionType());
+        assertEquals(ActionType.DEACTIVATE, actionApiDTO.getActionType());
         assertThat(actionApiDTO.getRisk().getReasonCommodity().split(","),
                         IsArrayContainingInAnyOrder.arrayContainingInAnyOrder(
                                         CommodityDTO.CommodityType.CPU.name(), CommodityDTO.CommodityType.MEM.name()));
@@ -371,7 +372,7 @@ public class ActionSpecMapperTest {
 
         final List<ActionApiDTO> dtos = mapper.mapActionSpecsToActionApiDTOs(Arrays.asList(moveSpec, resizeSpec));
         assertEquals(1, dtos.size());
-        assertEquals("RESIZE", dtos.get(0).getActionType());
+        assertEquals(ActionType.RESIZE, dtos.get(0).getActionType());
     }
 
     @Test

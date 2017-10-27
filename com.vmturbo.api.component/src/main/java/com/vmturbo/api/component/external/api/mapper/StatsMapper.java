@@ -15,9 +15,9 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.api.dto.BaseApiDTO;
-import com.vmturbo.api.dto.ServiceEntityApiDTO;
-import com.vmturbo.api.dto.input.statistic.StatApiInputDTO;
-import com.vmturbo.api.dto.input.statistic.StatPeriodApiInputDTO;
+import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.api.dto.statistic.StatApiInputDTO;
+import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;

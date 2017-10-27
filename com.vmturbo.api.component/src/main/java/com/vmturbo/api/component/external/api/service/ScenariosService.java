@@ -17,9 +17,10 @@ import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.api.component.external.api.mapper.ScenarioMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
-import com.vmturbo.api.dto.MarketApiDTO;
-import com.vmturbo.api.dto.ScenarioApiDTO;
-import com.vmturbo.api.dto.input.ScenarioApiInputDTO;
+import com.vmturbo.api.dto.market.MarketApiDTO;
+import com.vmturbo.api.dto.scenario.ScenarioApiDTO;
+import com.vmturbo.api.enums.MergePolicyType;
+import com.vmturbo.api.enums.PolicyType;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.IScenariosService;
 import com.vmturbo.common.protobuf.plan.PlanDTO.GetScenariosOptions;
@@ -93,7 +94,7 @@ public class ScenariosService implements IScenariosService {
      * @throws Exception
      */
     @Override
-    public ScenarioApiDTO createScenario(ScenarioApiInputDTO input) throws Exception {
+    public ScenarioApiDTO createScenario(ScenarioApiDTO input) throws Exception {
         String name = input.getDisplayName();
         Scenario scenario = scenarioService.createScenario(
                 ScenarioMapper.toScenarioInfo(name, input)
@@ -130,7 +131,7 @@ public class ScenariosService implements IScenariosService {
                                             Float diameter, Boolean hostProvision,
                                             Boolean hostSuspension, Boolean dsProvision,
                                             Boolean dsSuspension, Boolean resize,
-                                            ScenarioApiInputDTO input) throws Exception {
+                                            ScenarioApiDTO input) throws Exception {
         try {
             final UpdateScenarioResponse scenarioResponse = scenarioService.updateScenario(
                     UpdateScenarioRequest.newBuilder()
@@ -172,7 +173,7 @@ public class ScenariosService implements IScenariosService {
      * @throws Exception
      */
     @Override
-    public ScenarioApiDTO configureEntities(Long id, String uuid, Integer number, List<Integer> projDays, String template, Float load, Map<String, Float> maxUtilMap, String commodityName, Boolean enable) throws Exception {
+    public ScenarioApiDTO configureEntities(final Long aLong, final String s, final Integer integer, final List<Integer> list, final String s1, final Float aFloat, final Float aFloat1, final String s2, final Boolean aBoolean) throws Exception {
         throw ApiUtils.notImplementedInXL();
     }
 
@@ -190,7 +191,7 @@ public class ScenariosService implements IScenariosService {
      * @throws Exception
      */
     @Override
-    public ScenarioApiDTO configureGroups(Long id, String uuid, Integer number, List<Integer> projDays, String template, Float load, Map<String, Float> maxUtilMap, String time, String commodityName, Boolean enable) throws Exception {
+    public ScenarioApiDTO configureGroups(final Long aLong, final String s, final Integer integer, final List<Integer> list, final String s1, final Float aFloat, final Float aFloat1, final String s2, final String s3, final Boolean aBoolean) throws Exception {
         throw ApiUtils.notImplementedInXL();
     }
 
@@ -208,8 +209,8 @@ public class ScenariosService implements IScenariosService {
      * @throws Exception
      */
     @Override
-    public ScenarioApiDTO addPolicy(Long id, String policyName, String consumerUuid, String providerUuid, List<String> mergeUuids, String type, Integer maxCapacity, String mergeType) throws Exception {
-        throw new UnsupportedOperationException();
+    public ScenarioApiDTO addPolicy(final Long aLong, final String s, final String s1, final String s2, final List<String> list, final PolicyType policyType, final Integer integer, final MergePolicyType mergePolicyType) throws Exception {
+        throw ApiUtils.notImplementedInXL();
     }
 
     /**
@@ -221,19 +222,6 @@ public class ScenariosService implements IScenariosService {
         throw ApiUtils.notImplementedInXL();
     }
 
-    /**
-     * Unused right now. Maybe useful in the future.
-     * Delete a scenario change by its index.
-     *
-     * @param id The id whose change should be deleted.
-     * @param index The index of the change to be deleted.
-     * @return The updated scenario.
-     * @throws Exception
-     */
-    @Override
-    public ScenarioApiDTO deleteScenarioChange(Long id, Integer index) throws Exception {
-        throw ApiUtils.notImplementedInXL();
-    }
 
     /**
      * This API is not well-defined. May be used at some point in the future.

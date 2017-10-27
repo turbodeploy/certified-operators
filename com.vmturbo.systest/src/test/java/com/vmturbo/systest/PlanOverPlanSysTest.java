@@ -12,8 +12,8 @@ import org.junit.Test;
 
 import com.google.gson.Gson;
 
-import com.vmturbo.api.dto.MarketApiDTO;
-import com.vmturbo.api.dto.input.ScenarioApiInputDTO;
+import com.vmturbo.api.dto.market.MarketApiDTO;
+import com.vmturbo.api.dto.scenario.ScenarioApiDTO;
 
 /**
  * System-level test for plan-over-plan.
@@ -26,21 +26,21 @@ public class PlanOverPlanSysTest extends SystemTestBase {
 
     // JSON for scenario to just rebalance, i.e. a "CUSTOM" scenario with no changes
     private final static String REBALANCE_SCENARIO_JSON = "/rebalance-scenario.json";
-    private ScenarioApiInputDTO rebalanceScenarioInputDTO;
+    private ScenarioApiDTO rebalanceScenarioInputDTO;
 
     // JSON for scenario to add 5 copies of a given VM
     private final static String ADD_LOAD_SCENARIO_JSON = "/add-load-scenario.json";
-    private ScenarioApiInputDTO addLoadScenarioInputDTO;
+    private ScenarioApiDTO addLoadScenarioInputDTO;
 
     @Before
     public void setup() {
         rebalanceScenarioInputDTO = (new Gson()).fromJson(new InputStreamReader(
                 this.getClass().getResourceAsStream(REBALANCE_SCENARIO_JSON)),
-                ScenarioApiInputDTO.class);
+                ScenarioApiDTO.class);
 
         addLoadScenarioInputDTO = (new Gson()).fromJson(new InputStreamReader(
                 this.getClass().getResourceAsStream(ADD_LOAD_SCENARIO_JSON)),
-                ScenarioApiInputDTO.class);
+                ScenarioApiDTO.class);
 
     }
 

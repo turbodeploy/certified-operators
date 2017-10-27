@@ -25,10 +25,12 @@ import com.google.common.collect.ImmutableList;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.dto.BaseApiDTO;
-import com.vmturbo.api.dto.LogEntryApiDTO;
-import com.vmturbo.api.dto.ServiceEntityApiDTO;
+import com.vmturbo.api.dto.notification.LogEntryApiDTO;
+import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
-import com.vmturbo.api.dto.input.ActionApiInputDTO;
+import com.vmturbo.api.dto.action.ActionApiInputDTO;
+import com.vmturbo.api.enums.ActionMode;
+import com.vmturbo.api.enums.ActionState;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.ActionDTOUtil;
@@ -37,6 +39,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
@@ -140,21 +143,21 @@ public class ActionSpecMapper {
         actionApiDTO.setActionID(actionSpec.getRecommendation().getId());
         // actionMode is direct translation
         final ActionDTO.ActionMode actionMode = actionSpec.getActionMode();
-        actionApiDTO.setActionMode(actionMode.name());
+        actionApiDTO.setActionMode(ActionMode.valueOf(actionMode.name()));
         // special case translation for the actionState: READY from A-O -> PENDING_ACCEPT for the UX
         final ActionDTO.ActionState actionState = actionSpec.getActionState();
         if (actionState == ActionDTO.ActionState.READY) {
             if (actionMode == ActionDTO.ActionMode.RECOMMEND) {
-                actionApiDTO.setActionState("RECOMMENDED");
+                actionApiDTO.setActionState(ActionState.RECOMMENDED);
             } else {
-                actionApiDTO.setActionState("PENDING_ACCEPT");
+                actionApiDTO.setActionState(ActionState.PENDING_ACCEPT);
             }
         } else {
-            actionApiDTO.setActionState(actionState.name());
+            actionApiDTO.setActionState(ActionState.valueOf(actionState.name()));
         }
         // actionType and displayName are the same
-        actionApiDTO.setActionType(actionSpec.getRecommendation().getInfo().getActionTypeCase()
-                .name());
+        actionApiDTO.setActionType(com.vmturbo.api.enums.ActionType.valueOf(
+                actionSpec.getRecommendation().getInfo().getActionTypeCase().name()));
         actionApiDTO.setDisplayName(actionMode.name());
 
         // map the recommendation info
@@ -240,9 +243,9 @@ public class ActionSpecMapper {
         // a host move by looking at the type of the source entity.
         final String sourceType = context.getEntity(move.getSourceId()).getClassName();
         if (sourceType.equals(UIEntityType.STORAGE.getValue())) {
-            actionApiDTO.setActionType("CHANGE");
+            actionApiDTO.setActionType(com.vmturbo.api.enums.ActionType.CHANGE);
         } else {
-            actionApiDTO.setActionType("MOVE");
+            actionApiDTO.setActionType(com.vmturbo.api.enums.ActionType.MOVE);
         }
 
         // Set entity DTO fields for target, source (if needed) and destination entities
@@ -272,7 +275,7 @@ public class ActionSpecMapper {
                                     @Nonnull final ReconfigureExplanation explanation,
                                     @Nonnull final ActionSpecMappingContext context)
             throws UnknownObjectException {
-        actionApiDTO.setActionType("RECONFIGURE");
+        actionApiDTO.setActionType(com.vmturbo.api.enums.ActionType.RECONFIGURE);
 
         setEntityDtoFields(actionApiDTO.getTarget(), reconfigure.getTargetId(), context);
         setEntityDtoFields(actionApiDTO.getCurrentEntity(), reconfigure.getSourceId(), context);
@@ -290,7 +293,7 @@ public class ActionSpecMapper {
                                   @Nonnull final Provision provision,
                                   @Nonnull final ActionSpecMappingContext context)
             throws UnknownObjectException {
-        actionApiDTO.setActionType("PROVISION");
+        actionApiDTO.setActionType(com.vmturbo.api.enums.ActionType.PROVISION);
 
         final String provisionedSellerUuid = Long.toString(provision.getProvisionedSeller());
         setNewEntityDtoFields(actionApiDTO.getTarget(), provision.getEntityToCloneId(),
@@ -311,7 +314,7 @@ public class ActionSpecMapper {
                                @Nonnull final Resize resize,
                                @Nonnull final ActionSpecMappingContext context)
             throws UnknownObjectException {
-        actionApiDTO.setActionType("RESIZE");
+        actionApiDTO.setActionType(com.vmturbo.api.enums.ActionType.RESIZE);
 
         setEntityDtoFields(actionApiDTO.getTarget(), resize.getTargetId(), context);
         setEntityDtoFields(actionApiDTO.getCurrentEntity(), resize.getTargetId(), context);
@@ -333,7 +336,7 @@ public class ActionSpecMapper {
                                  @Nonnull final Activate activate,
                                  @Nonnull final ActionSpecMappingContext context)
             throws UnknownObjectException {
-        actionApiDTO.setActionType("START");
+        actionApiDTO.setActionType(com.vmturbo.api.enums.ActionType.START);
         setEntityDtoFields(actionApiDTO.getTarget(), activate.getTargetId(), context);
 
         final List<String> reasonCommodityNames =
@@ -362,7 +365,7 @@ public class ActionSpecMapper {
                                    @Nonnull final ActionSpecMappingContext context)
             throws UnknownObjectException {
         setEntityDtoFields(actionApiDTO.getTarget(), deactivate.getTargetId(), context);
-        actionApiDTO.setActionType("DEACTIVATE");
+        actionApiDTO.setActionType(com.vmturbo.api.enums.ActionType.DEACTIVATE);
 
         final List<String> reasonCommodityNames =
                 deactivate.getTriggeringCommoditiesList().stream()
@@ -475,21 +478,21 @@ public class ActionSpecMapper {
         return queryBuilder.build();
     }
 
-    private Optional<ActionDTO.ActionState> stateToEnum(final String stateStr) {
+    private Optional<ActionDTO.ActionState> stateToEnum(final ActionState stateStr) {
         switch (stateStr) {
-            case "PENDING_ACCEPT":
+            case PENDING_ACCEPT:
                 return Optional.of(ActionDTO.ActionState.READY);
-            case "ACCEPTED": case "QUEUED":
+            case ACCEPTED: case QUEUED:
                 return Optional.of(ActionDTO.ActionState.QUEUED);
-            case "SUCCEEDED":
+            case SUCCEEDED:
                 return Optional.of(ActionDTO.ActionState.SUCCEEDED);
-            case "IN_PROGRESS":
+            case IN_PROGRESS:
                 return Optional.of(ActionDTO.ActionState.IN_PROGRESS);
-            case "FAILED":
+            case FAILED:
                 return Optional.of(ActionDTO.ActionState.FAILED);
             // These don't map to ActionStates directly, because in XL we separate the concept
             // of a "decision" from the state of the action, and these relate to the decision.
-            case "REJECTED": case "RECOMMENDED": case "DISABLED": case "CLEARED":
+            case REJECTED: case RECOMMENDED: case DISABLED: case CLEARED:
                 logger.warn("Not able to convert {} to ActionState.", stateStr);
                 return Optional.empty();
             default:

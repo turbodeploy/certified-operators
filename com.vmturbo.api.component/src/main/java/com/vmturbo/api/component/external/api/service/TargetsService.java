@@ -26,9 +26,9 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.external.api.util.ApiUtils;
-import com.vmturbo.api.dto.InputFieldApiDTO;
-import com.vmturbo.api.dto.TargetApiDTO;
-import com.vmturbo.api.dto.WorkflowApiDTO;
+import com.vmturbo.api.dto.target.InputFieldApiDTO;
+import com.vmturbo.api.dto.target.TargetApiDTO;
+import com.vmturbo.api.dto.workflow.WorkflowApiDTO;
 import com.vmturbo.api.enums.InputValueType;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
@@ -667,6 +667,8 @@ public class TargetsService implements ITargetsService {
                 return InputValueType.NUMERIC;
             case STRING:
                 return InputValueType.STRING;
+            case LIST:
+                return InputValueType.LIST;
             default:
                 throw new RuntimeException("Unrecognized account field value type: " + type);
         }

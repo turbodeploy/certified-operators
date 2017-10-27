@@ -13,7 +13,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
-import com.vmturbo.api.dto.input.SettingApiInputDTO;
+import com.vmturbo.api.dto.setting.SettingApiInputDTO;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
 import com.vmturbo.api.serviceinterfaces.ISettingsService;

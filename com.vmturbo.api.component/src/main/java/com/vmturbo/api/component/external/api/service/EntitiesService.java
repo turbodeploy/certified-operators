@@ -23,14 +23,15 @@ import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.BaseApiDTO;
-import com.vmturbo.api.dto.LogEntryApiDTO;
-import com.vmturbo.api.dto.PolicyApiDTO;
-import com.vmturbo.api.dto.ServiceEntityApiDTO;
+import com.vmturbo.api.dto.notification.LogEntryApiDTO;
+import com.vmturbo.api.dto.policy.PolicyApiDTO;
+import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.api.dto.entity.TagApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
-import com.vmturbo.api.dto.input.ActionApiInputDTO;
-import com.vmturbo.api.dto.input.statistic.StatPeriodApiInputDTO;
+import com.vmturbo.api.dto.action.ActionApiInputDTO;
+import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
-import com.vmturbo.api.dto.setting.SettingsPolicyApiDTO;
+import com.vmturbo.api.dto.settingspolicy.SettingsPolicyApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
@@ -94,7 +95,6 @@ public class EntitiesService implements IEntitiesService {
     public List<LogEntryApiDTO> getNotificationsByEntityUuid(String uuid,
                                                              String starttime,
                                                              String endtime,
-                                                             boolean active,
                                                              String category) throws Exception {
         throw ApiUtils.notImplementedInXL();
     }
@@ -208,6 +208,26 @@ public class EntitiesService implements IEntitiesService {
     @Override
     public List<StatSnapshotApiDTO> getNotificationCountStatsByUuid(final String s,
                                     final ActionApiInputDTO actionApiInputDTO) throws Exception {
+        throw ApiUtils.notImplementedInXL();
+    }
+
+    @Override
+    public List<TagApiDTO> getTagsByEntityUuid(final String s) throws Exception {
+        throw ApiUtils.notImplementedInXL();
+    }
+
+    @Override
+    public List<TagApiDTO> createTagByEntityUuid(final String s, final TagApiDTO tagApiDTO) throws Exception {
+        throw ApiUtils.notImplementedInXL();
+    }
+
+    @Override
+    public void deleteTagByEntityUuid(final String s, final String s1) throws Exception {
+        throw ApiUtils.notImplementedInXL();
+    }
+
+    @Override
+    public void deleteTagsByEntityUuid(final String s) throws Exception {
         throw ApiUtils.notImplementedInXL();
     }
 

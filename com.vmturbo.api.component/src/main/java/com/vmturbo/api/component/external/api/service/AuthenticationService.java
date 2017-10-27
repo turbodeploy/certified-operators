@@ -23,7 +23,7 @@ import com.vmturbo.api.component.communication.RestAuthenticationProvider;
 import com.vmturbo.api.component.external.api.mapper.LoginProviderMapper;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.ErrorApiDTO;
-import com.vmturbo.api.dto.UserApiDTO;
+import com.vmturbo.api.dto.user.UserApiDTO;
 import com.vmturbo.api.serviceinterfaces.IAuthenticationService;
 import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;

@@ -1,5 +1,10 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import static org.junit.Assert.assertEquals;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.when;
+
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
@@ -11,13 +16,15 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Sets;
+
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.dto.BaseApiDTO;
-import com.vmturbo.api.dto.ScenarioApiDTO;
-import com.vmturbo.api.dto.ScenarioChangeApiDTO;
-import com.vmturbo.api.dto.ServiceEntityApiDTO;
-import com.vmturbo.api.dto.input.ScenarioApiInputDTO;
+import com.vmturbo.api.dto.scenario.ScenarioChangeApiDTO;
+import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.api.dto.scenario.ScenarioApiDTO;
 import com.vmturbo.api.enums.PlanChangeType.PlanModificationState;
 import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
@@ -26,14 +33,6 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyAddition;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyRemoval;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyReplace;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
-
-import static org.junit.Assert.assertEquals;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.when;
-
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Sets;
 
 public class ScenarioMapperTest {
     private static final String SCENARIO_NAME = "MyScenario";
@@ -63,7 +62,7 @@ public class ScenarioMapperTest {
         dto.setTargets(Collections.singletonList(entity(1)));
         dto.setValue("6");
 
-        ScenarioInfo info = ScenarioMapper.toScenarioInfo(SCENARIO_NAME, scenarioApiInputDTO(dto));
+        ScenarioInfo info = ScenarioMapper.toScenarioInfo(SCENARIO_NAME, scenarioApiDTO(dto));
         assertEquals(SCENARIO_NAME, info.getName());
         assertEquals(1, info.getChangesCount());
         assertEquals("addition change", info.getChanges(0).getDescription());
@@ -83,7 +82,7 @@ public class ScenarioMapperTest {
         dto.setDescription("removal change");
         dto.setTargets(Collections.singletonList(entity(1)));
 
-        ScenarioInfo info = ScenarioMapper.toScenarioInfo(SCENARIO_NAME, scenarioApiInputDTO(dto));
+        ScenarioInfo info = ScenarioMapper.toScenarioInfo(SCENARIO_NAME, scenarioApiDTO(dto));
         assertEquals(SCENARIO_NAME, info.getName());
         assertEquals(1, info.getChangesCount());
         assertEquals("removal change", info.getChanges(0).getDescription());
@@ -99,7 +98,7 @@ public class ScenarioMapperTest {
         ScenarioChangeApiDTO dto = new ScenarioChangeApiDTO();
         dto.setType("SCOPE");
 
-        ScenarioInfo info = ScenarioMapper.toScenarioInfo(SCENARIO_NAME, scenarioApiInputDTO(dto));
+        ScenarioInfo info = ScenarioMapper.toScenarioInfo(SCENARIO_NAME, scenarioApiDTO(dto));
         assertEquals(0, info.getChangesCount());
     }
 
@@ -111,7 +110,7 @@ public class ScenarioMapperTest {
         dto.setDescription("replace change");
         dto.setTargets(Arrays.asList(entity(1), entity(2)));
 
-        ScenarioInfo info = ScenarioMapper.toScenarioInfo(SCENARIO_NAME, scenarioApiInputDTO(dto));
+        ScenarioInfo info = ScenarioMapper.toScenarioInfo(SCENARIO_NAME, scenarioApiDTO(dto));
         assertEquals(SCENARIO_NAME, info.getName());
         assertEquals(1, info.getChangesCount());
         assertEquals("replace change", info.getChanges(0).getDescription());
@@ -139,7 +138,7 @@ public class ScenarioMapperTest {
         removeDto.setTargets(Collections.singletonList(entity(2)));
 
         ScenarioInfo info = ScenarioMapper
-            .toScenarioInfo(SCENARIO_NAME, scenarioApiInputDTO(addDto, removeDto));
+            .toScenarioInfo(SCENARIO_NAME, scenarioApiDTO(addDto, removeDto));
         assertEquals(2, info.getChangesCount());
 
         assertEquals(DetailsCase.TOPOLOGY_ADDITION, info.getChanges(0).getDetailsCase());
@@ -281,8 +280,8 @@ public class ScenarioMapperTest {
         return entity;
     }
 
-    private ScenarioApiInputDTO scenarioApiInputDTO(@Nonnull final ScenarioChangeApiDTO... changes) {
-        ScenarioApiInputDTO dto = new ScenarioApiInputDTO();
+    private ScenarioApiDTO scenarioApiDTO(@Nonnull final ScenarioChangeApiDTO... changes) {
+        ScenarioApiDTO dto = new ScenarioApiDTO();
         dto.setChanges(Arrays.asList(changes));
 
         return dto;

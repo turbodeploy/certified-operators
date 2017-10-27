@@ -10,9 +10,9 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 
-import com.vmturbo.api.dto.ServiceEntityApiDTO;
-import com.vmturbo.api.dto.SupplychainApiDTO;
-import com.vmturbo.api.dto.SupplychainEntryDTO;
+import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
+import com.vmturbo.api.dto.supplychain.SupplychainEntryDTO;
 
 public class SupplyChainTestUtils {
     public SupplyChainTestUtils() {

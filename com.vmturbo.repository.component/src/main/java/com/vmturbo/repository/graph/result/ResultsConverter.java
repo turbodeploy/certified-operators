@@ -14,7 +14,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.Multimap;
 
-import com.vmturbo.api.dto.ServiceEntityApiDTO;
+import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
 import com.vmturbo.repository.graph.executor.GraphDBExecutor;

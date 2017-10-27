@@ -6,8 +6,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import com.vmturbo.api.dto.InputFieldApiDTO;
-import com.vmturbo.api.dto.TargetApiDTO;
+import com.vmturbo.api.dto.target.InputFieldApiDTO;
+import com.vmturbo.api.dto.target.TargetApiDTO;
 
 /**
  * Utilities for working with StressProbe.

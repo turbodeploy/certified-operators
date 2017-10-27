@@ -20,10 +20,9 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
-import com.vmturbo.api.dto.MarketApiDTO;
-import com.vmturbo.api.dto.ScenarioApiDTO;
-import com.vmturbo.api.dto.TargetApiDTO;
-import com.vmturbo.api.dto.input.ScenarioApiInputDTO;
+import com.vmturbo.api.dto.market.MarketApiDTO;
+import com.vmturbo.api.dto.scenario.ScenarioApiDTO;
+import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyBroadcastRequest;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -159,7 +158,7 @@ public class SystemTestBase {
         return getRequest("/markets/" + marketUuid, MarketApiDTO.class);
     }
 
-    protected String createScenario(String scenarioName, ScenarioApiInputDTO scenarioInputDTO) {
+    protected String createScenario(String scenarioName, ScenarioApiDTO scenarioInputDTO) {
 
         final String newScenarioUri = "/scenarios/" + scenarioName;
 

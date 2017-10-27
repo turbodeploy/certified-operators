@@ -33,9 +33,9 @@ import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
-import com.vmturbo.api.dto.ServiceEntityApiDTO;
-import com.vmturbo.api.dto.SupplychainApiDTO;
-import com.vmturbo.api.dto.SupplychainEntryDTO;
+import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
+import com.vmturbo.api.dto.supplychain.SupplychainEntryDTO;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.SupplyChainDetailType;
 import com.vmturbo.api.exceptions.OperationFailedException;

@@ -14,7 +14,7 @@ import java.util.List;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.vmturbo.api.dto.WidgetsetApiDTO;
+import com.vmturbo.api.dto.widget.WidgetsetApiDTO;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 

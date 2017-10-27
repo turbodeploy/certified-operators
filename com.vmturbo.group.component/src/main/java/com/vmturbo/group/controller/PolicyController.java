@@ -1,7 +1,7 @@
 package com.vmturbo.group.controller;
 
-import com.vmturbo.api.dto.PolicyApiDTO;
-import com.vmturbo.api.dto.input.PolicyApiInputDTO;
+import com.vmturbo.api.dto.policy.PolicyApiDTO;
+import com.vmturbo.api.dto.policy.PolicyApiInputDTO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;

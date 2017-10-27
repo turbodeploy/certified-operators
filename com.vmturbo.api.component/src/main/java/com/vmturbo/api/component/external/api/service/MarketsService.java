@@ -32,17 +32,19 @@ import com.vmturbo.api.component.external.api.mapper.PolicyMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
+import com.vmturbo.api.enums.MergePolicyType;
+import com.vmturbo.api.enums.PolicyType;
 import com.vmturbo.common.protobuf.GroupDTOUtil;
 import com.vmturbo.common.protobuf.group.GroupFetcher;
 import com.vmturbo.api.component.external.api.websocket.UINotificationChannel;
 import com.vmturbo.api.dto.action.ActionApiDTO;
-import com.vmturbo.api.dto.LogEntryApiDTO;
-import com.vmturbo.api.dto.MarketApiDTO;
-import com.vmturbo.api.dto.PolicyApiDTO;
-import com.vmturbo.api.dto.ServiceEntityApiDTO;
-import com.vmturbo.api.dto.input.ActionApiInputDTO;
-import com.vmturbo.api.dto.input.PolicyApiInputDTO;
-import com.vmturbo.api.dto.input.statistic.StatPeriodApiInputDTO;
+import com.vmturbo.api.dto.notification.LogEntryApiDTO;
+import com.vmturbo.api.dto.market.MarketApiDTO;
+import com.vmturbo.api.dto.policy.PolicyApiDTO;
+import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.api.dto.action.ActionApiInputDTO;
+import com.vmturbo.api.dto.policy.PolicyApiInputDTO;
+import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.reservation.DemandReservationApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
@@ -169,7 +171,7 @@ public class MarketsService implements IMarketsService {
     }
 
     @Override
-    public List<LogEntryApiDTO> getNotificationsByMarketUuid(String uuid, String starttime, String endtime, boolean active, String filters) throws Exception {
+    public List<LogEntryApiDTO> getNotificationsByMarketUuid(String uuid, String starttime, String endtime, String filters) throws Exception {
         logger.debug("Get notifications from market {} with start time {} and end time {}",
                 uuid, starttime, endtime);
         throw ApiUtils.notImplementedInXL();
@@ -243,13 +245,13 @@ public class MarketsService implements IMarketsService {
     }
 
     @Override
-    public PolicyApiDTO addPolicy(String uuid,
-                                  String policyName,
-                                  List<String> uuids,
-                                  String type,
-                                  Integer maxCapacity,
-                                  Boolean enable,
-                                  String mergeType) throws Exception {
+    public PolicyApiDTO addPolicy(final String uuid,
+                                  final String policyName,
+                                  final List<String> uuids,
+                                  final PolicyType type,
+                                  final Integer maxCapacity,
+                                  final Boolean enable,
+                                  final MergePolicyType mergeType) throws Exception {
         try {
             // Reconstruct the PolicyApiInputDTO, it was deconstructed in the @Controller layer. :S
             PolicyApiInputDTO policyApiInputDTO = new PolicyApiInputDTO();
@@ -258,7 +260,7 @@ public class MarketsService implements IMarketsService {
             policyApiInputDTO.setCapacity(maxCapacity);
             policyApiInputDTO.setEnabled(enable);
             policyApiInputDTO.setMergeType(mergeType);
-            if ("MERGE".equals(type)) {
+            if (PolicyType.MERGE.equals(type)) {
                 policyApiInputDTO.setMergeUuids(uuids);
             } else {
                 if (uuids != null && uuids.size() == 2) {
@@ -289,13 +291,13 @@ public class MarketsService implements IMarketsService {
     }
 
     @Override
-    public PolicyApiDTO editPolicy(String uuid,
-                                   String policyUuid,
-                                   String policyName,
-                                   List<String> uuids,
-                                   String type,
-                                   Integer maxCapacity,
-                                   Boolean enable) throws Exception {
+    public PolicyApiDTO editPolicy(final String uuid,
+                                   final String policyUuid,
+                                   final String policyName,
+                                   final List<String> uuids,
+                                   final PolicyType type,
+                                   final Integer maxCapacity,
+                                   final Boolean enable) throws Exception {
         try {
             // Reconstruct the PolicyApiInputDTO, it was deconstructed in the @Controller layer. :S
             // Discussed with an UI team member, they will pass in the DTO rather than individual fields.
@@ -306,7 +308,7 @@ public class MarketsService implements IMarketsService {
             policyApiInputDTO.setCapacity(maxCapacity);
             policyApiInputDTO.setEnabled(enable);
             // policyApiInputDTO.setMergeType(mergeType);
-            if ("MERGE".equals(type)) {
+            if (PolicyType.MERGE.equals(type)) {
                 policyApiInputDTO.setMergeUuids(uuids);
             } else {
                 if (uuids != null && uuids.size() == 2) {

@@ -30,11 +30,11 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import com.vmturbo.api.component.communication.RestAuthenticationProvider;
-import com.vmturbo.api.dto.ActiveDirectoryApiDTO;
-import com.vmturbo.api.dto.ActiveDirectoryGroupApiDTO;
+import com.vmturbo.api.dto.user.ActiveDirectoryApiDTO;
+import com.vmturbo.api.dto.user.ActiveDirectoryGroupApiDTO;
 import com.vmturbo.api.dto.BaseApiDTO;
-import com.vmturbo.api.dto.UserApiDTO;
-import com.vmturbo.api.dto.input.reservation.ChangePasswordApiDTO;
+import com.vmturbo.api.dto.user.UserApiDTO;
+import com.vmturbo.api.dto.user.ChangePasswordApiDTO;
 import com.vmturbo.api.serviceinterfaces.IUsersService;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
@@ -617,5 +617,16 @@ public class UsersService implements IUsersService {
     public UserApiDTO changeUserPassword(String uuid, ChangePasswordApiDTO changePasswordApiDTO)
             throws Exception {
         throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Get a User one-time password
+     *
+     * @return user includes one-time password
+     * @throws UnauthorizedObjectException when user is not logged in
+     */
+    @Override
+    public UserApiDTO getUserOneTimePassword() throws UnauthorizedObjectException {
+        throw ApiUtils.notImplementedInXL();
     }
 }

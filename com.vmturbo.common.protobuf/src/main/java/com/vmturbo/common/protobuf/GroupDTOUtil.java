@@ -47,8 +47,8 @@ public class GroupDTOUtil {
                 result.add(bindToGroup.getConsumerGroupId());
                 result.add(bindToGroup.getProviderGroupId());
                 break;
-            case AT_MOST_N_BOUND:
-                Policy.AtMostNBoundPolicy atMostNBound = policy.getAtMostNBound();
+            case AT_MOST_NBOUND:
+                Policy.AtMostNBoundPolicy atMostNBound = policy.getAtMostNbound();
                 result.add(atMostNBound.getConsumerGroupId());
                 result.add(atMostNBound.getProviderGroupId());
                 break;

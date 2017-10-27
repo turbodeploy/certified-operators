@@ -6,8 +6,8 @@ import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Date;
 
-import com.vmturbo.api.dto.LicenseApiDTO;
-import com.vmturbo.api.dto.input.LicenseApiInputDTO;
+import com.vmturbo.api.dto.license.LicenseApiDTO;
+import com.vmturbo.api.dto.license.LicenseApiInputDTO;
 import com.vmturbo.api.serviceinterfaces.ILicenseService;
 
 public class LicenseService implements ILicenseService {

@@ -5,10 +5,10 @@ import java.text.MessageFormat;
 import org.springframework.beans.factory.annotation.Value;
 
 import com.vmturbo.api.component.external.api.util.ApiUtils;
-import com.vmturbo.api.dto.HttpProxyDTO;
-import com.vmturbo.api.dto.LoggingApiDTO;
-import com.vmturbo.api.enums.ConfigurationTypes;
-import com.vmturbo.api.dto.ProductVersionDTO;
+import com.vmturbo.api.dto.admin.HttpProxyDTO;
+import com.vmturbo.api.dto.admin.LoggingApiDTO;
+import com.vmturbo.api.enums.ConfigurationType;
+import com.vmturbo.api.dto.admin.ProductVersionDTO;
 import com.vmturbo.api.serviceinterfaces.IAdminService;
 
 public class AdminService implements IAdminService {
@@ -50,7 +50,7 @@ public class AdminService implements IAdminService {
     }
 
     @Override
-    public boolean loadConfigFiles(final ConfigurationTypes configType, final String topology)
+    public boolean loadConfigFiles(final ConfigurationType configType, final String topology)
             throws Exception {
         throw ApiUtils.notImplementedInXL();
     }

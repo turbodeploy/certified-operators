@@ -10,8 +10,10 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.api.dto.PolicyApiDTO;
-import com.vmturbo.api.dto.input.PolicyApiInputDTO;
+import com.vmturbo.api.dto.policy.PolicyApiDTO;
+import com.vmturbo.api.dto.policy.PolicyApiInputDTO;
+import com.vmturbo.api.enums.MergePolicyType;
+import com.vmturbo.api.enums.PolicyType;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyGrouping;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyGroupingID;
@@ -53,18 +55,18 @@ public class PolicyMapper {
                 consumerGrouping = groupsByID.get(atMostN.getConsumerGroupId());
                 providerGrouping = groupsByID.get(atMostN.getProviderGroupId());
 
-                policyApiDTO.setCapacity(atMostN.getCapacity());
-                policyApiDTO.setType(PolicyDTO.Policy.PolicyDetailCase.AT_MOST_N.name());
+                policyApiDTO.setCapacity((int)atMostN.getCapacity());
+                policyApiDTO.setType(PolicyType.AT_MOST_N);
                 policyApiDTO.setConsumerGroup(groupMapper.toGroupApiDto(consumerGrouping));
                 policyApiDTO.setProviderGroup(groupMapper.toGroupApiDto(providerGrouping));
                 break;
-            case AT_MOST_N_BOUND:
-                final PolicyDTO.Policy.AtMostNBoundPolicy atMostNBound = policyProto.getAtMostNBound();
+            case AT_MOST_NBOUND:
+                final PolicyDTO.Policy.AtMostNBoundPolicy atMostNBound = policyProto.getAtMostNbound();
                 consumerGrouping = groupsByID.get(atMostNBound.getConsumerGroupId());
                 providerGrouping = groupsByID.get(atMostNBound.getProviderGroupId());
 
-                policyApiDTO.setCapacity(atMostNBound.getCapacity());
-                policyApiDTO.setType(PolicyDTO.Policy.PolicyDetailCase.AT_MOST_N_BOUND.name());
+                policyApiDTO.setCapacity((int) atMostNBound.getCapacity());
+                policyApiDTO.setType(PolicyType.AT_MOST_NBOUND);
                 policyApiDTO.setConsumerGroup(groupMapper.toGroupApiDto(consumerGrouping));
                 policyApiDTO.setProviderGroup(groupMapper.toGroupApiDto(providerGrouping));
                 break;
@@ -74,7 +76,7 @@ public class PolicyMapper {
                 consumerGrouping = groupsByID.get(bindToComplementaryGroup.getConsumerGroupId());
                 providerGrouping = groupsByID.get(bindToComplementaryGroup.getProviderGroupId());
 
-                policyApiDTO.setType(PolicyDTO.Policy.PolicyDetailCase.BIND_TO_COMPLEMENTARY_GROUP.name());
+                policyApiDTO.setType(PolicyType.BIND_TO_COMPLEMENTARY_GROUP);
                 policyApiDTO.setConsumerGroup(groupMapper.toGroupApiDto(consumerGrouping));
                 policyApiDTO.setProviderGroup(groupMapper.toGroupApiDto(providerGrouping));
                 break;
@@ -83,7 +85,7 @@ public class PolicyMapper {
                 consumerGrouping = groupsByID.get(bindToGroup.getConsumerGroupId());
                 providerGrouping = groupsByID.get(bindToGroup.getProviderGroupId());
 
-                policyApiDTO.setType(PolicyDTO.Policy.PolicyDetailCase.BIND_TO_GROUP.name());
+                policyApiDTO.setType(PolicyType.BIND_TO_GROUP);
                 policyApiDTO.setConsumerGroup(groupMapper.toGroupApiDto(consumerGrouping));
                 policyApiDTO.setProviderGroup(groupMapper.toGroupApiDto(providerGrouping));
                 break;
@@ -93,7 +95,7 @@ public class PolicyMapper {
                 consumerGrouping = groupsByID.get(bindToGroupAndLicense.getConsumerGroupId());
                 providerGrouping = groupsByID.get(bindToGroupAndLicense.getProviderGroupId());
 
-                policyApiDTO.setType(PolicyDTO.Policy.PolicyDetailCase.BIND_TO_GROUP_AND_LICENSE.name());
+                policyApiDTO.setType(PolicyType.BIND_TO_GROUP_AND_LICENSE);
                 policyApiDTO.setConsumerGroup(groupMapper.toGroupApiDto(consumerGrouping));
                 policyApiDTO.setProviderGroup(groupMapper.toGroupApiDto(providerGrouping));
                 break;
@@ -103,7 +105,7 @@ public class PolicyMapper {
                 consumerGrouping = groupsByID.get(bindToGroupAndGeoRedundancy.getConsumerGroupId());
                 providerGrouping = groupsByID.get(bindToGroupAndGeoRedundancy.getProviderGroupId());
 
-                policyApiDTO.setType(PolicyDTO.Policy.PolicyDetailCase.BIND_TO_GROUP_AND_GEO_REDUNDANCY.name());
+                policyApiDTO.setType(PolicyType.BIND_TO_GROUP_AND_GEO_REDUNDANCY);
                 policyApiDTO.setConsumerGroup(groupMapper.toGroupApiDto(consumerGrouping));
                 policyApiDTO.setProviderGroup(groupMapper.toGroupApiDto(providerGrouping));
                 break;
@@ -112,16 +114,16 @@ public class PolicyMapper {
                 final List<PolicyGrouping> mergeGroupings = merge.getMergeGroupIdsList().stream()
                         .map(groupsByID::get).collect(Collectors.toList());
 
-                policyApiDTO.setType(PolicyDTO.Policy.PolicyDetailCase.MERGE.name());
+                policyApiDTO.setType(PolicyType.MERGE);
                 switch (merge.getMergeType()) {
                     case CLUSTER:
-                        policyApiDTO.setMergeType("Cluster");
+                        policyApiDTO.setMergeType(MergePolicyType.Cluster);
                         break;
                     case STORAGE_CLUSTER:
-                        policyApiDTO.setMergeType("StorageCluster");
+                        policyApiDTO.setMergeType(MergePolicyType.StorageCluster);
                         break;
                     case DATACENTER:
-                        policyApiDTO.setMergeType("DataCenter");
+                        policyApiDTO.setMergeType(MergePolicyType.DataCenter);
                         break;
                 }
                 policyApiDTO.setMergeGroups(mergeGroupings.stream()
@@ -133,7 +135,7 @@ public class PolicyMapper {
                 consumerGrouping = groupsByID.get(mustRunTogether.getConsumerGroupId());
                 providerGrouping = groupsByID.get(mustRunTogether.getProviderGroupId());
 
-                policyApiDTO.setType(PolicyDTO.Policy.PolicyDetailCase.MUST_RUN_TOGETHER.name());
+                policyApiDTO.setType(PolicyType.MUST_RUN_TOGETHER);
                 policyApiDTO.setConsumerGroup(groupMapper.toGroupApiDto(consumerGrouping));
                 policyApiDTO.setProviderGroup(groupMapper.toGroupApiDto(providerGrouping));
                 break;
@@ -166,7 +168,7 @@ public class PolicyMapper {
 
             // So far UI only sends the following four types of policies.
             switch (policyApiInputDTO.getType()) {
-                case "BIND_TO_GROUP":
+                case BIND_TO_GROUP:
                     providerId = providerId(policyApiInputDTO);
                     consumerId = consumerId(policyApiInputDTO);
 
@@ -181,7 +183,7 @@ public class PolicyMapper {
                                     .build();
                     inputPolicyBuilder.setBindToGroup(bindToGroupPolicy);
                     break;
-                case "BIND_TO_COMPLEMENTARY_GROUP":
+                case BIND_TO_COMPLEMENTARY_GROUP:
                     providerId = providerId(policyApiInputDTO);
                     consumerId = consumerId(policyApiInputDTO);
 
@@ -196,7 +198,7 @@ public class PolicyMapper {
                                     .build();
                     inputPolicyBuilder.setBindToComplementaryGroup(bindToComplementaryGroup);
                     break;
-                case "BIND_TO_GROUP_AND_LICENSE":
+                case BIND_TO_GROUP_AND_LICENSE:
                     providerId = providerId(policyApiInputDTO);
                     consumerId = consumerId(policyApiInputDTO);
 
@@ -211,18 +213,18 @@ public class PolicyMapper {
                                     .build();
                     inputPolicyBuilder.setBindToGroupAndLicense(bindToGroupAndLicencePolicy);
                     break;
-                case "MERGE":
+                case MERGE:
                     final PolicyDTO.InputPolicy.MergePolicy.Builder mergePolicyBuilder =
                             PolicyDTO.InputPolicy.MergePolicy.newBuilder();
 
-                    switch (mergeType(policyApiInputDTO)) {
-                        case "Cluster":
+                    switch (policyApiInputDTO.getMergeType()) {
+                        case Cluster:
                             mergePolicyBuilder.setMergeType(PolicyDTO.MergeType.CLUSTER);
                             break;
-                        case "StorageCluster":
+                        case StorageCluster:
                             mergePolicyBuilder.setMergeType(PolicyDTO.MergeType.STORAGE_CLUSTER);
                             break;
-                        case "DataCenter":
+                        case DataCenter:
                             mergePolicyBuilder.setMergeType(PolicyDTO.MergeType.DATACENTER);
                             break;
                     }
@@ -231,7 +233,7 @@ public class PolicyMapper {
                         .addMergeGroups(PolicyDTO.InputGroup.newBuilder().setGroupId(id).build()));
                     inputPolicyBuilder.setMerge(mergePolicyBuilder.build());
                     break;
-                case "AT_MOST_N":
+                case AT_MOST_N:
                     providerId = providerId(policyApiInputDTO);
                     consumerId = consumerId(policyApiInputDTO);
                     capacity = getPolicyCapacity(policyApiInputDTO);
@@ -248,7 +250,7 @@ public class PolicyMapper {
                                     .build();
                     inputPolicyBuilder.setAtMostN(atMostNPolicy);
                     break;
-                case "AT_MOST_N_BOUND":
+                case AT_MOST_NBOUND:
                     providerId = providerId(policyApiInputDTO);
                     consumerId = consumerId(policyApiInputDTO);
                     capacity = getPolicyCapacity(policyApiInputDTO);
@@ -263,9 +265,9 @@ public class PolicyMapper {
                                             .setGroupId(consumerId)
                                             .build())
                                     .build();
-                    inputPolicyBuilder.setAtMostNBound(atMostNBoundPolicy);
+                    inputPolicyBuilder.setAtMostNbound(atMostNBoundPolicy);
                     break;
-                case "MUST_RUN_TOGETHER":
+                case MUST_RUN_TOGETHER:
                     providerId = providerId(policyApiInputDTO);
                     consumerId = consumerId(policyApiInputDTO);
 
@@ -280,7 +282,7 @@ public class PolicyMapper {
                                     .build();
                     inputPolicyBuilder.setMustRunTogether(mustRunTogetherPolicy);
                     break;
-                case "BIND_TO_GROUP_AND_GEO_REDUNDANCY":
+                case BIND_TO_GROUP_AND_GEO_REDUNDANCY:
                     providerId = providerId(policyApiInputDTO);
                     consumerId = consumerId(policyApiInputDTO);
 
@@ -331,19 +333,6 @@ public class PolicyMapper {
         }
     }
 
-    /**
-     * Extract the value of <code>mergeType</code> field from a {@link PolicyApiInputDTO}.
-     *
-     * @param policyApiInputDTO The input dto from which to extract the value.
-     * @return The capacity value.
-     */
-    private String mergeType(final PolicyApiInputDTO policyApiInputDTO) {
-        if (policyApiInputDTO.getMergeType() != null) {
-            return policyApiInputDTO.getMergeType();
-        } else {
-            throw new IllegalArgumentException("PolicyApiInputDTO does not contain a value for mergeType");
-        }
-    }
 
     /**
      * Extract the value of <code>mergeUuids</code> field from a {@link PolicyApiInputDTO}.

@@ -6,9 +6,9 @@ import org.junit.Test;
 
 import com.google.common.collect.Lists;
 
-import com.vmturbo.api.dto.ResourceApiDTO;
-import com.vmturbo.api.dto.TemplateApiDTO;
-import com.vmturbo.api.dto.input.TemplateApiInputDTO;
+import com.vmturbo.api.dto.template.ResourceApiDTO;
+import com.vmturbo.api.dto.template.TemplateApiDTO;
+import com.vmturbo.api.dto.template.TemplateApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.ResourcesCategoryName;

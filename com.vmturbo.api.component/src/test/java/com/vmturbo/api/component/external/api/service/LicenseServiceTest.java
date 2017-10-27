@@ -2,7 +2,7 @@ package com.vmturbo.api.component.external.api.service;
 
 import org.junit.Test;
 
-import com.vmturbo.api.dto.LicenseApiDTO;
+import com.vmturbo.api.dto.license.LicenseApiDTO;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.hasItems;

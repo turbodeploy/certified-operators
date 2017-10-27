@@ -4,7 +4,7 @@ import com.vmturbo.api.component.external.api.mapper.PolicyMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.common.protobuf.GroupDTOUtil;
 import com.vmturbo.common.protobuf.group.GroupFetcher;
-import com.vmturbo.api.dto.PolicyApiDTO;
+import com.vmturbo.api.dto.policy.PolicyApiDTO;
 import com.vmturbo.api.serviceinterfaces.IPoliciesService;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyGrouping;

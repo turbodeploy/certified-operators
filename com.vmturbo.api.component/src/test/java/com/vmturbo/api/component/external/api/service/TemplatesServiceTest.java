@@ -6,7 +6,6 @@ import static org.junit.Assert.assertTrue;
 import java.io.IOException;
 import java.util.List;
 
-import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -20,9 +19,9 @@ import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.api.component.external.api.mapper.TemplateMapper;
-import com.vmturbo.api.dto.ResourceApiDTO;
-import com.vmturbo.api.dto.TemplateApiDTO;
-import com.vmturbo.api.dto.input.TemplateApiInputDTO;
+import com.vmturbo.api.dto.template.ResourceApiDTO;
+import com.vmturbo.api.dto.template.TemplateApiDTO;
+import com.vmturbo.api.dto.template.TemplateApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.CreateTemplateRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.DeleteTemplateRequest;

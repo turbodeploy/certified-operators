@@ -38,10 +38,10 @@ import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingManag
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingManagerMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingPolicyMapper;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingSpecMapper;
-import com.vmturbo.api.dto.GroupApiDTO;
+import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
-import com.vmturbo.api.dto.setting.SettingsPolicyApiDTO;
+import com.vmturbo.api.dto.settingspolicy.SettingsPolicyApiDTO;
 import com.vmturbo.api.enums.InputValueType;
 import com.vmturbo.api.enums.SettingScope;
 import com.vmturbo.api.exceptions.InvalidOperationException;

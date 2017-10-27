@@ -5,9 +5,9 @@ import java.util.List;
 import org.springframework.validation.Errors;
 
 import com.vmturbo.api.component.external.api.util.ApiUtils;
-import com.vmturbo.api.dto.BusinessUnitApiDTO;
-import com.vmturbo.api.dto.BusinessUnitApiInputDTO;
-import com.vmturbo.api.dto.GroupApiDTO;
+import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
+import com.vmturbo.api.dto.businessunit.BusinessUnitApiInputDTO;
+import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.serviceinterfaces.IBusinessUnitsService;
 
 public class BusinessUnitsService implements IBusinessUnitsService {

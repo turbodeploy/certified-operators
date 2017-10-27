@@ -3,7 +3,7 @@ package com.vmturbo.api.component.external.api.service;
 import java.util.List;
 
 import com.vmturbo.api.component.external.api.util.ApiUtils;
-import com.vmturbo.api.dto.RoleApiDTO;
+import com.vmturbo.api.dto.user.RoleApiDTO;
 import com.vmturbo.api.serviceinterfaces.IRolesService;
 
 /**

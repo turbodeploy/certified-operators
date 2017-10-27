@@ -39,11 +39,11 @@ public class AtMostNBoundPolicy extends PlacementPolicy {
                               @Nonnull final PolicyGrouping consumerGrouping,
                               @Nonnull final PolicyGrouping providerGrouping) {
         super(policyDefinition);
-        Preconditions.checkArgument(policyDefinition.hasAtMostNBound(), "Must be AtMostNBoundPolicy");
+        Preconditions.checkArgument(policyDefinition.hasAtMostNbound(), "Must be AtMostNBoundPolicy");
 
         this.providerGrouping = providerGrouping;
         this.consumerGrouping = consumerGrouping;
-        this.atMostNBound = policyDefinition.getAtMostNBound();
+        this.atMostNBound = policyDefinition.getAtMostNbound();
         Preconditions.checkArgument(hasEntityType(providerGrouping),
             "ProviderGroup entity type required");
         Preconditions.checkArgument(this.atMostNBound.hasCapacity(),

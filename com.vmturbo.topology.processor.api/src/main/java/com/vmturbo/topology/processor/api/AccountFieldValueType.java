@@ -19,8 +19,14 @@ public enum AccountFieldValueType {
      */
     NUMERIC,
     /**
-     * Value represents group scope field. {@code value} is not used in {@link InputFieldDTO},
+     * Value represents list field. {@code value} is used only in
+     * {@link SettingApiDTO} but not in {@link InputFieldApiDTO}
+     */
+    LIST,
+    /**
+     * Value represents group scope field. {@code value} is not used in {@link InputFieldApiDTO},
      * instead {@code groupProperties} is used.
      */
     GROUP_SCOPE;
+
 }

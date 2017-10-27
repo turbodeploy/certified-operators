@@ -19,7 +19,7 @@ import javaslang.control.Either;
 import reactor.core.publisher.Flux;
 
 import com.vmturbo.api.dto.BaseApiDTO;
-import com.vmturbo.api.dto.ServiceEntityApiDTO;
+import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.Entity;

@@ -18,10 +18,9 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.dto.BaseApiDTO;
-import com.vmturbo.api.dto.ScenarioApiDTO;
-import com.vmturbo.api.dto.ScenarioChangeApiDTO;
-import com.vmturbo.api.dto.ServiceEntityApiDTO;
-import com.vmturbo.api.dto.input.ScenarioApiInputDTO;
+import com.vmturbo.api.dto.scenario.ScenarioApiDTO;
+import com.vmturbo.api.dto.scenario.ScenarioChangeApiDTO;
+import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.enums.PlanChangeType.PlanModificationState;
 import com.vmturbo.common.protobuf.PlanDTOUtil;
 import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
@@ -53,7 +52,7 @@ public class ScenarioMapper {
     }
 
     /**
-     * Map a ScenarioApiInputDTO to an equivalent {@link ScenarioInfo}.
+     * Map a ScenarioApiDTO to an equivalent {@link ScenarioInfo}.
      *
      * @param name The name of the scenario.
      * @param dto The DTO to be converted.
@@ -61,7 +60,7 @@ public class ScenarioMapper {
      */
     @Nonnull
     public static ScenarioInfo toScenarioInfo(final String name,
-                                              @Nonnull final ScenarioApiInputDTO dto) {
+                                              @Nonnull final ScenarioApiDTO dto) {
         ScenarioInfo.Builder infoBuilder = ScenarioInfo.newBuilder();
         if (name != null) {
             infoBuilder.setName(name);

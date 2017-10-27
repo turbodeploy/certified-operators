@@ -44,7 +44,7 @@ message Policy {
 
     oneof policy_detail {
         AtMostNPolicy at_most_n = 15;
-        AtMostNBoundPolicy at_most_n_bound = 16;
+        AtMostNBoundPolicy at_most_nbound = 16;
         BindToComplementaryGroupPolicy bind_to_complementary_group = 17;
         BindToGroupPolicy bind_to_group = 18;
         BindToGroupAndLicencePolicy bind_to_group_and_license = 19;
@@ -142,7 +142,7 @@ message InputPolicy {
 
     oneof policy_detail {
         AtMostNPolicy at_most_n = 15;
-        AtMostNBoundPolicy at_most_n_bound = 16;
+        AtMostNBoundPolicy at_most_nbound = 16;
         BindToComplementaryGroupPolicy bind_to_complementary_group = 17;
         BindToGroupPolicy bind_to_group = 18;
         BindToGroupAndLicencePolicy bind_to_group_and_license = 19;

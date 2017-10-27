@@ -30,18 +30,19 @@ import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.BaseApiDTO;
-import com.vmturbo.api.dto.FilterApiDTO;
-import com.vmturbo.api.dto.GroupApiDTO;
-import com.vmturbo.api.dto.LogEntryApiDTO;
-import com.vmturbo.api.dto.PolicyApiDTO;
-import com.vmturbo.api.dto.ServiceEntityApiDTO;
+import com.vmturbo.api.dto.group.FilterApiDTO;
+import com.vmturbo.api.dto.group.GroupApiDTO;
+import com.vmturbo.api.dto.notification.LogEntryApiDTO;
+import com.vmturbo.api.dto.policy.PolicyApiDTO;
+import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.api.dto.entity.TagApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
-import com.vmturbo.api.dto.input.ActionApiInputDTO;
-import com.vmturbo.api.dto.input.SettingApiInputDTO;
-import com.vmturbo.api.dto.input.statistic.StatPeriodApiInputDTO;
+import com.vmturbo.api.dto.action.ActionApiInputDTO;
+import com.vmturbo.api.dto.setting.SettingApiInputDTO;
+import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
-import com.vmturbo.api.dto.setting.SettingsPolicyApiDTO;
+import com.vmturbo.api.dto.settingspolicy.SettingsPolicyApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
@@ -159,7 +160,7 @@ public class GroupsService implements IGroupsService {
     }
 
     @Override
-    public List<LogEntryApiDTO> getNotificationsByGroupUuid(String uuid, String starttime, String endtime, boolean active, String category) throws Exception {
+    public List<LogEntryApiDTO> getNotificationsByGroupUuid(String uuid, String starttime, String endtime, String category) throws Exception {
         throw ApiUtils.notImplementedInXL();
     }
 
@@ -380,6 +381,26 @@ public class GroupsService implements IGroupsService {
         }
     }
 
+    @Override
+    public List<TagApiDTO> getTagsByGroupUuid(final String s) throws Exception {
+        throw ApiUtils.notImplementedInXL();
+    }
+
+    @Override
+    public List<TagApiDTO> createTagByGroupUuid(final String s, final TagApiDTO tagApiDTO) throws Exception {
+        throw ApiUtils.notImplementedInXL();
+    }
+
+    @Override
+    public void deleteTagByGroupUuid(final String s, final String s1) throws Exception {
+        throw ApiUtils.notImplementedInXL();
+    }
+
+    @Override
+    public void deleteTagsByGroupUuid(final String s) throws Exception {
+        throw ApiUtils.notImplementedInXL();
+    }
+
     /**
      * Get the ID's of entities that are members of a group or cluster.
      *
@@ -537,6 +558,7 @@ public class GroupsService implements IGroupsService {
                 .setTypeFilter(GroupDTO.ClusterInfo.Type.STORAGE)
                 .build());
     }
+
 
     /**
      * Request a list of clusters based on a filter. This filter can specify a list of OIDs,
