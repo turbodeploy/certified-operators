@@ -332,12 +332,11 @@ public final class Ede {
     public @NonNull List<@NonNull Action> generateHeadroomActions(@NonNull Economy economy,
                     boolean isProvision, boolean isSuspension,
                                                           boolean isResize, boolean collapse) {
-        boolean isPlan = true;
         // create a subset list of markets that have at least one buyer that can move
         economy.composeMarketSubsetForPlacement();
         @NonNull List<Action> actions = new ArrayList<>();
         // balance entities in plan
-        actions.addAll(generateActions(economy, isPlan, isProvision, isSuspension, isResize));
+        actions.addAll(generateActions(economy, false, isProvision, isSuspension, isResize));
         logger.info("Plan completed initial placement with " + actions.size() + " actions.");
         int oldIndex = economy.getTraders().size();
         // add clones of sampleSE to the economy
@@ -355,7 +354,7 @@ public final class Ede {
 
         int oldActionCount = actions.size();
 
-        actions.addAll(generateActions(economy, isPlan, isProvision, isSuspension, isResize));
+        actions.addAll(generateActions(economy, false, isProvision, isSuspension, isResize));
         logger.info("Plan completed placement after adding demand with " + (actions.size() - oldActionCount)
                     + " actions.");
         return actions;
