@@ -300,9 +300,9 @@ public class GroupService extends GroupServiceImplBase {
                 return (policy.getAtMostN().getConsumerGroup().getGroupId() == groupId) ||
                     (policy.getAtMostN().getProviderGroup().getGroupId() == groupId);
 
-            case AT_MOST_N_BOUND:
-                return (policy.getAtMostNBound().getConsumerGroup().getGroupId() == groupId) ||
-                    (policy.getAtMostNBound().getProviderGroup().getGroupId() == groupId);
+            case AT_MOST_NBOUND:
+                return (policy.getAtMostNbound().getConsumerGroup().getGroupId() == groupId) ||
+                    (policy.getAtMostNbound().getProviderGroup().getGroupId() == groupId);
 
             case BIND_TO_COMPLEMENTARY_GROUP:
                 return (policy.getBindToComplementaryGroup().getConsumerGroup().getGroupId() == groupId) ||

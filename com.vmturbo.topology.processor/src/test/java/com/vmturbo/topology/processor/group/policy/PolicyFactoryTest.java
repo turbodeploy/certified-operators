@@ -95,7 +95,7 @@ public class PolicyFactoryTest {
 
         final PolicyDTO.Policy policy = PolicyDTO.Policy.newBuilder()
             .setId(POLICY_ID)
-            .setAtMostNBound(atMostNBoundPolicy)
+            .setAtMostNbound(atMostNBoundPolicy)
             .build();
 
         assertThat(policyFactory.newPolicy(policy, groupingMap),

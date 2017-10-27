@@ -702,7 +702,7 @@ public class PlacementPolicySysTest {
     private static Policy atMostNBound() {
         return Policy.newBuilder()
             .setId(IdentityGenerator.next())
-            .setAtMostNBound(
+            .setAtMostNbound(
                 AtMostNBoundPolicy.newBuilder()
                     .setCapacity(2.0f)
                     .setConsumerGroupId(policyGroupingID())

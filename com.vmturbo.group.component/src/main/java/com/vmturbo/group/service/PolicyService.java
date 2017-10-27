@@ -101,11 +101,11 @@ public class PolicyService extends PolicyServiceImplBase {
                             .setCapacity(inputPolicy.getAtMostN().getCapacity())
                             .build());
                     break;
-                case AT_MOST_N_BOUND:
-                    inputConsumerGroup = inputPolicy.getAtMostNBound().getConsumerGroup();
-                    inputProviderGroup = inputPolicy.getAtMostNBound().getProviderGroup();
-                    final float capacity = inputPolicy.getAtMostNBound().getCapacity();
-                    policyBuilder.setAtMostNBound(PolicyDTO.Policy.AtMostNBoundPolicy.newBuilder()
+                case AT_MOST_NBOUND:
+                    inputConsumerGroup = inputPolicy.getAtMostNbound().getConsumerGroup();
+                    inputProviderGroup = inputPolicy.getAtMostNbound().getProviderGroup();
+                    final float capacity = inputPolicy.getAtMostNbound().getCapacity();
+                    policyBuilder.setAtMostNbound(PolicyDTO.Policy.AtMostNBoundPolicy.newBuilder()
                             .setConsumerGroupId(convertToGroupID(inputConsumerGroup))
                             .setProviderGroupId(convertToGroupID(inputProviderGroup))
                             .setCapacity(capacity)

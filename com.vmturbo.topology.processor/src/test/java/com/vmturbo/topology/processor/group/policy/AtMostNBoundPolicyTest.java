@@ -60,7 +60,7 @@ public class AtMostNBoundPolicyTest {
     private static final long POLICY_ID = 9999L;
     final PolicyDTO.Policy policy = PolicyDTO.Policy.newBuilder()
         .setId(POLICY_ID)
-        .setAtMostNBound(atMostNBound)
+        .setAtMostNbound(atMostNBound)
         .build();
 
     TopologyGraph topologyGraph;
@@ -160,7 +160,7 @@ public class AtMostNBoundPolicyTest {
 
         final PolicyDTO.Policy policy = PolicyDTO.Policy.newBuilder()
             .setId(POLICY_ID)
-            .setAtMostNBound(atMostNBoundPolicy)
+            .setAtMostNbound(atMostNBoundPolicy)
             .build();
 
         when(groupResolver.resolve(eq(consumerGroup), eq(topologyGraph)))
