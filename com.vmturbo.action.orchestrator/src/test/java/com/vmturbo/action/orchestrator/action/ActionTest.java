@@ -179,6 +179,15 @@ public class ActionTest {
         assertEquals(action.getMode(), ActionMode.DISABLED);
     }
 
+    @Test
+    public void testGetModeMoveSupportLevelSupported(){
+        //SUPPORTED support level - all modes work
+        recommendation = move(11, 22, 33, SupportLevel.SUPPORTED).build();
+        entitySettings.put(11L, Collections.singletonList(makeMoveVmSetting(ActionMode.AUTOMATIC)));
+        action = new Action(recommendation, entitySettings, actionPlanId);
+        assertEquals(action.getMode(), ActionMode.AUTOMATIC);
+    }
+
     private ActionDTO.Action.Builder move(long targetId, long sourceId, long destinationId,
                                           final SupportLevel supportLevel) {
         return ActionDTO.Action.newBuilder()

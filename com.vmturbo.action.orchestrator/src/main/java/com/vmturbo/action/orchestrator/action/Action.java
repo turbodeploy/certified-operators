@@ -24,6 +24,7 @@ import com.vmturbo.action.orchestrator.action.ActionTranslation.TranslationStatu
 import com.vmturbo.action.orchestrator.state.machine.StateMachine;
 import com.vmturbo.action.orchestrator.state.machine.Transition.TransitionResult;
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
@@ -251,39 +252,39 @@ public class Action implements ActionView {
      */
     @Override
     public ActionMode getMode() {
-        // TODO: (DavidBlinn, August 2016). Proper support for action modes.
-        // Determine the mode based on action type for now.
-        // TODO: (Michelle Neuburger, 2017-10-23). Other action types besides Move.
+        switch (recommendation.getSupportingLevel()) {
+            case UNSUPPORTED:
+                return ActionMode.DISABLED;
+            case SHOW_ONLY:
+                ActionMode mode = calculateActionMode();
+                return (mode.getNumber() > ActionMode.RECOMMEND_VALUE) ? ActionMode.RECOMMEND : mode;
+            case SUPPORTED:
+                return calculateActionMode();
+            default:
+                throw new IllegalArgumentException("Action SupportLevel is of unrecognized type.");
+        }
+    }
+
+    private ActionMode calculateActionMode() {
+        // TODO: (Michelle Neuburger, 2017-10-23). Support other action types besides Move.
         // TODO: Determine which settings apply when action involves more than one entity.
-        ActionMode mode;
         switch (recommendation.getInfo().getActionTypeCase()) {
             case MOVE:
                 long targetId = recommendation.getInfo().getMove().getTargetId();
                 List<Setting> targetSettings =
                         entitySettings.getOrDefault(targetId, Collections.emptyList());
                 // ASSUMPTION: all move settings will have specs prefixed by "move"
-                mode = targetSettings.stream()
+                return targetSettings.stream()
                         .filter(s -> s.getSettingSpecName().toLowerCase().startsWith("move") &&
                                 s.hasEnumSettingValue())
                         .map(s -> ActionMode.valueOf(s.getEnumSettingValue().getValue()).getNumber())
                         .min(Integer::compareTo)
                         .map(ActionMode::forNumber)
                         .orElse(ActionMode.MANUAL);
-                break;
             case RESIZE: case ACTIVATE: case DEACTIVATE:
-                mode = ActionMode.MANUAL;
-                break;
+                return ActionMode.MANUAL;
             default:
-                mode = ActionMode.RECOMMEND;
-        }
-        switch (recommendation.getSupportingLevel()) {
-            case UNSUPPORTED:
-                return ActionMode.DISABLED;
-            case SHOW_ONLY:
-                return (mode.getNumber() > ActionMode.RECOMMEND_VALUE) ?
-                        ActionMode.RECOMMEND : mode;
-            default:
-                return mode;
+                return ActionMode.RECOMMEND;
         }
     }
 
