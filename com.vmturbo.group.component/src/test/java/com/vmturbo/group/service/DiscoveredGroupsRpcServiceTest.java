@@ -21,29 +21,26 @@ import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.StoreDiscoveredCollectionsRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.StoreDiscoveredCollectionsResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.StoreDiscoveredGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.StoreDiscoveredGroupsResponse;
 import com.vmturbo.components.common.health.HealthStatus;
 import com.vmturbo.components.common.health.HealthStatusProvider;
-import com.vmturbo.group.persistent.ClusterStore;
 import com.vmturbo.group.persistent.GroupStore;
 import com.vmturbo.group.persistent.PolicyStore;
 
-public class DiscoveredCollectionsRpcServiceTest {
+public class DiscoveredGroupsRpcServiceTest {
 
     private GroupStore groupStore = mock(GroupStore.class);
 
     private PolicyStore policyStore = mock(PolicyStore.class);
 
-    private ClusterStore clusterStore = mock(ClusterStore.class);
-
     private HealthStatusProvider compositeHealthMonitor = mock(HealthStatusProvider.class);
 
-    private DiscoveredCollectionsRpcService service =
-            new DiscoveredCollectionsRpcService(groupStore, policyStore, clusterStore, compositeHealthMonitor);
+    private DiscoveredGroupsRpcService service =
+            new DiscoveredGroupsRpcService(groupStore, policyStore, compositeHealthMonitor);
 
     @Mock
-    private StreamObserver<StoreDiscoveredCollectionsResponse> responseObserver;
+    private StreamObserver<StoreDiscoveredGroupsResponse> responseObserver;
 
     @Captor
     private ArgumentCaptor<StatusException> exceptionCaptor;
@@ -55,7 +52,7 @@ public class DiscoveredCollectionsRpcServiceTest {
 
     @Test
     public void testNoTargetId() {
-        service.storeDiscoveredCollections(StoreDiscoveredCollectionsRequest.getDefaultInstance(),
+        service.storeDiscoveredGroups(StoreDiscoveredGroupsRequest.getDefaultInstance(),
                 responseObserver);
         verify(responseObserver).onError(exceptionCaptor.capture());
         final StatusException e = exceptionCaptor.getValue();
@@ -68,7 +65,7 @@ public class DiscoveredCollectionsRpcServiceTest {
         when(status.isHealthy()).thenReturn(false);
         when(compositeHealthMonitor.getHealthStatus()).thenReturn(status);
 
-        service.storeDiscoveredCollections(StoreDiscoveredCollectionsRequest.newBuilder()
+        service.storeDiscoveredGroups(StoreDiscoveredGroupsRequest.newBuilder()
                 .setTargetId(10L)
                 .build(), responseObserver);
         verify(responseObserver).onError(exceptionCaptor.capture());
@@ -82,7 +79,7 @@ public class DiscoveredCollectionsRpcServiceTest {
         when(status.isHealthy()).thenReturn(true);
         when(compositeHealthMonitor.getHealthStatus()).thenReturn(status);
 
-        service.storeDiscoveredCollections(StoreDiscoveredCollectionsRequest.newBuilder()
+        service.storeDiscoveredGroups(StoreDiscoveredGroupsRequest.newBuilder()
                 .setTargetId(10L)
                 .addDiscoveredGroup(GroupInfo.getDefaultInstance())
                 .addDiscoveredCluster(ClusterInfo.getDefaultInstance())
@@ -90,8 +87,7 @@ public class DiscoveredCollectionsRpcServiceTest {
 
         verify(responseObserver).onCompleted();
         verify(groupStore).updateTargetGroups(eq(10L),
-                eq(Collections.singletonList(GroupInfo.getDefaultInstance())));
-        verify(clusterStore).updateTargetClusters(eq(10L),
+                eq(Collections.singletonList(GroupInfo.getDefaultInstance())),
                 eq(Collections.singletonList(ClusterInfo.getDefaultInstance())));
     }
 }

@@ -17,19 +17,20 @@ import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import javaslang.collection.Stream;
 
-import com.vmturbo.common.protobuf.GroupDTOUtil;
+import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.DeleteGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceImplBase;
-import com.vmturbo.common.protobuf.group.PolicyDTO.InputGroup;
 import com.vmturbo.common.protobuf.group.PolicyDTO.InputPolicy;
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
@@ -111,9 +112,13 @@ public class GroupService extends GroupServiceImplBase {
                     .filter(group -> requestedIds.isEmpty() || requestedIds.contains(group.getId()))
                     .filter(group -> !request.hasOriginFilter() ||
                             group.getOrigin().equals(request.getOriginFilter()))
+                    .filter(group -> !request.hasTypeFilter() ||
+                            group.getType().equals(request.getTypeFilter()))
                     .filter(group -> !request.hasNameFilter() ||
-                            GroupDTOUtil.nameFilterMatches(group.getInfo().getName(),
+                            GroupProtoUtil.nameFilterMatches(GroupProtoUtil.getGroupName(group),
                                     request.getNameFilter()))
+                    .filter(group -> !request.hasClusterFilter() ||
+                            GroupProtoUtil.clusterFilterMatcher(group, request.getClusterFilter()))
                     .forEach(responseObserver::onNext);
             responseObserver.onCompleted();
         } catch (DatabaseException e) {
@@ -204,6 +209,16 @@ public class GroupService extends GroupServiceImplBase {
         }
     }
 
+    private GetMembersResponse getStaticMembers(final long groupId, StaticGroupMembers staticGroupMembers) {
+        final List<Long> memberIds = staticGroupMembers.getStaticMemberOidsList();
+        logger.debug("Static group ({}) and its first 10 members {}",
+                groupId,
+                Stream.ofAll(memberIds).take(10).toJavaList());
+        return GroupDTO.GetMembersResponse.newBuilder()
+                .addAllMemberId(memberIds)
+                .build();
+    }
+
     @Override
     public void getMembers(final GroupDTO.GetMembersRequest request,
                            final StreamObserver<GroupDTO.GetMembersResponse> responseObserver) {
@@ -226,45 +241,44 @@ public class GroupService extends GroupServiceImplBase {
         }
 
         if (optGroupInfo.isPresent()) {
-            final GroupInfo groupInfo = optGroupInfo.get().getInfo();
+            final Group group = optGroupInfo.get();
+            final GetMembersResponse resp;
+            switch (group.getType()) {
+                case CLUSTER:
+                    resp = getStaticMembers(group.getId(), group.getCluster().getMembers());
+                    break;
+                case GROUP:
+                    final GroupInfo groupInfo = group.getGroup();
+                    if (groupInfo.hasStaticGroupMembers()) {
+                        resp = getStaticMembers(group.getId(), groupInfo.getStaticGroupMembers());
+                    } else {
+                        try {
+                            final List<SearchParameters> searchParameters = groupInfo.getSearchParametersCollection().getSearchParametersList();
+                            final Search.SearchRequest searchRequest = Search.SearchRequest.newBuilder()
+                                    .addAllSearchParameters(searchParameters).build();
+                            final Search.SearchResponse searchResponse = searchServiceRpc.searchEntityOids(searchRequest);
+                            final List<Long> searchResults = searchResponse.getEntitiesList();
+                            logger.debug("Dynamic group ({}) and its first 10 members {}",
+                                    groupId,
+                                    Stream.ofAll(searchResults).take(10).toJavaList());
 
-            logger.debug("Group {} groupInfo {}", groupId, groupInfo);
-
-            if (groupInfo.hasStaticGroupMembers()) {
-                // Static group
-                final List<Long> memberIds = groupInfo.getStaticGroupMembers().getStaticMemberOidsList();
-                logger.info("Static group ({}) and its first 10 members {}",
-                        groupId,
-                        Stream.ofAll(memberIds).take(10).toJavaList());
-                final GroupDTO.GetMembersResponse resp = GroupDTO.GetMembersResponse.newBuilder()
-                        .addAllMemberId(memberIds)
-                        .build();
-                responseObserver.onNext(resp);
-                responseObserver.onCompleted();
-            } else {
-                // Dynamic group
-                try {
-                    final List<SearchParameters> searchParameters = groupInfo.getSearchParametersCollection().getSearchParametersList();
-                    final Search.SearchRequest searchRequest = Search.SearchRequest.newBuilder()
-                            .addAllSearchParameters(searchParameters).build();
-                    final Search.SearchResponse searchResponse = searchServiceRpc.searchEntityOids(searchRequest);
-                    final List<Long> searchResults = searchResponse.getEntitiesList();
-                    logger.info("Dynamic group ({}) and its first 10 members {}",
-                            groupId,
-                            Stream.ofAll(searchResults).take(10).toJavaList());
-
-                    final GroupDTO.GetMembersResponse resp = GroupDTO.GetMembersResponse.newBuilder()
-                            .addAllMemberId(searchResults)
-                            .build();
-                    responseObserver.onNext(resp);
-                    responseObserver.onCompleted();
-                } catch (RuntimeException e) {
-                    final String errMsg = "Exception encountered while resolving group " + groupId;
-                    logger.error(errMsg, e);
-                    responseObserver.onError(Status.ABORTED.withCause(e)
-                            .withDescription(e.getMessage()).asRuntimeException());
-                }
+                            resp = GroupDTO.GetMembersResponse.newBuilder()
+                                    .addAllMemberId(searchResults)
+                                    .build();
+                        } catch (RuntimeException e) {
+                            final String errMsg = "Exception encountered while resolving group " + groupId;
+                            logger.error(errMsg, e);
+                            responseObserver.onError(Status.ABORTED.withCause(e)
+                                    .withDescription(e.getMessage()).asRuntimeException());
+                            return;
+                        }
+                    }
+                    break;
+                default:
+                    throw new IllegalStateException("Invalid group returned.");
             }
+            responseObserver.onNext(resp);
+            responseObserver.onCompleted();
         } else {
             final String errMsg = "Cannot find a group with id " + groupId;
             logger.error(errMsg);
@@ -297,37 +311,36 @@ public class GroupService extends GroupServiceImplBase {
     private boolean matchWithGroupId(@Nonnull InputPolicy policy, long groupId) {
         switch (policy.getPolicyDetailCase()) {
             case AT_MOST_N:
-                return (policy.getAtMostN().getConsumerGroup().getGroupId() == groupId) ||
-                    (policy.getAtMostN().getProviderGroup().getGroupId() == groupId);
+                return (policy.getAtMostN().getConsumerGroup() == groupId) ||
+                    (policy.getAtMostN().getProviderGroup() == groupId);
 
             case AT_MOST_NBOUND:
-                return (policy.getAtMostNbound().getConsumerGroup().getGroupId() == groupId) ||
-                    (policy.getAtMostNbound().getProviderGroup().getGroupId() == groupId);
+                return (policy.getAtMostNbound().getConsumerGroup() == groupId) ||
+                    (policy.getAtMostNbound().getProviderGroup() == groupId);
 
             case BIND_TO_COMPLEMENTARY_GROUP:
-                return (policy.getBindToComplementaryGroup().getConsumerGroup().getGroupId() == groupId) ||
-                    (policy.getBindToComplementaryGroup().getProviderGroup().getGroupId() == groupId);
+                return (policy.getBindToComplementaryGroup().getConsumerGroup() == groupId) ||
+                    (policy.getBindToComplementaryGroup().getProviderGroup() == groupId);
 
             case BIND_TO_GROUP:
-                return (policy.getBindToGroup().getConsumerGroup().getGroupId() == groupId) ||
-                    (policy.getBindToGroup().getProviderGroup().getGroupId() == groupId);
+                return (policy.getBindToGroup().getConsumerGroup() == groupId) ||
+                    (policy.getBindToGroup().getProviderGroup() == groupId);
 
             case BIND_TO_GROUP_AND_GEO_REDUNDANCY:
-                return (policy.getBindToGroupAndGeoRedundancy().getConsumerGroup().getGroupId() == groupId) ||
-                    (policy.getBindToGroupAndGeoRedundancy().getProviderGroup().getGroupId() == groupId);
+                return (policy.getBindToGroupAndGeoRedundancy().getConsumerGroup() == groupId) ||
+                    (policy.getBindToGroupAndGeoRedundancy().getProviderGroup() == groupId);
 
             case BIND_TO_GROUP_AND_LICENSE:
-                return (policy.getBindToGroupAndLicense().getConsumerGroup().getGroupId() == groupId) ||
-                    (policy.getBindToGroupAndLicense().getProviderGroup().getGroupId() == groupId);
+                return (policy.getBindToGroupAndLicense().getConsumerGroup() == groupId) ||
+                    (policy.getBindToGroupAndLicense().getProviderGroup() == groupId);
 
             case MERGE:
                 return policy.getMerge().getMergeGroupsList().stream()
-                    .map(InputGroup::getGroupId)
                     .anyMatch(id -> id.equals(groupId));
 
             case MUST_RUN_TOGETHER:
-                return (policy.getMustRunTogether().getConsumerGroup().getGroupId() == groupId) ||
-                    (policy.getMustRunTogether().getProviderGroup().getGroupId() == groupId);
+                return (policy.getMustRunTogether().getConsumerGroup() == groupId) ||
+                    (policy.getMustRunTogether().getProviderGroup() == groupId);
 
             default:
                 throw new RuntimeException("Failed to parse policy case: " + policy.getPolicyDetailCase());

@@ -9,8 +9,9 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.base.Preconditions;
 
+import com.vmturbo.common.protobuf.GroupProtoUtil;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
-import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyGrouping;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
@@ -26,8 +27,8 @@ public class AtMostNPolicy extends PlacementPolicy {
     private static final Logger logger = LogManager.getLogger();
 
     private final PolicyDTO.Policy.AtMostNPolicy atMostN;
-    private final PolicyGrouping providerGrouping;
-    private final PolicyGrouping consumerGrouping;
+    private final Group providerGroup;
+    private final Group consumerGroup;
 
     /**
      * Create a new AtMostNPolicy.
@@ -36,16 +37,15 @@ public class AtMostNPolicy extends PlacementPolicy {
      *                         The policy should be of type AtMostN.
      */
     public AtMostNPolicy(@Nonnull final PolicyDTO.Policy policyDefinition,
-                         @Nonnull final PolicyGrouping consumerGrouping,
-                         @Nonnull final PolicyGrouping providerGrouping) {
+                         @Nonnull final Group consumerGroup,
+                         @Nonnull final Group providerGroup) {
         super(policyDefinition);
         Preconditions.checkArgument(policyDefinition.hasAtMostN(), "Must be AtMostNPolicy");
 
-        this.consumerGrouping = consumerGrouping;
-        this.providerGrouping = providerGrouping;
+        this.consumerGroup = consumerGroup;
+        this.providerGroup = providerGroup;
         this.atMostN = policyDefinition.getAtMostN();
-        Preconditions.checkArgument(hasEntityType(providerGrouping),
-            "ProviderGroup entity type required");
+        GroupProtoUtil.checkEntityType(providerGroup);
         Preconditions.checkArgument(this.atMostN.hasCapacity(),
             "Capacity required");
     }
@@ -65,9 +65,9 @@ public class AtMostNPolicy extends PlacementPolicy {
         logger.debug("Applying AtMostN policy with capacity of {}.", atMostN.getCapacity());
 
         // Resolve the relevant groups
-        final int providerEntityType = entityType(providerGrouping);
-        final Set<Long> providers = groupResolver.resolve(providerGrouping, topologyGraph);
-        final Set<Long> consumers = groupResolver.resolve(consumerGrouping, topologyGraph);
+        final int providerEntityType = GroupProtoUtil.getEntityType(providerGroup);
+        final Set<Long> providers = groupResolver.resolve(providerGroup, topologyGraph);
+        final Set<Long> consumers = groupResolver.resolve(consumerGroup, topologyGraph);
 
         // Add the commodity to the appropriate entities.
         // Add a small epsilon to the capacity to ensure floating point roundoff error does not accidentally

@@ -5,14 +5,12 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import java.util.Collections;
 import java.util.Optional;
 
 import org.junit.Before;
 import org.junit.Test;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
@@ -26,7 +24,6 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.GlobalSettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValueType;
-import com.vmturbo.common.protobuf.setting.SettingProto.Scope;
 import com.vmturbo.common.protobuf.setting.SettingProto.Scope;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
@@ -62,7 +59,7 @@ public class SettingPolicyValidatorTest {
     public void setup() throws Exception {
         when(groupStore.get(eq(GROUP_ID)))
             .thenReturn(Optional.of(Group.newBuilder()
-                .setInfo(GroupInfo.newBuilder()
+                .setGroup(GroupInfo.newBuilder()
                         .setEntityType(ENTITY_TYPE))
                 .build()));
     }
@@ -307,7 +304,7 @@ public class SettingPolicyValidatorTest {
                 .build()));
         when(groupStore.getGroups(any())).thenReturn(ImmutableMap.of(7L, Optional.of(Group.newBuilder()
                 .setId(7L)
-                .setInfo(GroupInfo.newBuilder()
+                .setGroup(GroupInfo.newBuilder()
                         .setEntityType(ENTITY_TYPE + 1))
                 .build())));
         validator.validateSettingPolicy(newInfo()

@@ -13,10 +13,10 @@ import com.arangodb.velocypack.ValueType;
 import com.arangodb.velocypack.exception.VPackBuilderException;
 import com.google.protobuf.InvalidProtocolBufferException;
 
+import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.group.arangodb.ArangoDBManager;
-import com.vmturbo.group.persistent.ClusterStore;
 import com.vmturbo.group.persistent.GroupStore;
 import com.vmturbo.group.persistent.PolicyStore;
 
@@ -93,8 +93,6 @@ public class ArangoDBConfig {
                             .registerDeserializer(PolicyDTO.InputPolicy.class, inputPolicyVPackDeserializer())
                             .registerSerializer(GroupDTO.Group.class, groupVPackSerializer())
                             .registerDeserializer(GroupDTO.Group.class, groupVPackDeserializer())
-                            .registerSerializer(GroupDTO.Cluster.class, clusterVPackSerializer())
-                            .registerDeserializer(GroupDTO.Cluster.class, clusterVPackDeserializer())
                             .build();
         };
     }
@@ -106,9 +104,7 @@ public class ArangoDBConfig {
             builder.add(DOCUMENT_KEY_FIELD, Long.toString(group.getId()));
             builder.add(GROUP_PROTO_FIELD, group.toByteArray());
 
-            if (group.getInfo().hasName()) {
-                builder.add("displayName", group.getInfo().getName());
-            }
+            builder.add("displayName", GroupProtoUtil.getGroupName(group));
 
             if (group.hasTargetId()) {
                 builder.add("targetId", group.getTargetId());
@@ -131,37 +127,6 @@ public class ArangoDBConfig {
     }
 
     @Bean
-    public VPackSerializer<GroupDTO.Cluster> clusterVPackSerializer() {
-        return (builder, attribute, cluster, context) -> {
-            builder.add(attribute, ValueType.OBJECT);
-            builder.add(DOCUMENT_KEY_FIELD, Long.toString(cluster.getId()));
-            builder.add(CLUSTER_PROTO_FIELD, cluster.toByteArray());
-
-            if (cluster.getInfo().hasName()) {
-                builder.add("displayName", cluster.getInfo().getName());
-            }
-
-            if (cluster.hasTargetId()) {
-                builder.add("targetId", cluster.getTargetId());
-            }
-
-            builder.close();
-        };
-    }
-
-    @Bean
-    public VPackDeserializer<GroupDTO.Cluster> clusterVPackDeserializer() {
-        return (parent, vpack, context) -> {
-            try {
-                final byte[] bytes = vpack.get(CLUSTER_PROTO_FIELD).getAsBinary();
-                return GroupDTO.Cluster.parseFrom(bytes);
-            } catch (InvalidProtocolBufferException e) {
-                throw new VPackBuilderException(e);
-            }
-        };
-    }
-
-    @Bean
     public PolicyStore policyStore() {
         return new PolicyStore(arangoDriverFactory(), groupDBDefinition(),
             identityProviderConfig.identityProvider());
@@ -170,12 +135,6 @@ public class ArangoDBConfig {
     @Bean
     public GroupStore groupStore() {
         return new GroupStore(arangoDriverFactory(), groupDBDefinition(),
-                identityProviderConfig.identityProvider());
-    }
-
-    @Bean
-    public ClusterStore clusterStore() {
-        return new ClusterStore(arangoDriverFactory(), groupDBDefinition(),
                 identityProviderConfig.identityProvider());
     }
 

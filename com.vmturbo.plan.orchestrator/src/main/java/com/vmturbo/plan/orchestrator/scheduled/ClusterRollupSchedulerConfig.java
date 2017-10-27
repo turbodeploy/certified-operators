@@ -15,7 +15,8 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import io.grpc.Channel;
 
-import com.vmturbo.common.protobuf.group.ClusterServiceGrpc;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.grpc.extensions.PingingChannelBuilder;
@@ -60,7 +61,7 @@ public class ClusterRollupSchedulerConfig {
 
     @Bean
     public ClusterRollupTask clusterRollupTask() {
-        return new ClusterRollupTask(statsRpcService(), clusterRpcService(),
+        return new ClusterRollupTask(statsRpcService(), groupRpcService(),
                 taskScheduler(), cronTrigger());
     }
 
@@ -78,8 +79,8 @@ public class ClusterRollupSchedulerConfig {
     }
 
     @Bean
-    public ClusterServiceGrpc.ClusterServiceBlockingStub clusterRpcService() {
-        return ClusterServiceGrpc.newBlockingStub(groupChannel());
+    public GroupServiceBlockingStub groupRpcService() {
+        return GroupServiceGrpc.newBlockingStub(groupChannel());
     }
 
     @Bean

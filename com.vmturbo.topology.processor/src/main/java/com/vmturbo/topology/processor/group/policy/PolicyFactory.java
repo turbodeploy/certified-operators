@@ -1,13 +1,13 @@
 package com.vmturbo.topology.processor.group.policy;
 
 import java.util.Map;
+
 import javax.annotation.Nonnull;
 
 import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
+import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
-import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyGrouping;
-import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyGroupingID;
 
 /**
  * A factory for constructing policies based on policy definitions.
@@ -28,7 +28,7 @@ public class PolicyFactory {
      * @return A new policy for application to a topology.
      */
     public PlacementPolicy newPolicy(@Nonnull final Policy policyDefinition,
-                                     @Nonnull final Map<PolicyGroupingID, PolicyGrouping> groups) {
+                                     @Nonnull final Map<Long, Group> groups) {
         switch (policyDefinition.getPolicyDetailCase()) {
             case BIND_TO_GROUP:
                 return new BindToGroupPolicy(policyDefinition,

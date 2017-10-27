@@ -1,10 +1,8 @@
 package com.vmturbo.group.service;
 
 import java.util.Collection;
-import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -13,14 +11,10 @@ import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import javaslang.control.Either;
 
-import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.InputPolicy;
-import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyGroupingID;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceImplBase;
 import com.vmturbo.group.identity.IdentityProvider;
-import com.vmturbo.group.persistent.ClusterStore;
-import com.vmturbo.group.persistent.DatabaseException;
 import com.vmturbo.group.persistent.GroupStore;
 import com.vmturbo.group.persistent.PolicyStore;
 
@@ -30,48 +24,14 @@ public class PolicyService extends PolicyServiceImplBase {
 
     private final PolicyStore policyStore;
     private final GroupStore groupStore;
-    private final ClusterStore clusterStore;
     private final IdentityProvider identityProvider;
 
     public PolicyService(final PolicyStore policyStoreArg,
                          final GroupStore groupStoreArg,
-                         final ClusterStore clusterStoreArg,
                          final IdentityProvider identityProviderArg) {
         policyStore = Objects.requireNonNull(policyStoreArg);
         groupStore = Objects.requireNonNull(groupStoreArg);
-        clusterStore = Objects.requireNonNull(clusterStoreArg);
         identityProvider = Objects.requireNonNull(identityProviderArg);
-    }
-
-    /**
-     * Convert an {@link com.vmturbo.common.protobuf.group.PolicyDTO.InputGroup} to
-     * a {@link PolicyDTO.PolicyGroupingID}.
-     * ;w
-     * @param inputGroup The InputGroup to convert.
-     * @return {@link PolicyGroupingID}.
-     * @throws DatabaseException if the query for the group failed.
-     */
-    private PolicyDTO.PolicyGroupingID convertToGroupID(final PolicyDTO.InputGroup inputGroup)
-            throws DatabaseException {
-        if (inputGroup.hasGroupId()) {
-            final long groupId = inputGroup.getGroupId();
-            final PolicyDTO.PolicyGroupingID.Builder builder = PolicyGroupingID.newBuilder();
-            final Optional<GroupDTO.Group> groupOptional = groupStore.get(groupId);
-            if (groupOptional.isPresent()) {
-                builder.setGroupId(groupId);
-            } else {
-                final Optional<GroupDTO.Cluster> clusterOptional = clusterStore.get(groupId);
-                if (clusterOptional.isPresent()) {
-                    builder.setClusterId(groupId);
-                } else {
-                    throw new IllegalArgumentException(
-                        "Cannot find a group or cluster with id " + groupId);
-                }
-            }
-            return builder.build();
-        } else {
-            throw new IllegalArgumentException("InputGroup does not contain an ID");
-        }
     }
 
     /**
@@ -89,15 +49,15 @@ public class PolicyService extends PolicyServiceImplBase {
             policyBuilder.setEnabled(inputPolicy.getEnabled());
             policyBuilder.setCommodityType(inputPolicy.getCommodityType());
 
-            PolicyDTO.InputGroup inputConsumerGroup;
-            PolicyDTO.InputGroup inputProviderGroup;
+            final long inputConsumerGroup;
+            final long inputProviderGroup;
             switch (inputPolicy.getPolicyDetailCase()) {
                 case AT_MOST_N:
                     inputConsumerGroup = inputPolicy.getAtMostN().getConsumerGroup();
                     inputProviderGroup = inputPolicy.getAtMostN().getProviderGroup();
                     policyBuilder.setAtMostN(PolicyDTO.Policy.AtMostNPolicy.newBuilder()
-                            .setConsumerGroupId(convertToGroupID(inputConsumerGroup))
-                            .setProviderGroupId(convertToGroupID(inputProviderGroup))
+                            .setConsumerGroupId(inputConsumerGroup)
+                            .setProviderGroupId(inputProviderGroup)
                             .setCapacity(inputPolicy.getAtMostN().getCapacity())
                             .build());
                     break;
@@ -106,8 +66,8 @@ public class PolicyService extends PolicyServiceImplBase {
                     inputProviderGroup = inputPolicy.getAtMostNbound().getProviderGroup();
                     final float capacity = inputPolicy.getAtMostNbound().getCapacity();
                     policyBuilder.setAtMostNbound(PolicyDTO.Policy.AtMostNBoundPolicy.newBuilder()
-                            .setConsumerGroupId(convertToGroupID(inputConsumerGroup))
-                            .setProviderGroupId(convertToGroupID(inputProviderGroup))
+                            .setConsumerGroupId(inputConsumerGroup)
+                            .setProviderGroupId(inputProviderGroup)
                             .setCapacity(capacity)
                             .build());
                     break;
@@ -115,63 +75,51 @@ public class PolicyService extends PolicyServiceImplBase {
                     inputConsumerGroup = inputPolicy.getBindToComplementaryGroup().getConsumerGroup();
                     inputProviderGroup = inputPolicy.getBindToComplementaryGroup().getProviderGroup();
                     policyBuilder.setBindToComplementaryGroup(PolicyDTO.Policy.BindToComplementaryGroupPolicy.newBuilder()
-                            .setConsumerGroupId(convertToGroupID(inputConsumerGroup))
-                            .setProviderGroupId(convertToGroupID(inputProviderGroup))
+                            .setConsumerGroupId(inputConsumerGroup)
+                            .setProviderGroupId(inputProviderGroup)
                             .build());
                     break;
                 case BIND_TO_GROUP:
                     inputConsumerGroup = inputPolicy.getBindToGroup().getConsumerGroup();
                     inputProviderGroup = inputPolicy.getBindToGroup().getProviderGroup();
                     policyBuilder.setBindToGroup(PolicyDTO.Policy.BindToGroupPolicy.newBuilder()
-                            .setConsumerGroupId(convertToGroupID(inputConsumerGroup))
-                            .setProviderGroupId(convertToGroupID(inputProviderGroup))
+                            .setConsumerGroupId(inputConsumerGroup)
+                            .setProviderGroupId(inputProviderGroup)
                             .build());
                     break;
                 case BIND_TO_GROUP_AND_LICENSE:
                     inputConsumerGroup = inputPolicy.getBindToGroupAndLicense().getConsumerGroup();
                     inputProviderGroup = inputPolicy.getBindToGroupAndLicense().getProviderGroup();
                     policyBuilder.setBindToGroupAndLicense(PolicyDTO.Policy.BindToGroupAndLicencePolicy.newBuilder()
-                            .setConsumerGroupId(convertToGroupID(inputConsumerGroup))
-                            .setProviderGroupId(convertToGroupID(inputProviderGroup))
+                            .setConsumerGroupId(inputConsumerGroup)
+                            .setProviderGroupId(inputProviderGroup)
                             .build());
                     break;
                 case BIND_TO_GROUP_AND_GEO_REDUNDANCY:
                     inputConsumerGroup = inputPolicy.getBindToGroupAndGeoRedundancy().getConsumerGroup();
                     inputProviderGroup = inputPolicy.getBindToGroupAndGeoRedundancy().getProviderGroup();
                     policyBuilder.setBindToGroupAndGeoRedundancy(PolicyDTO.Policy.BindToGroupAndGeoRedundancyPolicy.newBuilder()
-                            .setConsumerGroupId(convertToGroupID(inputConsumerGroup))
-                            .setProviderGroupId(convertToGroupID(inputProviderGroup))
+                            .setConsumerGroupId(inputConsumerGroup)
+                            .setProviderGroupId(inputProviderGroup)
                             .build());
                     break;
                 case MERGE:
                     final PolicyDTO.MergeType mergeType = inputPolicy.getMerge().getMergeType();
-                    final List<PolicyDTO.InputGroup> inputMergeGroups = inputPolicy.getMerge().getMergeGroupsList();
                     policyBuilder.setMerge(PolicyDTO.Policy.MergePolicy.newBuilder()
                             .setMergeType(mergeType)
-                            .addAllMergeGroupIds(inputMergeGroups.stream().map(ig -> {
-                                try {
-                                    PolicyGroupingID group = convertToGroupID(ig);
-                                    return group;
-                                } catch (DatabaseException dbe) {
-                                    // Rethrow as a runtime exception to cross lambda boundaries.
-                                    throw new RuntimeException(dbe);
-                                }
-                            }).collect(Collectors.toList()))
+                            .addAllMergeGroupIds(inputPolicy.getMerge().getMergeGroupsList())
                             .build());
                     break;
                 case MUST_RUN_TOGETHER:
                     inputConsumerGroup = inputPolicy.getMustRunTogether().getConsumerGroup();
                     inputProviderGroup = inputPolicy.getMustRunTogether().getProviderGroup();
                     policyBuilder.setMustRunTogether(PolicyDTO.Policy.MustRunTogetherPolicy.newBuilder()
-                            .setConsumerGroupId(convertToGroupID(inputConsumerGroup))
-                            .setProviderGroupId(convertToGroupID(inputProviderGroup))
+                            .setConsumerGroupId(inputConsumerGroup)
+                            .setProviderGroupId(inputProviderGroup)
                             .build());
                     break;
             }
             return Either.right(policyBuilder.build());
-        } catch (DatabaseException e) {
-            logger.error("Failed to convert input policy to a policy due to a query failure.", e);
-            return Either.left(e);
         } catch (RuntimeException e) {
             logger.error("Failed to convert input policy to a policy.", e);
             return Either.left(e);
@@ -216,40 +164,42 @@ public class PolicyService extends PolicyServiceImplBase {
             final String errMsg = "Incoming policy get request does not contain any policy ID";
             logger.error(errMsg);
             responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(errMsg).asRuntimeException());
-        } else {
-            try {
-                final long policyID = request.getPolicyId();
+            return;
+        }
 
-                logger.info("Getting policy with ID {}", policyID);
-                final Optional<PolicyDTO.InputPolicy> inputPolicyOpt = policyStore.get(policyID);
+        try {
+            final long policyID = request.getPolicyId();
 
-                if (inputPolicyOpt.isPresent()) {
-                    final PolicyDTO.InputPolicy inputPolicy = inputPolicyOpt.get();
-                    final Either<Throwable, PolicyDTO.Policy> convertedPolicy = convertToPolicy(inputPolicy);
+            logger.info("Getting policy with ID {}", policyID);
+            final Optional<PolicyDTO.InputPolicy> inputPolicyOpt = policyStore.get(policyID);
 
-                    if (convertedPolicy.isLeft()) {
-                        final Status status = Status.ABORTED.withCause(convertedPolicy.getLeft())
-                                                            .withDescription(convertedPolicy.getLeft().getMessage());
-                        responseObserver.onError(status.asRuntimeException());
-                    }
+            if (inputPolicyOpt.isPresent()) {
+                final PolicyDTO.InputPolicy inputPolicy = inputPolicyOpt.get();
+                final Either<Throwable, PolicyDTO.Policy> convertedPolicy = convertToPolicy(inputPolicy);
 
-                    convertedPolicy.forEach(policy -> {
-                        final PolicyDTO.PolicyResponse response = PolicyDTO.PolicyResponse.newBuilder()
-                                .setPolicy(policy)
-                                .build();
-                        responseObserver.onNext(response);
-                        responseObserver.onCompleted();
-                    });
-                } else {
-                    final String errMsg = "Cannot find a policy with id " + policyID;
-                    logger.error(errMsg);
-                    responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(errMsg).asRuntimeException());
+                if (convertedPolicy.isLeft()) {
+                    final Status status = Status.ABORTED.withCause(convertedPolicy.getLeft())
+                                                        .withDescription(convertedPolicy.getLeft().getMessage());
+                    responseObserver.onError(status.asRuntimeException());
+                    return;
                 }
-            } catch (RuntimeException e) {
-                logger.error("Exception encountered while getting a policy", e);
-                final Status status = Status.ABORTED.withCause(e).withDescription(e.getMessage());
-                responseObserver.onError(status.asRuntimeException());
+
+                convertedPolicy.forEach(policy -> {
+                    final PolicyDTO.PolicyResponse response = PolicyDTO.PolicyResponse.newBuilder()
+                            .setPolicy(policy)
+                            .build();
+                    responseObserver.onNext(response);
+                    responseObserver.onCompleted();
+                });
+            } else {
+                final String errMsg = "Cannot find a policy with id " + policyID;
+                logger.error(errMsg);
+                responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(errMsg).asRuntimeException());
             }
+        } catch (RuntimeException e) {
+            logger.error("Exception encountered while getting a policy", e);
+            final Status status = Status.ABORTED.withCause(e).withDescription(e.getMessage());
+            responseObserver.onError(status.asRuntimeException());
         }
     }
 

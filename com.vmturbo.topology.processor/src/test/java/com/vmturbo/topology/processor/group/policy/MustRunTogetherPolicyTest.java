@@ -19,6 +19,7 @@ import org.junit.rules.ExpectedException;
 
 import com.google.common.collect.Sets;
 
+import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -37,13 +38,13 @@ public class MustRunTogetherPolicyTest {
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
-    private final PolicyDTO.PolicyGrouping consumerGroup = PolicyGroupingHelper.policyGrouping(
+    private final Group consumerGroup = PolicyGroupingHelper.policyGrouping(
         searchParametersCollection(), EntityType.VIRTUAL_MACHINE_VALUE, 1234L);
-    private final PolicyDTO.PolicyGroupingID consumerID = PolicyGroupingHelper.policyGroupingID(1234L);
+    private final long consumerID = 1234L;
 
-    private final PolicyDTO.PolicyGrouping providerGroup = PolicyGroupingHelper.policyGrouping(
+    private final Group providerGroup = PolicyGroupingHelper.policyGrouping(
         searchParametersCollection(), EntityType.PHYSICAL_MACHINE_VALUE, 5678L);
-    private final PolicyDTO.PolicyGroupingID providerID = PolicyGroupingHelper.policyGroupingID(5678L);
+    private final long providerID = 5678L;
 
     private final PolicyDTO.Policy.MustRunTogetherPolicy mustRunTogetherPolicy = PolicyDTO.Policy
         .MustRunTogetherPolicy.newBuilder()
@@ -57,10 +58,10 @@ public class MustRunTogetherPolicyTest {
         .setMustRunTogether(mustRunTogetherPolicy)
         .build();
 
-    TopologyGraph topologyGraph;
-    PolicyMatcher policyMatcher;
+    private TopologyGraph topologyGraph;
+    private PolicyMatcher policyMatcher;
 
-    final GroupResolver groupResolver = mock(GroupResolver.class);
+    private final GroupResolver groupResolver = mock(GroupResolver.class);
 
     @Before
     public void setup() {
@@ -163,7 +164,7 @@ public class MustRunTogetherPolicyTest {
 
     @Test
     public void testApplyVmToStorageAffinity() throws GroupResolutionException, PolicyApplicationException {
-        final PolicyDTO.PolicyGrouping providerGroup = PolicyGroupingHelper.policyGrouping(
+        final Group providerGroup = PolicyGroupingHelper.policyGrouping(
             searchParametersCollection(), EntityType.STORAGE_VALUE, 5678L);
 
         final PolicyDTO.Policy.MustRunTogetherPolicy mustRunTogetherPolicy = PolicyDTO.Policy

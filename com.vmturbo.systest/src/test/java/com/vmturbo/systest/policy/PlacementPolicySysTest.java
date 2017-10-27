@@ -68,7 +68,6 @@ import io.grpc.stub.StreamObserver;
 import io.swagger.annotations.ApiOperation;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
@@ -77,8 +76,6 @@ import com.vmturbo.common.protobuf.group.PolicyDTO.Policy.AtMostNBoundPolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy.AtMostNPolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy.BindToComplementaryGroupPolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy.BindToGroupPolicy;
-import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyGrouping;
-import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyGroupingID;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceImplBase;
 import com.vmturbo.common.protobuf.search.Search;
@@ -731,10 +728,8 @@ public class PlacementPolicySysTest {
             .build();
     }
 
-    private static PolicyGroupingID policyGroupingID() {
-        return PolicyGroupingID.newBuilder()
-                .setGroupId(IdentityGenerator.next())
-                        .build();
+    private static long policyGroupingID() {
+        return IdentityGenerator.next();
     }
 
     /**

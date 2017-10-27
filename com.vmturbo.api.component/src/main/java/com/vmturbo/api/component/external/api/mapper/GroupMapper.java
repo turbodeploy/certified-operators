@@ -17,17 +17,15 @@ import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser.GroupUseCase;
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser.GroupUseCase.GroupUseCaseCriteria;
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.dto.group.FilterApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
-import com.vmturbo.common.protobuf.group.GroupDTO.Cluster;
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo.Type;
+import com.vmturbo.common.protobuf.GroupProtoUtil;
+import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
-import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyGrouping;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
@@ -69,7 +67,7 @@ public class GroupMapper {
     public GroupInfo toGroupInfo(@Nonnull final GroupApiDTO groupDto) {
         final GroupInfo.Builder requestBuilder = GroupInfo.newBuilder()
                 .setName(groupDto.getDisplayName())
-                .setEntityType(toGroupEntityType(groupDto.getGroupType()));
+                .setEntityType(ServiceEntityMapper.fromUIEntityType(groupDto.getGroupType()));
 
         if (groupDto.getIsStatic()) {
             requestBuilder.setStaticGroupMembers(
@@ -85,18 +83,45 @@ public class GroupMapper {
         return requestBuilder.build();
     }
 
-    /**
-     * Converts from {@link PolicyGrouping} to {@link GroupApiDTO}.
-     *
-     * @param grouping The {@link PolicyGrouping} object
-     * @return  The {@link GroupApiDTO} object
-     */
-    public GroupApiDTO toGroupApiDto(@Nonnull final PolicyGrouping grouping) {
-        if (grouping.hasGroup()) {
-            return toGroupApiDto(grouping.getGroup());
-        } else {
-            return toGroupApiDto(grouping.getCluster());
+    @Nonnull
+    private GroupApiDTO createGroupApiDto(@Nonnull final GroupInfo groupInfo) {
+        final GroupApiDTO outputDTO = new GroupApiDTO();
+        outputDTO.setClassName(GROUP);
+        outputDTO.setEntitiesCount(0);
+
+        switch (groupInfo.getSelectionCriteriaCase()) {
+            case STATIC_GROUP_MEMBERS:
+                outputDTO.setIsStatic(true);
+                outputDTO.setMemberUuidList(
+                        groupInfo.getStaticGroupMembers().getStaticMemberOidsList().stream()
+                                .map(Object::toString)
+                                .collect(Collectors.toList()));
+                break;
+            case SEARCH_PARAMETERS_COLLECTION:
+                outputDTO.setIsStatic(false);
+                outputDTO.setMemberUuidList(Collections.emptyList());
+                outputDTO.setCriteriaList(convertToFilterApis(groupInfo));
+                break;
+            default:
+                // Nothing to do
+                logger.error("Unknown groupMembersCase: " +
+                        groupInfo.getSelectionCriteriaCase());
         }
+        return outputDTO;
+    }
+
+    @Nonnull
+    private GroupApiDTO createClusterApiDto(@Nonnull final ClusterInfo clusterInfo) {
+        final GroupApiDTO outputDTO = new GroupApiDTO();
+        outputDTO.setClassName(CLUSTER);
+        // Not clear if there should be a difference between these.
+        outputDTO.setEntitiesCount(clusterInfo.getMembers().getStaticMemberOidsCount());
+        outputDTO.setMembersCount(clusterInfo.getMembers().getStaticMemberOidsCount());
+        outputDTO.setIsStatic(true);
+        outputDTO.setMemberUuidList(clusterInfo.getMembers().getStaticMemberOidsList().stream()
+            .map(Object::toString)
+            .collect(Collectors.toList()));
+        return outputDTO;
     }
 
     /**
@@ -106,81 +131,29 @@ public class GroupMapper {
      * @return  The {@link GroupApiDTO} object
      */
     public GroupApiDTO toGroupApiDto(@Nonnull final Group group) {
-        GroupApiDTO outputDTO = new GroupApiDTO();
-        outputDTO.setDisplayName(group.getInfo().getName());
-        // TODO: We don't know the entity count (OM-14052)
-        outputDTO.setEntitiesCount(0);
-        outputDTO.setGroupType(ServiceEntityMapper.toUIEntityType(group.getInfo().getEntityType()));
-        switch (group.getInfo().getSelectionCriteriaCase()) {
-            case STATIC_GROUP_MEMBERS:
-                outputDTO.setIsStatic(true);
-                outputDTO.setMemberUuidList(
-                        group.getInfo().getStaticGroupMembers().getStaticMemberOidsList().stream()
-                                .map(Object::toString)
-                                .collect(Collectors.toList()));
+        final GroupApiDTO outputDTO;
+        switch (group.getType()) {
+            case GROUP:
+                outputDTO = createGroupApiDto(group.getGroup());
                 break;
-            case SEARCH_PARAMETERS_COLLECTION:
-                outputDTO.setIsStatic(false);
-                outputDTO.setMemberUuidList(Collections.emptyList());
-                outputDTO.setCriteriaList(convertToFilterApis(group.getInfo()));
+            case CLUSTER:
+                outputDTO = createClusterApiDto(group.getCluster());
                 break;
             default:
-                // Nothing to do
-                logger.error("Unknown groupMembersCase: " +
-                        group.getInfo().getSelectionCriteriaCase());
+                throw new IllegalArgumentException("Unrecognized group type: " + group.getType());
         }
 
+        outputDTO.setDisplayName(GroupProtoUtil.getGroupName(group));
+        outputDTO.setGroupType(ServiceEntityMapper.toUIEntityType(GroupProtoUtil.getEntityType(group)));
         outputDTO.setUuid(Long.toString(group.getId()));
-        outputDTO.setClassName(GROUP);
+
         // XL RESTRICTION: Only ONPREM entities for now. see com.vmturbo.platform.VMTRoot.
         //     OperationalEntities.PresentationLayer.Services.impl.ServiceEntityUtilsImpl
         //     #getEntityInformation() to determine environmentType
         outputDTO.setEnvironmentType(EnvironmentType.ONPREM);
 
+
         return outputDTO;
-    }
-
-    /**
-     * Converts from {@link Cluster} to {@link GroupApiDTO}.
-     *
-     * @param cluster The {@link Cluster} object representing the cluster in XL.
-     * @return The {@link GroupApiDTO} representation of the cluster.
-     */
-    public GroupApiDTO toGroupApiDto(@Nonnull final Cluster cluster) {
-        final GroupApiDTO outputDTO = new GroupApiDTO();
-        outputDTO.setUuid(Long.toString(cluster.getId()));
-        outputDTO.setClassName(CLUSTER);
-        outputDTO.setDisplayName(cluster.getInfo().getName());
-
-        // Not clear if there should be a difference between these.
-        outputDTO.setEntitiesCount(cluster.getInfo().getMembers().getStaticMemberOidsCount());
-        outputDTO.setMembersCount(cluster.getInfo().getMembers().getStaticMemberOidsCount());
-
-        // TODO (roman, Aug 2 2017): We need to fill in severities and state based on state of
-        // member entities.
-
-        outputDTO.setGroupType(cluster.getInfo().getClusterType().equals(Type.COMPUTE) ?
-                UIEntityType.PHYSICAL_MACHINE.getValue() : UIEntityType.STORAGE.getValue());
-        outputDTO.setIsStatic(true);
-        outputDTO.setMemberUuidList(
-            cluster.getInfo().getMembers().getStaticMemberOidsList().stream()
-                .map(Object::toString)
-                .collect(Collectors.toList()));
-        // XL RESTRICTION: Only ONPREM entities for now. see com.vmturbo.platform.VMTRoot.
-        //     OperationalEntities.PresentationLayer.Services.impl.ServiceEntityUtilsImpl
-        //     #getEntityInformation() to determine environmentType
-        outputDTO.setEnvironmentType(EnvironmentType.ONPREM);
-        return outputDTO;
-    }
-
-    /**
-     * Maps the entity type used in UI to the type used in TopologyEntityDTO.
-     *
-     * @param uiEntityType The entity type string used in UI
-     * @return The type used in TopologyEntityDTO
-     */
-    private static int toGroupEntityType(@Nonnull final String uiEntityType) {
-        return ServiceEntityMapper.fromUIEntityType(uiEntityType);
     }
 
     /**

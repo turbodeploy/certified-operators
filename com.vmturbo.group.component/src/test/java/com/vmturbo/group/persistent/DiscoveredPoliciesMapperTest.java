@@ -1,6 +1,7 @@
 package com.vmturbo.group.persistent;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -49,8 +50,8 @@ public class DiscoveredPoliciesMapperTest {
         assertTrue(policy.hasBindToGroup());
         assertEquals(info.getPolicyName(), policy.getName());
         BindToGroupPolicy bind = policy.getBindToGroup();
-        assertEquals(BUYERS_GROUP_OID, bind.getConsumerGroup().getGroupId());
-        assertEquals(SELLERS_GROUP_OID, bind.getProviderGroup().getGroupId());
+        assertEquals(BUYERS_GROUP_OID, bind.getConsumerGroup());
+        assertEquals(SELLERS_GROUP_OID, bind.getProviderGroup());
     }
 
     @Test
@@ -65,8 +66,8 @@ public class DiscoveredPoliciesMapperTest {
         assertTrue(policy.hasBindToComplementaryGroup());
         assertEquals(info.getPolicyName(), policy.getName());
         BindToComplementaryGroupPolicy bind = policy.getBindToComplementaryGroup();
-        assertEquals(BUYERS_GROUP_OID, bind.getConsumerGroup().getGroupId());
-        assertEquals(SELLERS_GROUP_OID, bind.getProviderGroup().getGroupId());
+        assertEquals(BUYERS_GROUP_OID, bind.getConsumerGroup());
+        assertEquals(SELLERS_GROUP_OID, bind.getProviderGroup());
     }
 
     @Test
@@ -81,8 +82,8 @@ public class DiscoveredPoliciesMapperTest {
         assertTrue(policy.hasMustRunTogether());
         assertEquals(info.getPolicyName(), policy.getName());
         MustRunTogetherPolicy together = policy.getMustRunTogether();
-        assertEquals(BUYERS_GROUP_OID, together.getConsumerGroup().getGroupId());
-        assertEquals(SELLERS_GROUP_OID, together.getProviderGroup().getGroupId());
+        assertEquals(BUYERS_GROUP_OID, together.getConsumerGroup());
+        assertEquals(SELLERS_GROUP_OID, together.getProviderGroup());
     }
 
     @Test
@@ -97,8 +98,8 @@ public class DiscoveredPoliciesMapperTest {
         assertTrue(policy.hasAtMostN());
         assertEquals(info.getPolicyName(), policy.getName());
         AtMostNPolicy separate = policy.getAtMostN();
-        assertEquals(BUYERS_GROUP_OID, separate.getConsumerGroup().getGroupId());
-        assertEquals(SELLERS_GROUP_OID, separate.getProviderGroup().getGroupId());
+        assertEquals(BUYERS_GROUP_OID, separate.getConsumerGroup());
+        assertEquals(SELLERS_GROUP_OID, separate.getProviderGroup());
         assertEquals(1.0, separate.getCapacity(), 0.001);
     }
 

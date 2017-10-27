@@ -13,11 +13,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.base.Preconditions;
 
-import com.vmturbo.common.protobuf.group.GroupDTO.Cluster;
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
-import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyGrouping;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -25,7 +21,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
@@ -62,26 +57,6 @@ public abstract class PlacementPolicy {
     protected PlacementPolicy(@Nonnull final PolicyDTO.Policy policyDefinition) {
         Preconditions.checkArgument(policyDefinition.hasId());
         this.policyDefinition = policyDefinition;
-    }
-
-    protected boolean hasEntityType(PolicyGrouping grouping) {
-        return grouping.hasCluster() || grouping.getGroup().getInfo().hasEntityType();
-    }
-
-    /**
-     * Infer the numeric {@link EntityType} of the members of a policy grouping. If the grouping
-     * is by {@link Group} then get the type from the {@link GroupInfo}. If it is a
-     * {@link Cluster} then infer it from the {@link ClusterInfo.Type}.
-     *
-     * @param grouping the grouping for which to infer the entity type
-     * @return the numeriucal entity type of the members of the grouping
-     */
-    protected int entityType(PolicyGrouping grouping) {
-        return grouping.hasGroup()
-            ? grouping.getGroup().getInfo().getEntityType()
-            : grouping.getCluster().getInfo().getClusterType() == ClusterInfo.Type.COMPUTE
-                    ? EntityType.PHYSICAL_MACHINE_VALUE
-                    : EntityType.STORAGE_VALUE;
     }
 
     /**

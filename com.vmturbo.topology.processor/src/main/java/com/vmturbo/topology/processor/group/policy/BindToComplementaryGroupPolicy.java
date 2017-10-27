@@ -9,8 +9,9 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.base.Preconditions;
 
+import com.vmturbo.common.protobuf.GroupProtoUtil;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
-import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyGrouping;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
@@ -24,8 +25,8 @@ public class BindToComplementaryGroupPolicy extends PlacementPolicy {
     private static final Logger logger = LogManager.getLogger();
 
     private final PolicyDTO.Policy.BindToComplementaryGroupPolicy bindToComplementaryGroup;
-    private final PolicyGrouping providerGrouping;
-    private final PolicyGrouping consumerGrouping;
+    private final Group providerGroup;
+    private final Group consumerGroup;
 
     /**
      * Create a new bind to complementary group policy.
@@ -33,13 +34,13 @@ public class BindToComplementaryGroupPolicy extends PlacementPolicy {
      * @param policyDefinition The policy definition describing the details of the policy to be applied.
      */
     public BindToComplementaryGroupPolicy(@Nonnull final PolicyDTO.Policy policyDefinition,
-                                          @Nonnull final PolicyGrouping consumerGrouping,
-                                          @Nonnull final PolicyGrouping providerGrouping) {
+                                          @Nonnull final Group consumerGroup,
+                                          @Nonnull final Group providerGroup) {
         super(policyDefinition);
         Preconditions.checkArgument(policyDefinition.hasBindToComplementaryGroup());
         this.bindToComplementaryGroup = policyDefinition.getBindToComplementaryGroup();
-        this.consumerGrouping = consumerGrouping;
-        this.providerGrouping = providerGrouping;
+        this.consumerGroup = consumerGroup;
+        this.providerGroup = providerGroup;
     }
 
     public void applyInternal(@Nonnull final GroupResolver groupResolver, @Nonnull final TopologyGraph topologyGraph)
@@ -47,12 +48,12 @@ public class BindToComplementaryGroupPolicy extends PlacementPolicy {
         logger.debug("Applying bindToComplementaryGroup policy.");
 
         // Resolve the relevant groups
-        final Set<Long> providers = groupResolver.resolve(providerGrouping,
+        final Set<Long> providers = groupResolver.resolve(providerGroup,
                 topologyGraph);
-        final Set<Long> consumers = groupResolver.resolve(consumerGrouping,
+        final Set<Long> consumers = groupResolver.resolve(consumerGroup,
                 topologyGraph);
 
-        final int providerType = entityType(providerGrouping);
+        final int providerType = GroupProtoUtil.getEntityType(providerGroup);
         // Add the commodity to the appropriate entities
         addCommoditySoldToComplementaryProviders(providers, providerType, topologyGraph, commoditySold());
         addCommodityBought(consumers, topologyGraph, providerType, commodityBought());

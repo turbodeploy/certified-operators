@@ -8,28 +8,27 @@ import java.util.Map;
 
 import org.junit.Test;
 
+import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
-import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyGrouping;
-import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyGroupingID;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class PolicyFactoryTest {
 
     private static final long POLICY_ID = 9999L;
 
-    private final PolicyDTO.PolicyGrouping groupA = PolicyGroupingHelper.policyGrouping(
+    private final Group groupA = PolicyGroupingHelper.policyGrouping(
         SearchParametersCollection.getDefaultInstance(), EntityType.VIRTUAL_MACHINE_VALUE, 1234L);
 
-    private final PolicyDTO.PolicyGrouping groupB = PolicyGroupingHelper.policyGrouping(
+    private final Group groupB = PolicyGroupingHelper.policyGrouping(
         SearchParametersCollection.getDefaultInstance(), EntityType.PHYSICAL_MACHINE_VALUE, 5678L);
 
-    private final PolicyDTO.PolicyGroupingID groupIdA = PolicyGroupingHelper.policyGroupingID(1234L);
+    private final long groupIdA = 1234L;
 
-    private final PolicyDTO.PolicyGroupingID groupIdB = PolicyGroupingHelper.policyGroupingID(5678L);
+    private final long groupIdB = 5678L;
 
-    private final Map<PolicyGroupingID, PolicyDTO.PolicyGrouping> groupingMap =
-            new HashMap<PolicyGroupingID, PolicyGrouping>(){{
+    private final Map<Long, Group> groupingMap =
+            new HashMap<Long, Group>(){{
                 put(groupIdA, groupA);
                 put(groupIdB, groupB);
             }};

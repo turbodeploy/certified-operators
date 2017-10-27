@@ -38,6 +38,8 @@ message GetDiscoveredGroupsResponse {
     map<int64, TargetDiscoveredGroups> groups_by_target_id = 1;
 }
 
+// This service is for debugging only - to be able to ask the topology processor
+// what groups got discovered in the last discovery.
 service DiscoveredGroupService {
     rpc GetDiscoveredGroups(GetDiscoveredGroupsRequest) returns (GetDiscoveredGroupsResponse);
 }

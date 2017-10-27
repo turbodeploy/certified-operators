@@ -10,6 +10,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
 
@@ -19,9 +20,9 @@ import org.apache.logging.log4j.Logger;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
-import com.vmturbo.common.protobuf.group.GroupDTO.Cluster;
+import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
-import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyGrouping;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter.FilterTypeCase;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
@@ -45,6 +46,7 @@ public class GroupResolver {
 
     private final TopologyFilterFactory filterFactory;
     private static final Logger logger = LogManager.getLogger();
+
     /**
      * Cache for storing resolved groups.
      * Mapping from GroupID->Set(EntityIDs)
@@ -54,29 +56,6 @@ public class GroupResolver {
     public GroupResolver(@Nonnull final TopologyFilterFactory filterFactory) {
         this.filterFactory = Objects.requireNonNull(filterFactory);
         this.groupResolverCache = new HashMap<>();
-    }
-
-    /**
-     * * Resolve the members of a policy grouping. If the policy grouping uses a {@link Group}
-     * then delegate to {@link #resolve(Group, TopologyGraph)}, otherwise (the grouping
-     * uses a {@link Cluster}) just return the cluster members' OIDs.
-     *
-     * @param grouping uses either Group or Cluster to define the membership.
-     * @param graph The topology graph on which to perform the search.
-     * @return OIDs of the members of the input grouping.
-     * @throws GroupResolutionException when a group cannot be resolved.
-     */
-    public Set<Long> resolve(@Nonnull final PolicyGrouping grouping,
-                    @Nonnull final TopologyGraph graph) throws GroupResolutionException {
-        if (grouping.hasGroup()) { // Group
-            return resolve(grouping.getGroup(), graph);
-        } else { // Cluster
-            return new HashSet<>(grouping
-                            .getCluster()
-                            .getInfo()
-                            .getMembers()
-                            .getStaticMemberOidsList());
-        }
     }
 
     /**
@@ -115,26 +94,33 @@ public class GroupResolver {
             throws GroupResolutionException {
 
         Optional<Set<Long>> groupMembers = Optional.empty();
-        switch (group.getInfo().getSelectionCriteriaCase()) {
-            case STATIC_GROUP_MEMBERS:
-                groupMembers = Optional.of(resolveStaticGroup(group));
+        switch (group.getType()) {
+            case CLUSTER:
+                groupMembers = Optional.of(GroupProtoUtil.getClusterMembers(group));
                 break;
-            case SEARCH_PARAMETERS_COLLECTION:
-                List<SearchParameters> searchParametersList =
-                    group.getInfo().getSearchParametersCollection().getSearchParametersList();
-                for (SearchParameters searchParameters : searchParametersList) {
-                    final Set<Long> resolvedMembers = resolveDynamicGroup(group.getId(), getGroupEntityType(group),
-                            searchParameters, graph);
-                    // need to save the first resolve result in order to perform intersection
-                    groupMembers = groupMembers.isPresent() ? groupMembers.map(groupSet -> {
-                        groupSet.retainAll(resolvedMembers);
-                        return groupSet;
-                    }) : Optional.of(resolvedMembers);
+            case GROUP:
+                switch (group.getGroup().getSelectionCriteriaCase()) {
+                    case STATIC_GROUP_MEMBERS:
+                        groupMembers = Optional.of(resolveStaticGroup(group));
+                        break;
+                    case SEARCH_PARAMETERS_COLLECTION:
+                        List<SearchParameters> searchParametersList =
+                                group.getGroup().getSearchParametersCollection().getSearchParametersList();
+                        for (SearchParameters searchParameters : searchParametersList) {
+                            final Set<Long> resolvedMembers = resolveDynamicGroup(group.getId(),
+                                    GroupProtoUtil.getEntityType(group), searchParameters, graph);
+                            // need to save the first resolve result in order to perform intersection
+                            groupMembers = groupMembers.isPresent() ? groupMembers.map(groupSet -> {
+                                groupSet.retainAll(resolvedMembers);
+                                return groupSet;
+                            }) : Optional.of(resolvedMembers);
+                        }
+                        break;
+                    default:
+                        throw new GroupResolutionException("Unknown selection criteria type: " +
+                                group.getGroup().getSelectionCriteriaCase());
                 }
                 break;
-            default:
-                throw new GroupResolutionException("Unknown group members type: " +
-                        group.getInfo().getSelectionCriteriaCase());
         }
 
         return groupMembers.orElse(Collections.emptySet());
@@ -149,15 +135,14 @@ public class GroupResolver {
     @Nonnull
     @VisibleForTesting
     Set<Long> resolveStaticGroup(final Group group) {
-
-        return new HashSet<>(group.getInfo().getStaticGroupMembers().getStaticMemberOidsList());
+        return new HashSet<>(group.getGroup().getStaticGroupMembers().getStaticMemberOidsList());
     }
 
     /**
      * Resolve the members of a group defined by certain criteria.
      *
      * @param groupId The ID of the group to resolveDynamicGroup.
-     * @param groupEntityType The name of the entity type for this group.
+     * @param groupEntityType The entity type for this group.
      * @param search The search criteria to use in resolving the group's members.
      * @param graph The topology graph on which to perform the search.
      * @return A collection of OIDs for the group members that match the {@link SearchParameters}.
@@ -167,7 +152,7 @@ public class GroupResolver {
     @Nonnull
     @VisibleForTesting
     Set<Long> resolveDynamicGroup(final long groupId,
-                                  final String groupEntityType,
+                                  final int groupEntityType,
                                   @Nonnull final SearchParameters search,
                                   @Nonnull final TopologyGraph graph) throws GroupResolutionException {
         try {
@@ -181,8 +166,11 @@ public class GroupResolver {
                 .count();
             final long numPropertyFilters = search.getSearchFilterList().size() - numTraversalFilters + 1;
 
+            final String entityTypeName = Optional.ofNullable(EntityType.forNumber(groupEntityType))
+                    .map(EntityType::name)
+                    .orElse("Unknown");
             logger.debug("Dynamic group {} ({}P, {}T) resolved to {} {} in {} ms .",
-                groupId, numPropertyFilters, numTraversalFilters, members.size(), groupEntityType, duration);
+                groupId, numPropertyFilters, numTraversalFilters, members.size(), entityTypeName, duration);
 
             return members;
         } catch (RuntimeException e) {
@@ -201,13 +189,5 @@ public class GroupResolver {
         return matchingVertices
             .map(Vertex::getOid)
             .collect(Collectors.toSet());
-    }
-
-    private String getGroupEntityType(@Nonnull final Group group) {
-        return Stream.of(EntityType.values())
-            .filter(entityType -> entityType.getNumber() == group.getInfo().getEntityType())
-            .findFirst()
-            .map(EntityType::name)
-            .orElse("Unknown");
     }
 }

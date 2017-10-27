@@ -18,10 +18,10 @@ import com.google.common.annotations.VisibleForTesting;
 
 import io.grpc.Channel;
 
-import com.vmturbo.common.protobuf.group.DiscoveredCollectionsServiceGrpc;
-import com.vmturbo.common.protobuf.group.DiscoveredCollectionsServiceGrpc.DiscoveredCollectionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.DiscoveredGroupServiceGrpc;
+import com.vmturbo.common.protobuf.group.DiscoveredGroupServiceGrpc.DiscoveredGroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredPolicyInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.StoreDiscoveredCollectionsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.StoreDiscoveredGroupsRequest;
 import com.vmturbo.common.protobuf.topology.DiscoveredGroup.DiscoveredGroupInfo;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.topology.processor.entity.EntityStore;
@@ -49,7 +49,7 @@ public class DiscoveredGroupUploader {
      */
     static String VC_FOLDER_KEYWORD = "Folder";
 
-    private final DiscoveredCollectionsServiceBlockingStub uploadStub;
+    private final DiscoveredGroupServiceBlockingStub uploadStub;
 
     private final DiscoveredGroupInterpreter discoveredGroupInterpreter;
 
@@ -84,7 +84,7 @@ public class DiscoveredGroupUploader {
     DiscoveredGroupUploader(@Nonnull final Channel groupChannel,
             @Nonnull final DiscoveredGroupInterpreter discoveredGroupInterpreter) {
         this.uploadStub =
-            DiscoveredCollectionsServiceGrpc.newBlockingStub(Objects.requireNonNull(groupChannel));
+            DiscoveredGroupServiceGrpc.newBlockingStub(Objects.requireNonNull(groupChannel));
         this.discoveredGroupInterpreter = discoveredGroupInterpreter;
 
         // Do not start the GroupUploader in this constructor.
@@ -161,8 +161,8 @@ public class DiscoveredGroupUploader {
         final Map<Long, List<InterpretedGroup>> groupsByTargetId = pollQueuedGroups();
         try {
             groupsByTargetId.forEach((targetId, groups) -> {
-                final StoreDiscoveredCollectionsRequest.Builder req =
-                        StoreDiscoveredCollectionsRequest.newBuilder()
+                final StoreDiscoveredGroupsRequest.Builder req =
+                        StoreDiscoveredGroupsRequest.newBuilder()
                             .setTargetId(targetId);
                 groups.forEach(interpretedDto -> {
                     interpretedDto.getDtoAsCluster().ifPresent(req::addDiscoveredCluster);
@@ -172,7 +172,7 @@ public class DiscoveredGroupUploader {
                 if (policiesByTarget != null) {
                     req.addAllDiscoveredPolicyInfos(policiesByTarget);
                 }
-                uploadStub.storeDiscoveredCollections(req.build());
+                uploadStub.storeDiscoveredGroups(req.build());
             });
         } catch (RuntimeException e) {
             requeueGroups(groupsByTargetId);

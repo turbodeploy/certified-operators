@@ -35,6 +35,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.google.protobuf.util.JsonFormat;
 
+import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
@@ -742,7 +743,7 @@ public class SettingStore {
                             if (groupOpt.isPresent()) {
                                 final Group group = groupOpt.get();
                                 final int policyEntityType = settingPolicyInfo.getEntityType();
-                                final int groupEntityType = group.getInfo().getEntityType();
+                                final int groupEntityType = GroupProtoUtil.getEntityType(group);
                                 if (groupEntityType != policyEntityType) {
                                     errors.add("Group " + group.getId() + " with entity type " +
                                             groupEntityType + " does not match entity type " +

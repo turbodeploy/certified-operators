@@ -1,8 +1,5 @@
 package com.vmturbo.api.component.external.api.util;
 
-import static com.vmturbo.common.protobuf.group.GroupDTO.Cluster;
-import static com.vmturbo.common.protobuf.group.GroupDTO.GetClusterRequest;
-import static com.vmturbo.common.protobuf.group.GroupDTO.GetClusterResponse;
 import static com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import static com.vmturbo.common.protobuf.group.GroupDTO.Group;
 
@@ -15,17 +12,13 @@ import org.jooq.tools.StringUtils;
 
 import com.google.common.collect.Sets;
 
-import io.grpc.Status;
-import io.grpc.StatusRuntimeException;
-
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
-import com.vmturbo.common.protobuf.group.ClusterServiceGrpc.ClusterServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 
 /**
- * Process a list of UUIDs to replace {@link Group}s or {@link Cluster}s with the
+ * Process a list of UUIDs to replace {@link Group}s with the
  * {@link ServiceEntityApiDTO}s that belong to the Group (or Cluster, respectively).
  * UUIDs for ServiceEntities are included in the output.
  *
@@ -36,12 +29,9 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingSt
 public class GroupExpander {
 
     private final GroupServiceBlockingStub groupServiceGrpc;
-    private final ClusterServiceBlockingStub clusterServiceRpc;
 
-    public GroupExpander(@Nonnull GroupServiceBlockingStub groupServiceGrpc,
-                         @Nonnull ClusterServiceBlockingStub clusterServiceRpc) {
+    public GroupExpander(@Nonnull GroupServiceBlockingStub groupServiceGrpc) {
         this.groupServiceGrpc = groupServiceGrpc;
-        this.clusterServiceRpc = clusterServiceRpc;
     }
 
     /**
@@ -67,7 +57,6 @@ public class GroupExpander {
      * @return UUIDs from each Group or Cluster in the input list; other UUIDs are passed through
      */
     public @Nonnull Set<Long> expandUuids(@Nonnull Set<String> uuidSet) {
-
         Set<Long> answer = Sets.newHashSet();
         for (String uuidString : uuidSet) {
             // sanity-check the uuidString
@@ -84,27 +73,8 @@ public class GroupExpander {
             GetMembersRequest getGroupMembersReq = GetMembersRequest.newBuilder()
                     .setId(oid)
                     .build();
-            try {
-                GetMembersResponse groupMembersResp = groupServiceGrpc.getMembers(getGroupMembersReq);
-                answer.addAll(groupMembersResp.getMemberIdList());
-            } catch (StatusRuntimeException e) {
-                if (e.getStatus().getCode().equals(Status.Code.NOT_FOUND)) {
-                    // not a group, try a cluster
-                    GetClusterResponse response =
-                            clusterServiceRpc.getCluster(GetClusterRequest.newBuilder()
-                                    .setClusterId(oid)
-                                    .build());
-                    if (response.hasCluster()) {
-                        answer.addAll(response.getCluster().getInfo().getMembers()
-                                .getStaticMemberOidsList());
-                    } else {
-                        // neither group nor cluster
-                        answer.add(Long.valueOf(uuidString));
-                    }
-                } else {
-                    throw e;
-                }
-            }
+            GetMembersResponse groupMembersResp = groupServiceGrpc.getMembers(getGroupMembersReq);
+            answer.addAll(groupMembersResp.getMemberIdList());
         }
         return answer;
     }

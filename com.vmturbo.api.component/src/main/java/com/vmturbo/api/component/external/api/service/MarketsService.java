@@ -2,6 +2,7 @@ package com.vmturbo.api.component.external.api.service;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -32,34 +33,34 @@ import com.vmturbo.api.component.external.api.mapper.PolicyMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
-import com.vmturbo.api.enums.MergePolicyType;
-import com.vmturbo.api.enums.PolicyType;
-import com.vmturbo.common.protobuf.GroupDTOUtil;
-import com.vmturbo.common.protobuf.group.GroupFetcher;
 import com.vmturbo.api.component.external.api.websocket.UINotificationChannel;
 import com.vmturbo.api.dto.action.ActionApiDTO;
-import com.vmturbo.api.dto.notification.LogEntryApiDTO;
-import com.vmturbo.api.dto.market.MarketApiDTO;
-import com.vmturbo.api.dto.policy.PolicyApiDTO;
-import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
+import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.api.dto.market.MarketApiDTO;
+import com.vmturbo.api.dto.notification.LogEntryApiDTO;
+import com.vmturbo.api.dto.policy.PolicyApiDTO;
 import com.vmturbo.api.dto.policy.PolicyApiInputDTO;
-import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.reservation.DemandReservationApiDTO;
+import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
+import com.vmturbo.api.enums.MergePolicyType;
+import com.vmturbo.api.enums.PolicyType;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.IMarketsService;
 import com.vmturbo.api.utils.ParamStrings.MarketOperations;
+import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsResponse;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
-import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyGrouping;
-import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyGroupingID;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO;
@@ -86,11 +87,11 @@ public class MarketsService implements IMarketsService {
 
     private final PolicyServiceBlockingStub policyRpcService;
 
+    private final GroupServiceBlockingStub groupRpcService;
+
     private final PolicyMapper policyMapper;
 
     private final MarketMapper marketMapper;
-
-    private final GroupFetcher groupFetcher;
 
     private final UINotificationChannel uiNotificationChannel;
 
@@ -101,7 +102,7 @@ public class MarketsService implements IMarketsService {
                           @Nonnull final PlanServiceBlockingStub planRpcService,
                           @Nonnull final PolicyMapper policyMapper,
                           @Nonnull final MarketMapper marketMapper,
-                          @Nonnull final GroupFetcher groupFetcher,
+                          @Nonnull final GroupServiceBlockingStub groupRpcService,
                           @Nonnull final UINotificationChannel uiNotificationChannel) {
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.uuidMapper = Objects.requireNonNull(uuidMapper);
@@ -111,7 +112,7 @@ public class MarketsService implements IMarketsService {
         this.policyMapper = Objects.requireNonNull(policyMapper);
         this.marketMapper = Objects.requireNonNull(marketMapper);
         this.uiNotificationChannel = Objects.requireNonNull(uiNotificationChannel);
-        this.groupFetcher = Objects.requireNonNull(groupFetcher);
+        this.groupRpcService = Objects.requireNonNull(groupRpcService);
     }
 
     /**
@@ -228,12 +229,15 @@ public class MarketsService implements IMarketsService {
                     .getAllPolicies(PolicyDTO.PolicyRequest.getDefaultInstance());
             ImmutableList<PolicyResponse> policyRespList = ImmutableList.copyOf(allPolicyResps);
 
-            Set<PolicyGroupingID> groupingIDS = policyRespList.stream()
+            Set<Long> groupingIDS = policyRespList.stream()
                     .filter(PolicyDTO.PolicyResponse::hasPolicy)
-                    .flatMap(resp -> GroupDTOUtil.retrieveIdsFromPolicy(resp.getPolicy()).stream())
+                    .flatMap(resp -> GroupProtoUtil.getPolicyGroupIds(resp.getPolicy()).stream())
                     .collect(Collectors.toSet());
-            final Map<PolicyGroupingID, PolicyGrouping> groupings =
-                    groupFetcher.getGroupings(groupingIDS);
+            final Map<Long, Group> groupings = new HashMap<>();
+            groupRpcService.getGroups(GetGroupsRequest.newBuilder()
+                    .addAllId(groupingIDS)
+                    .build())
+                .forEachRemaining(group -> groupings.put(group.getId(), group));
             return policyRespList.stream()
                     .filter(PolicyDTO.PolicyResponse::hasPolicy)
                     .map(resp -> policyMapper.policyToApiDto(resp.getPolicy(), groupings))

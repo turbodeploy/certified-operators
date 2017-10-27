@@ -19,10 +19,10 @@ import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 import com.google.common.collect.Sets;
 
-import com.vmturbo.common.protobuf.group.GroupDTO.Cluster;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Origin;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.InputPolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
@@ -37,7 +37,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * process clusters and groups.
  *
  * <p>The purpose of this class is to separate the logic for how to apply the update
- * from the {@link ClusterStore} and {@link GroupStore}, since the update logic is
+ * from the persistence logic, since the update logic is
  * independent of the storage logic.
  *
  * @param <InstanceType> Instances of the collection have this type, e.g. {@link Group}.
@@ -252,7 +252,7 @@ abstract class TargetCollectionUpdate<InstanceType, SpecType> {
 
         @Override
         protected Function<Group, GroupInfo> infoGetter() {
-            return Group::getInfo;
+            return Group::getGroup;
         }
 
         @Override
@@ -278,8 +278,9 @@ abstract class TargetCollectionUpdate<InstanceType, SpecType> {
             return Group.newBuilder()
                     .setId(id)
                     .setTargetId(targetId)
+                    .setType(Type.GROUP)
                     .setOrigin(Origin.DISCOVERED)
-                    .setInfo(info)
+                    .setGroup(info)
                     .build();
         }
 
@@ -290,24 +291,25 @@ abstract class TargetCollectionUpdate<InstanceType, SpecType> {
     }
 
     /**
-     * An implementation of {@link TargetCollectionUpdate} to update {@link Cluster}s.
+     * An implementation of {@link TargetCollectionUpdate} to update {@link Group}s with
+     * Type == CLUSTER.
      */
-    static class TargetClusterUpdate extends TargetCollectionUpdate<Cluster, ClusterInfo> {
+    static class TargetClusterUpdate extends TargetCollectionUpdate<Group, ClusterInfo> {
         TargetClusterUpdate(final long targetId,
                             @Nonnull final IdentityProvider identityProvider,
                             @Nonnull final List<ClusterInfo> newDiscoveredGroups,
-                            @Nonnull final Collection<Cluster> existingClusters) {
+                            @Nonnull final Collection<Group> existingClusters) {
             super(targetId, identityProvider, newDiscoveredGroups, existingClusters);
         }
 
         @Override
-        protected Function<Cluster, Long> idGetter() {
-            return Cluster::getId;
+        protected Function<Group, Long> idGetter() {
+            return Group::getId;
         }
 
         @Override
-        protected Function<Cluster, ClusterInfo> infoGetter() {
-            return Cluster::getInfo;
+        protected Function<Group, ClusterInfo> infoGetter() {
+            return Group::getCluster;
         }
 
         @Override
@@ -332,16 +334,18 @@ abstract class TargetCollectionUpdate<InstanceType, SpecType> {
         }
 
         @Override
-        protected Cluster createInstance(final long id, final ClusterInfo info) {
-            return Cluster.newBuilder()
+        protected Group createInstance(final long id, final ClusterInfo info) {
+            return Group.newBuilder()
                     .setId(id)
                     .setTargetId(targetId)
-                    .setInfo(info)
+                    .setType(Type.CLUSTER)
+                    .setOrigin(Origin.DISCOVERED)
+                    .setCluster(info)
                     .build();
         }
 
         @Override
-        protected BiFunction<Cluster, ClusterInfo, ClusterInfo> transitAttribution() {
+        protected BiFunction<Group, ClusterInfo, ClusterInfo> transitAttribution() {
             return (existingCluster, newCluster) -> newCluster;
         }
     }

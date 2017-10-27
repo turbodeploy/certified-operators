@@ -134,7 +134,7 @@ message ProjectedStatsResponse {
 // Request sent to the Stats Service when it is time to compute roll-up stats for clusters.
 message ClusterRollupRequest {
     // The list of clusters for which stats roll-up should be calculated.
-    repeated .group.Cluster clustersToRollup = 1;
+    repeated .group.Group clustersToRollup = 1;
 }
 
 message ClusterRollupResponse {

@@ -14,12 +14,11 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.ImmutableList;
 
-import com.vmturbo.common.protobuf.GroupDTOUtil;
-import com.vmturbo.common.protobuf.group.GroupFetcher;
-import com.vmturbo.common.protobuf.group.GroupFetchingException;
+import com.vmturbo.common.protobuf.GroupProtoUtil;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy.PolicyDetailCase;
-import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyGrouping;
-import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyGroupingID;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyRequest;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
@@ -44,7 +43,7 @@ public class PolicyManager {
      */
     final PolicyServiceBlockingStub policyService;
 
-    final GroupFetcher groupFetcher;
+    final GroupServiceBlockingStub groupServiceBlockingStub;
 
     /**
      * The factory to use to create policies.
@@ -61,15 +60,15 @@ public class PolicyManager {
      * Create a new policy manager.
      *
      * @param policyService The service to use to retrieve policy definitions.
-     * @param groupFetcher Class to fetch group info.
+     * @param groupServiceBlockingStub Stub to access the remote group service.
      * @param policyFactory The factory used to create policies.
      */
     public PolicyManager(@Nonnull final PolicyServiceBlockingStub policyService,
-                         @Nonnull final GroupFetcher groupFetcher,
+                         @Nonnull final GroupServiceBlockingStub groupServiceBlockingStub,
                          @Nonnull final PolicyFactory policyFactory) {
         this.policyService = Objects.requireNonNull(policyService);
+        this.groupServiceBlockingStub = Objects.requireNonNull(groupServiceBlockingStub);
         this.policyFactory = Objects.requireNonNull(policyFactory);
-        this.groupFetcher = Objects.requireNonNull(groupFetcher);
     }
 
     /**
@@ -90,24 +89,33 @@ public class PolicyManager {
             final ImmutableList<PolicyResponse> policyResponses = ImmutableList.copyOf(policyIter);
 
             final Map<PolicyDetailCase, Integer> policyTypeMap = new HashMap<>();
-            Set<PolicyGroupingID> groupIds = policyResponses.stream()
+            Set<Long> groupIds = policyResponses.stream()
                     .filter(PolicyResponse::hasPolicy)
-                    .flatMap(resp -> GroupDTOUtil.retrieveIdsFromPolicy(resp.getPolicy()).stream())
+                    .flatMap(resp -> GroupProtoUtil.getPolicyGroupIds(resp.getPolicy()).stream())
                     .collect(Collectors.toSet());
 
-            try {
-                Map<PolicyGroupingID, PolicyGrouping> groups = groupFetcher.getGroupings(groupIds);
-                for (PolicyResponse response : policyResponses) {
-                    PlacementPolicy policy = policyFactory.newPolicy(response.getPolicy(), groups);
-                    applyPolicy(groupResolver, policy, graph);
+            final Map<Long, Group> groupsById = new HashMap<>(groupIds.size());
+            groupServiceBlockingStub.getGroups(GetGroupsRequest.newBuilder()
+                    .addAllId(groupIds)
+                    .build())
+                .forEachRemaining(group -> groupsById.put(group.getId(), group));
 
-                    final PolicyDetailCase policyType = response.getPolicy().getPolicyDetailCase();
-                    int curCountOfType = policyTypeMap.computeIfAbsent(policyType, pt -> 0);
-                    policyTypeMap.put(policyType, curCountOfType + 1);
-                }
-            } catch (GroupFetchingException e) {
-                throw new RuntimeException(e);
+            if (groupsById.size() != groupIds.size()) {
+                // Some desired groups are not found.
+                // Throw an exception for now.
+                // TODO (roman, Oct 20 2017): We can just not apply the policies that
+                // are missing groups.
+                throw new IllegalStateException("Policies have non-existing groups.");
             }
+            for (PolicyResponse response : policyResponses) {
+                PlacementPolicy policy = policyFactory.newPolicy(response.getPolicy(), groupsById);
+                applyPolicy(groupResolver, policy, graph);
+
+                final PolicyDetailCase policyType = response.getPolicy().getPolicyDetailCase();
+                int curCountOfType = policyTypeMap.computeIfAbsent(policyType, pt -> 0);
+                policyTypeMap.put(policyType, curCountOfType + 1);
+            }
+
             final long durationMs = System.currentTimeMillis() - startTime;
             logger.info("Completed application of {} policies in {}ms.", policyTypeMap, durationMs);
         }

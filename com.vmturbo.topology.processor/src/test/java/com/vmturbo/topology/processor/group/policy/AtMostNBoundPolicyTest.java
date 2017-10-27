@@ -20,9 +20,8 @@ import org.junit.rules.ExpectedException;
 
 import com.google.common.collect.Sets;
 
+import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
-import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyGrouping;
-import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyGroupingID;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -43,13 +42,13 @@ public class AtMostNBoundPolicyTest {
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
-    final PolicyGrouping consumerGroup = PolicyGroupingHelper.policyGrouping(
+    final Group consumerGroup = PolicyGroupingHelper.policyGrouping(
         staticGroupMembers(4L, 5L), EntityType.VIRTUAL_MACHINE_VALUE, 1234L);
-    final PolicyGroupingID consumerGroupID = PolicyGroupingHelper.policyGroupingID(1234L);
+    final long consumerGroupID = 1234L;
 
-    final PolicyGrouping providerGroup = PolicyGroupingHelper.policyGrouping(
+    final Group providerGroup = PolicyGroupingHelper.policyGrouping(
         staticGroupMembers(1L), EntityType.PHYSICAL_MACHINE_VALUE, 5678L);
-    final PolicyGroupingID providerGroupID = PolicyGroupingHelper.policyGroupingID(5678L);
+    final long providerGroupID = 5678L;
 
     final PolicyDTO.Policy.AtMostNBoundPolicy atMostNBound = PolicyDTO.Policy.AtMostNBoundPolicy.newBuilder()
         .setConsumerGroupId(consumerGroupID)
@@ -149,7 +148,7 @@ public class AtMostNBoundPolicyTest {
      */
     @Test
     public void testApplyVmToStorageAffinity() throws GroupResolutionException, PolicyApplicationException {
-        final PolicyGrouping providerGroup = PolicyGroupingHelper.policyGrouping(
+        final Group providerGroup = PolicyGroupingHelper.policyGrouping(
             searchParametersCollection(), EntityType.STORAGE_VALUE, 5678L);
 
         final PolicyDTO.Policy.AtMostNBoundPolicy atMostNBoundPolicy = PolicyDTO.Policy.AtMostNBoundPolicy.newBuilder()

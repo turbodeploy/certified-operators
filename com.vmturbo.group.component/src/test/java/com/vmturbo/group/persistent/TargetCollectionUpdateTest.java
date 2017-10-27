@@ -23,7 +23,6 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Origin;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
-import com.vmturbo.common.protobuf.group.PolicyDTO.InputGroup;
 import com.vmturbo.common.protobuf.group.PolicyDTO.InputPolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.InputPolicy.BindToGroupPolicy;
 import com.vmturbo.group.identity.IdentityProvider;
@@ -78,7 +77,7 @@ public class TargetCollectionUpdateTest {
         assertEquals(groupId, createdGroup.getId());
         assertEquals(targetId, createdGroup.getTargetId());
         assertEquals(Origin.DISCOVERED, createdGroup.getOrigin());
-        assertEquals("test", createdGroup.getInfo().getName());
+        assertEquals("test", createdGroup.getGroup().getName());
     }
 
     @Test
@@ -92,7 +91,7 @@ public class TargetCollectionUpdateTest {
                             .addStaticMemberOids(1))
                         .build()),
                 Collections.singletonList(Group.newBuilder()
-                    .setInfo(GroupInfo.newBuilder().setName("test").setEntityType(10))
+                    .setGroup(GroupInfo.newBuilder().setName("test").setEntityType(10))
                     .setId(groupId)
                     .build()));
         update.apply(storeInstance, removeInstance);
@@ -104,13 +103,13 @@ public class TargetCollectionUpdateTest {
         final Group createdGroup = groupCaptor.getValue();
         assertEquals(groupId, createdGroup.getId());
         assertEquals(targetId, createdGroup.getTargetId());
-        assertEquals(10, createdGroup.getInfo().getEntityType());
+        assertEquals(10, createdGroup.getGroup().getEntityType());
         assertEquals(Origin.DISCOVERED, createdGroup.getOrigin());
-        assertEquals("test", createdGroup.getInfo().getName());
+        assertEquals("test", createdGroup.getGroup().getName());
 
         // Check that the members got set.
-        assertEquals(1, createdGroup.getInfo().getStaticGroupMembers().getStaticMemberOidsCount());
-        assertEquals(1, createdGroup.getInfo().getStaticGroupMembers().getStaticMemberOids(0));
+        assertEquals(1, createdGroup.getGroup().getStaticGroupMembers().getStaticMemberOidsCount());
+        assertEquals(1, createdGroup.getGroup().getStaticGroupMembers().getStaticMemberOids(0));
     }
 
     @Test
@@ -118,7 +117,7 @@ public class TargetCollectionUpdateTest {
         final TargetGroupUpdate update = new TargetGroupUpdate(targetId, identityProvider,
                 Collections.emptyList(),
                 Collections.singletonList(Group.newBuilder()
-                        .setInfo(GroupInfo.newBuilder().setName("test"))
+                        .setGroup(GroupInfo.newBuilder().setName("test"))
                         .setId(groupId)
                         .build()));
         update.apply(storeInstance, removeInstance);
@@ -168,14 +167,13 @@ public class TargetCollectionUpdateTest {
                 ImmutableList.of(
                         Group.newBuilder()
                             .setId(1)
-                            .setInfo(
-                                GroupInfo.newBuilder()
-                                        .setName(name)
-                                        .setEntityType(entityType))
+                            .setGroup(GroupInfo.newBuilder()
+                                .setName(name)
+                                .setEntityType(entityType))
                             .build(),
                         Group.newBuilder()
                             .setId(2)
-                            .setInfo(GroupInfo.newBuilder()
+                            .setGroup(GroupInfo.newBuilder()
                                 .setName(name)
                                 .setEntityType(entityType))
                             .build()));
@@ -199,19 +197,15 @@ public class TargetCollectionUpdateTest {
             Collections.singletonList(InputPolicy.newBuilder()
                 .setName("test")
                 .setBindToGroup(BindToGroupPolicy.newBuilder()
-                    .setProviderGroup(InputGroup.newBuilder()
-                        .setGroupId(1))
-                    .setConsumerGroup(InputGroup.newBuilder()
-                        .setGroupId(2)))
+                    .setProviderGroup(1)
+                    .setConsumerGroup(2))
                 .build()),
             Collections.singletonList(InputPolicy.newBuilder()
                 .setName("test")
                 .setEnabled(false)
                 .setBindToGroup(BindToGroupPolicy.newBuilder()
-                    .setProviderGroup(InputGroup.newBuilder()
-                        .setGroupId(1))
-                    .setConsumerGroup(InputGroup.newBuilder()
-                        .setGroupId(3)))
+                    .setProviderGroup(1)
+                    .setConsumerGroup(3))
                 .build()));
         update.apply(policyStoreInstance, removeInstance);
         verifyZeroInteractions(identityProvider);
@@ -222,7 +216,7 @@ public class TargetCollectionUpdateTest {
         final InputPolicy inputPolicy = policyCaptor.getValue();
         assertFalse(inputPolicy.getEnabled());
         assertEquals("test", inputPolicy.getName());
-        assertEquals(2, inputPolicy.getBindToGroup().getConsumerGroup().getGroupId());
-        assertEquals(1, inputPolicy.getBindToGroup().getProviderGroup().getGroupId());
+        assertEquals(2, inputPolicy.getBindToGroup().getConsumerGroup());
+        assertEquals(1, inputPolicy.getBindToGroup().getProviderGroup());
     }
 }

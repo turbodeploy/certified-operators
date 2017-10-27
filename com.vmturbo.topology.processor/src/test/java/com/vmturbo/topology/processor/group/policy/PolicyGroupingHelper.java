@@ -4,55 +4,40 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
-import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyGrouping;
-import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyGroupingID;
 
-/**
- * Helper class to create instances of {@link PolicyGrouping} and {@link PolicyGroupingID} for unit tests.
- */
 public class PolicyGroupingHelper {
 
     private PolicyGroupingHelper() {}
 
-    public static PolicyGrouping policyGrouping(SearchParametersCollection searchParameters,
+    public static Group policyGrouping(SearchParametersCollection searchParameters,
                                                 int entityType, long oid) {
-        return PolicyGrouping.newBuilder()
-                        .setGroup(Group.newBuilder()
-                            .setInfo(GroupInfo.newBuilder()
-                                .setSearchParametersCollection(searchParameters)
-                                .setEntityType(entityType)
-                                .build())
-                            .setId(oid)
-                            .build())
-                        .build();
+        return Group.newBuilder()
+            .setGroup(GroupInfo.newBuilder()
+                .setSearchParametersCollection(searchParameters)
+                .setEntityType(entityType)
+                .build())
+            .setId(oid)
+            .build();
     }
 
-    public static PolicyGrouping policyGrouping(StaticGroupMembers members,
+    public static Group policyGrouping(StaticGroupMembers members,
                                                 int entityType, long oid) {
-        return PolicyGrouping.newBuilder()
-                        .setGroup(Group.newBuilder()
-                            .setInfo(GroupInfo.newBuilder()
-                                .setStaticGroupMembers(members)
-                                .setEntityType(entityType)
-                                .build())
-                            .setId(oid)
-                            .build())
-                        .build();
+        return Group.newBuilder()
+            .setGroup(GroupInfo.newBuilder()
+                .setStaticGroupMembers(members)
+                .setEntityType(entityType)
+                .build())
+            .setId(oid)
+            .build();
     }
 
-    public static PolicyGrouping policyGrouping(String name, int entityType, long oid) {
-        return PolicyGrouping.newBuilder()
-                        .setGroup(Group.newBuilder()
-                            .setInfo(GroupInfo.newBuilder()
-                                .setName(name)
-                                .setEntityType(entityType)
-                                .build())
-                            .setId(oid)
-                            .build())
-                        .build();
-    }
-
-    public static PolicyGroupingID policyGroupingID(long oid) {
-        return PolicyGroupingID.newBuilder().setGroupId(oid).build();
+    public static Group policyGrouping(String name, int entityType, long oid) {
+        return Group.newBuilder()
+            .setGroup(GroupInfo.newBuilder()
+                .setName(name)
+                .setEntityType(entityType)
+                .build())
+            .setId(oid)
+            .build();
     }
 }

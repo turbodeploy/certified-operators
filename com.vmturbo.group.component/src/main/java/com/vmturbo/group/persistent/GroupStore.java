@@ -21,12 +21,16 @@ import com.arangodb.ArangoDBException;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 
+import com.vmturbo.common.protobuf.GroupProtoUtil;
+import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Origin;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.group.ArangoDriverFactory;
 import com.vmturbo.group.GroupDBDefinition;
 import com.vmturbo.group.identity.IdentityProvider;
+import com.vmturbo.group.persistent.TargetCollectionUpdate.TargetClusterUpdate;
 import com.vmturbo.group.persistent.TargetCollectionUpdate.TargetGroupUpdate;
 
 public class GroupStore {
@@ -69,16 +73,26 @@ public class GroupStore {
      * @return a mapping of group key (name/SE type) to group OID
      * @throws DatabaseException If there is an error interacting with the database.
      */
-    public Map<String, Long>  updateTargetGroups(final long targetId,
-                                   @Nonnull final List<GroupInfo> newGroups)
+    public Map<String, Long> updateTargetGroups(final long targetId,
+                                   @Nonnull final List<GroupInfo> newGroups,
+                                   @Nonnull final List<ClusterInfo> newClusters)
             throws DatabaseException {
-        logger.info("Updating groups discovered by {}. Got {} new groups.", targetId, newGroups.size());
-        final TargetGroupUpdate update = new TargetGroupUpdate(targetId, identityProvider,
-                newGroups, getDiscoveredByTarget(targetId));
+        logger.info("Updating groups discovered by {}. Got {} new groups and {} clusters.",
+                targetId, newGroups.size(), newClusters.size());
+        final Map<Type, List<Group>> groupsByType =
+                getDiscoveredByTarget(targetId).stream()
+                    .collect(Collectors.groupingBy(Group::getType));
+        final TargetGroupUpdate groupUpdate = new TargetGroupUpdate(targetId, identityProvider,
+                newGroups, groupsByType.getOrDefault(Type.GROUP, Collections.emptyList()));
+        final TargetClusterUpdate clusterUpdate = new TargetClusterUpdate(targetId, identityProvider,
+                newClusters, groupsByType.getOrDefault(Type.CLUSTER, Collections.emptyList()));
+
         // (roman, August 1 2017): These should happen in a single transaction, but
         // since we are migrating from ArangoDB to MySQL I'm not taking the time to figure
         // out how to do transactional updates in ArangoDB, and just using the current GroupStore.
-        Map<String, Long> map = update.apply(this::store, this::delete);
+        final Map<String, Long> map = groupUpdate.apply(this::store, this::delete);
+        map.putAll(clusterUpdate.apply(this::store, this::delete));
+
         logger.info("Finished updating discovered groups.");
         return map;
     }
@@ -162,7 +176,8 @@ public class GroupStore {
         final Group group = Group.newBuilder()
                 .setId(oid)
                 .setOrigin(Origin.USER)
-                .setInfo(groupInfo)
+                .setType(Type.GROUP)
+                .setGroup(groupInfo)
                 .build();
         store(group);
         return group;
@@ -193,7 +208,7 @@ public class GroupStore {
                 throw new DuplicateGroupException(newInfo);
             }
 
-            final Group newGroup = existingGroup.toBuilder().setInfo(newInfo).build();
+            final Group newGroup = existingGroup.toBuilder().setGroup(newInfo).build();
             store(newGroup);
             return newGroup;
         } else {
@@ -330,7 +345,7 @@ public class GroupStore {
 
     public static class ImmutableUpdateException extends Exception {
         private ImmutableUpdateException(Group group) {
-            super("Attempt to update immutable discovered group " + group.getInfo().getName());
+            super("Attempt to update immutable discovered group " + GroupProtoUtil.getGroupName(group));
         }
     }
 

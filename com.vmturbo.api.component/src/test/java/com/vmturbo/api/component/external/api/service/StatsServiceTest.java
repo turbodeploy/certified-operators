@@ -53,13 +53,7 @@ import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
 import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
-import com.vmturbo.common.protobuf.group.ClusterServiceGrpc.ClusterServiceImplBase;
-import com.vmturbo.common.protobuf.group.GroupDTO.Cluster;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetClusterRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetClusterResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
+import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.stats.Stats;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
@@ -82,9 +76,7 @@ public class StatsServiceTest {
 
     private TestStatsHistoryService testStatsHistoryService = spy(new TestStatsHistoryService());
 
-    private TestClusterService testClusterService = spy(new TestClusterService());
-
-    private TestGroupService groupServiceTest = spy(new TestGroupService());
+    private GroupServiceMole groupServiceSpy = spy(new GroupServiceMole());
 
     private RepositoryApi repositoryApi = Mockito.mock(RepositoryApi.class);
 
@@ -127,7 +119,7 @@ public class StatsServiceTest {
 
     @Rule
     public GrpcTestServer testServer = GrpcTestServer.newServer(testStatsHistoryService,
-            testClusterService, groupServiceTest);
+            groupServiceSpy);
 
     @Before
     public void setUp() throws IOException {
@@ -400,44 +392,6 @@ public class StatsServiceTest {
                                 .build())
                         .build())
             );
-            responseObserver.onCompleted();
-        }
-    }
-
-    private class TestGroupService extends GroupServiceGrpc.GroupServiceImplBase {
-
-        Optional<List<Long>> getMembers(@SuppressWarnings("unused") final long groupId) {
-            return Optional.empty();
-        }
-
-        @Override
-        public void getMembers(GetMembersRequest request,
-                               StreamObserver<GetMembersResponse> responseObserver) {
-            Optional<List<Long>> members = getMembers(request.getId());
-            if (members.isPresent()) {
-                responseObserver.onNext(GetMembersResponse.newBuilder()
-                        .addAllMemberId(members.get())
-                        .build());
-                responseObserver.onCompleted();
-            } else {
-                responseObserver.onError(io.grpc.Status.NOT_FOUND.asException());
-            }
-        }
-    }
-
-
-    private static class TestClusterService extends ClusterServiceImplBase {
-
-        Optional<Cluster> getCluster(@SuppressWarnings("unused") final long clusterId) {
-            return Optional.empty();
-        }
-
-        @Override
-        public void getCluster(GetClusterRequest request,
-                               StreamObserver<GetClusterResponse> responseObserver) {
-            final GetClusterResponse.Builder resp = GetClusterResponse.newBuilder();
-            getCluster(request.getClusterId()).ifPresent(resp::setCluster);
-            responseObserver.onNext(resp.build());
             responseObserver.onCompleted();
         }
     }

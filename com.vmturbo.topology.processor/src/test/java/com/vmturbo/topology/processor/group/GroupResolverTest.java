@@ -6,6 +6,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyInt;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -22,7 +23,10 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.mockito.Mockito;
 
+import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group.Origin;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
@@ -76,13 +80,26 @@ public class GroupResolverTest {
     public void testResolveStaticGroup() throws Exception {
         Group staticGroup = Group.newBuilder()
             .setId(1234L)
-            .setInfo(GroupInfo.newBuilder()
+            .setGroup(GroupInfo.newBuilder()
                 .setStaticGroupMembers(StaticGroupMembers.newBuilder()
                     .addAllStaticMemberOids(Arrays.asList(1L, 2L))))
             .build();
 
         final GroupResolver resolver = new GroupResolver(Mockito.mock(TopologyFilterFactory.class));
         assertThat(resolver.resolve(staticGroup, topologyGraph), containsInAnyOrder(1L, 2L));
+    }
+
+    @Test
+    public void testResolveCluster() throws Exception {
+        Group cluster = Group.newBuilder()
+                .setId(1234L)
+                .setType(Type.CLUSTER)
+                .setCluster(ClusterInfo.newBuilder()
+                        .setMembers(StaticGroupMembers.newBuilder()
+                                .addAllStaticMemberOids(Arrays.asList(1L, 2L))))
+                .build();
+        final GroupResolver resolver = new GroupResolver(Mockito.mock(TopologyFilterFactory.class));
+        assertThat(resolver.resolve(cluster, topologyGraph), containsInAnyOrder(1L, 2L));
     }
 
     @Test
@@ -93,7 +110,8 @@ public class GroupResolverTest {
 
         final Group dynamicGroup = Group.newBuilder()
             .setId(1234L)
-            .setInfo(GroupInfo.newBuilder()
+            .setGroup(GroupInfo.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
                 .setSearchParametersCollection(SearchParametersCollection.newBuilder()
                         .addSearchParameters(SearchParameters.newBuilder()
                                 .setStartingFilter(Search.PropertyFilter.getDefaultInstance()))))
@@ -107,7 +125,8 @@ public class GroupResolverTest {
     public void testResolveDynamicGroupStartingFilterOnly() throws Exception {
         final Group dynamicGroup = Group.newBuilder()
             .setId(1234L)
-            .setInfo(GroupInfo.newBuilder()
+            .setGroup(GroupInfo.newBuilder()
+                .setEntityType(EntityType.PHYSICAL_MACHINE.getNumber())
                 .setSearchParametersCollection(SearchParametersCollection.newBuilder()
                         .addSearchParameters(SearchParameters.newBuilder()
                                 .setStartingFilter(Search.PropertyFilter.newBuilder()
@@ -126,7 +145,8 @@ public class GroupResolverTest {
         // Find all virtual machines consuming from physical machines.
         final Group dynamicGroup = Group.newBuilder()
                 .setId(1234L)
-                .setInfo(GroupInfo.newBuilder()
+                .setGroup(GroupInfo.newBuilder()
+                    .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
                     .setSearchParametersCollection(SearchParametersCollection.newBuilder()
                         .addSearchParameters(SearchParameters.newBuilder()
                             .setStartingFilter(Search.PropertyFilter.newBuilder()
@@ -161,7 +181,8 @@ public class GroupResolverTest {
         // Find all virtual machines consuming from physical machines and display name matches VM#10
         final Group dynamicGroup = Group.newBuilder()
                 .setId(1234L)
-                .setInfo(GroupInfo.newBuilder()
+                .setGroup(GroupInfo.newBuilder()
+                        .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
                         .setSearchParametersCollection(SearchParametersCollection.newBuilder()
                                 .addSearchParameters(SearchParameters.newBuilder()
                                         .setStartingFilter(Search.PropertyFilter.newBuilder()
@@ -212,7 +233,10 @@ public class GroupResolverTest {
         // Group members of type PM or VM
         final Group dynamicGroup = Group.newBuilder()
                 .setId(groupId)
-                .setInfo(GroupInfo.newBuilder()
+                .setType(Type.GROUP)
+                .setOrigin(Origin.USER)
+                .setGroup(GroupInfo.newBuilder()
+                    .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                     .setSearchParametersCollection(SearchParametersCollection.newBuilder()
                         .addSearchParameters(SearchParameters.newBuilder()
                             .setStartingFilter(Search.PropertyFilter.newBuilder()
@@ -246,7 +270,8 @@ public class GroupResolverTest {
         resolver.resolve(dynamicGroup, topologyGraph);
         // resolveDynamicGroup should only be called once as the subsequent calls will
         // return from the cache
-        verify(resolver, times(1)).resolveDynamicGroup(eq(groupId), any(), any(), eq(topologyGraph));
+        verify(resolver, times(1)).resolveDynamicGroup(eq(groupId),
+                anyInt(), any(), eq(topologyGraph));
     }
 
     /**
@@ -262,7 +287,10 @@ public class GroupResolverTest {
         final Group staticGroup =
             Group.newBuilder()
                 .setId(groupId)
-                .setInfo(GroupInfo.newBuilder()
+                .setType(Type.GROUP)
+                .setOrigin(Origin.USER)
+                .setGroup(GroupInfo.newBuilder()
+                    .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                     .setStaticGroupMembers(StaticGroupMembers.newBuilder()
                         .addAllStaticMemberOids(Arrays.asList(1L, 2L))))
                 .build();

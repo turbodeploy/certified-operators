@@ -24,7 +24,6 @@ import org.junit.Test;
 import io.grpc.stub.StreamObserver;
 import io.prometheus.client.Summary;
 import io.prometheus.client.Summary.Timer;
-
 import tec.units.ri.unit.MetricPrefix;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
@@ -33,7 +32,6 @@ import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy.BindToGroupPolicy;
-import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyGroupingID;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceImplBase;
 import com.vmturbo.common.protobuf.search.Search;
@@ -345,7 +343,8 @@ public class TopologyProcessorPerformanceTest {
     // All hosts with the number one in their display name.
     final Group hostsWithOne = Group.newBuilder()
         .setId(1234L)
-        .setInfo(GroupInfo.newBuilder()
+        .setType(Group.Type.GROUP)
+        .setGroup(GroupInfo.newBuilder()
             .setSearchParametersCollection(SearchParametersCollection.newBuilder()
                 .addSearchParameters(SearchParameters.newBuilder()
                     .setStartingFilter(Search.PropertyFilter.newBuilder()
@@ -364,7 +363,8 @@ public class TopologyProcessorPerformanceTest {
     // All virtual machines consuming from physical machines.
     final Group vmsOnHosts = Group.newBuilder()
         .setId(1234L)
-        .setInfo(GroupInfo.newBuilder()
+        .setType(Group.Type.GROUP)
+        .setGroup(GroupInfo.newBuilder()
             .setSearchParametersCollection(SearchParametersCollection.newBuilder()
                 .addSearchParameters(SearchParameters.newBuilder()
                     .setStartingFilter(Search.PropertyFilter.newBuilder()
@@ -388,8 +388,8 @@ public class TopologyProcessorPerformanceTest {
                                       @Nonnull final Group providerGroup) {
         return Policy.newBuilder().setBindToGroup(
             BindToGroupPolicy.newBuilder()
-                .setConsumerGroupId(PolicyGroupingID.newBuilder().setGroupId(consumerGroup.getId()).build())
-                .setProviderGroupId(PolicyGroupingID.newBuilder().setGroupId(providerGroup.getId()).build())
+                .setConsumerGroupId(consumerGroup.getId())
+                .setProviderGroupId(providerGroup.getId())
         ).build();
     }
 

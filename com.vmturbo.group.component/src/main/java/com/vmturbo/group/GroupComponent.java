@@ -20,14 +20,12 @@ import io.grpc.Server;
 import io.grpc.ServerBuilder;
 
 import com.vmturbo.arangodb.ArangoHealthMonitor;
-import com.vmturbo.common.protobuf.group.GroupDTOREST.ClusterServiceController;
-import com.vmturbo.common.protobuf.group.GroupDTOREST.DiscoveredCollectionsServiceController;
+import com.vmturbo.common.protobuf.group.GroupDTOREST.DiscoveredGroupServiceController;
 import com.vmturbo.common.protobuf.group.GroupDTOREST.GroupServiceController;
 import com.vmturbo.common.protobuf.group.PolicyDTOREST.PolicyServiceController;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.SQLDBHealthMonitor;
-import com.vmturbo.group.service.ClusterRpcService;
-import com.vmturbo.group.service.DiscoveredCollectionsRpcService;
+import com.vmturbo.group.service.DiscoveredGroupsRpcService;
 import com.vmturbo.group.service.GroupService;
 import com.vmturbo.group.service.PolicyService;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
@@ -84,7 +82,6 @@ public class GroupComponent extends BaseVmtComponent {
     public PolicyService policyService() {
         return new PolicyService(arangoDBConfig.policyStore(),
             arangoDBConfig.groupStore(),
-            arangoDBConfig.clusterStore(),
             identityProviderConfig.identityProvider());
     }
 
@@ -106,24 +103,14 @@ public class GroupComponent extends BaseVmtComponent {
     }
 
     @Bean
-    public ClusterRpcService clusterRpcService() {
-        return new ClusterRpcService(arangoDBConfig.clusterStore());
+    public DiscoveredGroupsRpcService discoveredCollectionsRpcService() {
+        return new DiscoveredGroupsRpcService(arangoDBConfig.groupStore(),
+            arangoDBConfig.policyStore(), getHealthMonitor());
     }
 
     @Bean
-    public ClusterServiceController clusterServiceController() {
-        return new ClusterServiceController(clusterRpcService());
-    }
-
-    @Bean
-    public DiscoveredCollectionsRpcService discoveredCollectionsRpcService() {
-        return new DiscoveredCollectionsRpcService(arangoDBConfig.groupStore(),
-            arangoDBConfig.policyStore(), arangoDBConfig.clusterStore(), getHealthMonitor());
-    }
-
-    @Bean
-    public DiscoveredCollectionsServiceController discoveredCollectionsServiceController() {
-        return new DiscoveredCollectionsServiceController(discoveredCollectionsRpcService());
+    public DiscoveredGroupServiceController discoveredCollectionsServiceController() {
+        return new DiscoveredGroupServiceController(discoveredCollectionsRpcService());
     }
 
     @Nonnull
@@ -132,7 +119,6 @@ public class GroupComponent extends BaseVmtComponent {
         return Optional.of(builder
                 .addService(policyService())
                 .addService(groupService())
-                .addService(clusterRpcService())
                 .addService(discoveredCollectionsRpcService())
                 .addService(settingConfig.settingService())
                 .addService(settingConfig.settingPolicyService())

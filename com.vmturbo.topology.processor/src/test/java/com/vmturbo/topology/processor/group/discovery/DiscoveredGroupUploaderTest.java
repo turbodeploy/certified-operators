@@ -34,9 +34,9 @@ import com.google.common.collect.ImmutableMap;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
-import com.vmturbo.common.protobuf.group.DiscoveredCollectionsServiceGrpc.DiscoveredCollectionsServiceImplBase;
-import com.vmturbo.common.protobuf.group.GroupDTO.StoreDiscoveredCollectionsRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.StoreDiscoveredCollectionsResponse;
+import com.vmturbo.common.protobuf.group.DiscoveredGroupServiceGrpc.DiscoveredGroupServiceImplBase;
+import com.vmturbo.common.protobuf.group.GroupDTO.StoreDiscoveredGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.StoreDiscoveredGroupsResponse;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupInterpreter.InterpretedGroup;
 
@@ -137,8 +137,8 @@ public class DiscoveredGroupUploaderTest {
         when(recorderSpy.pollQueuedGroups()).thenReturn(queuedGroup);
         recorderSpy.processQueuedGroups();
 
-        verify(uploadServiceSpy).storeDiscoveredCollections(
-                eq(StoreDiscoveredCollectionsRequest.newBuilder()
+        verify(uploadServiceSpy).storeDiscoveredGroups(
+                eq(StoreDiscoveredGroupsRequest.newBuilder()
                         .setTargetId(TARGET_ID)
                         .build()), any());
     }
@@ -149,8 +149,8 @@ public class DiscoveredGroupUploaderTest {
         when(recorderSpy.pollQueuedGroups()).thenReturn(queuedGroup);
         recorderSpy.processQueuedGroups();
 
-        verify(uploadServiceSpy).storeDiscoveredCollections(
-            eq(StoreDiscoveredCollectionsRequest.newBuilder()
+        verify(uploadServiceSpy).storeDiscoveredGroups(
+            eq(StoreDiscoveredGroupsRequest.newBuilder()
                 .addDiscoveredCluster(PLACEHOLDER_CLUSTER_INFO)
                 .setTargetId(TARGET_ID)
                 .build()), any());
@@ -163,8 +163,8 @@ public class DiscoveredGroupUploaderTest {
 
         recorderSpy.processQueuedGroups();
 
-        verify(uploadServiceSpy).storeDiscoveredCollections(
-                eq(StoreDiscoveredCollectionsRequest.newBuilder()
+        verify(uploadServiceSpy).storeDiscoveredGroups(
+                eq(StoreDiscoveredGroupsRequest.newBuilder()
                         .addDiscoveredGroup(PLACEHOLDER_GROUP_INFO)
                         .setTargetId(TARGET_ID)
                         .build()), any());
@@ -184,8 +184,8 @@ public class DiscoveredGroupUploaderTest {
 
         recorderSpy.processQueuedGroups();
 
-        verify(uploadServiceSpy).storeDiscoveredCollections(
-                eq(StoreDiscoveredCollectionsRequest.newBuilder()
+        verify(uploadServiceSpy).storeDiscoveredGroups(
+                eq(StoreDiscoveredGroupsRequest.newBuilder()
                         .setTargetId(TARGET_ID)
                         .build()), any());
     }
@@ -220,7 +220,7 @@ public class DiscoveredGroupUploaderTest {
     }
 
 
-    public static class TestDiscoveredService extends DiscoveredCollectionsServiceImplBase {
+    public static class TestDiscoveredService extends DiscoveredGroupServiceImplBase {
 
         private boolean error = false;
 
@@ -228,12 +228,12 @@ public class DiscoveredGroupUploaderTest {
             error = true;
         }
 
-        public void storeDiscoveredCollections(StoreDiscoveredCollectionsRequest request,
-                   StreamObserver<StoreDiscoveredCollectionsResponse> responseObserver) {
+        public void storeDiscoveredGroups(StoreDiscoveredGroupsRequest request,
+                   StreamObserver<StoreDiscoveredGroupsResponse> responseObserver) {
             if (error) {
                 responseObserver.onError(Status.INTERNAL.asException());
             } else {
-                responseObserver.onNext(StoreDiscoveredCollectionsResponse.getDefaultInstance());
+                responseObserver.onNext(StoreDiscoveredGroupsResponse.getDefaultInstance());
                 responseObserver.onCompleted();
             }
         }

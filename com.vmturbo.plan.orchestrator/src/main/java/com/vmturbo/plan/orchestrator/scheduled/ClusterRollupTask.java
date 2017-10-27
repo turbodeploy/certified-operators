@@ -12,8 +12,10 @@ import org.springframework.scheduling.support.CronTrigger;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import com.vmturbo.common.protobuf.group.ClusterServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupDTO;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.Stats;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 
@@ -28,16 +30,16 @@ public class ClusterRollupTask {
 
     private final CronTrigger cronTrigger;
     private final ThreadPoolTaskScheduler threadPoolTaskScheduler;
-    private final ClusterServiceGrpc.ClusterServiceBlockingStub clusterServiceRpc;
+    private final GroupServiceBlockingStub groupRpcService;
 
     private AtomicInteger rollupCount = new AtomicInteger(0);
 
 
     ClusterRollupTask(@Nonnull StatsHistoryServiceBlockingStub statsServiceRpc,
-                      @Nonnull ClusterServiceGrpc.ClusterServiceBlockingStub clusterServiceRpc,
+                      @Nonnull GroupServiceBlockingStub groupRpcService,
                       @Nonnull ThreadPoolTaskScheduler threadPoolTaskScheduler,
                       @Nonnull CronTrigger cronTrigger) {
-        this.clusterServiceRpc = clusterServiceRpc;
+        this.groupRpcService = groupRpcService;
         this.statsServiceRpc = statsServiceRpc;
         this.cronTrigger = cronTrigger;
         this.threadPoolTaskScheduler = threadPoolTaskScheduler;
@@ -73,8 +75,10 @@ public class ClusterRollupTask {
         rollupCount.incrementAndGet();
         logger.info("Request Cluster Roll-Up #{}", getRollupCount());
         try {
-            Iterator<GroupDTO.Cluster> allClusters = clusterServiceRpc.getClusters(GroupDTO.GetClustersRequest.newBuilder()
-                .build());
+            final Iterator<GroupDTO.Group> allClusters = groupRpcService.getGroups(
+                GetGroupsRequest.newBuilder()
+                    .setTypeFilter(Type.CLUSTER)
+                    .build());
             statsServiceRpc.computeClusterRollup(Stats.ClusterRollupRequest.newBuilder()
                 .addAllClustersToRollup(() -> allClusters)
                 .build());

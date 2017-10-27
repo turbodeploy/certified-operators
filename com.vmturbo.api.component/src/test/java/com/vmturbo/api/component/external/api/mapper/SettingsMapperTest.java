@@ -687,7 +687,8 @@ public class SettingsMapperTest {
                 .build();
         final Group group = Group.newBuilder()
                 .setId(groupId)
-                .setInfo(GroupInfo.newBuilder()
+                .setType(Group.Type.GROUP)
+                .setGroup(GroupInfo.newBuilder()
                     .setName(groupName))
                 .build();
 

@@ -20,8 +20,6 @@ import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
-import com.vmturbo.common.protobuf.group.ClusterServiceGrpc;
-import com.vmturbo.common.protobuf.group.ClusterServiceGrpc.ClusterServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
@@ -199,11 +197,6 @@ public class CommunicationConfig {
     @Bean
     public SettingServiceBlockingStub settingRpcService() {
         return SettingServiceGrpc.newBlockingStub(groupChannel());
-    }
-
-    @Bean
-    public ClusterServiceBlockingStub clusterRpcService() {
-        return ClusterServiceGrpc.newBlockingStub(groupChannel());
     }
 
     @Bean

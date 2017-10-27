@@ -89,7 +89,8 @@ public class SettingPoliciesServiceTest {
 
     private static final Group GROUP = Group.newBuilder()
             .setId(GROUP_ID)
-            .setInfo(GroupInfo.newBuilder()
+            .setType(Group.Type.GROUP)
+            .setGroup(GroupInfo.newBuilder()
                     .setName(GROUP_NAME))
             .build();
 

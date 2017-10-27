@@ -7,7 +7,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredPolicyInfo;
-import com.vmturbo.common.protobuf.group.PolicyDTO.InputGroup;
 import com.vmturbo.common.protobuf.group.PolicyDTO.InputPolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.InputPolicy.AtMostNPolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.InputPolicy.BindToComplementaryGroupPolicy;
@@ -64,24 +63,24 @@ public class DiscoveredPoliciesMapper {
         switch (spec.getConstraintType()) {
             case ConstraintType.BUYER_SELLER_AFFINITY_VALUE:
                 return Optional.of(builder.setBindToGroup(BindToGroupPolicy.newBuilder()
-                    .setConsumerGroup(inputGroup(buyersId))
-                    .setProviderGroup(inputGroup(sellersId))
+                    .setConsumerGroup(buyersId)
+                    .setProviderGroup(sellersId)
                     .build()).build());
             case ConstraintType.BUYER_SELLER_ANTI_AFFINITY_VALUE:
                 return Optional.of(builder.setBindToComplementaryGroup(
                     BindToComplementaryGroupPolicy.newBuilder()
-                        .setConsumerGroup(inputGroup(buyersId))
-                        .setProviderGroup(inputGroup(sellersId))
+                        .setConsumerGroup(buyersId)
+                        .setProviderGroup(sellersId)
                         .build()).build());
             case ConstraintType.BUYER_BUYER_AFFINITY_VALUE:
                 return Optional.of(builder.setMustRunTogether(MustRunTogetherPolicy.newBuilder()
-                    .setConsumerGroup(inputGroup(buyersId))
-                    .setProviderGroup(inputGroup(sellersId))
+                    .setConsumerGroup(buyersId)
+                    .setProviderGroup(sellersId)
                     .build()).build());
             case ConstraintType.BUYER_BUYER_ANTI_AFFINITY_VALUE:
                 return Optional.of(builder.setAtMostN(AtMostNPolicy.newBuilder()
-                    .setConsumerGroup(inputGroup(buyersId))
-                    .setProviderGroup(inputGroup(sellersId))
+                    .setConsumerGroup(buyersId)
+                    .setProviderGroup(sellersId)
                     .setCapacity(1)
                     .build()).build());
             default: {
@@ -89,9 +88,5 @@ public class DiscoveredPoliciesMapper {
                 return Optional.empty();
             }
         }
-    }
-
-    private InputGroup inputGroup(long groupId) {
-        return InputGroup.newBuilder().setGroupId(groupId).build();
     }
 }

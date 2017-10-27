@@ -5,22 +5,20 @@ import static org.junit.Assert.assertFalse;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 
 import org.junit.Assert;
 import org.junit.Test;
 
 import junit.framework.TestCase;
 
-import com.vmturbo.common.protobuf.GroupDTOUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.NameFilter;
-import com.vmturbo.common.protobuf.group.GroupTestUtil;
 import com.vmturbo.common.protobuf.group.PolicyDTO.MergeType;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy.AtMostNPolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy.MergePolicy;
-import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyGroupingID;
 
-public class GroupDTOUtilTest {
+public class GroupProtoUtilTest {
 
     private static final String REGEX = ".*1";
 
@@ -30,19 +28,19 @@ public class GroupDTOUtilTest {
 
     @Test
     public void testNameMatches() {
-        TestCase.assertTrue(GroupDTOUtil.nameFilterMatches(MATCHING_NAME,
+        TestCase.assertTrue(GroupProtoUtil.nameFilterMatches(MATCHING_NAME,
                 NameFilter.newBuilder().setNameRegex(REGEX).build()));
     }
 
     @Test
     public void testNameNotMatches() {
-        assertFalse(GroupDTOUtil.nameFilterMatches(NOT_MATCHING_NAME,
+        assertFalse(GroupProtoUtil.nameFilterMatches(NOT_MATCHING_NAME,
                 NameFilter.newBuilder().setNameRegex(REGEX).build()));
     }
 
     @Test
     public void testNegateMatch() {
-        assertFalse(GroupDTOUtil.nameFilterMatches(MATCHING_NAME,
+        assertFalse(GroupProtoUtil.nameFilterMatches(MATCHING_NAME,
                 NameFilter.newBuilder()
                     .setNameRegex(REGEX)
                     .setNegateMatch(true)
@@ -51,7 +49,7 @@ public class GroupDTOUtilTest {
 
     @Test
     public void testNegateNoMatch() {
-        assertTrue(GroupDTOUtil.nameFilterMatches(NOT_MATCHING_NAME,
+        assertTrue(GroupProtoUtil.nameFilterMatches(NOT_MATCHING_NAME,
                 NameFilter.newBuilder()
                         .setNameRegex(REGEX)
                         .setNegateMatch(true)
@@ -60,23 +58,21 @@ public class GroupDTOUtilTest {
 
     @Test
     public void testGetGroupIdsFromMergePolicy() {
+        List<Long> expected =
+                Arrays.asList(1L, 2L,
+                        3L, 4L);
         Policy policy = Policy.newBuilder()
                 .setMerge(
                         MergePolicy.newBuilder().setMergeType(MergeType.DATACENTER)
-                                .addMergeGroupIds(GroupTestUtil.groupId1)
-                                .addMergeGroupIds(GroupTestUtil.groupId2)
-                                .addMergeGroupIds(GroupTestUtil.clusterId2)
-                                .addMergeGroupIds(GroupTestUtil.clusterId1).build())
+                                .addAllMergeGroupIds(expected)
+                                .build())
                 .setName("policy")
-                .setId(GroupTestUtil.id1)
+                .setId(7L)
                 .setEnabled(false)
                 .setCommodityType("commodityType")
                 .build();
-        List<PolicyGroupingID> expected =
-                Arrays.asList(GroupTestUtil.groupId1, GroupTestUtil.groupId2,
-                        GroupTestUtil.clusterId2, GroupTestUtil.clusterId1);
 
-        List<PolicyGroupingID> result = GroupDTOUtil.retrieveIdsFromPolicy(policy);
+        Set<Long> result = GroupProtoUtil.getPolicyGroupIds(policy);
         Assert.assertTrue(result.containsAll(expected));
         Assert.assertTrue(expected.containsAll(result));
     }
@@ -86,18 +82,17 @@ public class GroupDTOUtilTest {
 
         Policy policy = Policy.newBuilder().setEnabled(false)
                 .setCommodityType("commodityType")
-                .setId(GroupTestUtil.id1)
+                .setId(1L)
                 .setName("policy")
                 .setAtMostN(AtMostNPolicy.newBuilder()
                         .setCapacity(35)
-                        .setConsumerGroupId(GroupTestUtil.clusterId2)
-                        .setProviderGroupId(GroupTestUtil.groupId1)
+                        .setConsumerGroupId(7L)
+                        .setProviderGroupId(8L)
                         .build())
                 .build();
 
-        List<PolicyGroupingID> expected =
-                Arrays.asList(GroupTestUtil.clusterId2, GroupTestUtil.groupId1);
-        List<PolicyGroupingID> result = GroupDTOUtil.retrieveIdsFromPolicy(policy);
+        final List<Long> expected = Arrays.asList(7L, 8L);
+        Set<Long> result = GroupProtoUtil.getPolicyGroupIds(policy);
 
         Assert.assertTrue(result.containsAll(expected));
         Assert.assertTrue(expected.containsAll(result));

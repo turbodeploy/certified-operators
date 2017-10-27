@@ -4,12 +4,12 @@ import static com.google.common.base.Preconditions.checkNotNull;
 
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+
 import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
@@ -17,9 +17,6 @@ import org.apache.logging.log4j.Logger;
 
 import io.grpc.StatusRuntimeException;
 
-import com.vmturbo.common.protobuf.group.ClusterServiceGrpc.ClusterServiceBlockingStub;
-import com.vmturbo.common.protobuf.group.GroupDTO.Cluster;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetClustersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
@@ -56,24 +53,19 @@ public class SettingsManager {
 
     private final GroupServiceBlockingStub groupServiceClient;
 
-    private final ClusterServiceBlockingStub clusterServiceClient;
-
     /**
      * Create a new settings manager.
      *
      * @param settingPolicyServiceClient The service to use to retrieve settings definitions.
      * @param groupServiceClient The service to use to retrieve group definitions.
-     * @param clusterServiceClient The service to use to retrieve cluster definitions.
      * @param topologyFilterFactory The factory to use when creating topology filters for group/cluster resolution.
      */
     public SettingsManager(@Nonnull final SettingPolicyServiceBlockingStub settingPolicyServiceClient,
                            @Nonnull final GroupServiceBlockingStub groupServiceClient,
-                           @Nonnull final ClusterServiceBlockingStub clusterServiceClient,
                            @Nonnull final TopologyFilterFactory topologyFilterFactory) {
 
         this.settingPolicyServiceClient = Objects.requireNonNull(settingPolicyServiceClient);
         this.groupServiceClient = Objects.requireNonNull(groupServiceClient);
-        this.clusterServiceClient = Objects.requireNonNull(clusterServiceClient);
         this.topologyFilterFactory = Objects.requireNonNull(topologyFilterFactory);
     }
 
@@ -94,13 +86,9 @@ public class SettingsManager {
         // groupId -> SettingPolicies mapping
         Map<Long, List<SettingPolicy>> groupSettingPoliciesMap =
             getGroupSettingPolicyMapping(settingPoliciesList);
-        Map<Long, List<SettingPolicy>> clusterSettingPoliciesMap =
-            getClusterSettingPolicyMapping(settingPoliciesList);
 
         final Map<Long, Group> groups =
             getGroupInfo(groupServiceClient, groupSettingPoliciesMap.keySet());
-        final Map<Long, Cluster> clusters =
-            getClusterInfo(clusterServiceClient, clusterSettingPoliciesMap.keySet());
 
         // EntityId(OID) -> Map<<Settings.name, Setting> mapping
         Map<Long, Map<String, Setting>> entitySettingsBySettingNameMap = new HashMap<>();
@@ -118,12 +106,6 @@ public class SettingsManager {
                 // should we throw an exception ?
                 logger.error("Failed to resolve group with id: {}", groupId, gre);
             }
-        });
-
-        // apply setting to cluster entities
-        clusterSettingPoliciesMap.forEach((clusterId, settingPolicies) -> {
-            apply(getClusterEntities(clusters.get(clusterId)),
-                settingPolicies, entitySettingsBySettingNameMap);
         });
 
         Map<Long, List<Setting>> entitySettingsMap = new HashMap<>();
@@ -204,19 +186,6 @@ public class SettingsManager {
     }
 
     /**
-     * Return the list of entityOids which are part of the input cluster.
-     *
-     * @param cluster Cluster to extract the entities from
-     * @return OIDs of the entities which are part of the cluster
-     */
-    public Set<Long> getClusterEntities(Cluster cluster) {
-            return new HashSet<>(cluster
-                            .getInfo()
-                            .getMembers()
-                            .getStaticMemberOidsList());
-    }
-
-    /**
      * Get all non-default SettingPolicies from Group Component(GC).
      *
      * @param settingPolicyServiceClient Client for communicating with SettingPolicyService.
@@ -270,29 +239,6 @@ public class SettingsManager {
         return groupSettingPoliciesMap;
     }
 
-    /**
-    * Extract the clusters which are part of the SettingPolicies and return a
-    * mapping from the ClusterId to the list of setting policies associated
-    * with the Cluster.
-    *
-    * @param settingPolicies List of SettingPolicy
-    * @return Mapping of the clusterId to SettingPolicy
-    */
-    private Map<Long, List<SettingPolicy>> getClusterSettingPolicyMapping(
-        List<SettingPolicy> settingPolicies) {
-
-        Map<Long, List<SettingPolicy>> clusterSettingPoliciesMap = new HashMap<>();
-        settingPolicies.forEach((settingPolicy) -> {
-            settingPolicy.getInfo().getScope().getClustersList()
-                .forEach((clusterId) -> {
-                    clusterSettingPoliciesMap.computeIfAbsent(
-                        clusterId, k -> new LinkedList<>()).add(settingPolicy);
-                });
-        });
-
-        return clusterSettingPoliciesMap;
-    }
-
     /** Query the GroupInfo from GroupComponent for the provided GroupIds.
      *
      *   @param groupServiceClient Client for communicating with Group Service
@@ -320,34 +266,5 @@ public class SettingsManager {
             });
 
         return groups;
-    }
-
-    /** Query the Cluster info from GroupComponent for the provided clusterIds.
-     *
-     *   @param clusterServiceClient Client for communicating with Cluster Service
-     *   @param clusterIds List of clusterIds whose Cluster definitions has to be fetched
-     *   @return Mapping of clusterId and its associated cluster object
-     */
-    private Map<Long, Cluster> getClusterInfo(ClusterServiceBlockingStub clusterServiceClient,
-                                              Collection<Long> clusterIds) {
-
-        final Map<Long, Cluster> clusters = new HashMap<>();
-
-        if (clusterIds.isEmpty()) {
-            return clusters;
-        }
-
-        clusterServiceClient.getClusters(GetClustersRequest.newBuilder()
-                .addAllId(clusterIds)
-                .build())
-                .forEachRemaining(cluster ->  {
-                    if (cluster.hasId()) {
-                        clusters.put(cluster.getId(), cluster);
-                    } else {
-                        logger.warn("Cluster has no id. Skipping. {}", cluster);
-                    }
-                });
-
-        return clusters;
     }
 }

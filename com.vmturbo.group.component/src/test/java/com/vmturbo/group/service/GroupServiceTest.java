@@ -1,11 +1,36 @@
 package com.vmturbo.group.service;
 
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
+
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.mockito.Mock;
+import org.mockito.Mockito;
+import org.mockito.runners.MockitoJUnitRunner;
+
+import com.google.common.collect.Lists;
+
+import io.grpc.stub.StreamObserver;
+
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
+import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupRequest;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
-import com.vmturbo.common.protobuf.group.PolicyDTO.InputGroup;
 import com.vmturbo.common.protobuf.group.PolicyDTO.InputPolicy.BindToGroupPolicy;
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
@@ -16,32 +41,6 @@ import com.vmturbo.group.persistent.DatabaseException;
 import com.vmturbo.group.persistent.GroupStore;
 import com.vmturbo.group.persistent.PolicyStore;
 import com.vmturbo.group.persistent.PolicyStore.PolicyDeleteException;
-
-import io.grpc.stub.StreamObserver;
-
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.mockito.Mock;
-import org.mockito.Mockito;
-import org.mockito.runners.MockitoJUnitRunner;
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Optional;
-import java.util.concurrent.atomic.AtomicReference;
-
-import static org.mockito.BDDMockito.given;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-
-import com.google.common.collect.Lists;
 
 @SuppressWarnings("unchecked")
 @RunWith(MockitoJUnitRunner.class)
@@ -74,17 +73,17 @@ public class GroupServiceTest {
 
         final GroupDTO.Group group = GroupDTO.Group.newBuilder()
                 .setId(id)
-                .setInfo(GroupInfo.newBuilder()
+                .setGroup(GroupInfo.newBuilder()
                     .setName("group-foo"))
                 .build();
         final StreamObserver<GroupDTO.CreateGroupResponse> mockObserver =
                 Mockito.mock(StreamObserver.class);
 
-        given(groupStore.newUserGroup(group.getInfo())).willReturn(group);
+        given(groupStore.newUserGroup(group.getGroup())).willReturn(group);
 
-        groupService.createGroup(group.getInfo(), mockObserver);
+        groupService.createGroup(group.getGroup(), mockObserver);
 
-        verify(groupStore).newUserGroup(eq(group.getInfo()));
+        verify(groupStore).newUserGroup(eq(group.getGroup()));
         verify(mockObserver).onNext(GroupDTO.CreateGroupResponse.newBuilder()
                 .setGroup(group)
                 .build());
@@ -96,17 +95,17 @@ public class GroupServiceTest {
         final long id = 1234L;
         final GroupDTO.Group group = GroupDTO.Group.newBuilder()
                 .setId(id)
-                .setInfo(GroupInfo.newBuilder()
+                .setGroup(GroupInfo.newBuilder()
                     .setName("group-foo"))
                 .build();
         final StreamObserver<GroupDTO.CreateGroupResponse> mockObserver =
                 Mockito.mock(StreamObserver.class);
 
-        given(groupStore.newUserGroup(group.getInfo())).willThrow(DatabaseException.class);
+        given(groupStore.newUserGroup(group.getGroup())).willThrow(DatabaseException.class);
 
-        groupService.createGroup(group.getInfo(), mockObserver);
+        groupService.createGroup(group.getGroup(), mockObserver);
 
-        verify(groupStore).newUserGroup(group.getInfo());
+        verify(groupStore).newUserGroup(group.getGroup());
         verify(mockObserver).onError(any(IllegalStateException.class));
     }
 
@@ -135,10 +134,8 @@ public class GroupServiceTest {
         final PolicyDTO.InputPolicy testPolicy = PolicyDTO.InputPolicy.newBuilder()
             .setId(policyIdToDelete)
             .setBindToGroup(BindToGroupPolicy.newBuilder()
-                .setConsumerGroup(InputGroup.newBuilder()
-                    .setGroupId(groupIdToDelete))
-                .setProviderGroup(InputGroup.newBuilder()
-                    .setGroupId(2345L)))
+                .setConsumerGroup(groupIdToDelete)
+                .setProviderGroup(2345L))
             .build();
 
         final StreamObserver<GroupDTO.DeleteGroupResponse> mockObserver =
@@ -267,20 +264,20 @@ public class GroupServiceTest {
 
         final GroupDTO.Group group = GroupDTO.Group.newBuilder()
                 .setId(id)
-                .setInfo(GroupInfo.newBuilder()
+                .setGroup(GroupInfo.newBuilder()
                         .setName("new"))
                 .build();
         final StreamObserver<GroupDTO.UpdateGroupResponse> mockObserver =
                 Mockito.mock(StreamObserver.class);
 
-        given(groupStore.updateUserGroup(eq(id), eq(group.getInfo()))).willReturn(group);
+        given(groupStore.updateUserGroup(eq(id), eq(group.getGroup()))).willReturn(group);
 
         groupService.updateGroup(UpdateGroupRequest.newBuilder()
             .setId(id)
-            .setNewInfo(group.getInfo())
+            .setNewInfo(group.getGroup())
             .build(), mockObserver);
 
-        verify(groupStore).updateUserGroup(eq(id), eq(group.getInfo()));
+        verify(groupStore).updateUserGroup(eq(id), eq(group.getGroup()));
         verify(mockObserver).onNext(GroupDTO.UpdateGroupResponse.newBuilder()
                 .setUpdatedGroup(group)
                 .build());
@@ -333,7 +330,7 @@ public class GroupServiceTest {
 
         final GroupDTO.Group group1234 = GroupDTO.Group.newBuilder()
                 .setId(groupId)
-                .setInfo(GroupInfo.newBuilder()
+                .setGroup(GroupInfo.newBuilder()
                     .setSearchParametersCollection(SearchParametersCollection.newBuilder()
                             .addSearchParameters(SearchParameters.getDefaultInstance())))
                 .build();
@@ -366,7 +363,7 @@ public class GroupServiceTest {
 
         final GroupDTO.Group group1234 = GroupDTO.Group.newBuilder()
                 .setId(groupId)
-                .setInfo(GroupInfo.newBuilder()
+                .setGroup(GroupInfo.newBuilder()
                     .setStaticGroupMembers(GroupDTO.StaticGroupMembers.newBuilder()
                             .addAllStaticMemberOids(staticGroupMembers)))
                 .build();

@@ -13,8 +13,9 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.base.Preconditions;
 
+import com.vmturbo.common.protobuf.GroupProtoUtil;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
-import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyGrouping;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
@@ -31,8 +32,8 @@ public class MustRunTogetherPolicy extends PlacementPolicy {
 
     private final PolicyDTO.Policy.MustRunTogetherPolicy mustRunTogetherPolicy;
 
-    private final PolicyGrouping consumerGrouping;
-    private final PolicyGrouping providerGrouping;
+    private final Group consumerGroup;
+    private final Group providerGroup;
 
     /**
      * Create a new MustRunTogetherPolicy, the policy should be of type MustRunTogether.
@@ -40,13 +41,13 @@ public class MustRunTogetherPolicy extends PlacementPolicy {
      * @param policyDefinition The policy definition describing the details of the policy to be applied.
      */
     public MustRunTogetherPolicy(@Nonnull final PolicyDTO.Policy policyDefinition,
-                                 @Nonnull final PolicyGrouping consumerGrouping,
-                                 @Nonnull final PolicyGrouping providerGrouping) {
+                                 @Nonnull final Group consumerGroup,
+                                 @Nonnull final Group providerGroup) {
         super(policyDefinition);
         Preconditions.checkArgument(policyDefinition.hasMustRunTogether());
         this.mustRunTogetherPolicy = policyDefinition.getMustRunTogether();
-        this.consumerGrouping = consumerGrouping;
-        this.providerGrouping = providerGrouping;
+        this.consumerGroup = consumerGroup;
+        this.providerGroup = providerGroup;
     }
 
     /**
@@ -63,10 +64,10 @@ public class MustRunTogetherPolicy extends PlacementPolicy {
             throws GroupResolutionException, PolicyApplicationException {
         logger.debug("Applying mustRunTogether policy.");
 
-        final Set<Long> providers = groupResolver.resolve(providerGrouping, topologyGraph);
-        final Set<Long> consumers = groupResolver.resolve(consumerGrouping, topologyGraph);
+        final Set<Long> providers = groupResolver.resolve(providerGroup, topologyGraph);
+        final Set<Long> consumers = groupResolver.resolve(consumerGroup, topologyGraph);
 
-        final int providerType = entityType(providerGrouping);
+        final int providerType = GroupProtoUtil.getEntityType(providerGroup);
 
         addCommoditySold(providers, consumers, topologyGraph);
         addCommodityBought(consumers, topologyGraph, providerType, commodityBought());

@@ -16,17 +16,51 @@ message Group {
 
         // A discovered group exists in the user's topology, and was imported and interpreted
         // as part of a discovery.
+        // Users cannot mutate or delete discovered groups.
         DISCOVERED = 2;
     }
 
+    // The type of the group. Protobuf doesn't have inheritance, so we use a Type to
+    // differentiate between sufficiently different kinds of groups.
+    enum Type {
+        // A group is a set of entities that can be treated collectively for the
+        // purpose of settings, policies, statistics, and other operations.
+        GROUP = 1;
+
+        // A cluster is closely related to a group, and is most relevant when working with on-prem
+        // environments - especially vSphere. It's essentially the unit of management for large
+        // vSphere environments.
+        //
+        // Since clusters cannot be created by the user, all clusters have Origin == DISCOVERED.
+        //
+        // TODO (roman, July 27 2017): In the future we will likely want to rearchitect the model
+        // away from "cluster" terminology to "management unit" terminology, where groups of entities
+        // that act as the units of management for an environment - e.g. Clusters for vSphere, Business
+        // Units for cloud environments - can be represented in a common fashion.
+        CLUSTER = 2;
+    }
+
     // The unique numeric identifier of the group.
+    // This field will always be set.
     optional int64 id = 1;
 
-    // The properties describing the group.
-    optional GroupInfo info = 2;
+    // The type of the group.
+    // This field will always be set.
+    optional Type type = 7 [default = GROUP];
 
     // The origin of this group.
+    // This field will always be set.
     optional Origin origin = 6 [default = USER];
+
+    oneof info {
+        // The properties describing the group.
+        // This field is only set for groups where Type == GROUP.
+        GroupInfo group = 2;
+
+        // The properties describing the cluster.
+        // This field is only set for groups where Type == CLUSTER.
+        ClusterInfo cluster = 4;
+    }
 
     // The ID of the target that discovered the group.
     // This field is only set for groups where Origin == DISCOVERED.
@@ -54,25 +88,7 @@ message GroupInfo {
     }
 }
 
-// A cluster is closely related to a group, and is most relevant when working with on-prem
-// environments - especially vSphere. It's essentially the unit of management for large
-// vSphere environments.
-//
-// TODO (roman, July 27 2017): In the future we will likely want to rearchitect the model
-// away from "cluster" terminology to "management unit" terminology, where groups of entities
-// that act as the units of management for an environment - e.g. Clusters for vSphere, Business
-// Units for cloud environments - can be represented in a common fashion.
-message Cluster {
-    // The unique numeric identifier of the cluster.
-    optional int64 id = 1;
-
-    // The ID of the target that discovered the cluster.
-    optional int64 target_id = 3;
-
-    // The properties describing the cluster.
-    optional ClusterInfo info = 2;
-}
-
+// The properties of a cluster.
 message ClusterInfo {
 
     enum Type {
@@ -161,6 +177,12 @@ message GetGroupsRequest {
 
     // Return only groups with the specific origin.
     optional Group.Origin origin_filter = 3;
+
+    // Return only groups of a particular type.
+    optional Group.Type type_filter = 4;
+
+    // Apply this filter to any groups returned where Group.Type is CLUSTER.
+    optional ClusterFilter cluster_filter = 5;
 }
 
 message GetMembersRequest {
@@ -172,7 +194,7 @@ message GetMembersResponse {
     repeated int64 member_id = 1;
 }
 
-message StoreDiscoveredCollectionsRequest {
+message StoreDiscoveredGroupsRequest {
     // The ID of the target that discovered the groups.
     //
     // ALL old groups and clusters associated with this target ID
@@ -194,7 +216,7 @@ message StoreDiscoveredCollectionsRequest {
     repeated DiscoveredPolicyInfo discovered_policy_infos = 4;
 }
 
-message StoreDiscoveredCollectionsResponse {}
+message StoreDiscoveredGroupsResponse {}
 
 
 // A filter on the name of a group (or cluster).
@@ -209,27 +231,9 @@ message NameFilter {
 // Specify the criteria for the clusters to return.
 // All filters/conditions are AND-ed together. If no filters/conditions
 // are set, the call will return all clusters.
-message GetClustersRequest {
-    // Return only clusters with the provided ID.
-    // If empty, return clusters of any ID.
-    repeated int64 id = 1;
-
-    // If set, return only clusters the names of which match a filter.
-    optional NameFilter name_filter = 2;
-
+message ClusterFilter {
     // If set, return only clusters of the provided type.
-    optional ClusterInfo.Type type_filter = 3;
-}
-
-message GetClusterRequest {
-    // The ID of the cluster to look for.
-    optional int64 cluster_id = 1;
-}
-
-message GetClusterResponse {
-    // If present, the cluster associated with
-    // the ID in the request.
-    optional Cluster cluster = 1;
+    optional ClusterInfo.Type type_filter = 1;
 }
 
 // A service responsible for group operations.
@@ -244,9 +248,14 @@ service GroupService {
     rpc GetGroups(GetGroupsRequest) returns (stream Group);
 
     // Update a group
+    //
+    // Returns INVALID_ARGUMENT if the group is a discovered group (origin == DISCOVERED), since
+    // users cannot modify discovered groups.
     rpc UpdateGroup(UpdateGroupRequest) returns (UpdateGroupResponse);
 
     // Delete a group
+    //
+    // Returns INVALID_ARGUMENT if the group is a discovered group.
     rpc DeleteGroup(GroupID) returns (DeleteGroupResponse);
 
     // Get the members of a group
@@ -260,7 +269,7 @@ service GroupService {
 //
 // TODO (roman, July 27): If this becomes the single entry point for "uploading" discovered
 // groups and policies, we probably need a better name.
-service DiscoveredCollectionsService {
+service DiscoveredGroupService {
     // Stores groups and clusters discovered in the customer's topology.
     //
     // Only the Topology Processor should use this method to record the groups
@@ -268,18 +277,5 @@ service DiscoveredCollectionsService {
     //
     // Each call to this method is atomic - either all groups will be added, overriding
     // existing groups, or none of them will be.
-    rpc StoreDiscoveredCollections(StoreDiscoveredCollectionsRequest) returns (StoreDiscoveredCollectionsResponse);
-}
-
-// The cluster service is responsible for cluster operations.
-service ClusterService {
-    // Get a single cluster.
-    // If the cluster is not found, return an empty response instead of throwing an error.
-    rpc GetCluster(GetClusterRequest) returns (GetClusterResponse);
-
-    // Get clusters that match a certain set of criteria.
-    //
-    // Since cluster membership is static, you can also use this method
-    // to get the members of a cluster.
-    rpc GetClusters(GetClustersRequest) returns (stream Cluster);
+    rpc StoreDiscoveredGroups(StoreDiscoveredGroupsRequest) returns (StoreDiscoveredGroupsResponse);
 }

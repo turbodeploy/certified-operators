@@ -29,6 +29,7 @@ import com.arangodb.ArangoDatabase;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Origin;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.group.ArangoDriverFactory;
 import com.vmturbo.group.GroupDBDefinition;
@@ -142,7 +143,8 @@ public class GroupStoreTest {
         final GroupDTO.Group expectedGroup = GroupDTO.Group.newBuilder()
                 .setId(groupID)
                 .setOrigin(Origin.USER)
-                .setInfo(info)
+                .setType(Type.GROUP)
+                .setGroup(info)
                 .build();
 
         final ArangoCollection mockCollection = mockDatabase
@@ -174,7 +176,7 @@ public class GroupStoreTest {
 
         final GroupDTO.Group originalGroup = GroupDTO.Group.newBuilder()
             .setId(originalGroupID)
-            .setInfo(GroupInfo.newBuilder().setName("foo"))
+            .setGroup(GroupInfo.newBuilder().setName("foo"))
             .build();
         final GroupInfo duplicateGroup = GroupInfo.newBuilder()
             .setName("foo")
@@ -195,12 +197,12 @@ public class GroupStoreTest {
 
         final GroupDTO.Group originalGroup = GroupDTO.Group.newBuilder()
             .setId(originalGroupID)
-            .setInfo(GroupInfo.newBuilder().setName(originalGroupName))
+            .setGroup(GroupInfo.newBuilder().setName(originalGroupName))
             .build();
 
         final GroupDTO.Group duplicateGroup = GroupDTO.Group.newBuilder()
             .setId(duplicateGroupID)
-            .setInfo(GroupInfo.newBuilder().setName("bar"))
+            .setGroup(GroupInfo.newBuilder().setName("bar"))
             .build();
 
 

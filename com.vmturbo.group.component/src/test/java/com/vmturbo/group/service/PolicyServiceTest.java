@@ -25,7 +25,6 @@ import io.grpc.stub.StreamObserver;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.group.identity.IdentityProvider;
-import com.vmturbo.group.persistent.ClusterStore;
 import com.vmturbo.group.persistent.GroupStore;
 import com.vmturbo.group.persistent.PolicyStore;
 
@@ -40,16 +39,13 @@ public class PolicyServiceTest {
     private GroupStore groupStore;
 
     @Mock
-    private ClusterStore clusterStore;
-
-    @Mock
     private IdentityProvider identityProvider;
 
     private PolicyService policyService;
 
     @Before
     public void setUp() throws Exception {
-        policyService = new PolicyService(policyStore, groupStore, clusterStore, identityProvider);
+        policyService = new PolicyService(policyStore, groupStore, identityProvider);
     }
 
     @Test
@@ -330,8 +326,8 @@ public class PolicyServiceTest {
 
         final PolicyDTO.InputPolicy mockInputPolicy = PolicyDTO.InputPolicy.newBuilder()
                 .setBindToGroup(PolicyDTO.InputPolicy.BindToGroupPolicy.newBuilder()
-                        .setConsumerGroup(PolicyDTO.InputGroup.newBuilder().setGroupId(consumerGroupId).build())
-                        .setProviderGroup(PolicyDTO.InputGroup.newBuilder().setGroupId(providerGroupId).build())
+                        .setConsumerGroup(consumerGroupId)
+                        .setProviderGroup(providerGroupId)
                         .build())
                 .build();
 
@@ -363,38 +359,6 @@ public class PolicyServiceTest {
         policyService.getPolicy(policyRequest, mockObserver);
 
         verify(mockObserver).onError(any(IllegalArgumentException.class));
-        verify(mockObserver, never()).onNext(any(PolicyDTO.PolicyResponse.class));
-        verify(mockObserver, never()).onCompleted();
-    }
-
-    @Test
-    public void testGetPolicyGroupStoreException() throws Exception {
-        final long policyIdToGet = 1234L;
-        final long consumerGroupId = 1L;
-        final long providerGroupId = 2L;
-        final PolicyDTO.PolicyRequest policyRequest = PolicyDTO.PolicyRequest.newBuilder()
-                .setPolicyId(policyIdToGet).build();
-
-        final StreamObserver<PolicyDTO.PolicyResponse> mockObserver =
-                (StreamObserver<PolicyDTO.PolicyResponse>)Mockito.mock(StreamObserver.class);
-
-        final PolicyDTO.InputPolicy mockInputPolicy = PolicyDTO.InputPolicy.newBuilder()
-                .setBindToGroup(PolicyDTO.InputPolicy.BindToGroupPolicy.newBuilder()
-                        .setConsumerGroup(PolicyDTO.InputGroup.newBuilder().setGroupId(consumerGroupId).build())
-                        .setProviderGroup(PolicyDTO.InputGroup.newBuilder().setGroupId(providerGroupId).build())
-                        .build())
-                .build();
-
-        final GroupDTO.Group mockProviderGroup = GroupDTO.Group.newBuilder().setId(providerGroupId).build();
-        final RuntimeException runtimeException = new RuntimeException("Mock exception in get policy");
-
-        given(policyStore.get(policyIdToGet)).willReturn(Optional.of(mockInputPolicy));
-        given(groupStore.get(providerGroupId)).willReturn(Optional.of(mockProviderGroup));
-        given(groupStore.get(consumerGroupId)).willThrow(runtimeException);
-
-        policyService.getPolicy(policyRequest, mockObserver);
-
-        verify(mockObserver).onError(any(StatusRuntimeException.class));
         verify(mockObserver, never()).onNext(any(PolicyDTO.PolicyResponse.class));
         verify(mockObserver, never()).onCompleted();
     }
@@ -473,36 +437,5 @@ public class PolicyServiceTest {
         verify(mockObserver, never()).onCompleted();
         verify(mockObserver, never()).onNext(any(PolicyDTO.PolicyResponse.class));
         verify(mockObserver).onError(any(StatusRuntimeException.class));
-    }
-
-    @Test
-    public void testGetPolicyMissingGroup() throws Exception {
-        final long policyIdToGet = 1234L;
-        final long consumerGroupId = 1L;
-        final long providerGroupId = 2L;
-        final PolicyDTO.PolicyRequest policyRequest = PolicyDTO.PolicyRequest.newBuilder()
-                .setPolicyId(policyIdToGet).build();
-
-        final StreamObserver<PolicyDTO.PolicyResponse> mockObserver =
-                (StreamObserver<PolicyDTO.PolicyResponse>)Mockito.mock(StreamObserver.class);
-
-        final PolicyDTO.InputPolicy mockInputPolicy = PolicyDTO.InputPolicy.newBuilder()
-                .setBindToComplementaryGroup(PolicyDTO.InputPolicy.BindToComplementaryGroupPolicy.newBuilder()
-                        .setConsumerGroup(PolicyDTO.InputGroup.newBuilder().setGroupId(consumerGroupId).build())
-                        .setProviderGroup(PolicyDTO.InputGroup.newBuilder().setGroupId(providerGroupId).build())
-                        .build())
-                .build();
-
-        final GroupDTO.Group mockProviderGroup = GroupDTO.Group.newBuilder().setId(providerGroupId).build();
-
-        given(policyStore.get(policyIdToGet)).willReturn(Optional.of(mockInputPolicy));
-        given(groupStore.get(providerGroupId)).willReturn(Optional.of(mockProviderGroup));
-        given(groupStore.get(consumerGroupId)).willReturn(Optional.empty());
-
-        policyService.getPolicy(policyRequest, mockObserver);
-
-        verify(mockObserver).onError(any(IllegalArgumentException.class));
-        verify(mockObserver, never()).onNext(any(PolicyDTO.PolicyResponse.class));
-        verify(mockObserver, never()).onCompleted();
     }
 }

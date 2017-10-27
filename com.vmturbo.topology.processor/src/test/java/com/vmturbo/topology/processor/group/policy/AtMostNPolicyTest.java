@@ -20,6 +20,7 @@ import org.junit.rules.ExpectedException;
 
 import com.google.common.collect.Sets;
 
+import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -41,16 +42,16 @@ public class AtMostNPolicyTest {
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
-    final PolicyDTO.PolicyGrouping consumerGroup = PolicyGroupingHelper.policyGrouping(
+    private final Group consumerGroup = PolicyGroupingHelper.policyGrouping(
         staticGroupMembers(4L, 5L), EntityType.VIRTUAL_MACHINE_VALUE, 1234L);
 
-    final PolicyDTO.PolicyGrouping providerGroup = PolicyGroupingHelper.policyGrouping(
+    private final Group providerGroup = PolicyGroupingHelper.policyGrouping(
         staticGroupMembers(1L), EntityType.PHYSICAL_MACHINE_VALUE, 5678L);
 
-    final PolicyDTO.PolicyGroupingID consumerID = PolicyGroupingHelper.policyGroupingID(1234L);
-    final PolicyDTO.PolicyGroupingID providerID = PolicyGroupingHelper.policyGroupingID(5678L);
+    private final long consumerID = 1234L;
+    private final long providerID = 5678L;
 
-    final PolicyDTO.Policy.AtMostNPolicy atMostN = PolicyDTO.Policy.AtMostNPolicy.newBuilder()
+    private final PolicyDTO.Policy.AtMostNPolicy atMostN = PolicyDTO.Policy.AtMostNPolicy.newBuilder()
         .setConsumerGroupId(consumerID)
         .setProviderGroupId(providerID)
         .setCapacity(1.0f)
@@ -62,10 +63,10 @@ public class AtMostNPolicyTest {
         .setAtMostN(atMostN)
         .build();
 
-    TopologyGraph topologyGraph;
-    PolicyMatcher policyMatcher;
+    private TopologyGraph topologyGraph;
+    private PolicyMatcher policyMatcher;
 
-    final GroupResolver groupResolver = mock(GroupResolver.class);
+    private final GroupResolver groupResolver = mock(GroupResolver.class);
 
     @Before
     public void setup() {
@@ -148,7 +149,7 @@ public class AtMostNPolicyTest {
      */
     @Test
     public void testApplyVmToStorageAffinity() throws GroupResolutionException, PolicyApplicationException {
-        final PolicyDTO.PolicyGrouping providerGroup = PolicyGroupingHelper.policyGrouping(
+        final Group providerGroup = PolicyGroupingHelper.policyGrouping(
             searchParametersCollection(), EntityType.STORAGE_VALUE, 5678L);
 
         final PolicyDTO.Policy.AtMostNPolicy atMostNPolicy = PolicyDTO.Policy.AtMostNPolicy.newBuilder()

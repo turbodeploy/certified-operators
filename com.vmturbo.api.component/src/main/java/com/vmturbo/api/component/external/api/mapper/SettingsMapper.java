@@ -34,6 +34,7 @@ import com.vmturbo.api.dto.settingspolicy.SettingsPolicyApiDTO;
 import com.vmturbo.api.enums.InputValueType;
 import com.vmturbo.api.enums.SettingScope;
 import com.vmturbo.api.exceptions.InvalidOperationException;
+import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.SettingDTOUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
@@ -287,7 +288,7 @@ public class SettingsMapper {
                     .addAllId(involvedGroups)
                     .build())
                     .forEachRemaining(group -> groupNames.put(group.getId(),
-                            group.getInfo().getName()));
+                            GroupProtoUtil.getGroupName(group)));
         }
 
         return settingPolicies.stream()

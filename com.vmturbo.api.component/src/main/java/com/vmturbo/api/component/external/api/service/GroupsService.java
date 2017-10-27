@@ -28,21 +28,21 @@ import com.vmturbo.api.component.external.api.mapper.ActionCountsMapper;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
-import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.BaseApiDTO;
+import com.vmturbo.api.dto.action.ActionApiDTO;
+import com.vmturbo.api.dto.action.ActionApiInputDTO;
+import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.api.dto.entity.TagApiDTO;
+import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.group.FilterApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.notification.LogEntryApiDTO;
 import com.vmturbo.api.dto.policy.PolicyApiDTO;
-import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
-import com.vmturbo.api.dto.entity.TagApiDTO;
-import com.vmturbo.api.dto.entityaspect.EntityAspect;
-import com.vmturbo.api.dto.action.ActionApiInputDTO;
-import com.vmturbo.api.dto.setting.SettingApiInputDTO;
-import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
+import com.vmturbo.api.dto.setting.SettingApiInputDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
 import com.vmturbo.api.dto.settingspolicy.SettingsPolicyApiDTO;
+import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
@@ -54,20 +54,18 @@ import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsResponse;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
-import com.vmturbo.common.protobuf.group.ClusterServiceGrpc.ClusterServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO;
-import com.vmturbo.common.protobuf.group.GroupDTO.Cluster;
+import com.vmturbo.common.protobuf.group.GroupDTO.ClusterFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.DeleteGroupResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetClusterRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetClusterResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetClustersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Origin;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupRequest;
@@ -88,8 +86,6 @@ public class GroupsService implements IGroupsService {
 
     private final GroupServiceBlockingStub groupServiceRpc;
 
-    private final ClusterServiceBlockingStub clusterServiceRpc;
-
     private final ActionSpecMapper actionSpecMapper;
 
     private final GroupMapper groupMapper;
@@ -102,14 +98,12 @@ public class GroupsService implements IGroupsService {
 
     GroupsService(@Nonnull final ActionsServiceBlockingStub actionOrchestratorRpcService,
                          @Nonnull final GroupServiceBlockingStub groupServiceRpc,
-                         @Nonnull final ClusterServiceBlockingStub clusterServiceRpc,
                          @Nonnull final ActionSpecMapper actionSpecMapper,
                          @Nonnull final GroupMapper groupMapper,
                          @Nonnull final RepositoryApi repositoryApi,
                          final long realtimeTopologyContextId) {
         this.actionOrchestratorRpc = Objects.requireNonNull(actionOrchestratorRpcService);
         this.groupServiceRpc = Objects.requireNonNull(groupServiceRpc);
-        this.clusterServiceRpc = Objects.requireNonNull(clusterServiceRpc);
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.groupMapper = Objects.requireNonNull(groupMapper);
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
@@ -119,7 +113,9 @@ public class GroupsService implements IGroupsService {
     @Override
     public List<GroupApiDTO> getGroups()  {
         // Currently, we have only user-created groups.
-        return getGroupApiDTOS(GetGroupsRequest.getDefaultInstance());
+        return getGroupApiDTOS(GetGroupsRequest.newBuilder()
+                .setTypeFilter(Type.GROUP)
+                .build());
     }
 
 
@@ -139,17 +135,9 @@ public class GroupsService implements IGroupsService {
         if (groupRes.hasGroup()) {
             return groupMapper.toGroupApiDto(groupRes.getGroup());
         } else {
-            final GetClusterResponse clusterRes = clusterServiceRpc.getCluster(
-                    GetClusterRequest.newBuilder()
-                        .setClusterId(id)
-                        .build());
-            if (clusterRes.hasCluster()) {
-                return groupMapper.toGroupApiDto(clusterRes.getCluster());
-            } else {
-                final String msg = "Group not found: " + uuid;
-                logger.error(msg);
-                throw new UnknownObjectException(msg);
-            }
+            final String msg = "Group not found: " + uuid;
+            logger.error(msg);
+            throw new UnknownObjectException(msg);
         }
     }
 
@@ -357,6 +345,7 @@ public class GroupsService implements IGroupsService {
     public List<?> getMembersByGroupUuid(String uuid) throws UnknownObjectException {
         if (USER_GROUPS.equals(uuid)) { // Get all user-created groups
             return getGroupApiDTOS(GetGroupsRequest.newBuilder()
+                    .setTypeFilter(Group.Type.GROUP)
                     .setOriginFilter(Origin.USER)
                     .build());
         } else { // Get members of the group with the uuid (oid)
@@ -429,15 +418,7 @@ public class GroupsService implements IGroupsService {
                 memberIds = groupResp.getMemberIdList();
             } catch (StatusRuntimeException e) {
                 if (e.getStatus().getCode().equals(Code.NOT_FOUND)) {
-                    GetClusterResponse response =
-                            clusterServiceRpc.getCluster(GetClusterRequest.newBuilder()
-                                .setClusterId(id)
-                                .build());
-                    if (response.hasCluster()) {
-                        memberIds = response.getCluster().getInfo().getMembers().getStaticMemberOidsList();
-                    } else {
-                        throw new UnknownObjectException("Can't find group " + groupUuid);
-                    }
+                    throw new UnknownObjectException("Can't find group " + groupUuid);
                 } else {
                     throw e;
                 }
@@ -455,25 +436,9 @@ public class GroupsService implements IGroupsService {
      * @return a list of groups that match
      */
     List<GroupApiDTO> getGroupsByFilter(List<FilterApiDTO> filterList) {
-
-        GetGroupsRequest groupsRequest = getGroupsRequestForFilters(filterList);
-        return getGroupApiDTOS(groupsRequest);
-    }
-
-    /**
-     * Fetch groups based on a list of {@link FilterApiDTO} criteria.
-     *
-     * If the list of criteria is empty, return all groups
-     *
-     * @param groupOidList the OIDs of groups to fetch
-     * @return a list of groups that match
-     */
-    List<GroupApiDTO> getGroupsByOids(List<Long> groupOidList) {
-
-        GetGroupsRequest groupsRequest = GetGroupsRequest.newBuilder()
-                .addAllId(groupOidList)
-                .build();
-        return getGroupApiDTOS(groupsRequest);
+        return getGroupApiDTOS(getGroupsRequestForFilters(filterList)
+            .setTypeFilter(Type.GROUP)
+            .build());
     }
 
     /**
@@ -504,7 +469,7 @@ public class GroupsService implements IGroupsService {
      * @return a GetGroupsRequest with the filtering set if an item in the filterList is found
      */
     @VisibleForTesting
-    GetGroupsRequest getGroupsRequestForFilters(List<FilterApiDTO> filterList) {
+    GetGroupsRequest.Builder getGroupsRequestForFilters(List<FilterApiDTO> filterList) {
 
         GetGroupsRequest.Builder requestBuilder = GetGroupsRequest.newBuilder();
         for (FilterApiDTO filter : filterList ) {
@@ -515,25 +480,8 @@ public class GroupsService implements IGroupsService {
                 );
             }
         }
-        return requestBuilder.build();
+        return requestBuilder;
     }
-
-    /**
-     * Fetch clusters based on a list of {@link FilterApiDTO} criteria.
-     *
-     * If the list of criteria is empty, return all groups
-     *
-     * @param clusterOidList the OIDs of groups to fetch
-     * @return a list of groups that match
-     */
-    List<GroupApiDTO> getClustersByOids(List<Long> clusterOidList) {
-
-        GetClustersRequest clustersRequest = GetClustersRequest.newBuilder()
-                .addAllId(clusterOidList)
-                .build();
-        return getClusters(clustersRequest);
-    }
-
 
 
     /**
@@ -542,9 +490,11 @@ public class GroupsService implements IGroupsService {
      * @return a list of all known COMPUTE clusters, i.e. containing HOSTs (PMs)
      */
     List<GroupApiDTO> getComputeClusters(List<FilterApiDTO> filterList) {
-
-        return getClusters(getClustersFilterRequest(filterList)
-                .setTypeFilter(GroupDTO.ClusterInfo.Type.COMPUTE)
+        return getGroupApiDTOS(getGroupsRequestForFilters(filterList)
+                .setTypeFilter(Type.CLUSTER)
+                .setClusterFilter(ClusterFilter.newBuilder()
+                        .setTypeFilter(ClusterInfo.Type.COMPUTE)
+                        .build())
                 .build());
     }
 
@@ -554,52 +504,11 @@ public class GroupsService implements IGroupsService {
      * @return a list of all known STORAGE clusters
      */
     List<GroupApiDTO> getStorageClusters(List<FilterApiDTO> filterList) {
-        return getClusters(getClustersFilterRequest(filterList)
-                .setTypeFilter(GroupDTO.ClusterInfo.Type.STORAGE)
+        return getGroupApiDTOS(getGroupsRequestForFilters(filterList)
+                .setTypeFilter(Type.CLUSTER)
+                .setClusterFilter(ClusterFilter.newBuilder()
+                        .setTypeFilter(ClusterInfo.Type.STORAGE)
+                        .build())
                 .build());
     }
-
-
-    /**
-     * Request a list of clusters based on a filter. This filter can specify a list of OIDs,
-     * cluster names, or cluster types - the different types of filters are 'AND'ed.
-     *
-     * @param getClustersRequest the filter to apply to select clusters
-     * @return a list of Clusters, represented as GroupApiDTOs, which pass the filter criteria
-     */
-    private List<GroupApiDTO> getClusters(GetClustersRequest getClustersRequest) {
-        final Iterable<Cluster> clusters = () -> clusterServiceRpc.getClusters(getClustersRequest);
-
-        return StreamSupport.stream(clusters.spliterator(), false)
-                .map(groupMapper::toGroupApiDto)
-                .collect(Collectors.toList());
-    }
-
-    /**
-     * Create a GetClustersRequest based on the given filterList.
-     *
-     * The only filter supported is 'clustersByName'. The name regex for this filter is given by
-     * the "expVal" of the FilterApiDTO. The sense of the match is given by the "expType",
-     * i.e "EQ" -> 'search for match' vs. anything else -> 'search for non-match'
-     *
-     * @param filterList a list of FilterApiDTO to be applied to this group; only "clustersByName" or
-     *                  storageClustersByName are currently supported.
-     * @return a GetClustersRequest with the filtering set if an item in the filterList is found
-     */
-    @VisibleForTesting
-    GetClustersRequest.Builder getClustersFilterRequest(List<FilterApiDTO> filterList) {
-
-        GetClustersRequest.Builder requestBuilder = GetClustersRequest.newBuilder();
-        for (FilterApiDTO filter : filterList) {
-            if (filter.getFilterType().equals("clustersByName") ||
-                    filter.getFilterType().equals("storageClustersByName")) {
-                requestBuilder.setNameFilter(GroupDTO.NameFilter.newBuilder()
-                        .setNameRegex(filter.getExpVal())
-                        .setNegateMatch(!filter.getExpType().equals("EQ"))
-                );
-            }
-        }
-        return requestBuilder;
-    }
-
 }

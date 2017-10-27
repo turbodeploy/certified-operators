@@ -9,8 +9,9 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.base.Preconditions;
 
+import com.vmturbo.common.protobuf.GroupProtoUtil;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
-import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyGrouping;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
@@ -24,8 +25,8 @@ public class BindToGroupPolicy extends PlacementPolicy {
     private static final Logger logger = LogManager.getLogger();
 
     private final PolicyDTO.Policy.BindToGroupPolicy bindToGroup;
-    private final PolicyGrouping consumerGrouping;
-    private final PolicyGrouping providerGrouping;
+    private final Group consumerGroup;
+    private final Group providerGroup;
 
     /**
      * Create a new BindToGroupPolicy.
@@ -34,16 +35,15 @@ public class BindToGroupPolicy extends PlacementPolicy {
      * @param policyDefinition The policy definition describing the details of the policy to be applied.
      */
     public BindToGroupPolicy(@Nonnull final PolicyDTO.Policy policyDefinition,
-                             @Nonnull final PolicyGrouping consumerGrouping,
-                             @Nonnull final PolicyGrouping providerGrouping) {
+                             @Nonnull final Group consumerGroup,
+                             @Nonnull final Group providerGroup) {
         super(policyDefinition);
         Preconditions.checkArgument(policyDefinition.hasBindToGroup(), "Must be BindToGroupPolicy");
 
         this.bindToGroup = policyDefinition.getBindToGroup();
-        this.consumerGrouping = consumerGrouping;
-        this.providerGrouping = providerGrouping;
-        Preconditions.checkArgument(hasEntityType(providerGrouping),
-                        "ProviderGroup entity type required");
+        this.consumerGroup = consumerGroup;
+        this.providerGroup = providerGroup;
+        GroupProtoUtil.checkEntityType(providerGroup);
     }
 
     /**
@@ -58,12 +58,12 @@ public class BindToGroupPolicy extends PlacementPolicy {
         logger.debug("Applying bindToGroup policy.");
 
         // Resolve the relevant groups
-        final Set<Long> providers = groupResolver.resolve(providerGrouping, topologyGraph);
-        final Set<Long> consumers = groupResolver.resolve(consumerGrouping, topologyGraph);
+        final Set<Long> providers = groupResolver.resolve(providerGroup, topologyGraph);
+        final Set<Long> consumers = groupResolver.resolve(consumerGroup, topologyGraph);
 
         // Add the commodity to the appropriate entities.
         addCommoditySold(providers, topologyGraph, commoditySold());
         addCommodityBought(consumers, topologyGraph,
-                entityType(providerGrouping), commodityBought());
+                GroupProtoUtil.getEntityType(providerGroup), commodityBought());
     }
 }

@@ -39,7 +39,8 @@ import io.grpc.stub.StreamObserver;
 import io.prometheus.client.Summary;
 
 import com.vmturbo.api.utils.DateTimeUtil;
-import com.vmturbo.common.protobuf.group.GroupDTO.Cluster;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.stats.Stats;
 import com.vmturbo.common.protobuf.stats.Stats.DeletePlanStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.DeletePlanStatsResponse;
@@ -261,10 +262,10 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
     /**
      * Calculate a Cluster Stats Rollup, if necessary, and persist to the appropriate stats table.
      *
-     * The request contains all the clusters to be rolled up. For each {@link Cluster} in the request
+     * The request contains all the clusters to be rolled up. For each cluster in the request
      * we get the ID, and the ID's of the cluster members.
      *
-     * @param request a {link @ClusterRollupRequest} containing the {@link Cluster} DTOs to be persisted.
+     * @param request a {link @ClusterRollupRequest} containing the cluster DTOs to be persisted.
      * @param responseObserver an indication that the request has completed - there is no data
      *                         returned with this response.
      */
@@ -272,7 +273,10 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
     public void computeClusterRollup(Stats.ClusterRollupRequest request,
                                      StreamObserver<Stats.ClusterRollupResponse> responseObserver) {
         try {
-            clusterStatsWriter.rollupClusterStats(request.getClustersToRollupList());
+            // Filter by type as an extra precaution.
+            clusterStatsWriter.rollupClusterStats(request.getClustersToRollupList().stream()
+                .filter(group -> group.getType().equals(Type.CLUSTER))
+                .collect(Collectors.toMap(Group::getId, Group::getCluster)));
             responseObserver.onNext(Stats.ClusterRollupResponse.newBuilder().build());
             responseObserver.onCompleted();
         } catch (Exception e) {

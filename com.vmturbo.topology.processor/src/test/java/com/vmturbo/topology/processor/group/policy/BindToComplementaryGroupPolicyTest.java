@@ -19,6 +19,7 @@ import org.junit.rules.ExpectedException;
 
 import com.google.common.collect.Sets;
 
+import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -40,14 +41,14 @@ public class BindToComplementaryGroupPolicyTest {
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
-    final PolicyDTO.PolicyGrouping consumerGroup = PolicyGroupingHelper.policyGrouping(
+    final Group consumerGroup = PolicyGroupingHelper.policyGrouping(
         searchParametersCollection(), EntityType.VIRTUAL_MACHINE_VALUE, 1234L);
 
-    final PolicyDTO.PolicyGrouping providerGroup = PolicyGroupingHelper.policyGrouping(
+    final Group providerGroup = PolicyGroupingHelper.policyGrouping(
         searchParametersCollection(), EntityType.PHYSICAL_MACHINE_VALUE, 5678L);
 
-    final PolicyDTO.PolicyGroupingID consumerID = PolicyGroupingHelper.policyGroupingID(1234L);
-    final PolicyDTO.PolicyGroupingID providerID = PolicyGroupingHelper.policyGroupingID(5678L);
+    final long consumerID = 1234L;
+    final long providerID = 5678L;
 
     final PolicyDTO.Policy.BindToComplementaryGroupPolicy bindToComplementarytGroup = PolicyDTO.Policy
             .BindToComplementaryGroupPolicy.newBuilder()
@@ -161,7 +162,7 @@ public class BindToComplementaryGroupPolicyTest {
 
     @Test
     public void testApplyVmToStorageAffinity() throws GroupResolutionException, PolicyApplicationException {
-        final PolicyDTO.PolicyGrouping providerGroup = PolicyGroupingHelper.policyGrouping(
+        final Group providerGroup = PolicyGroupingHelper.policyGrouping(
             searchParametersCollection(), EntityType.STORAGE_VALUE, 5678L);
 
         final PolicyDTO.Policy.BindToComplementaryGroupPolicy bindToComplementaryGroup = PolicyDTO.Policy

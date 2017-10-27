@@ -40,7 +40,6 @@ topology-processor:
   discoveryTimeoutSeconds: 30
   validationTimeoutSeconds: 30
   topologyBroadcastIntervalMinutes: 10
-  groupFetcherTimeoutSeconds: 300
   kvStoreRetryIntervalMillis: 1000
   actionTimeoutSeconds: 30
   groupHost: 'group'
@@ -77,7 +76,6 @@ group:
   arangodbHealthCheckIntervalSeconds: 60
   mariadbHealthCheckIntervalSeconds: 60
   grpcPingIntervalSeconds: 300
-  groupFetcherTimeoutSeconds: 300
   identityGeneratorPrefix: 4
   createDefaultSettingPolicyRetryIntervalSec: 30
   # START - database-related properties.
@@ -113,7 +111,6 @@ api:
   targetValidationTimeoutSeconds: 120
   targetValidationPollIntervalSeconds: 2
   supplyChainFetcherTimeoutSeconds: 360
-  groupFetcherTimeoutSeconds: 360
   publicVersionString: 7-beta-8
   groupBuildUseCaseFile: 'groupBuilderUsecases.json'
   settingManagersFile: 'settingManagers.json'

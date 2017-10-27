@@ -17,7 +17,6 @@ import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntit
 import com.vmturbo.api.dto.group.FilterApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
-import com.vmturbo.common.protobuf.group.GroupDTO.Cluster;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
@@ -188,7 +187,8 @@ public class GroupMapperTest {
 
         final Group group = Group.newBuilder()
             .setId(oid)
-            .setInfo(GroupInfo.newBuilder()
+            .setType(Group.Type.GROUP)
+            .setGroup(GroupInfo.newBuilder()
                 .setName(displayName)
                 .setEntityType(groupType)
                 .setSearchParametersCollection(SearchParametersCollection.newBuilder()
@@ -222,7 +222,8 @@ public class GroupMapperTest {
 
         final Group group = Group.newBuilder()
                 .setId(oid)
-                .setInfo(GroupInfo.newBuilder()
+                .setType(Group.Type.GROUP)
+                .setGroup(GroupInfo.newBuilder()
                     .setName(displayName)
                     .setEntityType(groupType)
                     .setSearchParametersCollection(SearchParametersCollection.newBuilder()
@@ -413,9 +414,10 @@ public class GroupMapperTest {
 
     @Test
     public void testMapComputeCluster() {
-        final Cluster computeCluster = Cluster.newBuilder()
+        final Group computeCluster = Group.newBuilder()
                 .setId(7L)
-                .setInfo(ClusterInfo.newBuilder()
+                .setType(Group.Type.CLUSTER)
+                .setCluster(ClusterInfo.newBuilder()
                         .setName("cool boy")
                         .setClusterType(Type.COMPUTE)
                         .setMembers(StaticGroupMembers.newBuilder()
@@ -437,9 +439,10 @@ public class GroupMapperTest {
 
     @Test
     public void testMapStorageCluster() {
-        final Cluster computeCluster = Cluster.newBuilder()
+        final Group computeCluster = Group.newBuilder()
                 .setId(7L)
-                .setInfo(ClusterInfo.newBuilder()
+                .setType(Group.Type.CLUSTER)
+                .setCluster(ClusterInfo.newBuilder()
                         .setName("cool girl")
                         .setClusterType(Type.STORAGE)
                         .setMembers(StaticGroupMembers.newBuilder()

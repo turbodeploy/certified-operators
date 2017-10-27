@@ -4,7 +4,9 @@ import static com.vmturbo.common.protobuf.stats.Stats.ClusterRollupRequest;
 import static com.vmturbo.common.protobuf.stats.Stats.ClusterRollupResponse;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyObject;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.internal.verification.VerificationModeFactory.times;
@@ -12,8 +14,6 @@ import static org.mockito.internal.verification.VerificationModeFactory.times;
 import java.time.Duration;
 import java.util.Date;
 import java.util.Optional;
-
-import javax.annotation.Nonnull;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -24,13 +24,12 @@ import org.springframework.scheduling.support.CronTrigger;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
+import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
-import com.vmturbo.common.protobuf.group.ClusterServiceGrpc;
-import com.vmturbo.common.protobuf.group.ClusterServiceGrpc.ClusterServiceBlockingStub;
-import com.vmturbo.common.protobuf.group.ClusterServiceGrpc.ClusterServiceImplBase;
-import com.vmturbo.common.protobuf.group.GroupDTO.Cluster;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetClustersRequest;
+import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceImplBase;
@@ -46,7 +45,7 @@ public class ClusterRollupTaskTest {
     private static final String CRON_TRIGGER_SCHEDULE = "*/1 * * * * *";
 
 
-    private StatsHistoryServiceImplBase statsHistoryService = Mockito.spy(new StatsHistoryServiceImplBase() {
+    private StatsHistoryServiceImplBase statsHistoryService = spy(new StatsHistoryServiceImplBase() {
         @Override
         public void computeClusterRollup(ClusterRollupRequest request,
                 StreamObserver<ClusterRollupResponse> responseObserver) {
@@ -56,30 +55,22 @@ public class ClusterRollupTaskTest {
         }
     });
 
-    private ClusterServiceImplBase clusterService = Mockito.spy(new ClusterServiceImplBase() {
-        @Override
-        public void getClusters(GetClustersRequest request,
-                                io.grpc.stub.StreamObserver<Cluster> responseObserver) {
-            clusterServiceHelper.onGetClusters();
-            responseObserver.onCompleted();
-        }
-    });
+    private GroupServiceMole groupServiceSpy = spy(new GroupServiceMole());
 
     private StatsHistoryServiceBlockingStub statsHistoryClient;
-    private ClusterServiceBlockingStub clusterServiceClient;
+    private GroupServiceBlockingStub groupServiceClient;
     private ThreadPoolTaskScheduler threadPoolTaskScheduler;
     private CronTrigger cronTrigger;
-    private final ClusterServiceHelper clusterServiceHelper = new ClusterServiceHelper();
 
     @Rule
     public GrpcTestServer grpcTestServer =
-            GrpcTestServer.newServer(statsHistoryService, clusterService);
+            GrpcTestServer.newServer(statsHistoryService, groupServiceSpy);
 
     @Before
     public void init() throws Exception {
         statsHistoryClient = StatsHistoryServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
 
-        clusterServiceClient = ClusterServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
+        groupServiceClient = GroupServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
 
         threadPoolTaskScheduler = new ThreadPoolTaskScheduler();
         threadPoolTaskScheduler.setPoolSize(1);
@@ -112,7 +103,7 @@ public class ClusterRollupTaskTest {
                 .thenReturn(new Date())
                 .thenReturn(null);
         ClusterRollupTask clusterRollupTask = new ClusterRollupTask(statsHistoryClient,
-                clusterServiceClient, threadPoolTaskScheduler, cronTrigger);
+                groupServiceClient, threadPoolTaskScheduler, cronTrigger);
 
         // Act
         clusterRollupTask.initializeSchedule();
@@ -123,34 +114,21 @@ public class ClusterRollupTaskTest {
         // there's one rollup requested immediately and two scheduled rollups via mock scheduler
         assertThat(count).isEqualTo(3);
         verify(statsHistoryService, times(count)).computeClusterRollup(anyObject(), anyObject());
-        verify(clusterService, times(count)).getClusters(anyObject(), anyObject());
+        verify(groupServiceSpy, times(count)).getGroups(any());
     }
 
     @Test
     public void testClusterRollupExceptionIsCaught() {
-        clusterServiceHelper.setRunner(() -> {
-            throw new RuntimeException("Bad!");
-        });
+        when(groupServiceSpy.getGroupsError(any()))
+            .thenReturn(Optional.of(Status.INTERNAL.asException()));
 
         ClusterRollupTask clusterRollupTask = new ClusterRollupTask(statsHistoryClient,
-            clusterServiceClient, threadPoolTaskScheduler, cronTrigger);
+                groupServiceClient, threadPoolTaskScheduler, cronTrigger);
 
         try {
             clusterRollupTask.requestClusterRollup();
         } catch (RuntimeException e) {
             fail("Exception should have been caught during rollup request: ", e);
-        }
-    }
-
-    private static class ClusterServiceHelper {
-        private Optional<Runnable> runner = Optional.empty();
-
-        public void onGetClusters() {
-            runner.ifPresent(Runnable::run);
-        }
-
-        public void setRunner(@Nonnull final Runnable runner) {
-            this.runner = Optional.of(runner);
         }
     }
 }

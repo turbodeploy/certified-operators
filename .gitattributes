@@ -439,12 +439,10 @@ com.vmturbo.clustermgr/src/test/resources/log4j2-test.xml -text
 com.vmturbo.clustermgr/src/test/resources/sample-cluster-config.json -text
 com.vmturbo.common.protobuf/pom.xml -text
 com.vmturbo.common.protobuf/src/main/java/com/vmturbo/common/protobuf/ActionDTOUtil.java -text
-com.vmturbo.common.protobuf/src/main/java/com/vmturbo/common/protobuf/GroupDTOUtil.java -text
+com.vmturbo.common.protobuf/src/main/java/com/vmturbo/common/protobuf/GroupProtoUtil.java -text
 com.vmturbo.common.protobuf/src/main/java/com/vmturbo/common/protobuf/PlanDTOUtil.java -text
 com.vmturbo.common.protobuf/src/main/java/com/vmturbo/common/protobuf/SettingDTOUtil.java -text
 com.vmturbo.common.protobuf/src/main/java/com/vmturbo/common/protobuf/UnsupportedActionException.java -text
-com.vmturbo.common.protobuf/src/main/java/com/vmturbo/common/protobuf/group/GroupFetcher.java -text
-com.vmturbo.common.protobuf/src/main/java/com/vmturbo/common/protobuf/group/GroupFetchingException.java -text
 com.vmturbo.common.protobuf/src/main/protobuf/action/ActionDTO.proto -text
 com.vmturbo.common.protobuf/src/main/protobuf/action/ActionNotificationDTO.proto -text
 com.vmturbo.common.protobuf/src/main/protobuf/action/ActionsDebug.proto -text
@@ -468,11 +466,9 @@ com.vmturbo.common.protobuf/src/main/protobuf/topology/Identity.proto -text
 com.vmturbo.common.protobuf/src/main/protobuf/topology/Probe.proto -text
 com.vmturbo.common.protobuf/src/main/protobuf/topology/Scheduler.proto -text
 com.vmturbo.common.protobuf/src/main/protobuf/topology/TopologyDTO.proto -text
-com.vmturbo.common.protobuf/src/test/java/com/vmturbo/common/protobuf/GroupDTOUtilTest.java -text
+com.vmturbo.common.protobuf/src/test/java/com/vmturbo/common/protobuf/GroupProtoUtilTest.java -text
 com.vmturbo.common.protobuf/src/test/java/com/vmturbo/common/protobuf/PlanDTOUtilTest.java -text
 com.vmturbo.common.protobuf/src/test/java/com/vmturbo/common/protobuf/SettingDTOUtilTest.java -text
-com.vmturbo.common.protobuf/src/test/java/com/vmturbo/common/protobuf/group/GroupFetcherTest.java -text
-com.vmturbo.common.protobuf/src/test/java/com/vmturbo/common/protobuf/group/GroupTestUtil.java -text
 com.vmturbo.components.api.root/pom.xml -text
 com.vmturbo.components.api.test/pom.xml -text
 com.vmturbo.components.api.test/src/main/java/com/vmturbo/components/api/test/GrpcExceptionMatcher.java -text
@@ -689,7 +685,6 @@ com.vmturbo.group.component/src/main/java/com/vmturbo/group/api/server/GroupApiS
 com.vmturbo.group.component/src/main/java/com/vmturbo/group/arangodb/ArangoDBManager.java -text
 com.vmturbo.group.component/src/main/java/com/vmturbo/group/controller/PolicyController.java -text
 com.vmturbo.group.component/src/main/java/com/vmturbo/group/identity/IdentityProvider.java -text
-com.vmturbo.group.component/src/main/java/com/vmturbo/group/persistent/ClusterStore.java -text
 com.vmturbo.group.component/src/main/java/com/vmturbo/group/persistent/DatabaseException.java -text
 com.vmturbo.group.component/src/main/java/com/vmturbo/group/persistent/DuplicateNameException.java -text
 com.vmturbo.group.component/src/main/java/com/vmturbo/group/persistent/EntitySettingStore.java -text
@@ -703,8 +698,7 @@ com.vmturbo.group.component/src/main/java/com/vmturbo/group/persistent/SettingPo
 com.vmturbo.group.component/src/main/java/com/vmturbo/group/persistent/SettingStore.java -text
 com.vmturbo.group.component/src/main/java/com/vmturbo/group/persistent/TargetCollectionUpdate.java -text
 com.vmturbo.group.component/src/main/java/com/vmturbo/group/policy/DiscoveredPoliciesMapper.java -text
-com.vmturbo.group.component/src/main/java/com/vmturbo/group/service/ClusterRpcService.java -text
-com.vmturbo.group.component/src/main/java/com/vmturbo/group/service/DiscoveredCollectionsRpcService.java -text
+com.vmturbo.group.component/src/main/java/com/vmturbo/group/service/DiscoveredGroupsRpcService.java -text
 com.vmturbo.group.component/src/main/java/com/vmturbo/group/service/GroupService.java -text
 com.vmturbo.group.component/src/main/java/com/vmturbo/group/service/PolicyService.java -text
 com.vmturbo.group.component/src/main/java/com/vmturbo/group/service/SettingPolicyRpcService.java -text
@@ -724,7 +718,7 @@ com.vmturbo.group.component/src/test/java/com/vmturbo/group/persistent/PolicySto
 com.vmturbo.group.component/src/test/java/com/vmturbo/group/persistent/SettingPolicyValidatorTest.java -text
 com.vmturbo.group.component/src/test/java/com/vmturbo/group/persistent/SettingStoreTest.java -text
 com.vmturbo.group.component/src/test/java/com/vmturbo/group/persistent/TargetCollectionUpdateTest.java -text
-com.vmturbo.group.component/src/test/java/com/vmturbo/group/service/DiscoveredCollectionsRpcServiceTest.java -text
+com.vmturbo.group.component/src/test/java/com/vmturbo/group/service/DiscoveredGroupsRpcServiceTest.java -text
 com.vmturbo.group.component/src/test/java/com/vmturbo/group/service/GroupServiceTest.java -text
 com.vmturbo.group.component/src/test/java/com/vmturbo/group/service/PolicyServiceTest.java -text
 com.vmturbo.group.component/src/test/java/com/vmturbo/group/service/SettingPolicyRpcServiceTest.java -text

@@ -30,16 +30,9 @@ import org.mockito.Mockito;
 
 import io.grpc.stub.StreamObserver;
 
-import com.vmturbo.common.protobuf.group.ClusterServiceGrpc;
-import com.vmturbo.common.protobuf.group.ClusterServiceGrpc.ClusterServiceBlockingStub;
-import com.vmturbo.common.protobuf.group.ClusterServiceGrpc.ClusterServiceImplBase;
-import com.vmturbo.common.protobuf.group.GroupDTO.Cluster;
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetClustersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceImplBase;
@@ -68,15 +61,11 @@ public class SettingsManagerTest {
 
     private TopologyGraph topologyGraph = Mockito.mock(TopologyGraph.class);
 
-    private ClusterServiceBlockingStub clusterServiceClient;
-
     private GroupServiceBlockingStub groupServiceClient;
 
     private SettingPolicyServiceBlockingStub settingPolicyServiceClient;
 
     private final TestGroupService testGroupService = spy(new TestGroupService());
-
-    private final TestClusterService testClusterService = spy(new TestClusterService());
 
     private final TestSettingService testSettingService = spy(new TestSettingService());
 
@@ -90,7 +79,6 @@ public class SettingsManagerTest {
     private final Long groupId1 = 111L;
     private final Group group = createGroup(groupId1, "group1");
     private final Long clusterId1 = 222L;
-    private final Cluster cluster = createCluster(clusterId1, "cluster1");
 
     private final Setting setting1 = createSettings("setting1", 10);
     private final Setting setting2 = createSettings("setting2", 20);
@@ -98,8 +86,7 @@ public class SettingsManagerTest {
         new LinkedList<Setting>(Arrays.asList(new Setting[]{setting1, setting2}));
     private final SettingPolicy settingPolicy1 =
         createUserSettingPolicy("sp1", inputSettings1,
-            Collections.singletonList(groupId1),
-            Collections.singletonList(clusterId1));
+            Collections.singletonList(groupId1));
 
     private final Setting setting3 = createSettings("setting1", 20);
     private final Setting setting4 = createSettings("setting4", 50);
@@ -109,15 +96,14 @@ public class SettingsManagerTest {
 
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(testGroupService,
-            testClusterService, testSettingService);
+            testSettingService);
 
     @Before
     public void setup() throws Exception {
         settingPolicyServiceClient = SettingPolicyServiceGrpc.newBlockingStub(grpcServer.getChannel());
-        clusterServiceClient = ClusterServiceGrpc.newBlockingStub(grpcServer.getChannel());
         groupServiceClient = GroupServiceGrpc.newBlockingStub(grpcServer.getChannel());
         settingsManager = new SettingsManager(settingPolicyServiceClient, groupServiceClient,
-            clusterServiceClient, topologyFilterFactory);
+                topologyFilterFactory);
     }
 
     @Test
@@ -184,27 +170,6 @@ public class SettingsManagerTest {
     }
 
     @Test
-    public void testGetClusterEntities() {
-
-        List<Long> members = Arrays.asList(new Long[] {1L, 2L, 3L});
-
-        Cluster cluster =
-            Cluster.newBuilder()
-                .setId(1)
-                .setTargetId(2)
-                .setInfo(
-                    ClusterInfo.newBuilder()
-                        .setClusterType(ClusterInfo.Type.COMPUTE)
-                        .setMembers(
-                            StaticGroupMembers.newBuilder()
-                            .addAllStaticMemberOids(members)))
-            .build();
-
-        Set<Long> returnedMembers = settingsManager.getClusterEntities(cluster);
-        assertEquals(members.toArray(), returnedMembers.toArray());
-    }
-
-    @Test
     public void testSendEntitySettings() {
 
         long topologyId = 111;
@@ -227,8 +192,7 @@ public class SettingsManagerTest {
 
     private SettingPolicy createUserSettingPolicy(String name,
                                               List<Setting> settings,
-                                              List<Long> groupIds,
-                                              List<Long> clusterIds) {
+                                              List<Long> groupIds) {
         return  SettingPolicy.newBuilder()
                     .setInfo(SettingPolicyInfo.newBuilder()
                         .setName(name)
@@ -236,7 +200,6 @@ public class SettingsManagerTest {
                         .setEnabled(true)
                         .setScope(Scope.newBuilder()
                             .addAllGroups(groupIds)
-                            .addAllClusters(clusterIds)
                             .build())
                         .build())
                     .setSettingPolicyType(SettingPolicy.Type.USER)
@@ -269,16 +232,8 @@ public class SettingsManagerTest {
     private Group createGroup(long groupId, String groupName) {
         return Group.newBuilder()
             .setId(groupId)
-            .setInfo(GroupInfo.newBuilder()
+            .setGroup(GroupInfo.newBuilder()
                 .setName(groupName))
-            .build();
-    }
-
-    private Cluster createCluster(long clusterId, String clusterName) {
-        return Cluster.newBuilder()
-            .setId(clusterId)
-            .setInfo(ClusterInfo.newBuilder()
-                .setName(clusterName))
             .build();
     }
 
@@ -304,19 +259,6 @@ public class SettingsManagerTest {
         public void getGroups(GetGroupsRequest request,
                                 StreamObserver<Group> responseObserver) {
             getGroups(request).forEach(responseObserver::onNext);
-            responseObserver.onCompleted();
-        }
-    }
-
-    private class TestClusterService extends ClusterServiceImplBase {
-
-        public List<Cluster> getClusters(GetClustersRequest request) {
-            return Collections.singletonList(cluster);
-        }
-
-        public void getClusters(GetClustersRequest request,
-                                StreamObserver<Cluster> responseObserver) {
-            getClusters(request).forEach(responseObserver::onNext);
             responseObserver.onCompleted();
         }
     }

@@ -14,9 +14,8 @@ import com.vmturbo.api.dto.policy.PolicyApiDTO;
 import com.vmturbo.api.dto.policy.PolicyApiInputDTO;
 import com.vmturbo.api.enums.MergePolicyType;
 import com.vmturbo.api.enums.PolicyType;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
-import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyGrouping;
-import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyGroupingID;
 
 /**
  * Map Policy returned from the Group component into PolicyApiDTO to be returned from the API.
@@ -38,7 +37,7 @@ public class PolicyMapper {
     }
 
     public PolicyApiDTO policyToApiDto(final PolicyDTO.Policy policyProto,
-                                       final Map<PolicyGroupingID, PolicyGrouping> groupsByID) {
+                                       final Map<Long, Group> groupsByID) {
         final PolicyApiDTO policyApiDTO = new PolicyApiDTO();
 
         policyApiDTO.setName(policyProto.getName());
@@ -47,8 +46,8 @@ public class PolicyMapper {
         policyApiDTO.setEnabled(policyProto.getEnabled());
         policyApiDTO.setCommodityType(policyProto.getCommodityType());
 
-        PolicyDTO.PolicyGrouping consumerGrouping;
-        PolicyDTO.PolicyGrouping providerGrouping;
+        Group consumerGrouping;
+        Group providerGrouping;
         switch (policyProto.getPolicyDetailCase()) {
             case AT_MOST_N:
                 final PolicyDTO.Policy.AtMostNPolicy atMostN = policyProto.getAtMostN();
@@ -111,7 +110,7 @@ public class PolicyMapper {
                 break;
             case MERGE:
                 final PolicyDTO.Policy.MergePolicy merge = policyProto.getMerge();
-                final List<PolicyGrouping> mergeGroupings = merge.getMergeGroupIdsList().stream()
+                final List<Group> mergeGroupings = merge.getMergeGroupIdsList().stream()
                         .map(groupsByID::get).collect(Collectors.toList());
 
                 policyApiDTO.setType(PolicyType.MERGE);
@@ -174,12 +173,8 @@ public class PolicyMapper {
 
                     final PolicyDTO.InputPolicy.BindToGroupPolicy bindToGroupPolicy =
                             PolicyDTO.InputPolicy.BindToGroupPolicy.newBuilder()
-                                    .setProviderGroup(PolicyDTO.InputGroup.newBuilder()
-                                            .setGroupId(providerId)
-                                            .build())
-                                    .setConsumerGroup(PolicyDTO.InputGroup.newBuilder()
-                                            .setGroupId(consumerId)
-                                            .build())
+                                    .setProviderGroup(providerId)
+                                    .setConsumerGroup(consumerId)
                                     .build();
                     inputPolicyBuilder.setBindToGroup(bindToGroupPolicy);
                     break;
@@ -189,12 +184,8 @@ public class PolicyMapper {
 
                     final PolicyDTO.InputPolicy.BindToComplementaryGroupPolicy bindToComplementaryGroup =
                             PolicyDTO.InputPolicy.BindToComplementaryGroupPolicy.newBuilder()
-                                    .setProviderGroup(PolicyDTO.InputGroup.newBuilder()
-                                            .setGroupId(providerId)
-                                            .build())
-                                    .setConsumerGroup(PolicyDTO.InputGroup.newBuilder()
-                                            .setGroupId(consumerId)
-                                            .build())
+                                    .setProviderGroup(providerId)
+                                    .setConsumerGroup(consumerId)
                                     .build();
                     inputPolicyBuilder.setBindToComplementaryGroup(bindToComplementaryGroup);
                     break;
@@ -204,12 +195,8 @@ public class PolicyMapper {
 
                     final PolicyDTO.InputPolicy.BindToGroupAndLicencePolicy bindToGroupAndLicencePolicy =
                             PolicyDTO.InputPolicy.BindToGroupAndLicencePolicy.newBuilder()
-                                    .setProviderGroup(PolicyDTO.InputGroup.newBuilder()
-                                            .setGroupId(providerId)
-                                            .build())
-                                    .setConsumerGroup(PolicyDTO.InputGroup.newBuilder()
-                                            .setGroupId(consumerId)
-                                            .build())
+                                    .setProviderGroup(providerId)
+                                    .setConsumerGroup(consumerId)
                                     .build();
                     inputPolicyBuilder.setBindToGroupAndLicense(bindToGroupAndLicencePolicy);
                     break;
@@ -229,8 +216,7 @@ public class PolicyMapper {
                             break;
                     }
 
-                    mergeGroups(policyApiInputDTO).forEach(id -> mergePolicyBuilder
-                        .addMergeGroups(PolicyDTO.InputGroup.newBuilder().setGroupId(id).build()));
+                    mergeGroups(policyApiInputDTO).forEach(mergePolicyBuilder::addMergeGroups);
                     inputPolicyBuilder.setMerge(mergePolicyBuilder.build());
                     break;
                 case AT_MOST_N:
@@ -241,12 +227,8 @@ public class PolicyMapper {
                     final PolicyDTO.InputPolicy.AtMostNPolicy atMostNPolicy =
                             PolicyDTO.InputPolicy.AtMostNPolicy.newBuilder()
                                     .setCapacity(capacity)
-                                    .setProviderGroup(PolicyDTO.InputGroup.newBuilder()
-                                            .setGroupId(providerId)
-                                            .build())
-                                    .setConsumerGroup(PolicyDTO.InputGroup.newBuilder()
-                                            .setGroupId(consumerId)
-                                            .build())
+                                    .setProviderGroup(providerId)
+                                    .setConsumerGroup(consumerId)
                                     .build();
                     inputPolicyBuilder.setAtMostN(atMostNPolicy);
                     break;
@@ -258,12 +240,8 @@ public class PolicyMapper {
                     final PolicyDTO.InputPolicy.AtMostNBoundPolicy atMostNBoundPolicy =
                             PolicyDTO.InputPolicy.AtMostNBoundPolicy.newBuilder()
                                     .setCapacity(capacity)
-                                    .setProviderGroup(PolicyDTO.InputGroup.newBuilder()
-                                            .setGroupId(providerId)
-                                            .build())
-                                    .setConsumerGroup(PolicyDTO.InputGroup.newBuilder()
-                                            .setGroupId(consumerId)
-                                            .build())
+                                    .setProviderGroup(providerId)
+                                    .setConsumerGroup(consumerId)
                                     .build();
                     inputPolicyBuilder.setAtMostNbound(atMostNBoundPolicy);
                     break;
@@ -273,12 +251,8 @@ public class PolicyMapper {
 
                     final PolicyDTO.InputPolicy.MustRunTogetherPolicy mustRunTogetherPolicy =
                             PolicyDTO.InputPolicy.MustRunTogetherPolicy.newBuilder()
-                                    .setProviderGroup(PolicyDTO.InputGroup.newBuilder()
-                                            .setGroupId(providerId)
-                                            .build())
-                                    .setConsumerGroup(PolicyDTO.InputGroup.newBuilder()
-                                            .setGroupId(consumerId)
-                                            .build())
+                                    .setProviderGroup(providerId)
+                                    .setConsumerGroup(consumerId)
                                     .build();
                     inputPolicyBuilder.setMustRunTogether(mustRunTogetherPolicy);
                     break;
@@ -288,12 +262,8 @@ public class PolicyMapper {
 
                     final PolicyDTO.InputPolicy.BindToGroupAndGeoRedundancyPolicy bindToGroupAndGeoRedundancyPolicy =
                             PolicyDTO.InputPolicy.BindToGroupAndGeoRedundancyPolicy.newBuilder()
-                                    .setProviderGroup(PolicyDTO.InputGroup.newBuilder()
-                                            .setGroupId(providerId)
-                                            .build())
-                                    .setConsumerGroup(PolicyDTO.InputGroup.newBuilder()
-                                            .setGroupId(consumerId)
-                                            .build())
+                                    .setProviderGroup(providerId)
+                                    .setConsumerGroup(consumerId)
                                     .build();
                     inputPolicyBuilder.setBindToGroupAndGeoRedundancy(bindToGroupAndGeoRedundancyPolicy);
                     break;

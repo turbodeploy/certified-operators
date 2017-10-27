@@ -305,8 +305,6 @@ message SettingPolicyInfo {
 message Scope {
     // The ids of the groups to which a SettingPolicy should be bound.
     repeated int64 groups = 1;
-    // TODO : karthikt - OM-25478. Add api support for setting clusters
-    repeated int64 clusters = 2;
 }
 
 // Used to request a single SettingSpec

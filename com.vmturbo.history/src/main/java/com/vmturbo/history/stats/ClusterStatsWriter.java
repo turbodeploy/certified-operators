@@ -28,7 +28,6 @@ import org.jooq.Table;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
-import com.vmturbo.common.protobuf.group.GroupDTO.Cluster;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.reports.db.BasedbIO;
@@ -92,29 +91,28 @@ class ClusterStatsWriter {
      *
      * @param clusters a list of Cluster objects, each of which will have stats rollup performed.
      */
-    void rollupClusterStats(List<Cluster> clusters) {
+    void rollupClusterStats(@Nonnull final Map<Long, ClusterInfo> clusters) {
 
         // Calculate the date for "today" and convert to a SQL DB-style date
         LocalDate today = LocalDate.now(Clock.systemUTC());
         Date dbToday = Date.valueOf(today);
         Date dbTomorrow = Date.valueOf(today.plus(1, ChronoUnit.DAYS));
 
-
         // roll up each cluster, one at a time
-        for (Cluster cluster : clusters) {
+        clusters.forEach((clusterOID, clusterInfo) -> {
             // note that we're using the OID for the unique name for clusters - the display_name
             // is not currently unique
-            final long clusterOID = cluster.getId();
-            final String clusterName = cluster.getInfo().getName();
+            final String clusterName = clusterInfo.getName();
 
-            Table dbTableToQuery = dbTablesToQuery.get(cluster.getInfo().getClusterType());
+            Table dbTableToQuery = dbTablesToQuery.get(clusterInfo.getClusterType());
             if (dbTableToQuery == null) {
-                logger.debug("Unhandled Cluster Type: {}", cluster.getInfo().getClusterType());
-                continue;
+                logger.debug("Unhandled Cluster Type: {}", clusterInfo.getClusterType());
+                // "return" in forEach == "continue" in a regular "for" loop.
+                return;
             }
 
             // determine the list of elements in the Cluster to aggregate stats over
-            List<String> memberOidStrings = cluster.getInfo().getMembers().getStaticMemberOidsList()
+            List<String> memberOidStrings = clusterInfo.getMembers().getStaticMemberOidsList()
                     .stream()
                     .map(l -> Long.toString(l))
                     .collect(Collectors.toList());
@@ -145,7 +143,7 @@ class ClusterStatsWriter {
                         }
                     }
                     // calculate the number of hosts in the cluster
-                    final int numHostsInCluster = cluster.getInfo().getMembers()
+                    final int numHostsInCluster = clusterInfo.getMembers()
                             .getStaticMemberOidsCount();
 
                     // add a statement to the list to persist it to the CLUSTER_STATS table
@@ -164,7 +162,7 @@ class ClusterStatsWriter {
                 logger.error("Error persisting stats for cluster " + clusterOID +
                         ";  continuing", e);
             }
-        }
+        });
     }
 
     /**

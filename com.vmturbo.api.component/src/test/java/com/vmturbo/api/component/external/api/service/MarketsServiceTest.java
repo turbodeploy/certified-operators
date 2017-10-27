@@ -71,7 +71,9 @@ import com.vmturbo.api.serviceinterfaces.IUsersService;
 import com.vmturbo.api.validators.InputDTOValidator;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
-import com.vmturbo.common.protobuf.group.GroupFetcher;
+import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.CreatePlanRequest;
@@ -270,7 +272,7 @@ public class MarketsServiceTest {
         public MarketsService marketsService() {
             return new MarketsService(actionSpecMapper(), uuidMapper(), actionRpcService(),
                     policyCpcService(), planRpcService(), policyMapper(), marketMapper(),
-                    groupFetcher(), uiNotificationChannel());
+                    groupRpcService(), uiNotificationChannel());
         }
 
         @Bean
@@ -309,9 +311,15 @@ public class MarketsServiceTest {
         }
 
         @Bean
+        public GroupServiceMole groupService() {
+            return new GroupServiceMole();
+        }
+
+        @Bean
         public GrpcTestServer grpcTestServer() {
             try {
-                final GrpcTestServer testServer = GrpcTestServer.newServer(planService());
+                final GrpcTestServer testServer = GrpcTestServer.newServer(planService(),
+                        groupService());
                 testServer.start();
                 return testServer;
             } catch (IOException e) {
@@ -335,13 +343,13 @@ public class MarketsServiceTest {
         }
 
         @Bean
-        public PolicyMapper policyMapper() {
-            return Mockito.mock(PolicyMapper.class);
+        public GroupServiceBlockingStub groupRpcService() {
+            return GroupServiceGrpc.newBlockingStub(grpcTestServer().getChannel());
         }
 
         @Bean
-        public GroupFetcher groupFetcher() {
-            return Mockito.mock(GroupFetcher.class);
+        public PolicyMapper policyMapper() {
+            return Mockito.mock(PolicyMapper.class);
         }
 
         @Bean

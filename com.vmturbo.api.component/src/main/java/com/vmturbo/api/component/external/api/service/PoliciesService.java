@@ -1,24 +1,24 @@
 package com.vmturbo.api.component.external.api.service;
 
-import com.vmturbo.api.component.external.api.mapper.PolicyMapper;
-import com.vmturbo.api.component.external.api.util.ApiUtils;
-import com.vmturbo.common.protobuf.GroupDTOUtil;
-import com.vmturbo.common.protobuf.group.GroupFetcher;
-import com.vmturbo.api.dto.policy.PolicyApiDTO;
-import com.vmturbo.api.serviceinterfaces.IPoliciesService;
-import com.vmturbo.common.protobuf.group.PolicyDTO;
-import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyGrouping;
-import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyGroupingID;
-import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.validation.Errors;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-
-import com.google.common.collect.Sets;
+import com.vmturbo.api.component.external.api.mapper.PolicyMapper;
+import com.vmturbo.api.component.external.api.util.ApiUtils;
+import com.vmturbo.api.dto.policy.PolicyApiDTO;
+import com.vmturbo.api.serviceinterfaces.IPoliciesService;
+import com.vmturbo.common.protobuf.GroupProtoUtil;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.PolicyDTO;
+import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
 
 /**
  * Service implementation of Policies
@@ -30,14 +30,14 @@ public class PoliciesService implements IPoliciesService {
 
     private final PolicyMapper policyMapper;
 
-    private final GroupFetcher groupFetcher;
+    private final GroupServiceBlockingStub groupService;
 
-    public PoliciesService(final PolicyServiceBlockingStub policyServiceArg,
-                           final GroupFetcher groupFetcherArg,
-                           final PolicyMapper policyMapperArg) {
-        policyService = Objects.requireNonNull(policyServiceArg);
-        policyMapper = Objects.requireNonNull(policyMapperArg);
-        groupFetcher = Objects.requireNonNull(groupFetcherArg);
+    public PoliciesService(final PolicyServiceBlockingStub policyService,
+                           final GroupServiceBlockingStub groupService,
+                           final PolicyMapper policyMapper) {
+        this.policyService = Objects.requireNonNull(policyService);
+        this.groupService = Objects.requireNonNull(groupService);
+        this.policyMapper = Objects.requireNonNull(policyMapper);
     }
 
     @Override
@@ -54,11 +54,14 @@ public class PoliciesService implements IPoliciesService {
 
             final PolicyDTO.Policy policy = policyService.getPolicy(request).getPolicy();
 
-            final List<PolicyGroupingID> groupingIDS = GroupDTOUtil.retrieveIdsFromPolicy(policy);
-            final Map<PolicyGroupingID, PolicyGrouping> groupings = groupFetcher
-                    .getGroupings(Sets.newHashSet(groupingIDS));
+            final Set<Long> groupingIDS = GroupProtoUtil.getPolicyGroupIds(policy);
+            final Map<Long, Group> involvedGroups = new HashMap<>(groupingIDS.size());
+            groupService.getGroups(GetGroupsRequest.newBuilder()
+                    .addAllId(groupingIDS)
+                    .build())
+                .forEachRemaining(group -> involvedGroups.put(group.getId(), group));
 
-            return policyMapper.policyToApiDto(policy, groupings);
+            return policyMapper.policyToApiDto(policy, involvedGroups);
         } catch (RuntimeException e) {
             LOG.error("Cannot get policy with id " + uuid, e);
             // rethrow

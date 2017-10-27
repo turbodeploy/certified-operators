@@ -1,6 +1,5 @@
 package com.vmturbo.topology.processor.group;
 
-import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,9 +10,6 @@ import org.springframework.context.annotation.Import;
 
 import io.grpc.Channel;
 
-import com.vmturbo.common.protobuf.group.ClusterServiceGrpc;
-import com.vmturbo.common.protobuf.group.ClusterServiceGrpc.ClusterServiceBlockingStub;
-import com.vmturbo.common.protobuf.group.GroupFetcher;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
@@ -48,9 +44,6 @@ public class GroupConfig {
     @Value("${grpcPingIntervalSeconds}")
     private long grpcPingIntervalSeconds;
 
-    @Value("${groupFetcherTimeoutSeconds}")
-    private long groupFetcherTimeoutSeconds;
-
     @Value("${discoveredGroupUploadIntervalSeconds}")
     private long discoveredGroupUploadIntervalSeconds;
 
@@ -68,11 +61,6 @@ public class GroupConfig {
     }
 
     @Bean
-    public GroupFetcher groupFetcher() {
-        return new GroupFetcher(groupChannel(), Duration.ofSeconds(groupFetcherTimeoutSeconds));
-    }
-
-    @Bean
     public SettingPolicyServiceBlockingStub settingPolicyServiceClient() {
         return SettingPolicyServiceGrpc.newBlockingStub(groupChannel());
     }
@@ -83,26 +71,19 @@ public class GroupConfig {
     }
 
     @Bean
-    public ClusterServiceBlockingStub clusterServiceClient() {
-        return ClusterServiceGrpc.newBlockingStub(groupChannel());
-    }
-
-    @Bean
     public TopologyFilterFactory topologyFilterFactory() {
         return new TopologyFilterFactory();
     }
 
     @Bean
     public PolicyManager policyManager() {
-        return new PolicyManager(policyRpcService(), groupFetcher(),
-                new PolicyFactory());
+        return new PolicyManager(policyRpcService(), groupServiceClient(), new PolicyFactory());
     }
 
     @Bean
     public SettingsManager settingsManager() {
         return new SettingsManager(settingPolicyServiceClient(),
                     groupServiceClient(),
-                    clusterServiceClient(),
                     topologyFilterFactory());
     }
 
