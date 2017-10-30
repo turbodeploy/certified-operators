@@ -12,6 +12,7 @@ import org.jooq.tools.StringUtils;
 
 import com.google.common.collect.Sets;
 
+import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
@@ -57,6 +58,8 @@ public class GroupExpander {
      *
      * @param uuidSet a list of UUIDs for which Cluster or Group UUIDs will be expanded.
      * @return UUIDs from each Group or Cluster in the input list; other UUIDs are passed through
+     * @throws StatusRuntimeException if there is an error (other than NOT_FOUND) from the
+     * groupServiceGrpc call tp getMembers().
      */
     public @Nonnull Set<Long> expandUuids(@Nonnull Set<String> uuidSet) {
         Set<Long> answer = Sets.newHashSet();
@@ -79,7 +82,13 @@ public class GroupExpander {
                 GetMembersResponse groupMembersResp = groupServiceGrpc.getMembers(getGroupMembersReq);
                 answer.addAll(groupMembersResp.getMemberIdList());
             } catch (StatusRuntimeException e) {
-                answer.add(oid);
+                // if there is no group found with this OID, add the OID to the expanded list
+                if (e.getStatus().equals(Status.NOT_FOUND)) {
+                    answer.add(oid);
+                } else {
+                    // some other gRPC error - reflect that upwards
+                    throw e;
+                }
             }
         }
         return answer;

@@ -2,7 +2,7 @@ package com.vmturbo.api.component.external.api.util;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.core.IsEqual.equalTo;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertThat;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
@@ -15,19 +15,19 @@ import org.junit.Test;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 
-import com.vmturbo.api.component.external.api.service.GroupsService;
 import com.vmturbo.common.protobuf.group.GroupDTO;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
-import com.vmturbo.common.protobuf.group.GroupDTOMoles;
+import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
-import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.components.api.test.GrpcTestServer;
 
 public class GroupExpanderTest {
-    GroupExpander groupExpander;
 
-    private GroupDTOMoles.GroupServiceMole groupServiceSpy = spy(new GroupDTOMoles.GroupServiceMole());
+    // the class under test
+    private GroupExpander groupExpander;
+
+    private GroupServiceMole groupServiceSpy = spy(new GroupServiceMole());
+
     @Rule
     public GrpcTestServer testServer = GrpcTestServer.newServer(groupServiceSpy);
 
@@ -48,7 +48,7 @@ public class GroupExpanderTest {
         when(groupServiceSpy.getMembers(GroupDTO.GetMembersRequest.newBuilder()
                 .setId(1234L)
                 .build()))
-                .thenThrow(new StatusRuntimeException(Status.ABORTED));
+                .thenThrow(new StatusRuntimeException(Status.NOT_FOUND));
         Set<Long> expandedOids = groupExpander.expandUuid("1234");
         assertThat(expandedOids.size(), equalTo(1));
         assertThat(expandedOids.iterator().next(), equalTo(1234L));
@@ -89,6 +89,20 @@ public class GroupExpanderTest {
         assertThat(expandedOids, containsInAnyOrder(10L, 11L, 12L));
     }
 
-
-
+    /**
+     * Test a gRPC error requesting the group expansion - other than the
+     * NOT_FOUND which is expected and handled.
+     *
+     * @throws Exception due to simulated grpc error
+     */
+    @Test(expected = StatusRuntimeException.class)
+    public void testErrorInGroupGrpcCall() throws Exception {
+        when(groupServiceSpy.getMembers(GroupDTO.GetMembersRequest.newBuilder()
+                .setId(1234L)
+                .build()))
+                .thenThrow(new StatusRuntimeException(Status.ABORTED));
+        Set<Long> expandedOids = groupExpander.expandUuid("1234");
+        assertThat(expandedOids.size(), equalTo(1));
+        assertThat(expandedOids.iterator().next(), equalTo(1234L));
+    }
 }
