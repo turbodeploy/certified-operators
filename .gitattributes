@@ -169,6 +169,8 @@ com.vmturbo.action.orchestrator/src/main/java/com/vmturbo/action/orchestrator/di
 com.vmturbo.action.orchestrator/src/main/java/com/vmturbo/action/orchestrator/diagnostics/InvalidRestoreInputException.java -text
 com.vmturbo.action.orchestrator/src/main/java/com/vmturbo/action/orchestrator/execution/ActionExecutionConfig.java -text
 com.vmturbo.action.orchestrator/src/main/java/com/vmturbo/action/orchestrator/execution/ActionExecutor.java -text
+com.vmturbo.action.orchestrator/src/main/java/com/vmturbo/action/orchestrator/execution/ActionTargetByProbeCategoryResolver.java -text
+com.vmturbo.action.orchestrator/src/main/java/com/vmturbo/action/orchestrator/execution/ActionTargetResolver.java -text
 com.vmturbo.action.orchestrator/src/main/java/com/vmturbo/action/orchestrator/execution/ActionTranslator.java -text
 com.vmturbo.action.orchestrator/src/main/java/com/vmturbo/action/orchestrator/execution/ExecutionStartException.java -text
 com.vmturbo.action.orchestrator/src/main/java/com/vmturbo/action/orchestrator/execution/TargetResolutionException.java -text
@@ -213,6 +215,7 @@ com.vmturbo.action.orchestrator/src/test/java/com/vmturbo/action/orchestrator/ap
 com.vmturbo.action.orchestrator/src/test/java/com/vmturbo/action/orchestrator/api/TestApiServerConfig.java -text
 com.vmturbo.action.orchestrator/src/test/java/com/vmturbo/action/orchestrator/diagnostics/ActionOrchestratorDiagnosticsTest.java -text
 com.vmturbo.action.orchestrator/src/test/java/com/vmturbo/action/orchestrator/execution/ActionExecutorTest.java -text
+com.vmturbo.action.orchestrator/src/test/java/com/vmturbo/action/orchestrator/execution/ActionTargetByProbeCategoryResolverTest.java -text
 com.vmturbo.action.orchestrator/src/test/java/com/vmturbo/action/orchestrator/execution/ActionTranslatorTest.java -text
 com.vmturbo.action.orchestrator/src/test/java/com/vmturbo/action/orchestrator/execution/notifications/ActionStateUpdaterTest.java -text
 com.vmturbo.action.orchestrator/src/test/java/com/vmturbo/action/orchestrator/market/MarketActionListenerTest.java -text
