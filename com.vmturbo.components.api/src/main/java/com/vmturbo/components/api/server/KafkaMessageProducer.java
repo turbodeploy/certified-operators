@@ -46,8 +46,8 @@ public class KafkaMessageProducer implements AutoCloseable {
         Objects.requireNonNull(serverMsg);
         byte[] payload = serverMsg.toByteArray();
         logger.debug("Sending message {}[{} bytes] to topic {}", serverMsg.getClass().getSimpleName(), payload.length, topic);
-        return producer.send(new ProducerRecord<String, byte[]>(topic,
-                Long.toString(msgCounter.incrementAndGet()), payload));
+        return producer.send(
+                new ProducerRecord<>(topic, Long.toString(msgCounter.incrementAndGet()), payload));
     }
 
     @Override
