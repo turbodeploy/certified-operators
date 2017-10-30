@@ -19,6 +19,8 @@ import org.junit.runners.Parameterized.Parameters;
 
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.CompoundMove;
+import com.vmturbo.platform.analysis.actions.Move;
+import com.vmturbo.platform.analysis.actions.Reconfigure;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
@@ -26,6 +28,7 @@ import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
+import com.vmturbo.platform.analysis.economy.TraderSettings;
 
 /**
  * A test case for the {@link Placement} class.
@@ -53,6 +56,7 @@ public class PlacementTest {
     private static final Basket PM_LARGE = new Basket(CPU,MEM,SEGMENT_0);
     private static final Basket ST_SMALL = new Basket(STA,LAT);
     private static final Basket ST_LARGE = new Basket(STA,LAT,SEGMENT_0);
+    private static final Basket STORAGE = new Basket(STA);
 
     // Frequently used parameter combinations for tests.
     // ('PM' for Physical Machine | 'ST' for STorage)_('S' for Small | 'L' for Large)
@@ -86,20 +90,20 @@ public class PlacementTest {
     private static final Action[] NO_ACTIONS = {};
 
     @RunWith(Parameterized.class)
-    public static class PlacementDecisions {
+    public static class ShopTogetherPlacementDecisions {
         // Fields needed by parameterized runner
         @Parameter(value = 0) public @NonNull Economy economy;
         @Parameter(value = 1) public @NonNull Action @NonNull [] actions;
 
         @Test
-        public final void testPlacementDecisions() {
+        public final void testShopTogetherPlacementDecisions() {
             assertArrayEquals(actions, Placement.shopTogetherDecisions(economy).toArray());
         }
 
         // TODO: add tests with inactive traders
         // TODO: add tests with partially immovable traders
         @Parameters(name = "Test #{index}: placementActions({0}) == {1}")
-        public static Collection<Object[]> testCases() {
+        public static Collection<Object[]> shopTogetherTestCases() {
             final List<@NonNull Object @NonNull []> output = new ArrayList<>();
             /*
              * This is a 5 level array of arrays:
@@ -126,7 +130,7 @@ public class PlacementTest {
              * level 5c.2: the economy indices for the sellers the buyer should move to (size may vary)
              *
              */
-            final Object[][][][][] testCases = {
+            final Object[][][][][] shopTogetherTestCases = {
                 // TODO: also test error conditions like:
                 // {{{{PM_SMALL, true, true, 20.0,20.0}}},{{PM_S,LL,{}}},{}},
 
@@ -390,9 +394,9 @@ public class PlacementTest {
                   {{{0,0},{3}}}}
             };
 
-            // Convert the multidimential array to a list of test cases.
-            for (Object[][][][] parameters : testCases) {
-                output.add(testCase(parameters[0],parameters[1],parameters[2]));
+            // Convert the multidimensional array to a list of test cases.
+            for (Object[][][][] parameters : shopTogetherTestCases) {
+                output.add(shopTogetherTestCase(parameters[0],parameters[1],parameters[2]));
             }
 
             // Add any other test cases not expressible using the testCase method.
@@ -406,80 +410,373 @@ public class PlacementTest {
             return output;
         }
 
-    } // end PlacementDecisions class
+        private static Object[] shopTogetherTestCase(Object[][][] buyerConfigurations, Object[][][] sellerConfigurations, Object[][][] moves) {
+            Economy e = new Economy();
+            // setting quoteFactor to 0.999
+            e.getSettings().setQuoteFactor(0.999);
 
-    private static Object[] testCase(Object[][][] buyerConfigurations, Object[][][] sellerConfigurations, Object[][][] moves) {
-        Economy e = new Economy();
-        // setting quoteFactor to 0.999
-        e.getSettings().setQuoteFactor(0.999);
-
-        // Add buyers
-        for (@SuppressWarnings("unused") Object[][] dummy : buyerConfigurations) {
-            e.addTrader(VM_TYPE, TraderState.ACTIVE, EMPTY);
-        }
-
-        // Add sellers
-        for (Object[][] sellerConfiguration : sellerConfigurations) {
-            // Break-up input
-            final Object[] parameters = sellerConfiguration[0];
-            final Object[] quantities = sellerConfiguration[1];
-            final Object[] utilUpperBounds = sellerConfiguration[2];
-            final Long[] bicliques = Arrays.copyOf(sellerConfiguration[3],
-                                                      sellerConfiguration[3].length, Long[].class);
-
-            // Add trader to economy
-            Trader seller = e.addTrader((int)parameters[1], TraderState.ACTIVE, (Basket)parameters[0], Arrays.asList(bicliques));
-
-            // Give capacity and utilization upper bound default values
-            for (@NonNull CommoditySold commoditySold : seller.getCommoditiesSold()) {
-                commoditySold.setCapacity(CAPACITY).getSettings().setUtilizationUpperBound(UTILIZATION_UPPER_BOUND);
+            // Add buyers
+            for (@SuppressWarnings("unused") Object[][] dummy : buyerConfigurations) {
+                e.addTrader(VM_TYPE, TraderState.ACTIVE, EMPTY);
             }
 
-            // Populate quantities sold
-            for (int i = 0 ; i < quantities.length ; ++i) {
-                seller.getCommoditiesSold().get(i).setQuantity((double)quantities[i]);
-            }
+            // Add sellers
+            for (Object[][] sellerConfiguration : sellerConfigurations) {
+                // Break-up input
+                final Object[] parameters = sellerConfiguration[0];
+                final Object[] quantities = sellerConfiguration[1];
+                final Object[] utilUpperBounds = sellerConfiguration[2];
+                final Long[] bicliques = Arrays.copyOf(sellerConfiguration[3],
+                                                          sellerConfiguration[3].length, Long[].class);
 
-            // Override utilization upper bounds where an explicit value is given
-            for (int i = 0 ; i < utilUpperBounds.length ; ++i) {
-                seller.getCommoditiesSold().get(i).getSettings().setUtilizationUpperBound((double)utilUpperBounds[i]);
-            }
-        }
+                // Add trader to economy
+                Trader seller = e.addTrader((int)parameters[1], TraderState.ACTIVE, (Basket)parameters[0], Arrays.asList(bicliques));
 
-        // Add shopping lists to buyers
-        ShoppingList[][] shoppingLists = new ShoppingList[buyerConfigurations.length][];
-        for (int bci = 0 ; bci < buyerConfigurations.length ; ++bci) {
-            shoppingLists[bci] = new ShoppingList[buyerConfigurations[bci].length];
-
-            for (int sli = 0 ; sli < buyerConfigurations[bci].length ; ++sli) {
-                shoppingLists[bci][sli] = e.addBasketBought(e.getTraders().get(bci),(Basket)buyerConfigurations[bci][sli][0]);
-
-                shoppingLists[bci][sli].setMovable((boolean)buyerConfigurations[bci][sli][1]);
-                if ((boolean)buyerConfigurations[bci][sli][2]) {
-                    shoppingLists[bci][sli].move(e.getTraders().get(buyerConfigurations.length+sli));
+                // Give capacity and utilization upper bound default values
+                for (@NonNull CommoditySold commoditySold : seller.getCommoditiesSold()) {
+                    commoditySold.setCapacity(CAPACITY).getSettings().setUtilizationUpperBound(UTILIZATION_UPPER_BOUND);
                 }
 
-                for (int i = 3 ; i < buyerConfigurations[bci][sli].length ; ++i) {
-                    shoppingLists[bci][sli].setQuantity(i-3, (double)buyerConfigurations[bci][sli][i]);
+                // Populate quantities sold
+                for (int i = 0 ; i < quantities.length ; ++i) {
+                    seller.getCommoditiesSold().get(i).setQuantity((double)quantities[i]);
+                }
+
+                // Override utilization upper bounds where an explicit value is given
+                for (int i = 0 ; i < utilUpperBounds.length ; ++i) {
+                    seller.getCommoditiesSold().get(i).getSettings().setUtilizationUpperBound((double)utilUpperBounds[i]);
                 }
             }
-        }
-        e.populateMarketsWithSellers();
 
-        // Construct results
-        Action[] results = new Action[moves.length];
-        for (int i = 0 ; i < moves.length ; ++i) {
-            // Find the subset of shopping lists that should move
-            List<ShoppingList> shoppingListsToMove = new ArrayList<>();
-            for (int j = 1 ; j < moves[i][0].length ; ++j) {
-                shoppingListsToMove.add(shoppingLists[(int)moves[i][0][0]][(int)moves[i][0][j]]);
+            // Add shopping lists to buyers
+            ShoppingList[][] shoppingLists = new ShoppingList[buyerConfigurations.length][];
+            for (int bci = 0 ; bci < buyerConfigurations.length ; ++bci) {
+                shoppingLists[bci] = new ShoppingList[buyerConfigurations[bci].length];
+
+                for (int sli = 0 ; sli < buyerConfigurations[bci].length ; ++sli) {
+                    shoppingLists[bci][sli] = e.addBasketBought(e.getTraders().get(bci),(Basket)buyerConfigurations[bci][sli][0]);
+
+                    shoppingLists[bci][sli].setMovable((boolean)buyerConfigurations[bci][sli][1]);
+                    if ((boolean)buyerConfigurations[bci][sli][2]) {
+                        shoppingLists[bci][sli].move(e.getTraders().get(buyerConfigurations.length+sli));
+                    }
+
+                    for (int i = 3 ; i < buyerConfigurations[bci][sli].length ; ++i) {
+                        shoppingLists[bci][sli].setQuantity(i-3, (double)buyerConfigurations[bci][sli][i]);
+                    }
+                }
+            }
+            e.populateMarketsWithSellers();
+
+            // Construct results
+            Action[] results = new Action[moves.length];
+            for (int i = 0 ; i < moves.length ; ++i) {
+                // Find the subset of shopping lists that should move
+                List<ShoppingList> shoppingListsToMove = new ArrayList<>();
+                for (int j = 1 ; j < moves[i][0].length ; ++j) {
+                    shoppingListsToMove.add(shoppingLists[(int)moves[i][0][0]][(int)moves[i][0][j]]);
+                }
+
+                results[i] = new CompoundMove(e, shoppingListsToMove, Stream.of(moves[i][1])
+                    .map(index -> e.getTraders().get((int)index)).collect(Collectors.toList()));
             }
 
-            results[i] = new CompoundMove(e, shoppingListsToMove, Stream.of(moves[i][1])
-                .map(index -> e.getTraders().get((int)index)).collect(Collectors.toList()));
+            return new Object[]{e,results};
+        }
+    } // end ShopTogetherPlacementDecisions class
+
+    @RunWith(Parameterized.class)
+    public static class ShopAlonePlacementDecisions {
+        // Fields needed by parameterized runner
+        @Parameter(value = 0) public @NonNull Economy economy;
+        @Parameter(value = 1) public @NonNull ShoppingList shoppingList;
+        @Parameter(value = 2) public @NonNull Action @NonNull [] actions;
+
+        @Test
+        public final void testShopAlonePlacementDecisions() {
+            assertArrayEquals(actions, Placement.generateShopAlonePlacementDecisions(economy, shoppingList).toArray());
         }
 
-        return new Object[]{e,results};
-    }
+        @Parameters(name = "Test #{index}: placementActions({0}) == {1}")
+        public static Collection<Object[]> shopAloneTestCases() {
+            final List<@NonNull Object @NonNull []> output = new ArrayList<>();
+            /*
+             * This is a 5 level array of arrays:
+             *
+             * level 1: all test cases (size may vary)
+             * level 2: one test case (size should be 3)
+             *
+             * level 3a: 1 buyers (size == 1)
+             * level 4a: 1 shopping lists for the buyer (size == 1)
+             * level 5a: the basket bought, whether it's movable and whether it's initially placed
+             *           followed by the quantity bought (size >= 3)
+             *
+             * level 3b: all sellers (size may vary)
+             * level 4b: one seller (size should be 4)
+             * level 5b.1: the basket sold and trader type in that order (size should be 2)
+             * level 5b.2: the quantities sold index to index (size may vary)
+             * level 5b.3: the utilization upper bounds index to index. (size may vary)
+             * level 5b.4: the bicliques sold by this trader (size may vary)
+             *
+             * level 3c: all actions (size may vary)
+             * level 4c: one action (size == 1)
+             * level 5c.1: the economy index for the buyer that should move, followed by the indices
+             *             its shopping list that should move (size == 2)
+             * level 5c.2: the economy index for the seller the buyer should move to (size == 1)
+             *
+             * EXAMPLE: {{{{STORAGE, true, false, 20.0}}},{{{STORAGE, ST_TYPE}, {20.0},{0.8},{0L}}},{{{0,0},{1}}}}
+             *          There is 1 buyer, which buys storage, is movable and initially unplaced and buys 20
+             *          There is 1 seller which sells storage, it has already sold 20, its utilization is 0.8
+             *              and is in the biclique 0.
+             *          The buyer fits in the seller, thus there is a move of the buyer with index 0 (the index
+             *              of the storage commodity is 0) to the seller with index 1.
+             */
+            final Object[][][][][] shopAloneTestCases = {
 
+                // 1 buyer, no seller
+                {{{{STORAGE, true, false, 20.0}}},{},{}}, // movable
+                {{{{STORAGE, false, false, 20.0}}},{},{}}, // immovable
+
+                // 1 buyer movable and initially placed, 1 seller
+                {{{{STORAGE, true, true, 20.0}}},{{{STORAGE, ST_TYPE},{20.0},{},{0L}}},{}}, // fits
+                {{{{STORAGE, true, true, 20.0}}},{{{STORAGE, ST_TYPE},{40.0},{},{0L}}},{}}, // fits
+                {{{{STORAGE, true, true, 20.0}}},{{{STORAGE, ST_TYPE},{60.0},{},{0L}}},{}}, // fits
+                {{{{STORAGE, true, true, 50.0}}},{{{STORAGE, ST_TYPE},{20.0},{},{0L}}},{}}, // fits
+                {{{{STORAGE, true, true, 70.0}}},{{{STORAGE, ST_TYPE},{20.0},{},{0L}}},{}}, // fits
+                {{{{STORAGE, true, true, 40.0}}},{{{STORAGE, ST_TYPE},{50.0},{},{0L}}},{}}, // fits
+                {{{{STORAGE, true, true, 90.0}}},{{{STORAGE, ST_TYPE},{0.0},{},{0L}}},{}}, // fits
+                {{{{STORAGE, true, true, 100.0}}},{{{STORAGE, ST_TYPE},{20.0},{},{0L}}},{}}, // can't fit STORAGE
+                {{{{STORAGE, true, true, 70.0}}},{{{STORAGE, ST_TYPE},{50.0},{},{0L}}},{}}, // can't fit STORAGE
+                {{{{STORAGE, true, true, 40.0}}},{{{STORAGE, ST_TYPE},{80.0},{},{0L}}},{}}, // can't fit STORAGE
+                {{{{STORAGE, true, true, 60.0}}},{{{STORAGE, ST_TYPE},{20.0},{0.7},{0L}}},{}}, // can't fit STORAGE
+                {{{{STORAGE, true, true, 50.0}}},{{{STORAGE, ST_TYPE},{20.0},{0.6},{0L}}},{}}, // can't fit STORAGE
+                {{{{STORAGE, true, true, 80.0}}},{{{STORAGE, ST_TYPE},{30.0},{},{0L}}},{}}, // can't fit STORAGE
+                {{{{STORAGE, true, true, 10.0}}},{{{STORAGE, ST_TYPE},{50.0},{0.5},{0L}}},{}}, // can't fit STORAGE
+                {{{{STORAGE, true, true, 105.0}}},{{{STORAGE, ST_TYPE},{0.0},{},{0L}}},{}}, // can't fit STORAGE
+                {{{{STORAGE, true, true, 90.0}}},{{{STORAGE, ST_TYPE},{0.0},{0.8},{0L}}},{}}, // can't fit STORAGE
+
+                // 1 buyer movable and initially unplaced, 1 seller
+                {{{{STORAGE, true, false, 20.0}}},{{{STORAGE, ST_TYPE}, {20.0},{0.8},{0L}}},{{{0,0},{1}}}}, // fits
+                {{{{STORAGE, true, false, 20.0}}},{{{STORAGE, ST_TYPE},{40.0},{0.7},{0L}}},{{{0,0},{1}}}}, // fits
+                {{{{STORAGE, true, false, 20.0}}},{{{STORAGE, ST_TYPE},{70.0},{},{0L}}},{{{0,0},{1}}}}, // fits
+                {{{{STORAGE, true, false, 40.0}}},{{{STORAGE,ST_TYPE},{30.0},{},{0L}}},{{{0,0},{1}}}}, // fits
+                {{{{STORAGE, true, false, 40.0}}},{{{STORAGE,ST_TYPE},{60.0},{1.0},{0L}}},{{{0,0},{1}}}}, // fits
+                {{{{STORAGE, true, false, 20.0}}},{{{STORAGE, ST_TYPE},{20.0},{0.5},{0L}}},{{{0,0},{1}}}}, // fits
+                {{{{STORAGE, true, false, 90.0}}},{{{STORAGE, ST_TYPE},{20.0},{},{0L}}},{}}, // can't fit STORAGE
+                {{{{STORAGE, true, false, 105.0}}},{{{STORAGE, ST_TYPE},{20.0},{},{0L}}},{}}, // can't fit STORAGE
+                {{{{STORAGE, true, false, 60.0}}},{{{STORAGE, ST_TYPE},{20.0},{0.7},{0L}}},{}}, // can't fit STORAGE
+                {{{{STORAGE, true, false, 70.0}}},{{{STORAGE, ST_TYPE},{20.0},{0.8},{0L}}},{}}, // can't fit STORAGE
+                {{{{STORAGE, true, false, 50.0}}},{{{STORAGE, ST_TYPE},{50.0},{},{0L}}},{}}, // can't fit STORAGE
+                {{{{STORAGE, true, false, 30.0}}},{{{STORAGE,ST_TYPE},{60.0},{0.8},{0L}}},{}}, // can't fit STORAGE
+
+                // Same as above. Just checking that the results won't be changed by additional trader
+                // 1 buyer movable and initially placed, 1 seller
+                {{{{STORAGE, true, true, 20.0}}},{{{STORAGE, ST_TYPE},{20.0},{},{0L}},{{STORAGE, ST_TYPE},{20.0},{},{0L}}},{}}, // fits
+                {{{{STORAGE, true, true, 20.0}}},{{{STORAGE, ST_TYPE},{40.0},{},{0L}},{{STORAGE, ST_TYPE},{50.0},{},{0L}}},{}}, // fits
+                {{{{STORAGE, true, true, 20.0}}},{{{STORAGE, ST_TYPE},{60.0},{},{0L}},{{STORAGE, ST_TYPE},{100.0},{},{0L}}},{}}, // fits
+                {{{{STORAGE, true, true, 50.0}}},{{{STORAGE, ST_TYPE},{20.0},{},{0L}},{{STORAGE, ST_TYPE},{20.0},{},{0L}}},{}}, // fits
+                {{{{STORAGE, true, true, 70.0}}},{{{STORAGE, ST_TYPE},{20.0},{},{0L}},{{STORAGE, ST_TYPE},{50.0},{},{0L}}},{}}, // fits
+                {{{{STORAGE, true, true, 40.0}}},{{{STORAGE, ST_TYPE},{50.0},{},{0L}},{{STORAGE, ST_TYPE},{100.0},{},{0L}}},{}}, // fits
+                {{{{STORAGE, true, true, 90.0}}},{{{STORAGE, ST_TYPE},{0.0},{},{0L}},{{STORAGE, ST_TYPE},{20.0},{},{0L}}},{}}, // fits
+                {{{{STORAGE, true, true, 100.0}}},{{{STORAGE, ST_TYPE},{20.0},{},{0L}},{{STORAGE, ST_TYPE},{50.0},{},{0L}}},{}}, // can't fit STORAGE
+                {{{{STORAGE, true, true, 70.0}}},{{{STORAGE, ST_TYPE},{50.0},{},{0L}},{{STORAGE, ST_TYPE},{100.0},{},{0L}}},{}}, // can't fit STORAGE
+                {{{{STORAGE, true, true, 40.0}}},{{{STORAGE, ST_TYPE},{80.0},{},{0L}},{{STORAGE, ST_TYPE},{20.0},{0.5},{0L}}},{}}, // can't fit STORAGE
+                {{{{STORAGE, true, true, 105.0}}},{{{STORAGE, ST_TYPE},{20.0},{},{0L}},{{STORAGE, ST_TYPE},{50.0},{},{0L}}},{}}, // can't fit STORAGE
+                {{{{STORAGE, true, true, 100.0}}},{{{STORAGE, ST_TYPE},{20.0},{},{0L}},{{STORAGE, ST_TYPE},{100.0},{},{0L}}},{}}, // can't fit STORAGE
+                {{{{STORAGE, true, true, 105.0}}},{{{STORAGE, ST_TYPE},{30.0},{},{0L}},{{STORAGE, ST_TYPE},{20.0},{},{0L}}},{}}, // can't fit STORAGE
+                {{{{STORAGE, true, true, 105.0}}},{{{STORAGE, ST_TYPE},{50.0},{},{0L}},{{STORAGE, ST_TYPE},{50.0},{},{0L}}},{}}, // can't fit STORAGE
+                {{{{STORAGE, true, true, 105.0}}},{{{STORAGE, ST_TYPE},{80.0},{},{0L}},{{STORAGE, ST_TYPE},{100.0},{},{0L}}},{}}, // can't fit STORAGE
+                {{{{STORAGE, true, true, 105.0}}},{{{STORAGE, ST_TYPE},{100.0},{},{0L}},{{STORAGE, ST_TYPE},{20.0},{},{0L}}},{}}, // can't fit STORAGE
+
+                // 1 buyer movable and initially unplaced, 1 seller
+                {{{{STORAGE, true, false, 20.0}}},{{{STORAGE, ST_TYPE}, {20.0},{0.8},{0L}},{{STORAGE, ST_TYPE},{50.0},{},{0L}}},{{{0,0},{1}}}}, // fits
+                {{{{STORAGE, true, false, 20.0}}},{{{STORAGE, ST_TYPE},{40.0},{0.7},{0L}},{{STORAGE, ST_TYPE},{100.0},{},{0L}}},{{{0,0},{1}}}}, // fits
+                {{{{STORAGE, true, false, 20.0}}},{{{STORAGE, ST_TYPE},{70.0},{},{0L}},{{STORAGE, ST_TYPE},{20.0},{0.35},{0L}}},{{{0,0},{1}}}}, // fits
+                {{{{STORAGE, true, false, 40.0}}},{{{STORAGE,ST_TYPE},{30.0},{},{0L}},{{STORAGE, ST_TYPE},{50.0},{},{0L}}},{{{0,0},{1}}}}, // fits
+                {{{{STORAGE, true, false, 40.0}}},{{{STORAGE,ST_TYPE},{60.0},{1.0},{0L}},{{STORAGE, ST_TYPE},{100.0},{},{0L}}},{{{0,0},{1}}}}, // fits
+                {{{{STORAGE, true, false, 20.0}}},{{{STORAGE, ST_TYPE},{20.0},{0.5},{0L}},{{STORAGE, ST_TYPE},{20.0},{0.5},{0L}}},{{{0,0},{1}}}}, // fits
+                {{{{STORAGE, true, false, 90.0}}},{{{STORAGE, ST_TYPE},{20.0},{},{0L}},{{STORAGE, ST_TYPE},{50.0},{},{0L}}},{}}, // can't fit STORAGE
+                {{{{STORAGE, true, false, 105.0}}},{{{STORAGE, ST_TYPE},{20.0},{},{0L}},{{STORAGE, ST_TYPE},{100.0},{},{0L}}},{}}, // can't fit STORAGE
+                {{{{STORAGE, true, false, 60.0}}},{{{STORAGE, ST_TYPE},{20.0},{0.7},{0L}},{{STORAGE, ST_TYPE},{20.0},{0.6},{0L}}},{}}, // can't fit STORAGE
+                {{{{STORAGE, true, false, 70.0}}},{{{STORAGE, ST_TYPE},{20.0},{0.8},{0L}},{{STORAGE, ST_TYPE},{50.0},{},{0L}}},{}}, // can't fit STORAGE
+                {{{{STORAGE, true, false, 50.0}}},{{{STORAGE, ST_TYPE},{50.0},{},{0L}},{{STORAGE, ST_TYPE},{100.0},{},{0L}}},{}}, // can't fit STORAGE
+                {{{{STORAGE, true, false, 30.0}}},{{{STORAGE,ST_TYPE},{60.0},{0.8},{0L}},{{STORAGE, ST_TYPE},{70.0},{0.8},{0L}}},{}}, // can't fit STORAGE
+
+                // 1 buyer movable and initially placed and 2 sellers
+                // 1st seller fits
+                // 2nd seller fits (moves to distribute load)
+                {{{{STORAGE, true, true, 20.0}}},{{{STORAGE, ST_TYPE},{20.0},{},{0L}},{{STORAGE, ST_TYPE},{50.0},{},{0L}}},{}}, // best STORAGE, same biclique
+                {{{{STORAGE, true, true, 20.0}}},{{{STORAGE, ST_TYPE},{20.0},{},{0L}},{{STORAGE, ST_TYPE},{50.0},{},{1L}}},{}}, // best STORAGE, different biclique
+                {{{{STORAGE, true, true, 20.0}}},{{{STORAGE, ST_TYPE},{50.0},{},{0L}},{{STORAGE, ST_TYPE},{20.0},{},{0L}}},{{{0,0},{2}}}}, // improves STORAGE, same biclique
+                {{{{STORAGE, true, true, 20.0}}},{{{STORAGE, ST_TYPE},{50.0},{},{0L}},{{STORAGE, ST_TYPE},{20.0},{},{1L}}},{{{0,0},{2}}}}, // improves STORAGE, different biclique
+                {{{{STORAGE, true, true, 10.0}}},{{{STORAGE, ST_TYPE},{60.0},{},{0L}},{{STORAGE, ST_TYPE},{20.0},{},{0L}}},{{{0,0},{2}}}}, // improves STORAGE, same biclique
+                {{{{STORAGE, true, true, 10.0}}},{{{STORAGE, ST_TYPE},{60.0},{},{0L}},{{STORAGE, ST_TYPE},{20.0},{},{1L}}},{{{0,0},{2}}}}, // improves STORAGE, different biclique
+                {{{{STORAGE, true, true, 20.0}}},{{{STORAGE, ST_TYPE},{70.0},{},{0L}},{{STORAGE, ST_TYPE},{20.0},{},{0L}}},{{{0,0},{2}}}}, // improves STORAGE, same biclique
+                {{{{STORAGE, true, true, 20.0}}},{{{STORAGE, ST_TYPE},{70.0},{},{0L}},{{STORAGE, ST_TYPE},{20.0},{},{1L}}},{{{0,0},{2}}}}, // improves STORAGE, different biclique
+                // 2nd seller doesn't have enough leftover effective capacity
+                {{{{STORAGE, true, true, 20.0}}},{{{STORAGE, ST_TYPE},{50.0},{},{0L}},{{STORAGE, ST_TYPE},{100.0},{},{0L}}},{}}, // same biclique
+                {{{{STORAGE, true, true, 20.0}}},{{{STORAGE, ST_TYPE},{50.0},{},{0L}},{{STORAGE, ST_TYPE},{100.0},{},{1L}}},{}}, // different biclique
+                // 2nd seller doens't have enough effective capacity
+                {{{{STORAGE, true, true, 50.0}}},{{{STORAGE, ST_TYPE},{50.0},{},{0L}},{{STORAGE, ST_TYPE},{20.0},{0.4},{0L}}},{}}, // same biclique
+                {{{{STORAGE, true, true, 50.0}}},{{{STORAGE, ST_TYPE},{50.0},{},{0L}},{{STORAGE, ST_TYPE},{20.0},{0.4},{1L}}},{}}, // different biclique
+
+                // 1st seller doesn't have enough leftover effective capacity
+                // 2nd seller fits
+                {{{{STORAGE, true, true, 20.0}}},{{{STORAGE, ST_TYPE},{100.0},{},{0L}},{{STORAGE, ST_TYPE},{50.0},{},{0L}}},{{{0,0},{2}}}}, // same biclique
+                {{{{STORAGE, true, true, 20.0}}},{{{STORAGE, ST_TYPE},{100.0},{},{0L}},{{STORAGE, ST_TYPE},{50.0},{},{1L}}},{{{0,0},{2}}}}, // different biclique
+                // 2nd seller doesn't have enough leftover effective capacity
+                {{{{STORAGE, true, true, 20.0}}},{{{STORAGE, ST_TYPE},{100.0},{},{0L}},{{STORAGE, ST_TYPE},{100.0},{},{0L}}},{}}, // same biclique
+                {{{{STORAGE, true, true, 20.0}}},{{{STORAGE, ST_TYPE},{100.0},{},{0L}},{{STORAGE, ST_TYPE},{100.0},{},{1L}}},{}}, // different biclique
+                {{{{STORAGE, true, true, 50.0}}},{{{STORAGE, ST_TYPE},{50.0},{0.6},{0L}},{{STORAGE, ST_TYPE},{50.0},{0.5},{0L}}},{}}, // same biclique
+                {{{{STORAGE, true, true, 50.0}}},{{{STORAGE, ST_TYPE},{50.0},{0.6},{0L}},{{STORAGE, ST_TYPE},{50.0},{0.5},{1L}}},{}}, // different biclique
+                // 2nd seller doesn't have enough effective capacity
+                {{{{STORAGE, true, true, 50.0}}},{{{STORAGE, ST_TYPE},{100.0},{},{0L}},{{STORAGE, ST_TYPE},{0.0},{0.4},{0L}}},{}}, // same biclique
+                {{{{STORAGE, true, true, 50.0}}},{{{STORAGE, ST_TYPE},{100.0},{},{0L}},{{STORAGE, ST_TYPE},{0.0},{0.4},{1L}}},{}}, // different biclique
+                {{{{STORAGE, true, true, 50.0}}},{{{STORAGE, ST_TYPE},{100.0},{},{0L}},{{STORAGE, ST_TYPE},{80.0},{0.6},{0L}}},{}}, // same biclique
+                {{{{STORAGE, true, true, 50.0}}},{{{STORAGE, ST_TYPE},{100.0},{},{0L}},{{STORAGE, ST_TYPE},{80.0},{0.6},{1L}}},{}}, // different biclique
+
+                // 1st seller doesn't have enough effective capacity
+                // 2nd seller fits
+                {{{{STORAGE, true, true, 50.0}}},{{{STORAGE, ST_TYPE},{50.0},{0.4},{0L}},{{STORAGE, ST_TYPE},{20.0},{},{0L}}},{{{0,0},{2}}}}, // same biclique
+                {{{{STORAGE, true, true, 50.0}}},{{{STORAGE, ST_TYPE},{50.0},{0.4},{0L}},{{STORAGE, ST_TYPE},{20.0},{},{1L}}},{{{0,0},{2}}}}, // different biclique
+                // 2nd seller doesn't have enough leftover effective capacity
+                {{{{STORAGE, true, true, 50.0}}},{{{STORAGE, ST_TYPE},{50.0},{0.4},{0L}},{{STORAGE, ST_TYPE},{80.0},{},{0L}}},{}}, // same biclique
+                {{{{STORAGE, true, true, 50.0}}},{{{STORAGE, ST_TYPE},{50.0},{0.4},{0L}},{{STORAGE, ST_TYPE},{80.0},{},{1L}}},{}}, // different biclique
+                // 2nd seller doesn't have enough effective capacity
+                {{{{STORAGE, true, true, 50.0}}},{{{STORAGE, ST_TYPE},{50.0},{0.4},{0L}},{{STORAGE, ST_TYPE},{100.0},{},{0L}}},{}}, // same biclique
+                {{{{STORAGE, true, true, 50.0}}},{{{STORAGE, ST_TYPE},{50.0},{0.4},{0L}},{{STORAGE, ST_TYPE},{100.0},{},{1L}}},{}}, // different biclique
+                {{{{STORAGE, true, true, 50.0}}},{{{STORAGE, ST_TYPE},{50.0},{0.4},{0L}},{{STORAGE, ST_TYPE},{50.0},{0.4},{0L}}},{}}, // same biclique
+                {{{{STORAGE, true, true, 50.0}}},{{{STORAGE, ST_TYPE},{50.0},{0.4},{0L}},{{STORAGE, ST_TYPE},{50.0},{0.4},{1L}}},{}}, // different biclique
+
+                // the buyer is movable and initially unplaced
+                // 1st seller fits
+                // 2nd seller fits (moves to distribute load)
+                {{{{STORAGE, true,false, 20.0}}},{{{STORAGE, ST_TYPE},{20.0},{},{0L}},{{STORAGE, ST_TYPE},{50.0},{},{0L}}},{{{0,0},{1}}}}, // 1st is best STORAGE, same biclique
+                {{{{STORAGE, true,false, 20.0}}},{{{STORAGE, ST_TYPE},{20.0},{},{0L}},{{STORAGE, ST_TYPE},{50.0},{},{1L}}},{{{0,0},{1}}}}, // 1st is best STORAGE, different biclique
+                {{{{STORAGE, true,false, 20.0}}},{{{STORAGE, ST_TYPE},{50.0},{},{0L}},{{STORAGE, ST_TYPE},{20.0},{},{0L}}},{{{0,0},{2}}}}, // 2nd is best STORAGE, same biclique
+                {{{{STORAGE, true,false, 20.0}}},{{{STORAGE, ST_TYPE},{50.0},{},{0L}},{{STORAGE, ST_TYPE},{20.0},{},{1L}}},{{{0,0},{2}}}}, // 2nd is best STORAGE, different biclique
+                // 2nd seller doesn't have enough leftover effective capacity
+                {{{{STORAGE, true,false, 20.0}}},{{{STORAGE, ST_TYPE},{20.0},{},{0L}},{{STORAGE, ST_TYPE},{80.0},{},{0L}}},{{{0,0},{1}}}}, // same biclique
+                {{{{STORAGE, true,false, 20.0}}},{{{STORAGE, ST_TYPE},{20.0},{},{0L}},{{STORAGE, ST_TYPE},{80.0},{},{1L}}},{{{0,0},{1}}}}, // different biclique
+                // 2nd seller doens't have enough effective capacity
+                {{{{STORAGE, true,false, 50.0}}},{{{STORAGE, ST_TYPE},{20.0},{},{0L}},{{STORAGE, ST_TYPE},{50.0},{0.4},{0L}}},{{{0,0},{1}}}}, // same biclique
+                {{{{STORAGE, true,false, 50.0}}},{{{STORAGE, ST_TYPE},{20.0},{},{0L}},{{STORAGE, ST_TYPE},{50.0},{0.4},{1L}}},{{{0,0},{1}}}}, // different biclique
+
+                // 1st seller doesn't have enough leftover effective capacity
+                // 2nd seller fits
+                {{{{STORAGE, true,false, 20.0}}},{{{STORAGE, ST_TYPE},{80.0},{},{0L}},{{STORAGE, ST_TYPE},{50.0},{},{0L}}},{{{0,0},{2}}}}, // same biclique
+                {{{{STORAGE, true,false, 20.0}}},{{{STORAGE, ST_TYPE},{80.0},{},{0L}},{{STORAGE, ST_TYPE},{50.0},{},{1L}}},{{{0,0},{2}}}}, // different biclique
+                // 2nd seller doesn't have enough leftover effective capacity
+                {{{{STORAGE, true,false, 20.0}}},{{{STORAGE, ST_TYPE},{80.0},{},{0L}},{{STORAGE, ST_TYPE},{80.0},{},{0L}}},{}}, // same biclique
+                {{{{STORAGE, true,false, 20.0}}},{{{STORAGE, ST_TYPE},{80.0},{},{0L}},{{STORAGE, ST_TYPE},{80.0},{},{1L}}},{}}, // different biclique
+                {{{{STORAGE, true,false, 50.0}}},{{{STORAGE, ST_TYPE},{50.0},{0.6},{0L}},{{STORAGE, ST_TYPE},{20.0},{0.6},{0L}}},{}}, // same biclique
+                {{{{STORAGE, true,false, 50.0}}},{{{STORAGE, ST_TYPE},{50.0},{0.6},{0L}},{{STORAGE, ST_TYPE},{20.0},{0.6},{1L}}},{}}, // different biclique
+                // 2nd doesn't have enough effective capacity
+                {{{{STORAGE, true,false, 50.0}}},{{{STORAGE, ST_TYPE},{50.0},{},{0L}},{{STORAGE, ST_TYPE},{},{0.4},{0L}}},{}}, // same biclique
+                {{{{STORAGE, true,false, 50.0}}},{{{STORAGE, ST_TYPE},{50.0},{},{0L}},{{STORAGE, ST_TYPE},{},{0.4},{1L}}},{}}, // different biclique
+
+                // 1st seller doesn't have enough effective capacity
+                // 2nd seller fits
+                {{{{STORAGE, true,false, 50.0}}},{{{STORAGE, ST_TYPE},{20.0},{0.4},{0L}},{{STORAGE, ST_TYPE},{20.0},{},{0L}}},{{{0,0},{2}}}}, // same biclique
+                {{{{STORAGE, true,false, 50.0}}},{{{STORAGE, ST_TYPE},{20.0},{0.4},{0L}},{{STORAGE, ST_TYPE},{20.0},{},{1L}}},{{{0,0},{2}}}}, // different biclique
+                // 2nd seller doesn't have enough leftover effective capacity
+                {{{{STORAGE, true,false, 50.0}}},{{{STORAGE, ST_TYPE},{20.0},{0.4},{0L}},{{STORAGE, ST_TYPE},{50.0},{},{0L}}},{}}, // same biclique
+                {{{{STORAGE, true,false, 50.0}}},{{{STORAGE, ST_TYPE},{20.0},{0.4},{0L}},{{STORAGE, ST_TYPE},{50.0},{},{1L}}},{}}, // different biclique
+                {{{{STORAGE, true,false, 50.0}}},{{{STORAGE, ST_TYPE},{20.0},{0.4},{0L}},{{STORAGE, ST_TYPE},{20.0},{0.6},{0L}}},{}}, // same biclique
+                {{{{STORAGE, true,false, 50.0}}},{{{STORAGE, ST_TYPE},{20.0},{0.4},{0L}},{{STORAGE, ST_TYPE},{20.0},{0.6},{1L}}},{}}, // different biclique
+                // 2nd seller doesn't have enough effective capacity
+                {{{{STORAGE, true,false, 50.0}}},{{{STORAGE, ST_TYPE},{20.0},{0.4},{0L}},{{STORAGE, ST_TYPE},{0.0},{0.4},{0L}}},{}}, // same biclique
+                {{{{STORAGE, true,false, 50.0}}},{{{STORAGE, ST_TYPE},{20.0},{0.4},{0L}},{{STORAGE, ST_TYPE},{0.0},{0.4},{1L}}},{}}, // different biclique
+            };
+
+            // Convert the multidimensional array to a list of test cases.
+            for (Object[][][][] parameters : shopAloneTestCases) {
+                output.add(shopAloneTestCase(parameters[0],parameters[1],parameters[2]));
+            }
+
+            return output;
+        }
+
+        private static Object[] shopAloneTestCase(Object[][][] buyerConfigurations, Object[][][] sellerConfigurations, Object[][][] moves) {
+            Economy e = new Economy();
+            // setting quoteFactor to 0.999
+            e.getSettings().setQuoteFactor(0.999);
+
+            // Add buyers
+            for (@SuppressWarnings("unused") Object[][] dummy : buyerConfigurations) {
+                e.addTrader(VM_TYPE, TraderState.ACTIVE, EMPTY);
+            }
+
+            // Add sellers
+            for (Object[][] sellerConfiguration : sellerConfigurations) {
+                // Break-up input
+                final Object[] parameters = sellerConfiguration[0];
+                final Object[] quantities = sellerConfiguration[1];
+                final Object[] utilUpperBounds = sellerConfiguration[2];
+                final Long[] bicliques = Arrays.copyOf(sellerConfiguration[3],
+                                                          sellerConfiguration[3].length, Long[].class);
+
+                // Add trader to economy
+                Trader seller = e.addTrader((int)parameters[1], TraderState.ACTIVE, (Basket)parameters[0], Arrays.asList(bicliques));
+                ((TraderSettings) seller).setCanAcceptNewCustomers(true);
+
+                // Give capacity and utilization upper bound default values
+                for (@NonNull CommoditySold commoditySold : seller.getCommoditiesSold()) {
+                    commoditySold.setCapacity(CAPACITY).getSettings().setUtilizationUpperBound(UTILIZATION_UPPER_BOUND);
+                }
+
+                // Populate quantities sold
+                for (int i = 0 ; i < quantities.length ; ++i) {
+                    seller.getCommoditiesSold().get(i).setQuantity((double)quantities[i]);
+                }
+
+                // Override utilization upper bounds where an explicit value is given
+                for (int i = 0 ; i < utilUpperBounds.length ; ++i) {
+                    seller.getCommoditiesSold().get(i).getSettings().setUtilizationUpperBound((double)utilUpperBounds[i]);
+                }
+            }
+
+            // Add shopping lists to buyers
+            ShoppingList[][] shoppingLists = new ShoppingList[buyerConfigurations.length][];
+            if (buyerConfigurations.length == 1) {
+                shoppingLists[0] = new ShoppingList[buyerConfigurations[0].length];
+
+                shoppingLists[0][0] = e.addBasketBought(e.getTraders().get(0),(Basket)buyerConfigurations[0][0][0]);
+
+                shoppingLists[0][0].setMovable((boolean)buyerConfigurations[0][0][1]);
+                if ((boolean)buyerConfigurations[0][0][2]) {
+                    shoppingLists[0][0].move(e.getTraders().get(buyerConfigurations.length));
+                }
+
+                if (buyerConfigurations[0][0].length == 4) {
+                    shoppingLists[0][0].setQuantity(0, (double)buyerConfigurations[0][0][3]);
+                }
+            }
+            e.populateMarketsWithSellers();
+
+
+
+            // Construct results
+            Action[] results;
+            if (sellerConfigurations.length == 0)
+            {
+                if (((boolean) buyerConfigurations[0][0][1]) == true) {
+                    results = new Action[1];
+                    results[0] = new Reconfigure(e, shoppingLists[0][0]);
+                }
+                else {
+                    results = new Action[0];
+                }
+            }
+            else
+            {
+                results = new Action[moves.length];
+                if (moves.length == 1) {
+                    results[0] = new Move(e, shoppingLists[0][0], e.getTraders().get((int) moves[0][1][0]));
+                }
+            }
+
+            return new Object[]{e, shoppingLists[0][0], results};
+        }
+    } // end ShopTogetherPlacementDecisions class
 } // end PlacementTest class
