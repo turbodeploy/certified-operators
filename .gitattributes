@@ -337,6 +337,7 @@ com.vmturbo.api.component/src/test/java/com/vmturbo/api/component/external/api/s
 com.vmturbo.api.component/src/test/java/com/vmturbo/api/component/external/api/service/TargetsServiceTest.java -text
 com.vmturbo.api.component/src/test/java/com/vmturbo/api/component/external/api/service/TemplatesServiceTest.java -text
 com.vmturbo.api.component/src/test/java/com/vmturbo/api/component/external/api/service/WidgetSetsServiceTest.java -text
+com.vmturbo.api.component/src/test/java/com/vmturbo/api/component/external/api/util/GroupExpanderTest.java -text
 com.vmturbo.api.component/src/test/java/com/vmturbo/api/component/external/api/util/SupplyChainFetcherTest.java -text
 com.vmturbo.api.component/src/test/java/com/vmturbo/api/component/external/api/websocket/ApiWebsocketHandlerTest.java -text
 com.vmturbo.api.component/src/test/java/com/vmturbo/api/component/mapper/StatsMapperTest.java -text

@@ -12,6 +12,8 @@ import org.jooq.tools.StringUtils;
 
 import com.google.common.collect.Sets;
 
+import io.grpc.StatusRuntimeException;
+
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
@@ -73,8 +75,12 @@ public class GroupExpander {
             GetMembersRequest getGroupMembersReq = GetMembersRequest.newBuilder()
                     .setId(oid)
                     .build();
-            GetMembersResponse groupMembersResp = groupServiceGrpc.getMembers(getGroupMembersReq);
-            answer.addAll(groupMembersResp.getMemberIdList());
+            try {
+                GetMembersResponse groupMembersResp = groupServiceGrpc.getMembers(getGroupMembersReq);
+                answer.addAll(groupMembersResp.getMemberIdList());
+            } catch (StatusRuntimeException e) {
+                answer.add(oid);
+            }
         }
         return answer;
     }
