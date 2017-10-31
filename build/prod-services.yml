@@ -65,6 +65,8 @@ services:
       KAFKA_INTERNAL_PORT: 9092
       KAFKA_INTERNAL_BROKER_ADDRESS: kafka1
       ZOOKEEPER_HOSTS: "zoo1:2181"
+      KAFKA_LOG_RETENTION_HRS: 24
+      KAFKA_MAX_MESSAGE_BYTES: 67108864
     volumes:
       - kafka1-log:/tmp/kafka-logs
 

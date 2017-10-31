@@ -137,6 +137,8 @@ public class DockerEnvironment {
             .put("MEDIATION_DELEGATINGPROBE_XMX_MB", "384")
             .put("MEDIATION_DELEGATINGPROBE_MEM_LIMIT_MB", "512")
             // KAFKA PROPERTIES
+            .put("KAFKA_LOG_RETENTION_HRS", "24")
+            .put("KAFKA_MAX_MESSAGE_BYTES", "67108864")
             .put("KAFKA_INTERNAL_PORT", "9092")
             .put("KAFKA_INTERNAL_BROKER_ADDRESS", "kafka1")
             .put("KAFKA_EXTERNAL_PORT", Integer.toString(KAFKA_EXTERNAL_PORT))

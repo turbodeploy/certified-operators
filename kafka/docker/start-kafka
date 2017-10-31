@@ -49,9 +49,9 @@ start_kafka() {
     fi
     # Set a default retention period to 24 hours for now. TODO: refine this setting per-topic based
     # our topic-specific needs.
-    KAFKA_PARAMS="$KAFKA_PARAMS --override log.retention.hours=24"
+    KAFKA_PARAMS="$KAFKA_PARAMS --override log.retention.hours=$KAFKA_LOG_RETENTION_HRS"
     # set the max.message.bytes for the whole server, until we can tune this with more granularity
-    KAFKA_PARAMS="$KAFKA_PARAMS --override message.max.bytes=67108864"
+    KAFKA_PARAMS="$KAFKA_PARAMS --override message.max.bytes=$KAFKA_MAX_MESSAGE_BYTES"
 
     echo Executing kafka with options: $KAFKA_PARAMS
 
