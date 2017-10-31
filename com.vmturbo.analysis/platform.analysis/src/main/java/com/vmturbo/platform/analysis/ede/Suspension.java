@@ -78,8 +78,8 @@ public class Suspension {
         // placements is the only expense here
         while(round < 3) {
             ledger.calculateExpRevForTradersInEconomy(economy);
-            // adjust utilThreshold to maxDesiredUtil of the seller. Thereby preventing moves
-            // that force utilization to exceed maxDesiredUtil
+            // adjust utilThreshold to maxDesiredUtil*utilTh of the seller. Thereby preventing moves
+            // that force utilization to exceed maxDesiredUtil*utilTh
             adjustUtilThreshold(economy, true);
             ledger_ = ledger;
 
@@ -148,7 +148,7 @@ public class Suspension {
      * Adjust the utilThreshold of {@link CommoditySold} by {@link Trader}s to maxDesiredUtil
      *
      * @param economy - the {@link Economy} which is being evaluated for suspension
-     * @param update - set threshold to maxDesiredUtil if true or reset to original value if false
+     * @param update - set threshold to maxDesiredUtil*utilThreshold if true or reset to original value if false
      */
     @VisibleForTesting
     void adjustUtilThreshold (Economy economy, boolean update) {
@@ -156,12 +156,13 @@ public class Suspension {
             for (Trader seller : economy.getTraders()) {
                 double util = seller.getSettings().getMaxDesiredUtil();
                 for (CommoditySold cs : seller.getCommoditiesSold()) {
-                    // skip if step and constant priceFns
+                    double utilThreshold = cs.getSettings().getUtilizationUpperBound();
                     PriceFunction pf = cs.getSettings().getPriceFunction();
-                    double priceAtMaxUtil = pf.unitPrice(util, seller, cs, economy);
+                    double priceAtMaxUtil = pf.unitPrice(util * utilThreshold, seller, cs, economy);
+                    // skip if step and constant priceFns
                     if (!((priceAtMaxUtil == pf.unitPrice(0.0, seller, cs, economy)) ||
                                     (priceAtMaxUtil == pf.unitPrice(1.0, seller, cs, economy)))) {
-                        cs.getSettings().setUtilizationUpperBound(util);
+                        cs.getSettings().setUtilizationUpperBound(util * utilThreshold);
                     }
                 }
             }
