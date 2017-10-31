@@ -139,7 +139,8 @@ public class SuspensionTest {
         suspension.adjustUtilThreshold(economy, true);
 
         // verify that the utilUpperBound has changed to maxDesiredUtil
-        assertTrue(commSoldSett.getUtilizationUpperBound() == seller.getSettings().getMaxDesiredUtil());
+        assertTrue(commSoldSett.getUtilizationUpperBound() == seller.getSettings().getMaxDesiredUtil()
+                        * commSoldSett.getOrigUtilizationUpperBound());
         suspension.adjustUtilThreshold(economy, false);
 
         // verify that the utilUpperBound has changed to origUtilDesiredUtil
