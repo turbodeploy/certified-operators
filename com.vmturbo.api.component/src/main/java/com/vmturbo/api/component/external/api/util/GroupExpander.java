@@ -83,7 +83,7 @@ public class GroupExpander {
                 answer.addAll(groupMembersResp.getMemberIdList());
             } catch (StatusRuntimeException e) {
                 // if there is no group found with this OID, add the OID to the expanded list
-                if (e.getStatus().equals(Status.NOT_FOUND)) {
+                if (e.getStatus().getCode() == Status.NOT_FOUND.getCode()) {
                     answer.add(oid);
                 } else {
                     // some other gRPC error - reflect that upwards
