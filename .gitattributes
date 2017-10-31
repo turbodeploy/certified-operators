@@ -420,9 +420,12 @@ com.vmturbo.clustermgr/src/main/java/com/vmturbo/clustermgr/LocalAggregatorBridg
 com.vmturbo.clustermgr/src/main/java/com/vmturbo/clustermgr/TcpIpAggegatorReceiverBridge.java -text
 com.vmturbo.clustermgr/src/main/java/com/vmturbo/clustermgr/aggregator/DataAggregator.java -text
 com.vmturbo.clustermgr/src/main/java/com/vmturbo/clustermgr/collectors/DataMetricLogs.java -text
+com.vmturbo.clustermgr/src/main/java/com/vmturbo/clustermgr/kafka/KafkaConfigurationService.java -text
+com.vmturbo.clustermgr/src/main/java/com/vmturbo/clustermgr/kafka/KafkaConfigurationServiceConfig.java -text
 com.vmturbo.clustermgr/src/main/java/com/vmturbo/clustermgr/transfer/DataTransfer.java -text
 com.vmturbo.clustermgr/src/main/resources/application.yml -text
 com.vmturbo.clustermgr/src/main/resources/factoryInstalledComponents.yml -text
+com.vmturbo.clustermgr/src/main/resources/kafka-config.yml -text
 com.vmturbo.clustermgr/src/main/resources/log4j2.xml -text
 com.vmturbo.clustermgr/src/test/java/com/vmturbo/clustermgr/ClusterConfigurationTest.java -text
 com.vmturbo.clustermgr/src/test/java/com/vmturbo/clustermgr/ClusterMgrControllerTest.java -text
@@ -433,12 +436,14 @@ com.vmturbo.clustermgr/src/test/java/com/vmturbo/clustermgr/FactoryInstalledComp
 com.vmturbo.clustermgr/src/test/java/com/vmturbo/clustermgr/LocalAggregatorBridgeTest.java -text
 com.vmturbo.clustermgr/src/test/java/com/vmturbo/clustermgr/aggregator/DataAggregatorTest.java -text
 com.vmturbo.clustermgr/src/test/java/com/vmturbo/clustermgr/collectors/LogDataCollectorTest.java -text
+com.vmturbo.clustermgr/src/test/java/com/vmturbo/clustermgr/kafka/KafkaConfigurationServiceTest.java -text
 com.vmturbo.clustermgr/src/test/java/com/vmturbo/clustermgr/transfer/DataTransferTestIT.java -text
 com.vmturbo.clustermgr/src/test/java/com/vmturbo/clustermgr/transfer/KeyGen.java -text
 com.vmturbo.clustermgr/src/test/resources/clusterConfigurationTest.json -text
 com.vmturbo.clustermgr/src/test/resources/clustermgr-controller-test.xml -text
 com.vmturbo.clustermgr/src/test/resources/factory-installed-components-test.xml -text
 com.vmturbo.clustermgr/src/test/resources/factoryInstalledComponents.yml -text
+com.vmturbo.clustermgr/src/test/resources/kafka-test-config.yml -text
 com.vmturbo.clustermgr/src/test/resources/log4j2-test.xml -text
 com.vmturbo.clustermgr/src/test/resources/sample-cluster-config.json -text
 com.vmturbo.common.protobuf/pom.xml -text

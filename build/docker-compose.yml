@@ -169,6 +169,7 @@ services:
       JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${CLUSTERMGR_XMX_MB}M ${CLUSTERMGR_SYSTEM_PROPERTIES}"
       node_name: default
       consul_host: consul
+      kafkaServers: ${KAFKA_SERVERS}
     volumes:
       - clustermgr:/home/turbonomic/data
     mem_limit: ${CLUSTERMGR_MEM_LIMIT_MB}M

@@ -1,0 +1,14 @@
+# This file specifies the kafka configuration we want applied to the brokers during cluster setup.
+# the format is:
+#
+# topics:
+#   <topic-name>:  // the name of a topic we want created in the broker
+#     <property-name>: <value> // each property-name / value combination will be applied as a topic-
+#     <...>                    // specific property setting.
+topics:
+  - topic: test-topic
+    properties:
+      preallocate: false
+      message.timestamp.type: "CreateTime"
+      max.message.bytes: 67108864
+  - topic: test-topic2
