@@ -9,6 +9,8 @@ import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -237,10 +239,12 @@ public class KafkaMessageConsumer implements AutoCloseable {
          * Map to store the last available offset of the topic-partition. As this object is
          * dedicated to a specific topic, so the map will container different partitions of the
          * topic. The value is the last message's offset, that has been received by the receiver.
-         * This map is only accessed from the main thread, polling messages from Kafka broker
-         * ({@link #runPoll()}), that's why it is safe to have it not thread safe.
+         * Thus should be an concurrent map, as it is accessible from 2 different threads
+         * (reading from {@link #runQueue()} and writing from
+         * {@link #pushNextMessage(byte[], TopicPartition, long)}).
          */
-        private final Map<TopicPartition, Long> lastPartitionsOffset = new HashMap<>();
+        private final ConcurrentMap<TopicPartition, Long> lastPartitionsOffset =
+                new ConcurrentHashMap<>();
 
         private KafkaMessageReceiver(@Nonnull Deserializer<T> deserializer) {
             this.deserializer = Objects.requireNonNull(deserializer);
@@ -266,8 +270,8 @@ public class KafkaMessageConsumer implements AutoCloseable {
                         receivedMessage.getClass().getSimpleName(), buffer.length);
                 final ReceivedMessage<T> message =
                         new ReceivedMessage<>(receivedMessage, partition, offset);
-                messagesQueue.add(message);
                 lastPartitionsOffset.put(partition, offset);
+                messagesQueue.add(message);
             } catch (InvalidProtocolBufferException e) {
                 logger.error("Unable to deserialize raw data of " + buffer.length +
                         " bytes received from " + this.toString(), e);
