@@ -9,7 +9,6 @@ import java.util.concurrent.ExecutorService;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.components.api.client.ApiClientException;
-import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.components.api.client.ComponentNotificationReceiver;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.repository.api.Repository;
@@ -24,7 +23,7 @@ import com.vmturbo.repository.api.RepositoryListener;
 public class RepositoryNotificationReceiver extends
         ComponentNotificationReceiver<RepositoryNotification> implements Repository {
 
-    public static final String WEBSOCKET_PATH = "/repositoryListener";
+    public static final String TOPOLOGY_TOPIC = "repository-topology-notifications";
 
     private final Set<RepositoryListener> listeners =
             Collections.newSetFromMap(new ConcurrentHashMap<>());

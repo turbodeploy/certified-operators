@@ -4,16 +4,15 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.web.socket.server.standard.ServerEndpointExporter;
-import org.springframework.web.socket.server.standard.ServerEndpointRegistration;
+import org.springframework.context.annotation.Import;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
-import com.vmturbo.communication.WebsocketServerTransportManager;
-import com.vmturbo.components.api.server.BroadcastWebsocketTransportManager;
-import com.vmturbo.components.api.server.WebsocketNotificationSender;
+import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
+import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.repository.api.RepositoryDTO.RepositoryNotification;
 import com.vmturbo.repository.api.impl.RepositoryNotificationReceiver;
 
@@ -21,7 +20,11 @@ import com.vmturbo.repository.api.impl.RepositoryNotificationReceiver;
  * Spring configuration for API-related beans
  */
 @Configuration
+@Import({BaseKafkaProducerConfig.class})
 public class RepositoryApiConfig {
+
+    @Autowired
+    private BaseKafkaProducerConfig kafkaProducerConfig;
 
     @Bean(destroyMethod = "shutdownNow")
     protected ExecutorService threadPool() {
@@ -37,29 +40,8 @@ public class RepositoryApiConfig {
     }
 
     @Bean
-    public WebsocketNotificationSender<RepositoryNotification> notificationSender() {
-        return new WebsocketNotificationSender<>(threadPool());
-    }
-
-    @Bean
-    public WebsocketServerTransportManager transportManager() {
-        return BroadcastWebsocketTransportManager.createTransportManager(threadPool(),
-                notificationSender());
-    }
-
-    /**
-     * This bean configures endpoint to bind it to a specific address (path).
-     *
-     * @return bean
-     */
-    @Bean
-    public ServerEndpointRegistration apiEndpointRegistration() {
-        return new ServerEndpointRegistration(RepositoryNotificationReceiver.WEBSOCKET_PATH,
-                transportManager());
-    }
-
-    @Bean
-    public ServerEndpointExporter endpointExporter() {
-        return new ServerEndpointExporter();
+    public IMessageSender<RepositoryNotification> notificationSender() {
+        return kafkaProducerConfig.kafkaMessageSender().messageSender
+                (RepositoryNotificationReceiver.TOPOLOGY_TOPIC);
     }
 }

@@ -30,7 +30,10 @@ import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+import com.vmturbo.components.api.client.IMessageReceiver;
+import com.vmturbo.components.api.client.KafkaMessageConsumer;
 import com.vmturbo.components.test.utilities.ComponentTestRule;
+import com.vmturbo.components.test.utilities.component.DockerEnvironment;
 import com.vmturbo.components.test.utilities.alert.Alert;
 import com.vmturbo.components.test.utilities.component.ComponentCluster;
 import com.vmturbo.components.test.utilities.component.ComponentUtils;
@@ -38,8 +41,8 @@ import com.vmturbo.components.test.utilities.component.ServiceHealthCheck.BasicS
 import com.vmturbo.components.test.utilities.utils.TopologyUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.repository.api.Repository;
+import com.vmturbo.repository.api.RepositoryDTO.RepositoryNotification;
 import com.vmturbo.repository.api.RepositoryListener;
-import com.vmturbo.repository.api.impl.RepositoryMessageReceiver;
 import com.vmturbo.repository.api.impl.RepositoryNotificationReceiver;
 import com.vmturbo.topology.processor.api.server.TopologyBroadcast;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorKafkaSender;
@@ -58,7 +61,8 @@ public class RepositoryPerformanceTest {
 
     private Repository repository;
     private SupplyChainServiceBlockingStub supplyChainService;
-    private RepositoryMessageReceiver messageReceiver;
+    private KafkaMessageConsumer kafkaConsumer;
+    private IMessageReceiver<RepositoryNotification> messageReceiver;
     private ExecutorService threadPool = Executors.newCachedThreadPool();
 
     @Rule
@@ -78,8 +82,10 @@ public class RepositoryPerformanceTest {
 
     @Before
     public void setup() {
-        messageReceiver = new RepositoryMessageReceiver(
-                componentTestRule.getCluster().getConnectionConfig("repository"), threadPool);
+        kafkaConsumer = new KafkaMessageConsumer(DockerEnvironment.getKafkaBootstrapServers(),
+                "RepositoryPerformanceTest");
+        messageReceiver = kafkaConsumer.messageReceiver(RepositoryNotificationReceiver
+                .TOPOLOGY_TOPIC, RepositoryNotification::parseFrom);
         repository = new RepositoryNotificationReceiver(messageReceiver, threadPool);
 
         final Channel repositoryChannel = componentTestRule.getCluster().newGrpcChannel("repository");
@@ -89,8 +95,7 @@ public class RepositoryPerformanceTest {
     @After
     public void teardown() {
         try {
-            messageReceiver.close();
-
+            kafkaConsumer.close();
             threadPool.shutdownNow();
             threadPool.awaitTermination(10, TimeUnit.MINUTES);
         } catch (Exception e) {

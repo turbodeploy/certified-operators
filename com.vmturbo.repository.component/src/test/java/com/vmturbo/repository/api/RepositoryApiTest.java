@@ -12,9 +12,7 @@ import org.junit.rules.TestName;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
-import com.vmturbo.components.api.client.WebsocketNotificationReceiver;
-import com.vmturbo.components.api.test.IntegrationTestServer;
-import com.vmturbo.repository.RepositoryApiConfig;
+import com.vmturbo.components.api.test.SenderReceiverPair;
 import com.vmturbo.repository.RepositoryNotificationSender;
 import com.vmturbo.repository.api.RepositoryDTO.RepositoryNotification;
 import com.vmturbo.repository.api.impl.RepositoryNotificationReceiver;
@@ -31,28 +29,24 @@ public class RepositoryApiTest {
     @Rule
     public TestName testName = new TestName();
     private ExecutorService threadPool;
-    private IntegrationTestServer server;
     private RepositoryNotificationReceiver client;
-    private WebsocketNotificationReceiver messageReceiver;
+    private RepositoryNotificationSender notificationSender;
+
     private RepositoryListener listener;
 
     @Before
     public void init() throws Exception {
         threadPool = Executors.newCachedThreadPool();
-        server = new IntegrationTestServer(testName, RepositoryApiConfig.class);
-        messageReceiver = new WebsocketNotificationReceiver(server.connectionConfig(),
-                RepositoryNotificationReceiver.WEBSOCKET_PATH, threadPool,
-                RepositoryNotification::parseFrom);
-        client = new RepositoryNotificationReceiver(messageReceiver, threadPool);
+        final SenderReceiverPair<RepositoryNotification> notificationsChannel =
+                new SenderReceiverPair<>();
+        client = new RepositoryNotificationReceiver(notificationsChannel, threadPool);
+        notificationSender = new RepositoryNotificationSender(notificationsChannel);
         listener = Mockito.mock(RepositoryListener.class);
         client.addListener(listener);
-        server.waitForRegisteredEndpoints(1, TIMEOUT);
     }
 
     @After
     public void shutdown() throws Exception {
-        messageReceiver.close();
-        server.close();
         threadPool.shutdownNow();
     }
 
@@ -63,8 +57,6 @@ public class RepositoryApiTest {
      */
     @Test
     public void testTopologyAvailableNotification() throws Exception {
-        final RepositoryNotificationSender notificationSender =
-                server.getBean(RepositoryNotificationSender.class);
         notificationSender.onProjectedTopologyAvailable(TOPOLOGY_ID, CONTEXT_ID);
         final ArgumentCaptor<Long> topologyCaptor = ArgumentCaptor.forClass(Long.class);
         final ArgumentCaptor<Long> contextCaptor = ArgumentCaptor.forClass(Long.class);
@@ -84,8 +76,6 @@ public class RepositoryApiTest {
      */
     @Test
     public void testTopologyFailureNotification() throws Exception {
-        final RepositoryNotificationSender notificationSender =
-                server.getBean(RepositoryNotificationSender.class);
         final String message = "Avada kevadra";
         notificationSender.onProjectedTopologyFailure(TOPOLOGY_ID, CONTEXT_ID, message);
         Mockito.verify(listener, Mockito.timeout(TIMEOUT))

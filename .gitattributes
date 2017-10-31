@@ -1034,7 +1034,6 @@ com.vmturbo.repository.api/src/main/java/com/vmturbo/repository/api/Repository.j
 com.vmturbo.repository.api/src/main/java/com/vmturbo/repository/api/RepositoryClient.java -text
 com.vmturbo.repository.api/src/main/java/com/vmturbo/repository/api/RepositoryListener.java -text
 com.vmturbo.repository.api/src/main/java/com/vmturbo/repository/api/impl/RepositoryClientConfig.java -text
-com.vmturbo.repository.api/src/main/java/com/vmturbo/repository/api/impl/RepositoryMessageReceiver.java -text
 com.vmturbo.repository.api/src/main/java/com/vmturbo/repository/api/impl/RepositoryNotificationReceiver.java -text
 com.vmturbo.repository.api/src/main/protobuf/RepositoryDTO.proto -text
 com.vmturbo.repository.component/README.adoc -text

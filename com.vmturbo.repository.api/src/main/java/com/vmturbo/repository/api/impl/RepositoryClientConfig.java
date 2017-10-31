@@ -5,18 +5,19 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Lazy;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import io.grpc.Channel;
 
-import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
+import com.vmturbo.components.api.client.BaseKafkaConsumerConfig;
 import com.vmturbo.components.api.client.IMessageReceiver;
-import com.vmturbo.components.api.client.WebsocketNotificationReceiver;
 import com.vmturbo.grpc.extensions.PingingChannelBuilder;
 import com.vmturbo.repository.api.Repository;
 import com.vmturbo.repository.api.RepositoryClient;
@@ -24,19 +25,20 @@ import com.vmturbo.repository.api.RepositoryDTO.RepositoryNotification;
 
 @Configuration
 @Lazy
+@Import({BaseKafkaConsumerConfig.class})
 public class RepositoryClientConfig {
 
     @Value("${repositoryHost}")
     private String repositoryHost;
 
-    @Value("${websocket.pong.timeout}")
-    private long websocketPongTimeout;
-
-    @Value("${server.port}")
-    private int httpPort;
-
     @Value("${server.grpcPort}")
     private int grpcPort;
+
+    @Value("${grpcPingIntervalSeconds}")
+    private long grpcPingIntervalSeconds;
+
+    @Autowired
+    private BaseKafkaConsumerConfig kafkaConsumerConfig;
 
     @Bean(destroyMethod = "shutdownNow")
     protected ExecutorService repositoryClientThreadPool() {
@@ -46,18 +48,10 @@ public class RepositoryClientConfig {
     }
 
     @Bean
-    public ComponentApiConnectionConfig repositoryClientConnectionConfig() {
-        return ComponentApiConnectionConfig.newBuilder()
-                .setHostAndPort(repositoryHost, httpPort)
-                .setPongMessageTimeout(websocketPongTimeout)
-                .build();
-    }
-
-    @Bean
     protected IMessageReceiver<RepositoryNotification> repositoryClientMessageReceiver() {
-        return new WebsocketNotificationReceiver<>(repositoryClientConnectionConfig(),
-                RepositoryNotificationReceiver.WEBSOCKET_PATH, repositoryClientThreadPool(),
-                RepositoryNotification::parseFrom);
+        return kafkaConsumerConfig.kafkaConsumer()
+                .messageReceiver(RepositoryNotificationReceiver.TOPOLOGY_TOPIC,
+                        RepositoryNotification::parseFrom);
     }
 
     @Bean
@@ -65,9 +59,6 @@ public class RepositoryClientConfig {
         return new RepositoryNotificationReceiver(repositoryClientMessageReceiver(),
                 repositoryClientThreadPool());
     }
-
-    @Value("${grpcPingIntervalSeconds}")
-    private long grpcPingIntervalSeconds;
 
     @Bean
     public Channel repositoryChannel() {
