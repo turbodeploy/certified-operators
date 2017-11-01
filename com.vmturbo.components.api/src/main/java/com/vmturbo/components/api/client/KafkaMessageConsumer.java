@@ -16,6 +16,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.StampedLock;
 import java.util.function.BiConsumer;
 
@@ -48,6 +49,11 @@ public class KafkaMessageConsumer implements AutoCloseable {
      */
     private static final int PROTOBUF_MESSAGE_MAX_LIMIT = 1024 << 20;
     private static final int POLL_AWAIT_TIME = 100;
+    /**
+     * Maximum amount of messages, that are buffered for each partition, while the other message
+     * for the partition is being processed.
+     */
+    private static final int MAX_BUFFERED_MESSAGES = 1;
 
     private final Logger logger = LogManager.getLogger(getClass());
     /**
@@ -129,13 +135,13 @@ public class KafkaMessageConsumer implements AutoCloseable {
                 final long writeLock = consumerLock.writeLock();
                 final ConsumerRecords<String, byte[]> records;
                 try {
-                    records = consumer.poll(0);
+                    logger.trace("polling for messages...");
+                    records = consumer.poll(POLL_AWAIT_TIME);
+                    logger.trace("polling finished (received {} messages)", records::count);
                 } finally {
                     consumerLock.unlockWrite(writeLock);
                 }
-                if (records.isEmpty()) {
-                    Thread.sleep(POLL_AWAIT_TIME);
-                } else {
+                if (!records.isEmpty()) {
                     for (ConsumerRecord<String, byte[]> record : records) {
                         logger.debug("Received message {} from topic {} ({})", record::offset,
                                 record::topic, record::timestamp);
@@ -166,21 +172,19 @@ public class KafkaMessageConsumer implements AutoCloseable {
         }
     }
 
-    private void onNewMessage(@Nonnull byte[] message, @Nonnull TopicPartition partition, long offset) {
-        final long lock = consumerLock.writeLock();
+    private void onNewMessage(@Nonnull byte[] message, @Nonnull TopicPartition partition,
+            long offset) {
+        final long lock = consumerLock.readLock();
         final KafkaMessageReceiver<?> receiver;
         try {
             receiver = consumers.get(partition.topic());
-            if (receiver.hasMessage(partition, offset)) {
-                logger.debug(
-                        "Message {} from topic {} is already received by consumer. Skipping it",
-                        offset, partition);
-                return;
-            }
-            // We pause the topic to avoid receiving next messages until previous are processed
-            consumer.pause(Collections.singleton(partition));
         } finally {
-            consumerLock.unlockWrite(lock);
+            consumerLock.unlockRead(lock);
+        }
+        if (receiver.hasMessage(partition, offset)) {
+            logger.debug("Message {} from topic {} is already received by consumer. Skipping it",
+                    offset, partition);
+            return;
         }
         receiver.pushNextMessage(message, partition, offset);
     }
@@ -189,6 +193,17 @@ public class KafkaMessageConsumer implements AutoCloseable {
         final long lock = consumerLock.writeLock();
         try {
             consumer.resume(Collections.singleton(topic));
+            logger.trace("Resumed topic {}", topic);
+        } finally {
+            consumerLock.unlockWrite(lock);
+        }
+    }
+
+    private void pausePartition(@Nonnull TopicPartition topic) {
+        final long lock = consumerLock.writeLock();
+        try {
+            consumer.pause(Collections.singleton(topic));
+            logger.trace("Paused topic {}", topic);
         } finally {
             consumerLock.unlockWrite(lock);
         }
@@ -208,6 +223,7 @@ public class KafkaMessageConsumer implements AutoCloseable {
     private void commitSync(@Nonnull TopicPartition partition, @Nonnull OffsetAndMetadata offset) {
         final long lock = consumerLock.writeLock();
         try {
+            logger.trace("Committing partition {} with offset {}", partition, offset.offset());
             consumer.commitSync(Collections.singletonMap(partition, offset));
         } finally {
             consumerLock.unlockWrite(lock);
@@ -242,8 +258,19 @@ public class KafkaMessageConsumer implements AutoCloseable {
          * Thus should be an concurrent map, as it is accessible from 2 different threads
          * (reading from {@link #runQueue()} and writing from
          * {@link #pushNextMessage(byte[], TopicPartition, long)}).
+         *
          */
         private final ConcurrentMap<TopicPartition, Long> lastPartitionsOffset =
+                new ConcurrentHashMap<>();
+
+        /**
+         * Map showing number of message, that are corrently in processing state for the specific
+         * partition. This counter should increase as soon as message arrive at the queue. Counter
+         * should be decreased as soon as message processing finishes. Acts really as a kind of a
+         * semaphore to call {@link #pausePartition(TopicPartition)} and
+         * {@link #resumePartition(TopicPartition)} accordingly.
+         */
+        private final ConcurrentMap<TopicPartition, AtomicLong> messagesInProcessing =
                 new ConcurrentHashMap<>();
 
         private KafkaMessageReceiver(@Nonnull Deserializer<T> deserializer) {
@@ -271,6 +298,12 @@ public class KafkaMessageConsumer implements AutoCloseable {
                 final ReceivedMessage<T> message =
                         new ReceivedMessage<>(receivedMessage, partition, offset);
                 lastPartitionsOffset.put(partition, offset);
+                final AtomicLong messagesInQueue =
+                        messagesInProcessing.computeIfAbsent(partition, (v) -> new AtomicLong());
+                if (messagesInQueue.incrementAndGet() > MAX_BUFFERED_MESSAGES) {
+                    logger.trace("Pausing topic {} while at offset {}", partition, offset);
+                    pausePartition(partition);
+                }
                 messagesQueue.add(message);
             } catch (InvalidProtocolBufferException e) {
                 logger.error("Unable to deserialize raw data of " + buffer.length +
@@ -317,7 +350,9 @@ public class KafkaMessageConsumer implements AutoCloseable {
                         }
                     } finally {
                         lock.unlockRead(readLock);
-                        if (message.offset == lastPartitionsOffset.get(message.partition)) {
+                        final AtomicLong messagesInQueue =
+                                messagesInProcessing.get(message.partition);
+                        if (messagesInQueue.decrementAndGet() <= MAX_BUFFERED_MESSAGES) {
                             message.resumePartition();
                         }
                     }

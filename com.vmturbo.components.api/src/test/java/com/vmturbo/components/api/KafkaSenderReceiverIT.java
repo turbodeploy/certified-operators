@@ -1,7 +1,6 @@
 package com.vmturbo.components.api;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -202,9 +201,9 @@ public class KafkaSenderReceiverIT {
         final IMessageReceiver<DynamicMessage> receiver = kafkaConsumer.messageReceiver(topic,
                 msg -> DynamicMessage.parseFrom(messageDescriptor, msg));
         return threadPool.submit(() -> {
-            sendLatch.await();
             final List<DynamicMessage> received =
                     Collections.synchronizedList(new ArrayList<>(messages.size()));
+            sendLatch.await();
             receiver.addListener((msg, cmd) -> {
                 received.add(msg);
                 cmd.run();

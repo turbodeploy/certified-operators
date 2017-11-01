@@ -512,7 +512,7 @@ com.vmturbo.components.api/src/main/java/com/vmturbo/components/api/server/Webso
 com.vmturbo.components.api/src/test/java/com/vmturbo/components/api/GsonPostProcessableTest.java -text
 com.vmturbo.components.api/src/test/java/com/vmturbo/components/api/KafkaSenderReceiverIT.java -text
 com.vmturbo.components.api/src/test/java/com/vmturbo/components/api/KafkaServer.java -text
-com.vmturbo.components.api/src/test/resources/log4j2-test.properties -text
+com.vmturbo.components.api/src/test/resources/log4j2-test.xml -text
 com.vmturbo.components.baseimage/docker/Dockerfile -text
 com.vmturbo.components.baseimage/docker/collect_diags.sh -text
 com.vmturbo.components.baseimage/docker/diags.py -text
