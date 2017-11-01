@@ -21,6 +21,8 @@ import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ActionCountsMapper;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
+import com.vmturbo.api.constraints.ConstraintApiDTO;
+import com.vmturbo.api.constraints.ConstraintApiInputDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.notification.LogEntryApiDTO;
@@ -265,5 +267,16 @@ public class EntitiesService implements IEntitiesService {
     public List<ActionApiDTO> getActionsByEntityUuidAspect(String uuid, String aspectTag, ActionApiInputDTO inputDto) throws Exception {
         throw ApiUtils.notImplementedInXL();
     }
+
+    @Override
+    public List<ConstraintApiDTO> getConstraintsByEntityUuid(String uuid) throws Exception {
+        throw ApiUtils.notImplementedInXL();
+    }
+
+    @Override
+    public List<ServiceEntityApiDTO> getPotentialEntitiesByEntity(String uuid, ConstraintApiInputDTO inputDto) throws Exception {
+        throw ApiUtils.notImplementedInXL();
+    }
 }
+
 
