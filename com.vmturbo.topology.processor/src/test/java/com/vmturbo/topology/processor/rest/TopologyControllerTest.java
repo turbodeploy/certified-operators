@@ -1,10 +1,12 @@
 package com.vmturbo.topology.processor.rest;
 
 import static org.junit.Assert.assertEquals;
+import static org.mockito.Matchers.any;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.Clock;
 import java.util.Collections;
 import java.util.List;
 
@@ -108,7 +110,7 @@ public class TopologyControllerTest {
             return new TopologyHandler(0, apiController(), entityStore(),
                 identityProvider(), policyManager(),
                 discoveredTemplatesNotifier(), discoveredGroupUploader(),
-                settingsManager());
+                settingsManager(), Clock.systemUTC());
         }
 
         @Bean
@@ -157,8 +159,7 @@ public class TopologyControllerTest {
     public void testTopologySend() throws Exception {
         final TopologyBroadcast broadcast = Mockito.mock(TopologyBroadcast.class);
         Mockito.when(entityStore.constructTopology()).thenReturn(Collections.emptyMap());
-        Mockito.when(topoBroadcastManager.broadcastTopology(Mockito.anyLong(),
-            Mockito.anyLong(), Mockito.any())).thenReturn(broadcast);
+        Mockito.when(topoBroadcastManager.broadcastTopology(any())).thenReturn(broadcast);
 
         final MvcResult result = mockMvc.perform(post("/topology/send")
                 .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
@@ -171,10 +172,9 @@ public class TopologyControllerTest {
         assertEquals(0, response.numberOfEntities);
         assertEquals(0, response.topologyContextId);
 
-        Mockito.verify(topoBroadcastManager).broadcastTopology(Mockito.anyLong(),
-            Mockito.anyLong(), Mockito.any());
+        Mockito.verify(topoBroadcastManager).broadcastTopology(Mockito.any());
         Mockito.verify(broadcast).finish();
-        Mockito.verify(broadcast, Mockito.never()).append(Mockito.any(TopologyEntityDTO.class));
+        Mockito.verify(broadcast, Mockito.never()).append(any(TopologyEntityDTO.class));
         Mockito.verify(scheduler).resetBroadcastSchedule();
     }
 }

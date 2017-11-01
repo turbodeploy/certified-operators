@@ -1,4 +1,4 @@
-package com.vmturbo.market;
+package com.vmturbo.market.component.api;
 
 import java.util.Collection;
 import java.util.Objects;
@@ -13,7 +13,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.End;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.Start;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.communication.chunking.MessageChunker;
 import com.vmturbo.components.api.server.ComponentNotificationSender;
 import com.vmturbo.components.api.server.IMessageSender;
@@ -55,19 +54,16 @@ public class MarketNotificationSender extends
      * <p>Sends the notifications asynchronously to all clients connected at the time of the method call.
      * If the sending of a notification fails for any reason the notification does not get re-sent.
      *
-     * @param srcTopologyId source id to use for broadcast.
-     * @param projectedTopologyId projected topology id to use for broadcast.
-     * @param topologyContextId context id where analysis has been run.
-     * @param creationTime the time of original topology created.
-     * @param projectedTopo protobuf objects describing the traders after plan execution.
+     * @param originalTopologyInfo The {@link TopologyInfo} describing the original topology.
+     * @param projectedTopologyId The ID of the projected topology.
+     * @param projectedTopo The protobuf objects describing the traders after plan execution.
      */
-    public void notifyProjectedTopology(final long srcTopologyId, final long projectedTopologyId,
-            final long topologyContextId, final TopologyType topologyType, final long creationTime,
-            @Nonnull final Collection<TopologyEntityDTO> projectedTopo) {
+    public void notifyProjectedTopology(@Nonnull final TopologyInfo originalTopologyInfo,
+                                    final long projectedTopologyId,
+                                    @Nonnull final Collection<TopologyEntityDTO> projectedTopo) {
         threadPool.submit(() -> {
             try {
-                notifyTopologyInternal(srcTopologyId, projectedTopologyId, topologyContextId,
-                        topologyType, creationTime, projectedTopo);
+                notifyTopologyInternal(originalTopologyInfo, projectedTopologyId, projectedTopo);
             } catch (InterruptedException e) {
                 getLogger().info("Thread interrupted while sending projected topology " +
                         projectedTopologyId, e);
@@ -77,18 +73,13 @@ public class MarketNotificationSender extends
         });
     }
 
-    private void notifyTopologyInternal(final long srcTopologyId, final long projectedTopologyId,
-            final long topologyContextId, final TopologyType topologyType, final long creationTime,
-            @Nonnull final Collection<TopologyEntityDTO> projectedTopo)
+    private void notifyTopologyInternal(@Nonnull final TopologyInfo originalTopologyInfo,
+                                        final long projectedTopologyId,
+                                        @Nonnull final Collection<TopologyEntityDTO> projectedTopo)
             throws InterruptedException {
         sendTopologySegment(ProjectedTopology.newBuilder()
                 .setStart(Start.newBuilder()
-                        .setSourceTopologyInfo(TopologyInfo.newBuilder()
-                                .setTopologyId(srcTopologyId)
-                                .setTopologyContextId(topologyContextId)
-                                .setTopologyType(topologyType)
-                                .setCreationTime(creationTime))
-                        .build())
+                        .setSourceTopologyInfo(originalTopologyInfo))
                 .setTopologyId(projectedTopologyId)
                 .build());
         final Iterable<Collection<TopologyEntityDTO>> chunks = MessageChunker.chunk(projectedTopo);

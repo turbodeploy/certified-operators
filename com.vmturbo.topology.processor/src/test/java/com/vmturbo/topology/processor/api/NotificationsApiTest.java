@@ -95,7 +95,6 @@ public class NotificationsApiTest extends AbstractApiCallsTest {
 
         final long topologyOneId = 7;
         final long topologyTwoId = 8;
-        final long creationTimeOne = System.currentTimeMillis();
 
         sendEntities(topologyContextId, topologyOneId, entities);
         Mockito.verify(listener1, Mockito.timeout(TIMEOUT_MS).times(1))
@@ -103,28 +102,24 @@ public class NotificationsApiTest extends AbstractApiCallsTest {
         TopologyInfo topologyInfoOneInstance = topologyInfoCaptor1.getValue();
         Assert.assertEquals(topologyOneId, topologyInfoOneInstance.getTopologyId());
         Assert.assertEquals(topologyContextId, topologyInfoOneInstance.getTopologyContextId());
-        Assert.assertTrue(topologyInfoOneInstance.getCreationTime() >= creationTimeOne);
         Assert.assertEquals(entities, accumulate(targetCaptor1.getValue()));
 
         getTopologyProcessor().addEntitiesListener(listener2);
         @SuppressWarnings({ "unchecked", "rawtypes" })
         final ArgumentCaptor<RemoteIterator<TopologyEntityDTO>> targetCaptor2 = ArgumentCaptor.forClass((Class)Set.class);
         final ArgumentCaptor<TopologyInfo> topologyInfoCaptor2 = ArgumentCaptor.forClass(TopologyInfo.class);
-        final long creationTimeTwo = System.currentTimeMillis();
 
         sendEntities(topologyContextId, topologyTwoId, entities);
         Mockito.verify(listener1, Mockito.timeout(TIMEOUT_MS).times(2))
                         .onTopologyNotification(topologyInfoCaptor1.capture(), targetCaptor1.capture());
         Assert.assertEquals(topologyTwoId, topologyInfoCaptor1.getValue().getTopologyId());
         Assert.assertEquals(topologyContextId, topologyInfoCaptor1.getValue().getTopologyContextId());
-        Assert.assertTrue(topologyInfoCaptor1.getValue().getCreationTime() >= creationTimeTwo);
         Mockito.verify(listener2, Mockito.timeout(TIMEOUT_MS).times(1))
                         .onTopologyNotification(topologyInfoCaptor2.capture(), targetCaptor2.capture());
         Assert.assertEquals(entities, accumulate(targetCaptor1.getValue()));
         Assert.assertEquals(entities, accumulate(targetCaptor2.getValue()));
         Assert.assertEquals(topologyTwoId, topologyInfoCaptor2.getValue().getTopologyId());
         Assert.assertEquals(topologyContextId, topologyInfoCaptor2.getValue().getTopologyContextId());
-        Assert.assertTrue(topologyInfoCaptor2.getValue().getCreationTime() >= creationTimeTwo);
     }
 
     /**
@@ -526,8 +521,14 @@ public class NotificationsApiTest extends AbstractApiCallsTest {
     private void sendEntities(final long topologyContextId,
             final long topologyId,
             @Nonnull final Collection<TopologyEntityDTO> entities) throws InterruptedException {
+        final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
+                .setTopologyType(TopologyType.PLAN)
+                .setTopologyId(topologyId)
+                .setTopologyContextId(topologyContextId)
+                .setCreationTime(0L)
+                .build();
         final TopologyBroadcast broadcast = getEntitiesListener()
-                        .broadcastTopology(topologyContextId, topologyId, TopologyType.PLAN);
+                        .broadcastTopology(topologyInfo);
         for (TopologyEntityDTO entity: entities) {
             broadcast.append(entity);
         }

@@ -5,7 +5,7 @@ import java.util.concurrent.ExecutorService;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.components.api.server.KafkaMessageProducer;
-import com.vmturbo.market.MarketNotificationSender;
+import com.vmturbo.market.component.api.MarketNotificationSender;
 import com.vmturbo.market.component.api.impl.MarketComponentClient;
 import com.vmturbo.priceindex.api.PriceIndexNotificationSender;
 import com.vmturbo.priceindex.api.impl.PriceIndexNotificationReceiver;

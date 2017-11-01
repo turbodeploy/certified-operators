@@ -2,6 +2,7 @@ package com.vmturbo.topology.processor.api.server;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 
 /**
@@ -15,12 +16,9 @@ public interface TopoBroadcastManager {
      * {@link TopologyBroadcast#getTopologyContextId()} ()}, and the topologyId
      * may be retrieved by {@link TopologyBroadcast#getTopologyId()}.
      *
-     * @param topologyContextId topology context id
-     * @param topologyId The ID of the topology
-     * @param topologyType the type of topology: realtime or plan
-     * @return topology broadcasting object to put all the entities to broadcast into
+     * @param topologyInfo The {@link TopologyInfo} object containing information about the topology.
+     * @return {@link TopologyBroadcast} object to put all the entities to broadcast into
      */
     @Nonnull
-    TopologyBroadcast broadcastTopology(long topologyContextId, long topologyId,
-                    TopologyType topologyType);
+    TopologyBroadcast broadcastTopology(@Nonnull final TopologyInfo topologyInfo);
 }

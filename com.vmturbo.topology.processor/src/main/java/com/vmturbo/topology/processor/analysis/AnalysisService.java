@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.analysis;
 
+import java.time.Clock;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -26,6 +27,8 @@ import com.vmturbo.common.protobuf.topology.AnalysisDTO;
 import com.vmturbo.common.protobuf.topology.AnalysisDTO.StartAnalysisResponse;
 import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc.AnalysisServiceImplBase;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
@@ -47,14 +50,18 @@ public class AnalysisService extends AnalysisServiceImplBase {
 
     private final RepositoryClient repository;
 
+    private final Clock clock;
+
     public AnalysisService(@Nonnull final TopologyHandler topologyHandler,
                            @Nonnull final EntityStore entityStore,
                            @Nonnull final IdentityProvider identityProvider,
-                           @Nonnull final RepositoryClient repositoryClient) {
+                           @Nonnull final RepositoryClient repositoryClient,
+                           @Nonnull final Clock clock) {
         this.topologyHandler = Objects.requireNonNull(topologyHandler);
         this.entityStore = Objects.requireNonNull(entityStore);
         this.identityProvider = Objects.requireNonNull(identityProvider);
         this.repository = Objects.requireNonNull(repositoryClient);
+        this.clock = Objects.requireNonNull(clock);
     }
 
     @Override
@@ -93,9 +100,17 @@ public class AnalysisService extends AnalysisServiceImplBase {
             topology = editTopology(topology, request.getScenarioChangeList());
         }
 
+        final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
+                .setTopologyContextId(request.getPlanId())
+                .setTopologyId(topologyId)
+                .setCreationTime(clock.millis())
+                .setTopologyType(TopologyType.PLAN)
+                .build();
+
         try {
-            final TopologyBroadcastInfo broadcastInfo = topologyHandler.broadcastTopology(request.getPlanId(),
-                    topologyId, topology);
+            final TopologyBroadcastInfo broadcastInfo =
+                    topologyHandler.broadcastTopology(topologyInfo,
+                            topology.stream());
 
             responseObserver.onNext(StartAnalysisResponse.newBuilder()
                     .setEntitiesBroadcast(broadcastInfo.getEntityCount())

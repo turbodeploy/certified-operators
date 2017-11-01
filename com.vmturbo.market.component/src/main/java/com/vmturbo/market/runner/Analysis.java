@@ -9,6 +9,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import javax.annotation.Nonnull;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -16,6 +18,7 @@ import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.market.topology.TopologyEntitiesHandler;
@@ -36,9 +39,6 @@ public class Analysis {
     // Analysis completed (successfully or not).
     private boolean completed = false;
 
-    private final long topologyContextId;
-    private final long topologyId;
-    private final TopologyType topologyType;
     private final boolean includeVDC;
     private LocalDateTime startTime = EPOCH;
     private LocalDateTime completionTime = EPOCH;
@@ -46,6 +46,7 @@ public class Analysis {
     private final String logPrefix;
 
     private Collection<TopologyEntityDTO> projectedEntities = null;
+    private final long projectedTopologyId;
     private ActionPlan actionPlan = null;
     private PriceIndexMessage priceIndexMessage = null;
 
@@ -54,15 +55,19 @@ public class Analysis {
 
     private final Logger logger = LogManager.getLogger();
 
-    public Analysis(long topologyContextId, long topologyId, Set<TopologyEntityDTO> topologyDTOs,
-                    TopologyType topologyType, boolean includeVDC) {
-        this.topologyContextId = topologyContextId;
-        this.topologyId = topologyId;
-        this.topologyType = topologyType;
+    private final TopologyInfo topologyInfo;
+
+    public Analysis(@Nonnull final TopologyInfo topologyInfo,
+                    @Nonnull final Set<TopologyEntityDTO> topologyDTOs,
+                    final boolean includeVDC) {
+        this.topologyInfo = topologyInfo;
         this.topologyDTOs = topologyDTOs;
         this.includeVDC = includeVDC;
         this.state = AnalysisState.INITIAL;
-        logPrefix = topologyType + " Analysis " + topologyContextId + " with topology " + topologyId + " : ";
+        logPrefix = topologyInfo.getTopologyType() + " Analysis " +
+            topologyInfo.getTopologyContextId() + " with topology " +
+            topologyInfo.getTopologyId() + " : ";
+        this.projectedTopologyId = IdentityGenerator.next();
     }
 
     private static final DataMetricSummary RESULT_PROCESSING = DataMetricSummary.builder()
@@ -91,7 +96,8 @@ public class Analysis {
         startTime = LocalDateTime.now();
         logger.info(logPrefix + "Started");
         try {
-            final TopologyConverter converter = new TopologyConverter(includeVDC, topologyType);
+            final TopologyConverter converter = new TopologyConverter(includeVDC,
+                    topologyInfo.getTopologyType());
             final Set<TraderTO> traderTOs = converter
                             .convertToMarket(Lists.newLinkedList(topologyDTOs));
             if (logger.isDebugEnabled()) {
@@ -100,11 +106,8 @@ public class Analysis {
             if (logger.isTraceEnabled()) {
                 traderTOs.stream().map(dto -> "Economy DTO: " + dto).forEach(logger::trace);
             }
-            final String marketId = topologyType + "-"
-                            + Long.toString(topologyContextId) + "-"
-                            + Long.toString(topologyId);
             final AnalysisResults results =
-                    TopologyEntitiesHandler.performAnalysis(traderTOs, marketId, topologyType);
+                    TopologyEntitiesHandler.performAnalysis(traderTOs, topologyInfo);
             final DataMetricTimer processResultTime = RESULT_PROCESSING.startTimer();
             // add shoppinglist from newly provisioned trader to shoppingListOidToInfos
             converter.updateShoppingListMap(results.getNewShoppingListToBuyerEntryList());
@@ -114,8 +117,8 @@ public class Analysis {
             logger.info(logPrefix + "Creating action plan");
             final ActionPlan.Builder actionPlanBuilder = ActionPlan.newBuilder()
                     .setId(IdentityGenerator.next())
-                    .setTopologyId(topologyId)
-                    .setTopologyContextId(topologyContextId);
+                    .setTopologyId(topologyInfo.getTopologyId())
+                    .setTopologyContextId(topologyInfo.getTopologyContextId());
             results.getActionsList().stream()
                     .map(converter::interpretAction)
                     .filter(Optional::isPresent)
@@ -137,6 +140,17 @@ public class Analysis {
                 + startTime.until(completionTime, ChronoUnit.SECONDS) + " seconds");
         completed = true;
         return true;
+    }
+
+    /**
+     * Get the ID of the projected topology.
+     * The value will be available only when the run is completed successfully, meaning
+     * the projected topology, the action plan and the price index message were all computed.
+     *
+     * @return The ID of the projected topology.
+     */
+    public Optional<Long> getProjectedTopologyId() {
+        return completed ? Optional.of(projectedTopologyId) : Optional.empty();
     }
 
     /**
@@ -190,7 +204,7 @@ public class Analysis {
      * @return the topology context id of this analysis run
      */
     public long getContextId() {
-        return topologyContextId;
+        return topologyInfo.getTopologyContextId();
     }
 
     /**
@@ -198,7 +212,7 @@ public class Analysis {
      * @return the topology id of this analysis run
      */
     public long getTopologyId() {
-        return topologyId;
+        return topologyInfo.getTopologyId();
     }
 
     /**
@@ -207,7 +221,7 @@ public class Analysis {
      * @return the topology type
      */
     public TopologyType getTopologyType() {
-        return topologyType;
+        return topologyInfo.getTopologyType();
     }
 
     /**
@@ -249,6 +263,16 @@ public class Analysis {
      */
     public boolean isDone() {
         return completed;
+    }
+
+    /**
+     * Get the {@link TopologyInfo} of the topology this analysis is running on.
+     *
+     * @return The {@link TopologyInfo}.
+     */
+    @Nonnull
+    public TopologyInfo getTopologyInfo() {
+        return topologyInfo;
     }
 
     /**

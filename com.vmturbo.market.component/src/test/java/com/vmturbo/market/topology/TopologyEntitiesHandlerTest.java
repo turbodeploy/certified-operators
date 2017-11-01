@@ -30,6 +30,7 @@ import com.google.protobuf.AbstractMessage;
 import com.google.protobuf.util.JsonFormat;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.analysis.InvalidTopologyException;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -333,8 +334,14 @@ public class TopologyEntitiesHandlerTest {
             .collect(Collectors.toList());
         Set<TraderTO> economyDTOs = new TopologyConverter(true, TopologyType.REALTIME)
                         .convertToMarket(topoDTOs);
+        final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
+                .setTopologyContextId(7L)
+                .setTopologyType(TopologyType.PLAN)
+                .setTopologyId(1L)
+                .build();
+
         AnalysisResults results =
-            TopologyEntitiesHandler.performAnalysis(economyDTOs, "end2endTest", TopologyType.PLAN);
+            TopologyEntitiesHandler.performAnalysis(economyDTOs, topologyInfo);
         return results.getActionsList();
     }
 

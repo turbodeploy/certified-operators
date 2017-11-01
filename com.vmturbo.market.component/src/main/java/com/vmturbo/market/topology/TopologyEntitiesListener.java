@@ -41,13 +41,11 @@ public class TopologyEntitiesListener implements EntitiesListener {
         final Set<TopologyEntityDTO> entities = new HashSet<>();
         final long topologyContextId = topologyInfo.getTopologyContextId();
         final long topologyId = topologyInfo.getTopologyId();
-        final long creationTime = topologyInfo.getCreationTime();
-        final TopologyType topologyType = topologyInfo.getTopologyType();
         try {
             while (entityIterator.hasNext()) {
                 entities.addAll(entityIterator.nextChunk());
             }
-            marketRunner.scheduleAnalysis(topologyContextId, topologyId, creationTime, entities, topologyType, false);
+            marketRunner.scheduleAnalysis(topologyInfo, entities, false);
         } catch (CommunicationException | TimeoutException e) {
             logger.error("Error occurred while receiving topology " + topologyId + " with for " +
                     "context " + topologyContextId, e);

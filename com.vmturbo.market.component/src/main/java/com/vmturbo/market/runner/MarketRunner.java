@@ -5,15 +5,16 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 
+import javax.annotation.Nonnull;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.Maps;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
-import com.vmturbo.commons.idgen.IdentityGenerator;
-import com.vmturbo.market.MarketNotificationSender;
+import com.vmturbo.market.component.api.MarketNotificationSender;
 import com.vmturbo.market.runner.Analysis.AnalysisState;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
 import com.vmturbo.priceindex.api.PriceIndexNotificationSender;
@@ -48,11 +49,14 @@ public class MarketRunner {
         this.priceIndexApi = priceIndexApi;
     }
 
-    public Analysis scheduleAnalysis(long topologyContextId, long topologyId, long creationTime,
-                    Set<TopologyEntityDTO> topologyDTOs, TopologyType topologyType,
-                    boolean includeVDC) {
+    @Nonnull
+    public Analysis scheduleAnalysis(@Nonnull final TopologyDTO.TopologyInfo topologyInfo,
+                                     @Nonnull final Set<TopologyEntityDTO> topologyDTOs,
+                                     final boolean includeVDC) {
         INPUT_TOPOLOGY.observe((double)topologyDTOs.size());
-        Analysis analysis;
+        final Analysis analysis;
+        final long topologyContextId = topologyInfo.getTopologyContextId();
+        final long topologyId = topologyInfo.getTopologyId();
         synchronized (analysisMap) {
             if (analysisMap.containsKey(topologyContextId)) {
                 logger.info("Analysis " + topologyContextId + " is already running with topology " + topologyId
@@ -62,7 +66,7 @@ public class MarketRunner {
 
             logger.info("Received analysis " + topologyContextId + ": topology " + topologyId + " with " + topologyDTOs.size()
                 + " topology DTOs from TopologyProcessor");
-            analysis = new Analysis(topologyContextId, topologyId, topologyDTOs, topologyType, includeVDC);
+            analysis = new Analysis(topologyInfo, topologyDTOs, includeVDC);
             analysisMap.put(topologyContextId, analysis);
         }
         if (logger.isDebugEnabled()) {
@@ -71,27 +75,27 @@ public class MarketRunner {
         }
         logger.info("Queueing analysis " + topologyContextId + " for execution");
         analysis.queued();
-        runnerThreadPool.execute(() -> runAnalysis(analysis, creationTime));
+        runnerThreadPool.execute(() -> runAnalysis(analysis));
         return analysis;
     }
 
     /**
      * Run the analysis, when done - remove it from the map of runs and notify listeners.
      * @param analysis the object on which to run the analysis.
-     * @param creationTime the time of topology created, it will be part of price index message object.
      */
-    private void runAnalysis(Analysis analysis, long creationTime) {
+    private void runAnalysis(@Nonnull final Analysis analysis) {
         analysis.execute();
         analysisMap.remove(analysis.getContextId());
         if (analysis.getState() == AnalysisState.SUCCEEDED) {
             serverApi.notifyActionsRecommended(analysis.getActionPlan().get());
-            serverApi.notifyProjectedTopology(analysis.getTopologyId(), IdentityGenerator.next(),
-                    analysis.getContextId(), analysis.getTopologyType(), creationTime,
+            serverApi.notifyProjectedTopology(analysis.getTopologyInfo(),
+                    analysis.getProjectedTopologyId().get(),
                     analysis.getProjectedTopology().get());
-            PriceIndexMessage pim = PriceIndexMessage.newBuilder(analysis.getPriceIndexMessage().get())
-                            .setTopologyContextId(analysis.getContextId())
-                            .build();
-            priceIndexApi.sendPriceIndex(analysis.getTopologyId(), creationTime, pim);
+            final PriceIndexMessage pim =
+                PriceIndexMessage.newBuilder(analysis.getPriceIndexMessage().get())
+                    .setTopologyContextId(analysis.getContextId())
+                    .build();
+            priceIndexApi.sendPriceIndex(analysis.getTopologyInfo(), pim);
         }
     }
 

@@ -14,6 +14,8 @@ import java.util.concurrent.Future;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
 
+import com.google.common.base.Preconditions;
+
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionFailure;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionProgress;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionSuccess;
@@ -176,9 +178,8 @@ public class TopologyProcessorNotificationSender
 
     @Nonnull
     @Override
-    public TopologyBroadcast broadcastTopology(final long topologyContextId, final long topologyId,
-                    final TopologyType topologyType) {
-        return new TopologyBroadcastImpl(topologyContextId, topologyId, topologyType);
+    public TopologyBroadcast broadcastTopology(@Nonnull final TopologyInfo topologyInfo) {
+        return new TopologyBroadcastImpl(topologyInfo);
     }
 
     @Override
@@ -237,25 +238,8 @@ public class TopologyProcessorNotificationSender
      * {@link MessageChunker#CHUNK_SIZE} for chunk size.
      */
     private class TopologyBroadcastImpl implements TopologyBroadcast {
-        /**
-         * Topology broadcast id.
-         */
-        private final long topologyId;
 
-        /**
-         * Topology created time.
-         */
-        private final long creationTime;
-
-        /**
-         * Topology context id.
-         */
-        private final long topologyContextId;
-
-        /**
-         * Topology type.
-         */
-        private final TopologyType topologyType;
+        private final TopologyInfo topologyInfo;
 
         /**
          * Lock for internal synchronization.
@@ -284,21 +268,17 @@ public class TopologyProcessorNotificationSender
 
         private boolean finished = false;
 
-        TopologyBroadcastImpl(final long topologyContextId, final long topologyId,
-                    final TopologyType topologyType) {
-            this.topologyId = topologyId;
-            this.topologyContextId = topologyContextId;
-            this.topologyType = topologyType;
+        TopologyBroadcastImpl(@Nonnull final TopologyInfo topologyInfo) {
+            Preconditions.checkArgument(topologyInfo.hasTopologyId());
+            Preconditions.checkArgument(topologyInfo.hasTopologyContextId());
+            Preconditions.checkArgument(topologyInfo.hasCreationTime());
+            Preconditions.checkArgument(topologyInfo.hasTopologyType());
+            this.topologyInfo = topologyInfo;
             this.chunk = new ArrayList<>(MessageChunker.CHUNK_SIZE);
-            this.creationTime = System.currentTimeMillis();
             final Topology subMessage = Topology.newBuilder()
                     .setTopologyId(getTopologyId())
                     .setStart(Start.newBuilder()
-                            .setTopologyInfo(TopologyInfo.newBuilder()
-                                    .setTopologyId(topologyId)
-                                    .setTopologyContextId(topologyContextId)
-                                    .setTopologyType(topologyType)
-                                    .setCreationTime(creationTime)))
+                            .setTopologyInfo(topologyInfo))
                     .build();
             // As startup message holds no data, it's safe to return immediately. There is not
             // problem, if it will hang in memory at the same time, as the first chunk.
@@ -313,28 +293,28 @@ public class TopologyProcessorNotificationSender
                 initialMessage.get();
             } catch (ExecutionException e) {
                 getLogger().error("Unexpected error occurred while sending initial message of " +
-                        "broadcast " + topologyId, e);
+                        "broadcast " + getTopologyId(), e);
             }
         }
 
         @Override
         public long getTopologyId() {
-            return topologyId;
+            return topologyInfo.getTopologyId();
         }
 
         @Override
         public long getTopologyContextId() {
-            return topologyContextId;
+            return topologyInfo.getTopologyContextId();
         }
 
         @Override
         public TopologyType getTopologyType() {
-            return topologyType;
+            return topologyInfo.getTopologyType();
         }
 
         @Override
         public long getCreationTime() {
-            return creationTime;
+            return topologyInfo.getCreationTime();
         }
 
         @Override
@@ -357,7 +337,7 @@ public class TopologyProcessorNotificationSender
             awaitInitialMessage();
             synchronized (lock) {
                 if (finished) {
-                    throw new IllegalStateException("Broadcast " + topologyId + " is already " +
+                    throw new IllegalStateException("Broadcast " + getTopologyId() + " is already " +
                             "finished. It does not accept new entities");
                 }
                 chunk.add(entity);
@@ -371,7 +351,7 @@ public class TopologyProcessorNotificationSender
         private void sendChunk() throws InterruptedException {
             final Topology subMessage = Topology.newBuilder()
                     .setData(Data.newBuilder().addAllEntities(chunk))
-                    .setTopologyId(topologyId)
+                    .setTopologyId(getTopologyId())
                     .build();
             sendTopologySegment(subMessage);
             totalCount += chunk.size();

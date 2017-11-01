@@ -88,7 +88,8 @@ public class TopologyConverter {
      * @param includeGuaranteedBuyer whether to include guaranteed buyers (VDC, VPod, DPod) or not
      * @param topologyType the type of topology (realtime or plan) to convert
      */
-    public TopologyConverter(boolean includeGuaranteedBuyer, TopologyType topologyType) {
+    public TopologyConverter(final boolean includeGuaranteedBuyer,
+                             @Nonnull final TopologyType topologyType) {
         this(topologyType);
         this.includeGuaranteedBuyer = includeGuaranteedBuyer;
     }

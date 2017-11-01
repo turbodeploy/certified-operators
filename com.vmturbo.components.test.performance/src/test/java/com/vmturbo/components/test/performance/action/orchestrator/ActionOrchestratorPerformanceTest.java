@@ -61,7 +61,7 @@ import com.vmturbo.components.test.utilities.component.ComponentCluster;
 import com.vmturbo.components.test.utilities.component.ComponentUtils;
 import com.vmturbo.components.test.utilities.component.DockerEnvironment;
 import com.vmturbo.components.test.utilities.utils.ActionPlanGenerator;
-import com.vmturbo.market.MarketNotificationSender;
+import com.vmturbo.market.component.api.MarketNotificationSender;
 import com.vmturbo.market.api.MarketKafkaSender;
 
 @Alert({"ao_populate_store_duration_seconds_sum{store_type='Live'}/5minutes",

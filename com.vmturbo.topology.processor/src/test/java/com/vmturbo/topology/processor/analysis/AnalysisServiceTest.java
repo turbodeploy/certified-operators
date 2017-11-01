@@ -1,16 +1,20 @@
 package com.vmturbo.topology.processor.analysis;
 
+import static org.junit.Assert.assertEquals;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
+import java.time.Clock;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
@@ -35,6 +39,8 @@ import com.vmturbo.common.protobuf.topology.AnalysisDTO.StartAnalysisResponse;
 import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc;
 import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc.AnalysisServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.topology.processor.entity.EntityStore;
@@ -55,8 +61,10 @@ public class AnalysisServiceTest {
 
     private RepositoryClient repository = Mockito.mock(RepositoryClient.class);
 
+    private Clock clock = Mockito.mock(Clock.class);
+
     private AnalysisService analysisServiceBackend =
-            new AnalysisService(topologyHandler, entityStore, identityProvider, repository);
+            new AnalysisService(topologyHandler, entityStore, identityProvider, repository, clock);
 
     private AnalysisServiceBlockingStub analysisService;
 
@@ -68,8 +76,17 @@ public class AnalysisServiceTest {
 
     private final long topologyContextId = 11;
 
+    private final long clockTime = 7L;
+
+    private final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
+        .setTopologyContextId(planId)
+        .setTopologyId(topologyId)
+        .setCreationTime(clockTime)
+        .setTopologyType(TopologyType.PLAN)
+        .build();
+
     @Captor
-    private ArgumentCaptor<Set<TopologyEntityDTO>> broadcastCaptor;
+    private ArgumentCaptor<Stream<TopologyEntityDTO>> broadcastCaptor;
 
     private final long entityId = 10;
 
@@ -98,9 +115,10 @@ public class AnalysisServiceTest {
 
         // Return a hard-coded number. It doesn't really matter
         // what the number is, since it just comes back in the gRPC response.
-        when(topologyHandler.broadcastTopology(anyLong(), anyLong(), Mockito.any()))
+        when(topologyHandler.broadcastTopology(any(), any()))
                 .thenReturn(broadcastInfo);
         when(identityProvider.generateTopologyId()).thenReturn(topologyId);
+        when(clock.millis()).thenReturn(clockTime);
     }
 
     /**
@@ -128,10 +146,12 @@ public class AnalysisServiceTest {
                         .build());
 
         // assert
-        verify(topologyHandler).broadcastTopology(eq(planId),
-                eq(oldTopologyId),
-                eq(entities));
-        Assert.assertEquals(returnEntityNum, response.getEntitiesBroadcast());
+        verify(topologyHandler).broadcastTopology(eq(topologyInfo.toBuilder()
+                    .setTopologyId(oldTopologyId)
+                    .build()),
+                broadcastCaptor.capture());
+        assertEquals(returnEntityNum, response.getEntitiesBroadcast());
+        assertEquals(entities, broadcastCaptor.getValue().collect(Collectors.toList()));
     }
 
     /**
@@ -154,14 +174,16 @@ public class AnalysisServiceTest {
                     .build());
 
         verify(entityStore).constructTopology();
-        verify(topologyHandler).broadcastTopology(eq(planId), eq(topologyId), eq(entities.values().stream()
+        verify(topologyHandler).broadcastTopology(eq(topologyInfo), broadcastCaptor.capture());
+
+        assertEquals(entities.values().stream()
             .map(TopologyEntityDTO.Builder::build)
-            .collect(Collectors.toList())));
-        Assert.assertEquals(returnEntityNum, response.getEntitiesBroadcast());
+            .collect(Collectors.toList()), broadcastCaptor.getValue().collect(Collectors.toList()));
+        assertEquals(returnEntityNum, response.getEntitiesBroadcast());
 
         // Verify the analysis service passes through the topologyId and topologyContextId.
-        Assert.assertEquals(topologyId, response.getTopologyId());
-        Assert.assertEquals(topologyContextId, response.getTopologyContextId());
+        assertEquals(topologyId, response.getTopologyId());
+        assertEquals(topologyContextId, response.getTopologyContextId());
     }
 
     @Test
@@ -182,10 +204,10 @@ public class AnalysisServiceTest {
                 .setDisplayName("test - Clone")
                 .build();
 
-        verify(topologyHandler).broadcastTopology(
-                eq(planId), anyLong(), broadcastCaptor.capture());
+        verify(topologyHandler).broadcastTopology(eq(topologyInfo), broadcastCaptor.capture());
 
-        final Set<TopologyEntityDTO> newTopology = broadcastCaptor.getValue();
+        final Set<TopologyEntityDTO> newTopology =
+                broadcastCaptor.getValue().collect(Collectors.toSet());
 
         MatcherAssert.assertThat(newTopology,
                 Matchers.containsInAnyOrder(
@@ -214,9 +236,9 @@ public class AnalysisServiceTest {
                 .setOid(12)
                 .build();
 
-        verify(topologyHandler).broadcastTopology(
-                eq(planId), anyLong(), broadcastCaptor.capture());
-        final Set<TopologyEntityDTO> newTopology = broadcastCaptor.getValue();
+        verify(topologyHandler).broadcastTopology(eq(topologyInfo), broadcastCaptor.capture());
+        final Set<TopologyEntityDTO> newTopology =
+                broadcastCaptor.getValue().collect(Collectors.toSet());
 
         MatcherAssert.assertThat(newTopology,
                 Matchers.containsInAnyOrder(
@@ -236,9 +258,9 @@ public class AnalysisServiceTest {
                                 .setEntityId(entityId + 1)))
                 .build());
 
-        verify(topologyHandler).broadcastTopology(
-                eq(planId), anyLong(), broadcastCaptor.capture());
-        final Set<TopologyEntityDTO> newTopology = broadcastCaptor.getValue();
+        verify(topologyHandler).broadcastTopology(eq(topologyInfo), broadcastCaptor.capture());
+        final Set<TopologyEntityDTO> newTopology =
+                broadcastCaptor.getValue().collect(Collectors.toSet());
 
         MatcherAssert.assertThat(newTopology,
                 Matchers.contains(Matchers.equalTo(testEntity.build())));
@@ -255,10 +277,10 @@ public class AnalysisServiceTest {
                     .setEntityId(entityId)))
                 .build());
 
-        verify(topologyHandler).broadcastTopology(
-                eq(planId), anyLong(), broadcastCaptor.capture());
+        verify(topologyHandler).broadcastTopology(eq(topologyInfo), broadcastCaptor.capture());
 
-        final Set<TopologyEntityDTO> newTopology = broadcastCaptor.getValue();
+        final Set<TopologyEntityDTO> newTopology =
+                broadcastCaptor.getValue().collect(Collectors.toSet());
         Assert.assertTrue(newTopology.isEmpty());
     }
 
@@ -273,10 +295,10 @@ public class AnalysisServiceTest {
                                 .setEntityId(entityId + 1)))
                 .build());
 
-        verify(topologyHandler).broadcastTopology(
-                eq(planId), anyLong(), broadcastCaptor.capture());
+        verify(topologyHandler).broadcastTopology(eq(topologyInfo), broadcastCaptor.capture());
 
-        final Set<TopologyEntityDTO> newTopology = broadcastCaptor.getValue();
+        final Set<TopologyEntityDTO> newTopology =
+                broadcastCaptor.getValue().collect(Collectors.toSet());
         MatcherAssert.assertThat(newTopology,
                 Matchers.contains(Matchers.equalTo(testEntity.build())));
     }

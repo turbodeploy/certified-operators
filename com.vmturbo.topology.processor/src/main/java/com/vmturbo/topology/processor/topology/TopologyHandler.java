@@ -1,10 +1,13 @@
 package com.vmturbo.topology.processor.topology;
 
+import java.time.Clock;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
@@ -13,7 +16,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.proactivesupport.DataMetricSummary;
@@ -53,6 +58,8 @@ public class TopologyHandler {
 
     private final SettingsManager settingsManager;
 
+    private final Clock clock;
+
     public TopologyHandler(final long realtimeTopologyContextId,
                            @Nonnull final TopoBroadcastManager topoBroadcastManager,
                            @Nonnull final EntityStore entityStore,
@@ -60,7 +67,8 @@ public class TopologyHandler {
                            @Nonnull final PolicyManager policyManager,
                            @Nonnull final DiscoveredTemplateDeploymentProfileNotifier discoveredTemplateDeploymentProfileNotifier,
                            @Nonnull final DiscoveredGroupUploader discoveredGroupUploader,
-                           @Nonnull final SettingsManager settingsManager) {
+                           @Nonnull final SettingsManager settingsManager,
+                           @Nonnull final Clock clock) {
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.topoBroadcastManager = Objects.requireNonNull(topoBroadcastManager);
         this.entityStore = Objects.requireNonNull(entityStore);
@@ -69,6 +77,7 @@ public class TopologyHandler {
         this.discoveredTemplateDeploymentProfileNotifier = Objects.requireNonNull(discoveredTemplateDeploymentProfileNotifier);
         this.discoveredGroupUploader = Objects.requireNonNull(discoveredGroupUploader);
         this.settingsManager = Objects.requireNonNull(settingsManager);
+        this.clock = clock;
     }
 
     /**
@@ -147,35 +156,47 @@ public class TopologyHandler {
                 logger.error("Unable to apply settings due to error: ", e);
             }
 
-            return broadcastTopology(realtimeTopologyContextId,
-                newTopologyId,
+            final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
+                    .setTopologyType(TopologyType.REALTIME)
+                    .setTopologyId(newTopologyId)
+                    .setTopologyContextId(realtimeTopologyContextId)
+                    .setCreationTime(clock.millis())
+                    .build();
+
+            return broadcastTopology(topologyInfo,
                 graph.vertices()
                     .map(Vertex::getTopologyEntityDtoBuilder)
-                    .map(TopologyEntityDTO.Builder::build)
-                    .collect(Collectors.toList())
-            );
+                    .map(TopologyEntityDTO.Builder::build));
         }
     }
 
     /**
      * Broadcast an arbitrary set of entities as a topology.
      *
-     * @param topologyContextId The context ID of the topology.
-     * @param topologyId The ID of the topology.
+     * @param topologyInfo Information about the topology.
      * @param topology The {@link TopologyEntityDTO} objects in the topology.
      * @return The number of broadcast entities.
      * @throws InterruptedException when the broadcast is interrupted
      */
-    public synchronized TopologyBroadcastInfo broadcastTopology(final long topologyContextId,
-                                  final long topologyId,
-                                  final Collection<TopologyEntityDTO> topology) throws InterruptedException {
-        final TopologyType topologyType = topologyContextId == realtimeTopologyContextId
-                        ? TopologyType.REALTIME
-                        : TopologyType.PLAN;
+    public synchronized TopologyBroadcastInfo broadcastTopology(
+            @Nonnull final TopologyInfo topologyInfo,
+            final Stream<TopologyEntityDTO> topology) throws InterruptedException {
         final TopologyBroadcast broadcast =
-                topoBroadcastManager.broadcastTopology(topologyContextId, topologyId, topologyType);
-        for (TopologyEntityDTO entity : topology) {
-            broadcast.append(entity);
+                topoBroadcastManager.broadcastTopology(topologyInfo);
+        try {
+            topology.forEach(entity -> {
+                try {
+                    broadcast.append(entity);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+        } catch (RuntimeException e) {
+            if (e.getCause() instanceof  InterruptedException) {
+                throw (InterruptedException)e.getCause();
+            } else {
+                throw e;
+            }
         }
 
         long sentCount = broadcast.finish();

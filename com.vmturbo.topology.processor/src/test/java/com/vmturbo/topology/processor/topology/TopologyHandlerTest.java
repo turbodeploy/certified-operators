@@ -1,8 +1,12 @@
 package com.vmturbo.topology.processor.topology;
 
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Map;
 import javax.annotation.Nonnull;
@@ -14,6 +18,7 @@ import org.mockito.Mockito;
 import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -39,46 +44,66 @@ import com.vmturbo.topology.processor.templates.DiscoveredTemplateDeploymentProf
 public class TopologyHandlerTest {
 
     private final TopoBroadcastManager topoBroadcastManager =
-            Mockito.mock(TopoBroadcastManager.class);
-    private final IdentityProvider identityProvider = Mockito.mock(IdentityProvider.class);
-    private final EntityStore entityStore = new EntityStore(Mockito.mock(TargetStore.class),
-            identityProvider, new EntityValidator());
-    private TopologyHandler topologyHandler;
-    private final long topologyId = 0L;
-    private final long realtimeTopologyContextId = 7000;
-    private final PolicyManager policyManager = Mockito.mock(PolicyManager.class);
-    private final DiscoveredTemplateDeploymentProfileNotifier discoveredTemplateDeploymentProfileNotifier =
-            Mockito.mock(DiscoveredTemplateDeploymentProfileNotifier.class);
-    private final DiscoveredGroupUploader discoveredGroupUploader =
-            Mockito.mock(DiscoveredGroupUploader.class);
-    private final SettingsManager settingsManager =
-            Mockito.mock(SettingsManager.class);
+            mock(TopoBroadcastManager.class);
 
+    private final IdentityProvider identityProvider = mock(IdentityProvider.class);
+
+    private final EntityStore entityStore = new EntityStore(mock(TargetStore.class),
+            identityProvider, new EntityValidator());
+
+    private TopologyHandler topologyHandler;
+
+    private final long topologyId = 0L;
+
+    private final long realtimeTopologyContextId = 7000;
+
+    private final long clockTime = 77L;
+
+    private final PolicyManager policyManager = mock(PolicyManager.class);
+
+    private final DiscoveredTemplateDeploymentProfileNotifier discoveredTemplateDeploymentProfileNotifier =
+            mock(DiscoveredTemplateDeploymentProfileNotifier.class);
+
+    private final DiscoveredGroupUploader discoveredGroupUploader =
+            mock(DiscoveredGroupUploader.class);
+
+    private final SettingsManager settingsManager =
+            mock(SettingsManager.class);
+
+    private final Clock clock = mock(Clock.class);
+
+    private final TopologyInfo realtimeTopologyInfo = TopologyInfo.newBuilder()
+            .setTopologyContextId(realtimeTopologyContextId)
+            .setTopologyId(topologyId)
+            .setCreationTime(clockTime)
+            .setTopologyType(TopologyType.REALTIME)
+            .build();
 
     @Before
     public void init() {
-        final IdentityProvider identityProvider = Mockito.mock(IdentityProvider.class);
+        final IdentityProvider identityProvider = mock(IdentityProvider.class);
         topologyHandler = new TopologyHandler(realtimeTopologyContextId, topoBroadcastManager,
                 entityStore, identityProvider, policyManager,
-                discoveredTemplateDeploymentProfileNotifier, discoveredGroupUploader, settingsManager);
+                discoveredTemplateDeploymentProfileNotifier, discoveredGroupUploader, settingsManager,
+                clock);
         when(identityProvider.generateTopologyId()).thenReturn(topologyId);
+        when(clock.millis()).thenReturn(clockTime);
     }
 
     @Test
     public void testBroadcastTopology() throws Exception {
-        final TopologyBroadcast entitiesListener = Mockito.mock(TopologyBroadcast.class);
-        when(topoBroadcastManager
-                .broadcastTopology(realtimeTopologyContextId, topologyId, TopologyType.REALTIME))
+        final TopologyBroadcast entitiesListener = mock(TopologyBroadcast.class);
+        when(topoBroadcastManager.broadcastTopology(eq(realtimeTopologyInfo)))
             .thenReturn(entitiesListener);
 
         addTestSnapshots();
 
         topologyHandler.broadcastLatestTopology();
-        verify(entitiesListener, Mockito.times(4)).append(Mockito.any(TopologyEntityDTO.class));
+        verify(entitiesListener, Mockito.times(4)).append(any(TopologyEntityDTO.class));
         verify(entitiesListener).finish();
         verify(discoveredGroupUploader).processQueuedGroups();
-        verify(policyManager).applyPolicies(Mockito.any(TopologyGraph.class),
-            Mockito.any(GroupResolver.class));
+        verify(policyManager).applyPolicies(any(TopologyGraph.class),
+            any(GroupResolver.class));
         verify(discoveredTemplateDeploymentProfileNotifier).sendTemplateDeploymentProfileData();
     }
 
@@ -100,12 +125,12 @@ public class TopologyHandlerTest {
             addEntities(targetId, snapshotMap);
         }
 
-        final TopologyBroadcast entitiesListener = Mockito.mock(TopologyBroadcast.class);
-        when(topoBroadcastManager.broadcastTopology(Mockito.anyLong(), Mockito.anyLong(),
-            Mockito.anyObject())).thenReturn(entitiesListener);
+        final TopologyBroadcast entitiesListener = mock(TopologyBroadcast.class);
+        when(topoBroadcastManager.broadcastTopology(any()))
+            .thenReturn(entitiesListener);
 
         topologyHandler.broadcastLatestTopology();
-        verify(entitiesListener).append(Mockito.any(TopologyEntityDTO.class));
+        verify(entitiesListener).append(any(TopologyEntityDTO.class));
         verify(entitiesListener).finish();
     }
 
@@ -131,8 +156,8 @@ public class TopologyHandlerTest {
             throws EntitiesValidationException, IdentityUninitializedException {
         final long probeId = 0;
         Mockito.when(
-                identityProvider.getIdsForEntities(Mockito.eq(probeId),
-                        Mockito.eq(new ArrayList<>(entities.values()))))
+                identityProvider.getIdsForEntities(eq(probeId),
+                        eq(new ArrayList<>(entities.values()))))
                 .thenReturn(entities);
         entityStore.entitiesDiscovered(probeId, targetId, new ArrayList<>(entities.values()));
     }

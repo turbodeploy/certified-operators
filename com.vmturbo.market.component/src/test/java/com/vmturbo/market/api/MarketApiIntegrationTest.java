@@ -25,7 +25,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.components.api.test.IntegrationTestServer;
-import com.vmturbo.market.MarketNotificationSender;
+import com.vmturbo.market.component.api.MarketNotificationSender;
 import com.vmturbo.market.component.api.ActionsListener;
 import com.vmturbo.market.component.api.impl.MarketComponentClient;
 

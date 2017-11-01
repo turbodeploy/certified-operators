@@ -112,8 +112,7 @@ class TopologyProcessorNotificationReceiver extends ComponentNotificationReceive
         switch (topology.getSegmentCase()) {
             case START:
                 topologyChunkReceiver.startTopologyBroadcast(topology.getTopologyId(),
-                        createEntityConsumers(topologyId,
-                                topology.getStart().getTopologyInfo()));
+                        createEntityConsumers(topology.getStart().getTopologyInfo()));
                 break;
             case DATA:
                 topologyChunkReceiver.processData(topology.getTopologyId(),
@@ -131,7 +130,7 @@ class TopologyProcessorNotificationReceiver extends ComponentNotificationReceive
     }
 
     private Collection<Consumer<RemoteIterator<TopologyEntityDTO>>> createEntityConsumers(
-            final long topologyId, final TopologyInfo topologyInfo) {
+            @Nonnull final TopologyInfo topologyInfo) {
         getLogger().info("TopologyInfo : " + topologyInfo);
         return entitiesListeners.stream().map(listener -> {
             final Consumer<RemoteIterator<TopologyEntityDTO>> consumer =

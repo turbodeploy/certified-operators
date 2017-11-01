@@ -20,6 +20,7 @@ import tec.units.ri.unit.MetricPrefix;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.components.api.client.IMessageReceiver;
@@ -93,9 +94,14 @@ public class MarketPerformanceTest {
         final TopologyProcessorNotificationSender tpNotificationSender =
                 TopologyProcessorKafkaSender.create(threadPool,
                         componentTestRule.getKafkaMessageProducer());
+        final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
+                .setTopologyType(TopologyType.REALTIME)
+                .setTopologyId(10)
+                .setTopologyContextId(ComponentUtils.REALTIME_TOPOLOGY_CONTEXT)
+                .setCreationTime(0)
+                .build();
         final TopologyBroadcast topologyBroadcast =
-                tpNotificationSender.broadcastTopology(ComponentUtils.REALTIME_TOPOLOGY_CONTEXT, 10,
-                        TopologyType.REALTIME);
+                tpNotificationSender.broadcastTopology(topologyInfo);
         topoDTOs.forEach(entity -> {
             try {
                 topologyBroadcast.append(entity);

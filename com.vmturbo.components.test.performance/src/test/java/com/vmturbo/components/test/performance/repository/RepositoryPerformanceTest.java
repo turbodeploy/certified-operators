@@ -29,6 +29,7 @@ import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.client.KafkaMessageConsumer;
@@ -183,9 +184,15 @@ public class RepositoryPerformanceTest {
 
         final TopologyProcessorNotificationSender topologySender = TopologyProcessorKafkaSender
                 .create(threadPool, componentTestRule.getKafkaMessageProducer());
-        final TopologyBroadcast topologyBroadcast =
-                topologySender.broadcastTopology(ComponentUtils.REALTIME_TOPOLOGY_CONTEXT, 10,
-                        TopologyType.REALTIME);
+
+        final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
+                .setTopologyType(TopologyType.REALTIME)
+                .setTopologyId(10)
+                .setTopologyContextId(ComponentUtils.REALTIME_TOPOLOGY_CONTEXT)
+                .setCreationTime(0)
+                .build();
+
+        final TopologyBroadcast topologyBroadcast = topologySender.broadcastTopology(topologyInfo);
         topoDTOs.forEach(entity -> {
             try {
                 topologyBroadcast.append(entity);

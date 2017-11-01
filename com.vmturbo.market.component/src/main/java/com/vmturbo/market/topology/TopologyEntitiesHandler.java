@@ -5,9 +5,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nonnull;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.analysis.CommodityResizeDependencyMap;
 import com.vmturbo.commons.analysis.RawMaterialsMap;
@@ -63,16 +66,15 @@ public class TopologyEntitiesHandler {
     /**
      * Create an {@link Economy} from a set of {@link TraderTO}s
      * and return the list of {@link Action}s for those TOs.
-     * @param traderTOs a set of trader TOs
-     * @param marketIdentifier a identifier to be used in the name of stats file
-     * @param topologyType the type of topology: realtime or plan
-     * @return the list of actions for the TOs
+     * @param traderTOs A set of trader TOs.
+     * @param topologyInfo Information about the topology, including parameters for the analysis.
+     * @return The list of actions for the TOs.
      */
     public static AnalysisResults performAnalysis(Set<TraderTO> traderTOs,
-                    String marketIdentifier, TopologyType topologyType) {
+                    @Nonnull final TopologyDTO.TopologyInfo topologyInfo) {
         logger.info("Received TOs from marketComponent. Starting economy creation.");
         final long start = System.nanoTime();
-        DataMetricTimer buildTimer = ECONOMY_BUILD.startTimer();
+        final DataMetricTimer buildTimer = ECONOMY_BUILD.startTimer();
         final Topology topology = new Topology();
         for (final TraderTO traderTO : traderTOs) {
             ProtobufToAnalysis.addTrader(topology, traderTO);
@@ -91,14 +93,17 @@ public class TopologyEntitiesHandler {
         // compute startPriceIndex
         final PriceStatement startPriceStatement = new PriceStatement();
         startPriceStatement.computePriceIndex(economy);
-        Ede ede = new Ede();
+        final Ede ede = new Ede();
         buildTimer.observe();
 
-        DataMetricTimer runTimer = ANALYSIS_RUNTIME.startTimer();
-        boolean isRealtime = topologyType == TopologyType.REALTIME;
+        final boolean isRealtime = topologyInfo.getTopologyType() == TopologyType.REALTIME;
         // Generate actions
-        final List<Action> actions = ede.generateActions(economy, true, true,
-            true, true, true, marketIdentifier, isRealtime);
+        final String marketId = topologyInfo.getTopologyType() + "-"
+                + Long.toString(topologyInfo.getTopologyContextId()) + "-"
+                + Long.toString(topologyInfo.getTopologyId());
+        final DataMetricTimer runTimer = ANALYSIS_RUNTIME.startTimer();
+        final List<Action> actions = ede.generateActions(economy, true,
+            true, true, true, true, marketId, isRealtime);
         final long stop = System.nanoTime();
 
         AnalysisResults results = AnalysisToProtobuf.analysisResults(actions, topology.getTraderOids(),

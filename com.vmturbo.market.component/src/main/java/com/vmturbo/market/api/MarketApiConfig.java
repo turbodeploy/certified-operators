@@ -15,7 +15,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
 import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
 import com.vmturbo.components.api.server.IMessageSender;
-import com.vmturbo.market.MarketNotificationSender;
+import com.vmturbo.market.component.api.MarketNotificationSender;
 import com.vmturbo.market.component.api.impl.MarketComponentClient;
 
 /**

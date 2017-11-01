@@ -18,7 +18,7 @@ import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.components.api.test.IntegrationTestServer;
 import com.vmturbo.components.api.test.SenderReceiverPair;
-import com.vmturbo.market.MarketNotificationSender;
+import com.vmturbo.market.component.api.MarketNotificationSender;
 import com.vmturbo.market.component.api.impl.MarketComponentClient;
 
 /**

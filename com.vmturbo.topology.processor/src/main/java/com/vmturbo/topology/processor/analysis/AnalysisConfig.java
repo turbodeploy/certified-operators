@@ -1,6 +1,8 @@
 package com.vmturbo.topology.processor.analysis;
 
 
+import java.time.Clock;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -36,7 +38,8 @@ public class AnalysisConfig {
     public AnalysisService analysisService() {
         return new AnalysisService(topologyConfig.topologyHandler(),
                 entityConfig.entityStore(), identityProviderConfig.identityProvider(),
-                repositoryConfig.repository());
+                repositoryConfig.repository(),
+                Clock.systemUTC());
     }
 
     @Bean

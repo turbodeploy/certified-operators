@@ -19,6 +19,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.market.runner.Analysis.AnalysisState;
@@ -30,12 +31,18 @@ public class AnalysisTest {
 
     private long topologyContextId = 1111;
     private long topologyId = 2222;
+    private TopologyType topologyType = TopologyType.PLAN;
     private Set<TopologyEntityDTO> EMPTY = ImmutableSet.of();
+
+    private final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
+            .setTopologyContextId(topologyContextId)
+            .setTopologyId(topologyId)
+            .setTopologyType(topologyType)
+            .build();
 
     @Before
     public void before() {
         IdentityGenerator.initPrefix(0L);
-        topologyId += 100;
     }
 
     /**
@@ -44,7 +51,7 @@ public class AnalysisTest {
     @Test
     public void testConstructor() {
         Analysis analysis =
-            new Analysis(topologyContextId, topologyId, EMPTY, TopologyType.PLAN, true);
+            new Analysis(topologyInfo, EMPTY, true);
         assertEquals(topologyContextId, analysis.getContextId());
         assertEquals(topologyId, analysis.getTopologyId());
         assertEquals(EMPTY, analysis.getTopology());
@@ -58,7 +65,7 @@ public class AnalysisTest {
     @Test
     public void testExecute() {
         Analysis analysis =
-            new Analysis(topologyContextId, topologyId, EMPTY, TopologyType.PLAN, true);
+            new Analysis(topologyInfo, EMPTY, true);
         analysis.execute();
         assertTrue(analysis.isDone());
         assertSame(analysis.getState(), AnalysisState.SUCCEEDED);
@@ -77,7 +84,7 @@ public class AnalysisTest {
     public void testFailedAnalysis() {
         Set<TopologyEntityDTO> set = Sets.newHashSet(buyer()); // seller is missing
         Analysis analysis =
-            new Analysis(topologyContextId, topologyId, set, TopologyType.PLAN, true);
+            new Analysis(topologyInfo, set, true);
         analysis.execute();
         assertTrue(analysis.isDone());
         assertSame(AnalysisState.FAILED, analysis.getState());
@@ -110,7 +117,7 @@ public class AnalysisTest {
     @Test
     public void testTwoExecutes() {
         Analysis analysis =
-            new Analysis(topologyContextId, topologyId, Sets.newHashSet(), TopologyType.PLAN, true);
+            new Analysis(topologyInfo, Sets.newHashSet(), true);
         boolean first = analysis.execute();
         boolean second = analysis.execute();
         assertTrue(first);

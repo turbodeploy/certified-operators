@@ -5,6 +5,8 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.anyLong;
+import static org.mockito.Matchers.eq;
 
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -22,9 +24,10 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
-import com.vmturbo.market.MarketNotificationSender;
+import com.vmturbo.market.component.api.MarketNotificationSender;
 import com.vmturbo.market.runner.Analysis.AnalysisState;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
 import com.vmturbo.priceindex.api.PriceIndexNotificationSender;
@@ -34,14 +37,21 @@ import com.vmturbo.priceindex.api.PriceIndexNotificationSender;
  */
 public class MarketRunnerTest {
 
-    MarketRunner runner;
-    ExecutorService threadPool;
-    MarketNotificationSender serverApi = Mockito.mock(MarketNotificationSender.class);
-    PriceIndexNotificationSender priceIndexApi = Mockito.mock(PriceIndexNotificationSender.class);
+    private MarketRunner runner;
+    private ExecutorService threadPool;
+    private MarketNotificationSender serverApi = Mockito.mock(MarketNotificationSender.class);
+    private PriceIndexNotificationSender priceIndexApi = Mockito.mock(PriceIndexNotificationSender.class);
 
-    long topologyContextId = 1000;
-    long topologyId = 2000;
-    long creationTime = 3000;
+    private long topologyContextId = 1000;
+    private long topologyId = 2000;
+    private long creationTime = 3000;
+
+    private TopologyInfo topologyInfo = TopologyInfo.newBuilder()
+            .setTopologyId(topologyId)
+            .setTopologyContextId(topologyContextId)
+            .setCreationTime(creationTime)
+            .setTopologyType(TopologyType.PLAN)
+            .build();
 
     @Before
     public void before() {
@@ -63,8 +73,7 @@ public class MarketRunnerTest {
     @Test
     public void testGetRuns() throws InterruptedException {
         Analysis analysis =
-                runner.scheduleAnalysis(topologyContextId, topologyId,
-                    creationTime, dtos(true), TopologyType.PLAN, true);
+                runner.scheduleAnalysis(topologyInfo, dtos(true), true);
         assertTrue(runner.getRuns().contains(analysis));
         while (!analysis.isDone()) {
             Thread.sleep(100);
@@ -75,13 +84,12 @@ public class MarketRunnerTest {
         // since the IDgenerator gives us a different projectedTopoID every time, we create a
         // MockitoMatcher using anyLong to represent this parameter
         Mockito.verify(serverApi, Mockito.times(1))
-                .notifyProjectedTopology(Mockito.eq(topologyId), Mockito.anyLong(), Mockito.eq(topologyContextId),
-                    Mockito.any(TopologyType.class), Mockito.eq(creationTime),
-                        Mockito.eq(analysis.getProjectedTopology().get()));
+                .notifyProjectedTopology(eq(topologyInfo), anyLong(),
+                        eq(analysis.getProjectedTopology().get()));
         PriceIndexMessage pim = PriceIndexMessage.newBuilder(analysis.getPriceIndexMessage().get())
                         .setTopologyContextId(analysis.getContextId())
                         .build();
-        Mockito.verify(priceIndexApi, Mockito.times(1)).sendPriceIndex(topologyId, creationTime, pim);
+        Mockito.verify(priceIndexApi).sendPriceIndex(eq(topologyInfo), eq(pim));
     }
 
     /**
@@ -91,12 +99,11 @@ public class MarketRunnerTest {
     @Test
     public void testContextIDs() {
         Set<TopologyEntityDTO> dtos = dtos(true);
-        Analysis analysis1 = runner.scheduleAnalysis(topologyContextId, topologyId,
-            creationTime, dtos, TopologyType.PLAN, true);
-        Analysis analysis2 = runner.scheduleAnalysis(topologyContextId, topologyId,
-            creationTime, dtos, TopologyType.PLAN, true);
-        Analysis analysis3 = runner.scheduleAnalysis(topologyContextId + 1, topologyId,
-            creationTime, dtos, TopologyType.PLAN, true);
+        Analysis analysis1 = runner.scheduleAnalysis(topologyInfo, dtos, true);
+        Analysis analysis2 = runner.scheduleAnalysis(topologyInfo, dtos, true);
+        Analysis analysis3 = runner.scheduleAnalysis(topologyInfo.toBuilder()
+                        .setTopologyContextId(topologyInfo.getTopologyContextId() + 1)
+                        .build(), dtos, true);
         assertSame(analysis1, analysis2);
         assertNotSame(analysis1, analysis3);
     }
@@ -109,8 +116,7 @@ public class MarketRunnerTest {
     @Test
     public void testBadPlan() throws InterruptedException {
         Set<TopologyEntityDTO> badDtos = dtos(false);
-        Analysis analysis = runner.scheduleAnalysis(topologyContextId, topologyId,
-            creationTime, badDtos, TopologyType.PLAN, true);
+        Analysis analysis = runner.scheduleAnalysis(topologyInfo, badDtos, true);
         while (!analysis.isDone()) {
             Thread.sleep(100);
         }

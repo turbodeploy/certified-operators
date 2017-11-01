@@ -5,6 +5,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.api.server.ComponentNotificationSender;
 import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
@@ -29,11 +30,10 @@ public class PriceIndexNotificationSender extends ComponentNotificationSender<Pr
     /**
      * Notify the counterpart about the PriceIndices for all the traders in the market.
      *
-     * @param topologyId The ID of the topology the price index describes.
-     * @param creationTime The time of original topology created
+     * @param topologyInfo The {@link TopologyInfo} of the topology the price index describes.
      * @param priceIndexMessage The message to send.
      */
-    public void sendPriceIndex(final long topologyId, final long creationTime,
+    public void sendPriceIndex(@Nonnull final TopologyInfo topologyInfo,
                                final PriceIndexMessage priceIndexMessage) {
         PriceIndexMessage.Builder builder = PriceIndexMessage.newBuilder();
         final PriceIndexMessage serverMessage =
@@ -45,8 +45,8 @@ public class PriceIndexNotificationSender extends ComponentNotificationSender<Pr
                     .collect(Collectors.toList()))
                     .setMarketId(priceIndexMessage.getMarketId())
                     .setTopologyContextId(priceIndexMessage.getTopologyContextId())
-                    .setTopologyId(topologyId)
-                    .setSourceTopologyCreationTime(creationTime)
+                    .setTopologyId(topologyInfo.getTopologyId())
+                    .setSourceTopologyCreationTime(topologyInfo.getCreationTime())
                     .build();
         sendMessage(sender, serverMessage);
     }
