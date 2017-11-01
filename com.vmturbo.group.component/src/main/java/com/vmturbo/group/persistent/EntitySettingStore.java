@@ -26,7 +26,6 @@ import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingFilter;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse.SettingsForEntity;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.TopologySelection;
 
@@ -42,7 +41,7 @@ public class EntitySettingStore {
     private final Logger logger = LogManager.getLogger();
 
     /**
-     * topology context ID -> snapshot cache for the context
+     * Topology context ID -> snapshot cache for the context.
      */
     private final Map<Long, ContextSettingSnapshotCache> entitySettingSnapshots =
             Collections.synchronizedMap(new HashMap<>());
@@ -240,7 +239,7 @@ public class EntitySettingStore {
     @VisibleForTesting
     @FunctionalInterface
     interface EntitySettingSnapshotFactory {
-        EntitySettingSnapshot createSnapshot(@Nonnull final Stream<EntitySettings> entitySettings);
+        EntitySettingSnapshot createSnapshot(@Nonnull Stream<EntitySettings> entitySettings);
     }
 
     /**
@@ -276,13 +275,13 @@ public class EntitySettingStore {
             if (ids.isEmpty()) {
                 return settingsByEntity.entrySet().stream()
                     .collect(Collectors.toMap(Entry::getKey,
-                        entry -> entry.getValue().getSettingsList()));
+                        entry -> entry.getValue().getUserSettingsList()));
             } else {
                 return ids.stream()
                     .collect(Collectors.toMap(Function.identity(), id -> {
                         final EntitySettings settings = settingsByEntity.get(id);
                         return settings == null ?
-                            Collections.emptyList() : settings.getSettingsList();
+                            Collections.emptyList() : settings.getUserSettingsList();
                     }));
             }
         }

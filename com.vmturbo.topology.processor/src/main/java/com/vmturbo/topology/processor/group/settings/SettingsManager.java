@@ -3,20 +3,24 @@ package com.vmturbo.topology.processor.group.settings;
 import static com.google.common.base.Preconditions.checkNotNull;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.grpc.StatusRuntimeException;
 
+import com.vmturbo.common.protobuf.SettingDTOUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
@@ -30,6 +34,7 @@ import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.filter.TopologyFilterFactory;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
+import com.vmturbo.topology.processor.topology.TopologyGraph.Vertex;
 
 /**
  * Responsible for resolving the Entities -> Settings mapping as well as
@@ -70,51 +75,96 @@ public class SettingsManager {
     }
 
     /**
-     *  Resolve the groups associated with the SettingPolicies and return the EntitySettings mapping.
-     *  Also do conflict resolution when an Entity has the same Setting from
-     *  different SettingPolicies
+     *  Resolve the groups associated with the SettingPolicies, associate the
+     *  entities with their settings and send the entitySetting mapping to Group
+     *  Component.
      *
-     * @param groupResolver Group resolver to resolve the groups associated with the settings
-     * @param topologyGraph The topology graph on which to do the search
-     * @return Mapping of entities and the list of settings associated with the entities
+     *  Do conflict resolution when an Entity has the same Setting from
+     *  different SettingPolicies.
+     *
+     * @param groupResolver Group resolver to resolve the groups associated with the settings.
+     * @param topologyGraph The topology graph on which to do the search.
+     * @param topologyContextId The topology context ID.
+     * @param topologyId The topology ID.
      */
-    public Map<Long, List<Setting>> applySettings(@Nonnull final GroupResolver groupResolver,
-                    @Nonnull final TopologyGraph topologyGraph) {
+    public void applyAndSendEntitySettings(@Nonnull final GroupResolver groupResolver,
+                              @Nonnull final TopologyGraph topologyGraph,
+                              long topologyContextId,
+                              long topologyId) {
 
-        // TODO: karthikt - handle defualt settings : OM-25470
-        List<SettingPolicy> settingPoliciesList = getAllUserSettingPolicies(settingPolicyServiceClient);
+        List<EntitySettings> entitiesSettings =
+            applySettings(groupResolver, topologyGraph);
+
+        logger.info("Finished applying settings. Sending the entitySetting " +
+                        "mapping of size {} to Group component",
+                        entitiesSettings.size());
+        sendEntitySettings(topologyId, topologyContextId, entitiesSettings);
+    }
+
+    /**
+     *  Resolve the groups associated with the SettingPolicies and associate the
+     *  entities with their settings.
+     *
+     *  Do conflict resolution when an Entity has the same Setting from
+     *  different SettingPolicies.
+     *
+     *  @param groupResolver Group resolver to resolve the groups associated with the settings.
+     *  @param topologyGraph The topology graph on which to do the search.
+     *  @return List of EntitySettings
+     *
+     **/
+    @VisibleForTesting
+    List<EntitySettings> applySettings(@Nonnull final GroupResolver groupResolver,
+                                       @Nonnull final TopologyGraph topologyGraph) {
+
+        List<SettingPolicy> allSettingPolicies =
+            getAllSettingPolicies(settingPolicyServiceClient);
+
+        List<SettingPolicy> userSettingPolicies =
+            SettingDTOUtil.extractUserSettingPolicies(allSettingPolicies);
+
         // groupId -> SettingPolicies mapping
         Map<Long, List<SettingPolicy>> groupSettingPoliciesMap =
-            getGroupSettingPolicyMapping(settingPoliciesList);
+            getGroupSettingPolicyMapping(userSettingPolicies);
 
         final Map<Long, Group> groups =
             getGroupInfo(groupServiceClient, groupSettingPoliciesMap.keySet());
 
         // EntityId(OID) -> Map<<Settings.name, Setting> mapping
-        Map<Long, Map<String, Setting>> entitySettingsBySettingNameMap = new HashMap<>();
+        Map<Long, Map<String, Setting>> userSettingsByEntityAndName = new HashMap<>();
 
-        // For each group, resolve it to get its entities and apply the settings
+        // For each group, resolve it to get its entities. Then apply the settings
         // from the SettingPolicies associated with the group to the resolved entities
         groupSettingPoliciesMap.forEach((groupId, settingPolicies) -> {
-            // karthikt - This may be inefficient as we are walking the graph everytime to resolve a group.
-            // karthikt - Maybe resolving a bunch of groups at once(ORing of the group search
-            // karthikt - parameters) would help.
+            // This may be inefficient as we are walking the graph everytime to resolve a group.
+            // Resolving a bunch of groups at once(ORing of the group search parameters)
+            // would probalby be more efficient.
             try {
                 apply(groupResolver.resolve(groups.get(groupId), topologyGraph),
-                    settingPolicies, entitySettingsBySettingNameMap);
+                    settingPolicies, userSettingsByEntityAndName);
             } catch (GroupResolutionException gre) {
                 // should we throw an exception ?
                 logger.error("Failed to resolve group with id: {}", groupId, gre);
             }
         });
 
-        Map<Long, List<Setting>> entitySettingsMap = new HashMap<>();
-        entitySettingsBySettingNameMap.forEach((entityId, settingsMap) -> {
-            entitySettingsMap.computeIfAbsent(
-               entityId, k -> new LinkedList<Setting>()).addAll(settingsMap.values());
-        });
+        // entityType -> SettingPolicyId mapping
+        Map<Integer, SettingPolicy> defaultSettingPoliciesByEntityType =
+            SettingDTOUtil.arrangeByEntityType(
+                SettingDTOUtil.extractDefaultSettingPolicies(allSettingPolicies));
 
-        return entitySettingsMap;
+        // We have applied all the user settings. Now traverse the graph and
+        // for each entity, associate its user settings and default setting policy id.
+        // Group Component will look at the user settings and for the missing
+        // settings, it will use the default settings which is defined in the
+        // default SP.
+        return topologyGraph.vertices()
+                .map(vertex ->
+                    createEntitySettingsMessage(vertex,
+                        userSettingsByEntityAndName.getOrDefault(vertex.getOid(),
+                                        Collections.emptyMap()).values(),
+                        defaultSettingPoliciesByEntityType))
+                .collect(Collectors.toList());
     }
 
     /**
@@ -123,20 +173,21 @@ public class SettingsManager {
      *
      * @param entities List of entity OIDs
      * @param settingPolicies List of settings policies to be applied to the entities
-     * @param entitySettingsBySettingNameMap The return parameter which
+     * @param userSettingsByEntityAndName The return parameter which
      *              maps an entityId with its associated settings indexed by the
      *              settingsSpecName
      */
-    public void apply(Set<Long> entities,
+    @VisibleForTesting
+    void apply(Set<Long> entities,
                       List<SettingPolicy> settingPolicies,
-                      Map<Long, Map<String, Setting>> entitySettingsBySettingNameMap) {
+                      Map<Long, Map<String, Setting>> userSettingsByEntityAndName) {
 
-        checkNotNull(entitySettingsBySettingNameMap);
+        checkNotNull(userSettingsByEntityAndName);
 
         for (Long oid: entities) {
             // settingSpecName-> Setting mapping
             Map<String, Setting> settingsMap =
-                entitySettingsBySettingNameMap.computeIfAbsent(
+                userSettingsByEntityAndName.computeIfAbsent(
                     oid, k -> new HashMap<>());
             for (SettingPolicy sp : settingPolicies) {
                 for (Setting setting : sp.getInfo().getSettingsList()) {
@@ -153,46 +204,67 @@ public class SettingsManager {
     }
 
     /**
+     *  Create EntitySettings message.
+     *
+     *  @param vertex Topology graph vertex
+     *  @param userSettings List of user Setting
+     *  @param defaultSettingPoliciesByEntityType Mapping of entityType to SettingPolicyId
+     *  @return EntitySettings message
+     *
+     */
+    private EntitySettings createEntitySettingsMessage(Vertex vertex,
+                @Nonnull Collection<Setting> userSettings,
+                @Nonnull Map<Integer, SettingPolicy> defaultSettingPoliciesByEntityType) {
+
+        EntitySettings.Builder entitySettingsBuilder =
+            EntitySettings.newBuilder()
+                    .setEntityOid(vertex.getOid())
+                    // should be fine to set to an empty list instead of addding
+                    // a special check for empty input list
+                    .addAllUserSettings(userSettings);
+
+        if (defaultSettingPoliciesByEntityType.containsKey(vertex.getEntityType())) {
+            entitySettingsBuilder.setDefaultSettingPolicyId(
+                defaultSettingPoliciesByEntityType.get(vertex.getEntityType()).getId());
+        }
+
+        return entitySettingsBuilder.build();
+    }
+
+    /**
      * Send entitySettings mapping to the Group component.
      *
      * @param topologyId The ID of the topology which was used to resolve the settings
-     * @param topologyContexId   The context ID of the topology
-     * @param entitySettingsMap The map of EntityIds and their associated settings
+     * @param topologyContextId   The context ID of the topology
+     * @param entitiesSettings List of EntitySettings messages
      */
     public void sendEntitySettings(long topologyId,
-                                   long topologyContexId,
-                                   Map<Long, List<Setting>> entitySettingsMap) {
+                                   long topologyContextId,
+                                   List<EntitySettings> entitiesSettings) {
 
         UploadEntitySettingsRequest.Builder request =
             UploadEntitySettingsRequest.newBuilder()
                 .setTopologyId(topologyId)
-                .setTopologyContextId(topologyContexId);
-
-        entitySettingsMap.forEach((key, value) -> {
-            request.addEntitySettings(
-                EntitySettings.newBuilder()
-                    .setEntityOid(key)
-                    .addAllSettings(value)
-                    .build());
-        });
+                .setTopologyContextId(topologyContextId)
+                .addAllEntitySettings(entitiesSettings);
 
         try {
             settingPolicyServiceClient.uploadEntitySettings(request.build());
         } catch (StatusRuntimeException sre) {
             logger.error("Failed to upload EntitySettings map to group component"
-                + " for topologyId: {} and topologyContexId: {}",
-                topologyId, topologyContexId, sre);
+                + " for topologyId: {} and topologyContextId: {}",
+                topologyId, topologyContextId, sre);
         }
     }
 
     /**
-     * Get all non-default SettingPolicies from Group Component(GC).
+     * Get all SettingPolicies from Group Component(GC).
      *
      * @param settingPolicyServiceClient Client for communicating with SettingPolicyService.
-     * @return List of User Setting policies.
+     * @return List of Setting policies.
      *
      */
-    private List<SettingPolicy> getAllUserSettingPolicies(
+    private List<SettingPolicy> getAllSettingPolicies(
         SettingPolicyServiceBlockingStub settingPolicyServiceClient) {
 
         List<SettingPolicy> settingPolicies = new LinkedList<>();
@@ -201,7 +273,6 @@ public class SettingsManager {
             ListSettingPoliciesRequest.getDefaultInstance())
                 .forEachRemaining(settingPolicy -> {
                     if (settingPolicy.hasSettingPolicyType() &&
-                            (settingPolicy.getSettingPolicyType() == SettingPolicy.Type.USER) &&
                             settingPolicy.hasInfo() &&
                             settingPolicy.getInfo().hasEnabled() &&
                             settingPolicy.getInfo().getEnabled() &&

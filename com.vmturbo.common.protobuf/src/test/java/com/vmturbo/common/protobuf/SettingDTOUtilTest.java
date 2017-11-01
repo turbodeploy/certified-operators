@@ -1,12 +1,15 @@
 package com.vmturbo.common.protobuf;
 
 import static junit.framework.TestCase.assertFalse;
+import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -106,5 +109,87 @@ public class SettingDTOUtilTest {
                 .setGlobalSettingSpec(GlobalSettingSpec.getDefaultInstance())
                 .build();
         assertFalse(SettingDTOUtil.getOverlappingEntityTypes(Collections.singleton(spec1)).isPresent());
+    }
+
+    @Test
+    public void testExtractDefaultSettingPolicies() {
+        final SettingPolicy policy1 =
+            SettingPolicy.newBuilder()
+                .setSettingPolicyType(SettingPolicy.Type.DEFAULT)
+                .build();
+        final SettingPolicy policy2 =
+            SettingPolicy.newBuilder()
+                .setSettingPolicyType(SettingPolicy.Type.USER)
+                .build();
+
+        List<SettingPolicy> defaultSettings =
+            SettingDTOUtil.extractDefaultSettingPolicies(Arrays.asList(policy1, policy2));
+
+        assertThat(defaultSettings.size(), is(1));
+        assertThat(defaultSettings.get(0), is(policy1));
+    }
+
+    @Test
+    public void testExtractDefaultSettingPoliciesNoDefault() {
+        final SettingPolicy policy1 =
+            SettingPolicy.newBuilder()
+                .setSettingPolicyType(SettingPolicy.Type.USER)
+                .build();
+
+        List<SettingPolicy> defaultSettings =
+            SettingDTOUtil.extractDefaultSettingPolicies(Arrays.asList(policy1));
+
+        assertThat(defaultSettings.size(), is(0));
+    }
+
+    @Test
+    public void testExtractUserSettingPolicies() {
+        final SettingPolicy policy1 =
+            SettingPolicy.newBuilder()
+                .setSettingPolicyType(SettingPolicy.Type.DEFAULT)
+                .build();
+        final SettingPolicy policy2 =
+            SettingPolicy.newBuilder()
+                .setSettingPolicyType(SettingPolicy.Type.USER)
+                .build();
+
+        List<SettingPolicy> userSettings =
+            SettingDTOUtil.extractUserSettingPolicies(Arrays.asList(policy1, policy2));
+
+        assertThat(userSettings.size(), is(1));
+        assertThat(userSettings.get(0), is(policy2));
+    }
+
+    @Test
+    public void testExtractUserSettingPoliciesNoUserSetting() {
+        final SettingPolicy policy =
+            SettingPolicy.newBuilder()
+                .setSettingPolicyType(SettingPolicy.Type.DEFAULT)
+                .build();
+
+        List<SettingPolicy> userSettings =
+            SettingDTOUtil.extractUserSettingPolicies(Arrays.asList(policy));
+
+        assertThat(userSettings.size(), is(0));
+    }
+
+    @Test
+    public void testArrangeByEntityType() {
+
+        int entityType = 5;
+        long spId = 111L;
+        final SettingPolicy policy =
+            SettingPolicy.newBuilder()
+                .setId(111L)
+                .setInfo(SettingPolicyInfo.newBuilder()
+                        .setEntityType(entityType)
+                        .build())
+                .build();
+
+        Map<Integer, SettingPolicy> entityTypeSPMap =
+            SettingDTOUtil.arrangeByEntityType(Arrays.asList(policy));
+
+        assertThat(entityTypeSPMap.size(), is(1));
+        assertThat(entityTypeSPMap.get(entityType), is(policy));
     }
 }

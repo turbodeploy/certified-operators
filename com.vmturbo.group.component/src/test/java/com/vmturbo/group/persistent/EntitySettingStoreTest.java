@@ -259,7 +259,7 @@ public class EntitySettingStoreTest {
                 .build();
         final EntitySettings id1Settings = EntitySettings.newBuilder()
                 .setEntityOid(1L)
-                .addSettings(setting)
+                .addUserSettings(setting)
                 .build();
 
         final EntitySettingSnapshot snapshot = new EntitySettingSnapshot(Stream.of(id1Settings));
@@ -276,12 +276,12 @@ public class EntitySettingStoreTest {
                 .build();
         final EntitySettings id1Settings = EntitySettings.newBuilder()
                 .setEntityOid(1L)
-                .addSettings(setting)
+                .addUserSettings(setting)
                 .build();
 
         final EntitySettings id2Settings = EntitySettings.newBuilder()
                 .setEntityOid(2L)
-                .addSettings(setting)
+                .addUserSettings(setting)
                 .build();
 
         final EntitySettingSnapshot snapshot = new EntitySettingSnapshot(

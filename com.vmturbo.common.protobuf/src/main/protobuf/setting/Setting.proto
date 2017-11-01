@@ -320,27 +320,6 @@ message SearchSettingSpecsRequest {
     repeated string setting_spec_name = 1;
 }
 
-// Service responsible for setting operations
-service SettingService {
-    // Get a setting spec
-    rpc GetSettingSpec(SingleSettingSpecRequest) returns (SettingSpec);
-
-    // Search setting specs, returning all that match some criteria.
-    rpc SearchSettingSpecs(SearchSettingSpecsRequest) returns (stream SettingSpec);
-}
-
-// A request to create a SettingPolicy.
-message CreateSettingPolicyRequest {
-    // The properties of the SettingPolicy to create.
-    optional SettingPolicyInfo setting_policy_info = 1;
-}
-
-// The response for creating a SettingPolicy.
-message CreateSettingPolicyResponse {
-    // The created SettingPolicy.
-    optional SettingPolicy setting_policy = 1;
-}
-
 // A request for getting a specific SettingPolicy, either by id or name.
 message GetSettingPolicyRequest {
     // Whether to include the SettingSpecs associated with the Setting objects
@@ -403,10 +382,24 @@ message ListSettingPoliciesRequest {
 
 // Settings associated with an entity
 message EntitySettings {
-    // OID of entity. this is a required field
+    // The OID of the entity. This is a required field
     optional int64 entity_oid = 1;
 
-    repeated Setting settings = 2;
+    // The user settings associated with this entity.
+    // These are the settings after conflict resolution.
+    repeated Setting user_settings = 2;
+
+    // The default setting policy that applies to this entity, if any. Since there is only one
+    // default policy per entity type, each entity has at most one default policy.
+    // User settings override any settings in the default policy.
+    //
+    // The Topology Processor (TP) is responsible for setting the default setting policy associated
+    // with this entity's type. The TP could have sent all the settings
+    // associated with an entity instead, but that approach is inefficient since there will be many
+    // more default settings than the user settings. The Group Component can extract the setting
+    // values from the default setting policy internally, since it's the authority for setting
+    // policy definitions.
+    optional int64 default_setting_policy_id = 3;
 }
 
 message UploadEntitySettingsRequest {
@@ -472,6 +465,27 @@ message GetEntitySettingsResponse {
     // for all entities, the response will only return entries for entities that have settings
     // matching the parameters in the request.
     repeated SettingsForEntity settings = 1;
+}
+
+// Service responsible for setting operations
+service SettingService {
+    // Get a setting spec
+    rpc GetSettingSpec(SingleSettingSpecRequest) returns (SettingSpec);
+
+    // Search setting specs, returning all that match some criteria.
+    rpc SearchSettingSpecs(SearchSettingSpecsRequest) returns (stream SettingSpec);
+}
+
+// A request to create a SettingPolicy.
+message CreateSettingPolicyRequest {
+    // The properties of the SettingPolicy to create.
+    optional SettingPolicyInfo setting_policy_info = 1;
+}
+
+// The response for creating a SettingPolicy.
+message CreateSettingPolicyResponse {
+    // The created SettingPolicy.
+    optional SettingPolicy setting_policy = 1;
 }
 
 // The SettingPolicyService provides RPC's for CRUD-type operations related to SettingPolicy objects.

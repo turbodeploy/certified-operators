@@ -22,7 +22,6 @@ import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 
 import com.google.common.collect.ImmutableMap;
-
 import io.grpc.Status.Code;
 import io.grpc.StatusException;
 import io.grpc.stub.StreamObserver;
@@ -492,7 +491,7 @@ public class SettingPolicyRpcServiceTest {
         EntitySettings es =
             EntitySettings.newBuilder()
                 .setEntityOid(1234)
-                .addAllSettings(settingPolicyInfo.getSettingsList())
+                .addAllUserSettings(settingPolicyInfo.getSettingsList())
             .build();
 
         List<EntitySettings> esList = new LinkedList<>();

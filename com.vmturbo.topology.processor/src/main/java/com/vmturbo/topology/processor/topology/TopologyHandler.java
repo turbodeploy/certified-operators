@@ -1,11 +1,7 @@
 package com.vmturbo.topology.processor.topology;
 
 import java.time.Clock;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
@@ -15,8 +11,6 @@ import javax.annotation.concurrent.ThreadSafe;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
@@ -124,11 +118,11 @@ public class TopologyHandler {
             // TODO: Other places that construct topology should also do this (AnalysisService, TopologyController).
 
             // karthikt - In the pipeline approach, we would have to traverse the graph in each stage.
-            //   If the graph is huge and there are many stages, it would inefficient. Another option
+            //   If the graph is huge and there are many stages, it would be in-efficient. Another option
             //   is to have all the operations together and apply them at once. This will involve
             //   just one traversal of the graph. This assumes that these operations would not
             //   transform the graph(i.e changes the structure of the graph). If there is structural
-            //   tranformation of graph, then the pipeline approach is the better one
+            //   tranformation of the graph, then the pipeline approach is the better one.
 
             try {
                 discoveredGroupUploader.processQueuedGroups();
@@ -146,11 +140,10 @@ public class TopologyHandler {
 
             logger.info("Start applying settings for topology context {}", realtimeTopologyContextId);
             try {
-                Map<Long, List<Setting>> entitySettings  = settingsManager.applySettings(groupResolver, graph);
-                logger.info("Finished applying settings. Sending the entitySetting mapping of size {} to Group component",
-                    entitySettings.size());
-                settingsManager.sendEntitySettings(newTopologyId,
-                    realtimeTopologyContextId, entitySettings);
+                // This method does a sync call to Group Component.
+                // If GC has trouble, the topology broadcast would be delayed.
+                settingsManager.applyAndSendEntitySettings(groupResolver, graph,
+                    realtimeTopologyContextId, newTopologyId);
             } catch (RuntimeException e) {
                 // TODO: karthikt - Should we stop broadcast if we fail to apply settings?
                 logger.error("Unable to apply settings due to error: ", e);

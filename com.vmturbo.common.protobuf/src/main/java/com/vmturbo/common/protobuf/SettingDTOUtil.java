@@ -3,8 +3,10 @@ package com.vmturbo.common.protobuf;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -21,7 +23,11 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 /**
  * Utilities for dealing with messages defined in {@link SettingProto} (Setting.proto).
  */
-public class SettingDTOUtil {
+public final class SettingDTOUtil {
+
+
+    private SettingDTOUtil() {
+    }
 
     /**
      * Get a set of groups involved in a collection of {@link SettingPolicy} objects.
@@ -80,5 +86,45 @@ public class SettingDTOUtil {
             }
             return Optional.of(intersectedSet);
         }
+    }
+
+    /**
+     *  Return the default setting policies from the input list.
+     *
+     *  @param settingPolicies List of SettingPolicy.
+     *  @return List of Default SettingPolicy.
+     */
+    public static List<SettingPolicy> extractDefaultSettingPolicies(List<SettingPolicy> settingPolicies) {
+        return settingPolicies.stream()
+            .filter(settingPolicy -> settingPolicy.hasSettingPolicyType() &&
+                settingPolicy.getSettingPolicyType() == SettingPolicy.Type.DEFAULT)
+            .collect(Collectors.toList());
+    }
+
+    /**
+     *  Return the user setting policies from the input list.
+     *
+     *  @param settingPolicies List of SettingPolicy.
+     *  @return List of User SettingPolicy.
+     */
+    public static List<SettingPolicy> extractUserSettingPolicies(List<SettingPolicy> settingPolicies) {
+        return settingPolicies.stream()
+            .filter(settingPolicy -> settingPolicy.hasSettingPolicyType() &&
+                settingPolicy.getSettingPolicyType() == SettingPolicy.Type.USER)
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * Create a mapping from EntityType to SettingPolicy.
+     *
+     * @param settingPolicies List of SettingPolicy messages.
+     * @return Map of EntityType to SettingPolicyId.
+     *
+     */
+    public static Map<Integer, SettingPolicy> arrangeByEntityType(List<SettingPolicy> settingPolicies) {
+        return settingPolicies.stream()
+            .filter(sp -> sp.hasInfo() && sp.getInfo().hasEntityType())
+            .collect(Collectors.toMap(sp -> sp.getInfo().getEntityType(), Function.identity()));
+
     }
 }
