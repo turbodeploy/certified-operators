@@ -95,6 +95,7 @@ services:
       instance_id: clustermgr-1
       node_name: default
       consul_host: consul
+      kafkaServers: kafka1:9092
       JAVA_OPTS: "-Xmx384M -verbose:gc -XX:+PrintGCDateStamps"
     volumes:
       - clustermgr:/home/turbonomic/data
