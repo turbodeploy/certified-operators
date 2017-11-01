@@ -115,6 +115,7 @@ function start_group() {
     TARGET_NODE="$1"
     docker service create --replicas 1 --name group --network turbosecure --constraint "node.hostname == ${TARGET_NODE}" \
     -e 'consul_host=consul' \
+    -e 'realtimeTopologyContextId=777777' \
     -e 'component_type=group' \
     -e 'instance_id=group-1' \
     -e 'JAVA_OPTS=-Xmx1G' \
