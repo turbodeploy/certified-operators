@@ -56,10 +56,12 @@ public class PoliciesService implements IPoliciesService {
 
             final Set<Long> groupingIDS = GroupProtoUtil.getPolicyGroupIds(policy);
             final Map<Long, Group> involvedGroups = new HashMap<>(groupingIDS.size());
-            groupService.getGroups(GetGroupsRequest.newBuilder()
-                    .addAllId(groupingIDS)
-                    .build())
-                .forEachRemaining(group -> involvedGroups.put(group.getId(), group));
+            if (!groupingIDS.isEmpty()) {
+                groupService.getGroups(GetGroupsRequest.newBuilder()
+                        .addAllId(groupingIDS)
+                        .build())
+                        .forEachRemaining(group -> involvedGroups.put(group.getId(), group));
+            }
 
             return policyMapper.policyToApiDto(policy, involvedGroups);
         } catch (RuntimeException e) {

@@ -95,18 +95,21 @@ public class PolicyManager {
                     .collect(Collectors.toSet());
 
             final Map<Long, Group> groupsById = new HashMap<>(groupIds.size());
-            groupServiceBlockingStub.getGroups(GetGroupsRequest.newBuilder()
-                    .addAllId(groupIds)
-                    .build())
-                .forEachRemaining(group -> groupsById.put(group.getId(), group));
+            if (!groupIds.isEmpty()) {
+                groupServiceBlockingStub.getGroups(GetGroupsRequest.newBuilder()
+                        .addAllId(groupIds)
+                        .build())
+                        .forEachRemaining(group -> groupsById.put(group.getId(), group));
 
-            if (groupsById.size() != groupIds.size()) {
-                // Some desired groups are not found.
-                // Throw an exception for now.
-                // TODO (roman, Oct 20 2017): We can just not apply the policies that
-                // are missing groups.
-                throw new IllegalStateException("Policies have non-existing groups.");
+                if (groupsById.size() != groupIds.size()) {
+                    // Some desired groups are not found.
+                    // Throw an exception for now.
+                    // TODO (roman, Oct 20 2017): We can just not apply the policies that
+                    // are missing groups.
+                    throw new IllegalStateException("Policies have non-existing groups.");
+                }
             }
+
             for (PolicyResponse response : policyResponses) {
                 PlacementPolicy policy = policyFactory.newPolicy(response.getPolicy(), groupsById);
                 applyPolicy(groupResolver, policy, graph);

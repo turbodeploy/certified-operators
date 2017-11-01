@@ -6,11 +6,13 @@ import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.atLeast;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -116,6 +118,15 @@ public class PolicyManagerTest {
 
         verify(groupResolver, atLeast(2)).resolve(groupArguments.capture(), eq(topologyGraph));
         assertThat(groupArguments.getAllValues(), hasItems(group3, group4));
+    }
+
+    @Test
+    public void testNoPoliciesNoGroupRPC() {
+        when(policyServiceMole.getAllPolicies(any())).thenReturn(Collections.emptyList());
+        policyManager.applyPolicies(topologyGraph, groupResolver);
+
+        // There shouldn't be a call to get groups if there are no policies.
+        verify(groupServiceMole, never()).getGroups(any());
     }
 
     private static Policy bindToGroup(@Nonnull final long consumerId,

@@ -234,10 +234,12 @@ public class MarketsService implements IMarketsService {
                     .flatMap(resp -> GroupProtoUtil.getPolicyGroupIds(resp.getPolicy()).stream())
                     .collect(Collectors.toSet());
             final Map<Long, Group> groupings = new HashMap<>();
-            groupRpcService.getGroups(GetGroupsRequest.newBuilder()
-                    .addAllId(groupingIDS)
-                    .build())
-                .forEachRemaining(group -> groupings.put(group.getId(), group));
+            if (!groupingIDS.isEmpty()) {
+                groupRpcService.getGroups(GetGroupsRequest.newBuilder()
+                        .addAllId(groupingIDS)
+                        .build())
+                    .forEachRemaining(group -> groupings.put(group.getId(), group));
+            }
             return policyRespList.stream()
                     .filter(PolicyDTO.PolicyResponse::hasPolicy)
                     .map(resp -> policyMapper.policyToApiDto(resp.getPolicy(), groupings))
