@@ -1,5 +1,16 @@
 package com.vmturbo.clustermgr;
 
+import java.net.HttpURLConnection;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.springframework.stereotype.Component;
+
 import com.google.common.base.Optional;
 import com.google.common.net.HostAndPort;
 import com.orbitz.consul.CatalogClient;
@@ -8,16 +19,6 @@ import com.orbitz.consul.ConsulException;
 import com.orbitz.consul.KeyValueClient;
 import com.orbitz.consul.model.catalog.CatalogService;
 import com.orbitz.consul.model.kv.Value;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.springframework.stereotype.Component;
-
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-import javax.ws.rs.NotFoundException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
 
 /**
  * {@link ConsulService} provides utility methods that facility:
@@ -47,16 +48,18 @@ public class ConsulService {
     /**
      * Fetch a list of Consul Key/Value keys that begin with the given stem.
      * If there are none, an empty list will be returned.
-     * If there are no keys, then an HTTP NotFoundExcecption will be thrown.
      *
      * @param keyStem the key stem to match against the key/value store
-     * @return a list of keys defined in the key/value store that begin with the given stem, or an empty list if there
-     * are none.
+     * @return a list of keys defined in the key/value store that begin with
+     *          the given stem, or an empty list if there are none.
      */
     public @Nonnull List<String> getKeys(@Nonnull String keyStem) {
         try {
             return getConsulKeyValueClient().getKeys(keyStem);
-        } catch (NotFoundException e) {
+        } catch (ConsulException ce) {
+            if (ce.getCode() != HttpURLConnection.HTTP_NOT_FOUND) {
+                throw ce;
+            }
             // no keys found - return an empty list
             return new ArrayList<>();
         }
@@ -124,7 +127,7 @@ public class ConsulService {
                 .orElse(null);
     }
 
-    public List<CatalogService> getService(String componentName){
+    public List<CatalogService> getService(String componentName) {
         return getConsulCatalogClient().getService(componentName).getResponse();
     }
 
@@ -139,8 +142,11 @@ public class ConsulService {
             for (String subKey : getConsulKeyValueClient().getKeys(key)) {
                 getConsulKeyValueClient().deleteKey(subKey);
             }
-        } catch (NotFoundException e) {
-            // Nothing to do. It's no problem, if the item does not exist.
+        } catch (ConsulException ce) {
+            //skip NotFoundErrors
+            if (ce.getCode() != HttpURLConnection.HTTP_NOT_FOUND) {
+                throw ce;
+            }
         }
     }
 
