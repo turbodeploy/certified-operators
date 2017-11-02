@@ -19,8 +19,19 @@ public class ActionExecutionConfig {
     @Autowired
     private ActionOrchestratorGlobalConfig globalConfig;
 
+    /**
+     * Object which is used to resolve which target should execute the action if there a multiple
+     * targets which can do it.
+     *
+     * @return implementation for ActionTargetResolver.
+     */
+    @Bean
+    public ActionTargetResolver actionTargetResolver() {
+        return new ActionTargetByProbeCategoryResolver(globalConfig.topologyProcessor());
+    }
+
     @Bean
     public ActionExecutor actionExecutor() {
-        return new ActionExecutor(globalConfig.topologyProcessorChannel());
+        return new ActionExecutor(globalConfig.topologyProcessorChannel(), actionTargetResolver());
     }
 }

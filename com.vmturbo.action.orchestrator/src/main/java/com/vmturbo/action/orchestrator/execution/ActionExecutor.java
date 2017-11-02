@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -43,11 +44,21 @@ public class ActionExecutor {
 
     private final EntityServiceGrpc.EntityServiceBlockingStub entityServiceBlockingStub;
 
-    public ActionExecutor(@Nonnull final Channel topologyProcessorChannel) {
-        this.actionExecutionService =
-                ActionExecutionServiceGrpc.newBlockingStub(topologyProcessorChannel);
-        this.entityServiceBlockingStub =
-                EntityServiceGrpc.newBlockingStub(topologyProcessorChannel);
+    private final ActionTargetResolver targetResolver;
+
+    /**
+     * Creates an object of ActionExecutor with ActionExecutionService and EntityService.
+     *
+     * @param topologyProcessorChannel to create services
+     * @param targetResolver to resolve conflicts when there are multiple targets which can
+     * execute the action
+     */
+    public ActionExecutor(@Nonnull final Channel topologyProcessorChannel,
+            @Nonnull final ActionTargetResolver targetResolver) {
+        this.actionExecutionService = ActionExecutionServiceGrpc
+                .newBlockingStub(Objects.requireNonNull(topologyProcessorChannel));
+        this.entityServiceBlockingStub = EntityServiceGrpc.newBlockingStub(topologyProcessorChannel);
+        this.targetResolver = Objects.requireNonNull(targetResolver);
     }
 
     /**
@@ -65,8 +76,11 @@ public class ActionExecutor {
                 getActionsInvolvedEntities(actions.stream()
                         .map(Action::getRecommendation)
                         .collect(Collectors.toSet()));
+        final Map<Long, ActionDTO.Action> recomendationsById = actions.stream()
+                .collect(Collectors.toMap(action -> action.getRecommendation().getId(),
+                        Action::getRecommendation));
         final Map<Long, Long> recomendationsProbes =
-                getActionDTOsProbes(actionsInvolvedEntities);
+                getActionDTOsProbes(recomendationsById, actionsInvolvedEntities);
         return actions.stream()
                 .collect(Collectors.toMap(Function.identity(),
                         action -> recomendationsProbes.get(action.getRecommendation().getId())));
@@ -85,7 +99,7 @@ public class ActionExecutor {
         try {
             final Map<Long, EntityInfo> involvedEntityInfos = getActionInvolvedEntities(action);
             // Find the target that discovered all the involved entities.
-            return getEntitiesTarget(involvedEntityInfos);
+            return getEntitiesTarget(action, involvedEntityInfos);
         } catch (UnsupportedActionException e) {
             throw new TargetResolutionException(
                     "Action: " + action.getId() + " has unsupported type: " + e.getActionType(), e);
@@ -96,12 +110,12 @@ public class ActionExecutor {
     }
 
     @Nonnull
-    private Map<Long, Long> getActionDTOsProbes(
+    private Map<Long, Long> getActionDTOsProbes(@Nonnull Map<Long, ActionDTO.Action> actions,
             @Nonnull Map<Long, Map<Long, EntityInfo>> actionsInvolvedEntities)
             throws TargetResolutionException {
         final Map<Long, Long> actionDTOsProbes = new HashMap<>();
         for (Map.Entry<Long, Map<Long, EntityInfo>> entry : actionsInvolvedEntities.entrySet()) {
-            final long targetId = getEntitiesTarget(entry.getValue());
+            final long targetId = getEntitiesTarget(actions.get(entry.getKey()), entry.getValue());
             // We can just get probeId for the first entityInfo because if all provided entities
             // have common target then they have common probe for this target
             final long probeId = entry.getValue().values().iterator().next()
@@ -112,8 +126,8 @@ public class ActionExecutor {
     }
 
     @Nonnull
-    private Long getEntitiesTarget(Map<Long, EntityInfo> involvedEntityInfos)
-            throws TargetResolutionException {
+    private Long getEntitiesTarget(@Nonnull ActionDTO.Action action,
+            @Nonnull Map<Long, EntityInfo> involvedEntityInfos) throws TargetResolutionException {
         Set<Long> overlappingTarget = null;
         for (final EntityInfo info : involvedEntityInfos.values()) {
             final Set<Long> curInfoTargets = new HashSet<>(info.getTargetIdToProbeIdMap().keySet());
@@ -128,7 +142,11 @@ public class ActionExecutor {
                     "Entities: " + involvedEntityInfos.keySet() + " has no overlapping " +
                             "targets between the entities involved.");
         }
-        return overlappingTarget.iterator().next();
+        if (overlappingTarget.size() == 1) {
+            return overlappingTarget.iterator().next();
+        }
+        logger.debug("There are multiple targets for action {}", action);
+        return targetResolver.resolveExecutantTarget(action, overlappingTarget);
     }
 
     @Nonnull

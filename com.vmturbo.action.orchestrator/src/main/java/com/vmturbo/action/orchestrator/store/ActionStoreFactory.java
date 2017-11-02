@@ -9,11 +9,13 @@ import org.jooq.DSLContext;
 import io.grpc.Channel;
 
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
+import com.vmturbo.action.orchestrator.execution.ActionTargetByProbeCategoryResolver;
 import com.vmturbo.action.orchestrator.execution.ActionTranslator;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.ProbeActionCapabilitiesServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ProbeActionCapabilitiesServiceGrpc.ProbeActionCapabilitiesServiceBlockingStub;
+import com.vmturbo.topology.processor.api.TopologyProcessor;
 
 /**
  * A factory for creating {@link ActionStore}s.
@@ -31,6 +33,8 @@ public class ActionStoreFactory implements IActionStoreFactory {
     private final DSLContext databaseDslContext;
 
     private final Channel topologyProcessorChannel;
+
+    private final TopologyProcessor topologyProcessor;
 
     /**
      * Required by {@link LiveActionStore}s to translate market actions to real-world actions.
@@ -51,13 +55,17 @@ public class ActionStoreFactory implements IActionStoreFactory {
      * @param actionTranslator The translator for use when translating market actions to real-world actions.
      * @param realtimeTopologyContextId The context ID for the live topology context.
      * @param databaseDslContext The DSL context for use when interacting with the database.
+     * @param topologyProcessorChannel Grpc Channel for topology processor.
+     * @param groupChannel Grpc channel for group.
+     * @param topologyProcessor Topology processor client.
      */
     public ActionStoreFactory(@Nonnull final IActionFactory actionFactory,
                               @Nonnull final ActionTranslator actionTranslator,
                               final long realtimeTopologyContextId,
                               @Nonnull final DSLContext databaseDslContext,
                               @Nonnull final Channel topologyProcessorChannel,
-                              @Nonnull final Channel groupChannel) {
+                              @Nonnull final Channel groupChannel,
+                              @Nonnull final TopologyProcessor topologyProcessor) {
         this.actionFactory = Objects.requireNonNull(actionFactory);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.databaseDslContext = Objects.requireNonNull(databaseDslContext);
@@ -67,6 +75,7 @@ public class ActionStoreFactory implements IActionStoreFactory {
                 ProbeActionCapabilitiesServiceGrpc.newBlockingStub(topologyProcessorChannel);
         this.settingPolicyService =
                 SettingPolicyServiceGrpc.newBlockingStub(groupChannel);
+        this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
     }
 
     /**
@@ -78,7 +87,8 @@ public class ActionStoreFactory implements IActionStoreFactory {
     @Override
     public ActionStore newStore(final long topologyContextId) {
         if (topologyContextId == realtimeTopologyContextId) {
-            final ActionExecutor actionExecutor = new ActionExecutor(topologyProcessorChannel);
+            final ActionExecutor actionExecutor = new ActionExecutor(topologyProcessorChannel,
+                    new ActionTargetByProbeCategoryResolver(topologyProcessor));
             return new LiveActionStore(actionFactory, topologyContextId,
                     settingPolicyService,
                     new ActionSupportResolver(actionCapabilitiesService,

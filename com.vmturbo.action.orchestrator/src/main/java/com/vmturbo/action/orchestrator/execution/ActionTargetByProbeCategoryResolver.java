@@ -92,16 +92,23 @@ public class ActionTargetByProbeCategoryResolver implements ActionTargetResolver
     public long resolveExecutantTarget(@Nonnull ActionDTO.Action action, @Nonnull Set<Long> targets)
             throws TargetResolutionException {
         checkForNullActionAndTargets(action, targets);
+        if (targets.size() == 1) {
+            return targets.iterator().next();
+        }
         final Map<Long, ProbeInfo> targetIdsToProbeInfos = getProbeInfosOfTargets(targets);
 
         final List<String> probePriorities =
                 ACTION_TYPES_PROBE_PRIORITIES.get(action.getInfo().getActionTypeCase());
 
         final Map<Long, Integer> targetIdsToPriorities = targetIdsToProbeInfos.entrySet().stream()
-                .filter(targetIdProbe -> probePriorities.contains(targetIdProbe.getValue().getCategory()))
+                .filter(targetIdProbe -> probePriorities.contains(getCategoryUppercase(targetIdProbe)))
                 .collect(Collectors.toMap(targetIdProbe -> targetIdProbe.getKey(),
-                        targetIdProbe -> probePriorities.indexOf(targetIdProbe.getValue().getCategory())));
+                        targetIdProbe -> probePriorities.indexOf(getCategoryUppercase(targetIdProbe))));
         return targetIdsToPriorities.entrySet().stream().min(Entry.comparingByValue()).get().getKey();
+    }
+
+    private static String getCategoryUppercase(@Nonnull final Entry<Long, ProbeInfo> targetIdProbe) {
+        return targetIdProbe.getValue().getCategory().toUpperCase();
     }
 
     @Nonnull
