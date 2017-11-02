@@ -1,7 +1,9 @@
 package com.vmturbo.common.protobuf;
 
 import static junit.framework.TestCase.assertFalse;
-import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -21,6 +23,8 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.AllEntityType;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.EntityTypeSet;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingSpec;
+import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
+import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.GlobalSettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.Scope;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
@@ -191,5 +195,40 @@ public class SettingDTOUtilTest {
 
         assertThat(entityTypeSPMap.size(), is(1));
         assertThat(entityTypeSPMap.get(entityType), is(policy));
+    }
+
+    @Test
+    public void testCompareEnumSettingValues() {
+        EnumSettingValueType type =
+            EnumSettingValueType.newBuilder()
+                .addAllEnumValues(Arrays.asList("value1", "value2", "value3"))
+                .build();
+
+        //gt
+        assertThat(
+            SettingDTOUtil.compareEnumSettingValues(
+                createEnumSettingValue("value3"),
+                createEnumSettingValue("value1"), type),
+            greaterThan(0));
+
+        //eq
+        assertThat(
+            SettingDTOUtil.compareEnumSettingValues(
+                createEnumSettingValue("value2"),
+                createEnumSettingValue("value2"), type),
+            is(0));
+
+        //lt
+        assertThat(
+            SettingDTOUtil.compareEnumSettingValues(
+                createEnumSettingValue("value1"),
+                createEnumSettingValue("value2"), type),
+            lessThan(0));
+    }
+
+    private EnumSettingValue createEnumSettingValue(String value) {
+        return EnumSettingValue.newBuilder()
+                .setValue(value)
+                .build();
     }
 }

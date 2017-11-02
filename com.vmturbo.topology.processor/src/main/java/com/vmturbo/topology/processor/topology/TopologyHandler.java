@@ -5,7 +5,6 @@ import java.util.Collection;
 import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
@@ -130,6 +129,12 @@ public class TopologyHandler {
             //   just one traversal of the graph. This assumes that these operations would not
             //   transform the graph(i.e changes the structure of the graph). If there is structural
             //   tranformation of the graph, then the pipeline approach is the better one.
+            //
+            //   Another approach may be to view the topology as a stream of vertices passing
+            //   though the pipeline, where in each pipeline the vertices could be
+            //   filtered or transformed. At the beginning of the pipeline, the
+            //   graph is streamed and then at the end it is collected. This way
+            //   there will be only one traversal of the structure.
 
             try {
                 discoveredGroupUploader.processQueuedGroups();

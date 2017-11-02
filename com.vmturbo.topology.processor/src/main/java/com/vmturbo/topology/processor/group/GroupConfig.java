@@ -16,6 +16,8 @@ import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.grpc.extensions.PingingChannelBuilder;
 import com.vmturbo.topology.processor.GlobalConfig;
 import com.vmturbo.topology.processor.entity.EntityConfig;
@@ -71,6 +73,11 @@ public class GroupConfig {
     }
 
     @Bean
+    public SettingServiceBlockingStub settingServiceClient() {
+        return SettingServiceGrpc.newBlockingStub(groupChannel());
+    }
+
+    @Bean
     public TopologyFilterFactory topologyFilterFactory() {
         return new TopologyFilterFactory();
     }
@@ -84,6 +91,7 @@ public class GroupConfig {
     public SettingsManager settingsManager() {
         return new SettingsManager(settingPolicyServiceClient(),
                     groupServiceClient(),
+                    settingServiceClient(),
                     topologyFilterFactory());
     }
 

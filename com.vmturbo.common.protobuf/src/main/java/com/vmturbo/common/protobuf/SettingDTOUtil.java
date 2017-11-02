@@ -8,7 +8,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.Sets;
@@ -16,6 +15,8 @@ import com.google.common.collect.Sets;
 import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.EntityTypeSet;
+import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
+import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
@@ -126,5 +127,22 @@ public final class SettingDTOUtil {
             .filter(sp -> sp.hasInfo() && sp.getInfo().hasEntityType())
             .collect(Collectors.toMap(sp -> sp.getInfo().getEntityType(), Function.identity()));
 
+    }
+
+    /**
+     * Compare two EnumSettingValue types.
+     *
+     * @param value1 EnumSettingValue.
+     * @param value2 EnumSettingValue.
+     * @param type EnumSettingValueType.
+     * @return Positive, negative or zero integer where value1 is
+     *         greater than, smaller than or equal to value2 respectively.
+     *
+     */
+    public static int compareEnumSettingValues(EnumSettingValue value1,
+                                               EnumSettingValue value2,
+                                               EnumSettingValueType type) {
+        return (type.getEnumValuesList().indexOf(value1.getValue())
+                - type.getEnumValuesList().indexOf(value2.getValue()));
     }
 }

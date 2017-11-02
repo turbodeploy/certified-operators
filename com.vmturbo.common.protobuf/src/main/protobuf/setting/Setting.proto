@@ -43,7 +43,6 @@ message SettingSpec {
         StringSettingValueType string_setting_value_type = 7;
         EnumSettingValueType enum_setting_value_type = 8;
     }
-
 }
 
 // SettingCategoryPath is used to classify a SettingSpec into categories (and sub categories, if
