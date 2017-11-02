@@ -29,12 +29,14 @@ import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser;
 import com.vmturbo.api.component.external.api.mapper.MarketMapper;
 import com.vmturbo.api.component.external.api.mapper.SearchMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
+import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcher;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.market.MarketApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.api.dto.search.CriteriaOptionApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
@@ -266,5 +268,10 @@ public class SearchService implements ISearchService {
     public Map<String, Object> getGroupBuilderUsecases() {
         return groupUseCaseParser.getUseCases().entrySet().stream()
                 .collect(Collectors.toMap(Entry::getKey, Entry::getValue));
+    }
+
+    @Override
+    public List<CriteriaOptionApiDTO> getCriteriaOptions(final String criteriaKey, final String entityType) throws Exception {
+        throw ApiUtils.notImplementedInXL();
     }
 }

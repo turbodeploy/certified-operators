@@ -289,6 +289,7 @@ com.vmturbo.api.component/src/main/java/com/vmturbo/api/component/external/api/s
 com.vmturbo.api.component/src/main/java/com/vmturbo/api/component/external/api/service/SettingsService.java -text
 com.vmturbo.api.component/src/main/java/com/vmturbo/api/component/external/api/service/StatsService.java -text
 com.vmturbo.api.component/src/main/java/com/vmturbo/api/component/external/api/service/SupplyChainsService.java -text
+com.vmturbo.api.component/src/main/java/com/vmturbo/api/component/external/api/service/TagsService.java -text
 com.vmturbo.api.component/src/main/java/com/vmturbo/api/component/external/api/service/TargetsService.java -text
 com.vmturbo.api.component/src/main/java/com/vmturbo/api/component/external/api/service/TemplatesService.java -text
 com.vmturbo.api.component/src/main/java/com/vmturbo/api/component/external/api/service/UsersService.java -text
