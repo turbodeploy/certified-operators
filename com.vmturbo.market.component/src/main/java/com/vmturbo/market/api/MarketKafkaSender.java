@@ -18,13 +18,12 @@ public class MarketKafkaSender {
     /**
      * Creates {@link MarketNotificationSender} on top of the specified kafka message producer.
      *
-     * @param threadPool thread pool to use
      * @param kafkaMessageProducer kafka message producer to send data through
      * @return market notification sender.
      */
-    public static MarketNotificationSender createMarketSender(@Nonnull ExecutorService threadPool,
+    public static MarketNotificationSender createMarketSender(
             @Nonnull KafkaMessageProducer kafkaMessageProducer) {
-        return new MarketNotificationSender(threadPool, kafkaMessageProducer.messageSender(
+        return new MarketNotificationSender(kafkaMessageProducer.messageSender(
                 MarketComponentClient.PROJECTED_TOPOLOGIES_TOPIC),
                 kafkaMessageProducer.messageSender(MarketComponentClient.ACTION_PLANS_TOPIC));
     }

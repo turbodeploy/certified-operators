@@ -6,6 +6,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.server.ComponentNotificationSender;
 import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
@@ -32,9 +33,12 @@ public class PriceIndexNotificationSender extends ComponentNotificationSender<Pr
      *
      * @param topologyInfo The {@link TopologyInfo} of the topology the price index describes.
      * @param priceIndexMessage The message to send.
+     * @throws InterruptedException if thread has been interrupted
+     * @throws CommunicationException if perfistent communication error occurred
      */
     public void sendPriceIndex(@Nonnull final TopologyInfo topologyInfo,
-                               final PriceIndexMessage priceIndexMessage) {
+            final PriceIndexMessage priceIndexMessage)
+            throws CommunicationException, InterruptedException {
         PriceIndexMessage.Builder builder = PriceIndexMessage.newBuilder();
         final PriceIndexMessage serverMessage =
                 builder.addAllPayload(priceIndexMessage.getPayloadList().stream()

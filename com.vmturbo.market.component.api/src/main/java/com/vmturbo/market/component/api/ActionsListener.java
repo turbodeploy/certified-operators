@@ -14,7 +14,8 @@ public interface ActionsListener {
      * Callback receiving the actions the market computed.
      *
      * @param actionPlan The actions recommended by the market.
+     * @throws InterruptedException if thread has been interrupted
      */
-    void onActionsReceived(@Nonnull final ActionPlan actionPlan);
+    void onActionsReceived(@Nonnull final ActionPlan actionPlan) throws InterruptedException;
 
 }

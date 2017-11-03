@@ -10,10 +10,9 @@ import com.vmturbo.action.orchestrator.execution.ActionExecutionConfig;
 import com.vmturbo.action.orchestrator.store.ActionStoreConfig;
 import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.impl.MarketClientConfig;
-import com.vmturbo.market.component.api.impl.MarketComponentClient;
 
 /**
- * Configuration for integration with the {@link MarketComponentClient}.
+ * Configuration for integration with the {@link MarketComponent}.
  */
 @Configuration
 @Import({

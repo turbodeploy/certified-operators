@@ -844,7 +844,6 @@ com.vmturbo.kvstore/src/test/resources/log4j2.xml svneol=native#text/xml
 com.vmturbo.market.component.api/pom.xml -text
 com.vmturbo.market.component.api/src/main/java/com/vmturbo/market/component/api/ActionsListener.java -text
 com.vmturbo.market.component.api/src/main/java/com/vmturbo/market/component/api/MarketComponent.java -text
-com.vmturbo.market.component.api/src/main/java/com/vmturbo/market/component/api/MarketNotificationSender.java -text
 com.vmturbo.market.component.api/src/main/java/com/vmturbo/market/component/api/ProjectedTopologyListener.java -text
 com.vmturbo.market.component.api/src/main/java/com/vmturbo/market/component/api/impl/MarketClientConfig.java -text
 com.vmturbo.market.component.api/src/main/java/com/vmturbo/market/component/api/impl/MarketComponentClient.java -text
@@ -854,6 +853,7 @@ com.vmturbo.market.component.api/src/main/java/com/vmturbo/market/component/api/
 com.vmturbo.market.component/pom.xml -text
 com.vmturbo.market.component/src/main/java/com/vmturbo/market/MarketComponent.java -text
 com.vmturbo.market.component/src/main/java/com/vmturbo/market/MarketGlobalConfig.java -text
+com.vmturbo.market.component/src/main/java/com/vmturbo/market/MarketNotificationSender.java -text
 com.vmturbo.market.component/src/main/java/com/vmturbo/market/api/MarketApiConfig.java -text
 com.vmturbo.market.component/src/main/java/com/vmturbo/market/api/MarketKafkaSender.java -text
 com.vmturbo.market.component/src/main/java/com/vmturbo/market/priceindex/PriceIndexApiConfig.java -text

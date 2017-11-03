@@ -1,9 +1,6 @@
 package com.vmturbo.sample.component.echo;
 
 import java.util.Objects;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -14,6 +11,7 @@ import com.vmturbo.common.protobuf.sample.Echo.EchoRequest;
 import com.vmturbo.common.protobuf.sample.Echo.EchoResponse;
 import com.vmturbo.common.protobuf.sample.Echo.MultiEchoRequest;
 import com.vmturbo.common.protobuf.sample.EchoServiceGrpc.EchoServiceImplBase;
+import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.sample.component.notifications.SampleComponentNotificationSender;
 
 /**
@@ -27,9 +25,6 @@ public class EchoRpcService extends EchoServiceImplBase {
     private final Logger logger = LogManager.getLogger();
 
     private final SampleComponentNotificationSender notificationsBackend;
-
-    private final ScheduledExecutorService echoExecutor =
-            Executors.newSingleThreadScheduledExecutor();
 
     /**
      * Constructor for the {@link EchoRpcService}. This should be called from a
@@ -58,7 +53,11 @@ public class EchoRpcService extends EchoServiceImplBase {
         // onError() call to terminate the RPC.
         responseObserver.onCompleted();
         // Send notifications to all (remote) listeners about the echo response.
-        notificationsBackend.notifyEchoResponse(response);
+        try {
+            notificationsBackend.notifyEchoResponse(response);
+        } catch (CommunicationException | InterruptedException e) {
+            logger.error("Could not send notification", e);
+        }
     }
 
     public void multiEcho(MultiEchoRequest request,
@@ -74,6 +73,10 @@ public class EchoRpcService extends EchoServiceImplBase {
         // onError() call to terminate the RPC.
         responseObserver.onCompleted();
         // Send notifications to all (remote) listeners about the echo response.
-        notificationsBackend.notifyEchoResponse(response);
+        try {
+            notificationsBackend.notifyEchoResponse(response);
+        } catch (CommunicationException | InterruptedException e) {
+            logger.error("Could not send notification", e);
+        }
     }
 }

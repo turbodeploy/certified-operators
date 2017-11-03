@@ -4,6 +4,7 @@ import java.util.Collection;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 
+import javax.activation.CommandInfo;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
@@ -13,6 +14,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.End;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.Start;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.MessageChunker;
 import com.vmturbo.components.api.server.ComponentNotificationSender;
 import com.vmturbo.components.api.server.IMessageSender;
@@ -26,57 +28,39 @@ public class MarketNotificationSender extends
 
     private final IMessageSender<ProjectedTopology> projectedTopologySender;
     private final IMessageSender<ActionPlan> actionPlanSender;
-    private final ExecutorService threadPool;
 
-    public MarketNotificationSender(@Nonnull ExecutorService threadPool,
+    public MarketNotificationSender(
             @Nonnull IMessageSender<ProjectedTopology> projectedTopologySender,
             @Nonnull IMessageSender<ActionPlan> actionPlanSender) {
-        this.threadPool = Objects.requireNonNull(threadPool);
         this.projectedTopologySender = Objects.requireNonNull(projectedTopologySender);
         this.actionPlanSender = Objects.requireNonNull(actionPlanSender);
     }
 
     /**
-     * Notify currently connected clients about actions the market is recommending.
-     *
-     * <p>Sends the notifications asynchronously to all clients connected at the time of the method call.
-     * If the sending of a notification fails for any reason the notification does not get re-sent.
+     * Send actions the market is recommending notification synchronously.
      *
      * @param actionPlan The {@link ActionPlan} protobuf objects describing the actions to execute.
+     * @throws CommunicationException if persistent communication error occurs
+     * @throws InterruptedException if thread is interrupted
      */
-    public void notifyActionsRecommended(@Nonnull final ActionPlan actionPlan) {
+    public void notifyActionsRecommended(@Nonnull final ActionPlan actionPlan)
+            throws CommunicationException, InterruptedException {
         sendMessage(actionPlanSender, actionPlan);
     }
 
     /**
-     * Notify currently connected clients about the projected topology.
-     *
-     * <p>Sends the notifications asynchronously to all clients connected at the time of the method call.
-     * If the sending of a notification fails for any reason the notification does not get re-sent.
+     * Send projected topology notification synchronously.
      *
      * @param originalTopologyInfo The {@link TopologyInfo} describing the original topology.
      * @param projectedTopologyId The ID of the projected topology.
      * @param projectedTopo The protobuf objects describing the traders after plan execution.
+     * @throws CommunicationException if persistent communication error occurs
+     * @throws InterruptedException if thread interrupted
      */
     public void notifyProjectedTopology(@Nonnull final TopologyInfo originalTopologyInfo,
                                     final long projectedTopologyId,
-                                    @Nonnull final Collection<TopologyEntityDTO> projectedTopo) {
-        threadPool.submit(() -> {
-            try {
-                notifyTopologyInternal(originalTopologyInfo, projectedTopologyId, projectedTopo);
-            } catch (InterruptedException e) {
-                getLogger().info("Thread interrupted while sending projected topology " +
-                        projectedTopologyId, e);
-            } catch (RuntimeException e) {
-                getLogger().error("Error sending projected topology " + projectedTopologyId, e);
-            }
-        });
-    }
-
-    private void notifyTopologyInternal(@Nonnull final TopologyInfo originalTopologyInfo,
-                                        final long projectedTopologyId,
                                         @Nonnull final Collection<TopologyEntityDTO> projectedTopo)
-            throws InterruptedException {
+            throws CommunicationException, InterruptedException {
         sendTopologySegment(ProjectedTopology.newBuilder()
                 .setStart(Start.newBuilder()
                         .setSourceTopologyInfo(originalTopologyInfo))
@@ -98,8 +82,8 @@ public class MarketNotificationSender extends
                 .build());
     }
 
-    private void sendTopologySegment(@Nonnull final ProjectedTopology segment) throws
-            InterruptedException {
+    private void sendTopologySegment(@Nonnull final ProjectedTopology segment)
+            throws CommunicationException, InterruptedException {
         getLogger().debug("Sending topology {} segment {}", segment::getTopologyId,
                 segment::getSegmentCase);
         projectedTopologySender.sendMessage(segment);

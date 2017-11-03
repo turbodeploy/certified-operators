@@ -21,6 +21,7 @@ import io.swagger.annotations.ApiModelProperty;
 import io.swagger.annotations.ApiOperation;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.entity.IdentifiedEntityDTO;
 import com.vmturbo.topology.processor.group.GroupResolver;
@@ -66,8 +67,8 @@ public class TopologyController {
     /**
      * Triggers converting the probe DTOs from all registered targets to topology DTOs, and
      * sending them to subscribed listeners.
-     */
-    public ResponseEntity<SendTopologyResponse> send() throws InterruptedException {
+     */ public ResponseEntity<SendTopologyResponse> send()
+            throws CommunicationException, InterruptedException {
         scheduler.resetBroadcastSchedule();
         final TopologyBroadcastInfo broadcastInfo = topologyHandler.broadcastLatestTopology();
         return new ResponseEntity<>(

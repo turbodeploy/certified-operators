@@ -42,7 +42,7 @@ public abstract class ComponentNotificationReceiver<RecvMsg extends AbstractMess
             try {
                 processMessage(message);
                 commitCmd.run();
-            } catch (ApiClientException e) {
+            } catch (ApiClientException | InterruptedException e) {
                 logger.error("Error occurred while processing message " +
                         message.getClass().getSimpleName(), e);
             }
@@ -55,7 +55,7 @@ public abstract class ComponentNotificationReceiver<RecvMsg extends AbstractMess
      * @param message The received message.
      */
     protected abstract void processMessage(@Nonnull final RecvMsg message)
-            throws ApiClientException;
+            throws ApiClientException, InterruptedException;
 
     protected ExecutorService getExecutorService() {
         return executorService;

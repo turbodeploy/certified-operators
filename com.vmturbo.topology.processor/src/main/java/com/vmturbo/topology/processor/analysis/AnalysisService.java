@@ -29,6 +29,7 @@ import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc.AnalysisServiceI
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
@@ -110,7 +111,7 @@ public class AnalysisService extends AnalysisServiceImplBase {
         try {
             final TopologyBroadcastInfo broadcastInfo =
                     topologyHandler.broadcastTopology(topologyInfo,
-                            topology.stream());
+                            topology);
 
             responseObserver.onNext(StartAnalysisResponse.newBuilder()
                     .setEntitiesBroadcast(broadcastInfo.getEntityCount())
@@ -121,6 +122,9 @@ public class AnalysisService extends AnalysisServiceImplBase {
         } catch (InterruptedException e) {
             responseObserver.onError(Status.INTERNAL.asException());
             Thread.interrupted();
+            throw new RuntimeException(e);
+        } catch (CommunicationException e) {
+            responseObserver.onError(Status.INTERNAL.asException());
             throw new RuntimeException(e);
         }
     }

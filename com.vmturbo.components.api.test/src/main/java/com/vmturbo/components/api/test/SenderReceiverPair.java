@@ -35,9 +35,4 @@ public class SenderReceiverPair<T extends AbstractMessage> implements IMessageSe
             consumer.accept(serverMsg, () -> {});
         }
     }
-
-    @Override
-    public void sendMessageSync(@Nonnull T serverMsg) throws InterruptedException {
-        sendMessage(serverMsg);
-    }
 }

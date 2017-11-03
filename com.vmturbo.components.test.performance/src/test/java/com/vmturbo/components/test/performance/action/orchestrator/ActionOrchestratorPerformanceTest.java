@@ -23,7 +23,6 @@ import org.junit.Rule;
 import org.junit.Test;
 
 import com.google.common.collect.ImmutableList;
-
 import io.grpc.Channel;
 import io.grpc.stub.StreamObserver;
 import tec.units.ri.unit.MetricPrefix;
@@ -110,8 +109,8 @@ public class ActionOrchestratorPerformanceTest {
                         ActionOrchestratorNotificationReceiver.ACTIONS_TOPIC,
                         ActionOrchestratorNotification::parseFrom);
         actionsService = ActionsServiceGrpc.newBlockingStub(actionOrchestratorChannel);
-        marketNotificationSender = MarketKafkaSender.createMarketSender(threadPool,
-                componentTestRule.getKafkaMessageProducer());
+        marketNotificationSender =
+                MarketKafkaSender.createMarketSender(componentTestRule.getKafkaMessageProducer());
         actionOrchestrator =
                 new ActionOrchestratorNotificationReceiver(messageReceiver, threadPool);
     }

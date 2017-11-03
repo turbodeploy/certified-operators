@@ -1,7 +1,9 @@
 package com.vmturbo.topology.processor.topology;
 
 import java.time.Clock;
+import java.util.Collection;
 import java.util.Objects;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
@@ -10,6 +12,8 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import com.google.common.collect.Collections2;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -88,9 +92,10 @@ public class TopologyHandler {
      *
      * @return The count of the total number of entities broadcast.
      * @throws InterruptedException if thread has been interrupted during broadcasting
+     * @throws CommunicationException if persistent communication exception occurred
      */
-    public synchronized TopologyBroadcastInfo broadcastLatestTopology() throws InterruptedException {
-
+    public synchronized TopologyBroadcastInfo broadcastLatestTopology()
+            throws CommunicationException, InterruptedException {
         try {
             discoveredTemplateDeploymentProfileNotifier.sendTemplateDeploymentProfileData();
         } catch (CommunicationException e) {
@@ -157,9 +162,8 @@ public class TopologyHandler {
                     .build();
 
             return broadcastTopology(topologyInfo,
-                graph.vertices()
-                    .map(Vertex::getTopologyEntityDtoBuilder)
-                    .map(TopologyEntityDTO.Builder::build));
+                    Collections2.transform(graph.vertices().collect(Collectors.toList()),
+                            vertex -> vertex.getTopologyEntityDtoBuilder().build()));
         }
     }
 
@@ -170,29 +174,17 @@ public class TopologyHandler {
      * @param topology The {@link TopologyEntityDTO} objects in the topology.
      * @return The number of broadcast entities.
      * @throws InterruptedException when the broadcast is interrupted
+     * @throws CommunicationException if persistent communication error occurred
      */
     public synchronized TopologyBroadcastInfo broadcastTopology(
-            @Nonnull final TopologyInfo topologyInfo,
-            final Stream<TopologyEntityDTO> topology) throws InterruptedException {
+            @Nonnull final TopologyInfo topologyInfo, final Iterable<TopologyEntityDTO> topology)
+            throws InterruptedException, CommunicationException {
         final TopologyBroadcast broadcast =
                 topoBroadcastManager.broadcastTopology(topologyInfo);
-        try {
-            topology.forEach(entity -> {
-                try {
-                    broadcast.append(entity);
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
-            });
-        } catch (RuntimeException e) {
-            if (e.getCause() instanceof  InterruptedException) {
-                throw (InterruptedException)e.getCause();
-            } else {
-                throw e;
-            }
+        for (TopologyEntityDTO entity : topology) {
+            broadcast.append(entity);
         }
-
-        long sentCount = broadcast.finish();
+        final long sentCount = broadcast.finish();
         logger.info("Successfully sent {} entities within topology {} for context {}.", sentCount,
                 broadcast.getTopologyId(), broadcast.getTopologyContextId());
         return new TopologyBroadcastInfo(broadcast, sentCount);

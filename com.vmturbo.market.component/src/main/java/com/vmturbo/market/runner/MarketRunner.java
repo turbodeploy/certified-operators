@@ -15,6 +15,7 @@ import com.google.common.collect.Maps;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.market.component.api.MarketNotificationSender;
+import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.market.runner.Analysis.AnalysisState;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
 import com.vmturbo.priceindex.api.PriceIndexNotificationSender;
@@ -87,7 +88,8 @@ public class MarketRunner {
         analysis.execute();
         analysisMap.remove(analysis.getContextId());
         if (analysis.getState() == AnalysisState.SUCCEEDED) {
-            serverApi.notifyActionsRecommended(analysis.getActionPlan().get());
+            try {
+                serverApi.notifyActionsRecommended(analysis.getActionPlan().get());
             serverApi.notifyProjectedTopology(analysis.getTopologyInfo(),
                     analysis.getProjectedTopologyId().get(),
                     analysis.getProjectedTopology().get());
@@ -96,6 +98,10 @@ public class MarketRunner {
                     .setTopologyContextId(analysis.getContextId())
                     .build();
             priceIndexApi.sendPriceIndex(analysis.getTopologyInfo(), pim);
+            } catch (CommunicationException | InterruptedException e) {
+                // TODO we need to decide, whether to commit the incoming topology here or not.
+                logger.error("Could not send market notifications", e);
+            }
         }
     }
 

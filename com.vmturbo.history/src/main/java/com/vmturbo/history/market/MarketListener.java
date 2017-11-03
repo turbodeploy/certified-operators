@@ -173,17 +173,22 @@ public class MarketListener implements ProjectedTopologyListener, PriceIndexList
                 topologyContextId, topologyId, priceIndex.getSourceTopologyCreationTime(),
                 priceIndex.getPayloadCount());
 
-        // process the priceIndex information depending on the type of the topology
-        if (topologyContextId == realtimeTopologyContextId) {
-            priceIndexWriter.persistPriceIndexInfo(topologyContextId, priceIndex.getTopologyId(),
-                    priceIndex.getPayloadList());
+        try {
+            // process the priceIndex information depending on the type of the topology
+            if (topologyContextId == realtimeTopologyContextId) {
+                priceIndexWriter.persistPriceIndexInfo(topologyContextId, priceIndex.getTopologyId(),
+                        priceIndex.getPayloadList());
 
-            projectedStatsStore.updateProjectedPriceIndex(priceIndex);
+                projectedStatsStore.updateProjectedPriceIndex(priceIndex);
 
-            availabilityTracker.priceIndexAvailable(topologyContextId, TopologyContextType.LIVE);
-        } else {
-            planStatsWriter.persistPlanPriceIndexInfo(priceIndex);
-            availabilityTracker.priceIndexAvailable(topologyContextId, TopologyContextType.PLAN);
+                availabilityTracker.priceIndexAvailable(topologyContextId, TopologyContextType.LIVE);
+            } else {
+                planStatsWriter.persistPlanPriceIndexInfo(priceIndex);
+                availabilityTracker.priceIndexAvailable(topologyContextId, TopologyContextType.PLAN);
+            }
+        } catch (CommunicationException | InterruptedException e) {
+            logger.error("Error sending price index saved notification for price index " +
+                    priceIndex.getTopologyId(), e);
         }
     }
 }

@@ -10,6 +10,8 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.protobuf.AbstractMessage;
 
+import com.vmturbo.communication.CommunicationException;
+
 /**
  * Contains server-side boilerplate to send Protobuf notifications using underlying
  * {@link IMessageSender}.
@@ -32,21 +34,13 @@ public abstract class ComponentNotificationSender<ServerMsg extends AbstractMess
     }
 
     protected final void sendMessage(@Nonnull IMessageSender<ServerMsg> sender,
-            @Nonnull final ServerMsg serverMsg) {
+            @Nonnull final ServerMsg serverMsg)
+            throws InterruptedException, CommunicationException {
         Objects.requireNonNull(sender);
         Objects.requireNonNull(serverMsg);
         final String messageDescription = describeMessage(serverMsg);
         logger.info("Sending message " + messageDescription + " for broadcast to listeners.");
         sender.sendMessage(serverMsg);
-    }
-
-    protected final void sendMessageSync(@Nonnull IMessageSender<ServerMsg> sender,
-            @Nonnull final ServerMsg serverMsg) throws InterruptedException {
-        Objects.requireNonNull(sender);
-        Objects.requireNonNull(serverMsg);
-        final String messageDescription = describeMessage(serverMsg);
-        logger.info("Sending message " + messageDescription + " for broadcast to listeners.");
-        sender.sendMessageSync(serverMsg);
     }
 
     /**

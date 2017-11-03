@@ -18,6 +18,8 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.protobuf.AbstractMessage;
 
+import com.vmturbo.communication.CommunicationException;
+
 public class KafkaMessageProducer implements AutoCloseable {
 
     private final KafkaProducer<String, byte[]> producer;
@@ -76,16 +78,12 @@ public class KafkaMessageProducer implements AutoCloseable {
         }
 
         @Override
-        public void sendMessage(@Nonnull S serverMsg) {
-            sendKafkaMessage(serverMsg, topic);
-        }
-
-        @Override
-        public void sendMessageSync(@Nonnull S serverMsg) throws InterruptedException {
+        public void sendMessage(@Nonnull S serverMsg)
+                throws CommunicationException, InterruptedException {
             try {
                 sendKafkaMessage(serverMsg, topic).get();
             } catch (ExecutionException e) {
-                throw new RuntimeException("Unexpected exception sending message " +
+                throw new CommunicationException("Unexpected exception sending message " +
                         serverMsg.getClass().getSimpleName(), e);
             }
         }

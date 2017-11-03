@@ -88,10 +88,10 @@ public class TopologyEntitiesListenerTest {
 
     /**
      * Test that the methods that need to be invoked are indeed invoked and with the right params.
-     * @throws GraphDatabaseException is not expected to happen during this test
+     * @throws Exception is not expected to happen during this test
      */
     @Test
-    public void testOnTopologyNotificationNonRealtime() throws GraphDatabaseException {
+    public void testOnTopologyNotificationNonRealtime() throws Exception {
         final long topologyContextId = 11L;
         final long topologyId = 22222L;
         final long creationTime = 33333L;
@@ -114,7 +114,7 @@ public class TopologyEntitiesListenerTest {
     }
 
     @Test
-    public void testOnTopologyNotificationRealtime() throws GraphDatabaseException {
+    public void testOnTopologyNotificationRealtime() throws Exception {
         final long topologyContextId = realtimeTopologyContextId;
         final long topologyId = 22222L;
         final long creationTime = 33333L;

@@ -86,7 +86,7 @@ public class SampleNotificationsTest {
     }
 
     @Test
-    public void testEchoNotification() {
+    public void testEchoNotification() throws Exception {
         // First, add a mock listener to the client.
         final EchoListener listener = Mockito.mock(EchoListener.class);
         sampleComponentNotificationReceiver.addEchoListener(listener);

@@ -40,7 +40,6 @@ import tec.units.ri.unit.MetricPrefix;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.components.test.utilities.ComponentTestRule;
 import com.vmturbo.grpc.extensions.PingingChannelBuilder;
-import com.vmturbo.market.component.api.impl.MarketComponentClient;
 
 /**
  * The {@link ComponentCluster} is a wrapper around {@link DockerComposeRule} to do
@@ -60,10 +59,6 @@ import com.vmturbo.market.component.api.impl.MarketComponentClient;
  */
 public class ComponentCluster {
 
-    /**
-     * Name of the container, running kafka broker.
-     */
-    private static final String KAFKA_CONTAINER = "kafka1";
     private static final String PERF_TEST_PROJECT_NAME = "perftest";
 
     public static final int DEFAULT_HEALTH_CHECK_WAIT_MINUTES = 5;
@@ -167,7 +162,7 @@ public class ComponentCluster {
 
     /**
      * Get the connection configuration to connect to a service using the *.api-provided
-     * clients for the particular component. For example, see: {@link MarketComponentClient}.
+     * clients for the particular component. For example, see: {@link com.vmturbo.market.component.api.impl.MarketComponentClient}.
      *
      * @param service The service name.
      * @return The connection configuration.

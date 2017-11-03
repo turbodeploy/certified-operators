@@ -18,6 +18,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.chunking.ChunkingReceiver;
 import com.vmturbo.communication.chunking.RemoteIterator;
+import com.vmturbo.components.api.client.ApiClientException;
 import com.vmturbo.components.api.client.ComponentNotificationReceiver;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.market.component.api.ActionsListener;
@@ -54,21 +55,10 @@ public class MarketComponentNotificationReceiver extends
     }
 
     @Override
-    protected void processMessage(@Nonnull final ActionPlan message)
-            throws MarketComponentException {
-        processActions(message);
-    }
-
-    private void processActions(@Nonnull final ActionPlan actions) {
+    protected void processMessage(@Nonnull final ActionPlan actions)
+            throws ApiClientException, InterruptedException {
         for (final ActionsListener listener : actionsListenersSet) {
-            getExecutorService().submit(() -> {
-                try {
-                    listener.onActionsReceived(actions);
-                } catch (RuntimeException e) {
-                    getLogger().error("Error executing entities notification for listener " +
-                            listener, e);
-                }
-            });
+            listener.onActionsReceived(actions);
         }
     }
 

@@ -11,7 +11,7 @@ import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
 import com.vmturbo.components.api.server.IMessageSender;
 
 /**
- * Spring configuration to provide the {@link com.vmturbo.market.component.api.MarketComponent} integration.
+ * Spring configuration to provide the {@link ActionOrchestratorNotificationSender} integration.
  */
 @Configuration
 @Import({BaseKafkaProducerConfig.class})

@@ -20,6 +20,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.ImmutableList;
 
+import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.AccountValue;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
@@ -201,6 +202,8 @@ public class KVBackedTargetStore implements TargetStore {
           // not throw back to the client.
           Thread.currentThread().interrupt(); // set interrupt flag
           logger.error("Interruption during broadcast of latest topology.");
+        } catch (CommunicationException e) {
+            logger.error("Could not send topology broadcast after removing target " + targetId, e);
         }
         return oldTarget;
     }

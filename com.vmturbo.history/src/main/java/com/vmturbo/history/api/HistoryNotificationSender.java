@@ -9,6 +9,9 @@ import javax.annotation.concurrent.ThreadSafe;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import oracle.net.ns.Communication;
+
+import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.server.ComponentNotificationSender;
 import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.history.component.api.HistoryComponentNotifications.HistoryComponentNotification;
@@ -26,7 +29,8 @@ public class HistoryNotificationSender extends ComponentNotificationSender<Histo
         this.sender = Objects.requireNonNull(sender);
     }
 
-    public void statsAvailable(final long topologyContextId) {
+    public void statsAvailable(final long topologyContextId)
+            throws CommunicationException, InterruptedException {
         final long messageChainId = newMessageChainId();
         getLogger().info("Stats available for context: {}", topologyContextId);
 

@@ -5,6 +5,7 @@ import java.util.Objects;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
+import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.server.ComponentNotificationSender;
 import com.vmturbo.components.api.server.IMessageSender;
 
@@ -19,7 +20,8 @@ public class PlanNotificationSender extends ComponentNotificationSender<PlanInst
         this.sender = Objects.requireNonNull(sender);
     }
 
-    public void onPlanStatusChanged(@Nonnull final PlanInstance plan) {
+    public void onPlanStatusChanged(@Nonnull final PlanInstance plan)
+            throws CommunicationException, InterruptedException {
         sendMessage(sender, plan);
     }
 

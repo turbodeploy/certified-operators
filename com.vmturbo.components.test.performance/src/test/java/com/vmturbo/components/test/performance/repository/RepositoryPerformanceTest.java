@@ -21,7 +21,6 @@ import org.junit.Rule;
 import org.junit.Test;
 
 import io.grpc.Channel;
-
 import tec.units.ri.unit.MetricPrefix;
 
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
@@ -31,13 +30,14 @@ import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChain
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.client.KafkaMessageConsumer;
 import com.vmturbo.components.test.utilities.ComponentTestRule;
-import com.vmturbo.components.test.utilities.component.DockerEnvironment;
 import com.vmturbo.components.test.utilities.alert.Alert;
 import com.vmturbo.components.test.utilities.component.ComponentCluster;
 import com.vmturbo.components.test.utilities.component.ComponentUtils;
+import com.vmturbo.components.test.utilities.component.DockerEnvironment;
 import com.vmturbo.components.test.utilities.component.ServiceHealthCheck.BasicServiceHealthCheck;
 import com.vmturbo.components.test.utilities.utils.TopologyUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -132,9 +132,10 @@ public class RepositoryPerformanceTest {
      * @throws InterruptedException If interrupted.
      * @throws ExecutionException If the future execution fails.
      * @throws TimeoutException If the topology cannot be stored before a timeout expires.
+     * @throws TimeoutException If communication error occurred
      */
     private void testStoreTopologyAndGetSupplyChain(final int topologySize)
-        throws InterruptedException, ExecutionException, TimeoutException {
+        throws CommunicationException, InterruptedException, ExecutionException, TimeoutException {
 
         // Register for when the repository finishes storing the topology.
         final CompletableFuture<TopologyAndContext> topologyStoredFuture = new CompletableFuture<>();
@@ -178,8 +179,10 @@ public class RepositoryPerformanceTest {
      * @param topologySize The size of the topology to send.
      * @return The id of the datacenter in the topology sent.
      * @throws InterruptedException If the operation is interrupted.
+     * @throws CommunicationException if sending operation failed
      */
-    private long sendTopology(final int topologySize) throws InterruptedException {
+    private long sendTopology(final int topologySize)
+            throws CommunicationException, InterruptedException {
         final List<TopologyEntityDTO> topoDTOs = TopologyUtils.generateTopology(topologySize);
 
         final TopologyProcessorNotificationSender topologySender = TopologyProcessorKafkaSender
@@ -196,7 +199,7 @@ public class RepositoryPerformanceTest {
         topoDTOs.forEach(entity -> {
             try {
                 topologyBroadcast.append(entity);
-            } catch (InterruptedException e) {
+            } catch (CommunicationException | InterruptedException e) {
                 throw new RuntimeException("Broadcast interrupted.", e);
             }
         });

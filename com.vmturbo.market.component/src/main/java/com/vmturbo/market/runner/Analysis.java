@@ -20,6 +20,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+import com.vmturbo.commons.analysis.InvalidTopologyException;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.market.topology.TopologyEntitiesHandler;
 import com.vmturbo.market.topology.conversions.TopologyConverter;
@@ -130,7 +131,7 @@ public class Analysis {
             logger.info(logPrefix + "Completed successfully");
             processResultTime.observe();
             state = AnalysisState.SUCCEEDED;
-        } catch (Exception e) {
+        } catch (InvalidTopologyException | RuntimeException e) {
             logger.error(logPrefix + e + " while running analysis", e);
             state = AnalysisState.FAILED;
             errorMsg = e.toString();

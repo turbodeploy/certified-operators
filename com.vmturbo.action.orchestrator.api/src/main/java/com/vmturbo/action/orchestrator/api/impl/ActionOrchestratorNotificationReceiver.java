@@ -18,7 +18,7 @@ import com.vmturbo.components.api.client.ComponentNotificationReceiver;
 import com.vmturbo.components.api.client.IMessageReceiver;
 
 /**
- * The websocket client connecting to the Action Orchestrator.
+ * Receiver to accept notifications from Action Orhcestrator.
  */
 public class ActionOrchestratorNotificationReceiver extends
         ComponentNotificationReceiver<ActionOrchestratorNotification> implements

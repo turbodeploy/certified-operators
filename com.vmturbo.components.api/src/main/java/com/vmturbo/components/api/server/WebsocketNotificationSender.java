@@ -5,11 +5,9 @@ import java.time.Instant;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -24,7 +22,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableSet;
 import com.google.protobuf.Empty;
 
 import com.vmturbo.communication.CommunicationException;
@@ -51,11 +48,6 @@ public class WebsocketNotificationSender<T> implements IMessageSender<T>,
         this.threadPool = Objects.requireNonNull(threadPool);
     }
 
-    @Override
-    public void sendMessage(@Nonnull final T serverMsg) {
-        sendMessageInternal(serverMsg);
-    }
-
     private Collection<Future<Void>> sendMessageInternal(@Nonnull final T serverMsg) {
         Objects.requireNonNull(serverMsg);
         logger.debug("Sending message {}", () -> serverMsg.getClass().getSimpleName());
@@ -66,13 +58,14 @@ public class WebsocketNotificationSender<T> implements IMessageSender<T>,
     }
 
     @Override
-    public void sendMessageSync(@Nonnull T serverMsg) throws InterruptedException {
+    public void sendMessage(@Nonnull T serverMsg)
+            throws CommunicationException, InterruptedException {
         try {
             for (Future<Void> future : sendMessageInternal(serverMsg)) {
                 future.get();
             }
         } catch (ExecutionException e) {
-            throw new RuntimeException(
+            throw new CommunicationException(
                     "Unexpected exception occurred while waiting for the message " +
                             serverMsg.getClass().getSimpleName() + " sending", e.getCause());
         }

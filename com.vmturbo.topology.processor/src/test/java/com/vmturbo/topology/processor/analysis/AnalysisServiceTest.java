@@ -14,8 +14,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
+import org.assertj.core.util.Lists;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.junit.Assert;
@@ -29,6 +29,7 @@ import org.mockito.MockitoAnnotations;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyAddition;
@@ -41,6 +42,7 @@ import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc.AnalysisServiceB
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.topology.processor.entity.EntityStore;
@@ -86,7 +88,7 @@ public class AnalysisServiceTest {
         .build();
 
     @Captor
-    private ArgumentCaptor<Stream<TopologyEntityDTO>> broadcastCaptor;
+    private ArgumentCaptor<Iterable<TopologyEntityDTO>> broadcastCaptor;
 
     private final long entityId = 10;
 
@@ -103,7 +105,7 @@ public class AnalysisServiceTest {
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(analysisServiceBackend);
 
     @Before
-    public void setup() throws IOException, InterruptedException {
+    public void setup() throws IOException, InterruptedException, CommunicationException {
         MockitoAnnotations.initMocks(this);
 
         analysisService = AnalysisServiceGrpc.newBlockingStub(grpcServer.getChannel());
@@ -126,8 +128,7 @@ public class AnalysisServiceTest {
      * @throws InterruptedException not supposed to happen
      */
     @Test
-    public void testStartAnalysisOldTopology() throws InterruptedException {
-
+    public void testStartAnalysisOldTopology() throws Exception {
         // arrange
         final long oldTopologyId = 1;
         List<TopologyEntityDTO> entities = ImmutableList.of(testEntity.build(), testEntity2.build());
@@ -151,7 +152,7 @@ public class AnalysisServiceTest {
                     .build()),
                 broadcastCaptor.capture());
         assertEquals(returnEntityNum, response.getEntitiesBroadcast());
-        assertEquals(entities, broadcastCaptor.getValue().collect(Collectors.toList()));
+        assertEquals(entities, Lists.newArrayList(broadcastCaptor.getValue()));
     }
 
     /**
@@ -159,7 +160,7 @@ public class AnalysisServiceTest {
      * @throws InterruptedException not supposed to happen
      */
     @Test
-    public void testStartAnalysisRealtime() throws InterruptedException {
+    public void testStartAnalysisRealtime() throws Exception {
         Map<Long, TopologyEntityDTO.Builder> entities =
                 ImmutableMap.of(10L, TopologyEntityDTO.newBuilder()
                     .setEntityType(1)
@@ -176,9 +177,10 @@ public class AnalysisServiceTest {
         verify(entityStore).constructTopology();
         verify(topologyHandler).broadcastTopology(eq(topologyInfo), broadcastCaptor.capture());
 
-        assertEquals(entities.values().stream()
-            .map(TopologyEntityDTO.Builder::build)
-            .collect(Collectors.toList()), broadcastCaptor.getValue().collect(Collectors.toList()));
+        assertEquals(entities.values()
+                .stream()
+                .map(TopologyEntityDTO.Builder::build)
+                .collect(Collectors.toList()), Lists.newArrayList(broadcastCaptor.getValue()));
         assertEquals(returnEntityNum, response.getEntitiesBroadcast());
 
         // Verify the analysis service passes through the topologyId and topologyContextId.
@@ -207,7 +209,7 @@ public class AnalysisServiceTest {
         verify(topologyHandler).broadcastTopology(eq(topologyInfo), broadcastCaptor.capture());
 
         final Set<TopologyEntityDTO> newTopology =
-                broadcastCaptor.getValue().collect(Collectors.toSet());
+                Sets.newHashSet(broadcastCaptor.getValue());
 
         MatcherAssert.assertThat(newTopology,
                 Matchers.containsInAnyOrder(
@@ -237,8 +239,7 @@ public class AnalysisServiceTest {
                 .build();
 
         verify(topologyHandler).broadcastTopology(eq(topologyInfo), broadcastCaptor.capture());
-        final Set<TopologyEntityDTO> newTopology =
-                broadcastCaptor.getValue().collect(Collectors.toSet());
+        final Set<TopologyEntityDTO> newTopology = Sets.newHashSet(broadcastCaptor.getValue());
 
         MatcherAssert.assertThat(newTopology,
                 Matchers.containsInAnyOrder(
@@ -259,8 +260,7 @@ public class AnalysisServiceTest {
                 .build());
 
         verify(topologyHandler).broadcastTopology(eq(topologyInfo), broadcastCaptor.capture());
-        final Set<TopologyEntityDTO> newTopology =
-                broadcastCaptor.getValue().collect(Collectors.toSet());
+        final Set<TopologyEntityDTO> newTopology = Sets.newHashSet(broadcastCaptor.getValue());
 
         MatcherAssert.assertThat(newTopology,
                 Matchers.contains(Matchers.equalTo(testEntity.build())));
@@ -277,10 +277,10 @@ public class AnalysisServiceTest {
                     .setEntityId(entityId)))
                 .build());
 
-        verify(topologyHandler).broadcastTopology(eq(topologyInfo), broadcastCaptor.capture());
+        verify(topologyHandler).broadcastTopology(eq(topologyInfo),
+                broadcastCaptor.capture());
 
-        final Set<TopologyEntityDTO> newTopology =
-                broadcastCaptor.getValue().collect(Collectors.toSet());
+        final Set<TopologyEntityDTO> newTopology = Sets.newHashSet(broadcastCaptor.getValue());
         Assert.assertTrue(newTopology.isEmpty());
     }
 
@@ -295,10 +295,10 @@ public class AnalysisServiceTest {
                                 .setEntityId(entityId + 1)))
                 .build());
 
-        verify(topologyHandler).broadcastTopology(eq(topologyInfo), broadcastCaptor.capture());
+        verify(topologyHandler).broadcastTopology(eq(topologyInfo),
+                broadcastCaptor.capture());
 
-        final Set<TopologyEntityDTO> newTopology =
-                broadcastCaptor.getValue().collect(Collectors.toSet());
+        final Set<TopologyEntityDTO> newTopology = Sets.newHashSet(broadcastCaptor.getValue());
         MatcherAssert.assertThat(newTopology,
                 Matchers.contains(Matchers.equalTo(testEntity.build())));
     }

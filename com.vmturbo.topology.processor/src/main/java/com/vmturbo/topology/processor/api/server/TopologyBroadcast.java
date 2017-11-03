@@ -4,6 +4,7 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+import com.vmturbo.communication.CommunicationException;
 
 /**
  * Interface for sending topology broadcasts. It's up to implementation to pack separate entities
@@ -21,8 +22,10 @@ public interface TopologyBroadcast {
      * @throws InterruptedException if thread has been interrupted
      * @throws NullPointerException if {@code entity} is {@code null}
      * @throws IllegalStateException if {@link #finish()} has been already called
+     * @throws CommunicationException persistent communication exception
      */
-    void append(@Nonnull TopologyEntityDTO entity) throws InterruptedException;
+    void append(@Nonnull TopologyEntityDTO entity)
+            throws CommunicationException, InterruptedException;
 
     /**
      * Marks the topology broadcast as complete and sends the last data (if required). This call
@@ -32,8 +35,9 @@ public interface TopologyBroadcast {
      * @returns the number of topology entities totally processed (passed to
      *      {@link #append(TopologyEntityDTO)}
      * @throws InterruptedException if thread has been interrupted
+     * @throws CommunicationException persistent communication exception
      */
-    long finish() throws InterruptedException;
+    long finish() throws CommunicationException, InterruptedException;
 
     /**
      * Returns the id of the topology, that will be broadcasted. The id will be unique across

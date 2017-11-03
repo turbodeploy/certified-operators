@@ -12,6 +12,8 @@ import javax.annotation.concurrent.ThreadSafe;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.communication.CommunicationException;
+
 /**
  * Tracks the availability of statistics in history for topology contexts.
  *
@@ -66,17 +68,22 @@ public class StatsAvailabilityTracker {
         this.notificationSender = Objects.requireNonNull(notificationSender);
     }
 
-    public StatsAvailabilityStatus priceIndexAvailable(final long topologyContextId, TopologyContextType contextType) {
-        return statsPartAvailable(topologyContextId, contextType, AvailabilityInfo::markPriceIndexAvailable);
+    public StatsAvailabilityStatus priceIndexAvailable(final long topologyContextId,
+            TopologyContextType contextType) throws CommunicationException, InterruptedException {
+        return statsPartAvailable(topologyContextId, contextType,
+                AvailabilityInfo::markPriceIndexAvailable);
     }
 
-    public StatsAvailabilityStatus topologyAvailable(final long topologyContextId, TopologyContextType contextType) {
-        return statsPartAvailable(topologyContextId, contextType, AvailabilityInfo::markTopologyAvailable);
+    public StatsAvailabilityStatus topologyAvailable(final long topologyContextId,
+            TopologyContextType contextType) throws CommunicationException, InterruptedException {
+        return statsPartAvailable(topologyContextId, contextType,
+                AvailabilityInfo::markTopologyAvailable);
     }
 
     public StatsAvailabilityStatus projectedTopologyAvailable(final long topologyContextId,
-                                                              TopologyContextType contextType) {
-        return statsPartAvailable(topologyContextId, contextType, AvailabilityInfo::markProjectedTopologyAvailable);
+            TopologyContextType contextType) throws CommunicationException, InterruptedException {
+        return statsPartAvailable(topologyContextId, contextType,
+                AvailabilityInfo::markProjectedTopologyAvailable);
     }
 
     public boolean isTracking(final long topologyContextId) {
@@ -86,8 +93,9 @@ public class StatsAvailabilityTracker {
     }
 
     private StatsAvailabilityStatus statsPartAvailable(final long topologyContextId,
-                                                       final TopologyContextType contextType,
-                                                       @Nonnull final Consumer<AvailabilityInfo> availabilityInfoConsumer) {
+            final TopologyContextType contextType,
+            @Nonnull final Consumer<AvailabilityInfo> availabilityInfoConsumer)
+            throws CommunicationException, InterruptedException {
         Objects.requireNonNull(availabilityInfoConsumer);
         boolean allAvailable;
 

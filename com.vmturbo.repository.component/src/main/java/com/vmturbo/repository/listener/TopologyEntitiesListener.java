@@ -53,6 +53,16 @@ public class TopologyEntitiesListener implements EntitiesListener {
     @Override
     public void onTopologyNotification(TopologyInfo topologyInfo,
             @Nonnull final RemoteIterator<TopologyEntityDTO> entityIterator) {
+        try {
+            onTopologyNotificationInternal(topologyInfo, entityIterator);
+        } catch (CommunicationException | InterruptedException e) {
+            logger.error("Error performing topology notifications", e);
+        }
+    }
+
+    private void onTopologyNotificationInternal(TopologyInfo topologyInfo,
+            @Nonnull final RemoteIterator<TopologyEntityDTO> entityIterator)
+            throws CommunicationException, InterruptedException {
 
         final long topologyId = topologyInfo.getTopologyId();
         final long topologyContextId = topologyInfo.getTopologyContextId();
@@ -102,6 +112,7 @@ public class TopologyEntitiesListener implements EntitiesListener {
             rollback(graphCreator, tid);
             notificationSender.onSourceTopologyFailure(topologyId, topologyContextId,
                 "Error receiving source topology " + topologyId + ": " + e.getMessage());
+            throw e;
         } catch (Exception e) {
             logger.error("Exception while receiving topology " + topologyId, e);
             rollback(graphCreator, tid);

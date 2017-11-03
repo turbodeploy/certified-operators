@@ -4,6 +4,7 @@ import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.server.ComponentNotificationSender;
 import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.repository.api.RepositoryDTO.AvailableTopology;
@@ -22,7 +23,8 @@ public class RepositoryNotificationSender extends
         this.sender = Objects.requireNonNull(sender);
     }
 
-    public void onProjectedTopologyAvailable(final long projectedTopologyId, final long topologyContextId) {
+    public void onProjectedTopologyAvailable(final long projectedTopologyId,
+            final long topologyContextId) throws CommunicationException, InterruptedException {
         final RepositoryNotification message = RepositoryNotification.newBuilder()
                 .setBroadcastId(newMessageChainId())
                 .setNewProjectedTopologyAvailable(AvailableTopology.newBuilder()
@@ -33,7 +35,8 @@ public class RepositoryNotificationSender extends
     }
 
     public void onProjectedTopologyFailure(final long projectedTopologyId,
-                                           final long topologyContextId, @Nonnull final String description) {
+            final long topologyContextId, @Nonnull final String description)
+            throws CommunicationException, InterruptedException {
         Objects.requireNonNull(description);
         final RepositoryNotification message = RepositoryNotification.newBuilder()
                 .setBroadcastId(newMessageChainId())
@@ -45,7 +48,8 @@ public class RepositoryNotificationSender extends
         sendMessage(sender, message);
     }
 
-    public void onSourceTopologyAvailable(final long topologyId, final long topologyContextId) {
+    public void onSourceTopologyAvailable(final long topologyId, final long topologyContextId)
+            throws CommunicationException, InterruptedException {
         final RepositoryNotification message = RepositoryNotification.newBuilder()
                 .setBroadcastId(newMessageChainId())
                 .setNewSourceTopologyAvailable(AvailableTopology.newBuilder()
@@ -56,7 +60,7 @@ public class RepositoryNotificationSender extends
     }
 
     public void onSourceTopologyFailure(final long topologyId, final long topologyContextId,
-                                        @Nonnull final String description) {
+            @Nonnull final String description) throws CommunicationException, InterruptedException {
         Objects.requireNonNull(description);
         final RepositoryNotification message = RepositoryNotification.newBuilder()
                 .setBroadcastId(newMessageChainId())

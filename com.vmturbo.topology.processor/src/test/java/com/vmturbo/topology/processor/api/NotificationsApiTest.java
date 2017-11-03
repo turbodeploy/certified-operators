@@ -518,9 +518,9 @@ public class NotificationsApiTest extends AbstractApiCallsTest {
         return date.toInstant(ZoneOffset.ofTotalSeconds(0)).toEpochMilli();
     }
 
-    private void sendEntities(final long topologyContextId,
-            final long topologyId,
-            @Nonnull final Collection<TopologyEntityDTO> entities) throws InterruptedException {
+    private void sendEntities(final long topologyContextId, final long topologyId,
+            @Nonnull final Collection<TopologyEntityDTO> entities)
+            throws CommunicationException, InterruptedException {
         final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
                 .setTopologyType(TopologyType.PLAN)
                 .setTopologyId(topologyId)

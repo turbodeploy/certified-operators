@@ -39,6 +39,7 @@ import com.vmturbo.common.protobuf.stats.Stats.DeletePlanStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.DeletePlanStatsResponse;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.plan.orchestrator.db.tables.pojos.PlanInstance;
 import com.vmturbo.plan.orchestrator.db.tables.records.PlanInstanceRecord;
 import com.vmturbo.repository.api.RepositoryClient;
@@ -272,7 +273,13 @@ public class PlanDaoImpl implements PlanDao {
                             "Plan with id " + planInstance.getPlanId() + " does not exist");
                 }
                 if (src.getStatus() != planInstance.getStatus()) {
-                    notificationSender.onPlanStatusChanged(planInstance);
+                    try {
+                        notificationSender.onPlanStatusChanged(planInstance);
+                    } catch (CommunicationException | InterruptedException e) {
+                        // TODO Maybe roll back transaction here?
+                        logger.error("Error sending plan update notification for plan " + planId,
+                                e);
+                    }
                 }
                 return planInstance;
             });

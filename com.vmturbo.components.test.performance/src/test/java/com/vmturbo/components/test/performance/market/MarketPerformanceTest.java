@@ -22,6 +22,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.client.KafkaMessageConsumer;
@@ -105,7 +106,7 @@ public class MarketPerformanceTest {
         topoDTOs.forEach(entity -> {
             try {
                 topologyBroadcast.append(entity);
-            } catch (InterruptedException e) {
+            } catch (InterruptedException | CommunicationException e) {
                 throw new RuntimeException("Broadcast interrupted.", e);
             }
         });

@@ -5,6 +5,7 @@ import java.util.Objects;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.sample.Echo.EchoResponse;
+import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.server.ComponentNotificationSender;
 import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.sample.api.SampleComponent;
@@ -38,8 +39,13 @@ public class SampleComponentNotificationSender extends
     /**
      * Other classes in the sample component can call this method to send a notification to
      * registered listeners.
+     * @throws InterruptedException if sending thread has been interrupted. This does not
+     *      guarantee, that message has ben sent nor it has not been sent
+     * @throws CommunicationException if persistent communication error occurred (message could
+     *      not be sent in future).
      */
-    public void notifyEchoResponse(@Nonnull final EchoResponse response) {
+    public void notifyEchoResponse(@Nonnull final EchoResponse response)
+            throws CommunicationException, InterruptedException {
         final SampleNotification notification = newNotification()
             .setEchoResponse(Objects.requireNonNull(response))
             .build();

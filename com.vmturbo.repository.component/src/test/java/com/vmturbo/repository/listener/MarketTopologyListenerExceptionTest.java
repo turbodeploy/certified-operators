@@ -162,7 +162,7 @@ public class MarketTopologyListenerExceptionTest {
         verify(writer).delete();
     }
 
-    private void verifyMocks() throws GraphDatabaseException {
+    private void verifyMocks() throws Exception {
         verify(topologyEventHandler).initializeTopologyGraph(tid);
         verify(topologyEventHandler, never()).register(tid);
         verify(topologyEventHandler).dropDatabase(tid);

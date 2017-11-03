@@ -19,7 +19,6 @@ public interface ProjectedTopologyListener {
      * @param sourceTopologyInfo contains basic information of source topology.
      * @param topology contains the traders after the plan has completed.
      */
-    void onProjectedTopologyReceived(long projectedTopologyId,
-                                     TopologyInfo sourceTopologyInfo,
-                                     @Nonnull RemoteIterator<TopologyEntityDTO> topology);
+    void onProjectedTopologyReceived(long projectedTopologyId, TopologyInfo sourceTopologyInfo,
+            @Nonnull RemoteIterator<TopologyEntityDTO> topology);
 }

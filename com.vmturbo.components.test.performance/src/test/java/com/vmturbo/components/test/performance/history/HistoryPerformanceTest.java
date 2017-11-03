@@ -22,6 +22,7 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistorySer
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.server.KafkaMessageProducer;
 import com.vmturbo.components.test.utilities.component.ComponentUtils;
@@ -92,7 +93,7 @@ public abstract class HistoryPerformanceTest {
     @Before
     public void createSenders() {
         tpSender = TopologyProcessorKafkaSender.create(threadPool, getKafkaMessageProducer());
-        marketSender = MarketKafkaSender.createMarketSender(threadPool, getKafkaMessageProducer());
+        marketSender = MarketKafkaSender.createMarketSender(getKafkaMessageProducer());
         piSender = MarketKafkaSender.createPriceIndexSender(getKafkaMessageProducer());
     }
 
@@ -133,7 +134,7 @@ public abstract class HistoryPerformanceTest {
         topoDTOs.forEach(entity -> {
             try {
                 topologyBroadcast.append(entity);
-            } catch (InterruptedException e) {
+            } catch (InterruptedException | CommunicationException e) {
                 throw new RuntimeException("Broadcast interrupted.", e);
             }
         });

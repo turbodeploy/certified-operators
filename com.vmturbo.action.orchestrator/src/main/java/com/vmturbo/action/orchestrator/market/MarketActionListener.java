@@ -12,6 +12,7 @@ import com.vmturbo.action.orchestrator.api.ActionOrchestratorNotificationSender;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
+import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.market.component.api.ActionsListener;
 
 /**
@@ -46,6 +47,12 @@ public class MarketActionListener implements ActionsListener {
             actionStore.size());
 
         // Notify listeners that actions are ready for retrieval.
-        notificationSender.notifyActionsRecommended(orderedActions);
+        try {
+            notificationSender.notifyActionsRecommended(orderedActions);
+        } catch (CommunicationException | InterruptedException e) {
+            logger.error(
+                    "Could not send actions recommended notification for " + orderedActions.getId(),
+                    e);
+        }
     }
 }

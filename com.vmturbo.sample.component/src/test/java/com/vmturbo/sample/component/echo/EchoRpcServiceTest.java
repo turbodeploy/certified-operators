@@ -89,7 +89,7 @@ public class EchoRpcServiceTest {
     }
 
     @Test
-    public void testSingleEchoNotification() {
+    public void testSingleEchoNotification() throws Exception {
         echoRpcServiceClient.singleEcho(EchoRequest.newBuilder()
                 .setEcho(ECHO)
                 .build());
@@ -99,7 +99,7 @@ public class EchoRpcServiceTest {
     }
 
     @Test
-    public void testMultiEchoNotification() {
+    public void testMultiEchoNotification() throws Exception {
         final int times = 2;
         echoRpcServiceClient.multiEcho(MultiEchoRequest.newBuilder()
             .setRequest(EchoRequest.newBuilder()

@@ -71,7 +71,7 @@ public class MarketRunnerTest {
      * @throws InterruptedException because I use Thread.sleep(.)
      */
     @Test
-    public void testGetRuns() throws InterruptedException {
+    public void testGetRuns() throws Exception {
         Analysis analysis =
                 runner.scheduleAnalysis(topologyInfo, dtos(true), true);
         assertTrue(runner.getRuns().contains(analysis));

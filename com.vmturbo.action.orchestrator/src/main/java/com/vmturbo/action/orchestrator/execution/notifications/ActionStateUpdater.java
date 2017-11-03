@@ -17,6 +17,7 @@ import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionFailure;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionProgress;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionSuccess;
+import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.topology.processor.api.ActionExecutionListener;
 
 /**
@@ -70,7 +71,11 @@ public class ActionStateUpdater implements ActionExecutionListener {
             Action action = storedAction.get();
             action.receive(new ProgressEvent(actionProgress.getProgressPercentage(),
                     actionProgress.getDescription()));
-            notificationSender.notifyActionProgress(actionProgress);
+            try {
+                notificationSender.notifyActionProgress(actionProgress);
+            } catch (CommunicationException | InterruptedException e) {
+                logger.error("Unable to send notification for progress of " + actionProgress, e);
+            }
         } else {
             logger.error("Unable to update progress for " + actionProgress);
         }
@@ -89,7 +94,11 @@ public class ActionStateUpdater implements ActionExecutionListener {
         if (storedAction.isPresent()) {
             Action action = storedAction.get();
             action.receive(new SuccessEvent());
-            notificationSender.notifyActionSuccess(actionSuccess);
+            try {
+                notificationSender.notifyActionSuccess(actionSuccess);
+            } catch (CommunicationException | InterruptedException e) {
+                logger.error("Unable to send notification for success of " + actionSuccess, e);
+            }
         } else {
             logger.error("Unable to mark success for " + actionSuccess);
         }
@@ -108,7 +117,11 @@ public class ActionStateUpdater implements ActionExecutionListener {
         if (storedAction.isPresent()) {
             Action action = storedAction.get();
             action.receive(new FailureEvent(actionFailure.getErrorDescription()));
-            notificationSender.notifyActionFailure(actionFailure);
+            try {
+                notificationSender.notifyActionFailure(actionFailure);
+            } catch (CommunicationException | InterruptedException e) {
+                logger.error("Unable to send notification for failure of " + actionFailure, e);
+            }
         } else {
             logger.error("Unable to mark failure for " + actionFailure);
         }

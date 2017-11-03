@@ -1,5 +1,6 @@
 package com.vmturbo.repository.listener;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Objects;
 import java.util.concurrent.TimeoutException;
@@ -52,6 +53,20 @@ public class MarketTopologyListener implements ProjectedTopologyListener {
     @Override
     public void onProjectedTopologyReceived(long projectedTopologyId, TopologyInfo originalTopologyInfo,
             @Nonnull final RemoteIterator<TopologyEntityDTO> projectedTopo) {
+        try {
+            onProjectedTopologyReceivedInternal(projectedTopologyId, originalTopologyInfo,
+                    projectedTopo);
+        } catch (CommunicationException | InterruptedException e) {
+            // TODO This message is very required by plan orchestrator. Need to do something here
+            logger.error(
+                    "Faled to send notification about received topology " + projectedTopologyId, e);
+        }
+    }
+
+    public void onProjectedTopologyReceivedInternal(long projectedTopologyId,
+            TopologyInfo originalTopologyInfo,
+            @Nonnull final RemoteIterator<TopologyEntityDTO> projectedTopo)
+            throws CommunicationException, InterruptedException {
         final long topologyContextId = originalTopologyInfo.getTopologyContextId();
         final TopologyID tid = new TopologyID(topologyContextId, projectedTopologyId,
             TopologyType.PROJECTED);
@@ -93,7 +108,7 @@ public class MarketTopologyListener implements ProjectedTopologyListener {
                     + ": " + e.getMessage());
             rollback(graphCreator, topoWriter, tid);
             return;
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             logger.error("Exception while receiving projected topology " + projectedTopologyId, e);
             rollback(graphCreator, topoWriter, tid);
             throw e;

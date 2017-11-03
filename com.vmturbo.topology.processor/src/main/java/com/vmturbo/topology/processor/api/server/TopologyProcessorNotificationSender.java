@@ -26,6 +26,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology.Start;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.MessageChunker;
 import com.vmturbo.components.api.server.ComponentNotificationSender;
 import com.vmturbo.components.api.server.IMessageSender;
@@ -72,12 +73,26 @@ public class TopologyProcessorNotificationSender
         operationsListeners.put(Action.class, operation -> notifyActionState((Action)operation));
     }
 
+    /**
+     * Sends non-critical notifications. If sending is failed, failure is logged. All these
+     * messages are not critical to be lost.
+     *
+     * @param message message to send.
+     */
+    private void sendMessageSilently(@Nonnull TopologyProcessorNotification message) {
+        try {
+            sendMessage(notificationSender, message);
+        } catch (CommunicationException | InterruptedException e) {
+            getLogger().error("Could not send notification message " + message.getTypeCase(), e);
+        }
+    }
+
     @Override
     public void onTargetAdded(@Nonnull final Target target) {
         getLogger().debug(() -> "Sending onTargetAdded notifications for target " + target);
         final TopologyProcessorNotification message = createNewMessage()
             .setTargetAddedNotification(target.getNoSecretDto()).build();
-        sendMessage(notificationSender, message);
+        sendMessageSilently(message);
     }
 
     @Override
@@ -85,7 +100,7 @@ public class TopologyProcessorNotificationSender
         getLogger().debug(() -> "Sending onTargetChanged notifications for target " + target);
         final TopologyProcessorNotification message =
                 createNewMessage().setTargetChangedNotification(target.getNoSecretDto()).build();
-        sendMessage(notificationSender, message);
+        sendMessageSilently(message);
     }
 
     @Override
@@ -93,7 +108,7 @@ public class TopologyProcessorNotificationSender
         getLogger().debug(() -> "Sending onTargetRemoved notifications for target " + target);
         final TopologyProcessorNotification message =
                 createNewMessage().setTargetRemovedNotification(target.getId()).build();
-        sendMessage(notificationSender, message);
+        sendMessageSilently(message);
     }
 
     /**
@@ -113,7 +128,7 @@ public class TopologyProcessorNotificationSender
         final TopologyProcessorNotification message = createNewMessage()
             .setValidationNotification(convertOperationToDto(result))
             .build();
-        sendMessage(notificationSender, message);
+        sendMessageSilently(message);
     }
 
     private void notifyDiscoveryState(@Nonnull final Discovery result) {
@@ -122,7 +137,7 @@ public class TopologyProcessorNotificationSender
         final TopologyProcessorNotification message = createNewMessage()
                 .setDiscoveryNotification(convertOperationToDto(result))
                 .build();
-        sendMessage(notificationSender, message);
+        sendMessageSilently(message);
     }
 
     private void notifyActionState(@Nonnull final Action action) throws InterruptedException {
@@ -150,7 +165,7 @@ public class TopologyProcessorNotificationSender
                 break;
         }
 
-        sendMessage(notificationSender, messageBuilder.build());
+        sendMessageSilently(messageBuilder.build());
     }
 
     private OperationStatus convertOperationToDto(@Nonnull final Operation src) {
@@ -166,10 +181,11 @@ public class TopologyProcessorNotificationSender
         return opResBuilder.build();
     }
 
-    private void sendTopologySegment(final @Nonnull Topology segment) throws InterruptedException {
+    private void sendTopologySegment(final @Nonnull Topology segment)
+            throws CommunicationException, InterruptedException {
         getLogger().debug("Sending topology {} segment {}", segment::getTopologyId,
                 segment::getSegmentCase);
-        topologySender.sendMessageSync(segment);
+        topologySender.sendMessage(segment);
     }
 
     private TopologyProcessorNotification.Builder createNewMessage() {
@@ -213,7 +229,7 @@ public class TopologyProcessorNotificationSender
         final TopologyProcessorNotification message = createNewMessage()
             .setProbeRegistrationNotification(infoDto)
             .build();
-        sendMessage(notificationSender, message);
+        sendMessageSilently(message);
     }
 
     private TopologyProcessorDTO.ProbeInfo buildProbeInfoDto(final long probeId, @Nonnull final ProbeInfo probeInfo) {
@@ -288,12 +304,17 @@ public class TopologyProcessorNotificationSender
             });
         }
 
-        private void awaitInitialMessage() throws InterruptedException {
+        private void awaitInitialMessage() throws CommunicationException, InterruptedException {
             try {
                 initialMessage.get();
             } catch (ExecutionException e) {
-                getLogger().error("Unexpected error occurred while sending initial message of " +
-                        "broadcast " + getTopologyId(), e);
+                if (e.getCause() instanceof CommunicationException) {
+                    throw (CommunicationException)e.getCause();
+                } else {
+                    throw new CommunicationException(
+                            "Unexpected error occurred while sending " + "initial message of " +
+                                    "broadcast " + topologyInfo.getTopologyId(), e);
+                }
             }
         }
 
@@ -318,7 +339,7 @@ public class TopologyProcessorNotificationSender
         }
 
         @Override
-        public long finish() throws InterruptedException {
+        public long finish() throws CommunicationException, InterruptedException {
             awaitInitialMessage();
             synchronized (lock) {
                 finished = true;
@@ -333,7 +354,8 @@ public class TopologyProcessorNotificationSender
         }
 
         @Override
-        public void append(@Nonnull TopologyEntityDTO entity) throws InterruptedException {
+        public void append(@Nonnull TopologyEntityDTO entity) throws CommunicationException,
+                InterruptedException {
             awaitInitialMessage();
             synchronized (lock) {
                 if (finished) {
@@ -348,7 +370,7 @@ public class TopologyProcessorNotificationSender
             }
         }
 
-        private void sendChunk() throws InterruptedException {
+        private void sendChunk() throws CommunicationException, InterruptedException {
             final Topology subMessage = Topology.newBuilder()
                     .setData(Data.newBuilder().addAllEntities(chunk))
                     .setTopologyId(getTopologyId())

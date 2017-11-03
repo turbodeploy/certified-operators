@@ -85,7 +85,7 @@ public class TopologyEntitiesListenerExceptionTest {
     }
 
     @Test
-    public void testOnTopologyNotificationRealtime() throws GraphDatabaseException {
+    public void testOnTopologyNotificationRealtime() throws Exception {
         final long topologyContextId = realtimeTopologyContextId;
         final long topologyId = 22222L;
         final long creationTime = 33333L;

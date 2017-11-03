@@ -30,6 +30,7 @@ import com.google.protobuf.Descriptors.Descriptor;
 import com.google.protobuf.Descriptors.FieldDescriptor;
 import com.google.protobuf.DynamicMessage;
 
+import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.client.KafkaMessageConsumer;
 import com.vmturbo.components.api.server.IMessageSender;
@@ -172,7 +173,7 @@ public class KafkaSenderReceiverIT {
             received.add(msg);
             cmd.run();
         });
-        sender.sendMessageSync(hugeMessage);
+        sender.sendMessage(hugeMessage);
         awaitEquals(Collections.singletonList(hugeMessage), received, 30);
     }
 
@@ -186,9 +187,10 @@ public class KafkaSenderReceiverIT {
      * @param sendLatch latch to await before start receiving messages.
      * @return future, which will hold assertions inside.
      * @throws InterruptedException if thread has been interrupted
+     * @throws CommunicationException if persistent communication exception occurred
      */
     private Future<Void> checkTopic(String topic, int start, int size,
-            @Nonnull CountDownLatch sendLatch) throws InterruptedException {
+            @Nonnull CountDownLatch sendLatch) throws InterruptedException, CommunicationException {
         final List<DynamicMessage> messages = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             messages.add(createMessage(topic + "-" + Integer.toString(start + i)));

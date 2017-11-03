@@ -501,7 +501,7 @@ public class Scheduler implements TargetStoreListener {
     private void executeTopologyBroadcast() {
         try {
             topologyHandler.broadcastLatestTopology();
-        } catch (RuntimeException e) {
+        } catch (RuntimeException | CommunicationException e) {
             // Continue to execute future broadcasts if a generic runtime exception occurred.
             logger.error("Unexpected runtime exception when executing scheduled broadcast.", e);
         } catch (InterruptedException e) {
