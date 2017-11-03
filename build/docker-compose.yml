@@ -101,9 +101,11 @@ services:
       service: dev-component
     image: turbonomic/zookeeper
     restart: always
+    mem_limit: ${ZOOKEEPER_MEM_LIMIT}M
     environment:
       ZOO_MY_ID: 1
       ZOO_SERVERS: zoo1
+      SERVER_JVMFLAGS: "-Xmx${ZOOKEEPER_XMX_MB}M"
     volumes:
       - zoo1-data:/var/lib/zoo
 
@@ -112,6 +114,7 @@ services:
       file: common-services.yml
       service: dev-component
     image: turbonomic/kafka
+    mem_limit: ${KAFKA_MEM_LIMIT}M
     environment:
       BROKER_ID: 1
       ZOOKEEPER_HOSTS: ${ZOOKEEPER_SERVERS}
@@ -121,6 +124,7 @@ services:
       KAFKA_EXTERNAL_BROKER_ADDRESS: ${KAFKA_EXTERNAL_BROKER_ADDRESS}
       KAFKA_LOG_RETENTION_HRS: ${KAFKA_LOG_RETENTION_HRS}
       KAFKA_MAX_MESSAGE_BYTES: ${KAFKA_MAX_MESSAGE_BYTES}
+      KAFKA_HEAP_OPTS: "-Xmx${KAFKA_XMX_MB}M -Xms${KAFKA_XMX_MB}M"
     volumes:
       - kafka1-log:/tmp/kafka-logs
     ports:

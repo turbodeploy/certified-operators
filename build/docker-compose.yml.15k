@@ -63,11 +63,17 @@ services:
     extends:
       file: prod-services.yml
       service: zoo1-prod
+    environment:
+      SERVER_JVMFLAGS: "-Xmx128M"
+    mem_limit: 200M
 
   kafka1:
     extends:
       file: prod-services.yml
       service: kafka1-prod
+    environment:
+      KAFKA_HEAP_OPTS: "-Xmx768M -Xms768M"
+    mem_limit: 1024M
     depends_on:
       - rsyslog
       - zoo1
@@ -94,7 +100,7 @@ services:
       service: api-prod
     environment:
       JAVA_OPTS: "-Xmx384M"
-    mem_limit: 5124m
+    mem_limit: 512M
     depends_on:
       - clustermgr
       - kafka1
