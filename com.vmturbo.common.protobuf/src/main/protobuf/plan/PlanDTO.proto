@@ -35,9 +35,6 @@ message ScenarioInfo {
 }
 
 message ScenarioChange {
-    // A description of the change.
-    optional string description = 1;
-
     // Specific details about the change that should be made. Can be one of many different cases.
     oneof details {
         TopologyAddition topology_addition = 15;
@@ -68,7 +65,7 @@ message ScenarioChange {
         // How many days in the future to apply the change. More than one value in the list means that the change
         // will be repeated, once at each time in the list. The list should be in ascending order and all members
         // should be >= 0.
-        repeated int32 change_application_days = 1;
+        optional int32 change_application_day = 1;
 
         // The id of the entity or group to be removed
         oneof entity_or_group_id {
@@ -84,7 +81,7 @@ message ScenarioChange {
         // How many days in the future to apply the change. More than one value in the list means that the change
         // will be repeated, once at each time in the list. The list should be in ascending order and all members
         // should be >= 0.
-        repeated int32 change_application_days = 1;
+        optional int32 change_application_day = 1;
 
         // The id of the template to replace the items being removed in the change.
         optional int64 add_template_id = 2;

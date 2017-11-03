@@ -1,11 +1,13 @@
 package com.vmturbo.api.component.external.api.mapper;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Optional;
@@ -22,9 +24,13 @@ import com.google.common.collect.Sets;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.dto.BaseApiDTO;
+import com.vmturbo.api.dto.scenario.AddObjectApiDTO;
+import com.vmturbo.api.dto.scenario.RemoveObjectApiDTO;
+import com.vmturbo.api.dto.scenario.ReplaceObjectApiDTO;
 import com.vmturbo.api.dto.scenario.ScenarioChangeApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.scenario.ScenarioApiDTO;
+import com.vmturbo.api.dto.scenario.TopologyChangesApiDTO;
 import com.vmturbo.api.enums.PlanChangeType.PlanModificationState;
 import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
@@ -55,17 +61,16 @@ public class ScenarioMapperTest {
 
     @Test
     public void testAdditionChange() {
-        ScenarioChangeApiDTO dto = new ScenarioChangeApiDTO();
-        dto.setType(PlanModificationState.ADDED.name());
+        TopologyChangesApiDTO topoChanges = new TopologyChangesApiDTO();
+        AddObjectApiDTO dto = new AddObjectApiDTO();
         dto.setProjectionDays(Collections.singletonList(2));
-        dto.setDescription("addition change");
-        dto.setTargets(Collections.singletonList(entity(1)));
-        dto.setValue("6");
+        dto.setTarget(entity(1));
+        dto.setCount(6);
+        topoChanges.setAddList(Collections.singletonList(dto));
 
-        ScenarioInfo info = ScenarioMapper.toScenarioInfo(SCENARIO_NAME, scenarioApiDTO(dto));
+        ScenarioInfo info = ScenarioMapper.toScenarioInfo(SCENARIO_NAME, scenarioApiDTO(topoChanges));
         assertEquals(SCENARIO_NAME, info.getName());
         assertEquals(1, info.getChangesCount());
-        assertEquals("addition change", info.getChanges(0).getDescription());
         assertEquals(DetailsCase.TOPOLOGY_ADDITION, info.getChanges(0).getDetailsCase());
 
         TopologyAddition addition = info.getChanges(0).getTopologyAddition();
@@ -76,69 +81,68 @@ public class ScenarioMapperTest {
 
     @Test
     public void testRemovalChange() {
-        ScenarioChangeApiDTO dto = new ScenarioChangeApiDTO();
-        dto.setType(PlanModificationState.REMOVED.name());
-        dto.setProjectionDays(Collections.singletonList(2));
-        dto.setDescription("removal change");
-        dto.setTargets(Collections.singletonList(entity(1)));
+        TopologyChangesApiDTO topoChanges = new TopologyChangesApiDTO();
+        RemoveObjectApiDTO dto = new RemoveObjectApiDTO();
+        dto.setProjectionDay(2);
+        dto.setTarget(entity(1));
+        topoChanges.setRemoveList(Collections.singletonList(dto));
 
-        ScenarioInfo info = ScenarioMapper.toScenarioInfo(SCENARIO_NAME, scenarioApiDTO(dto));
+        ScenarioInfo info = ScenarioMapper.toScenarioInfo(SCENARIO_NAME, scenarioApiDTO(topoChanges));
         assertEquals(SCENARIO_NAME, info.getName());
         assertEquals(1, info.getChangesCount());
-        assertEquals("removal change", info.getChanges(0).getDescription());
         assertEquals(DetailsCase.TOPOLOGY_REMOVAL, info.getChanges(0).getDetailsCase());
 
         TopologyRemoval removal = info.getChanges(0).getTopologyRemoval();
-        assertEquals(Collections.singletonList(2), removal.getChangeApplicationDaysList());
+        assertEquals(2, removal.getChangeApplicationDay());
         assertEquals(1, removal.getEntityId());
     }
 
     @Test
     public void testInvalidChange() {
-        ScenarioChangeApiDTO dto = new ScenarioChangeApiDTO();
-        dto.setType("SCOPE");
+        ScenarioApiDTO scenarioDto = new ScenarioApiDTO();
+        scenarioDto.setScope(Collections.singletonList(entity(1)));
 
-        ScenarioInfo info = ScenarioMapper.toScenarioInfo(SCENARIO_NAME, scenarioApiDTO(dto));
+        ScenarioInfo info = ScenarioMapper.toScenarioInfo(SCENARIO_NAME, scenarioDto);
         assertEquals(0, info.getChangesCount());
     }
 
     @Test
     public void testReplaceChange() {
-        ScenarioChangeApiDTO dto = new ScenarioChangeApiDTO();
-        dto.setType(PlanModificationState.REPLACED.name());
-        dto.setProjectionDays(Collections.singletonList(5));
-        dto.setDescription("replace change");
-        dto.setTargets(Arrays.asList(entity(1), entity(2)));
+        TopologyChangesApiDTO topoChanges = new TopologyChangesApiDTO();
+        ReplaceObjectApiDTO dto = new ReplaceObjectApiDTO();
+        dto.setProjectionDay(5);
+        dto.setTarget(entity(1));
+        dto.setTemplate(entity(2));
+        topoChanges.setReplaceList(Collections.singletonList(dto));
 
-        ScenarioInfo info = ScenarioMapper.toScenarioInfo(SCENARIO_NAME, scenarioApiDTO(dto));
+        ScenarioInfo info = ScenarioMapper.toScenarioInfo(SCENARIO_NAME, scenarioApiDTO(topoChanges));
         assertEquals(SCENARIO_NAME, info.getName());
         assertEquals(1, info.getChangesCount());
-        assertEquals("replace change", info.getChanges(0).getDescription());
 
         assertEquals(DetailsCase.TOPOLOGY_REPLACE, info.getChanges(0).getDetailsCase());
         TopologyReplace replace = info.getChanges(0).getTopologyReplace();
-        assertEquals(Collections.singletonList(5), replace.getChangeApplicationDaysList());
-        assertEquals(1, replace.getAddTemplateId());
-        assertEquals(2, replace.getRemoveEntityId());
+        assertEquals(5, replace.getChangeApplicationDay());
+        assertEquals(1, replace.getRemoveEntityId());
+        assertEquals(2, replace.getAddTemplateId());
     }
 
     @Test
     public void testMultiplesChanges() {
-        ScenarioChangeApiDTO addDto = new ScenarioChangeApiDTO();
-        addDto.setType(PlanModificationState.ADDED.name());
+        AddObjectApiDTO addDto = new AddObjectApiDTO();
         addDto.setProjectionDays(Collections.singletonList(5));
-        addDto.setDescription("add change");
-        addDto.setTargets(Collections.singletonList(entity(1)));
-        addDto.setValue("9");
+        addDto.setTarget(entity(1));
+        addDto.setCount(9);
 
-        ScenarioChangeApiDTO removeDto = new ScenarioChangeApiDTO();
-        removeDto.setType(PlanModificationState.REMOVED.name());
-        removeDto.setProjectionDays(Collections.singletonList(1));
-        removeDto.setDescription("remove change");
-        removeDto.setTargets(Collections.singletonList(entity(2)));
+        RemoveObjectApiDTO removeDto = new RemoveObjectApiDTO();
+        removeDto.setProjectionDay(1);
+        removeDto.setTarget(entity(2));
+
+        TopologyChangesApiDTO topoChanges = new TopologyChangesApiDTO();
+        topoChanges.setAddList(Collections.singletonList(addDto));
+        topoChanges.setRemoveList(Collections.singletonList(removeDto));
 
         ScenarioInfo info = ScenarioMapper
-            .toScenarioInfo(SCENARIO_NAME, scenarioApiDTO(addDto, removeDto));
+            .toScenarioInfo(SCENARIO_NAME, scenarioApiDTO(topoChanges));
         assertEquals(2, info.getChangesCount());
 
         assertEquals(DetailsCase.TOPOLOGY_ADDITION, info.getChanges(0).getDetailsCase());
@@ -153,7 +157,6 @@ public class ScenarioMapperTest {
     @Test
     public void testToApiAdditionChange() {
         Scenario scenario = buildScenario(ScenarioChange.newBuilder()
-            .setDescription("description")
             .setTopologyAddition(TopologyAddition.newBuilder()
                 .addChangeApplicationDays(3)
                 .setEntityId(1234)
@@ -163,63 +166,54 @@ public class ScenarioMapperTest {
         ScenarioApiDTO dto = scenarioMapper.toScenarioApiDTO(scenario);
         assertEquals(Long.toString(SCENARIO_ID), dto.getUuid());
         assertEquals(SCENARIO_NAME, dto.getDisplayName());
+        assertNotNull(dto.getTopologyChanges());
+        assertEquals(1, dto.getTopologyChanges().getAddList().size());
 
-        // First 2 are hard-coded SCOPE and PROJECTION_COUNT.
-        assertEquals(3, dto.getChanges().size());
-        ScenarioChangeApiDTO changeDto = dto.getChanges().get(2);
-        assertEquals(PlanModificationState.ADDED.name(), changeDto.getType());
+        AddObjectApiDTO changeDto = dto.getTopologyChanges().getAddList().get(0);
         assertEquals(Collections.singletonList(3), changeDto.getProjectionDays());
-        assertEquals("description", changeDto.getDescription());
-        assertEquals("44", changeDto.getValue());
-        assertEquals("1234", changeDto.getTargets().get(0).getUuid());
+        assertEquals(new Integer(44), changeDto.getCount());
+        assertEquals("1234", changeDto.getTarget().getUuid());
     }
 
     @Test
     public void testToApiRemovalChange() {
         Scenario scenario = buildScenario(ScenarioChange.newBuilder()
-            .setDescription("description")
             .setTopologyRemoval(TopologyRemoval.newBuilder()
-                .addChangeApplicationDays(3)
+                .setChangeApplicationDay(3)
                 .setEntityId(1234))
             .build());
 
         ScenarioApiDTO dto = scenarioMapper.toScenarioApiDTO(scenario);
+        assertNotNull(dto.getTopologyChanges());
+        assertEquals(1, dto.getTopologyChanges().getRemoveList().size());
 
-        // First 2 are hard-coded SCOPE and PROJECTION_COUNT.
-        assertEquals(3, dto.getChanges().size());
-        ScenarioChangeApiDTO changeDto = dto.getChanges().get(2);
-        assertEquals(PlanModificationState.REMOVED.name(), changeDto.getType());
-        assertEquals("description", changeDto.getDescription());
-        assertEquals("1234", changeDto.getTargets().get(0).getUuid());
-        assertEquals(Collections.singletonList(3), changeDto.getProjectionDays());
+        RemoveObjectApiDTO changeDto = dto.getTopologyChanges().getRemoveList().get(0);
+        assertEquals("1234", changeDto.getTarget().getUuid());
+        assertEquals(new Integer(3), changeDto.getProjectionDay());
     }
 
     @Test
     public void testToApiReplaceChange() {
         Scenario scenario = buildScenario(ScenarioChange.newBuilder()
-            .setDescription("description")
             .setTopologyReplace(TopologyReplace.newBuilder()
-                .addChangeApplicationDays(3)
+                .setChangeApplicationDay(3)
                 .setAddTemplateId(1234)
                 .setRemoveEntityId(5678)
             ).build());
 
         ScenarioApiDTO dto = scenarioMapper.toScenarioApiDTO(scenario);
+        assertNotNull(dto.getTopologyChanges());
+        assertEquals(1, dto.getTopologyChanges().getReplaceList().size());
 
-        // First 2 are hard-coded SCOPE and PROJECTION_COUNT.
-        assertEquals(3, dto.getChanges().size());
-        ScenarioChangeApiDTO changeDto = dto.getChanges().get(2);
-        assertEquals(PlanModificationState.REPLACED.name(), changeDto.getType());
-        assertEquals("description", changeDto.getDescription());
-        assertEquals("1234", changeDto.getTargets().get(0).getUuid());
-        assertEquals("5678", changeDto.getTargets().get(1).getUuid());
-        assertEquals(Collections.singletonList(3), changeDto.getProjectionDays());
+        ReplaceObjectApiDTO changeDto = dto.getTopologyChanges().getReplaceList().get(0);
+        assertEquals("1234", changeDto.getTemplate().getUuid());
+        assertEquals("5678", changeDto.getTarget().getUuid());
+        assertEquals(new Integer(3), changeDto.getProjectionDay());
     }
 
     @Test
     public void testToApiEntityType() {
         Scenario scenario = buildScenario(ScenarioChange.newBuilder()
-            .setDescription("description")
             .setTopologyAddition(TopologyAddition.newBuilder()
                 .setAdditionCount(1)
                 .setEntityId(1))
@@ -233,12 +227,8 @@ public class ScenarioMapperTest {
                 .thenReturn(ImmutableMap.of(1L, Optional.of(vmDto)));
 
         ScenarioApiDTO dto = scenarioMapper.toScenarioApiDTO(scenario);
-        // The first two are "special" hack changes - SCOPE and PROJECTION_PERIOD.
-        assertEquals(3, dto.getChanges().size());
-        final ScenarioChangeApiDTO changeDto = dto.getChanges().get(2);
-        assertEquals(1, changeDto.getTargets().size());
-
-        BaseApiDTO target = changeDto.getTargets().get(0);
+        AddObjectApiDTO changeDto = dto.getTopologyChanges().getAddList().get(0);
+        BaseApiDTO target = changeDto.getTarget();
         assertEquals("VirtualMachine", target.getClassName());
         assertEquals("VM #100", target.getDisplayName());
     }
@@ -246,18 +236,14 @@ public class ScenarioMapperTest {
     @Test
     public void testToApiEntityTypeUnknown() {
         Scenario scenario = buildScenario(ScenarioChange.newBuilder()
-                .setDescription("description")
                 .setTopologyAddition(TopologyAddition.newBuilder()
                         .setAdditionCount(1)
                         .setEntityId(1))
                 .build());
 
         ScenarioApiDTO dto = scenarioMapper.toScenarioApiDTO(scenario);
-        assertEquals(3, dto.getChanges().size());
-        final ScenarioChangeApiDTO changeDto = dto.getChanges().get(2);
-        assertEquals(1, changeDto.getTargets().size());
-
-        BaseApiDTO target = changeDto.getTargets().get(0);
+        AddObjectApiDTO changeDto = dto.getTopologyChanges().getAddList().get(0);
+        BaseApiDTO target = changeDto.getTarget();
         assertEquals(UIEntityType.UNKNOWN.getValue(), target.getClassName());
         assertEquals(UIEntityType.UNKNOWN.getValue(), target.getDisplayName());
     }
@@ -280,9 +266,9 @@ public class ScenarioMapperTest {
         return entity;
     }
 
-    private ScenarioApiDTO scenarioApiDTO(@Nonnull final ScenarioChangeApiDTO... changes) {
+    private ScenarioApiDTO scenarioApiDTO(@Nonnull final TopologyChangesApiDTO topoChanges) {
         ScenarioApiDTO dto = new ScenarioApiDTO();
-        dto.setChanges(Arrays.asList(changes));
+        dto.setTopologyChanges(topoChanges);
 
         return dto;
     }
