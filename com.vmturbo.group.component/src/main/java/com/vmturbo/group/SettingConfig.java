@@ -48,7 +48,7 @@ public class SettingConfig {
 
     @Bean
     public EntitySettingStore entitySettingStore() {
-        return new EntitySettingStore(realtimeTopologyContextId);
+        return new EntitySettingStore(realtimeTopologyContextId, settingStore());
     }
 
     @Bean

@@ -1,10 +1,11 @@
 package com.vmturbo.group.service;
 
-import java.util.List;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Stream;
+
 import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
@@ -18,7 +19,6 @@ import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyReque
 import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.DeleteSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.DeleteSettingPolicyResponse;
-import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse.SettingsForEntity;
@@ -242,7 +242,7 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
     public void getEntitySettings(final GetEntitySettingsRequest request,
                           final StreamObserver<GetEntitySettingsResponse> responseObserver) {
         try {
-            final Map<Long, List<Setting>> results = entitySettingStore.getEntitySettings(
+            final Map<Long, Collection<Setting>> results = entitySettingStore.getEntitySettings(
                     request.getTopologySelection(),
                     request.getSettingFilter());
 

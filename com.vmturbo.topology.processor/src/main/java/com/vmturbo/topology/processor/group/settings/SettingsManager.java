@@ -265,24 +265,12 @@ public class SettingsManager {
      *
      */
     private List<SettingPolicy> getAllSettingPolicies(
-        SettingPolicyServiceBlockingStub settingPolicyServiceClient) {
+            SettingPolicyServiceBlockingStub settingPolicyServiceClient) {
 
-        List<SettingPolicy> settingPolicies = new LinkedList<>();
-
+        final List<SettingPolicy> settingPolicies = new LinkedList<>();
         settingPolicyServiceClient.listSettingPolicies(
             ListSettingPoliciesRequest.getDefaultInstance())
-                .forEachRemaining(settingPolicy -> {
-                    if (settingPolicy.hasSettingPolicyType() &&
-                            settingPolicy.hasInfo() &&
-                            settingPolicy.getInfo().hasEnabled() &&
-                            settingPolicy.getInfo().getEnabled() &&
-                            settingPolicy.getInfo().hasScope()) {
-
-                                settingPolicies.add(settingPolicy);
-                    } else {
-                        logger.warn("SettingPolicy has missing fields : {}", settingPolicy);
-                    }
-                });
+                .forEachRemaining(settingPolicies::add);
 
         return settingPolicies;
     }

@@ -291,6 +291,7 @@ message SettingPolicyInfo {
     optional int32 entity_type = 3;
 
     // Whether the setting_policy is enabled or not.
+    // Default setting policies are always enabled.
     optional bool enabled = 4 [default = true];
 
     // The scope of a setting policy is the groups of entities the policy applies to.

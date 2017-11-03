@@ -1,7 +1,10 @@
 package com.vmturbo.group.persistent;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
@@ -11,12 +14,13 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
 
+import org.jooq.exception.DataAccessException;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -26,6 +30,9 @@ import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingFilter;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.TopologySelection;
 import com.vmturbo.group.persistent.EntitySettingStore.ContextSettingSnapshotCache;
 import com.vmturbo.group.persistent.EntitySettingStore.ContextSettingSnapshotCacheFactory;
@@ -37,12 +44,14 @@ public class EntitySettingStoreTest {
 
     private final long realtimeContext = 7L;
 
+    private SettingStore settingStore = mock(SettingStore.class);
+
     private EntitySettingSnapshotFactory snapshotFactory = mock(EntitySettingSnapshotFactory.class);
 
     private ContextSettingSnapshotCacheFactory cacheFactory = mock(ContextSettingSnapshotCacheFactory.class);
 
-    private EntitySettingStore settingStore =
-            new EntitySettingStore(realtimeContext, snapshotFactory, cacheFactory);
+    private EntitySettingStore entitySettingStore =
+            new EntitySettingStore(realtimeContext, settingStore, snapshotFactory, cacheFactory);
 
     private final EntitySettingFilter settingsFilter = EntitySettingFilter.newBuilder()
             .addEntities(1)
@@ -54,12 +63,35 @@ public class EntitySettingStoreTest {
     private EntitySettingSnapshot mockSnapshot = mock(EntitySettingSnapshot.class);
     private ContextSettingSnapshotCache mockSnapshotCache = mock(ContextSettingSnapshotCache.class);
 
+    private final Setting trueSetting = Setting.newBuilder()
+            .setSettingSpecName("name1")
+            .setBooleanSettingValue(BooleanSettingValue.newBuilder()
+                    .setValue(true))
+            .build();
+
+    private final Setting falseSetting = Setting.newBuilder(trueSetting)
+            .setBooleanSettingValue(BooleanSettingValue.newBuilder()
+                    .setValue(true))
+            .build();
+
+    private final SettingPolicy settingPolicyWithFalseSetting = SettingPolicy.newBuilder()
+            .setId(7L)
+            .setSettingPolicyType(Type.DEFAULT)
+            .setInfo(SettingPolicyInfo.newBuilder()
+                    .addSettings(falseSetting))
+            .build();
+
     @Before
     public void setup() {
         when(mockSnapshotCache.getSnapshot(anyLong())).thenReturn(Optional.empty());
         when(mockSnapshotCache.addSnapshot(anyLong(), any())).thenReturn(Optional.empty());
-        when(snapshotFactory.createSnapshot(any())).thenReturn(mockSnapshot);
+        when(snapshotFactory.createSnapshot(any(), any())).thenReturn(mockSnapshot);
         when(cacheFactory.newSnapshotCache()).thenReturn(mockSnapshotCache);
+        when(settingStore.getSettingPolicies(eq(SettingPolicyFilter.newBuilder()
+                .withType(Type.DEFAULT)
+                .build())))
+            .thenReturn(Stream.empty())
+            .thenReturn(Stream.empty());
     }
 
     /**
@@ -67,39 +99,69 @@ public class EntitySettingStoreTest {
      */
     @Test
     public void testEntityStoreRealConstructor() {
-        new EntitySettingStore(7L);
+        new EntitySettingStore(7L, settingStore);
     }
 
     @Test
     public void testStoreEntitySettings() {
-        settingStore.storeEntitySettings(contextId, topologyId,
+        entitySettingStore.storeEntitySettings(contextId, topologyId,
                 Stream.of(EntitySettings.getDefaultInstance()));
 
-        verify(snapshotFactory).createSnapshot(any());
+        verify(snapshotFactory).createSnapshot(any(), eq(Collections.emptyMap()));
         verify(cacheFactory).newSnapshotCache();
         verify(mockSnapshotCache).addSnapshot(eq(topologyId), eq(mockSnapshot));
     }
 
     @Test
     public void testDuplicateStoreEntitySettings() {
-        settingStore.storeEntitySettings(contextId, topologyId,
+        entitySettingStore.storeEntitySettings(contextId, topologyId,
                 Stream.of(EntitySettings.getDefaultInstance()));
-        settingStore.storeEntitySettings(contextId, topologyId,
+        entitySettingStore.storeEntitySettings(contextId, topologyId,
                 Stream.of(EntitySettings.getDefaultInstance()));
 
-        verify(snapshotFactory, times(2)).createSnapshot(any());
+        verify(snapshotFactory, times(2)).createSnapshot(any(),
+                eq(Collections.emptyMap()));
         verify(cacheFactory).newSnapshotCache();
         verify(mockSnapshotCache, times(2)).addSnapshot(eq(topologyId), eq(mockSnapshot));
     }
 
     @Test
-    public void testStoreEntitySettingsMultipleTopologies() {
-        settingStore.storeEntitySettings(contextId, topologyId,
+    public void testStoreEntitySettingsDefaults() {
+        final SettingPolicy settingPolicy = SettingPolicy.newBuilder()
+            .setId(7L)
+            .setInfo(SettingPolicyInfo.getDefaultInstance())
+            .build();
+        when(settingStore.getSettingPolicies(SettingPolicyFilter.newBuilder()
+                .withType(Type.DEFAULT)
+                .build()))
+            .thenReturn(Stream.of(settingPolicy));
+
+        entitySettingStore.storeEntitySettings(contextId, topologyId,
                 Stream.of(EntitySettings.getDefaultInstance()));
-        settingStore.storeEntitySettings(contextId, topologyId + 1,
+        verify(snapshotFactory).createSnapshot(any(), eq(ImmutableMap.of(7L, settingPolicy)));
+        verify(cacheFactory).newSnapshotCache();
+        verify(mockSnapshotCache).addSnapshot(eq(topologyId), eq(mockSnapshot));
+    }
+
+    @Test(expected = DataAccessException.class)
+    public void testStoreEntitySettingsDBException() {
+        when(settingStore.getSettingPolicies(SettingPolicyFilter.newBuilder()
+                .withType(Type.DEFAULT)
+                .build()))
+            .thenThrow(DataAccessException.class);
+        entitySettingStore.storeEntitySettings(contextId, topologyId,
+                Stream.of(EntitySettings.getDefaultInstance()));
+    }
+
+    @Test
+    public void testStoreEntitySettingsMultipleTopologies() {
+        entitySettingStore.storeEntitySettings(contextId, topologyId,
+                Stream.of(EntitySettings.getDefaultInstance()));
+        entitySettingStore.storeEntitySettings(contextId, topologyId + 1,
                 Stream.of(EntitySettings.getDefaultInstance()));
 
-        verify(snapshotFactory, times(2)).createSnapshot(any());
+        verify(snapshotFactory, times(2)).createSnapshot(any(),
+                eq(Collections.emptyMap()));
         verify(cacheFactory).newSnapshotCache();
         verify(mockSnapshotCache).addSnapshot(eq(topologyId), eq(mockSnapshot));
         verify(mockSnapshotCache).addSnapshot(eq(topologyId + 1), eq(mockSnapshot));
@@ -107,15 +169,16 @@ public class EntitySettingStoreTest {
 
     @Test
     public void testGetEntitySettings() throws NoSettingsForTopologyException {
-        settingStore.storeEntitySettings(contextId, topologyId,
+        entitySettingStore.storeEntitySettings(contextId, topologyId,
                 Stream.of(EntitySettings.getDefaultInstance()));
 
         when(mockSnapshotCache.getSnapshot(eq(topologyId))).thenReturn(Optional.of(mockSnapshot));
-        final Map<Long, List<Setting>> expectedMap =
+        final Map<Long, Collection<Setting>> expectedMap =
                 ImmutableMap.of(1L, Collections.emptyList());
         when(mockSnapshot.getFilteredSettings(eq(settingsFilter))).thenReturn(expectedMap);
 
-        final Map<Long, List<Setting>> result = settingStore.getEntitySettings(TopologySelection.newBuilder()
+        final Map<Long, Collection<Setting>> result =
+            entitySettingStore.getEntitySettings(TopologySelection.newBuilder()
                 .setTopologyContextId(contextId)
                 .setTopologyId(topologyId)
                 .build(), settingsFilter);
@@ -126,15 +189,16 @@ public class EntitySettingStoreTest {
 
     @Test
     public void testGetEntitySettingsIdButNoContext() throws NoSettingsForTopologyException {
-        settingStore.storeEntitySettings(realtimeContext, topologyId,
+        entitySettingStore.storeEntitySettings(realtimeContext, topologyId,
                 Stream.of(EntitySettings.getDefaultInstance()));
 
         when(mockSnapshotCache.getSnapshot(eq(topologyId))).thenReturn(Optional.of(mockSnapshot));
-        final Map<Long, List<Setting>> expectedMap =
+        final Map<Long, Collection<Setting>> expectedMap =
                 ImmutableMap.of(1L, Collections.emptyList());
         when(mockSnapshot.getFilteredSettings(eq(settingsFilter))).thenReturn(expectedMap);
 
-        final Map<Long, List<Setting>> result = settingStore.getEntitySettings(TopologySelection.newBuilder()
+        final Map<Long, Collection<Setting>> result = entitySettingStore.getEntitySettings(
+            TopologySelection.newBuilder()
                 .setTopologyId(topologyId)
                 .build(), settingsFilter);
         verify(mockSnapshot).getFilteredSettings(eq(settingsFilter));
@@ -143,31 +207,32 @@ public class EntitySettingStoreTest {
 
     @Test
     public void testGetEntitySettingsNoIdAndNoContext() throws NoSettingsForTopologyException {
-        settingStore.storeEntitySettings(realtimeContext, topologyId,
+        entitySettingStore.storeEntitySettings(realtimeContext, topologyId,
                 Stream.of(EntitySettings.getDefaultInstance()));
 
         when(mockSnapshotCache.getLatestSnapshot()).thenReturn(Optional.of(mockSnapshot));
-        final Map<Long, List<Setting>> expectedMap =
+        final Map<Long, Collection<Setting>> expectedMap =
                 ImmutableMap.of(1L, Collections.emptyList());
         when(mockSnapshot.getFilteredSettings(eq(settingsFilter))).thenReturn(expectedMap);
 
-        final Map<Long, List<Setting>> result = settingStore.getEntitySettings(TopologySelection.newBuilder()
-                .build(), settingsFilter);
+        final Map<Long, Collection<Setting>> result = entitySettingStore.getEntitySettings(
+                TopologySelection.newBuilder().build(), settingsFilter);
         verify(mockSnapshot).getFilteredSettings(eq(settingsFilter));
         assertEquals(expectedMap, result);
     }
 
     @Test
     public void testGetEntitySettingsContextButNoId() throws NoSettingsForTopologyException {
-        settingStore.storeEntitySettings(contextId, topologyId,
+        entitySettingStore.storeEntitySettings(contextId, topologyId,
                 Stream.of(EntitySettings.getDefaultInstance()));
 
         when(mockSnapshotCache.getLatestSnapshot()).thenReturn(Optional.of(mockSnapshot));
-        final Map<Long, List<Setting>> expectedMap =
+        final Map<Long, Collection<Setting>> expectedMap =
                 ImmutableMap.of(1L, Collections.emptyList());
         when(mockSnapshot.getFilteredSettings(eq(settingsFilter))).thenReturn(expectedMap);
 
-        final Map<Long, List<Setting>> result = settingStore.getEntitySettings(TopologySelection.newBuilder()
+        final Map<Long, Collection<Setting>> result = entitySettingStore.getEntitySettings(
+            TopologySelection.newBuilder()
                 .setTopologyContextId(contextId)
                 .build(), settingsFilter);
         verify(mockSnapshot).getFilteredSettings(eq(settingsFilter));
@@ -176,18 +241,18 @@ public class EntitySettingStoreTest {
 
     @Test(expected = NoSettingsForTopologyException.class)
     public void testGetEntitySettingsContextNotFound() throws NoSettingsForTopologyException {
-        settingStore.getEntitySettings(TopologySelection.newBuilder()
+        entitySettingStore.getEntitySettings(TopologySelection.newBuilder()
                 .setTopologyContextId(contextId)
                 .build(), settingsFilter);
     }
 
     @Test(expected = NoSettingsForTopologyException.class)
     public void testGetEntitySettingsTopologyNotFound() throws NoSettingsForTopologyException {
-        settingStore.storeEntitySettings(contextId, topologyId,
+        entitySettingStore.storeEntitySettings(contextId, topologyId,
                 Stream.of(EntitySettings.getDefaultInstance()));
 
         when(mockSnapshotCache.getSnapshot(eq(topologyId + 1))).thenReturn(Optional.empty());
-        settingStore.getEntitySettings(TopologySelection.newBuilder()
+        entitySettingStore.getEntitySettings(TopologySelection.newBuilder()
                 .setTopologyContextId(contextId)
                 .setTopologyId(topologyId + 1)
                 .build(), settingsFilter);
@@ -195,11 +260,11 @@ public class EntitySettingStoreTest {
 
     @Test(expected = NoSettingsForTopologyException.class)
     public void testGetEntitySettingsNoLatestTopology() throws NoSettingsForTopologyException {
-        settingStore.storeEntitySettings(contextId, topologyId,
+        entitySettingStore.storeEntitySettings(contextId, topologyId,
                 Stream.of(EntitySettings.getDefaultInstance()));
 
         when(mockSnapshotCache.getLatestSnapshot()).thenReturn(Optional.empty());
-        settingStore.getEntitySettings(TopologySelection.newBuilder()
+        entitySettingStore.getEntitySettings(TopologySelection.newBuilder()
                 .setTopologyContextId(contextId)
                 .build(), settingsFilter);
     }
@@ -262,10 +327,12 @@ public class EntitySettingStoreTest {
                 .addUserSettings(setting)
                 .build();
 
-        final EntitySettingSnapshot snapshot = new EntitySettingSnapshot(Stream.of(id1Settings));
-        final Map<Long, List<Setting>> results =
+        final EntitySettingSnapshot snapshot = new EntitySettingSnapshot(Stream.of(id1Settings),
+                Collections.emptyMap());
+        final Map<Long, Collection<Setting>> results =
                 snapshot.getFilteredSettings(EntitySettingFilter.getDefaultInstance());
-        assertEquals(ImmutableMap.of(1L, Collections.singletonList(setting)), results);
+        assertTrue(results.containsKey(id1Settings.getEntityOid()));
+        assertThat(results.get(id1Settings.getEntityOid()), containsInAnyOrder(setting));
     }
 
     @Test
@@ -285,13 +352,93 @@ public class EntitySettingStoreTest {
                 .build();
 
         final EntitySettingSnapshot snapshot = new EntitySettingSnapshot(
-                Stream.of(id1Settings, id2Settings));
-        final Map<Long, List<Setting>> results =
+                Stream.of(id1Settings, id2Settings), Collections.emptyMap());
+        final Map<Long, Collection<Setting>> results =
             snapshot.getFilteredSettings(EntitySettingFilter.newBuilder()
                 .addEntities(1L)
-                .addEntities(3L)
                 .build());
-        assertEquals(ImmutableMap.of(1L, Collections.singletonList(setting),
-                3L, Collections.emptyList()), results);
+        assertTrue(results.containsKey(id1Settings.getEntityOid()));
+        assertThat(results.get(id1Settings.getEntityOid()), containsInAnyOrder(setting));
+    }
+
+    @Test
+    public void testSettingSnapshotFilterByNonExistingId() {
+        final EntitySettingSnapshot snapshot = new EntitySettingSnapshot(
+                Stream.empty(), Collections.emptyMap());
+        final long entityId = 1;
+        final Map<Long, Collection<Setting>> results =
+                snapshot.getFilteredSettings(EntitySettingFilter.newBuilder()
+                        .addEntities(entityId)
+                        .build());
+        assertTrue(results.containsKey(entityId));
+        assertTrue(results.get(entityId).isEmpty());
+    }
+
+    @Test
+    public void testSettingSnapshotDefault() {
+
+        final EntitySettings settings = EntitySettings.newBuilder()
+                .setEntityOid(2L)
+                .setDefaultSettingPolicyId(settingPolicyWithFalseSetting.getId())
+                .build();
+
+        final EntitySettingSnapshot snapshot = new EntitySettingSnapshot(
+                Stream.of(settings),
+                ImmutableMap.of(settingPolicyWithFalseSetting.getId(),
+                        settingPolicyWithFalseSetting));
+        final Map<Long, Collection<Setting>> results =
+                snapshot.getFilteredSettings(EntitySettingFilter.getDefaultInstance());
+
+        // We expect to see the true setting for id 1, and the
+        // false (default) setting for id 2.
+        final Collection<Setting> settingsResult = results.get(settings.getEntityOid());
+        assertNotNull(settingsResult);
+        assertThat(settingsResult, containsInAnyOrder(falseSetting));
+    }
+
+    @Test
+    public void testSettingSnapshotOverrideDefault() {
+        final EntitySettings settings = EntitySettings.newBuilder()
+                .setEntityOid(2L)
+                .addUserSettings(trueSetting)
+                .setDefaultSettingPolicyId(settingPolicyWithFalseSetting.getId())
+                .build();
+
+        final EntitySettingSnapshot snapshot = new EntitySettingSnapshot(
+                Stream.of(settings),
+                ImmutableMap.of(settingPolicyWithFalseSetting.getId(),
+                        settingPolicyWithFalseSetting));
+        final Map<Long, Collection<Setting>> results =
+                snapshot.getFilteredSettings(EntitySettingFilter.getDefaultInstance());
+
+        // We expect to see the true setting for id 1, and the
+        // false (default) setting for id 2.
+        final Collection<Setting> settingsResult = results.get(settings.getEntityOid());
+        assertNotNull(settingsResult);
+        assertThat(settingsResult, containsInAnyOrder(trueSetting));
+    }
+
+    @Test
+    public void testSnapshotInconsistentSetting() {
+        final EntitySettings settings = EntitySettings.newBuilder()
+                .setEntityOid(7L)
+                .setDefaultSettingPolicyId(1L)
+                .build();
+
+        // The default setting policy is NOT referring to a policy in the input map.
+        final EntitySettingSnapshot snapshot = new EntitySettingSnapshot(
+                Stream.of(settings), Collections.emptyMap());
+
+        // Shouldn't have any settings in the snapshot.
+        assertTrue(snapshot.getFilteredSettings(EntitySettingFilter.getDefaultInstance()).isEmpty());
+    }
+
+    @Test
+    public void testSnapshotNoIdSetting() {
+        final EntitySettings settings = EntitySettings.getDefaultInstance();
+        final EntitySettingSnapshot snapshot = new EntitySettingSnapshot(
+                Stream.of(settings), Collections.emptyMap());
+        // Shouldn't have any settings in the snapshot.
+        assertTrue(snapshot.getFilteredSettings(EntitySettingFilter.getDefaultInstance()).isEmpty());
     }
 }
