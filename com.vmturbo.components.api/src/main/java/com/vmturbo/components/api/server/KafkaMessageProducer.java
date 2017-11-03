@@ -18,9 +18,34 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.protobuf.AbstractMessage;
 
+import io.prometheus.client.Counter;
+import io.prometheus.client.Gauge;
+
 import com.vmturbo.communication.CommunicationException;
 
 public class KafkaMessageProducer implements AutoCloseable {
+    // OM-25600: Adding metrics to help understand producer and consumer behavior and configuration
+    // needs as a result.
+    static private Counter MESSAGES_SENT_COUNT = Counter.build()
+            .name("messages_sent")
+            .help("Number of messages produced (per topic)")
+            .labelNames("topic")
+            .register();
+    static private Counter MESSAGES_SENT_BYTES = Counter.build()
+            .name("messages_sent_bytes")
+            .help("Total size (in bytes) of all messages sent")
+            .labelNames("topic")
+            .register();
+    static private Counter MESSAGES_SENT_MS = Counter.build()
+            .name("messages_sent_ms")
+            .help("Total time (in ms) taken to send all messages to kafka")
+            .labelNames("topic")
+            .register();
+    static private Gauge LARGEST_MESSAGE_SENT = Gauge.build()
+            .name("messages_sent_largest_bytes")
+            .help("Size (bytes) of largest message sent")
+            .labelNames("topic")
+            .register();
 
     private final KafkaProducer<String, byte[]> producer;
     private final Logger logger = LogManager.getLogger(getClass());
@@ -46,10 +71,22 @@ public class KafkaMessageProducer implements AutoCloseable {
     private Future<RecordMetadata> sendKafkaMessage(@Nonnull final AbstractMessage serverMsg,
             @Nonnull final String topic) {
         Objects.requireNonNull(serverMsg);
+        long startTime = System.currentTimeMillis();
         byte[] payload = serverMsg.toByteArray();
         logger.debug("Sending message {}[{} bytes] to topic {}", serverMsg.getClass().getSimpleName(), payload.length, topic);
+        MESSAGES_SENT_COUNT.labels(topic).inc();
+        MESSAGES_SENT_BYTES.labels(topic).inc((double) payload.length);
+        if (payload.length > LARGEST_MESSAGE_SENT.labels(topic).get()) {
+            LARGEST_MESSAGE_SENT.labels(topic).set(payload.length);
+        }
         return producer.send(
-                new ProducerRecord<>(topic, Long.toString(msgCounter.incrementAndGet()), payload));
+                new ProducerRecord<>(topic, Long.toString(msgCounter.incrementAndGet()), payload),
+                (metadata, exception) -> {
+                    // update sent time
+                    long sentTimeMs = System.currentTimeMillis() - startTime;
+                    MESSAGES_SENT_MS.labels(topic).inc((double) sentTimeMs);
+                    logger.debug("Message send of {} bytes took {} ms", payload.length, sentTimeMs);
+                });
     }
 
     @Override

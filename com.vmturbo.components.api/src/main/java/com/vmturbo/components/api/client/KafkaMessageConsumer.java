@@ -37,12 +37,42 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.InvalidProtocolBufferException;
 
+import io.prometheus.client.Counter;
+import io.prometheus.client.Histogram;
+
 /**
  * Kafka message consumer is a class to receive all the messages from Kafka. Received messages
  * will be routed to the child {@link IMessageReceiver} instances, added in
  * {@link #messageReceiver(String, Deserializer)} calls.
  */
 public class KafkaMessageConsumer implements AutoCloseable {
+    // OM-25600: Adding metrics to help understand producer and consumer behavior and configuration
+    // needs as a result.
+    static private Counter MESSAGES_RECEIVED_COUNT = Counter.build()
+            .name("messages_received")
+            .help("Number of messages received (per topic)")
+            .labelNames("topic")
+            .register();
+    static private Counter MESSAGES_RECEIVED_BYTES = Counter.build()
+            .name("messages_received_bytes")
+            .help("Total size (in bytes) of all messages received")
+            .labelNames("topic")
+            .register();
+    static private Histogram MESSAGES_RECEIVED_PROCESSING_MS = Histogram.build()
+            .name("messages_received_processing_ms")
+            .help("Total time (in ms) taken to process received messages")
+            .labelNames("topic")
+            .register();
+    static private Histogram MESSAGES_RECEIVED_ENQUEUED_MS = Histogram.build()
+            .name("messages_received_enqueued_ms")
+            .help("Time (in ms) spent by messages waiting in the processing queue")
+            .labelNames("topic")
+            .register();
+    static private Counter MESSAGES_RECEIVED_LATENCY_MS = Counter.build()
+            .name("messages_received_latency_ms")
+            .help("Time (in ms) between when a message was timestamped by kafka and when it was enqueued for processing in a consumer")
+            .labelNames("topic")
+            .register();
 
     /**
      * Maximum size for a Protobuf message - 1 GB.
@@ -143,11 +173,9 @@ public class KafkaMessageConsumer implements AutoCloseable {
                 }
                 if (!records.isEmpty()) {
                     for (ConsumerRecord<String, byte[]> record : records) {
-                        logger.debug("Received message {} from topic {} ({})", record::offset,
-                                record::topic, record::timestamp);
-                        onNewMessage(record.value(),
-                                new TopicPartition(record.topic(), record.partition()),
-                                record.offset());
+                        logger.debug("Received message {} from topic {} ({} bytes {} latency)", record::offset,
+                                record::topic, record::serializedValueSize, () -> (System.currentTimeMillis() - record.timestamp()));
+                        onNewMessage(record);
                     }
                 }
             }
@@ -172,8 +200,17 @@ public class KafkaMessageConsumer implements AutoCloseable {
         }
     }
 
-    private void onNewMessage(@Nonnull byte[] message, @Nonnull TopicPartition partition,
-            long offset) {
+    private void onNewMessage(ConsumerRecord<String, byte[]> record) {
+        byte[] payload = record.value();
+        TopicPartition partition = new TopicPartition(record.topic(), record.partition());
+
+        // time between now and the record timestamp represents transmission latency
+        long latency = System.currentTimeMillis() - record.timestamp();
+        MESSAGES_RECEIVED_LATENCY_MS.labels(record.topic()).inc((double) latency);
+        // update the # received and total bytes received metrics
+        MESSAGES_RECEIVED_COUNT.labels(record.topic()).inc();
+        MESSAGES_RECEIVED_BYTES.labels(record.topic()).inc((double) payload.length);
+
         final long lock = consumerLock.readLock();
         final KafkaMessageReceiver<?> receiver;
         try {
@@ -181,12 +218,12 @@ public class KafkaMessageConsumer implements AutoCloseable {
         } finally {
             consumerLock.unlockRead(lock);
         }
-        if (receiver.hasMessage(partition, offset)) {
+        if (receiver.hasMessage(partition, record.offset())) {
             logger.debug("Message {} from topic {} is already received by consumer. Skipping it",
-                    offset, partition);
+                    record.offset(), partition);
             return;
         }
-        receiver.pushNextMessage(message, partition, offset);
+        receiver.pushNextMessage(payload, partition, record.offset());
     }
 
     private void resumePartition(@Nonnull TopicPartition topic) {
@@ -337,6 +374,10 @@ public class KafkaMessageConsumer implements AutoCloseable {
             try {
                 while (true) {
                     final ReceivedMessage<T> message = messagesQueue.take();
+                    // update time enqueued metric
+                    long processingStartTime = System.currentTimeMillis();
+                    long enqueuedTime = processingStartTime - message.getEnqueueTime();
+                    MESSAGES_RECEIVED_ENQUEUED_MS.labels(message.partition.topic()).observe((double) enqueuedTime);
                     final long readLock = lock.readLock();
                     try {
                         for (BiConsumer<T, Runnable> listener : consumers) {
@@ -355,6 +396,9 @@ public class KafkaMessageConsumer implements AutoCloseable {
                         if (messagesInQueue.decrementAndGet() <= MAX_BUFFERED_MESSAGES) {
                             message.resumePartition();
                         }
+                        long processingTime = System.currentTimeMillis() - processingStartTime;
+                        logger.debug("Processing message from partition {} offset {} took {} ms", message.partition, message.offset, processingTime);
+                        MESSAGES_RECEIVED_PROCESSING_MS.labels(message.partition.topic()).observe((double) processingTime);
                     }
                 }
             } catch (InterruptedException e) {
@@ -396,10 +440,16 @@ public class KafkaMessageConsumer implements AutoCloseable {
          */
         private final long offset;
 
+        /**
+         * Time the message was enqueued
+         */
+        private final long enqueueTime;
+
         public ReceivedMessage(@Nonnull T message, @Nonnull TopicPartition partition, long offset) {
             this.message = Objects.requireNonNull(message);
             this.partition = Objects.requireNonNull(partition);
             this.offset = offset;
+            this.enqueueTime = System.currentTimeMillis();
         }
 
         public T getMessage() {
@@ -413,5 +463,7 @@ public class KafkaMessageConsumer implements AutoCloseable {
         public void resumePartition() {
             KafkaMessageConsumer.this.resumePartition(partition);
         }
+
+        public long getEnqueueTime() { return enqueueTime; }
     }
 }
