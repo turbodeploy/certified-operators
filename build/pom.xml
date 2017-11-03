@@ -17,10 +17,6 @@
 
         <!-- MT Version from which to resolve cross-branch dependencies on common code -->
         <vmturbo.mt.branch.version>6.1.0-SNAPSHOT</vmturbo.mt.branch.version>
-        <!-- API and UX project version to import -->
-        <vmturbo.api-ux.version>6.1.0-SNAPSHOT</vmturbo.api-ux.version>
-        <!-- Reports project version to import -->
-        <vmturbo.reports.version>7.0.b6-SNAPSHOT</vmturbo.reports.version>
 
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
@@ -1050,7 +1046,7 @@
             <dependency>
                 <groupId>com.vmturbo</groupId>
                 <artifactId>com.vmturbo.api</artifactId>
-                <version>${vmturbo.api-ux.version}</version>
+                <version>${vmturbo.mt.branch.version}</version>
                 <exclusions>
                     <exclusion>
                         <groupId>org.slf4j</groupId>
@@ -1077,7 +1073,7 @@
             <dependency>
                 <groupId>com.vmturbo</groupId>
                 <artifactId>com.vmturbo.reports</artifactId>
-                <version>${vmturbo.reports.version}</version>
+                <version>${vmturbo.mt.branch.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.vmturbo</groupId>
