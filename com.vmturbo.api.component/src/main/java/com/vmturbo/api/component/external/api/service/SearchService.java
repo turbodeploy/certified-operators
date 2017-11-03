@@ -271,7 +271,10 @@ public class SearchService implements ISearchService {
     }
 
     @Override
-    public List<CriteriaOptionApiDTO> getCriteriaOptions(final String criteriaKey, final String entityType) throws Exception {
+    public List<CriteriaOptionApiDTO> getCriteriaOptions(final String criteriaKey,
+                                                         final List<String> scopes,
+                                                         final String entityType,
+                                                         final EnvironmentType envType) throws Exception {
         throw ApiUtils.notImplementedInXL();
     }
 }

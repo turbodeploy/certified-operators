@@ -35,6 +35,7 @@ import com.vmturbo.api.dto.user.ActiveDirectoryApiDTO;
 import com.vmturbo.api.dto.user.ActiveDirectoryGroupApiDTO;
 import com.vmturbo.api.dto.user.ChangePasswordApiDTO;
 import com.vmturbo.api.dto.user.UserApiDTO;
+import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.api.serviceinterfaces.ITagsService;
 import com.vmturbo.api.serviceinterfaces.IUsersService;
@@ -55,7 +56,8 @@ import com.vmturbo.auth.api.usermgmt.AuthUserModifyDTO;
 public class TagsService implements ITagsService {
 
     @Override
-    public List<TagApiDTO> getTags(final String entityType) throws Exception {
+    public List<TagApiDTO> getTags(final List<String> scopes, final String entityType,
+                                   final EnvironmentType envType) throws Exception {
         throw ApiUtils.notImplementedInXL();
     }
 
