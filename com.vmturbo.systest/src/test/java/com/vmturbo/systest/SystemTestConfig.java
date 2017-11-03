@@ -14,6 +14,7 @@ import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.client.KafkaMessageConsumer;
 import com.vmturbo.components.test.utilities.ComponentTestRule;
 import com.vmturbo.components.test.utilities.component.ComponentCluster;
+import com.vmturbo.components.test.utilities.component.DockerEnvironment;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TopologyProcessorNotification;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClient;
@@ -64,8 +65,8 @@ public class SystemTestConfig {
 
     @Bean
     public KafkaMessageConsumer kafkaConsumer() {
-        // TODO change kafka instantiation
-        return new KafkaMessageConsumer("kafka-non-existing", "group-1");
+        return new KafkaMessageConsumer(DockerEnvironment.getKafkaBootstrapServers(),
+                "system-test-1");
     }
 
     @Bean

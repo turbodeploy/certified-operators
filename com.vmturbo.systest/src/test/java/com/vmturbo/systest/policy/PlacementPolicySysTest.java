@@ -36,7 +36,6 @@ import java.util.concurrent.TimeoutException;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.commons.lang.NotImplementedException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.After;
@@ -98,7 +97,7 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.components.api.client.IMessageReceiver;
-import com.vmturbo.components.api.client.WebsocketNotificationReceiver;
+import com.vmturbo.components.api.client.KafkaMessageConsumer;
 import com.vmturbo.components.test.utilities.ComponentTestRule;
 import com.vmturbo.components.test.utilities.communication.ComponentStubHost;
 import com.vmturbo.components.test.utilities.component.ComponentCluster;
@@ -152,13 +151,15 @@ public class PlacementPolicySysTest {
 
     private final PolicyServiceStub policyServiceStub = new PolicyServiceStub();
 
-    private WebsocketNotificationReceiver<TopologyProcessorNotification> tpMessageReceiver;
-    private WebsocketNotificationReceiver<Topology> tpTopologyReceiver;
+    private IMessageReceiver<TopologyProcessorNotification> tpMessageReceiver;
+    private IMessageReceiver<Topology> tpTopologyReceiver;
     private IMessageReceiver<ProjectedTopology> projectedTopologyReceiver;
     private IMessageReceiver<ActionPlan> actionsReceiver;
 
     @Autowired
     private DiscoveryDriverController discoveryDriverController;
+    @Autowired
+    private KafkaMessageConsumer kakfaMessageConsumer;
 
     @LocalServerPort
     int port;
@@ -246,12 +247,12 @@ public class PlacementPolicySysTest {
 
         topologyService = TopologyServiceGrpc.newBlockingStub(
             componentTestRule.getCluster().newGrpcChannel("topology-processor"));
-        if (true) {
-            // TODO: fix in OM-25492 or otherwise
-            throw new NotImplementedException("TP connection to Kafka should be implemented");
-        }
-        tpMessageReceiver = null;
-        tpTopologyReceiver = null;
+        tpTopologyReceiver = kakfaMessageConsumer.messageReceiver(
+                TopologyProcessorClient.TOPOLOGY_BROADCAST_TOPIC, Topology::parseFrom);
+        tpMessageReceiver =
+                kakfaMessageConsumer.messageReceiver(TopologyProcessorClient.NOTIFICATIONS_TOPIC,
+                        TopologyProcessorNotification::parseFrom);
+        ;
         topologyProcessor = TopologyProcessorClient.rpcAndNotification(
             componentTestRule.getCluster().getConnectionConfig("topology-processor"),
             threadPool, tpMessageReceiver, tpTopologyReceiver);
@@ -266,8 +267,6 @@ public class PlacementPolicySysTest {
     @After
     public void teardown() {
         try {
-            tpMessageReceiver.close();
-
             threadPool.shutdownNow();
             threadPool.awaitTermination(10, TimeUnit.MINUTES);
         } catch (Exception e) {
