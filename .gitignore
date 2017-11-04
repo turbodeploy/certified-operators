@@ -1,30 +1,16 @@
-persistence/.com.apple.timemachine.supported
-persistence/.swp
-persistence/app/._.DS_Store
-persistence/app/controllers/.com.apple.timemachine.supported
-persistence/app/helpers/.com.apple.timemachine.supported
-persistence/app/models/.com.apple.timemachine.supported
-persistence/app/views/.com.apple.timemachine.supported
-persistence/db/.com.apple.timemachine.supported
-persistence/db/views_custom_rept_compatability.sql
-persistence/doc_cache
-persistence/doc_queue
-persistence/log/.development.log.swo
-persistence/log/.development.log.swp
-persistence/log/development.log
-persistence/log/entity_loader.log
-persistence/log/production.log
-persistence/log/reports.log
-persistence/log/server.log
-persistence/log/test.log
-persistence/log/thin.log
-persistence/nbproject/private
-persistence/nohup.out
-persistence/persistence.zip
-persistence/script/get_plan_xml_data.sh
-persistence/target*
-persistence/tmp/cache
-persistence/tmp/pids
-persistence/tmp/sessions
-persistence/tmp/sockets
-persistence/utils/vis_storage.rb
+# Maven
+target/
+
+# IntelliJ project files
+*.iml
+*.iws
+*.ipr
+.idea/
+
+# eclipse project file
+.settings/
+.classpath
+.project
+
+# Mac OS X
+.DS_Store
