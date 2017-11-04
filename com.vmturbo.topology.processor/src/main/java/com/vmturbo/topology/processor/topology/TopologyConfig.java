@@ -13,6 +13,7 @@ import com.vmturbo.topology.processor.api.server.TopologyProcessorApiConfig;
 import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.group.GroupConfig;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
+import com.vmturbo.topology.processor.targets.TargetConfig;
 import com.vmturbo.topology.processor.templates.DiscoveredTemplateDeploymentProfileConfig;
 
 /**
@@ -24,7 +25,8 @@ import com.vmturbo.topology.processor.templates.DiscoveredTemplateDeploymentProf
     EntityConfig.class,
     IdentityProviderConfig.class,
     GroupConfig.class,
-    DiscoveredTemplateDeploymentProfileConfig.class
+    DiscoveredTemplateDeploymentProfileConfig.class,
+    TargetConfig.class
 })
 public class TopologyConfig {
 
@@ -42,6 +44,9 @@ public class TopologyConfig {
 
     @Autowired
     private DiscoveredTemplateDeploymentProfileConfig discoveredTemplateDeploymentProfileConfig;
+
+    @Autowired
+    private TargetConfig targetConfig;
 
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
@@ -61,7 +66,7 @@ public class TopologyConfig {
 
     @Bean
     public TopologyRpcService topologyRpcService() {
-        return new TopologyRpcService(topologyHandler());
+        return new TopologyRpcService(topologyHandler(), targetConfig.targetStore());
     }
 
     @Bean

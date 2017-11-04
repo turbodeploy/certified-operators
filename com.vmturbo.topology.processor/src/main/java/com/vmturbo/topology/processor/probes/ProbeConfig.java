@@ -12,7 +12,7 @@ import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
  * Spring configuration for the Probe package.
  */
 @Configuration
-@Import(IdentityProviderConfig.class)
+@Import({IdentityProviderConfig.class})
 public class ProbeConfig {
     @Autowired
     private IdentityProviderConfig identityProviderConfig;

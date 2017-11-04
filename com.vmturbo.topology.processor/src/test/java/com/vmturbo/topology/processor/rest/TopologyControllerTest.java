@@ -46,6 +46,7 @@ import com.vmturbo.topology.processor.group.settings.SettingsManager;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.rest.TopologyController.SendTopologyResponse;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
+import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.templates.DiscoveredTemplateDeploymentProfileNotifier;
 import com.vmturbo.topology.processor.topology.TopologyHandler;
 
@@ -114,6 +115,11 @@ public class TopologyControllerTest {
         }
 
         @Bean
+        TargetStore targetStore() {
+            return Mockito.mock(TargetStore.class);
+        }
+
+        @Bean
         DiscoveredTemplateDeploymentProfileNotifier discoveredTemplatesNotifier() {
             return Mockito.mock(DiscoveredTemplateDeploymentProfileNotifier.class);
         }
@@ -124,7 +130,8 @@ public class TopologyControllerTest {
                 scheduler(),
                 topologyHandler(),
                 entityStore(),
-                policyManager()
+                policyManager(),
+                targetStore()
             );
         }
 

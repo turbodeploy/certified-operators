@@ -26,7 +26,6 @@ import com.vmturbo.action.orchestrator.action.ExplanationComposer;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass.GetHostInfoRequest;
 import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass.GetHostInfoResponse;

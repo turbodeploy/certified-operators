@@ -1212,6 +1212,12 @@ com.vmturbo.sql.utils/src/main/java/com/vmturbo/sql/utils/LocalDateTimeConverter
 com.vmturbo.sql.utils/src/main/java/com/vmturbo/sql/utils/SQLDatabaseConfig.java -text
 com.vmturbo.sql.utils/src/main/java/com/vmturbo/sql/utils/TestSQLDatabaseConfig.java -text
 com.vmturbo.sql.utils/src/test/java/com/vmturbo/sql/utils/FlywayMigratorTest.java -text
+com.vmturbo.stitching/pom.xml -text
+com.vmturbo.stitching/src/main/java/com/vmturbo/stitching/StitchingGraph.java -text
+com.vmturbo.stitching/src/main/java/com/vmturbo/stitching/StitchingIndex.java -text
+com.vmturbo.stitching/src/main/java/com/vmturbo/stitching/StitchingOperation.java -text
+com.vmturbo.stitching/src/main/java/com/vmturbo/stitching/StitchingOperationResult.java -text
+com.vmturbo.stitching/src/test/resources/log4j2.xml -text
 com.vmturbo.systest/pom.xml -text
 com.vmturbo.systest/src/test/java/com/vmturbo/systest/ExternalApiRequestor.java -text
 com.vmturbo.systest/src/test/java/com/vmturbo/systest/PlanNotificationListener.java -text
@@ -1380,6 +1386,8 @@ com.vmturbo.topology.processor/src/main/java/com/vmturbo/topology/processor/sche
 com.vmturbo.topology.processor/src/main/java/com/vmturbo/topology/processor/scheduling/SchedulerConfig.java -text
 com.vmturbo.topology.processor/src/main/java/com/vmturbo/topology/processor/scheduling/TargetDiscoverySchedule.java -text
 com.vmturbo.topology.processor/src/main/java/com/vmturbo/topology/processor/scheduling/TopologyBroadcastSchedule.java -text
+com.vmturbo.topology.processor/src/main/java/com/vmturbo/topology/processor/stitching/StitchingEntityData.java -text
+com.vmturbo.topology.processor/src/main/java/com/vmturbo/topology/processor/stitching/TopologyStitchingGraph.java -text
 com.vmturbo.topology.processor/src/main/java/com/vmturbo/topology/processor/targets/AccountValueVerifier.java svneol=native#text/x-java
 com.vmturbo.topology.processor/src/main/java/com/vmturbo/topology/processor/targets/InvalidTargetException.java -text
 com.vmturbo.topology.processor/src/main/java/com/vmturbo/topology/processor/targets/KVBackedTargetStore.java -text
@@ -1463,6 +1471,7 @@ com.vmturbo.topology.processor/src/test/java/com/vmturbo/topology/processor/sche
 com.vmturbo.topology.processor/src/test/java/com/vmturbo/topology/processor/scheduling/ScheduleTest.java -text
 com.vmturbo.topology.processor/src/test/java/com/vmturbo/topology/processor/scheduling/SchedulerTest.java -text
 com.vmturbo.topology.processor/src/test/java/com/vmturbo/topology/processor/scheduling/TargetDiscoveryScheduleDataTest.java -text
+com.vmturbo.topology.processor/src/test/java/com/vmturbo/topology/processor/stitching/TopologyStitchingGraphTest.java -text
 com.vmturbo.topology.processor/src/test/java/com/vmturbo/topology/processor/targets/AccountValueVerifierTest.java svneol=native#text/x-java
 com.vmturbo.topology.processor/src/test/java/com/vmturbo/topology/processor/targets/KVBackedTargetStoreTest.java -text
 com.vmturbo.topology.processor/src/test/java/com/vmturbo/topology/processor/topology/TopologyBroadcastUtil.java svneol=native#text/x-java

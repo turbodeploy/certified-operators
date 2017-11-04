@@ -331,7 +331,7 @@ public class SchedulerTest {
         Mockito.doAnswer(unused -> {
             broadcastLatch.countDown();
             return null;
-        }).when(topologyHandler).broadcastLatestTopology();
+        }).when(topologyHandler).broadcastLatestTopology(any(TargetStore.class));
         scheduler.setBroadcastSchedule(TEST_SCHEDULE_MILLIS, TimeUnit.MILLISECONDS);
         broadcastLatch.await(SCHEDULED_TIMEOUT_SECONDS, TimeUnit.SECONDS);
 

@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
@@ -90,6 +91,7 @@ public class RemoteProbeStore implements ProbeStore {
             } else {
                 logger.debug("Adding endpoint to probe type map: " + transport + " " + probeInfo.getProbeType());
                 final boolean probeExists = probes.containsKey(probeId);
+
                 probes.put(probeId, transport);
                 if (!probeExists) {
                     probeInfos.put(probeId, probeInfo);

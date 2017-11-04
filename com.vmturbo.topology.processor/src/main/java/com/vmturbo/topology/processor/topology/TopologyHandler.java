@@ -30,6 +30,7 @@ import com.vmturbo.topology.processor.group.filter.TopologyFilterFactory;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.group.settings.SettingsManager;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
+import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.templates.DiscoveredTemplateDeploymentProfileNotifier;
 import com.vmturbo.topology.processor.topology.TopologyGraph.Vertex;
 
@@ -94,8 +95,9 @@ public class TopologyHandler {
      * @throws InterruptedException if thread has been interrupted during broadcasting
      * @throws CommunicationException if persistent communication exception occurred
      */
-    public synchronized TopologyBroadcastInfo broadcastLatestTopology()
-            throws CommunicationException, InterruptedException {
+    public synchronized TopologyBroadcastInfo broadcastLatestTopology(@Nonnull final TargetStore targetStore)
+        throws CommunicationException, InterruptedException {
+        
         try {
             discoveredTemplateDeploymentProfileNotifier.sendTemplateDeploymentProfileData();
         } catch (CommunicationException e) {

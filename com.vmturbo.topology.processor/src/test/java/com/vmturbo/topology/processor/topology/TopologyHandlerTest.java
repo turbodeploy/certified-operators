@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Map;
+
 import javax.annotation.Nonnull;
 
 import org.junit.Before;
@@ -44,11 +45,10 @@ import com.vmturbo.topology.processor.templates.DiscoveredTemplateDeploymentProf
 public class TopologyHandlerTest {
 
     private final TopoBroadcastManager topoBroadcastManager =
-            mock(TopoBroadcastManager.class);
-
-    private final IdentityProvider identityProvider = mock(IdentityProvider.class);
-
-    private final EntityStore entityStore = new EntityStore(mock(TargetStore.class),
+            Mockito.mock(TopoBroadcastManager.class);
+    private final IdentityProvider identityProvider = Mockito.mock(IdentityProvider.class);
+    private final TargetStore targetStore = Mockito.mock(TargetStore.class);
+    private final EntityStore entityStore = new EntityStore(targetStore,
             identityProvider, new EntityValidator());
 
     private TopologyHandler topologyHandler;
@@ -98,8 +98,8 @@ public class TopologyHandlerTest {
 
         addTestSnapshots();
 
-        topologyHandler.broadcastLatestTopology();
-        verify(entitiesListener, Mockito.times(4)).append(any(TopologyEntityDTO.class));
+        topologyHandler.broadcastLatestTopology(targetStore);
+        verify(entitiesListener, Mockito.times(4)).append(Mockito.any(TopologyEntityDTO.class));
         verify(entitiesListener).finish();
         verify(discoveredGroupUploader).processQueuedGroups();
         verify(policyManager).applyPolicies(any(TopologyGraph.class),
@@ -129,8 +129,8 @@ public class TopologyHandlerTest {
         when(topoBroadcastManager.broadcastTopology(any()))
             .thenReturn(entitiesListener);
 
-        topologyHandler.broadcastLatestTopology();
-        verify(entitiesListener).append(any(TopologyEntityDTO.class));
+        topologyHandler.broadcastLatestTopology(targetStore);
+        verify(entitiesListener).append(Mockito.any(TopologyEntityDTO.class));
         verify(entitiesListener).finish();
     }
 

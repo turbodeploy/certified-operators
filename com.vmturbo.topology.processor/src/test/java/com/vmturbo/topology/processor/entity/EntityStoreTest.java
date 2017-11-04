@@ -1,9 +1,22 @@
 package com.vmturbo.topology.processor.entity;
 
+import static com.vmturbo.platform.common.builders.CommodityBuilders.storageAmount;
+import static com.vmturbo.platform.common.builders.CommodityBuilders.vCpuMHz;
+import static com.vmturbo.platform.common.builders.EntityBuilders.physicalMachine;
+import static com.vmturbo.platform.common.builders.EntityBuilders.storage;
+import static com.vmturbo.platform.common.builders.EntityBuilders.virtualMachine;
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
+import static org.junit.Assert.assertEquals;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -19,11 +32,13 @@ import com.google.common.collect.ImmutableMap;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.entity.EntityValidator.EntityValidationFailure;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
+import com.vmturbo.topology.processor.stitching.TopologyStitchingGraph;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.targets.TargetStoreListener;
@@ -223,12 +238,82 @@ public class EntityStoreTest {
         Assert.assertFalse(entityStore.getEntity(1L).isPresent());
     }
 
+    @Test
+    public void testConstructStitchingGraphSingleTarget()
+        throws EntitiesValidationException, IdentityUninitializedException {
+        final Map<Long, EntityDTO> entities = ImmutableMap.of(
+            1L, virtualMachine("foo")
+                .buying(vCpuMHz().from("bar").used(100.0))
+                .buying(storageAmount().from("baz").used(200.0))
+                .build(),
+            2L, physicalMachine("bar").build(),
+            3L, storage("baz").build());
+
+        addEntities(entities);
+        final TopologyStitchingGraph graph = entityStore.constructStitchingGraph();
+
+        assertThat(graph.getConsumerEntities("bar")
+            .map(Builder::getId)
+            .collect(Collectors.toList()), contains("foo"));
+        assertThat(graph.getConsumerEntities("baz")
+            .map(Builder::getId)
+            .collect(Collectors.toList()), contains("foo"));
+        assertThat(graph.getConsumerEntities("foo")
+            .map(Builder::getId)
+            .collect(Collectors.toList()), is(empty()));
+        assertThat(graph.getProviderEntities("foo")
+            .map(Builder::getId)
+            .collect(Collectors.toList()), containsInAnyOrder("bar", "baz"));
+    }
+
+    @Test
+    public void testConstructStitchingGraphMultipleTargets()
+        throws EntitiesValidationException, IdentityUninitializedException {
+
+        final long target1Id = 1234L;
+        final long target2Id = 5678L;
+        final Map<Long, EntityDTO> firstTargetEntities = ImmutableMap.of(
+            1L, virtualMachine("foo")
+                .buying(vCpuMHz().from("bar").used(100.0))
+                .buying(storageAmount().from("baz").used(200.0))
+                .build(),
+            2L, physicalMachine("bar").build(),
+            3L, storage("baz").build());
+        final Map<Long, EntityDTO> secondTargetEntities = ImmutableMap.of(
+            4L, virtualMachine("vampire")
+                .buying(vCpuMHz().from("werewolf").used(100.0))
+                .buying(storageAmount().from("dragon").used(200.0))
+                .build(),
+            5L, physicalMachine("werewolf").build(),
+            6L, storage("dragon").build());
+
+        addEntities(firstTargetEntities, target1Id, 0L);
+        addEntities(secondTargetEntities, target2Id, 1L);
+        final TopologyStitchingGraph graph = entityStore.constructStitchingGraph();
+
+        assertEquals(6, graph.vertexCount());
+        assertThat(graph.getProviderEntities("foo")
+            .map(Builder::getId)
+            .collect(Collectors.toList()), containsInAnyOrder("bar", "baz"));
+        assertThat(graph.getProviderEntities("vampire")
+            .map(Builder::getId)
+            .collect(Collectors.toList()), containsInAnyOrder("werewolf", "dragon"));
+
+        assertEquals(target1Id, graph.getVertex("foo").get().getStitchingData().get(0).getTargetId());
+        assertEquals(target2Id, graph.getVertex("werewolf").get().getStitchingData().get(0).getTargetId());
+    }
+
     private void addEntities(@Nonnull final Map<Long, EntityDTO> entities)
             throws EntitiesValidationException, IdentityUninitializedException {
-        final long probeId = 0;
+        addEntities(entities, targetId, 0);
+    }
+
+    private void addEntities(@Nonnull final Map<Long, EntityDTO> entities, final long targetId,
+                             final long probeId)
+        throws EntitiesValidationException, IdentityUninitializedException {
         Mockito.when(identityProvider.getIdsForEntities(
-                Mockito.eq(probeId), Mockito.eq(new ArrayList<>(entities.values()))))
-                .thenReturn(entities);
+            Mockito.eq(probeId), Mockito.eq(new ArrayList<>(entities.values()))))
+            .thenReturn(entities);
         entityStore.entitiesDiscovered(probeId, targetId, new ArrayList<>(entities.values()));
     }
 }

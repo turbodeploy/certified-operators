@@ -13,6 +13,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -34,6 +35,8 @@ import com.vmturbo.topology.processor.entity.Entity.PerTargetInfo;
 import com.vmturbo.topology.processor.entity.EntityValidator.EntityValidationFailure;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
+import com.vmturbo.topology.processor.stitching.StitchingEntityData;
+import com.vmturbo.topology.processor.stitching.TopologyStitchingGraph;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.targets.TargetStoreListener;
@@ -127,6 +130,10 @@ public class EntityStore {
         return entityMap.values();
     }
 
+    public int entityCount() {
+        return entityMap.size();
+    }
+
     /**
      * Constructs the topology based on the entities currently in
      * the repository.
@@ -150,6 +157,45 @@ public class EntityStore {
     }
 
     /**
+     * Construct a graph suitable for stitching composed of a forest of disconnected graphs consisting
+     * of the entities discovered by each individual target. See {@link TopologyStitchingGraph} for
+     * further details.
+     *
+     * @return A {@link TopologyStitchingGraph} suitable for stitching together the graphs in the discovered
+     *         individual-targets into a unified topology.
+     */
+    @Nonnull
+    public TopologyStitchingGraph constructStitchingGraph() {
+        final TopologyStitchingGraph stitchingGraph = new TopologyStitchingGraph(entityMap.size());
+        TargetStitchingDataMap stitchingDataMap;
+
+        synchronized (topologyUpdateLock) {
+            stitchingDataMap = new TargetStitchingDataMap(targetEntities);
+
+            // This will populate the stitching data map.
+            entityMap.entrySet().stream()
+                .forEach(entry -> {
+                    final Long oid = entry.getKey();
+
+                    entry.getValue().getPerTargetInfo().stream()
+                        .map(targetInfoEntry -> new StitchingEntityData(
+                            targetInfoEntry.getValue().getEntityInfo().toBuilder(),
+                            targetInfoEntry.getKey(),
+                            oid))
+                        .forEach(stitchingDataMap::put);
+                });
+        }
+
+        stitchingDataMap.allStitchingData()
+            .forEach(stitchingEntityData -> stitchingGraph.addStitchingData(
+                stitchingEntityData,
+                stitchingDataMap.getTargetIdToStitchingDataMap(stitchingEntityData.getTargetId())
+            ));
+
+        return stitchingGraph;
+    }
+
+    /**
      * Remove entities associated with a target from the repository.
      *
      * @param targetId The target to purge.
@@ -162,7 +208,7 @@ public class EntityStore {
             final TargetEntityIdInfo idInfo = targetEntities.get(targetId);
             if (idInfo != null) {
                 idInfo.getEntityIds().stream()
-                    .map(id -> entityMap.get(id))
+                    .map(entityMap::get)
                     .filter(Objects::nonNull)
                     .forEach(entity -> {
                         // Remove this target's info.
@@ -338,7 +384,7 @@ public class EntityStore {
             targetEntities.put(targetId, targetIdInfo);
 
             // Fill in the hosted-by relationships.
-            vmToProviderLocalIds.entrySet().forEach(entry -> {
+            vmToProviderLocalIds.entrySet().forEach(entry ->
                 entry.getValue().stream()
                     .filter(localId -> localIdToType.get(localId) == EntityType.PHYSICAL_MACHINE)
                     .findFirst()
@@ -347,8 +393,7 @@ public class EntityStore {
                         // since the VM is buying commodities from a PM that doesn't exist.
                         long pmId = Objects.requireNonNull(targetIdInfo.getLocalIdToEntityId().get(localId));
                         Objects.requireNonNull(entityMap.get(entry.getKey())).setHostedBy(targetId, pmId);
-                    });
-            });
+                    }));
         }
     }
 
@@ -415,6 +460,10 @@ public class EntityStore {
         Set<Long> getEntityIds() {
             return entityIds;
         }
+
+        public int getDiscoveredEntitiesCount() {
+            return localIdToEntityId.size();
+        }
     }
 
     /**
@@ -440,4 +489,35 @@ public class EntityStore {
         return map;
     }
 
+    /**
+     * A helper class that retains a map of targetId -> Map<localId, StitchingEntityData>
+     */
+    private static class TargetStitchingDataMap {
+        private final Map<Long, Map<String, StitchingEntityData>> targetDataMap;
+
+        /**
+         * Create a new TargetStitchingDataMap given the original mapping of targets to their data.
+         *
+         * @param sourceMap the original mapping of targets to their discovered data.
+         */
+        public TargetStitchingDataMap(@Nonnull final Map<Long, TargetEntityIdInfo> sourceMap) {
+            targetDataMap = new HashMap<>(sourceMap.size());
+            sourceMap.entrySet().forEach(entry ->
+                targetDataMap.put(entry.getKey(), new HashMap<>(entry.getValue().getDiscoveredEntitiesCount())));
+        }
+
+        public void put(@Nonnull final StitchingEntityData entityData) {
+            targetDataMap.get(entityData.getTargetId())
+                .put(entityData.getEntityDtoBuilder().getId(), entityData);
+        }
+
+        public Map<String, StitchingEntityData> getTargetIdToStitchingDataMap(final Long targetId) {
+            return targetDataMap.get(targetId);
+        }
+
+        public Stream<StitchingEntityData> allStitchingData() {
+            return targetDataMap.values().stream()
+                .flatMap(targetMap -> targetMap.values().stream());
+        }
+    }
 }

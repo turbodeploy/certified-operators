@@ -194,7 +194,7 @@ public class KVBackedTargetStore implements TargetStore {
             throws TargetNotFoundException {
         final Target oldTarget = removeTarget(targetId);
         try {
-            topologyHandler.broadcastLatestTopology();
+            topologyHandler.broadcastLatestTopology(this);
             scheduler.resetBroadcastSchedule();
         } catch (InterruptedException e) {
           // Although this broadcast is interrupted, it could be recovered on next scheduled

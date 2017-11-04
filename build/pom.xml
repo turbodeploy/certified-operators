@@ -203,6 +203,7 @@
         <profile>
             <id>topology-processor</id>
             <modules>
+                <module>../com.vmturbo.stitching</module>
                 <module>../com.vmturbo.topology.processor.api</module>
                 <module>../com.vmturbo.topology.processor</module>
             </modules>
@@ -347,6 +348,7 @@
                 <module>../com.vmturbo.kvstore</module>
                 <module>../com.vmturbo.repository.api</module>
                 <module>../com.vmturbo.repository.component</module>
+                <module>../com.vmturbo.stitching</module>
                 <module>../com.vmturbo.topology.processor.api</module>
                 <module>../com.vmturbo.topology.processor</module>
                 <module>../com.vmturbo.history</module>
@@ -429,6 +431,7 @@
                 <module>../com.vmturbo.kvstore</module>
                 <module>../com.vmturbo.repository.api</module>
                 <module>../com.vmturbo.repository.component</module>
+                <module>../com.vmturbo.stitching</module>
                 <module>../com.vmturbo.topology.processor.api</module>
                 <module>../com.vmturbo.topology.processor</module>
                 <module>../com.vmturbo.history</module>
@@ -989,6 +992,11 @@
             <dependency>
                 <groupId>com.vmturbo</groupId>
                 <artifactId>grpc-extensions</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>stitching</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

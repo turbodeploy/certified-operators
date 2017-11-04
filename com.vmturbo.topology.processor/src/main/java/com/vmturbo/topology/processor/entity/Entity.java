@@ -55,6 +55,11 @@ public class Entity {
     }
 
     @Nonnull
+    public Set<Entry<Long, PerTargetInfo>> getPerTargetInfo() {
+        return Collections.unmodifiableSet(perTargetInfo.entrySet());
+    }
+
+    @Nonnull
     public Set<Long> getTargets() {
         return Collections.unmodifiableSet(perTargetInfo.keySet());
     }

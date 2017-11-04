@@ -35,7 +35,7 @@ public class Converter {
     // This is a temporary hard-coded value. TODO: Obtain from probe DTOs or settings.
     private static final double TEMP_DEFAULT_EFFECTIVE_CAPACITY = 100;
 
-    private static Set<CommodityDTO.CommodityType> DSPM_OR_DATASTORE =
+    public static Set<CommodityDTO.CommodityType> DSPM_OR_DATASTORE =
                     Sets.newHashSet(CommodityDTO.CommodityType.DSPM_ACCESS, CommodityDTO.CommodityType.DATASTORE);
 
     private Converter() {}
@@ -268,7 +268,7 @@ public class Converter {
      * @param key original key
      * @return the uuid part of the key
      */
-    private static String keyToUuid(String key) {
+    public static String keyToUuid(String key) {
         return key.split("::")[1];
     }
 }

@@ -73,7 +73,6 @@ import com.vmturbo.topology.processor.identity.services.HeuristicsMatcher;
 import com.vmturbo.topology.processor.identity.storage.IdentityDatabaseStore;
 import com.vmturbo.topology.processor.identity.storage.IdentityServiceInMemoryUnderlyingStore;
 import com.vmturbo.topology.processor.operation.IOperationManager;
-import com.vmturbo.topology.processor.operation.OperationManager;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.validation.Validation;
 import com.vmturbo.topology.processor.probes.ProbeStore;
