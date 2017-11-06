@@ -16,8 +16,9 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import io.grpc.Status;
-import io.grpc.stub.StreamObserver;
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Maps;
+import com.google.gson.Gson;
 
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyAddition;
@@ -27,6 +28,7 @@ import com.vmturbo.common.protobuf.topology.AnalysisDTO;
 import com.vmturbo.common.protobuf.topology.AnalysisDTO.StartAnalysisResponse;
 import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc.AnalysisServiceImplBase;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.communication.CommunicationException;
@@ -36,8 +38,11 @@ import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.topology.TopologyHandler;
 import com.vmturbo.topology.processor.topology.TopologyHandler.TopologyBroadcastInfo;
 
+import io.grpc.Status;
+import io.grpc.stub.StreamObserver;
+
 /**
- * See: topology/AnalysisDTO.proto
+ * See: topology/AnalysisDTO.proto.
  */
 public class AnalysisService extends AnalysisServiceImplBase {
 
@@ -98,7 +103,7 @@ public class AnalysisService extends AnalysisServiceImplBase {
         // until the edit functionality is more fleshed out (e.g. with group recalculation,
         // etc.) before doing it.
         if (request.getScenarioChangeCount() > 0) {
-            topology = editTopology(topology, request.getScenarioChangeList());
+            topology = editTopology(topology, request.getScenarioChangeList(), identityProvider);
         }
 
         final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
@@ -129,9 +134,12 @@ public class AnalysisService extends AnalysisServiceImplBase {
         }
     }
 
+    @VisibleForTesting
     @Nonnull
-    private Collection<TopologyEntityDTO> editTopology(@Nonnull final Collection<TopologyEntityDTO> topology,
-                                                @Nonnull final List<ScenarioChange> changes) {
+    protected static Collection<TopologyEntityDTO> editTopology(
+                    @Nonnull final Collection<TopologyEntityDTO> topology,
+                    @Nonnull final List<ScenarioChange> changes,
+                    @Nonnull final IdentityProvider identityProvider) {
         final Map<Long, TopologyAddition> additions = new HashMap<>();
         final Map<Long, TopologyRemoval> removals = new HashMap<>();
 
@@ -166,18 +174,7 @@ public class AnalysisService extends AnalysisServiceImplBase {
             if (addition != null) {
                 final int addCount = addition.hasAdditionCount() ? addition.getAdditionCount() : 1;
                 for (int i = 0; i < addCount; ++i) {
-                    // TODO: We need to remove provider Id of commodity bought for all clone entities,
-                    // and it requires to refactor TopologyConverter class in order to convert related
-                    // commodity bought to correct Biclique commodity bought. (see OM-25520)
-                    final TopologyEntityDTO clone = TopologyEntityDTO.newBuilder(entity)
-                            // This may get confusing if there are multiple clone entities,
-                            // but the display name isn't supposed to uniquely identify
-                            // the entity anyway. The important thing is to indicate
-                            // that this is a clone.
-                            .setDisplayName(entity.getDisplayName() + " - Clone")
-                            .setOid(identityProvider.getCloneId(entity))
-                            .build();
-                    updatedEntities.add(clone);
+                    updatedEntities.add(clone(entity, identityProvider, i));
                 }
             }
 
@@ -189,5 +186,44 @@ public class AnalysisService extends AnalysisServiceImplBase {
         });
 
         return updatedEntities;
+    }
+
+    /**
+     * Create a clone of a topology entity, modifying some values, including
+     * oid, display name, and unplacing the shopping lists.
+     *
+     * @param entity source topology entity
+     * @param identityProvider used to generate an oid for the clone
+     * @param cloneCounter used in the display name
+     * @return the cloned entity
+     */
+    private static TopologyEntityDTO clone(TopologyEntityDTO entity,
+            @Nonnull final IdentityProvider identityProvider,
+            int cloneCounter) {
+        final TopologyEntityDTO.Builder cloneBuilder =
+                TopologyEntityDTO.newBuilder(entity)
+                    .clearCommoditiesBoughtFromProviders();
+    // unplace all commodities bought, so that the market creates a Placement action for them.
+    Map<Long, Long> oldProvidersMap = Maps.newHashMap();
+    long noProvider = 0;
+    for (CommoditiesBoughtFromProvider bought :
+                        entity.getCommoditiesBoughtFromProvidersList()) {
+        long oldProvider = bought.getProviderId();
+        cloneBuilder.addCommoditiesBoughtFromProviders(
+            bought.toBuilder().setProviderId(--noProvider).build());
+        oldProvidersMap.put(noProvider,  oldProvider);
+    }
+    Map<String, String> entityProperties =
+                    Maps.newHashMap(cloneBuilder.getEntityPropertyMapMap());
+    if (!oldProvidersMap.isEmpty()) {
+        // TODO: OM-26631 - get rid of unstructured data and Gson
+        entityProperties.put("oldProviders", new Gson().toJson(oldProvidersMap) );
+    }
+    final TopologyEntityDTO clone = cloneBuilder
+            .setDisplayName(entity.getDisplayName() + " - Clone #" + cloneCounter)
+            .setOid(identityProvider.getCloneId(entity))
+            .putAllEntityPropertyMap(entityProperties)
+            .build();
+    return clone;
     }
 }

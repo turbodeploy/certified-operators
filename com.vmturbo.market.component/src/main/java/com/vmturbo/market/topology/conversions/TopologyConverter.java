@@ -2,6 +2,7 @@ package com.vmturbo.market.topology.conversions;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -24,6 +25,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+import com.google.gson.Gson;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
@@ -317,13 +319,15 @@ public class TopologyConverter {
         List<TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider> topoDTOCommonBoughtGrouping =
             new ArrayList<>();
         long pmOid = 0L;
-        List<Long> storageOidList = new ArrayList<>();
+        List<Long> storageOidList = Collections.emptyList();
         // for a VM, find its associated PM to ST list map
         if (traderTO.getType() == EntityType.VIRTUAL_MACHINE_VALUE) {
             Map<Long, List<Long>> pm2stMap = createPMToSTMap(traderTO.getShoppingListsList());
-            // there should be only one pm supplier for vm
-            pmOid = pm2stMap.keySet().iterator().next();
-            storageOidList = pm2stMap.get(pmOid);
+            // there should be only one pm supplier for vm, zero if the vm is unplaced
+            if (!pm2stMap.isEmpty()) {
+                pmOid = pm2stMap.keySet().iterator().next();
+                storageOidList = pm2stMap.get(pmOid);
+            }
         }
         for (EconomyDTOs.ShoppingListTO sl : traderTO.getShoppingListsList()) {
             List<TopologyDTO.CommodityBoughtDTO> commList =
@@ -592,9 +596,20 @@ public class TopologyConverter {
                     : EconomyDTOs.TraderStateTO.INACTIVE;
     }
 
+    private static final String EMPTY_JSON = "{}";
+
+    /**
+     * Create the shopping lists for a topology entity. A shopping list is
+     * a collection of commodities bought from the same provider.
+     *
+     * @param topologyEntity a topology entity received from the topology processor
+     * @return list of shopping lists bought by the corresponding trader
+     */
     @Nonnull
     private List<EconomyDTOs.ShoppingListTO> createAllShoppingLists(
             @Nonnull final TopologyDTO.TopologyEntityDTO topologyEntity) {
+        // used for the case when a plan VM is unplaced
+        Map<Long, Long> providers = oldProviders(topologyEntity);
         return topologyEntity.getCommoditiesBoughtFromProvidersList().stream()
             // skip converting shoppinglist that buys from VDC
             .filter(commBoughtGrouping -> !guaranteedList.contains(commBoughtGrouping.getProviderId()))
@@ -603,16 +618,44 @@ public class TopologyConverter {
                     topologyEntity.getEntityType(),
                     topologyEntity.getConsumerPolicy().getShopsTogether(),
                     getProviderId(commBoughtGrouping),
-                    commBoughtGrouping.getCommodityBoughtList()))
+                    commBoughtGrouping.getCommodityBoughtList(),
+                    providers))
             .collect(Collectors.toList());
     }
 
     /**
+     * Extract the old providers mapping. When creating a copy of an entity in
+     * a plan, we "un-place" the entity by changing the provider oids in the
+     * cloned shopping lists to oids that do not exist in the topology. But we
+     * still need to know who were the original providers (for the purpose of
+     * creating bicliques). This map provides the mapping between the provider
+     * oids in the cloned object and the provider oids in the source object.
+     *
+     * @param topologyEntity a buyer in the topology
+     * @return map from provider oids in the cloned shopping list and
+     * the source shopping lists. If the entity is not a clone in a plan
+     * then the map is empty.
+     */
+    private Map<Long, Long> oldProviders(TopologyEntityDTO topologyEntity) {
+        // TODO: OM-26631 - get rid of unstructured data and Gson
+        @SuppressWarnings("unchecked")
+        Map<String, Double> oldProviders = new Gson().fromJson(
+            topologyEntity.getEntityPropertyMapMap()
+                .getOrDefault("oldProviders", EMPTY_JSON), Map.class);
+        return oldProviders.entrySet().stream()
+            .collect(Collectors.toMap(e -> Long.decode(e.getKey()),
+                e -> e.getValue().longValue()));
+    }
+
+    /**
      * Create a shopping list for a specified buyer and the entity it is buying from.
+     *
      * @param buyerOid the OID of the buyer of the shopping list
      * @param entityType the entity type of the buyer
+     * @param shopTogether whether the entity supports the shop-together feature
      * @param providerOid the oid of the seller of the shopping list
      * @param commoditiesBought the commodities bought by the buyer from the provider
+     * @param providers a map that captures the previous placement for unplaced plan entities
      * @return a shopping list between the buyer and seller
      */
     @Nonnull
@@ -621,7 +664,8 @@ public class TopologyConverter {
             final long entityType,
             final boolean shopTogether,
             @Nullable final Long providerOid,
-            @Nonnull final List<TopologyDTO.CommodityBoughtDTO> commoditiesBought) {
+            @Nonnull final List<TopologyDTO.CommodityBoughtDTO> commoditiesBought,
+            final Map<Long, Long> providers) {
         TopologyDTO.TopologyEntityDTO provider = (providerOid != null) ? entityOidToDto.get(providerOid) : null;
         float moveCost = !isPlan && (entityType == EntityType.VIRTUAL_MACHINE_VALUE
                 && provider != null // this check is for testing purposes
@@ -631,7 +675,7 @@ public class TopologyConverter {
         Set<EconomyDTOs.CommodityBoughtTO> values = commoditiesBought
             .stream()
             .filter(topoCommBought -> topoCommBought.getActive())
-            .map(topoCommBought -> convertCommodityBought(topoCommBought, providerOid, shopTogether))
+            .map(topoCommBought -> convertCommodityBought(topoCommBought, providerOid, shopTogether, providers))
             .filter(comm -> comm != null) // Null for DSPMAccess/Datastore and shop-together
             .collect(Collectors.toSet());
         final long id = shoppingListId++;
@@ -701,14 +745,16 @@ public class TopologyConverter {
     private EconomyDTOs.CommodityBoughtTO convertCommodityBought(
             @Nonnull final TopologyDTO.CommodityBoughtDTO topologyCommBought,
             @Nullable final Long providerOid,
-            final boolean shopTogether) {
+            final boolean shopTogether,
+            final Map<Long, Long> providers) {
         CommodityType type = topologyCommBought.getCommodityType();
         return isBicliqueCommodity(type)
             ? shopTogether
                 // skip DSPMAcess and Datastore commodities in the case of shop-together
                 ? null
                 // convert them to biclique commodities if not shop-together
-                : generateBcCommodityBoughtTO(providerOid, type)
+                : generateBcCommodityBoughtTO(
+                    providers.getOrDefault(providerOid, providerOid), type)
             // all other commodities - convert to DTO regardless of shop-together
             : EconomyDTOs.CommodityBoughtTO.newBuilder()
                 .setQuantity((float)topologyCommBought.getUsed())
@@ -729,7 +775,7 @@ public class TopologyConverter {
     @Nullable
     private EconomyDTOs.CommodityBoughtTO generateBcCommodityBoughtTO(@Nullable final Long providerOid,
                                                                       final CommodityType type) {
-        if(providerOid == null) {
+        if (providerOid == null) {
             // TODO: After we remove provider ids of commodity bought for clone entities of Plan,
             // then we need to refactor TopologyConverter class to allow this case.
             logger.error("Biclique commodity bought type {} doesn't have provider id");

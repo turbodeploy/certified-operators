@@ -203,7 +203,7 @@ public class AnalysisServiceTest {
 
         final TopologyEntityDTO expectedClone = TopologyEntityDTO.newBuilder(testEntity.build())
                 .setOid(11L)
-                .setDisplayName("test - Clone")
+                .setDisplayName("test - Clone #0")
                 .build();
 
         verify(topologyHandler).broadcastTopology(eq(topologyInfo), broadcastCaptor.capture());
@@ -231,11 +231,13 @@ public class AnalysisServiceTest {
 
         final TopologyEntityDTO expectedClone1 = TopologyEntityDTO.newBuilder()
                 .setOid(11L)
-                .setDisplayName("test - Clone")
+                .setDisplayName("test - Clone #0")
                 .setEntityType(1)
                 .build();
-        final TopologyEntityDTO expectedClone2 = TopologyEntityDTO.newBuilder(expectedClone1)
+        final TopologyEntityDTO expectedClone2 = TopologyEntityDTO.newBuilder()
                 .setOid(12)
+                .setDisplayName("test - Clone #1")
+                .setEntityType(1)
                 .build();
 
         verify(topologyHandler).broadcastTopology(eq(topologyInfo), broadcastCaptor.capture());
