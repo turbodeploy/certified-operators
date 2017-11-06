@@ -34,6 +34,95 @@ message ScenarioInfo {
     optional string type = 3;
 }
 
+// A plan project is a container that acts as a context for a series of related (and/or interrelated)
+// plan runs that happen on some schedule.
+message PlanProject {
+    // The ID of the plan project
+    optional int64 plan_project_id = 1;
+
+    // Information describing the plan project
+    optional PlanProjectInfo plan_project_info = 2;
+}
+
+// Information describing the plan project.
+message PlanProjectInfo {
+    // The name of the plan project, it's for display purposes.
+    optional string plan_project_info_name = 1;
+
+    // The list of scenarios
+    repeated Scenario plan_project_info_scenarios = 2;
+
+    // The Recurrence of the execution
+    optional Recurrence plan_project_info_recurrence = 3;
+}
+
+// The Recurrence of the execution
+message Recurrence {
+    // The schedule of the recurrence.
+    // This determines the days on which to run the project.
+    optional Schedule schedule = 1;
+
+    // The time of the run in the days determined by schedule.
+    optional TimeOfRun time_of_run = 2;
+
+    message Daily {}
+
+    enum DayOfWeek {
+        MON = 1;
+        TUE = 2;
+        WED = 3;
+        THU = 4;
+        FRI = 5;
+        SAT = 6;
+        SUN = 7;
+    }
+
+    message Weekly {
+        // specify the day(s) of the week, default to Sunday
+        optional DayOfWeek day_of_week = 1;
+    }
+
+    message Monthly {
+        // specify the day(s) of the month (1-31). default to first day of the month
+        optional int32 day_of_month = 1 [default = 1];
+    }
+
+    message TimeOfRun {
+        // specify the hour in a day (0-23), default to 4AM
+        optional int32 hour = 1 [default = 4];
+    }
+
+    message Schedule {
+        oneof recurrence {
+            Daily daily = 1;
+            Weekly weekly = 2;
+            Monthly monthly = 3;
+        }
+    }
+}
+
+message GetPlanProjectRequest {
+    required int64 project_id = 1;
+}
+
+message GetPlanProjectResponse {
+    // If set, the get the plan project
+    // Will be unset if the project_id in
+    // the request referred to a non-existing plan project.
+    optional PlanProject project = 1;
+}
+
+message DeletePlanProjectRequest {
+    required int64 project_id = 1;
+}
+
+message DeletePlanProjectResponse {
+    // If set, the deleted project_id.
+    // Will be unset if the project_id in
+    // the request referred to a non-existing plan project.
+    optional int64 project_id = 1;
+}
+
 message ScenarioChange {
     // Specific details about the change that should be made. Can be one of many different cases.
     oneof details {
@@ -283,6 +372,36 @@ service ScenarioService {
     // @returns the ID of the Scenario that was deleted, if found,
     // or the ID in the response will be unset if not found.
     rpc DeleteScenario(ScenarioId) returns (DeleteScenarioResponse);
+}
+
+// A service responsible for CRUD operations for plan project.
+// A plan project contains:
+// * An ID
+// * A name
+// * A list of Plan Scenarios
+// * Recurrence information - when and how often the plan project will be executed
+// Plan project will be persisted to the Plan database.
+service PlanProjectService {
+
+    // Create a project given the information about a project.
+    // The newly created Project will be persisted to the Plan database.
+    //
+    // @returns the newly created project
+    rpc CreatePlanProject (PlanProjectInfo) returns (PlanProject);
+
+    // Get a project by its ID.
+    // Searches the plan project persisted previously to the Plan database.
+    //
+    // @parameter GetPlanProjectRequest indicates the ID of the plan project to search for.
+    // @returns the Project with the given ID; if not found, the PlanProject will not be set
+    rpc GetPlanProject(GetPlanProjectRequest) returns (GetPlanProjectResponse);
+
+    // Delete an existing plan project from the Plan database.
+    //
+    // @param DeletePlanProjectRequest the unique ID of the project to be deleted
+    // @returns the ID of the Project that was deleted, if found,
+    // or the ID in the response will be unset if not found.
+    rpc DeletePlanProject(DeletePlanProjectRequest) returns (DeletePlanProjectResponse);
 }
 
 // A service responsible for CRUD operations for plan instances.

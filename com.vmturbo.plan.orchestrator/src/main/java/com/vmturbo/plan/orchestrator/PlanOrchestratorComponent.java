@@ -22,8 +22,10 @@ import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.SQLDBHealthMonitor;
 import com.vmturbo.plan.orchestrator.deployment.profile.DeploymentProfileConfig;
 import com.vmturbo.plan.orchestrator.plan.PlanConfig;
+import com.vmturbo.plan.orchestrator.project.PlanProjectConfig;
 import com.vmturbo.plan.orchestrator.scenario.ScenarioConfig;
 import com.vmturbo.plan.orchestrator.scheduled.ClusterRollupSchedulerConfig;
+import com.vmturbo.plan.orchestrator.scheduled.PlanProjectSchedulerConfig;
 import com.vmturbo.plan.orchestrator.templates.TemplatesConfig;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
@@ -40,7 +42,9 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
         TemplatesConfig.class,
         ApiSecurityConfig.class,
         GlobalConfig.class,
-        SQLDatabaseConfig.class})
+        SQLDatabaseConfig.class,
+        PlanProjectSchedulerConfig.class,
+        PlanProjectConfig.class})
 public class PlanOrchestratorComponent extends BaseVmtComponent {
     private static final Logger LOGGER = LogManager.getLogger();
 
@@ -67,6 +71,12 @@ public class PlanOrchestratorComponent extends BaseVmtComponent {
 
     @Autowired
     private ClusterRollupSchedulerConfig clusterRollupSchedulerConfig;
+
+    @Autowired
+    private PlanProjectConfig planProjectConfig;
+
+    @Autowired
+    private PlanProjectSchedulerConfig schedulerConfig;
 
     @PostConstruct
     private void setup() {
@@ -105,6 +115,7 @@ public class PlanOrchestratorComponent extends BaseVmtComponent {
                 .addService(templatesConfig.templateSpecService())
                 .addService(templatesConfig.discoveredTemplateDeploymentProfileService())
                 .addService(deploymentProfileConfig.deploymentProfileRpcService())
+                .addService(planProjectConfig.planProjectService())
                 .build());
     }
 }

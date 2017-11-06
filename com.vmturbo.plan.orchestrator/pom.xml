@@ -114,6 +114,10 @@
                                     <converter>com.vmturbo.plan.orchestrator.scenario.ScenarioInfoConverter</converter>
                                 </customType>
                                 <customType>
+                                    <name>com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectInfo</name>
+                                    <converter>com.vmturbo.plan.orchestrator.project.PlanProjectInfoConverter</converter>
+                                </customType>
+                                <customType>
                                     <name>com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance</name>
                                     <converter>com.vmturbo.plan.orchestrator.plan.PlanInstanceConverter</converter>
                                 </customType>
@@ -144,6 +148,10 @@
                                 <forcedType>
                                     <name>com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance</name>
                                     <expression>.*\.plan_instance\.plan_instance</expression>
+                                </forcedType>
+                                <forcedType>
+                                    <name>com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectInfo</name>
+                                    <expression>.*\.plan_project\.project_info</expression>
                                 </forcedType>
                                 <forcedType>
                                     <name>com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo</name>
