@@ -39,7 +39,7 @@ import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
 import com.vmturbo.topology.processor.stitching.StitchingOperationStore;
 import com.vmturbo.topology.processor.targets.TargetStore;
-import com.vmturbo.topology.processor.templates.DiscoveredTemplateDeploymentProfileNotifier;
+import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileNotifier;
 
 /**
  * Unit test for {@link TopologyHandler}.

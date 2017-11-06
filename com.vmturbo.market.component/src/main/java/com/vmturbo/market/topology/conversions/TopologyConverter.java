@@ -364,7 +364,6 @@ public class TopologyConverter {
         }
 
         TopologyDTO.EntityState entityState = TopologyDTO.EntityState.POWERED_ON;
-
         TopologyDTO.TopologyEntityDTO originalTrader = traderOidToEntityDTO.get(traderTO.getOid());
         String displayName = originalTrader != null ? originalTrader.getDisplayName()
                         : traderOidToEntityDTO.get(traderTO.getCloneOf()).getDisplayName()
@@ -527,6 +526,7 @@ public class TopologyConverter {
                 EntitySettings.NumericKey.DESIRED_UTILIZATION_MAX.value(topologyDTO))
             .setGuaranteedBuyer(isGuranteedBuyer)
             .setCanAcceptNewCustomers(topologyDTO.getProviderPolicy().getIsAvailableAsProvider())
+            .setIsShopTogether(shopTogether)
             .setIsEligibleForResizeDown(isPlan)
             .build();
         Set<Long> allCliques = shopTogether

@@ -13,9 +13,9 @@ import com.vmturbo.topology.processor.api.server.TopologyProcessorApiConfig;
 import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.group.GroupConfig;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
+import com.vmturbo.topology.processor.plan.PlanConfig;
 import com.vmturbo.topology.processor.stitching.StitchingConfig;
 import com.vmturbo.topology.processor.targets.TargetConfig;
-import com.vmturbo.topology.processor.templates.DiscoveredTemplateDeploymentProfileConfig;
 
 /**
  * Configuration for the Topology package in TopologyProcessor.
@@ -26,8 +26,8 @@ import com.vmturbo.topology.processor.templates.DiscoveredTemplateDeploymentProf
     EntityConfig.class,
     IdentityProviderConfig.class,
     GroupConfig.class,
-    DiscoveredTemplateDeploymentProfileConfig.class,
     StitchingConfig.class,
+    PlanConfig.class,
     TargetConfig.class
 })
 public class TopologyConfig {
@@ -45,7 +45,7 @@ public class TopologyConfig {
     private GroupConfig groupConfig;
 
     @Autowired
-    private DiscoveredTemplateDeploymentProfileConfig discoveredTemplateDeploymentProfileConfig;
+    private PlanConfig planConfig;
 
     @Autowired
     private StitchingConfig stitchingConfig;
@@ -64,7 +64,7 @@ public class TopologyConfig {
                 identityProviderConfig.identityProvider(),
                 groupConfig.policyManager(),
                 stitchingConfig.stitchingManager(),
-                discoveredTemplateDeploymentProfileConfig.discoveredTemplatesUploader(),
+                planConfig.discoveredTemplatesUploader(),
                 groupConfig.discoveredGroupUploader(),
                 groupConfig.settingsManager(),
                 Clock.systemUTC());

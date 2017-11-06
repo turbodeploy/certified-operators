@@ -11,7 +11,9 @@ import org.springframework.context.annotation.Import;
 import com.vmturbo.common.protobuf.topology.AnalysisDTOREST.AnalysisServiceController;
 import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
+import com.vmturbo.topology.processor.plan.PlanConfig;
 import com.vmturbo.topology.processor.repository.RepositoryConfig;
+import com.vmturbo.topology.processor.template.TemplateConverterFactory;
 import com.vmturbo.topology.processor.topology.TopologyConfig;
 
 /**
@@ -34,16 +36,27 @@ public class AnalysisConfig {
     @Autowired
     private RepositoryConfig repositoryConfig;
 
+    @Autowired
+    private PlanConfig planConfig;
+
     @Bean
     public AnalysisService analysisService() {
         return new AnalysisService(topologyConfig.topologyHandler(),
-                entityConfig.entityStore(), identityProviderConfig.identityProvider(),
+                entityConfig.entityStore(),
+                identityProviderConfig.identityProvider(),
                 repositoryConfig.repository(),
-                Clock.systemUTC());
+                Clock.systemUTC(),
+                templateConverterFactory());
     }
 
     @Bean
     public AnalysisServiceController analysisServiceController() {
         return new AnalysisServiceController(analysisService());
+    }
+
+    @Bean
+    public TemplateConverterFactory templateConverterFactory() {
+        return new TemplateConverterFactory(planConfig.templateServiceBlockingStub(),
+            identityProviderConfig.identityProvider());
     }
 }

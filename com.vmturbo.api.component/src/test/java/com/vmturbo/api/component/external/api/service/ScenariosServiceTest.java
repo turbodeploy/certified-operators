@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
-import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -19,7 +18,7 @@ import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ScenarioMapper;
-import com.vmturbo.api.dto.scenario.ScenarioApiDTO;
+import com.vmturbo.api.component.external.api.util.TemplatesUtils;
 import com.vmturbo.api.dto.scenario.ScenarioApiDTO;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.common.protobuf.plan.PlanDTO;
@@ -72,9 +71,10 @@ public class ScenariosServiceTest {
     public void setup() throws IOException {
 
         final RepositoryApi repositoryApi = Mockito.mock(RepositoryApi.class);
+        final TemplatesUtils templatesUtils = Mockito.mock(TemplatesUtils.class);
         Mockito.when(repositoryApi.getServiceEntitiesById(Mockito.any()))
                .thenReturn(Collections.emptyMap());
-        scenarioMapper = new ScenarioMapper(repositoryApi);
+        scenarioMapper = new ScenarioMapper(repositoryApi, templatesUtils);
 
         scenariosService = new ScenariosService(grpcServer.getChannel(), scenarioMapper);
 

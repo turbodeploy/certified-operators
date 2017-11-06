@@ -7,7 +7,6 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Optional;
@@ -23,15 +22,15 @@ import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
+import com.vmturbo.api.component.external.api.util.TemplatesUtils;
 import com.vmturbo.api.dto.BaseApiDTO;
+import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.scenario.AddObjectApiDTO;
 import com.vmturbo.api.dto.scenario.RemoveObjectApiDTO;
 import com.vmturbo.api.dto.scenario.ReplaceObjectApiDTO;
-import com.vmturbo.api.dto.scenario.ScenarioChangeApiDTO;
-import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.scenario.ScenarioApiDTO;
 import com.vmturbo.api.dto.scenario.TopologyChangesApiDTO;
-import com.vmturbo.api.enums.PlanChangeType.PlanModificationState;
+import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.DetailsCase;
@@ -39,6 +38,8 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyAddition;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyRemoval;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyReplace;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 
 public class ScenarioMapperTest {
     private static final String SCENARIO_NAME = "MyScenario";
@@ -46,17 +47,21 @@ public class ScenarioMapperTest {
 
     private RepositoryApi repositoryApi;
 
+    private TemplatesUtils templatesUtils;
+
     private ScenarioMapper scenarioMapper;
 
     @Before
     public void setup() throws IOException {
         repositoryApi = Mockito.mock(RepositoryApi.class);
+        templatesUtils = Mockito.mock(TemplatesUtils.class);
+
 
         // Return empty by default to keep NPE's at bay.
         when(repositoryApi.getServiceEntitiesById(any()))
             .thenReturn(Collections.emptyMap());
 
-        scenarioMapper = new ScenarioMapper(repositoryApi);
+        scenarioMapper = new ScenarioMapper(repositoryApi, templatesUtils);
     }
 
     @Test
@@ -68,7 +73,7 @@ public class ScenarioMapperTest {
         dto.setCount(6);
         topoChanges.setAddList(Collections.singletonList(dto));
 
-        ScenarioInfo info = ScenarioMapper.toScenarioInfo(SCENARIO_NAME, scenarioApiDTO(topoChanges));
+        ScenarioInfo info = scenarioMapper.toScenarioInfo(SCENARIO_NAME, scenarioApiDTO(topoChanges));
         assertEquals(SCENARIO_NAME, info.getName());
         assertEquals(1, info.getChangesCount());
         assertEquals(DetailsCase.TOPOLOGY_ADDITION, info.getChanges(0).getDetailsCase());
@@ -80,6 +85,36 @@ public class ScenarioMapperTest {
     }
 
     @Test
+    public void testTemplateAdditionChange() {
+        TopologyChangesApiDTO topoChanges = new TopologyChangesApiDTO();
+        AddObjectApiDTO dto = new AddObjectApiDTO();
+        dto.setProjectionDays(Collections.singletonList(2));
+        dto.setTarget(template(1));
+        dto.setCount(6);
+        topoChanges.setAddList(Collections.singletonList(dto));
+
+        Template template = Template.newBuilder()
+            .setId(1)
+            .setTemplateInfo(TemplateInfo.newBuilder()
+                .setName("template"))
+            .build();
+        when(templatesUtils.getTemplatesByIds(eq(Sets.newHashSet(1L))))
+            .thenReturn(Sets.newHashSet(template));
+
+        ScenarioInfo info = scenarioMapper.toScenarioInfo(SCENARIO_NAME, scenarioApiDTO(topoChanges));
+
+        assertEquals(SCENARIO_NAME, info.getName());
+        assertEquals(1, info.getChangesCount());
+        assertEquals(DetailsCase.TOPOLOGY_ADDITION, info.getChanges(0).getDetailsCase());
+
+        TopologyAddition addition = info.getChanges(0).getTopologyAddition();
+        assertEquals(6, addition.getAdditionCount());
+        assertEquals(1, addition.getTemplateId());
+        assertEquals(Collections.singletonList(2), addition.getChangeApplicationDaysList());
+
+    }
+
+    @Test
     public void testRemovalChange() {
         TopologyChangesApiDTO topoChanges = new TopologyChangesApiDTO();
         RemoveObjectApiDTO dto = new RemoveObjectApiDTO();
@@ -87,7 +122,7 @@ public class ScenarioMapperTest {
         dto.setTarget(entity(1));
         topoChanges.setRemoveList(Collections.singletonList(dto));
 
-        ScenarioInfo info = ScenarioMapper.toScenarioInfo(SCENARIO_NAME, scenarioApiDTO(topoChanges));
+        ScenarioInfo info = scenarioMapper.toScenarioInfo(SCENARIO_NAME, scenarioApiDTO(topoChanges));
         assertEquals(SCENARIO_NAME, info.getName());
         assertEquals(1, info.getChangesCount());
         assertEquals(DetailsCase.TOPOLOGY_REMOVAL, info.getChanges(0).getDetailsCase());
@@ -102,7 +137,7 @@ public class ScenarioMapperTest {
         ScenarioApiDTO scenarioDto = new ScenarioApiDTO();
         scenarioDto.setScope(Collections.singletonList(entity(1)));
 
-        ScenarioInfo info = ScenarioMapper.toScenarioInfo(SCENARIO_NAME, scenarioDto);
+        ScenarioInfo info = scenarioMapper.toScenarioInfo(SCENARIO_NAME, scenarioDto);
         assertEquals(0, info.getChangesCount());
     }
 
@@ -112,10 +147,10 @@ public class ScenarioMapperTest {
         ReplaceObjectApiDTO dto = new ReplaceObjectApiDTO();
         dto.setProjectionDay(5);
         dto.setTarget(entity(1));
-        dto.setTemplate(entity(2));
+        dto.setTemplate(template(2));
         topoChanges.setReplaceList(Collections.singletonList(dto));
 
-        ScenarioInfo info = ScenarioMapper.toScenarioInfo(SCENARIO_NAME, scenarioApiDTO(topoChanges));
+        ScenarioInfo info = scenarioMapper.toScenarioInfo(SCENARIO_NAME, scenarioApiDTO(topoChanges));
         assertEquals(SCENARIO_NAME, info.getName());
         assertEquals(1, info.getChangesCount());
 
@@ -141,7 +176,7 @@ public class ScenarioMapperTest {
         topoChanges.setAddList(Collections.singletonList(addDto));
         topoChanges.setRemoveList(Collections.singletonList(removeDto));
 
-        ScenarioInfo info = ScenarioMapper
+        ScenarioInfo info = scenarioMapper
             .toScenarioInfo(SCENARIO_NAME, scenarioApiDTO(topoChanges));
         assertEquals(2, info.getChangesCount());
 
@@ -234,6 +269,29 @@ public class ScenarioMapperTest {
     }
 
     @Test
+    public void testToApiAdditionWithTemplate() {
+        Scenario scenario = buildScenario(ScenarioChange.newBuilder()
+            .setTopologyAddition(TopologyAddition.newBuilder()
+                .setAdditionCount(10)
+                .setTemplateId(1))
+            .build());
+
+        TemplateApiDTO vmDto = new TemplateApiDTO();
+        vmDto.setClassName("VirtualMachine");
+        vmDto.setDisplayName("VM #100");
+
+        when(templatesUtils.getTemplatesMapByIds(eq(Sets.newHashSet(1L))))
+            .thenReturn(ImmutableMap.of(1L, vmDto));
+        ScenarioApiDTO dto = scenarioMapper.toScenarioApiDTO(scenario);
+        // The first two are "special" hack changes - SCOPE and PROJECTION_PERIOD.
+        assertEquals(1, dto.getTopologyChanges().getAddList().size());
+
+        AddObjectApiDTO changeDto = dto.getTopologyChanges().getAddList().get(0);
+        assertEquals("1", changeDto.getTarget().getUuid());
+        assertEquals(Integer.valueOf(10), changeDto.getCount());
+    }
+
+    @Test
     public void testToApiEntityTypeUnknown() {
         Scenario scenario = buildScenario(ScenarioChange.newBuilder()
                 .setTopologyAddition(TopologyAddition.newBuilder()
@@ -271,5 +329,13 @@ public class ScenarioMapperTest {
         dto.setTopologyChanges(topoChanges);
 
         return dto;
+    }
+
+    private BaseApiDTO template(long templateId) {
+        BaseApiDTO template = new BaseApiDTO();
+        template.setClassName("Template");
+        template.setDisplayName("Template " + templateId);
+        template.setUuid(Long.toString(templateId));
+        return template;
     }
 }

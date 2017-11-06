@@ -56,6 +56,7 @@ import com.vmturbo.api.component.external.api.mapper.MarketMapper;
 import com.vmturbo.api.component.external.api.mapper.PolicyMapper;
 import com.vmturbo.api.component.external.api.mapper.ScenarioMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
+import com.vmturbo.api.component.external.api.util.TemplatesUtils;
 import com.vmturbo.api.component.external.api.websocket.UINotificationChannel;
 import com.vmturbo.api.controller.MarketsController;
 import com.vmturbo.api.dto.market.MarketApiDTO;
@@ -297,12 +298,17 @@ public class MarketsServiceTest {
 
         @Bean
         public ScenarioMapper scenarioMapper() {
-            return new ScenarioMapper(repositoryApi());
+            return new ScenarioMapper(repositoryApi(), templatesUtils());
         }
 
         @Bean
         public RepositoryApi repositoryApi() {
             return Mockito.mock(RepositoryApi.class);
+        }
+
+        @Bean
+        public TemplatesUtils templatesUtils() {
+            return Mockito.mock(TemplatesUtils.class);
         }
 
         @Bean

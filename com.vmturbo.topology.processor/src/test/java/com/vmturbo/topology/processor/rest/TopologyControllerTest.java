@@ -49,7 +49,7 @@ import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
 import com.vmturbo.topology.processor.targets.TargetStore;
-import com.vmturbo.topology.processor.templates.DiscoveredTemplateDeploymentProfileNotifier;
+import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileNotifier;
 import com.vmturbo.topology.processor.topology.TopologyHandler;
 
 /**

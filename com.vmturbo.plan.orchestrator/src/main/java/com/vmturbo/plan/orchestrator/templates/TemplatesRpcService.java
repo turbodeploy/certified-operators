@@ -1,8 +1,10 @@
 package com.vmturbo.plan.orchestrator.templates;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 
@@ -18,6 +20,7 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.DeleteTemplateRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.DeleteTemplatesByTargetRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.EditTemplateRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplateRequest;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesByIdsRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesByTypeRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
@@ -179,6 +182,22 @@ public class TemplatesRpcService extends TemplateServiceImplBase {
         } catch (DataAccessException e) {
             responseObserver.onError(Status.INTERNAL
                 .withDescription("Failed to get template by entity type " + request.getEntityType() + ".")
+                .asException());
+        }
+    }
+
+    @Override
+    public void getTemplatesByIds(GetTemplatesByIdsRequest request,
+                                  StreamObserver<Template> responseObserver) {
+        try {
+            final Set<Long> templateIds = new HashSet<>(request.getTemplateIdsList());
+            for (Template template : templatesDao.getTemplates(templateIds)) {
+                responseObserver.onNext(template);
+            }
+            responseObserver.onCompleted();
+        } catch (DataAccessException e) {
+            responseObserver.onError(Status.INTERNAL
+                .withDescription("Failed to get templates.")
                 .asException());
         }
     }

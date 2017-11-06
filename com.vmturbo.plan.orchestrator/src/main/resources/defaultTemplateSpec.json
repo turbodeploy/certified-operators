@@ -25,7 +25,7 @@
             "name" : "cpuConsumedFactor",
             "displayName" : "Utilization",
             "units" : "%",
-            "divisor" : "100f",
+            "divisor" : "0.01f",
             "valueType" : "NUMERIC",
             "description" : "CPU Consumed Factor"
           },
@@ -33,7 +33,6 @@
             "name" : "memorySize",
             "displayName" : "Size",
             "units" : "MB",
-            "divisor" : "1024f",
             "valueType" : "NUMERIC",
             "description" : "Memory Size"
           },
@@ -41,7 +40,7 @@
             "name" : "memoryConsumedFactor",
             "displayName" : "Utilization",
             "units" : "%",
-            "divisor" : "100f",
+            "divisor" : "0.01f",
             "valueType" : "NUMERIC",
             "description" : "Memory Consumed Factor"
           },
@@ -103,7 +102,7 @@
             "name" : "diskConsumedFactor",
             "displayName" : "Utilization",
             "units" : "%",
-            "divisor" : "100f",
+            "divisor" : "0.01f",
             "valueType" : "NUMERIC",
             "description" : "Disk Consumed Factor"
           },
@@ -151,7 +150,6 @@
             "name" : "memorySize",
             "displayName" : "Size",
             "units" : "MB",
-            "divisor" : "1024f",
             "valueType" : "NUMERIC",
             "description" : "Memory Size"
           },

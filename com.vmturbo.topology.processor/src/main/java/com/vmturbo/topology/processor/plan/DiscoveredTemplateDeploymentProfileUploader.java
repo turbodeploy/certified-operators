@@ -1,4 +1,4 @@
-package com.vmturbo.topology.processor.templates;
+package com.vmturbo.topology.processor.plan;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -9,8 +9,6 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 

@@ -7,6 +7,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.api.component.communication.CommunicationConfig;
+import com.vmturbo.api.component.external.api.util.TemplatesUtils;
 
 @Configuration
 @Import({CommunicationConfig.class})
@@ -38,7 +39,7 @@ public class MapperConfig {
 
     @Bean
     public ScenarioMapper scenarioMapper() {
-        return new ScenarioMapper(communicationConfig.repositoryApi());
+        return new ScenarioMapper(communicationConfig.repositoryApi(), templatesUtils());
     }
 
     @Bean
@@ -59,6 +60,13 @@ public class MapperConfig {
     @Bean
     public TemplateMapper templateMapper() {
         return new TemplateMapper();
+    }
+
+    @Bean
+    public TemplatesUtils templatesUtils() {
+        return new TemplatesUtils(communicationConfig.templateServiceBlockingStub(),
+                                  communicationConfig.templateSpecServiceBlockingStub(),
+                                  templateMapper());
     }
 
     @Bean

@@ -33,10 +33,7 @@ public class TemplatesMapper {
 
     private static final Logger logger = LogManager.getLogger();
 
-    private static final float sizeDivisor = 1024f;
-
-    private static final float percentageDivisor = 100f;
-
+    private static final float ONE = 1.0f;
 
     /**
      * Convert Probe send EntityProfileDTO object o {@link com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo}
@@ -133,28 +130,28 @@ public class TemplatesMapper {
             String.valueOf(vmProfileDTO.getVCPUSpeed())));
         templateFields.add(createTemplateField(DiscoveredTemplatesConstantFields.VM_COMPUTE_CPU_CONSUMED_FACTOR,
             String.valueOf(getFieldFromCommodityDTO(profile.getCommodityProfileList(),
-                CommodityType.CPU).map(CommodityProfileDTO::getConsumedFactor)
-                .map(value -> value / percentageDivisor)
+                CommodityType.CPU)
+                .map(CommodityProfileDTO::getConsumedFactor)
                 .orElse(0.0f))));
         templateFields.add(createTemplateField(DiscoveredTemplatesConstantFields.VM_COMPUTE_MEM_SIZE,
             String.valueOf(getFieldFromCommodityDTO(profile.getCommodityProfileList(),
-                CommodityType.VMEM).map(CommodityProfileDTO::getCapacity)
-                .map(value -> value / sizeDivisor)
+                CommodityType.VMEM)
+                .map(CommodityProfileDTO::getCapacity)
                 .orElse(0.0f))));
         templateFields.add(createTemplateField(DiscoveredTemplatesConstantFields.VM_COMPUTE_MEM_CONSUMED_FACTOR,
             String.valueOf(getFieldFromCommodityDTO(profile.getCommodityProfileList(),
-                CommodityType.MEM).map(CommodityProfileDTO::getConsumedFactor)
-                .map(value -> value / percentageDivisor)
+                CommodityType.MEM)
+                .map(CommodityProfileDTO::getConsumedFactor)
                 .orElse(0.0f))));
         templateFields.add(createTemplateField(DiscoveredTemplatesConstantFields.VM_COMPUTE_IO_THROUGHPUT_CONSUMED,
             String.valueOf(getFieldFromCommodityDTO(profile.getCommodityProfileList(),
-                CommodityType.IO_THROUGHPUT).map(CommodityProfileDTO::getConsumed)
-                .map(value -> value / sizeDivisor)
+                CommodityType.IO_THROUGHPUT)
+                .map(CommodityProfileDTO::getConsumed)
                 .orElse(0.0f))));
         templateFields.add(createTemplateField(DiscoveredTemplatesConstantFields.VM_COMPUTE_NETWORK_THROUGHPUT_CONSUMED,
             String.valueOf(getFieldFromCommodityDTO(profile.getCommodityProfileList(),
-                CommodityType.NET_THROUGHPUT).map(CommodityProfileDTO::getConsumed)
-                .map(value -> value / sizeDivisor)
+                CommodityType.NET_THROUGHPUT)
+                .map(CommodityProfileDTO::getConsumed)
                 .orElse(0.0f))));
         return templateFields;
     }
@@ -169,16 +166,18 @@ public class TemplatesMapper {
         List<TemplateField> templateFields = new ArrayList<>();
         templateFields.add(createTemplateField(DiscoveredTemplatesConstantFields.VM_STORAGE_DISK_SIZE,
             String.valueOf(getFieldFromCommodityDTO(profile.getCommodityProfileList(),
-                CommodityType.VSTORAGE).map(CommodityProfileDTO::getCapacity)
-                .map(value -> value / sizeDivisor)
+                CommodityType.VSTORAGE)
+                .map(CommodityProfileDTO::getCapacity)
                 .orElse(0.0f))));
         templateFields.add(createTemplateField(DiscoveredTemplatesConstantFields.VM_STORAGE_DISK_IOPS_CONSUMED,
             String.valueOf(getFieldFromCommodityDTO(profile.getCommodityProfileList(),
-                CommodityType.STORAGE_ACCESS).map(CommodityProfileDTO::getConsumed)
+                CommodityType.STORAGE_ACCESS)
+                .map(CommodityProfileDTO::getConsumed)
                 .orElse(0.0f))));
         templateFields.add(createTemplateField(DiscoveredTemplatesConstantFields.VM_STORAGE_DISK_CONSUMED_FACTOR,
             String.valueOf(getFieldFromCommodityDTO(profile.getCommodityProfileList(),
-                CommodityType.STORAGE).map(CommodityProfileDTO::getConsumedFactor)
+                CommodityType.STORAGE)
+                .map(CommodityProfileDTO::getConsumedFactor)
                 .orElse(0.0f))));
 
         return templateFields;
@@ -199,18 +198,18 @@ public class TemplatesMapper {
             String.valueOf(pmProfileDTO.getCpuCoreSpeed())));
         templateFields.add(createTemplateField(DiscoveredTemplatesConstantFields.PM_COMPUTE_IO_THROUGHPUT_SIZE,
             String.valueOf(getFieldFromCommodityDTO(profile.getCommodityProfileList(),
-                CommodityType.IO_THROUGHPUT).map(CommodityProfileDTO::getCapacity)
-                .map(value -> value / sizeDivisor)
+                CommodityType.IO_THROUGHPUT)
+                .map(CommodityProfileDTO::getCapacity)
                 .orElse(0.0f))));
         templateFields.add(createTemplateField(DiscoveredTemplatesConstantFields.PM_COMPUTE_MEM_SIZE,
             String.valueOf(getFieldFromCommodityDTO(profile.getCommodityProfileList(),
-                CommodityType.MEM).map(CommodityProfileDTO::getCapacity)
-                .map(value -> value / sizeDivisor)
+                CommodityType.MEM)
+                .map(CommodityProfileDTO::getCapacity)
                 .orElse(0.0f))));
-        templateFields.add(createTemplateField(DiscoveredTemplatesConstantFields.PM_COMPUTE_NETWORK_THROUGHTPUT_SIZE,
+        templateFields.add(createTemplateField(DiscoveredTemplatesConstantFields.PM_COMPUTE_NETWORK_THROUGHPUT_SIZE,
             String.valueOf(getFieldFromCommodityDTO(profile.getCommodityProfileList(),
-                CommodityType.NET_THROUGHPUT).map(CommodityProfileDTO::getCapacity)
-                .map(value -> value / sizeDivisor)
+                CommodityType.NET_THROUGHPUT)
+                .map(CommodityProfileDTO::getCapacity)
                 .orElse(0.0f))));
         return templateFields;
     }
@@ -225,16 +224,19 @@ public class TemplatesMapper {
         List<TemplateField> templateFields = new ArrayList<>();
         templateFields.add(createTemplateField(DiscoveredTemplatesConstantFields.PM_INFRA_POWER_SIZE,
             String.valueOf(getFieldFromCommodityDTO(profile.getCommodityProfileList(),
-                CommodityType.POWER).map(CommodityProfileDTO::getCapacity)
-                .orElse(1.0f))));
+                CommodityType.POWER)
+                .map(CommodityProfileDTO::getCapacity)
+                .orElse(ONE))));
         templateFields.add(createTemplateField(DiscoveredTemplatesConstantFields.PM_INFRA_SPACE_SIZE,
             String.valueOf(getFieldFromCommodityDTO(profile.getCommodityProfileList(),
-                CommodityType.SPACE).map(CommodityProfileDTO::getCapacity)
-                .orElse(1.0f))));
+                CommodityType.SPACE)
+                .map(CommodityProfileDTO::getCapacity)
+                .orElse(ONE))));
         templateFields.add(createTemplateField(DiscoveredTemplatesConstantFields.PM_INFRA_COOLING_SIZE,
             String.valueOf(getFieldFromCommodityDTO(profile.getCommodityProfileList(),
-                CommodityType.COOLING).map(CommodityProfileDTO::getCapacity)
-                .orElse(1.0f))));
+                CommodityType.COOLING)
+                .map(CommodityProfileDTO::getCapacity)
+                .orElse(ONE))));
         return templateFields;
     }
 
@@ -248,11 +250,13 @@ public class TemplatesMapper {
         List<TemplateField> templateFields = new ArrayList<>();
         templateFields.add(createTemplateField(DiscoveredTemplatesConstantFields.STORAGE_DISK_IOPS,
             String.valueOf(getFieldFromCommodityDTO(profile.getCommodityProfileList(),
-                CommodityType.STORAGE_ACCESS).map(CommodityProfileDTO::getCapacity).orElse(0.0f))));
+                CommodityType.STORAGE_ACCESS)
+                .map(CommodityProfileDTO::getCapacity)
+                .orElse(0.0f))));
         templateFields.add(createTemplateField(DiscoveredTemplatesConstantFields.STORAGE_DISK_SIZE,
             String.valueOf(getFieldFromCommodityDTO(profile.getCommodityProfileList(),
-                CommodityType.STORAGE).map(CommodityProfileDTO::getCapacity)
-                .map(value -> value / sizeDivisor)
+                CommodityType.STORAGE)
+                .map(CommodityProfileDTO::getCapacity)
                 .orElse(0.0f))));
         return templateFields;
     }

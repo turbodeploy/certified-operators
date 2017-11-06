@@ -59,4 +59,34 @@ public class PlanDTOUtil {
 
         return entitiesBuilder.build();
     }
+
+    public static Set<Long> getInvolvedTemplates(@Nonnull final List<ScenarioChange> scenarioChanges) {
+        return scenarioChanges.stream()
+            .flatMap(change -> PlanDTOUtil.getInvolvedTemplates(change).stream())
+            .collect(Collectors.toSet());
+    }
+
+    /**
+     * Return the OIDS of templates which are part of {@link ScenarioChange}. And the scenario change
+     * could be Topology Addition or Topology Replace.
+     *
+     * @param scenarioChange The target scenario changes.
+     * @return A set of involved template OIDs.
+     */
+    @Nonnull
+    public static Set<Long> getInvolvedTemplates(@Nonnull final ScenarioChange scenarioChange) {
+        ImmutableSet.Builder<Long> templatesBuilder = ImmutableSet.builder();
+        if (scenarioChange.hasTopologyAddition()) {
+            if (scenarioChange.getTopologyAddition().hasTemplateId()) {
+                templatesBuilder.add(scenarioChange.getTopologyAddition().getTemplateId());
+            }
+        }
+
+        if (scenarioChange.hasTopologyReplace()) {
+            if (scenarioChange.getTopologyReplace().hasAddTemplateId()) {
+                templatesBuilder.add(scenarioChange.getTopologyReplace().getAddTemplateId());
+            }
+        }
+        return templatesBuilder.build();
+    }
 }

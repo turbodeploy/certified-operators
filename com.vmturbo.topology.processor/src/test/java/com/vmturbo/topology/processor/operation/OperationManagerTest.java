@@ -60,7 +60,7 @@ import com.vmturbo.topology.processor.operation.validation.ValidationResult;
 import com.vmturbo.topology.processor.targets.KVBackedTargetStore;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
-import com.vmturbo.topology.processor.templates.DiscoveredTemplateDeploymentProfileUploader;
+import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileUploader;
 import com.vmturbo.topology.processor.util.Probes;
 
 /**

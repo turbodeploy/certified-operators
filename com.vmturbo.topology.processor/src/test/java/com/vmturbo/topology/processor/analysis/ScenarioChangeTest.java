@@ -28,6 +28,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
+import com.vmturbo.topology.processor.template.TemplateConverterFactory;
+import com.vmturbo.topology.processor.template.TopologyEntityConstructor;
 
 /**
  * Unit tests for {@link ScenarioChange}.
@@ -104,7 +106,9 @@ public class ScenarioChangeTest {
     public void testTopologyAddition() {
         List<TopologyEntityDTO> topology = Lists.newArrayList(vm, pm, st);
         List<ScenarioChange> changes = Lists.newArrayList(ADD);
-        Collection<TopologyEntityDTO> result = AnalysisService.editTopology(topology, changes, identityProvider);
+        TemplateConverterFactory templateConverterFactory = Mockito.mock(TemplateConverterFactory.class);
+        Collection<TopologyEntityDTO> result =
+            AnalysisService.editTopology(topology, changes, identityProvider, templateConverterFactory);
         List<TopologyEntityDTO> clones = result.stream()
                         .filter(entity -> entity.getEntityType() == vm.getEntityType())
                         .collect(Collectors.toList());

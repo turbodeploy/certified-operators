@@ -28,9 +28,9 @@ import com.vmturbo.topology.processor.group.filter.TopologyFilterFactory;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.group.settings.SettingsManager;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
+import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileNotifier;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
 import com.vmturbo.topology.processor.targets.TargetStore;
-import com.vmturbo.topology.processor.templates.DiscoveredTemplateDeploymentProfileNotifier;
 
 /**
  * Stores topology snapshots per-target and broadcasts the results to listening components.

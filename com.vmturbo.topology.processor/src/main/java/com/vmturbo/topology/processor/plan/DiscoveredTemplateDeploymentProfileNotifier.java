@@ -1,4 +1,4 @@
-package com.vmturbo.topology.processor.templates;
+package com.vmturbo.topology.processor.plan;
 
 import java.util.Collection;
 

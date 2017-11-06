@@ -44,6 +44,8 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateSpecResource;
 public class TemplateMapper {
     private final Logger logger = LogManager.getLogger();
 
+    private final float ONE = 1.0f;
+
     /**
      * Convert {@link Template} object to {@link TemplateApiDTO}. It will use matched template spec
      * to find units for template fields.
@@ -173,12 +175,14 @@ public class TemplateMapper {
             .map(field -> {
                 StatApiDTO statApiDTO = new StatApiDTO();
                 statApiDTO.setName(field.getName());
-                statApiDTO.setValue(Float.parseFloat(field.getValue()));
                 Optional<TemplateSpecField> templateSpecField =
                     Optional.ofNullable(templateSpecFieldMap.get(field.getName()));
                 if (!templateSpecField.isPresent()) {
                     throw new RuntimeException("Can not find match template spec field: " + field.getName());
                 }
+                final Float divisor = templateSpecField.get().hasDivisor() ?
+                    Float.valueOf(templateSpecField.get().getDivisor()) : ONE;
+                statApiDTO.setValue(Float.parseFloat(field.getValue()) / divisor);
                 Optional.ofNullable(templateSpecField.get().getUnits())
                     .ifPresent(units -> statApiDTO.setUnits(units));
                 return statApiDTO;
@@ -226,18 +230,33 @@ public class TemplateMapper {
                                          @Nonnull TemplateSpec templateSpec,
                                          List<ResourceApiDTO> resourceApiDTOS,
                                          @Nonnull ResourcesCategoryName categoryName) {
-        List<TemplateField> defaultTemplateFields =
-            getDefaultTemplateFields(templateSpec, resourceApiDTOS, categoryName);
+        // UI's template field units are different with internal commodity value units.
+        // We need a map to perform unit conversion. The Map key is Template field name, and value
+        // is divisor for this template field. And if there is no divisor in template spec, we set
+        // to default 1.0f
+        final Map<String, Float> multiplierMap = templateSpec.getResourcesList().stream()
+            .map(TemplateSpecResource::getFieldsList)
+            .flatMap(List::stream)
+            .collect(Collectors.toMap(TemplateSpecField::getName,
+                templateSpecField ->
+                    templateSpecField.hasDivisor() ? Float.valueOf(templateSpecField.getDivisor()) : ONE
+            ));
+        final List<TemplateField> defaultTemplateFields =
+            getDefaultTemplateFields(templateSpec, resourceApiDTOS, categoryName, multiplierMap);
+
         if (resourceApiDTOS != null) {
             switch (categoryName) {
                 case Compute:
-                    processOnlyFirstResource(templateInfo, resourceApiDTOS, categoryName, defaultTemplateFields);
+                    processOnlyFirstResource(templateInfo, resourceApiDTOS, categoryName,
+                        defaultTemplateFields, multiplierMap);
                     break;
                 case Infrastructure:
-                    processOnlyFirstResource(templateInfo, resourceApiDTOS, categoryName, defaultTemplateFields);
+                    processOnlyFirstResource(templateInfo, resourceApiDTOS, categoryName,
+                        defaultTemplateFields, multiplierMap);
                     break;
                 case Storage:
-                    processMultipleResource(templateInfo, resourceApiDTOS, categoryName, defaultTemplateFields);
+                    processMultipleResource(templateInfo, resourceApiDTOS, categoryName,
+                        defaultTemplateFields, multiplierMap);
                     break;
                 default:
                     logger.error("Category type {} is not supported yet.", categoryName);
@@ -256,15 +275,19 @@ public class TemplateMapper {
      * @param resourceApiDTOS list of {@link ResourceApiDTO}.
      * @param categoryName represent which category need to create.
      * @param defaultTemplateFields all the template fields which contains default value.
+     * @param multiplierMap a Map contains all template field multiplier, key is template field name and
+     *                      value is multiplier.
      */
     private void processOnlyFirstResource(@Nonnull TemplateInfo.Builder templateInfo,
                                           List<ResourceApiDTO> resourceApiDTOS,
                                           @Nonnull ResourcesCategoryName categoryName,
-                                          @Nonnull List<TemplateField> defaultTemplateFields) {
+                                          @Nonnull List<TemplateField> defaultTemplateFields,
+                                          @Nonnull Map<String, Float> multiplierMap) {
         resourceApiDTOS.stream()
             .findFirst()
             .map(resourceApiDTO ->
-                convertToTemplateResource(resourceApiDTO, categoryName, Optional.empty(), defaultTemplateFields))
+                convertToTemplateResource(resourceApiDTO, categoryName, Optional.empty(),
+                    defaultTemplateFields, multiplierMap))
             .ifPresent(resource -> templateInfo.addResources(resource));
     }
 
@@ -276,15 +299,18 @@ public class TemplateMapper {
      * @param resourceApiDTOS list of {@link ResourceApiDTO}.
      * @param categoryName represent which category need to create.
      * @param defaultTemplateFields all the template fields which contains default value.
+     * @param multiplierMap a Map contains all template field multiplier, key is template field name and
+     *                      value is multiplier.
      */
     private void processMultipleResource(@Nonnull Builder templateInfo,
                                          List<ResourceApiDTO> resourceApiDTOS,
                                          @Nonnull ResourcesCategoryName categoryName,
-                                         @Nonnull List<TemplateField> defaultTemplateFields) {
+                                         @Nonnull List<TemplateField> defaultTemplateFields,
+                                         @Nonnull Map<String, Float> multiplierMap) {
         resourceApiDTOS.stream()
             .map(resourceApiDTO ->
                 convertToTemplateResource(resourceApiDTO, categoryName,
-                    Optional.ofNullable(resourceApiDTO.getType()), defaultTemplateFields))
+                    Optional.ofNullable(resourceApiDTO.getType()), defaultTemplateFields, multiplierMap))
             .forEach(resource -> templateInfo.addResources(resource));
     }
 
@@ -302,14 +328,16 @@ public class TemplateMapper {
     private TemplateResource convertToTemplateResource(@Nonnull ResourceApiDTO resourceApiDTO,
                                                        @Nonnull ResourcesCategoryName categoryName,
                                                        Optional<String> type,
-                                                       @Nonnull List<TemplateField> defaultTemplateFields){
+                                                       @Nonnull List<TemplateField> defaultTemplateFields,
+                                                       @Nonnull Map<String, Float> multiplierMap){
         TemplateResource.Builder templateResourceBuilder = TemplateResource.newBuilder();
         if (resourceApiDTO.getStats() != null) {
             final List<TemplateField> templateFields = resourceApiDTO.getStats().stream()
                 .map(stat -> {
                     TemplateField templateField = TemplateField.newBuilder()
                         .setName(stat.getName())
-                        .setValue(String.valueOf(stat.getValue()))
+                        .setValue(String.valueOf(stat.getValue() *
+                            multiplierMap.getOrDefault(stat.getName(), ONE)))
                         .build();
                     return templateField;
                 })
@@ -334,7 +362,8 @@ public class TemplateMapper {
      */
     private List<TemplateField> getDefaultTemplateFields(@Nonnull TemplateSpec templateSpec,
                                                          List<ResourceApiDTO> resourceApiDTO,
-                                                         @Nonnull ResourcesCategoryName name) {
+                                                         @Nonnull ResourcesCategoryName name,
+                                                         @Nonnull Map<String, Float> multiplierMap) {
         return templateSpec.getResourcesList().stream()
             .filter(templateSpecResource -> templateSpecResource.getCategory().getName().equals(name))
             .map(TemplateSpecResource::getFieldsList)
@@ -354,7 +383,8 @@ public class TemplateMapper {
             })
             .map(templateSpecField -> TemplateField.newBuilder()
                     .setName(templateSpecField.getName())
-                    .setValue(String.valueOf(templateSpecField.getDefaultValue()))
+                    .setValue(String.valueOf(templateSpecField.getDefaultValue() *
+                        multiplierMap.getOrDefault(templateSpecField.getName(), ONE)))
                     .build())
             .collect(Collectors.toList());
     }

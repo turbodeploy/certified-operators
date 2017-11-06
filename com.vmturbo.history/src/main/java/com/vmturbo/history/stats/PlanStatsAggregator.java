@@ -22,6 +22,7 @@ import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.exception.DataAccessException;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -247,7 +248,7 @@ public class PlanStatsAggregator {
                     .insertInto(MktSnapshotsStats.MKT_SNAPSHOTS_STATS)
                     .set(snapshotStatRecord), conn);
             }
-        } catch (SQLException e) {
+        } catch (SQLException | DataAccessException e) {
             throw new VmtDbException(VmtDbException.INSERT_ERR, "Error persisting" +
                             topologyContextId, e);
         }

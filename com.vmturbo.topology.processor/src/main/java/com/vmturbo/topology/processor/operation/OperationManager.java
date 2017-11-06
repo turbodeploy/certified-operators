@@ -60,7 +60,7 @@ import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.targets.TargetStoreListener;
-import com.vmturbo.topology.processor.templates.DiscoveredTemplateDeploymentProfileNotifier;
+import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileNotifier;
 
 /**
  * Responsible for managing all operations.

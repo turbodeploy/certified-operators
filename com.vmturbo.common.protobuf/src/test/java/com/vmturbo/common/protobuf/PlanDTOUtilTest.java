@@ -33,6 +33,17 @@ public class PlanDTOUtilTest {
     }
 
     @Test
+    public void testTopologyAdditionTemplate() {
+        final ScenarioChange change = ScenarioChange.newBuilder()
+            .setTopologyAddition(TopologyAddition.newBuilder()
+                .setTemplateId(1))
+            .build();
+        final Set<Long> result = PlanDTOUtil.getInvolvedTemplates(change);
+        assertEquals(1, result.size());
+        assertTrue(result.contains(1L));
+    }
+
+    @Test
     public void testTopologyRemovalEntity() {
         final ScenarioChange change = ScenarioChange.newBuilder()
                 .setTopologyRemoval(TopologyRemoval.newBuilder()
@@ -50,6 +61,18 @@ public class PlanDTOUtilTest {
                         .setRemoveEntityId(1))
                 .build();
         final Set<Long> result = PlanDTOUtil.getInvolvedEntities(change);
+        assertEquals(1, result.size());
+        assertTrue(result.contains(1L));
+    }
+
+    @Test
+    public void testTopologyReplaceTemplate() {
+        final ScenarioChange change = ScenarioChange.newBuilder()
+            .setTopologyReplace(TopologyReplace.newBuilder()
+                .setAddTemplateId(1)
+                .setRemoveEntityId(2))
+            .build();
+        final Set<Long> result = PlanDTOUtil.getInvolvedTemplates(change);
         assertEquals(1, result.size());
         assertTrue(result.contains(1L));
     }

@@ -2,13 +2,9 @@ package com.vmturbo.plan.orchestrator.templates;
 
 import static com.vmturbo.plan.orchestrator.db.tables.Template.TEMPLATE;
 
-import java.util.Collection;
 import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -156,6 +152,19 @@ public class TemplatesDaoImpl implements TemplatesDao {
             .into(Template.class);
 
         return convertToProtoTemplate(templates);
+    }
+
+    /**
+     * Get a set of templates by template id list.
+     *
+     * @param ids Set of template ids.
+     * @return  Set of templates.
+     */
+    @Override
+    public Set<TemplateDTO.Template> getTemplates(@Nonnull Set<Long> ids) {
+        final List<Template> templateList =
+            dsl.selectFrom(TEMPLATE).where(TEMPLATE.ID.in(ids)).fetch().into(Template.class);
+        return convertToProtoTemplate(templateList);
     }
 
     private static Optional<TemplateDTO.Template> getTemplate(@Nonnull final DSLContext dsl,

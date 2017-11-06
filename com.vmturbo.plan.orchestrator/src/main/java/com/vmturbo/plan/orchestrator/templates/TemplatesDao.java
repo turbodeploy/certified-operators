@@ -1,8 +1,6 @@
 package com.vmturbo.plan.orchestrator.templates;
 
-import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -79,4 +77,12 @@ public interface TemplatesDao {
      * @return all selected Template object
      */
     Set<Template> getTemplatesByType(int type);
+
+    /**
+     * Get a set of templates which id is in parameter list.
+     * @param ids a list of template ids.
+     * @return set of Template objects.
+     */
+    @Nonnull
+    Set<Template> getTemplates(@Nonnull Set<Long> ids);
 }

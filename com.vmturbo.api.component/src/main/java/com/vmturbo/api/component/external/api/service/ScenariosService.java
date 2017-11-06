@@ -97,7 +97,7 @@ public class ScenariosService implements IScenariosService {
     public ScenarioApiDTO createScenario(ScenarioApiDTO input) throws Exception {
         String name = input.getDisplayName();
         Scenario scenario = scenarioService.createScenario(
-                ScenarioMapper.toScenarioInfo(name, input)
+            scenarioMapper.toScenarioInfo(name, input)
         );
 
         return scenarioMapper.toScenarioApiDTO(scenario);
@@ -136,7 +136,7 @@ public class ScenariosService implements IScenariosService {
             final UpdateScenarioResponse scenarioResponse = scenarioService.updateScenario(
                     UpdateScenarioRequest.newBuilder()
                             .setScenarioId(id)
-                            .setNewInfo(ScenarioMapper.toScenarioInfo(name, input))
+                            .setNewInfo(scenarioMapper.toScenarioInfo(name, input))
                             .build());
             return scenarioMapper.toScenarioApiDTO(scenarioResponse.getScenario());
         } catch (StatusRuntimeException e) {

@@ -178,24 +178,27 @@ class BoughtCommoditiesInfo {
         /**
          * Check to see if the given commodity type (including key) for the given seller is already
          * listed in the commoditiesSoldMap.
+         *
          * @param providerId the OID of the seller
          * @param commodityToAdd the new commodity to check for "already listed"
-         * @param commoditiesBoughtMap the map from Seller OID to Collection of Commodities
+         * @param commoditiesBoughtMultimap the map from Seller OID to Collection of Commodities
          */
         private void saveIfNoCollision(@Nullable Long providerId,
                                        @Nonnull CommodityBoughtDTO commodityToAdd,
-                                       @Nonnull Multimap<Long, CommodityBoughtDTO> commoditiesBoughtMap) {
+                                       @Nonnull Multimap<Long, CommodityBoughtDTO> commoditiesBoughtMultimap) {
             // check if a previous commodity for this seller has same CommodiyType (type & key)
-            boolean prevCommodityRecorded = commoditiesBoughtMap.get(providerId).stream()
+            boolean prevCommodityRecorded = commoditiesBoughtMultimap.get(providerId).stream()
                     .anyMatch(prevCommodityDto -> (prevCommodityDto.getCommodityType().equals(
                             commodityToAdd.getCommodityType())));
-            if (prevCommodityRecorded) {
+            // For templates, it is possible that it has multiple same type commodity bought without
+            // provider id and commodity key.
+            if (!prevCommodityRecorded || (providerId == null && !commodityToAdd.getCommodityType().hasKey())) {
+                // no previous commodity with this same key; save the new one
+                commoditiesBoughtMultimap.put(providerId, commodityToAdd);
+            } else {
                 // previous commodity with the same key; print a warning and don't save it
                 logger.warn("Entity {} selling commodity type { {} } more than once.",
-                        providerId, commodityToAdd.getCommodityType());
-            } else {
-                // no previous commodity with this same key; save the new one
-                commoditiesBoughtMap.put(providerId, commodityToAdd);
+                    providerId, commodityToAdd.getCommodityType());
             }
         }
     }

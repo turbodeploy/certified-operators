@@ -32,11 +32,11 @@ public class DiscoveredTemplatesConstantFields {
 
     public static final String PM_COMPUTE_CPU_SPEED = "cpuSpeed";
 
-    public static final String PM_COMPUTE_IO_THROUGHPUT_SIZE = "ioThroughput";
+    public static final String PM_COMPUTE_IO_THROUGHPUT_SIZE = "ioThroughputSize";
 
     public static final String PM_COMPUTE_MEM_SIZE = "memorySize";
 
-    public static final String PM_COMPUTE_NETWORK_THROUGHTPUT_SIZE = "networkThroughput";
+    public static final String PM_COMPUTE_NETWORK_THROUGHPUT_SIZE = "networkThroughputSize";
 
     public static final String PM_INFRA_POWER_SIZE = "powerSize";
 

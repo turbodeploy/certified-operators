@@ -3,6 +3,8 @@ package plan;
 
 option java_package = "com.vmturbo.common.protobuf.plan";
 
+import "topology/TopologyDTO.proto";
+
 // Template represents the pattern of service entity, inclues both user created templates and probe
 // discovered templates. For this model, templates contain two part: TemplateSpec and TemplateInfo,
 // TemplateSpec describes for each different template type, how many fields it has, and how to display
@@ -194,6 +196,11 @@ message GetTemplatesByTypeRequest {
     optional int32 entity_type = 1;
 }
 
+// Request for getting templates by Ids.
+message GetTemplatesByIdsRequest {
+    repeated int64 template_ids = 1;
+}
+
 service TemplateService {
     // Delete discovered templates by target id.
     rpc DeleteTemplatesByTarget (DeleteTemplatesByTargetRequest) returns (stream Template);
@@ -215,6 +222,9 @@ service TemplateService {
 
     // Get templates by entity type
     rpc GetTemplatesByType(GetTemplatesByTypeRequest) returns (stream Template);
+
+    // Get a list of Templates by Ids
+    rpc GetTemplatesByIds(GetTemplatesByIdsRequest) returns (stream Template);
 }
 
 // Get all template specs
@@ -236,9 +246,11 @@ message GetTemplateSpecRequest {
 service TemplateSpecService {
     // Get all the template specs
     rpc GetTemplateSpecs(GetTemplateSpecsRequest) returns (stream TemplateSpec);
+
     // Get the template spec through entity type, and for a given entity type, it only have one
     // related template spec
     rpc GetTemplateSpecByEntityType(GetTemplateSpecByEntityTypeRequest) returns (TemplateSpec);
+
     // Get the template spec through Id
     rpc GetTemplateSpec(GetTemplateSpecRequest) returns (TemplateSpec);
 }

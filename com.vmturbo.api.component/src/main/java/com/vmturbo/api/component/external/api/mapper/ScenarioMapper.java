@@ -1,7 +1,6 @@
 package com.vmturbo.api.component.external.api.mapper;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -9,6 +8,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -20,6 +20,7 @@ import com.google.common.base.MoreObjects;
 import com.google.common.base.Preconditions;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.external.api.util.TemplatesUtils;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.scenario.AddObjectApiDTO;
@@ -28,7 +29,7 @@ import com.vmturbo.api.dto.scenario.RemoveObjectApiDTO;
 import com.vmturbo.api.dto.scenario.ReplaceObjectApiDTO;
 import com.vmturbo.api.dto.scenario.ScenarioApiDTO;
 import com.vmturbo.api.dto.scenario.TopologyChangesApiDTO;
-import com.vmturbo.api.enums.PlanChangeType.PlanModificationState;
+import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.common.protobuf.PlanDTOUtil;
 import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
@@ -36,6 +37,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyAddition;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyRemoval;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyReplace;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -53,8 +55,12 @@ public class ScenarioMapper {
 
     private RepositoryApi repositoryApi;
 
-    public ScenarioMapper(@Nonnull final RepositoryApi repositoryApi) {
+    private TemplatesUtils templatesUtils;
+
+    public ScenarioMapper(@Nonnull final RepositoryApi repositoryApi,
+                          @Nonnull final TemplatesUtils templatesUtils) {
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
+        this.templatesUtils = Objects.requireNonNull(templatesUtils);
     }
 
     /**
@@ -65,14 +71,18 @@ public class ScenarioMapper {
      * @return The ScenarioInfo equivalent of the input DTO.
      */
     @Nonnull
-    public static ScenarioInfo toScenarioInfo(final String name,
-                                              @Nonnull final ScenarioApiDTO dto) {
+    public ScenarioInfo toScenarioInfo(final String name,
+                                       @Nonnull final ScenarioApiDTO dto) {
         ScenarioInfo.Builder infoBuilder = ScenarioInfo.newBuilder();
         if (name != null) {
             infoBuilder.setName(name);
         }
 
-        addTopologyChanges(dto.getTopologyChanges(), infoBuilder);
+        // TODO: Right now, API send template id and entity id together for Topology Addition, and it
+        // doesn't have a field to tell whether it is template id or entity id. Later on,
+        // API should tell us if it is template id or not, please see (OM-26675).
+        final Set<Long> templatesId = getTemplatesIds(dto.getTopologyChanges());
+        addTopologyChanges(dto.getTopologyChanges(), infoBuilder, templatesId);
         // TODO (gabriele, Oct 27 2017) We need to extend the Plan Orchestrator with support
         // for the other types of changes: time based topology, load and config
 
@@ -110,7 +120,8 @@ public class ScenarioMapper {
     }
 
     private static void addTopologyChanges(final TopologyChangesApiDTO topoChanges,
-                                   @Nonnull final ScenarioInfo.Builder infoBuilder) {
+                                           @Nonnull final ScenarioInfo.Builder infoBuilder,
+                                           @Nonnull final Set<Long> templatesId) {
         // build Topology changes
         if (topoChanges != null) {
             List<AddObjectApiDTO> addTopoChanges = topoChanges.getAddList();
@@ -120,7 +131,7 @@ public class ScenarioMapper {
 
             if (addTopoChanges != null) {
                 addTopoChanges.forEach(change -> {
-                    addTopologyAddition(change, infoBuilder);
+                    addTopologyAddition(change, infoBuilder, templatesId);
                 });
             }
 
@@ -144,6 +155,32 @@ public class ScenarioMapper {
         }
     }
 
+    /**
+     * Right now, at API side, there is no field to tell uuid is entity id or template id. This function
+     * will be used to get all involved template ids.
+     *
+     * @param changes Topology changes in the scenario.
+     * @return all involved template ids.
+     */
+    private Set<Long> getTemplatesIds(final TopologyChangesApiDTO changes) {
+
+        if (changes == null || changes.getAddList() == null) {
+            return Collections.emptySet();
+        }
+        // only need to check Addition id, because for Replace Id, it already has template field.
+        final Set<Long> additionIds = changes.getAddList().stream()
+            .map(AddObjectApiDTO::getTarget)
+            .map(BaseApiDTO::getUuid)
+            .map(Long::valueOf)
+            .collect(Collectors.toSet());
+
+        // Send rpc request to template service and return all template ids.
+        final Set<Long> templateIds = templatesUtils.getTemplatesByIds(additionIds).stream()
+            .map(Template::getId)
+            .collect(Collectors.toSet());
+        return templateIds;
+    }
+
     private static int projectionDay(@Nonnull final Integer projDay) {
         return projDay == null ? 0 : projDay;
     }
@@ -153,19 +190,27 @@ public class ScenarioMapper {
     }
 
     private static void addTopologyAddition(@Nonnull final AddObjectApiDTO change,
-                                            @Nonnull final ScenarioInfo.Builder infoBuilder) {
+                                            @Nonnull final ScenarioInfo.Builder infoBuilder,
+                                            @Nonnull final Set<Long> templateIds) {
         Preconditions.checkArgument(change.getTarget() != null,
                 "Topology additions must contain a target");
         // Default count to 1
         int count = change.getCount() != null? change.getCount() : 1;
 
+        final Long uuid = Long.parseLong(change.getTarget().getUuid());
+
+        final TopologyAddition.Builder additionBuilder = TopologyAddition.newBuilder()
+            .addAllChangeApplicationDays(projectionDays(change.getProjectionDays()))
+            .setAdditionCount(count);
+        if (templateIds.contains(uuid)) {
+            additionBuilder.setTemplateId(uuid);
+        }
+        else {
+            additionBuilder.setEntityId(uuid);
+        }
+
         ScenarioChange.Builder changeBuilder = ScenarioChange.newBuilder();
-        infoBuilder.addChanges(changeBuilder.setTopologyAddition(
-            TopologyAddition.newBuilder()
-                .addAllChangeApplicationDays(projectionDays(change.getProjectionDays()))
-                .setAdditionCount(count)
-                .setEntityId(Long.parseLong(change.getTarget().getUuid()))
-                .build()));
+        infoBuilder.addChanges(changeBuilder.setTopologyAddition(additionBuilder.build()));
     }
 
     private static void addTopologyRemoval(@Nonnull final RemoveObjectApiDTO change,
@@ -241,20 +286,23 @@ public class ScenarioMapper {
                 // The .get() here is safe because we filtered out entries where the entity
                 // information is not present.
                 .collect(Collectors.toMap(Entry::getKey, entry -> entry.getValue().get()));
+        // Get all involved templates
+        final Map<Long, TemplateApiDTO> templatesMap =
+            templatesUtils.getTemplatesMapByIds(PlanDTOUtil.getInvolvedTemplates(changes));
 
         changes.forEach(change -> {
             switch (change.getDetailsCase()) {
                 case TOPOLOGY_ADDITION:
                     buildApiTopologyAddition(change.getTopologyAddition(),
-                            outputChanges, serviceEntityMap);
+                            outputChanges, serviceEntityMap, templatesMap);
                     break;
                 case TOPOLOGY_REMOVAL:
                     buildApiTopologyRemoval(change.getTopologyRemoval(),
-                            outputChanges, serviceEntityMap);
+                            outputChanges, serviceEntityMap, templatesMap);
                     break;
                 case TOPOLOGY_REPLACE:
                     buildApiTopologyReplace(change.getTopologyReplace(),
-                            outputChanges, serviceEntityMap);
+                            outputChanges, serviceEntityMap, templatesMap);
                     break;
                 default:
                     // Do nothing
@@ -266,13 +314,15 @@ public class ScenarioMapper {
     }
 
     private static void buildApiTopologyAddition(@Nonnull final TopologyAddition addition,
-                                        @Nonnull final TopologyChangesApiDTO outputChanges,
-                                        @Nonnull final Map<Long, ServiceEntityApiDTO> serviceEntityMap) {
+                                                 @Nonnull final TopologyChangesApiDTO outputChanges,
+                                                 @Nonnull final Map<Long, ServiceEntityApiDTO> serviceEntityMap,
+                                                 @Nonnull final Map<Long, TemplateApiDTO> templateMap) {
         List<AddObjectApiDTO> changeApiDTOs = MoreObjects.firstNonNull(outputChanges.getAddList(),
                 new ArrayList<>());
         AddObjectApiDTO changeApiDTO = new AddObjectApiDTO();
         changeApiDTO.setCount(addition.getAdditionCount());
-        changeApiDTO.setTarget(dtoForId(addition.getEntityId(), serviceEntityMap));
+        final long uuid = addition.hasTemplateId() ? addition.getTemplateId() : addition.getEntityId();
+        changeApiDTO.setTarget(dtoForId(uuid, serviceEntityMap, templateMap));
         changeApiDTO.setProjectionDays(addition.getChangeApplicationDaysList());
 
         changeApiDTOs.add(changeApiDTO);
@@ -280,12 +330,13 @@ public class ScenarioMapper {
     }
 
     private static void buildApiTopologyRemoval(@Nonnull final TopologyRemoval removal,
-                                        @Nonnull final TopologyChangesApiDTO outputChanges,
-                                        @Nonnull final Map<Long, ServiceEntityApiDTO> serviceEntityMap) {
+                                                @Nonnull final TopologyChangesApiDTO outputChanges,
+                                                @Nonnull final Map<Long, ServiceEntityApiDTO> serviceEntityMap,
+                                                @Nonnull final Map<Long, TemplateApiDTO> templateMap) {
         List<RemoveObjectApiDTO> changeApiDTOs = MoreObjects.firstNonNull(outputChanges.getRemoveList(),
                 new ArrayList<>());
         RemoveObjectApiDTO changeApiDTO = new RemoveObjectApiDTO();
-        changeApiDTO.setTarget(dtoForId(removal.getEntityId(), serviceEntityMap));
+        changeApiDTO.setTarget(dtoForId(removal.getEntityId(), serviceEntityMap, templateMap));
         changeApiDTO.setProjectionDay(removal.getChangeApplicationDay());
 
         changeApiDTOs.add(changeApiDTO);
@@ -293,27 +344,44 @@ public class ScenarioMapper {
     }
 
     private static void buildApiTopologyReplace(@Nonnull final TopologyReplace replace,
-                                        @Nonnull final TopologyChangesApiDTO outputChanges,
-                                        @Nonnull final Map<Long, ServiceEntityApiDTO> serviceEntityMap) {
+                                                @Nonnull final TopologyChangesApiDTO outputChanges,
+                                                @Nonnull final Map<Long, ServiceEntityApiDTO> serviceEntityMap,
+                                                @Nonnull final Map<Long, TemplateApiDTO> templateMap) {
         List<ReplaceObjectApiDTO> changeApiDTOs = MoreObjects.firstNonNull(outputChanges.getReplaceList(),
                 new ArrayList<>());
         ReplaceObjectApiDTO changeApiDTO = new ReplaceObjectApiDTO();
-        changeApiDTO.setTarget(dtoForId(replace.getRemoveEntityId(), serviceEntityMap));
-        changeApiDTO.setTemplate(dtoForId(replace.getAddTemplateId(), serviceEntityMap));
+        changeApiDTO.setTarget(dtoForId(replace.getRemoveEntityId(), serviceEntityMap, templateMap));
+        changeApiDTO.setTemplate(dtoForId(replace.getAddTemplateId(), serviceEntityMap, templateMap));
         changeApiDTO.setProjectionDay(replace.getChangeApplicationDay());
 
         changeApiDTOs.add(changeApiDTO);
         outputChanges.setReplaceList(changeApiDTOs);
     }
 
-    // TODO: Handle more than just entities (ie templates and groups).
-    private static BaseApiDTO dtoForId(long id, @Nonnull final Map<Long, ServiceEntityApiDTO> serviceEntityMap) {
+    /**
+     * This function is used to build {@link BaseApiDTO}. And it passed into Service Entity Map and Template
+     * Map to check if id is entity or template.
+     *
+     * @param id uuid for BaseApiDTO.
+     * @param serviceEntityMap Map contains all involved service entity.
+     * @param templateMap Map contains all involved templates.
+     * @return {@link BaseApiDTO}.
+     */
+    // TODO: Handle groups.
+    private static BaseApiDTO dtoForId(long id,
+                                       @Nonnull final Map<Long, ServiceEntityApiDTO> serviceEntityMap,
+                                       @Nonnull final Map<Long, TemplateApiDTO> templateMap) {
         BaseApiDTO entity = new BaseApiDTO();
         Optional<ServiceEntityApiDTO> serviceEntityApiDTO = Optional.ofNullable(serviceEntityMap.get(id));
+        Optional<TemplateApiDTO> templateApiDTO = Optional.ofNullable(templateMap.get(id));
+        // First we check if id is service entity id, if not, then check if it is template id. Otherwise
+        // we set it is UNKNOWN.
         entity.setClassName(serviceEntityApiDTO.map(ServiceEntityApiDTO::getClassName)
-                .orElse(ServiceEntityMapper.toUIEntityType(EntityType.UNKNOWN.getNumber())));
+                .orElse(templateApiDTO.map(TemplateApiDTO::getClassName)
+                    .orElse(ServiceEntityMapper.toUIEntityType(EntityType.UNKNOWN.getNumber()))));
         entity.setDisplayName(serviceEntityApiDTO.map(ServiceEntityApiDTO::getDisplayName)
-                .orElse(ServiceEntityMapper.toUIEntityType(EntityType.UNKNOWN.getNumber())));
+                .orElse(templateApiDTO.map(TemplateApiDTO::getDisplayName)
+                    .orElse(ServiceEntityMapper.toUIEntityType(EntityType.UNKNOWN.getNumber()))));
         entity.setUuid(Long.toString(id));
 
         return entity;

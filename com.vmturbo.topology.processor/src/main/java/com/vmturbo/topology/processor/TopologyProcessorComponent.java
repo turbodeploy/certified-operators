@@ -23,7 +23,6 @@ import io.grpc.ServerBuilder;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.SQLDBHealthMonitor;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
-import com.vmturbo.components.common.health.sql.SQLDBHealthMonitor;
 import com.vmturbo.topology.processor.actions.ActionsConfig;
 import com.vmturbo.topology.processor.analysis.AnalysisConfig;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorApiConfig;
@@ -40,7 +39,7 @@ import com.vmturbo.topology.processor.rest.RESTConfig;
 import com.vmturbo.topology.processor.rpc.TopologyProcessorRpcConfig;
 import com.vmturbo.topology.processor.scheduling.SchedulerConfig;
 import com.vmturbo.topology.processor.targets.TargetConfig;
-import com.vmturbo.topology.processor.templates.DiscoveredTemplateDeploymentProfileConfig;
+import com.vmturbo.topology.processor.plan.PlanConfig;
 import com.vmturbo.topology.processor.topology.TopologyConfig;
 
 /**
@@ -69,7 +68,7 @@ import com.vmturbo.topology.processor.topology.TopologyConfig;
     TopologyProcessorRpcConfig.class,
     SchedulerConfig.class,
     TargetConfig.class,
-    DiscoveredTemplateDeploymentProfileConfig.class,
+    PlanConfig.class,
     GlobalConfig.class,
     KVConfig.class,
     TopologyConfig.class,

@@ -23,6 +23,7 @@ import com.google.gson.Gson;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyAddition;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyRemoval;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyReplace;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO;
 import com.vmturbo.common.protobuf.topology.AnalysisDTO;
 import com.vmturbo.common.protobuf.topology.AnalysisDTO.StartAnalysisResponse;
@@ -35,6 +36,7 @@ import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
+import com.vmturbo.topology.processor.template.TemplateConverterFactory;
 import com.vmturbo.topology.processor.topology.TopologyHandler;
 import com.vmturbo.topology.processor.topology.TopologyHandler.TopologyBroadcastInfo;
 
@@ -58,16 +60,21 @@ public class AnalysisService extends AnalysisServiceImplBase {
 
     private final Clock clock;
 
+    private final TemplateConverterFactory templateConverterFactory;
+
     public AnalysisService(@Nonnull final TopologyHandler topologyHandler,
                            @Nonnull final EntityStore entityStore,
                            @Nonnull final IdentityProvider identityProvider,
                            @Nonnull final RepositoryClient repositoryClient,
-                           @Nonnull final Clock clock) {
+                           @Nonnull final Clock clock,
+                           @Nonnull final TemplateConverterFactory templateConverterFactory) {
+
         this.topologyHandler = Objects.requireNonNull(topologyHandler);
         this.entityStore = Objects.requireNonNull(entityStore);
         this.identityProvider = Objects.requireNonNull(identityProvider);
         this.repository = Objects.requireNonNull(repositoryClient);
         this.clock = Objects.requireNonNull(clock);
+        this.templateConverterFactory = Objects.requireNonNull(templateConverterFactory);
     }
 
     @Override
@@ -103,7 +110,8 @@ public class AnalysisService extends AnalysisServiceImplBase {
         // until the edit functionality is more fleshed out (e.g. with group recalculation,
         // etc.) before doing it.
         if (request.getScenarioChangeCount() > 0) {
-            topology = editTopology(topology, request.getScenarioChangeList(), identityProvider);
+            topology = editTopology(topology, request.getScenarioChangeList(), identityProvider,
+                templateConverterFactory);
         }
 
         final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
@@ -139,15 +147,19 @@ public class AnalysisService extends AnalysisServiceImplBase {
     protected static Collection<TopologyEntityDTO> editTopology(
                     @Nonnull final Collection<TopologyEntityDTO> topology,
                     @Nonnull final List<ScenarioChange> changes,
-                    @Nonnull final IdentityProvider identityProvider) {
-        final Map<Long, TopologyAddition> additions = new HashMap<>();
-        final Map<Long, TopologyRemoval> removals = new HashMap<>();
+                    @Nonnull final IdentityProvider identityProvider,
+                    @Nonnull final TemplateConverterFactory templateConverterFactor) {
+        final Map<Long, Long> entityAdditions = new HashMap<>();
+        final Set<Long> entityToRemove = new HashSet<>();
+        final Map<Long, Long> templateToAdd = new HashMap<>();
 
         changes.forEach(change -> {
             if (change.hasTopologyAddition()) {
                 final TopologyAddition addition = change.getTopologyAddition();
                 if (addition.hasEntityId()) {
-                    additions.put(addition.getEntityId(), addition);
+                    addTopologyAdditionCount(entityAdditions, addition, addition.getEntityId());
+                } else if (addition.hasTemplateId()) {
+                    addTopologyAdditionCount(templateToAdd, addition, addition.getTemplateId());
                 } else {
                     logger.warn("Unimplemented handling for topology addition with {}",
                             addition.getEntityOrTemplateOrGroupIdCase());
@@ -155,13 +167,22 @@ public class AnalysisService extends AnalysisServiceImplBase {
             } else if (change.hasTopologyRemoval()) {
                 final TopologyRemoval removal = change.getTopologyRemoval();
                 if (removal.hasEntityId()) {
-                    removals.put(removal.getEntityId(), removal);
+                    entityToRemove.add(removal.getEntityId());
                 } else {
                     logger.warn("Unimplemented handling for topology removal with {}",
                             removal.getEntityOrGroupIdCase());
                 }
             } else if (change.hasTopologyReplace()) {
-                logger.warn("Handling for topology replacements is unimplemented.");
+                final TopologyReplace replace = change.getTopologyReplace();
+                templateToAdd.put(replace.getAddTemplateId(),
+                    templateToAdd.getOrDefault(replace.getAddTemplateId(), 0L) + 1);
+                if (replace.hasRemoveEntityId()) {
+                    entityToRemove.add(replace.getRemoveEntityId());
+                } else {
+                    logger.warn("Unimplemented handling for topology removal with {}",
+                        replace.getEntityOrGroupRemovalIdCase());
+                }
+
             } else {
                 logger.warn("Unimplemented handling for change of type {}", change.getDetailsCase());
             }
@@ -170,21 +191,18 @@ public class AnalysisService extends AnalysisServiceImplBase {
         final Set<TopologyEntityDTO> updatedEntities = new HashSet<>();
 
         topology.forEach(entity -> {
-            TopologyAddition addition = additions.get(entity.getOid());
-            if (addition != null) {
-                final int addCount = addition.hasAdditionCount() ? addition.getAdditionCount() : 1;
-                for (int i = 0; i < addCount; ++i) {
-                    updatedEntities.add(clone(entity, identityProvider, i));
-                }
+            final long addCount = entityAdditions.getOrDefault(entity.getOid(), 0L);
+            for (int i = 0; i < addCount; ++i) {
+                updatedEntities.add(clone(entity, identityProvider, i));
             }
 
             // Preserve the entity in the updated set unless it was
-            // specifically targeted for removal.
-            if (!removals.containsKey(entity.getOid())) {
+            // specifically targeted for removal or need to be replaced.
+            if (!entityToRemove.contains(entity.getOid())) {
                 updatedEntities.add(entity);
             }
         });
-
+        addTemplateTopologyEntities(templateToAdd, updatedEntities, templateConverterFactor);
         return updatedEntities;
     }
 
@@ -201,29 +219,56 @@ public class AnalysisService extends AnalysisServiceImplBase {
             @Nonnull final IdentityProvider identityProvider,
             int cloneCounter) {
         final TopologyEntityDTO.Builder cloneBuilder =
-                TopologyEntityDTO.newBuilder(entity)
-                    .clearCommoditiesBoughtFromProviders();
-    // unplace all commodities bought, so that the market creates a Placement action for them.
-    Map<Long, Long> oldProvidersMap = Maps.newHashMap();
-    long noProvider = 0;
-    for (CommoditiesBoughtFromProvider bought :
-                        entity.getCommoditiesBoughtFromProvidersList()) {
-        long oldProvider = bought.getProviderId();
-        cloneBuilder.addCommoditiesBoughtFromProviders(
-            bought.toBuilder().setProviderId(--noProvider).build());
-        oldProvidersMap.put(noProvider,  oldProvider);
-    }
-    Map<String, String> entityProperties =
-                    Maps.newHashMap(cloneBuilder.getEntityPropertyMapMap());
-    if (!oldProvidersMap.isEmpty()) {
-        // TODO: OM-26631 - get rid of unstructured data and Gson
-        entityProperties.put("oldProviders", new Gson().toJson(oldProvidersMap) );
-    }
-    final TopologyEntityDTO clone = cloneBuilder
+            TopologyEntityDTO.newBuilder(entity)
+                .clearCommoditiesBoughtFromProviders();
+        // unplace all commodities bought, so that the market creates a Placement action for them.
+        Map<Long, Long> oldProvidersMap = Maps.newHashMap();
+        long noProvider = 0;
+        for (CommoditiesBoughtFromProvider bought :
+            entity.getCommoditiesBoughtFromProvidersList()) {
+            long oldProvider = bought.getProviderId();
+            cloneBuilder.addCommoditiesBoughtFromProviders(
+                bought.toBuilder().setProviderId(--noProvider).build());
+            oldProvidersMap.put(noProvider, oldProvider);
+        }
+        Map<String, String> entityProperties =
+            Maps.newHashMap(cloneBuilder.getEntityPropertyMapMap());
+        if (!oldProvidersMap.isEmpty()) {
+            // TODO: OM-26631 - get rid of unstructured data and Gson
+            entityProperties.put("oldProviders", new Gson().toJson(oldProvidersMap));
+        }
+        final TopologyEntityDTO clone = cloneBuilder
             .setDisplayName(entity.getDisplayName() + " - Clone #" + cloneCounter)
             .setOid(identityProvider.getCloneId(entity))
             .putAllEntityPropertyMap(entityProperties)
             .build();
-    return clone;
+        return clone;
+    }
+
+    /**
+     * Add all addition topology entities which converted from templates
+     *
+     * @param templateAdditions contains all addition templates and the count need to add.
+     * @param updatedEntities contains updated topology entities which will be broadcast.
+     */
+    private static void addTemplateTopologyEntities(@Nonnull Map<Long, Long> templateAdditions,
+                                                    @Nonnull Set<TopologyEntityDTO> updatedEntities,
+                                                    @Nonnull final TemplateConverterFactory templateConverterFactor) {
+        // Check if there are templates additions
+        if (templateAdditions.isEmpty()) {
+            return;
+        }
+        final Set<TopologyEntityDTO> topologyEntityDTOS =
+            templateConverterFactor
+                .generateTopologyEntityFromTemplates(templateAdditions.keySet(), templateAdditions);
+        updatedEntities.addAll(topologyEntityDTOS);
+    }
+
+    private static void addTopologyAdditionCount(@Nonnull final Map<Long, Long> additionMap,
+                                          @Nonnull TopologyAddition addition,
+                                          long key) {
+        final long additionCount =
+            addition.hasAdditionCount() ? addition.getAdditionCount() : 1L;
+        additionMap.put(key, additionMap.getOrDefault(key, 0L) + additionCount);
     }
 }

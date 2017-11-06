@@ -13,7 +13,7 @@ import com.vmturbo.topology.processor.group.GroupConfig;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
 import com.vmturbo.topology.processor.targets.TargetConfig;
-import com.vmturbo.topology.processor.templates.DiscoveredTemplateDeploymentProfileConfig;
+import com.vmturbo.topology.processor.plan.PlanConfig;
 
 /**
  * Configuration for the Operation package.
@@ -28,7 +28,7 @@ import com.vmturbo.topology.processor.templates.DiscoveredTemplateDeploymentProf
     TargetConfig.class,
     IdentityProviderConfig.class,
     TopologyProcessorApiConfig.class,
-    DiscoveredTemplateDeploymentProfileConfig.class
+    PlanConfig.class
 })
 public class OperationConfig {
 
@@ -54,7 +54,7 @@ public class OperationConfig {
     private TopologyProcessorApiConfig apiConfig;
 
     @Autowired
-    private DiscoveredTemplateDeploymentProfileConfig discoveredTemplateDeploymentProfileConfig;
+    private PlanConfig discoveredTemplateDeploymentProfileConfig;
 
     @Value("${discoveryTimeoutSeconds}")
     private long discoveryTimeoutSeconds;

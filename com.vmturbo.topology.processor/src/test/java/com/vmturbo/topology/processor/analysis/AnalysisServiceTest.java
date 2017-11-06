@@ -47,6 +47,7 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
+import com.vmturbo.topology.processor.template.TemplateConverterFactory;
 import com.vmturbo.topology.processor.topology.TopologyHandler;
 import com.vmturbo.topology.processor.topology.TopologyHandler.TopologyBroadcastInfo;
 
@@ -65,8 +66,10 @@ public class AnalysisServiceTest {
 
     private Clock clock = Mockito.mock(Clock.class);
 
+    private TemplateConverterFactory templateConverterFactory = Mockito.mock(TemplateConverterFactory.class);
+
     private AnalysisService analysisServiceBackend =
-            new AnalysisService(topologyHandler, entityStore, identityProvider, repository, clock);
+            new AnalysisService(topologyHandler, entityStore, identityProvider, repository, clock, templateConverterFactory);
 
     private AnalysisServiceBlockingStub analysisService;
 
@@ -107,9 +110,7 @@ public class AnalysisServiceTest {
     @Before
     public void setup() throws IOException, InterruptedException, CommunicationException {
         MockitoAnnotations.initMocks(this);
-
         analysisService = AnalysisServiceGrpc.newBlockingStub(grpcServer.getChannel());
-
         final TopologyBroadcastInfo broadcastInfo = Mockito.mock(TopologyBroadcastInfo.class);
         when(broadcastInfo.getEntityCount()).thenReturn(returnEntityNum);
         when(broadcastInfo.getTopologyId()).thenReturn(topologyId);

@@ -147,7 +147,7 @@ public class TemplatesMapperTest {
 
         assertEquals(ioThroughputTemplateField.size(), 1);
         assertEquals(ioThroughputTemplateField.get(0).getName(), "ioThroughputConsumed");
-        assertEquals(ioThroughputTemplateField.get(0).getValue(), "1.0");
+        assertEquals(ioThroughputTemplateField.get(0).getValue(), "1024.0");
     }
 
     @Test
@@ -184,6 +184,6 @@ public class TemplatesMapperTest {
 
         assertEquals(diskSizeSpeedTemplateField.size(), 1);
         assertEquals(diskSizeSpeedTemplateField.get(0).getName(), "diskSize");
-        assertEquals(diskSizeSpeedTemplateField.get(0).getValue(), "1.0");
+        assertEquals(diskSizeSpeedTemplateField.get(0).getValue(), "1024.0");
     }
 }
