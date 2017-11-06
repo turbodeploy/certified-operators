@@ -367,6 +367,7 @@
                 <module>../com.vmturbo.mediation.delegatingprobe.component</module>
 
                 <!-- Modules on which we want to be sure that testCompile succeeds. -->
+                <module>../external-api-stubs</module>
                 <module>../com.vmturbo.components.test.performance</module>
                 <module>../com.vmturbo.systest</module>
             </modules>
@@ -456,6 +457,7 @@
                 <module>../com.vmturbo.mediation.delegatingprobe.component</module>
 
                 <!-- Modules on which we want to be sure that testCompile succeeds. -->
+                <module>../external-api-stubs</module>
                 <module>../com.vmturbo.components.test.performance</module>
                 <module>../com.vmturbo.systest</module>
             </modules>
