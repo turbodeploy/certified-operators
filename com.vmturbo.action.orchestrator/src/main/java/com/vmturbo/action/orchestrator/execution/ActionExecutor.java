@@ -1,12 +1,16 @@
 package com.vmturbo.action.orchestrator.execution;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -25,19 +29,23 @@ import com.vmturbo.action.orchestrator.action.ExecutableStep;
 import com.vmturbo.common.protobuf.ActionDTOUtil;
 import com.vmturbo.common.protobuf.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionFailure;
+import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionProgress;
+import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionSuccess;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
 import com.vmturbo.common.protobuf.topology.ActionExecutionServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ActionExecutionServiceGrpc.ActionExecutionServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass;
 import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass.EntityInfo;
 import com.vmturbo.common.protobuf.topology.EntityServiceGrpc;
+import com.vmturbo.topology.processor.api.ActionExecutionListener;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 
 /**
  * Executes actions by converting {@link ActionDTO.Action} objects into {@link ExecuteActionRequest}
  * and sending them to the {@link TopologyProcessor}.
  */
-public class ActionExecutor {
+public class ActionExecutor implements ActionExecutionListener {
     private static final Logger logger = LogManager.getLogger();
 
     private final ActionExecutionServiceBlockingStub actionExecutionService;
@@ -45,6 +53,13 @@ public class ActionExecutor {
     private final EntityServiceGrpc.EntityServiceBlockingStub entityServiceBlockingStub;
 
     private final ActionTargetResolver targetResolver;
+
+    /**
+     * Futures to track success or failure of actions that are executing synchronously
+     * (i.e. via the {@link ActionExecutor#executeSynchronously(long, ActionDTO.Action)} method).
+     */
+    private final Map<Long, CompletableFuture<Void>> inProgressSyncActions =
+            Collections.synchronizedMap(new HashMap<>());
 
     /**
      * Creates an object of ActionExecutor with ActionExecutionService and EntityService.
@@ -125,8 +140,16 @@ public class ActionExecutor {
         return actionDTOsProbes;
     }
 
+    /**
+     * Gets the id of the target that the provided entities have in common.
+     * (If there are multiple targets, one is selected by the targetResolver.)
+     * @param action action to be passed to the targetResolver if conflict occurs
+     * @param involvedEntityInfos map of entity id to entity info.
+     * @return id of the common target
+     * @throws TargetResolutionException if there is no common target
+     */
     @Nonnull
-    private Long getEntitiesTarget(@Nonnull ActionDTO.Action action,
+    Long getEntitiesTarget(@Nonnull ActionDTO.Action action,
             @Nonnull Map<Long, EntityInfo> involvedEntityInfos) throws TargetResolutionException {
         Set<Long> overlappingTarget = null;
         for (final EntityInfo info : involvedEntityInfos.values()) {
@@ -206,6 +229,22 @@ public class ActionExecutor {
                 .collect(Collectors.toMap(EntityInfo::getEntityId, Function.identity()));
     }
 
+    public void executeSynchronously(final long targetId, @Nonnull final ActionDTO.Action action)
+            throws ExecutionStartException, InterruptedException, ActionExecutionException {
+        execute(targetId, action);
+        final CompletableFuture<Void> future = new CompletableFuture<>();
+        inProgressSyncActions.put(action.getId(), future);
+        try {
+            future.get();
+        } catch (ExecutionException e) {
+            if (e.getCause() instanceof ActionExecutionException) {
+                throw (ActionExecutionException)e.getCause();
+            } else {
+                throw new IllegalStateException("Unexpected execution exception!", e);
+            }
+        }
+    }
+
     public void execute(final long targetId, @Nonnull final ActionDTO.Action action)
             throws ExecutionStartException {
         final ExecuteActionRequest executionRequest = ExecuteActionRequest.newBuilder()
@@ -235,5 +274,45 @@ public class ActionExecutor {
         return StreamSupport.stream(iterableResponse.spliterator(), false)
                 .collect(Collectors.toMap(EntityInfoOuterClass.EntityInfo::getEntityId,
                         Function.identity()));
+    }
+
+    @Override
+    public void onActionProgress(@Nonnull final ActionProgress actionProgress) {
+        // No one cares.
+    }
+
+    @Override
+    public void onActionSuccess(@Nonnull final ActionSuccess actionSuccess) {
+        CompletableFuture<?> futureForAction = inProgressSyncActions.get(actionSuccess.getActionId());
+        if (futureForAction != null) {
+            futureForAction.complete(null);
+        }
+
+    }
+
+    @Override
+    public void onActionFailure(@Nonnull final ActionFailure actionFailure) {
+        final CompletableFuture<Void> futureForAction =
+                inProgressSyncActions.get(actionFailure.getActionId());
+        if (futureForAction != null) {
+            futureForAction.completeExceptionally(new ActionExecutionException(actionFailure));
+        }
+    }
+
+    /**
+     * Exception thrown when an action executed via
+     * {@link ActionExecutor#executeSynchronously(long, ActionDTO.Action)} fail
+     * to complete.
+     */
+    public static class ActionExecutionException extends Exception {
+        private final ActionFailure actionFailure;
+
+        private ActionExecutionException(@Nonnull final ActionFailure failure) {
+            this.actionFailure = Objects.requireNonNull(failure);
+        }
+
+        public ActionFailure getFailure() {
+            return actionFailure;
+        }
     }
 }

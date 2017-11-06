@@ -150,6 +150,14 @@ public class PlanActionStore implements ActionStore {
     /**
      * {@inheritDoc}
      */
+    @Override
+    public boolean allowsExecution() {
+        return false;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
     @Nonnull
     @Override
     public Optional<ActionView> getActionView(long actionId) {

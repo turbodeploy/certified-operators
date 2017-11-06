@@ -12,6 +12,7 @@ import org.junit.Test;
 import org.mockito.Mockito;
 
 import com.vmturbo.action.orchestrator.api.ActionOrchestratorNotificationSender;
+import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.EntitySeverityCache;
@@ -27,7 +28,9 @@ public class MarketActionListenerTest {
     private static final long realtimeTopologyContextId = 1234;
     private final IActionStoreFactory actionStoreFactory = Mockito.mock(IActionStoreFactory.class);
     private final IActionStoreLoader actionStoreLoader = Mockito.mock(IActionStoreLoader.class);
-    private final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory, actionStoreLoader);
+    private final AutomatedActionExecutor executor = Mockito.mock(AutomatedActionExecutor.class);
+    private final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory,
+            executor, actionStoreLoader);
     private final ActionStore actionStore = mock(ActionStore.class);
     private final EntitySeverityCache severityCache = mock(EntitySeverityCache.class);
 

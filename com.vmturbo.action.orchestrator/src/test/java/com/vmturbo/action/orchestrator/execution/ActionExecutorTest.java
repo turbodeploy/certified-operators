@@ -1,7 +1,7 @@
 package com.vmturbo.action.orchestrator.execution;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Stream;
 
@@ -29,11 +29,9 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
 import com.vmturbo.common.protobuf.topology.ActionExecutionServiceGrpc.ActionExecutionServiceImplBase;
 import com.vmturbo.common.protobuf.topology.EntityInfoMoles.EntityServiceMole;
-import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass;
 import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass.EntityInfo;
 import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass.GetEntitiesInfoRequest;
 import com.vmturbo.common.protobuf.topology.EntityServiceGrpc;
-import com.vmturbo.common.protobuf.topology.EntityServiceGrpc.EntityServiceImplBase;
 import com.vmturbo.components.api.test.GrpcTestServer;
 
 /**
@@ -65,10 +63,10 @@ public class ActionExecutorTest {
     private final EntityServiceGrpc.EntityServiceImplBase entityServiceBackend =
             Mockito.spy(new EntityServiceGrpc.EntityServiceImplBase() {
                 @Override
-                public void getEntitiesInfo(EntityInfoOuterClass.GetEntitiesInfoRequest request,
-                                            StreamObserver<EntityInfoOuterClass.EntityInfo> responseObserver) {
+                public void getEntitiesInfo(GetEntitiesInfoRequest request,
+                                            StreamObserver<EntityInfo> responseObserver) {
                     Stream.of(1, 2, 3).forEach(id ->
-                            responseObserver.onNext(EntityInfoOuterClass.EntityInfo.newBuilder()
+                            responseObserver.onNext(EntityInfo.newBuilder()
                                     .setEntityId(id)
                                     .putTargetIdToProbeId(targetId, probeId)
                                     .build())
@@ -101,13 +99,13 @@ public class ActionExecutorTest {
         actionExecutor = new ActionExecutor(server.getChannel(), actionTargetResolver);
         Mockito.when(targetsConflictEntityService.getEntitiesInfo(Mockito.any()))
                 .thenReturn(ImmutableList.of(
-                        buidEntityInfo(moveTargetEntityId),
-                        buidEntityInfo(moveSourceEntityId),
-                        buidEntityInfo(moveDestinationEntityId)));
+                        buildEntityInfo(moveTargetEntityId),
+                        buildEntityInfo(moveSourceEntityId),
+                        buildEntityInfo(moveDestinationEntityId)));
     }
 
     @Nonnull
-    private EntityInfo buidEntityInfo(long id) {
+    private EntityInfo buildEntityInfo(long id) {
         return EntityInfo.newBuilder().setEntityId(id)
                 .putAllTargetIdToProbeId(targetToProbeMap).build();
     }
@@ -139,7 +137,7 @@ public class ActionExecutorTest {
     }
 
     @Test(expected = TargetResolutionException.class)
-    public void testMoveWithNotExistEnity() throws Exception {
+    public void testMoveWithNotExistEntity() throws Exception {
         final ActionDTO.Action action = buildMoveAction(1, 2, 4);
 
         actionExecutor.getTargetId(action);
@@ -168,5 +166,46 @@ public class ActionExecutorTest {
                         .newBuilder().setMove(Move.newBuilder().setTargetId(targetId)
                                 .setSourceId(sourceId).setDestinationId(destinationId)
                                 .build()).build()).build();
+    }
+
+    @Test
+    public void testGetEntitiesTarget() throws Exception {
+        Map<Long, EntityInfo> mapArg = new HashMap<>();
+        EntityInfo info1 = EntityInfo.newBuilder()
+                .setEntityId(1)
+                .putTargetIdToProbeId(targetId, probeId)
+                .build();
+        EntityInfo info2 = EntityInfo.newBuilder()
+                .setEntityId(2)
+                .putTargetIdToProbeId(targetId, probeId)
+                .build();
+        mapArg.put(1L, info1);
+        mapArg.put(2L, info2);
+
+        Assert.assertEquals(Long.valueOf(targetId),
+                actionExecutor.getEntitiesTarget(buildMoveAction(1, 2, 3), mapArg));
+    }
+
+    @Test
+    public void testGetEntitiesNoTarget() {
+        long targetId2 = 20;
+        Map<Long, EntityInfo> mapArg = new HashMap<>();
+        EntityInfo info1 = EntityInfo.newBuilder()
+                .setEntityId(1)
+                .putTargetIdToProbeId(targetId, probeId)
+                .build();
+        EntityInfo info2 = EntityInfo.newBuilder()
+                .setEntityId(2)
+                .putTargetIdToProbeId(targetId2, probeId)
+                .build();
+        mapArg.put(1L, info1);
+        mapArg.put(2L, info2);
+        try {
+            actionExecutor.getEntitiesTarget(buildMoveAction(1, 2, 3), mapArg);
+            Assert.fail();
+        } catch (TargetResolutionException e) {
+            Assert.assertTrue(e.getMessage()
+                    .endsWith(" has no overlapping targets between the entities involved."));
+        }
     }
 }

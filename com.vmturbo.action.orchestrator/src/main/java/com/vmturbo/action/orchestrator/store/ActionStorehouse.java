@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.ImmutableMap;
 
+import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.proactivesupport.DataMetricSummary;
@@ -27,6 +28,7 @@ import com.vmturbo.proactivesupport.DataMetricTimer;
 public class ActionStorehouse {
     private final IActionStoreFactory actionStoreFactory;
     private final Map<Long, ActionStore> storehouse;
+    private final AutomatedActionExecutor automatedExecutor;
     private static final Logger logger = LogManager.getLogger();
 
     private static final DataMetricSummary STORE_POPULATION_SUMMARY = DataMetricSummary.builder()
@@ -50,9 +52,11 @@ public class ActionStorehouse {
      * @param storeLoader The loader to use at startup when loading previously saved action stores.
      */
     public ActionStorehouse(@Nonnull final IActionStoreFactory actionStoreFactory,
+                            @Nonnull final AutomatedActionExecutor automatedActionExecutor,
                             @Nonnull final IActionStoreLoader storeLoader) {
         this.actionStoreFactory = actionStoreFactory;
         this.storehouse = new HashMap<>();
+        this.automatedExecutor = automatedActionExecutor;
         storeLoader.loadActionStores().forEach(store -> storehouse.put(store.getTopologyContextId(), store));
 
         logger.info("ActionStorehouse initialized with data for {} action stores", size());
@@ -91,6 +95,10 @@ public class ActionStorehouse {
         store.populateRecommendedActions(actionPlan);
         populationTimer.observe();
 
+        if (store.allowsExecution()) {
+            automatedExecutor.executeAutomatedFromStore(store);
+        }
+        // severity cache must be refreshed after actions change (see EntitySeverityCache javadoc)
         store.getEntitySeverityCache().refresh(store);
 
         return store;

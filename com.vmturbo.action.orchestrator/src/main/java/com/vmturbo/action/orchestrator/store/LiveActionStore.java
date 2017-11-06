@@ -328,6 +328,14 @@ public class LiveActionStore implements ActionStore {
     /**
      * {@inheritDoc}
      */
+    @Override
+    public boolean allowsExecution() {
+        return true;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
     @Nonnull
     @Override
     public Optional<Action> getAction(long actionId) {

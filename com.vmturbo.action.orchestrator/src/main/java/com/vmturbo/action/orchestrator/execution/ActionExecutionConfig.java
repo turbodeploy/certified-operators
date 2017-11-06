@@ -32,6 +32,11 @@ public class ActionExecutionConfig {
 
     @Bean
     public ActionExecutor actionExecutor() {
-        return new ActionExecutor(globalConfig.topologyProcessorChannel(), actionTargetResolver());
+        final ActionExecutor executor =
+                new ActionExecutor(globalConfig.topologyProcessorChannel(), actionTargetResolver());
+
+        globalConfig.topologyProcessor().addActionListener(executor);
+
+        return executor;
     }
 }

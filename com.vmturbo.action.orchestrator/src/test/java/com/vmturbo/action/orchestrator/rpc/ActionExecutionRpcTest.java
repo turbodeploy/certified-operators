@@ -28,6 +28,7 @@ import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionEvent.AcceptanceEvent;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTranslator;
+import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ExecutionStartException;
 import com.vmturbo.action.orchestrator.execution.TargetResolutionException;
 import com.vmturbo.action.orchestrator.state.machine.Transition.TransitionResult;
@@ -69,7 +70,9 @@ public class ActionExecutionRpcTest {
     private final IActionFactory actionFactory = new ActionFactory();
     private final IActionStoreFactory actionStoreFactory = Mockito.mock(IActionStoreFactory.class);
     private final IActionStoreLoader actionStoreLoader = Mockito.mock(IActionStoreLoader.class);
-    private final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory, actionStoreLoader);
+    private final AutomatedActionExecutor executor = Mockito.mock(AutomatedActionExecutor.class);
+    private final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory,
+            executor, actionStoreLoader);
 
     private final ActionExecutor actionExecutor = Mockito.mock(ActionExecutor.class);
     // Have the translator pass-through translate all actions.

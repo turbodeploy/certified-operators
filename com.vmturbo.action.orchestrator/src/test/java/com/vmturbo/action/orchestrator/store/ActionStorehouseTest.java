@@ -8,8 +8,10 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.mockito.InOrder;
 import org.mockito.Mockito;
 
+import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse.StoreDeletionException;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
@@ -21,6 +23,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -34,9 +37,11 @@ public class ActionStorehouseTest {
     private final EntitySeverityCache severityCache = Mockito.mock(EntitySeverityCache.class);
     private final IActionStoreFactory actionStoreFactory = Mockito.mock(IActionStoreFactory.class);
     private final IActionStoreLoader actionStoreLoader = Mockito.mock(IActionStoreLoader.class);
+    private final AutomatedActionExecutor executor = Mockito.mock(AutomatedActionExecutor.class);
     private final long topologyContextId = 0xCAFE;
 
-    private final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory, actionStoreLoader);
+    private final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory,
+            executor, actionStoreLoader);
     private final Action moveAction = Action.newBuilder()
         .setId(9999L)
         .setImportance(0)
@@ -57,6 +62,7 @@ public class ActionStorehouseTest {
     public void setup() {
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStore);
         when(actionStore.getEntitySeverityCache()).thenReturn(severityCache);
+        when(actionStore.allowsExecution()).thenReturn(true);
         when(actionStore.getStoreTypeName()).thenReturn("test");
         when(actionStoreFactory.getContextTypeName(anyLong())).thenReturn("foo");
     }
@@ -99,6 +105,21 @@ public class ActionStorehouseTest {
     public void testStoreActionsRefreshesSeverityCache() throws Exception {
         actionStorehouse.storeActions(actionPlan);
         verify(severityCache).refresh(eq(actionStore));
+    }
+
+    @Test
+    public void testStoreActionsExecutesAutomaticActions() {
+        actionStorehouse.storeActions(actionPlan);
+        verify(executor).executeAutomatedFromStore(actionStore);
+    }
+
+    @Test
+    public void testStoreActionsPopulateRefreshExecuteRefreshFlow() {
+        InOrder inOrder = Mockito.inOrder(executor, severityCache, actionStore);
+        actionStorehouse.storeActions(actionPlan);
+        inOrder.verify(actionStore).populateRecommendedActions(actionPlan);
+        inOrder.verify(executor).executeAutomatedFromStore(actionStore);
+        inOrder.verify(severityCache).refresh(actionStore);
     }
 
     @Test
@@ -182,7 +203,8 @@ public class ActionStorehouseTest {
         final IActionStoreLoader actionStoreLoader = Mockito.mock(IActionStoreLoader.class);
         when(actionStoreLoader.loadActionStores()).thenReturn(Collections.singletonList(persistedStore));
 
-        final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory, actionStoreLoader);
+        final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory,
+                executor, actionStoreLoader);
         assertEquals(1, actionStorehouse.size());
         assertEquals(persistedStore, actionStorehouse.getStore(topologyContextId).get());
     }

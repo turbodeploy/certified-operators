@@ -45,6 +45,11 @@ public interface ActionStore {
     int size();
 
     /**
+     * Return whether the store contains actions that can be executed in the current topology.
+     */
+    boolean allowsExecution();
+
+    /**
      * Get a view of an action that provides accessors to the property of that action.
      * Clients who do not need to mutate the state of an action should prefer
      * to access the actions via an {@link ActionView}.
