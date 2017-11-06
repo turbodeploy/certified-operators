@@ -5,14 +5,51 @@
 #   - topic: <name>  // the name of a topic we want created in the broker
 #     <property-name>: <value> // each property-name / value combination will be applied as a topic-
 #     <...>                    // specific property setting.
+#
+# In addition, we are using the following broker-level settings. So if these settings are not
+# set at the topic level, they will inherit these broker values:
+#      log.retention.hours: ${KAFKA_LOG_RETENTION_HRS} # 24 hrs
+#      message.max.bytes: ${KAFKA_MAX_MESSAGE_BYTES} # 67108864 bytes (64mb)
+#
 topics:
-  - topic: probe-events
-  - topic: realtime-topologies
-  - topic: plan-topologies
-  - topic: projected-topologies
-  - topic: price-indices
+  - topic: tp-notifications
     properties:
-      max.message.bytes: 67108864
+      retention.ms: 604800000 # 604800000 ms = 7 days
+  - topic: tp-topology-broadcast
+    properties:
+      retention.ms: 3600000 # 3600k ms = 1 hr
+  - topic: projected-topologies
+    properties:
+      retention.ms: 3600000 # 3600k ms = 1 hr
   - topic: action-plans
     properties:
-      max.message.bytes: 67108864
+      retention.ms: 2400000 # 2400k ms = 40 min
+  - topic: price-indices
+    properties:
+      retention.ms: 7200000 # 7200k ms = 2 hr
+  - topic: historyNotifications
+    properties:
+      retention.ms: 86400000 # 86400k ms = 24 hr
+  - topic: repository-topology-notifications
+    properties:
+      retention.ms: 86400000 # 86400k ms = 24 hr
+  - topic: action-orchestrator-actions
+    properties:
+      retention.ms: 2400000 # 2400k ms = 40 min
+  - topic: plan-orchestrator-status-changed
+    properties:
+      retention.ms: 86400000 # 86400k ms = 24 hr
+# the following topics are not in use yet.
+  - topic: action-status
+    properties:
+      max.message.bytes: 32767 # 32k -- these are small messages, so the batch size can be small
+      retention.ms: 604800000 # 604800000 ms = 7 days
+  - topic: probe-events
+    properties:
+      retention.ms: 604800000 # 604800000 ms = 7 days
+  - topic: live-topologies
+  - topic: user-plan-topologies
+  - topic: scheduled-plan-topologies
+  - topic: live-projected-topologies
+  - topic: user-plan-projected-topologies
+  - topic: scheduled-plan-projected-topologies
