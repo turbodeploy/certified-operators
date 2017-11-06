@@ -63,7 +63,7 @@ public class DockerEnvironment {
             .put("DEV_JAVA_OPTS", "-agentlib:jdwp=transport=dt_socket,address=8000,server=y,suspend=n")
             .put("CONSUL_PORT", "8500")
             .put("DB_PORT", "3306")
-            .put("AUTH_PORT", "9100")
+            .put("AUTH_PORT", "8080")
             .put("AUTH_DEBUG_PORT", "8000")
             .put("CLUSTERMGR_PORT", "8080")
             .put("CLUSTERMGR_DEBUG_PORT", "8000")

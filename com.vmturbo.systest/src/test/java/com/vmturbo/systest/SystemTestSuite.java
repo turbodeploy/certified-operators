@@ -67,6 +67,8 @@ public class SystemTestSuite {
                             .withService(ComponentCluster.newService("plan-orchestrator")
                                     .logsToLogger(logger))
                             .withService(ComponentCluster.newService("api")
+                                    .logsToLogger(logger))
+                            .withService(ComponentCluster.newService("auth")
                                     .logsToLogger(logger)))
                     .withStubs(ComponentStubHost.newBuilder()
                             .withGrpcServices(new PolicyServiceStub()))

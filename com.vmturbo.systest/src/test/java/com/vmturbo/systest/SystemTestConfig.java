@@ -15,6 +15,7 @@ import com.vmturbo.components.api.client.KafkaMessageConsumer;
 import com.vmturbo.components.test.utilities.ComponentTestRule;
 import com.vmturbo.components.test.utilities.component.ComponentCluster;
 import com.vmturbo.components.test.utilities.component.DockerEnvironment;
+import com.vmturbo.external.api.TurboApiClient;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TopologyProcessorNotification;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClient;
@@ -36,13 +37,13 @@ public class SystemTestConfig {
     }
 
     @Bean
-    public ComponentCluster componentCluster() {
-        return componentTestRule().getCluster();
+    public TurboApiClient externalApiClient() {
+        return componentCluster().getExternalApiClient();
     }
 
     @Bean
-    public ExternalApiRequestor externalApiRequestor() {
-        return new ExternalApiRequestor(componentCluster().getConnectionConfig("api"));
+    public ComponentCluster componentCluster() {
+        return componentTestRule().getCluster();
     }
 
     @Bean

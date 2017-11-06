@@ -10,7 +10,6 @@ import javax.annotation.Nonnull;
 import javax.websocket.ContainerProvider;
 import javax.websocket.DeploymentException;
 import javax.websocket.WebSocketContainer;
-import javax.xml.ws.http.HTTPException;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -20,14 +19,16 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
-import com.vmturbo.api.dto.market.MarketApiDTO;
-import com.vmturbo.api.dto.scenario.ScenarioApiDTO;
-import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyBroadcastRequest;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.components.test.utilities.utils.StressProbeUtils;
+import com.vmturbo.external.api.MarketsApi;
+import com.vmturbo.external.api.TargetsApi;
+import com.vmturbo.external.api.TurboApiClient;
+import com.vmturbo.external.api.model.MarketApiDTO;
+import com.vmturbo.external.api.model.TargetApiDTO;
 import com.vmturbo.topology.processor.api.EntitiesListener;
 
 /**
@@ -62,43 +63,29 @@ public class SystemTestBase {
 
     private static final Logger logger = LogManager.getLogger();
 
-    public String createStressProbeTarget(Duration timeout) throws
-            InterruptedException {
+    protected TurboApiClient getApiClient() {
+        return systemTestConfig.externalApiClient();
+    }
 
-        String newTargetUri = "/targets";
+    public String createStressProbeTarget() throws InterruptedException {
+        final TargetsApi targetsApi = getApiClient().getStub(TargetsApi.class);
 
-        TargetApiDTO targetApiRequest = StressProbeUtils.createStressprobeTargetRequest(TOPOLOGY_SIZE);
-        Duration elapsed = Duration.ZERO;
-        TargetApiDTO targetApiDTO = null;
-        while (elapsed.compareTo(timeout) < 0) {
-            try {
-                targetApiDTO = systemTestConfig.externalApiRequestor()
-                        .externalApiPostRequest(newTargetUri, TargetApiDTO.class, targetApiRequest);
-            } catch (HTTPException e) {
-                logger.info("Attempt to create stressprobe failed ({}) continuing to wait",
-                        e.getStatusCode());
-                e.printStackTrace();
-            }
-            try {
-                Thread.sleep(RETRY_DELAY_MS);
-            } catch (InterruptedException e) {
-                throw new RuntimeException("Interruption waiting for discovery response");
-            }
-            elapsed = elapsed.plus(Duration.ofMillis(RETRY_DELAY_MS));
-        }
-        if (targetApiDTO == null) {
-            throw new RuntimeException("Null response adding target");
-        }
+        final TargetApiDTO targetApiRequest = StressProbeUtils.createTargetRequest(TOPOLOGY_SIZE);
+
+        TargetApiDTO targetApiDTO  =
+                targetsApi.addTarget(null, null, targetApiRequest);
+
         return targetApiDTO.getUuid();
     }
 
     protected void waitForDiscovery(@Nonnull String targetId, @Nonnull final Duration timeout) {
+        final TargetsApi targetsApi = getApiClient().getStub(TargetsApi.class);
         String newTargetUri = "/targets/" + targetId;
 
         Duration elapsed = Duration.ZERO;
         while (elapsed.compareTo(timeout) < 0) {
-            TargetApiDTO targetInfo = getRequest(newTargetUri, TargetApiDTO.class);
-            if (targetInfo.getStatus().equals("Validated")) {
+            TargetApiDTO target = targetsApi.getTarget(targetId);
+            if (target.getStatus().equals("Validated")) {
                 return;
             }
             try {
@@ -154,34 +141,6 @@ public class SystemTestBase {
         }
     }
 
-    protected MarketApiDTO getMarket(String marketUuid) {
-        return getRequest("/markets/" + marketUuid, MarketApiDTO.class);
-    }
-
-    protected String createScenario(String scenarioName, ScenarioApiDTO scenarioInputDTO) {
-
-        final String newScenarioUri = "/scenarios/" + scenarioName;
-
-        logger.info("creating scenario: {}", newScenarioUri);
-        ScenarioApiDTO newScenario = postRequest(newScenarioUri,
-                ScenarioApiDTO.class,
-                scenarioInputDTO);
-        logger.info("new scenario id: {} == {}", newScenario.getDisplayName(), newScenario.getUuid());
-
-        return newScenario.getUuid();
-    }
-
-    protected String runPlan(String marketId, String scenarioId) {
-        String runPlanUri = "/markets/" + marketId + "/scenarios/" + scenarioId;
-
-        MarketApiDTO newMarket = postRequest(runPlanUri,
-                MarketApiDTO.class, null);
-        if (newMarket == null) {
-            throw new RuntimeException("No response creating newMarket");
-        }
-        return newMarket.getUuid();
-    }
-
     /**
      * Sleep/wait for the given plan to finish execution by fetching the plan status.
      *
@@ -190,28 +149,30 @@ public class SystemTestBase {
      * @throws InterruptedException if the sleep() is interrupted while waiting
      * @throws RuntimeException if either the market status is unexpected or the test times out
      */
-    protected void waitForPlanToFinish(@Nonnull String planId, @Nonnull Duration timeout) throws InterruptedException {
+    protected void waitForPlanToFinish(@Nonnull String planId,
+                                       @Nonnull Duration timeout,
+                                       @Nonnull MarketsApi marketsApi) throws InterruptedException {
         logger.info("waiting for plan to finish");
         String marketsRequestUri = "/markets/" + planId;
         Duration elapsed = Duration.ZERO;
         while (elapsed.compareTo(timeout) < 0) {
-            MarketApiDTO marketInfo = getRequest(marketsRequestUri, MarketApiDTO.class);
+            MarketApiDTO marketInfo = marketsApi.getMarketByUuid(planId);
             if (marketInfo == null) {
                 throw new RuntimeException("Market info for " + planId + " is null");
             }
             // allowable values for state taken from MarketApiDTO
             switch (marketInfo.getState()) {
-                case "SUCCEEDED":
+                case SUCCEEDED:
                     return;
-                case "CREATED":
-                case "READY_TO_START":
-                case "RUNNING":
-                case "COPYING":
+                case CREATED:
+                case READY_TO_START:
+                case RUNNING:
+                case COPYING:
                     // continue waiting
                     break;
-                case "STOPPING":
-                case "STOPPED":
-                case "DELETING":
+                case STOPPING:
+                case STOPPED:
+                case DELETING:
                 default:
                     throw new RuntimeException("Unexpected market state: " + marketInfo.getState());
             }
@@ -268,40 +229,6 @@ public class SystemTestBase {
         logger.info("Connecting to " + uri);
         container.connectToServer(listener, uri);
     }
-
-
-    /**
-     * Issue a REST GET request.
-     *
-     * See {@link ExternalApiRequestor} for error handling.
-     *
-     * @param requestUrl url for the GET request
-     * @param responseClass class marker for the expected response
-     * @param <T> class of response expected
-     * @return the response from the request, which will be of type T
-     */
-    private <T> T getRequest(String requestUrl, Class<T> responseClass) {
-        return systemTestConfig.externalApiRequestor().externalApiGetRequest(requestUrl,
-                responseClass);
-    }
-
-    /**
-     * Issue a REST POST request.
-     *
-     * See {@link ExternalApiRequestor} for error handling.
-     *
-     * @param requestUrl url for the POST request
-     * @param responseClass class market for the expected response
-     * @param requestData data to send with the request
-     * @param <T> type of the response expected
-     * @param <R> type of the request data to be sent
-     * @return the response from the request, which willbe of type T
-     */
-    private <T, R> T postRequest(String requestUrl, Class<T> responseClass, R requestData) {
-        return systemTestConfig.externalApiRequestor().externalApiPostRequest(requestUrl,
-                responseClass, requestData);
-    }
-
 }
 
 

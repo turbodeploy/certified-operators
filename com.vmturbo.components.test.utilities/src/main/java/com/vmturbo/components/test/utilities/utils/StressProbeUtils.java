@@ -6,8 +6,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import com.vmturbo.api.dto.target.InputFieldApiDTO;
-import com.vmturbo.api.dto.target.TargetApiDTO;
+import com.vmturbo.external.api.model.InputFieldApiDTO;
+import com.vmturbo.external.api.model.TargetApiDTO;
+
 
 /**
  * Utilities for working with StressProbe.
@@ -27,20 +28,15 @@ public class StressProbeUtils {
      * @return a new TargetApiDTO with the properties for a StressProbe target with the given
      * number of VMs, etc.
      */
-    public static TargetApiDTO createStressprobeTargetRequest(int topologySize) {
-
-        TargetApiDTO newTargetRequest = new TargetApiDTO();
-
+    public static TargetApiDTO createTargetRequest(int topologySize) {
+        final TargetApiDTO newTargetRequest = new TargetApiDTO();
         newTargetRequest.setCategory(STRESS_PROBE_CATEGORY);
         newTargetRequest.setType(STRESS_PROBE_TYPE);
 
-        // calculate a topology based on the given number of VMs
         Map<String, Object> accountFields = generateStressAccount(topologySize).getFieldMap();
-
-        // convert key/value pairs to inputFieldDTO's - only "name" and "value" set
         List<InputFieldApiDTO> inputFields = accountFields.entrySet().stream()
                 .map(fieldNameValue ->  {
-                    InputFieldApiDTO fieldDTO = new InputFieldApiDTO();
+                    final InputFieldApiDTO fieldDTO = new InputFieldApiDTO();
                     fieldDTO.setName(fieldNameValue.getKey());
                     fieldDTO.setValue(fieldNameValue.getValue().toString());
                     return fieldDTO;
@@ -48,7 +44,6 @@ public class StressProbeUtils {
                 .collect(Collectors.toList());
 
         newTargetRequest.setInputFields(inputFields);
-
         return newTargetRequest;
     }
 }

@@ -133,6 +133,7 @@
                                     <schemes>http,https</schemes>
                                     <basePath>${swagger.basepath}</basePath>
                                     <locations>${swagger.locations}</locations>
+                                    <outputFormats>json,yaml</outputFormats>
                                     <info>
                                         <title>${swagger.component.name}</title>
                                         <version>${api.version}</version>

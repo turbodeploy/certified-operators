@@ -39,6 +39,7 @@ import tec.units.ri.unit.MetricPrefix;
 
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.components.test.utilities.ComponentTestRule;
+import com.vmturbo.external.api.TurboApiClient;
 import com.vmturbo.grpc.extensions.PingingChannelBuilder;
 
 /**
@@ -172,6 +173,22 @@ public class ComponentCluster {
         return ComponentApiConnectionConfig.newBuilder()
             .setHostAndPort(dockerPort.getIp(), dockerPort.getExternalPort())
             .build();
+    }
+
+    @Nonnull
+    public TurboApiClient getExternalApiClient() {
+        final Component apiComponent = components.get("api");
+        if (apiComponent == null) {
+            throw new IllegalStateException("API component not included as part of cluster!" +
+                    " Can't initialize external API client.");
+        }
+
+        final DockerPort dockerPort = apiComponent.getHttpPort();
+
+        return TurboApiClient.newBuilder()
+                .setHost(dockerPort.getIp())
+                .setPort(dockerPort.getExternalPort())
+                .build();
     }
 
     /**

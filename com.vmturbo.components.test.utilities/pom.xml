@@ -25,6 +25,10 @@
     <dependencies>
         <dependency>
             <groupId>com.vmturbo</groupId>
+            <artifactId>external-api-stubs</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
             <artifactId>topology-processor</artifactId>
         </dependency>
         <dependency>

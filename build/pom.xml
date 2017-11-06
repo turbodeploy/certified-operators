@@ -65,6 +65,7 @@
         <jersey-media-jaxb.version>2.17</jersey-media-jaxb.version>
         <docker.maven.plugin.version>0.4.13</docker.maven.plugin.version>
         <swagger-annotations.version>1.5.4</swagger-annotations.version>
+        <swagger.codegen.plugin.version>2.2.3</swagger.codegen.plugin.version>
         <spring-cloud-starter-consul-all.version>1.2.1.RELEASE</spring-cloud-starter-consul-all.version>
         <spring-cloud-commons.version>1.2.2.RELEASE</spring-cloud-commons.version>
         <jackson-datatype-guava.version>2.6.5</jackson-datatype-guava.version>
@@ -795,6 +796,11 @@
                     </configuration>
                 </plugin>
                 <plugin>
+                    <groupId>io.swagger</groupId>
+                    <artifactId>swagger-codegen-maven-plugin</artifactId>
+                    <version>${swagger.codegen.plugin.version}</version>
+                </plugin>
+                <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-shade-plugin</artifactId>
                     <version>2.3</version>
@@ -947,6 +953,11 @@
             <dependency>
                 <groupId>com.vmturbo</groupId>
                 <artifactId>market-component-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>external-api-stubs</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
