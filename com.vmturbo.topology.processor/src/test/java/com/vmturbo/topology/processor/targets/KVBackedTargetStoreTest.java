@@ -111,7 +111,7 @@ public class KVBackedTargetStoreTest {
 
         targetStore.createTarget(spec.toDto());
 
-        verify(keyValueStore).put(eq("targets/0"), any());
+        verify(keyValueStore).put(Mockito.eq("targets/0"), any());
 
         targetStore.getTarget(0L).get();
     }
@@ -146,10 +146,10 @@ public class KVBackedTargetStoreTest {
 
         final KeyValueStore kvStore = Mockito.mock(KeyValueStore.class);
 
-        Mockito.when(kvStore.getByPrefix(eq("targets/"))).thenReturn(
+        Mockito.when(kvStore.getByPrefix(Mockito.eq("targets/"))).thenReturn(
                 Collections.singletonMap("0", target.toJsonString()));
         final KVBackedTargetStore newTargetStore = new KVBackedTargetStore(kvStore, identityProvider, probeStore);
-        verify(kvStore).getByPrefix(eq("targets/"));
+        verify(kvStore).getByPrefix(Mockito.eq("targets/"));
         newTargetStore.getTarget(0L).get();
     }
 
@@ -199,7 +199,7 @@ public class KVBackedTargetStoreTest {
         final Target target = new Target(identityProvider, probeStore, spec.toDto());
         final KeyValueStore kvStore = Mockito.mock(KeyValueStore.class);
 
-        Mockito.when(kvStore.getByPrefix(eq("targets/"))).thenReturn(
+        Mockito.when(kvStore.getByPrefix(Mockito.eq("targets/"))).thenReturn(
                 Collections.singletonMap("0", target.toJsonString()));
         String value = kvStore.getByPrefix("targets/").get("0");
         Gson gson = new GsonBuilder()
@@ -279,7 +279,7 @@ public class KVBackedTargetStoreTest {
         final KeyValueStore kvStore = prepareKvStoreWithTarget(target);
 
         final KVBackedTargetStore newTargetStore = new KVBackedTargetStore(kvStore, identityProvider, probeStore);
-        verify(kvStore).getByPrefix(eq("targets/"));
+        verify(kvStore).getByPrefix(Mockito.eq("targets/"));
 
         final Target retTarget = newTargetStore.getTarget(0L).get();
         Assert.assertEquals(target.getId(), retTarget.getId());
@@ -325,7 +325,7 @@ public class KVBackedTargetStoreTest {
         // Probe re-registered without the secret field.
         Mockito.when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(baseProbeInfo));
 
-        Mockito.when(keyValueStore.getByPrefix(eq("targets/")))
+        Mockito.when(keyValueStore.getByPrefix(Mockito.eq("targets/")))
                 .thenReturn(Collections.singletonMap("0", target.toJsonString()));
 
         // Simulate a restart by creating a new instance
@@ -337,7 +337,7 @@ public class KVBackedTargetStoreTest {
 
     @Test
     public void testInvalidSerializedTarget() throws Exception {
-        Mockito.when(keyValueStore.getByPrefix(eq("targets/")))
+        Mockito.when(keyValueStore.getByPrefix(Mockito.eq("targets/")))
                 .thenReturn(Collections.singletonMap("targets/0", "aoishtioa"));
 
         // Instantiating a KVBackedStore should work.
@@ -379,7 +379,7 @@ public class KVBackedTargetStoreTest {
 
     private KeyValueStore prepareKvStoreWithTarget(Target target) throws Exception {
         final KeyValueStore kvStore = Mockito.mock(KeyValueStore.class);
-        Mockito.when(kvStore.getByPrefix(eq("targets/"))).thenReturn(Collections.singletonMap("0", target.toJsonString()));
+        Mockito.when(kvStore.getByPrefix(Mockito.eq("targets/"))).thenReturn(Collections.singletonMap("0", target.toJsonString()));
 
         return kvStore;
     }

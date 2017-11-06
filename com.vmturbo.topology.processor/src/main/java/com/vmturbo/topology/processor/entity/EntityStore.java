@@ -35,6 +35,7 @@ import com.vmturbo.topology.processor.entity.Entity.PerTargetInfo;
 import com.vmturbo.topology.processor.entity.EntityValidator.EntityValidationFailure;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
+import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingEntityData;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingGraph;
 import com.vmturbo.topology.processor.targets.Target;
@@ -165,8 +166,8 @@ public class EntityStore {
      *         individual-targets into a unified topology.
      */
     @Nonnull
-    public TopologyStitchingGraph constructStitchingGraph() {
-        final TopologyStitchingGraph stitchingGraph = new TopologyStitchingGraph(entityMap.size());
+    public StitchingContext constructStitchingContext() {
+        final StitchingContext.Builder builder = StitchingContext.newBuilder(entityMap.size());
         TargetStitchingDataMap stitchingDataMap;
 
         synchronized (topologyUpdateLock) {
@@ -187,12 +188,12 @@ public class EntityStore {
         }
 
         stitchingDataMap.allStitchingData()
-            .forEach(stitchingEntityData -> stitchingGraph.addStitchingData(
+            .forEach(stitchingEntityData -> builder.addEntity(
                 stitchingEntityData,
                 stitchingDataMap.getTargetIdToStitchingDataMap(stitchingEntityData.getTargetId())
             ));
 
-        return stitchingGraph;
+        return builder.build();
     }
 
     /**
@@ -384,7 +385,7 @@ public class EntityStore {
             targetEntities.put(targetId, targetIdInfo);
 
             // Fill in the hosted-by relationships.
-            vmToProviderLocalIds.entrySet().forEach(entry ->
+            vmToProviderLocalIds.entrySet().forEach(entry -> {
                 entry.getValue().stream()
                     .filter(localId -> localIdToType.get(localId) == EntityType.PHYSICAL_MACHINE)
                     .findFirst()
@@ -393,7 +394,8 @@ public class EntityStore {
                         // since the VM is buying commodities from a PM that doesn't exist.
                         long pmId = Objects.requireNonNull(targetIdInfo.getLocalIdToEntityId().get(localId));
                         Objects.requireNonNull(entityMap.get(entry.getKey())).setHostedBy(targetId, pmId);
-                    }));
+                    });
+            });
         }
     }
 

@@ -22,6 +22,7 @@ import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.kvstore.MapKeyValueStore;
 import com.vmturbo.mediation.common.tests.util.IRemoteMediation;
 import com.vmturbo.sdk.server.common.SdkWebsocketServerTransportHandler;
+import com.vmturbo.stitching.StitchingOperationLibrary;
 import com.vmturbo.topology.processor.communication.RemoteMediationServer;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
@@ -31,6 +32,7 @@ import com.vmturbo.topology.processor.identity.storage.IdentityDatabaseStore;
 import com.vmturbo.topology.processor.identity.storage.IdentityServiceInMemoryUnderlyingStore;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.probes.RemoteProbeStore;
+import com.vmturbo.topology.processor.stitching.StitchingOperationStore;
 import com.vmturbo.topology.processor.targets.KVBackedTargetStore;
 import com.vmturbo.topology.processor.targets.TargetStore;
 
@@ -75,7 +77,7 @@ public class TestMediationCommonConfig {
 
     @Bean
     public ProbeStore probeStore() {
-        return new RemoteProbeStore(identityProvider());
+        return new RemoteProbeStore(identityProvider(), stitchingOperationStore());
     }
 
     @Bean
@@ -92,6 +94,11 @@ public class TestMediationCommonConfig {
     @Bean
     public IRemoteMediation remoteMediationInterface() {
         return new RemoteMediationImpl(remoteMediation(), probeStore());
+    }
+
+    @Bean
+    public StitchingOperationStore stitchingOperationStore() {
+        return new StitchingOperationStore(new StitchingOperationLibrary());
     }
 
     /**

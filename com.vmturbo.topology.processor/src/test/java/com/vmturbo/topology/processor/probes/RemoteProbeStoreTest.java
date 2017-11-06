@@ -2,6 +2,8 @@ package com.vmturbo.topology.processor.probes;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.anyLong;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -17,6 +19,7 @@ import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
+import com.vmturbo.topology.processor.stitching.StitchingOperationStore;
 import com.vmturbo.topology.processor.util.Probes;
 
 /**
@@ -25,6 +28,7 @@ import com.vmturbo.topology.processor.util.Probes;
 public class RemoteProbeStoreTest {
 
     private IdentityProvider idProvider;
+    private final StitchingOperationStore stitchingOperationStore = Mockito.mock(StitchingOperationStore.class);
     private RemoteProbeStore store;
 
     private final ProbeInfo probeInfo = Probes.emptyProbe;
@@ -37,13 +41,15 @@ public class RemoteProbeStoreTest {
     @Before
     public void setup() {
         idProvider = Mockito.mock(IdentityProvider.class);
-        store = new RemoteProbeStore(idProvider);
+        store = new RemoteProbeStore(idProvider, stitchingOperationStore);
     }
 
     @Test
     public void testRegisterNewProbe() throws Exception {
         when(idProvider.getProbeId(probeInfo)).thenReturn(1234L);
         assertFalse(store.registerNewProbe(probeInfo, transport));
+
+        verify(stitchingOperationStore).setOperationsForProbe(eq(1234L), eq(probeInfo));
     }
 
     @Test
@@ -151,6 +157,7 @@ public class RemoteProbeStoreTest {
 
         store.registerNewProbe(probe1, transport);
         store.removeTransport(transport);
+        verify(stitchingOperationStore).removeOperationsForProbe(anyLong());
         final ITransport<MediationServerMessage, MediationClientMessage> transport2 =
                 createTransport();
         store.registerNewProbe(probe2, transport2);

@@ -13,6 +13,7 @@ import com.vmturbo.topology.processor.api.server.TopologyProcessorApiConfig;
 import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.group.GroupConfig;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
+import com.vmturbo.topology.processor.stitching.StitchingConfig;
 import com.vmturbo.topology.processor.targets.TargetConfig;
 import com.vmturbo.topology.processor.templates.DiscoveredTemplateDeploymentProfileConfig;
 
@@ -26,6 +27,7 @@ import com.vmturbo.topology.processor.templates.DiscoveredTemplateDeploymentProf
     IdentityProviderConfig.class,
     GroupConfig.class,
     DiscoveredTemplateDeploymentProfileConfig.class,
+    StitchingConfig.class,
     TargetConfig.class
 })
 public class TopologyConfig {
@@ -46,6 +48,9 @@ public class TopologyConfig {
     private DiscoveredTemplateDeploymentProfileConfig discoveredTemplateDeploymentProfileConfig;
 
     @Autowired
+    private StitchingConfig stitchingConfig;
+
+    @Autowired
     private TargetConfig targetConfig;
 
     @Value("${realtimeTopologyContextId}")
@@ -58,6 +63,7 @@ public class TopologyConfig {
                 entityConfig.entityStore(),
                 identityProviderConfig.identityProvider(),
                 groupConfig.policyManager(),
+                stitchingConfig.stitchingManager(),
                 discoveredTemplateDeploymentProfileConfig.discoveredTemplatesUploader(),
                 groupConfig.discoveredGroupUploader(),
                 groupConfig.settingsManager(),

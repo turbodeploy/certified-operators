@@ -250,7 +250,9 @@ public class EntityStoreTest {
             3L, storage("baz").build());
 
         addEntities(entities);
-        final TopologyStitchingGraph graph = entityStore.constructStitchingGraph();
+        final TopologyStitchingGraph graph = entityStore
+            .constructStitchingContext()
+            .getStitchingGraph();
 
         assertThat(graph.getConsumerEntities("bar")
             .map(Builder::getId)
@@ -289,7 +291,9 @@ public class EntityStoreTest {
 
         addEntities(firstTargetEntities, target1Id, 0L);
         addEntities(secondTargetEntities, target2Id, 1L);
-        final TopologyStitchingGraph graph = entityStore.constructStitchingGraph();
+        final TopologyStitchingGraph graph = entityStore
+            .constructStitchingContext()
+            .getStitchingGraph();
 
         assertEquals(6, graph.vertexCount());
         assertThat(graph.getProviderEntities("foo")

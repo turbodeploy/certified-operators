@@ -40,6 +40,10 @@ public class StitchingEntityData {
         return oid;
     }
 
+    public String getLocalId() {
+        return entityDtoBuilder.getId();
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(entityDtoBuilder, targetId, targetId);

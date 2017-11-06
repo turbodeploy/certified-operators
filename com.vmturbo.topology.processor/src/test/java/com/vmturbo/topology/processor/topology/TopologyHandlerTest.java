@@ -8,6 +8,7 @@ import static org.mockito.Mockito.when;
 
 import java.time.Clock;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Map;
 
 import javax.annotation.Nonnull;
@@ -23,7 +24,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
 import com.vmturbo.topology.processor.api.server.TopologyBroadcast;
 import com.vmturbo.topology.processor.conversions.ConverterTest;
@@ -36,6 +36,8 @@ import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.group.settings.SettingsManager;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
+import com.vmturbo.topology.processor.stitching.StitchingManager;
+import com.vmturbo.topology.processor.stitching.StitchingOperationStore;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.templates.DiscoveredTemplateDeploymentProfileNotifier;
 
@@ -45,9 +47,12 @@ import com.vmturbo.topology.processor.templates.DiscoveredTemplateDeploymentProf
 public class TopologyHandlerTest {
 
     private final TopoBroadcastManager topoBroadcastManager =
-            Mockito.mock(TopoBroadcastManager.class);
-    private final IdentityProvider identityProvider = Mockito.mock(IdentityProvider.class);
+            mock(TopoBroadcastManager.class);
+
+    private final IdentityProvider identityProvider = mock(IdentityProvider.class);
+
     private final TargetStore targetStore = Mockito.mock(TargetStore.class);
+
     private final EntityStore entityStore = new EntityStore(targetStore,
             identityProvider, new EntityValidator());
 
@@ -71,6 +76,8 @@ public class TopologyHandlerTest {
             mock(SettingsManager.class);
 
     private final Clock clock = mock(Clock.class);
+    private final StitchingOperationStore stitchingOperationStore = Mockito.mock(StitchingOperationStore.class);
+    private final StitchingManager stitchingManager = new StitchingManager(stitchingOperationStore);
 
     private final TopologyInfo realtimeTopologyInfo = TopologyInfo.newBuilder()
             .setTopologyContextId(realtimeTopologyContextId)
@@ -83,11 +90,12 @@ public class TopologyHandlerTest {
     public void init() {
         final IdentityProvider identityProvider = mock(IdentityProvider.class);
         topologyHandler = new TopologyHandler(realtimeTopologyContextId, topoBroadcastManager,
-                entityStore, identityProvider, policyManager,
+                entityStore, identityProvider, policyManager, stitchingManager,
                 discoveredTemplateDeploymentProfileNotifier, discoveredGroupUploader, settingsManager,
                 clock);
         when(identityProvider.generateTopologyId()).thenReturn(topologyId);
         when(clock.millis()).thenReturn(clockTime);
+        when(stitchingOperationStore.getAllOperations()).thenReturn(Collections.emptyList());
     }
 
     @Test
@@ -99,39 +107,12 @@ public class TopologyHandlerTest {
         addTestSnapshots();
 
         topologyHandler.broadcastLatestTopology(targetStore);
-        verify(entitiesListener, Mockito.times(4)).append(Mockito.any(TopologyEntityDTO.class));
+        verify(entitiesListener, Mockito.times(4)).append(any(TopologyEntityDTO.class));
         verify(entitiesListener).finish();
         verify(discoveredGroupUploader).processQueuedGroups();
         verify(policyManager).applyPolicies(any(TopologyGraph.class),
             any(GroupResolver.class));
         verify(discoveredTemplateDeploymentProfileNotifier).sendTemplateDeploymentProfileData();
-    }
-
-    @Test
-    public void testDuplicateEntities() throws Exception {
-        final EntityDTO.Builder builder = EntityDTO.newBuilder()
-                .setEntityType(EntityType.VIRTUAL_MACHINE);
-        // Set up three topology snapshots from three different targets, all
-        // of which have a DTO representing an entity with the same OID.
-        // Two entities with equal properties, one entity with different properties.
-        final EntityDTO[] entities = new EntityDTO[]{
-                builder.setId("test1").build(),
-                builder.setId("test1").build(),
-                builder.setId("test2").build()
-        };
-
-        for (int targetId = 0; targetId < entities.length; ++targetId) {
-            final ImmutableMap<Long, EntityDTO> snapshotMap = ImmutableMap.of(1L, entities[targetId]);
-            addEntities(targetId, snapshotMap);
-        }
-
-        final TopologyBroadcast entitiesListener = mock(TopologyBroadcast.class);
-        when(topoBroadcastManager.broadcastTopology(any()))
-            .thenReturn(entitiesListener);
-
-        topologyHandler.broadcastLatestTopology(targetStore);
-        verify(entitiesListener).append(Mockito.any(TopologyEntityDTO.class));
-        verify(entitiesListener).finish();
     }
 
     private void addTestSnapshots() throws Exception {

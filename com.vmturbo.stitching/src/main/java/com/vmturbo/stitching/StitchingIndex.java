@@ -17,7 +17,13 @@ import javax.annotation.Nonnull;
  * This index is used by first building an index of all internal entity signatures, then for each
  * external entity signature, look up all matching internal signatures using this index.
  *
- * We choose to build the index on internal signatures because we expect the index to be smaller.
+ * We choose to build the index on internal signatures because we expect the number of internal
+ * signatures to be smaller than the number of external signatures because internal entities come
+ * from only one target while external signatures come from an unbounded number of targets.
+ *
+ * The specific implementation details of an index are left up to the implementor but implementors
+ * should aim to provide as close to a constant-time lookup as possible for all internal signatures
+ * that match a given external signature.
  *
  * INTERNAL_SIGNATURE_TYPE and EXTERNAL_SIGNATURE_TYPE to permit maximum flexibility so that. Consider,
  * for example, if the internal signature is a single integer and the external signature is a list

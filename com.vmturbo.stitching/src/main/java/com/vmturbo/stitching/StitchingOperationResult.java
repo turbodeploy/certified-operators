@@ -1,11 +1,11 @@
 package com.vmturbo.stitching;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
@@ -14,7 +14,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 
 /**
  * A {@link StitchingOperationResult} is returned for each call to
- * {@link StitchingOperation#stitch(EntityDTO.Builder, Stream, StitchingGraph)}. It is used to represent
+ * {@link StitchingOperation#stitch(Collection, StitchingGraph)}. It is used to represent
  * all the changes to the topology (either relationship updates or entity removals) made by a particular
  * {@link StitchingOperation} at a particular stitching point.
  *
@@ -69,7 +69,7 @@ public class StitchingOperationResult {
     }
 
     /**
-     * Create a new builder for a {@link StitchingOperationResult}.
+     * Create a builder for a {@link StitchingOperationResult}.
      *
      * @return A builder for a {@link StitchingOperationResult}.
      */
@@ -78,7 +78,7 @@ public class StitchingOperationResult {
     }
 
     /**
-     * A builder for a {@link StitchingOperationResult}
+     * A builder for a {@link StitchingOperationResult}.
      */
     public static class Builder {
         private final List<StitchingChange> changes = new ArrayList<>();
@@ -102,9 +102,11 @@ public class StitchingOperationResult {
          * Requesting the removal of an entity that has already been removed results in a no-op.
          *
          * @param entity The entity to be removed.
+         * @return A reference to {@link this} to support method chaining.
          */
-        public void removeEntity(@Nonnull final EntityDTO.Builder entity) {
+        public Builder removeEntity(@Nonnull final EntityDTO.Builder entity) {
             changes.add(new RemoveEntityChange(entity));
+            return this;
         }
 
         /**
@@ -127,10 +129,12 @@ public class StitchingOperationResult {
          * @param updateMethod A method that receives the entity being updated and attaches new
          *                     commodities bought to update the relationships of the entity and its
          *                     potential new producers.
+         * @return A reference to {@link this} to support method chaining.
          */
-        public void updateCommoditiesBought(@Nonnull final EntityDTO.Builder entity,
-                                            @Nonnull final Consumer<EntityDTO.Builder> updateMethod) {
+        public Builder updateCommoditiesBought(@Nonnull final EntityDTO.Builder entity,
+                                               @Nonnull final Consumer<EntityDTO.Builder> updateMethod) {
             changes.add(new CommoditiesBoughtChange(entity, updateMethod));
+            return this;
         }
     }
 

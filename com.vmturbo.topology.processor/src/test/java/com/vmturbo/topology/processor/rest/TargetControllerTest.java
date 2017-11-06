@@ -78,6 +78,8 @@ import com.vmturbo.topology.processor.operation.validation.Validation;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.probes.RemoteProbeStore;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
+import com.vmturbo.topology.processor.stitching.StitchingManager;
+import com.vmturbo.topology.processor.stitching.StitchingOperationStore;
 import com.vmturbo.topology.processor.targets.KVBackedTargetStore;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
@@ -116,12 +118,17 @@ public class TargetControllerTest {
 
         @Bean
         ProbeStore probeStore() {
-            return new RemoteProbeStore(identityService());
+            return new RemoteProbeStore(identityService(), stitchingOperationStore());
         }
 
         @Bean
         Scheduler schedulerMock() {
             return Mockito.mock(Scheduler.class);
+        }
+
+        @Bean
+        StitchingOperationStore stitchingOperationStore() {
+            return Mockito.mock(StitchingOperationStore.class);
         }
 
         @Bean

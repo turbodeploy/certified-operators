@@ -247,7 +247,7 @@ public class TopologyStitchingGraphTest {
         final StitchingEntityData entity1 = stitchingData("1", Collections.emptyList());
         final StitchingEntityData entity2 = stitchingData("2", Collections.emptyList());
         final StitchingEntityData entity3 = stitchingData("3", Arrays.asList("1", "2"));
-        
+
         final Map<String, StitchingEntityData> topologyMap = ImmutableMap.of(
             "1", entity1,
             "2", entity2,

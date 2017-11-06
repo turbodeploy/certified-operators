@@ -46,6 +46,8 @@ import com.vmturbo.topology.processor.group.settings.SettingsManager;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.rest.TopologyController.SendTopologyResponse;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
+import com.vmturbo.topology.processor.stitching.StitchingContext;
+import com.vmturbo.topology.processor.stitching.StitchingManager;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.templates.DiscoveredTemplateDeploymentProfileNotifier;
 import com.vmturbo.topology.processor.topology.TopologyHandler;
@@ -107,9 +109,18 @@ public class TopologyControllerTest {
         }
 
         @Bean
+        StitchingManager stitchingManager() {
+            final StitchingManager stitchingManager = Mockito.mock(StitchingManager.class);
+            Mockito.when(stitchingManager.stitch(Mockito.any(EntityStore.class), Mockito.any(TargetStore.class)))
+                .thenReturn(StitchingContext.newBuilder(0).build());
+
+            return stitchingManager;
+        }
+
+        @Bean
         TopologyHandler topologyHandler() {
             return new TopologyHandler(0, apiController(), entityStore(),
-                identityProvider(), policyManager(),
+                identityProvider(), policyManager(), stitchingManager(),
                 discoveredTemplatesNotifier(), discoveredGroupUploader(),
                 settingsManager(), Clock.systemUTC());
         }

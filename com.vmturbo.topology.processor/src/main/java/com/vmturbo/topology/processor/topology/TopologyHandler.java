@@ -1,10 +1,9 @@
 package com.vmturbo.topology.processor.topology;
 
 import java.time.Clock;
-import java.util.Collection;
 import java.util.Objects;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
+
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
@@ -29,9 +28,9 @@ import com.vmturbo.topology.processor.group.filter.TopologyFilterFactory;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.group.settings.SettingsManager;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
+import com.vmturbo.topology.processor.stitching.StitchingManager;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.templates.DiscoveredTemplateDeploymentProfileNotifier;
-import com.vmturbo.topology.processor.topology.TopologyGraph.Vertex;
 
 /**
  * Stores topology snapshots per-target and broadcasts the results to listening components.
@@ -50,6 +49,8 @@ public class TopologyHandler {
 
     private final PolicyManager policyManager;
 
+    private final StitchingManager stitchingManager;
+
     private final DiscoveredTemplateDeploymentProfileNotifier discoveredTemplateDeploymentProfileNotifier;
 
     private final DiscoveredGroupUploader discoveredGroupUploader;
@@ -63,6 +64,7 @@ public class TopologyHandler {
                            @Nonnull final EntityStore entityStore,
                            @Nonnull final IdentityProvider identityProvider,
                            @Nonnull final PolicyManager policyManager,
+                           @Nonnull final StitchingManager stitchingManager,
                            @Nonnull final DiscoveredTemplateDeploymentProfileNotifier discoveredTemplateDeploymentProfileNotifier,
                            @Nonnull final DiscoveredGroupUploader discoveredGroupUploader,
                            @Nonnull final SettingsManager settingsManager,
@@ -72,6 +74,7 @@ public class TopologyHandler {
         this.entityStore = Objects.requireNonNull(entityStore);
         this.identityProvider = Objects.requireNonNull(identityProvider);
         this.policyManager = Objects.requireNonNull(policyManager);
+        this.stitchingManager = Objects.requireNonNull(stitchingManager);
         this.discoveredTemplateDeploymentProfileNotifier = Objects.requireNonNull(discoveredTemplateDeploymentProfileNotifier);
         this.discoveredGroupUploader = Objects.requireNonNull(discoveredGroupUploader);
         this.settingsManager = Objects.requireNonNull(settingsManager);
@@ -108,7 +111,7 @@ public class TopologyHandler {
             // TODO (roman, Dec 6 2016): Construct entity stream in the entity store
             // without ever having all of them in memory. Only worry is concurrent
             // modifications.
-            TopologyGraph graph = new TopologyGraph(entityStore.constructTopology());
+            final TopologyGraph graph = stitchingManager.stitch(entityStore, targetStore).constructTopology();
             TopologyFilterFactory topologyFilterFactory = new TopologyFilterFactory();
             GroupResolver groupResolver = new GroupResolver(topologyFilterFactory);
 

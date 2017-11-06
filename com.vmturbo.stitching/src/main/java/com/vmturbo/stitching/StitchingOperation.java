@@ -1,12 +1,10 @@
 package com.vmturbo.stitching;
 
+import java.util.Collection;
 import java.util.Optional;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
 
@@ -34,7 +32,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
  * 2. Processing: During processing, the operation makes updates and removes entities in the topology.
  *    Updates to the properties and commodities of an entity may be made immediately, but updates to
  *    the relationship of an entity (as described in {@link StitchingOperationResult}) are applied only
- *    AFTER the {@link #stitch(Builder, Stream, StitchingGraph)} call returns.
+ *    AFTER the {@link #stitch(Collection, StitchingGraph)} call returns.
  *
  * @param <INTERNAL_SIGNATURE_TYPE> The type of the signature by which internal entities will be matched
  *                                  with external entities.
@@ -107,10 +105,10 @@ public interface StitchingOperation<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGNATURE_
     Optional<EXTERNAL_SIGNATURE_TYPE> getExternalSignature(@Nonnull final EntityDTOOrBuilder externalEntity);
 
     /**
-     * Stitch an internal entity with matching external entities.
+     * Stitch a collection of {@link StitchingPoint}s.
      *
-     * Stitching may update the internal entity, external entities, and entities reachable
-     * in the {@link StitchingGraph} reachable from these entities.
+     * For a given stitching point, stitching may update the internal entity, external entities,
+     * and entities reachable in the {@link StitchingGraph} reachable from these entities.
      *
      * Stitching may modify properties, modify entity relationships, or remove entities from the topology.
      * Stitching MAY NOT create entirely new entities.
@@ -123,17 +121,13 @@ public interface StitchingOperation<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGNATURE_
      * {@link StitchingOperationResult} so that the graph and certain other acceleration structures
      * that track entities and relationships can be updated for further stitching.
      *
-     * @param internalEntity The entity discovered by the target that initiated stitching.
-     * @param externalEntities The entities whose signature matched the internal entity.
+     * @param stitchingPoints The collection of {@link StitchingPoint}s that should be stitched.
      * @param stitchingGraph A graph containing both the internal and external entities
      *                       that permits traversal operations on the producers and consumers
      *                       of entities in the graph.
      * @return A {@link StitchingOperationResult} that describes the result of stitching.
      */
-    // TODO: UPDATE THIS METHOD TO TAKE A LIST OF STITCHING_POINTS (where stitching point is
-    // TODO: an internalEntity + Stream<externalEntity>)
-    @Nonnull StitchingOperationResult stitch(@Nonnull final EntityDTO.Builder internalEntity,
-                                             @Nonnull final Stream<EntityDTO.Builder> externalEntities,
+    @Nonnull StitchingOperationResult stitch(@Nonnull final Collection<StitchingPoint> stitchingPoints,
                                              @Nonnull final StitchingGraph stitchingGraph);
 
     /**

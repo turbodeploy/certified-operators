@@ -9,7 +9,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
@@ -28,6 +27,7 @@ import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.sdk.server.common.ProbeInfoComparator;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
+import com.vmturbo.topology.processor.stitching.StitchingOperationStore;
 
 /**
  * Store for remote probe information. It publishes several convenient methods to operate with
@@ -64,9 +64,13 @@ public class RemoteProbeStore implements ProbeStore {
 
     private final IdentityProvider identityProvider_;
 
-    public RemoteProbeStore(@Nonnull IdentityProvider identityProvider) {
+    private final StitchingOperationStore stitchingOperationStore;
+
+    public RemoteProbeStore(@Nonnull IdentityProvider identityProvider,
+                            @Nonnull final StitchingOperationStore stitchingOperationStore) {
         Objects.requireNonNull(identityProvider);
         identityProvider_ = identityProvider;
+        this.stitchingOperationStore = stitchingOperationStore;
     }
 
     /**
@@ -91,6 +95,7 @@ public class RemoteProbeStore implements ProbeStore {
             } else {
                 logger.debug("Adding endpoint to probe type map: " + transport + " " + probeInfo.getProbeType());
                 final boolean probeExists = probes.containsKey(probeId);
+                stitchingOperationStore.setOperationsForProbe(probeId, probeInfo);
 
                 probes.put(probeId, transport);
                 if (!probeExists) {
@@ -139,6 +144,7 @@ public class RemoteProbeStore implements ProbeStore {
                     iterator.remove();
                     if (!probes.containsKey(probeId)) {
                         probeInfos.remove(probeId);
+                        stitchingOperationStore.removeOperationsForProbe(probeId);
                     }
                 }
             }

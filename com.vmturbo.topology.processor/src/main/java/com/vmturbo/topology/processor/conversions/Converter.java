@@ -40,7 +40,7 @@ public class Converter {
 
     private Converter() {}
 
-    private static int type(CommonDTO.EntityDTO dto) {
+    private static int type(CommonDTO.EntityDTOOrBuilder dto) {
         return dto.getEntityType().getNumber();
     }
 
@@ -64,7 +64,7 @@ public class Converter {
         return builder.build();
     }
 
-    public static TopologyDTO.TopologyEntityDTO.Builder newTopologyEntityDTO(CommonDTO.EntityDTO dto,
+    public static TopologyDTO.TopologyEntityDTO.Builder newTopologyEntityDTO(CommonDTO.EntityDTOOrBuilder dto,
                                                                              long oid,
                                                                              Map<String, Long> providerOIDs) {
         final int entityType = type(dto);
