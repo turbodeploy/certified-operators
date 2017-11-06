@@ -52,7 +52,7 @@ cp ${WORKSPACE}/build/common-services.yml ${WORKSPACE}/data/images/
 INFO="${WORKSPACE}/data/images/turbonomic_info.txt"
 echo "Built on: $(date)" > ${INFO}
 echo "Version: XL 2.0" >> ${INFO}
-echo "Build #: ${SVN_REVISION}" >> ${INFO}
+echo "Build #: ${RELEASE_TIMESTAMP}" >> ${INFO}
 
 # Cleanup and create the ISO
 cd ${WORKSPACE}/data
@@ -66,7 +66,7 @@ sha256sum "prod-services.yml" >> turbonomic_sums.txt
 sha256sum "common-services.yml" >> turbonomic_sums.txt
 for file in `ls *tgz`; do sha256sum $file >> turbonomic_sums.txt; done
 popd
-mkisofs -l -iso-level 4 -o docker_images_${SVN_REVISION}.iso images/
+mkisofs -l -iso-level 4 -o docker_images_${RELEASE_TIMESTAMP}.iso images/
 rm -f images/*
 cd
 
@@ -92,7 +92,7 @@ rm docker_images.iso
 pushd images
 for file in `ls *tgz`; do sha256sum $file > turbonomic_sums.txt; done
 popd
-mkisofs -l -iso-level 4 -o docker_diags_${SVN_REVISION}.iso images/
+mkisofs -l -iso-level 4 -o docker_diags_${RELEASE_TIMESTAMP}.iso images/
 rm -f images/*
 cd
 
