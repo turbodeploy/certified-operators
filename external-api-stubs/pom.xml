@@ -73,7 +73,7 @@
                     <dependency>
                         <groupId>com.vmturbo</groupId>
                         <artifactId>com.vmturbo.api</artifactId>
-                        <version>${vmturbo.api-ux.version}</version>
+                        <version>${vmturbo.mt.branch.version}</version>
                         <!-- API uses outdated versions of these projects -->
                         <exclusions>
                             <exclusion>
@@ -122,7 +122,7 @@
                     <dependency>
                         <groupId>com.vmturbo</groupId>
                         <artifactId>com.vmturbo.api</artifactId>
-                        <version>${vmturbo.api-ux.version}</version>
+                        <version>${vmturbo.mt.branch.version}</version>
                         <!-- API uses outdated versions of these projects -->
                         <exclusions>
                             <exclusion>
