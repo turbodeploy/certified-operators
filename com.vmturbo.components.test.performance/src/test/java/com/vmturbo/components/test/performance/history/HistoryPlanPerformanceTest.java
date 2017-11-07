@@ -64,6 +64,7 @@ public class HistoryPlanPerformanceTest extends HistoryPerformanceTest {
         historyComponent =
                 new HistoryComponentNotificationReceiver(historyMessageReceiver, threadPool);
         historyComponent.addStatsListener(statsListener);
+        messageConsumer.start();
 
         final Channel historyChannel = componentTestRule.getCluster().newGrpcChannel("history");
         statsService = StatsHistoryServiceGrpc.newBlockingStub(historyChannel);

@@ -2,10 +2,10 @@ package com.vmturbo.components.api;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.ConcurrentModificationException;
 import java.util.List;
 import java.util.Objects;
 import java.util.Properties;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -124,6 +124,7 @@ public class KafkaSenderReceiverIT {
         for (DynamicMessage message : messages) {
             sender.sendMessage(message);
         }
+        kafkaConsumer.start();
         awaitEquals(messages, received, 30);
     }
 
@@ -134,12 +135,11 @@ public class KafkaSenderReceiverIT {
      */
     @Test
     public void testMultipleTopics() throws Exception {
-        final CountDownLatch latch = new CountDownLatch(1);
-        final Future<Void> ronsMessages = checkTopic("Ron", 0, 100, latch);
-        final Future<Void> hermionesMessages = checkTopic("Hermione", 100, 100, latch);
-        final Future<Void> lunasMessages = checkTopic("Luna", 200, 50, latch);
-        final Future<Void> nevillesMessages = checkTopic("Neville", 250, 10, latch);
-        latch.countDown();
+        final Future<Void> ronsMessages = checkTopic("Ron", 0, 100);
+        final Future<Void> hermionesMessages = checkTopic("Hermione", 100, 100);
+        final Future<Void> lunasMessages = checkTopic("Luna", 200, 50);
+        final Future<Void> nevillesMessages = checkTopic("Neville", 250, 10);
+        kafkaConsumer.start();
         ronsMessages.get();
         hermionesMessages.get();
         lunasMessages.get();
@@ -174,6 +174,7 @@ public class KafkaSenderReceiverIT {
             cmd.run();
         });
         sender.sendMessage(hugeMessage);
+        kafkaConsumer.start();
         awaitEquals(Collections.singletonList(hugeMessage), received, 30);
     }
 
@@ -184,13 +185,12 @@ public class KafkaSenderReceiverIT {
      * @param topic topic to operate with
      * @param start start index of the messages (will be added to message body)
      * @param size number of messages to create/send/receive
-     * @param sendLatch latch to await before start receiving messages.
      * @return future, which will hold assertions inside.
      * @throws InterruptedException if thread has been interrupted
      * @throws CommunicationException if persistent communication exception occurred
      */
-    private Future<Void> checkTopic(String topic, int start, int size,
-            @Nonnull CountDownLatch sendLatch) throws InterruptedException, CommunicationException {
+    private Future<Void> checkTopic(String topic, int start, int size)
+            throws InterruptedException, CommunicationException {
         final List<DynamicMessage> messages = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             messages.add(createMessage(topic + "-" + Integer.toString(start + i)));
@@ -202,14 +202,13 @@ public class KafkaSenderReceiverIT {
 
         final IMessageReceiver<DynamicMessage> receiver = kafkaConsumer.messageReceiver(topic,
                 msg -> DynamicMessage.parseFrom(messageDescriptor, msg));
+        final List<DynamicMessage> received =
+                Collections.synchronizedList(new ArrayList<>(messages.size()));
+        receiver.addListener((msg, cmd) -> {
+            received.add(msg);
+            cmd.run();
+        });
         return threadPool.submit(() -> {
-            final List<DynamicMessage> received =
-                    Collections.synchronizedList(new ArrayList<>(messages.size()));
-            sendLatch.await();
-            receiver.addListener((msg, cmd) -> {
-                received.add(msg);
-                cmd.run();
-            });
             awaitEquals(messages, received, 30);
             return null;
         });
@@ -231,16 +230,20 @@ public class KafkaSenderReceiverIT {
         long targetTime = System.currentTimeMillis() + timoutSec * 1000;
         int prevSize = -1;
         while (System.currentTimeMillis() < targetTime) {
-            if (Objects.equals(expected, actual)) {
-                logger.info("Successfully validated {} messages", expected.size());
-                return;
-            } else {
-                int newSize = actual.size();
-                if (prevSize < newSize) {
-                    prevSize = newSize;
-                    targetTime = System.currentTimeMillis() + timoutSec * 1000;
+            try {
+                if (Objects.equals(expected, actual)) {
+                    logger.info("Successfully validated {} messages", expected.size());
+                    return;
+                } else {
+                    int newSize = actual.size();
+                    if (prevSize < newSize) {
+                        prevSize = newSize;
+                        targetTime = System.currentTimeMillis() + timoutSec * 1000;
+                    }
+                    Thread.sleep(1000);
                 }
-                Thread.sleep(1000);
+            } catch (ConcurrentModificationException e) {
+                // We do not synchronize lists for access. So, just ignoring and rechecking later...
             }
         }
         Assert.assertEquals(expected, actual);

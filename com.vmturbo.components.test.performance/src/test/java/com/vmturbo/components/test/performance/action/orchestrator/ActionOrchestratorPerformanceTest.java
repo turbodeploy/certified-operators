@@ -113,6 +113,7 @@ public class ActionOrchestratorPerformanceTest {
                 MarketKafkaSender.createMarketSender(componentTestRule.getKafkaMessageProducer());
         actionOrchestrator =
                 new ActionOrchestratorNotificationReceiver(messageReceiver, threadPool);
+        messageConsumer.start();
     }
 
     @After

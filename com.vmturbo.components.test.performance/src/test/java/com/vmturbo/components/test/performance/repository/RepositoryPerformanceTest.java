@@ -88,6 +88,7 @@ public class RepositoryPerformanceTest {
         messageReceiver = kafkaConsumer.messageReceiver(RepositoryNotificationReceiver
                 .TOPOLOGY_TOPIC, RepositoryNotification::parseFrom);
         repository = new RepositoryNotificationReceiver(messageReceiver, threadPool);
+        kafkaConsumer.start();
 
         final Channel repositoryChannel = componentTestRule.getCluster().newGrpcChannel("repository");
         supplyChainService = SupplyChainServiceGrpc.newBlockingStub(repositoryChannel);

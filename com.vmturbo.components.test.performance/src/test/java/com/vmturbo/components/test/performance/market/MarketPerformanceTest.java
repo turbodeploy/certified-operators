@@ -76,6 +76,7 @@ public class MarketPerformanceTest {
         projectedTopologyReceiver = kafkaMessageConsumer.messageReceiver(MarketComponentClient.PROJECTED_TOPOLOGIES_TOPIC,ProjectedTopology::parseFrom);
         marketComponent = MarketComponentClient.rpcAndNotification(connectionConfig, threadPool,
                 projectedTopologyReceiver, actionsReceiver);
+        kafkaMessageConsumer.start();
     }
 
     @After

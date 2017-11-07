@@ -13,7 +13,6 @@ import com.vmturbo.components.api.BaseKafkaConfig;
  * accross the component.
  */
 @Configuration
-@Lazy
 public class BaseKafkaConsumerConfig extends BaseKafkaConfig {
 
     /**
@@ -28,7 +27,13 @@ public class BaseKafkaConsumerConfig extends BaseKafkaConfig {
      * @return kafka consumer
      */
     @Bean
+    @Lazy
     public KafkaMessageConsumer kafkaConsumer() {
         return new KafkaMessageConsumer(bootstrapServer(), consumerGroup);
+    }
+
+    @Bean
+    public KafkaConsumerStarter startKafka() {
+        return new KafkaConsumerStarter();
     }
 }

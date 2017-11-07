@@ -11,6 +11,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyServiceGrpc;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.components.api.client.IMessageReceiver;
+import com.vmturbo.components.api.client.KafkaConsumerStarter;
 import com.vmturbo.components.api.client.KafkaMessageConsumer;
 import com.vmturbo.components.test.utilities.ComponentTestRule;
 import com.vmturbo.components.test.utilities.component.ComponentCluster;
@@ -68,6 +69,11 @@ public class SystemTestConfig {
     public KafkaMessageConsumer kafkaConsumer() {
         return new KafkaMessageConsumer(DockerEnvironment.getKafkaBootstrapServers(),
                 "system-test-1");
+    }
+
+    @Bean
+    public KafkaConsumerStarter kafkaConsumerStarter() {
+        return new KafkaConsumerStarter();
     }
 
     @Bean

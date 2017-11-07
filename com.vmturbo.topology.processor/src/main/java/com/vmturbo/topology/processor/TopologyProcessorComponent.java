@@ -76,7 +76,6 @@ import com.vmturbo.topology.processor.topology.TopologyConfig;
 })
 @EnableAutoConfiguration
 @EnableDiscoveryClient
-@ComponentScan({"com.vmturbo.topology.processor"})
 public class TopologyProcessorComponent extends BaseVmtComponent {
 
     private Logger log = LogManager.getLogger();

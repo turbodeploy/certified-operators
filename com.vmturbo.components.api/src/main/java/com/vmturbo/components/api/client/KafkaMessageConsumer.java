@@ -15,7 +15,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.StampedLock;
 import java.util.function.BiConsumer;
@@ -83,7 +82,7 @@ public class KafkaMessageConsumer implements AutoCloseable {
      * Maximum amount of messages, that are buffered for each partition, while the other message
      * for the partition is being processed.
      */
-    private static final int MAX_BUFFERED_MESSAGES = 1;
+    private static final int MAX_BUFFERED_MESSAGES = 5;
 
     private final Logger logger = LogManager.getLogger(getClass());
     /**
@@ -95,11 +94,13 @@ public class KafkaMessageConsumer implements AutoCloseable {
     private final KafkaConsumer<String, byte[]> consumer;
     @GuardedBy("consumerLock")
     private final Map<String, KafkaMessageReceiver<?>> consumers = new HashMap<>();
-    private final StampedLock consumerLock = new StampedLock();
+    private final Object consumerLock = new Object();
     /**
      * Executor service to use.
      */
     private final ExecutorService threadPool;
+    @GuardedBy("consumerLock")
+    private boolean started = false;
 
     public KafkaMessageConsumer(@Nonnull String bootstrapServer, @Nonnull String consumerGroup) {
         final Properties props = new Properties();
@@ -117,7 +118,23 @@ public class KafkaMessageConsumer implements AutoCloseable {
         final ThreadFactory threadFactory =
                 new ThreadFactoryBuilder().setNameFormat("kconsumer-%d").build();
         threadPool = Executors.newCachedThreadPool(threadFactory);
-        threadPool.submit(this::runPoll);
+    }
+
+    public void start() {
+        synchronized (consumerLock) {
+            if (started) {
+                throw new IllegalStateException("Kafka consumer is already started");
+            }
+            threadPool.submit(this::runPoll);
+            for (KafkaMessageReceiver receiver : consumers.values()) {
+                threadPool.submit(receiver::runQueue);
+            }
+            final Set<String> topics = consumers.keySet();
+            logger.info("Subscribing to topics {}", topics);
+            consumer.subscribe(topics);
+            logger.debug("Subscribed successfully");
+            started = true;
+        }
     }
 
     /**
@@ -133,21 +150,17 @@ public class KafkaMessageConsumer implements AutoCloseable {
     public <T> IMessageReceiver<T> messageReceiver(@Nonnull String topic,
             @Nonnull Deserializer<T> deserializer) {
         final KafkaMessageReceiver<T> receiver = new KafkaMessageReceiver<>(deserializer);
-        final long lock = consumerLock.writeLock();
-        try {
-            logger.info("Subscribing to topic {}", topic);
+        synchronized (consumerLock) {
+            if (started) {
+                throw new IllegalStateException("It is not allowed to add message receivers after" +
+                        " consumer has been started");
+            }
+            logger.debug("Adding receiver for topic {}", topic);
             if (consumers.containsKey(topic)) {
                 throw new IllegalStateException("Topic " + topic + " has been already added");
             }
             consumers.put(topic, receiver);
-            final Set<String> newTopics = new HashSet<>();
-            newTopics.addAll(consumers.keySet());
-            newTopics.add(topic);
-            consumer.subscribe(newTopics);
-            logger.debug("Subscribed successfully");
             return receiver;
-        } finally {
-            consumerLock.unlockWrite(lock);
         }
     }
 
@@ -157,19 +170,11 @@ public class KafkaMessageConsumer implements AutoCloseable {
     private void runPoll() {
         try {
             while (true) {
-                if (!topicsRegistered()) {
-                    // just sleep whenever no subscriptions open
-                    Thread.sleep(POLL_AWAIT_TIME);
-                    continue;
-                }
-                final long writeLock = consumerLock.writeLock();
                 final ConsumerRecords<String, byte[]> records;
-                try {
+                synchronized (consumerLock) {
                     logger.trace("polling for messages...");
                     records = consumer.poll(POLL_AWAIT_TIME);
                     logger.trace("polling finished (received {} messages)", records::count);
-                } finally {
-                    consumerLock.unlockWrite(writeLock);
                 }
                 if (!records.isEmpty()) {
                     for (ConsumerRecord<String, byte[]> record : records) {
@@ -179,45 +184,23 @@ public class KafkaMessageConsumer implements AutoCloseable {
                     }
                 }
             }
-        } catch (InterruptedException e) {
+        } catch (org.apache.kafka.common.errors.InterruptException e) {
             logger.debug("Thread interrupted polling data from Kafka server");
         } catch (Throwable t) {
             logger.warn("Error polling data", t);
         }
     }
 
-    /**
-     * Determines, whether there are any topics to request.
-     *
-     * @return whether there are topics requested to poll
-     */
-    private boolean topicsRegistered() {
-        final long readLock = consumerLock.readLock();
-        try {
-            return !consumers.isEmpty();
-        } finally {
-            consumerLock.unlockRead(readLock);
-        }
-    }
-
     private void onNewMessage(ConsumerRecord<String, byte[]> record) {
-        byte[] payload = record.value();
-        TopicPartition partition = new TopicPartition(record.topic(), record.partition());
-
         // time between now and the record timestamp represents transmission latency
         long latency = System.currentTimeMillis() - record.timestamp();
         MESSAGES_RECEIVED_LATENCY_MS.labels(record.topic()).inc((double) latency);
         // update the # received and total bytes received metrics
         MESSAGES_RECEIVED_COUNT.labels(record.topic()).inc();
+        final byte[] payload = record.value();
         MESSAGES_RECEIVED_BYTES.labels(record.topic()).inc((double) payload.length);
-
-        final long lock = consumerLock.readLock();
-        final KafkaMessageReceiver<?> receiver;
-        try {
-            receiver = consumers.get(partition.topic());
-        } finally {
-            consumerLock.unlockRead(lock);
-        }
+        final TopicPartition partition = new TopicPartition(record.topic(), record.partition());
+        final KafkaMessageReceiver<?> receiver = consumers.get(partition.topic());
         if (receiver.hasMessage(partition, record.offset())) {
             logger.debug("Message {} from topic {} is already received by consumer. Skipping it",
                     record.offset(), partition);
@@ -227,22 +210,16 @@ public class KafkaMessageConsumer implements AutoCloseable {
     }
 
     private void resumePartition(@Nonnull TopicPartition topic) {
-        final long lock = consumerLock.writeLock();
-        try {
+        synchronized (consumerLock) {
             consumer.resume(Collections.singleton(topic));
             logger.trace("Resumed topic {}", topic);
-        } finally {
-            consumerLock.unlockWrite(lock);
         }
     }
 
     private void pausePartition(@Nonnull TopicPartition topic) {
-        final long lock = consumerLock.writeLock();
-        try {
+        synchronized (consumerLock) {
             consumer.pause(Collections.singleton(topic));
             logger.trace("Paused topic {}", topic);
-        } finally {
-            consumerLock.unlockWrite(lock);
         }
     }
 
@@ -258,12 +235,9 @@ public class KafkaMessageConsumer implements AutoCloseable {
      * @param offset new offset to commic (should point to the next message to be received).
      */
     private void commitSync(@Nonnull TopicPartition partition, @Nonnull OffsetAndMetadata offset) {
-        final long lock = consumerLock.writeLock();
-        try {
+        synchronized (consumerLock) {
             logger.trace("Committing partition {} with offset {}", partition, offset.offset());
             consumer.commitSync(Collections.singletonMap(partition, offset));
-        } finally {
-            consumerLock.unlockWrite(lock);
         }
     }
 
@@ -275,19 +249,12 @@ public class KafkaMessageConsumer implements AutoCloseable {
      */
     private class KafkaMessageReceiver<T> implements IMessageReceiver<T> {
 
-        @GuardedBy("lock")
         private final Set<BiConsumer<T, Runnable>> consumers = new HashSet<>();
-        private final StampedLock lock = new StampedLock();
         private final Deserializer<T> deserializer;
         /**
          * Queue of the messages for this topic.
          */
         private final BlockingQueue<ReceivedMessage<T>> messagesQueue = new LinkedBlockingQueue<>();
-        /**
-         * Flag to understand, whether the queueing thread is already started or not. THe only
-         * one available transition is false -> true.
-         */
-        private final AtomicBoolean queueStarted = new AtomicBoolean(false);
         /**
          * Map to store the last available offset of the topic-partition. As this object is
          * dedicated to a specific topic, so the map will container different partitions of the
@@ -354,15 +321,11 @@ public class KafkaMessageConsumer implements AutoCloseable {
         @Override
         public void addListener(@Nonnull BiConsumer<T, Runnable> listener) {
             Objects.requireNonNull(listener);
-            final long writeLock = lock.writeLock();
-            try {
+            synchronized(consumerLock) {
+                if (started) {
+                    throw new IllegalStateException("Could not add listener to running consumer");
+                }
                 consumers.add(listener);
-            } finally {
-                lock.unlockWrite(writeLock);
-            }
-            // Start polling the queu as soon as we have the first listener appeared
-            if (!queueStarted.getAndSet(true)) {
-                threadPool.submit(this::runQueue);
             }
         }
 
@@ -378,7 +341,6 @@ public class KafkaMessageConsumer implements AutoCloseable {
                     long processingStartTime = System.currentTimeMillis();
                     long enqueuedTime = processingStartTime - message.getEnqueueTime();
                     MESSAGES_RECEIVED_ENQUEUED_MS.labels(message.partition.topic()).observe((double) enqueuedTime);
-                    final long readLock = lock.readLock();
                     try {
                         for (BiConsumer<T, Runnable> listener : consumers) {
                             try {
@@ -390,7 +352,6 @@ public class KafkaMessageConsumer implements AutoCloseable {
                             }
                         }
                     } finally {
-                        lock.unlockRead(readLock);
                         final AtomicLong messagesInQueue =
                                 messagesInProcessing.get(message.partition);
                         if (messagesInQueue.decrementAndGet() <= MAX_BUFFERED_MESSAGES) {
