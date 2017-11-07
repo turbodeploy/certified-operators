@@ -196,14 +196,11 @@ public class RepositoryPerformanceTest {
                 .setCreationTime(0)
                 .build();
 
-        final TopologyBroadcast topologyBroadcast = topologySender.broadcastTopology(topologyInfo);
-        topoDTOs.forEach(entity -> {
-            try {
-                topologyBroadcast.append(entity);
-            } catch (CommunicationException | InterruptedException e) {
-                throw new RuntimeException("Broadcast interrupted.", e);
-            }
-        });
+        final TopologyBroadcast topologyBroadcast =
+                topologySender.broadcastLiveTopology(topologyInfo);
+        for (TopologyEntityDTO entity : topoDTOs) {
+            topologyBroadcast.append(entity);
+        }
         topologyBroadcast.finish();
 
         return topoDTOs.stream()

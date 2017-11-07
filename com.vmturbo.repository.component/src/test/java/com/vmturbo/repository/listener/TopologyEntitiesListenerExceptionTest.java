@@ -74,7 +74,6 @@ public class TopologyEntitiesListenerExceptionTest {
         topologyEntitiesListener = new TopologyEntitiesListener(
                 topologyEventHandler,
                 globalSupplyChainRecorder,
-                realtimeTopologyContextId,
                 notificationSender);
 
         // Simulates one chunk and then an exception

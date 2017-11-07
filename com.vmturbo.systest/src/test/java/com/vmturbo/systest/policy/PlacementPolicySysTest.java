@@ -248,14 +248,14 @@ public class PlacementPolicySysTest {
         topologyService = TopologyServiceGrpc.newBlockingStub(
             componentTestRule.getCluster().newGrpcChannel("topology-processor"));
         tpTopologyReceiver = kakfaMessageConsumer.messageReceiver(
-                TopologyProcessorClient.TOPOLOGY_BROADCAST_TOPIC, Topology::parseFrom);
+                TopologyProcessorClient.TOPOLOGY_LIVE, Topology::parseFrom);
         tpMessageReceiver =
                 kakfaMessageConsumer.messageReceiver(TopologyProcessorClient.NOTIFICATIONS_TOPIC,
                         TopologyProcessorNotification::parseFrom);
         ;
         topologyProcessor = TopologyProcessorClient.rpcAndNotification(
             componentTestRule.getCluster().getConnectionConfig("topology-processor"),
-            threadPool, tpMessageReceiver, tpTopologyReceiver);
+            threadPool, tpMessageReceiver, tpTopologyReceiver, null);
 
         projectedTopologyReceiver = null;
         actionsReceiver = null;
@@ -607,7 +607,7 @@ public class PlacementPolicySysTest {
 
         // Request a broadcast and wait for it to complete.
         final CompletableFuture<TopologyResult> entitiesFuture = new CompletableFuture<>();
-        topologyProcessor.addEntitiesListener(new TestEntitiesListener(entitiesFuture));
+        topologyProcessor.addLiveTopologyListener(new TestEntitiesListener(entitiesFuture));
         topologyService.requestTopologyBroadcast(TopologyBroadcastRequest.getDefaultInstance());
         return entitiesFuture.get(10, TimeUnit.MINUTES);
     }

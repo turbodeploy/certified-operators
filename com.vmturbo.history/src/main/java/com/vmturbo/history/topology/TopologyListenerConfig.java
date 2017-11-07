@@ -1,23 +1,17 @@
 package com.vmturbo.history.topology;
 
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadFactory;
+import java.util.EnumSet;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
-import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.history.api.HistoryApiConfig;
 import com.vmturbo.history.stats.StatsConfig;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
-import com.vmturbo.topology.processor.api.impl.TopologyProcessorClient;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
+import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig.Subscription;
 
 /**
  * Set up a Listener for the Topology Processor feed.
@@ -29,9 +23,6 @@ public class TopologyListenerConfig {
     @Autowired
     private TopologyProcessorClientConfig topologyClientConfig;
 
-    @Value("${realtimeTopologyContextId}")
-    private long realtimeTopologyContextId;
-
     @Autowired
     private StatsConfig statsConfig;
 
@@ -39,33 +30,25 @@ public class TopologyListenerConfig {
     private HistoryApiConfig historyApiConfig;
 
     @Bean
-    public TopologyEntitiesListener topologyEntitiesListener() {
-        return new TopologyEntitiesListener(
+    public LiveTopologyEntitiesListener liveTopologyEntitiesListener() {
+        return new LiveTopologyEntitiesListener(
                 statsConfig.liveStatsWriter(),
+                historyApiConfig.statsAvailabilityTracker());
+    }
+
+    @Bean
+    public PlanTopologyEntitiesListener planTopologyEntitiesListener() {
+        return new PlanTopologyEntitiesListener(
                 statsConfig.planStatsWriter(),
-                realtimeTopologyContextId,
                 historyApiConfig.statsAvailabilityTracker());
     }
 
     @Bean
     public TopologyProcessor topologyProcessor() {
-        final TopologyProcessor topologyProcessor = topologyClientConfig.topologyProcessor();
-        topologyProcessor.addEntitiesListener(topologyEntitiesListener());
+        final TopologyProcessor topologyProcessor = topologyClientConfig.topologyProcessor(
+                EnumSet.of(Subscription.LiveTopologies, Subscription.PlanTopologies));
+        topologyProcessor.addLiveTopologyListener(liveTopologyEntitiesListener());
+        topologyProcessor.addPlanTopologyListener(planTopologyEntitiesListener());
         return topologyProcessor;
     }
-
-    @Bean(destroyMethod = "shutdownNow")
-    public ExecutorService tpClientExecutorService() {
-        return Executors.newCachedThreadPool(tpThreadFactory());
-    }
-
-    @Bean
-    public ThreadFactory tpThreadFactory() {
-        return new ThreadFactoryBuilder().setNameFormat("history-tp-listener-%d").build();
-    }
-
-    public long getRealtimeTopologyContextId() {
-        return realtimeTopologyContextId;
-    }
-
 }

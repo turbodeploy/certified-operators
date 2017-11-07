@@ -177,7 +177,7 @@ public class TopologyControllerTest {
     public void testTopologySend() throws Exception {
         final TopologyBroadcast broadcast = Mockito.mock(TopologyBroadcast.class);
         Mockito.when(entityStore.constructTopology()).thenReturn(Collections.emptyMap());
-        Mockito.when(topoBroadcastManager.broadcastTopology(any())).thenReturn(broadcast);
+        Mockito.when(topoBroadcastManager.broadcastLiveTopology(any())).thenReturn(broadcast);
 
         final MvcResult result = mockMvc.perform(post("/topology/send")
                 .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
@@ -190,7 +190,7 @@ public class TopologyControllerTest {
         assertEquals(0, response.numberOfEntities);
         assertEquals(0, response.topologyContextId);
 
-        Mockito.verify(topoBroadcastManager).broadcastTopology(Mockito.any());
+        Mockito.verify(topoBroadcastManager).broadcastLiveTopology(Mockito.any());
         Mockito.verify(broadcast).finish();
         Mockito.verify(broadcast, Mockito.never()).append(any(TopologyEntityDTO.class));
         Mockito.verify(scheduler).resetBroadcastSchedule();

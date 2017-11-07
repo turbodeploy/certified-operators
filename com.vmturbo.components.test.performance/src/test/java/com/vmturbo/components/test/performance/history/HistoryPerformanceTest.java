@@ -88,6 +88,11 @@ public abstract class HistoryPerformanceTest {
     @Nonnull
     protected abstract KafkaMessageProducer getKafkaMessageProducer();
 
+    @Nonnull
+    protected abstract TopologyBroadcast createBroadcast(
+            @Nonnull TopologyProcessorNotificationSender tpSender,
+            @Nonnull TopologyInfo topologyInfo);
+
     public static final long DEFAULT_STATS_TIMEOUT_MINUTES = 10;
 
     @Before
@@ -121,26 +126,21 @@ public abstract class HistoryPerformanceTest {
     }
 
     protected void sendTopology(@Nonnull final List<TopologyEntityDTO> topoDTOs,
-                                final long topologyContextId) throws Exception {
+            final long topologyContextId) throws Exception {
         logger.info("Sending {} entity topology...", topoDTOs.size());
 
-        final TopologyBroadcast topologyBroadcast =
-                tpSender.broadcastTopology(TopologyInfo.newBuilder()
-                            .setTopologyContextId(topologyContextId)
-                            .setTopologyId(SOURCE_TOPOLOGY_ID)
-                            .setTopologyType(TopologyType.PLAN)
-                            .setCreationTime(0L)
-                            .build());
-        topoDTOs.forEach(entity -> {
-            try {
-                topologyBroadcast.append(entity);
-            } catch (InterruptedException | CommunicationException e) {
-                throw new RuntimeException("Broadcast interrupted.", e);
-            }
-        });
+        final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
+                .setTopologyContextId(topologyContextId)
+                .setTopologyId(SOURCE_TOPOLOGY_ID)
+                .setTopologyType(TopologyType.PLAN)
+                .setCreationTime(0L)
+                .build();
+        final TopologyBroadcast topologyBroadcast = createBroadcast(tpSender, topologyInfo);
+        for (final TopologyEntityDTO entity: topoDTOs) {
+            topologyBroadcast.append(entity);
+        }
         topologyBroadcast.finish();
     }
-
 
     protected void sendProjectedTopology(@Nonnull final List<TopologyEntityDTO> topoDTOs,
                                          final long topologyContextId) throws Exception {

@@ -17,7 +17,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 
@@ -53,7 +52,6 @@ import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.client.KafkaMessageConsumer;
-import com.vmturbo.components.api.server.KafkaMessageProducer;
 import com.vmturbo.components.test.utilities.ComponentTestRule;
 import com.vmturbo.components.test.utilities.alert.Alert;
 import com.vmturbo.components.test.utilities.communication.ComponentStubHost;
@@ -74,7 +72,6 @@ import com.vmturbo.topology.processor.api.TargetListener;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TopologyProcessorNotification;
-import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TopologyProcessorNotificationOrBuilder;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClient;
 
 @Alert({
@@ -91,7 +88,7 @@ public class TopologyProcessorPerformanceTest {
 
     private TopologyProcessor topologyProcessor;
     private IMessageReceiver<TopologyProcessorNotification> messageReceiver;
-    private IMessageReceiver<Topology> topologyReceiver;
+    private IMessageReceiver<Topology> liveTopologyReceiver;
 
     private ExecutorService threadPool = Executors.newCachedThreadPool();
 
@@ -124,12 +121,13 @@ public class TopologyProcessorPerformanceTest {
         messageReceiver =
                 kafkaMessageConsumer.messageReceiver(TopologyProcessorClient.NOTIFICATIONS_TOPIC,
                         TopologyProcessorNotification::parseFrom);
-        topologyReceiver = kafkaMessageConsumer.messageReceiver(
-                TopologyProcessorClient.TOPOLOGY_BROADCAST_TOPIC, Topology::parseFrom);
+        liveTopologyReceiver =
+                kafkaMessageConsumer.messageReceiver(TopologyProcessorClient.TOPOLOGY_LIVE,
+                        Topology::parseFrom);
         topologyService = TopologyServiceGrpc.newBlockingStub(
                 componentTestRule.getCluster().newGrpcChannel("topology-processor"));
         topologyProcessor = TopologyProcessorClient.rpcAndNotification(connectionConfig, threadPool,
-                messageReceiver, topologyReceiver);
+                messageReceiver, liveTopologyReceiver, null);
         kafkaMessageConsumer.start();
     }
 
@@ -204,7 +202,7 @@ public class TopologyProcessorPerformanceTest {
 
         // Request a broadcast and wait for it to complete.
         final CompletableFuture<Integer> entitiesFuture = new CompletableFuture<>();
-        topologyProcessor.addEntitiesListener(new TestEntitiesListener(entitiesFuture));
+        topologyProcessor.addLiveTopologyListener(new TestEntitiesListener(entitiesFuture));
         topologyService.requestTopologyBroadcast(TopologyBroadcastRequest.getDefaultInstance());
         int numEntitiesReceived = entitiesFuture.get(10, TimeUnit.MINUTES);
         logger.info("Received {} entities", numEntitiesReceived);

@@ -2,10 +2,13 @@ package com.vmturbo.systest;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.EnumSet;
 import java.util.concurrent.Executors;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyServiceGrpc;
@@ -20,17 +23,23 @@ import com.vmturbo.external.api.TurboApiClient;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TopologyProcessorNotification;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClient;
+import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
+import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig.Subscription;
 
 /**
  * Spring Configuration for the System Test suite.
  * Builds upon the com.vmturbo.components.test.utilities classes.
  **/
 @Configuration
+@Import({TopologyProcessorClientConfig.class})
 public class SystemTestConfig {
 
 
     // Websocket URL to connect to for notifications, e.g. plan progress updates.
     private static final String WEBSOCKET_URL = "/vmturbo/messages";
+
+    @Autowired
+    private TopologyProcessorClientConfig tpClientConfig;
 
     @Bean
     public ComponentTestRule componentTestRule() {
@@ -61,39 +70,8 @@ public class SystemTestConfig {
     }
 
     @Bean
-    public ComponentApiConnectionConfig tpConnectionCofig() {
-        return componentCluster().getConnectionConfig("topology-processor");
-    }
-
-    @Bean
-    public KafkaMessageConsumer kafkaConsumer() {
-        return new KafkaMessageConsumer(DockerEnvironment.getKafkaBootstrapServers(),
-                "system-test-1");
-    }
-
-    @Bean
-    public KafkaConsumerStarter kafkaConsumerStarter() {
-        return new KafkaConsumerStarter();
-    }
-
-    @Bean
-    public IMessageReceiver<TopologyProcessorNotification> topologyNotificationReceiver() {
-        return kafkaConsumer().messageReceiver(TopologyProcessorClient.NOTIFICATIONS_TOPIC,
-                TopologyProcessorNotification::parseFrom);
-    }
-
-    @Bean
-    public IMessageReceiver<Topology> topologyBroadcastReceiver() {
-        return kafkaConsumer().messageReceiver(TopologyProcessorClient.TOPOLOGY_BROADCAST_TOPIC,
-                Topology::parseFrom);
-    }
-
-    @Bean
     public TopologyProcessor topologyProcessor() {
-        return TopologyProcessorClient.rpcAndNotification(
-                componentCluster().getConnectionConfig("topology-processor"),
-                Executors.newCachedThreadPool(), topologyNotificationReceiver(),
-                topologyBroadcastReceiver());
+        return tpClientConfig.topologyProcessor(EnumSet.allOf(Subscription.class));
     }
 
     @Bean

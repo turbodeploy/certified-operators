@@ -52,17 +52,23 @@ public class TopologyProcessorNotificationSender
         implements TopoBroadcastManager, TargetStoreListener, OperationListener, ProbeStoreListener {
 
     private final Map<Class<? extends Operation>, OperationNotifier> operationsListeners;
-    private final IMessageSender<Topology> topologySender;
+    private final IMessageSender<Topology> liveTopologySender;
+    private final IMessageSender<Topology> userPlanTopologySender;
+    private final IMessageSender<Topology> schedPlanTopologySender;
     private final IMessageSender<TopologyProcessorNotification> notificationSender;
     private final ExecutorService threadPool;
 
 
     public TopologyProcessorNotificationSender(@Nonnull final ExecutorService threadPool,
-            @Nonnull IMessageSender<Topology> topologySender,
+            @Nonnull IMessageSender<Topology> liveTopologySender,
+            @Nonnull IMessageSender<Topology> userPlanTopologySender,
+            @Nonnull IMessageSender<Topology> schedPlanTopologySender,
             @Nonnull IMessageSender<TopologyProcessorNotification> notificationSender) {
         super();
         this.threadPool = Objects.requireNonNull(threadPool);
-        this.topologySender = Objects.requireNonNull(topologySender);
+        this.liveTopologySender = Objects.requireNonNull(liveTopologySender);
+        this.userPlanTopologySender = Objects.requireNonNull(userPlanTopologySender);
+        this.schedPlanTopologySender = Objects.requireNonNull(schedPlanTopologySender);
         this.notificationSender = Objects.requireNonNull(notificationSender);
         operationsListeners = new HashMap<>();
         operationsListeners.put(Validation.class,
@@ -181,21 +187,27 @@ public class TopologyProcessorNotificationSender
         return opResBuilder.build();
     }
 
-    private void sendTopologySegment(final @Nonnull Topology segment)
-            throws CommunicationException, InterruptedException {
-        getLogger().debug("Sending topology {} segment {}", segment::getTopologyId,
-                segment::getSegmentCase);
-        topologySender.sendMessage(segment);
-    }
-
     private TopologyProcessorNotification.Builder createNewMessage() {
         return TopologyProcessorNotification.newBuilder().setBroadcastId(newMessageChainId());
     }
 
     @Nonnull
     @Override
-    public TopologyBroadcast broadcastTopology(@Nonnull final TopologyInfo topologyInfo) {
-        return new TopologyBroadcastImpl(topologyInfo);
+    public TopologyBroadcast broadcastLiveTopology(@Nonnull final TopologyInfo topologyInfo) {
+        return new TopologyBroadcastImpl(liveTopologySender, topologyInfo);
+    }
+
+    @Nonnull
+    @Override
+    public TopologyBroadcast broadcastUserPlanTopology(@Nonnull final TopologyInfo topologyInfo) {
+        return new TopologyBroadcastImpl(userPlanTopologySender, topologyInfo);
+    }
+
+    @Nonnull
+    @Override
+    public TopologyBroadcast broadcastScheduledPlanTopology(
+            @Nonnull final TopologyInfo topologyInfo) {
+        return new TopologyBroadcastImpl(schedPlanTopologySender, topologyInfo);
     }
 
     @Override
@@ -266,10 +278,10 @@ public class TopologyProcessorNotificationSender
          * Task to await initial message sending.
          */
         private final Future<?> initialMessage;
+        private final IMessageSender<Topology> messageSender;
         /**
          * Collection to store chunk data.
          */
-
         @GuardedBy("lock")
         private final Collection<TopologyEntityDTO> chunk;
         /**
@@ -281,10 +293,11 @@ public class TopologyProcessorNotificationSender
          * Whether the broadcast is finished.
          */
         @GuardedBy("lock")
-
         private boolean finished = false;
 
-        TopologyBroadcastImpl(@Nonnull final TopologyInfo topologyInfo) {
+        TopologyBroadcastImpl(@Nonnull IMessageSender<Topology> messageSender,
+                @Nonnull final TopologyInfo topologyInfo) {
+            this.messageSender = Objects.requireNonNull(messageSender);
             Preconditions.checkArgument(topologyInfo.hasTopologyId());
             Preconditions.checkArgument(topologyInfo.hasTopologyContextId());
             Preconditions.checkArgument(topologyInfo.hasCreationTime());
@@ -378,6 +391,14 @@ public class TopologyProcessorNotificationSender
             sendTopologySegment(subMessage);
             totalCount += chunk.size();
         }
+
+        private void sendTopologySegment(final @Nonnull Topology segment)
+                throws CommunicationException, InterruptedException {
+            getLogger().debug("Sending topology {} segment {}", segment::getTopologyId,
+                    segment::getSegmentCase);
+            messageSender.sendMessage(segment);
+        }
+
     }
 
     private interface OperationNotifier {

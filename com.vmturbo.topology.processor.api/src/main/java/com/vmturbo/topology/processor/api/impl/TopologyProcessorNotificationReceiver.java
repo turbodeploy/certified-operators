@@ -1,12 +1,10 @@
 package com.vmturbo.topology.processor.api.impl;
 
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -15,10 +13,6 @@ import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionFailure;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionProgress;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionSuccess;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.communication.chunking.ChunkingReceiver;
-import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.components.api.client.ApiClientException;
 import com.vmturbo.components.api.client.ComponentNotificationReceiver;
 import com.vmturbo.components.api.client.IMessageReceiver;
@@ -39,15 +33,12 @@ import com.vmturbo.topology.processor.api.ValidationStatus;
  */
 class TopologyProcessorNotificationReceiver extends ComponentNotificationReceiver<TopologyProcessorNotification> {
 
-    private final Set<EntitiesListener> entitiesListeners =
-            Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private final TopologyReceiver liveTopoReceiver;
+    private final TopologyReceiver planTopoReceiver;
 
-    private final Set<TargetListener> targetListeners = Collections.newSetFromMap(new ConcurrentHashMap<>());
-
-    private final Set<ActionExecutionListener> actionListeners = Collections.newSetFromMap(new ConcurrentHashMap<>());
-
-    private final Set<ProbeListener> probeListeners = Collections.newSetFromMap(new ConcurrentHashMap<>());
-    private final ChunkingReceiver<TopologyEntityDTO> topologyChunkReceiver;
+    private final Set<TargetListener> targetListeners;
+    private final Set<ActionExecutionListener> actionListeners;
+    private final Set<ProbeListener> probeListeners;
 
     private <LISTENER_TYPE> void doWithListeners(@Nonnull final Set<LISTENER_TYPE> listeners,
                                  final Consumer<LISTENER_TYPE> command) {
@@ -64,12 +55,22 @@ class TopologyProcessorNotificationReceiver extends ComponentNotificationReceive
 
     public TopologyProcessorNotificationReceiver(
             @Nullable final IMessageReceiver<TopologyProcessorNotification> messageReceiver,
-            @Nullable final IMessageReceiver<Topology> topologyReceiver,
-            @Nonnull final ExecutorService executorService) {
-        super(messageReceiver, executorService);
-        this.topologyChunkReceiver = new ChunkingReceiver<>(executorService);
-        topologyReceiver.addListener(this::onTopologyNotification);
+            @Nullable final IMessageReceiver<Topology> liveTopologyReceiver,
+            @Nullable final IMessageReceiver<Topology> planTopologyReceiver,
+            @Nonnull final ExecutorService threadPool) {
+        super(messageReceiver, threadPool);
+        this.liveTopoReceiver = new TopologyReceiver(liveTopologyReceiver, threadPool);
+        this.planTopoReceiver = new TopologyReceiver(planTopologyReceiver, threadPool);
 
+        if (messageReceiver == null) {
+            this.targetListeners = Collections.emptySet();
+            this.actionListeners = Collections.emptySet();
+            this.probeListeners = Collections.emptySet();
+        } else {
+            this.targetListeners = Collections.newSetFromMap(new ConcurrentHashMap<>());
+            this.actionListeners = Collections.newSetFromMap(new ConcurrentHashMap<>());
+            this.probeListeners = Collections.newSetFromMap(new ConcurrentHashMap<>());
+        }
     }
 
     private void onTargetAddedNotification(@Nonnull final TopologyProcessorNotification message) {
@@ -106,40 +107,6 @@ class TopologyProcessorNotificationReceiver extends ComponentNotificationReceive
         doWithListeners(targetListeners, l -> l.onTargetDiscovered(result));
     }
 
-    private void onTopologyNotification(@Nonnull final Topology topology,
-            @Nonnull Runnable commitCommand) {
-        final long topologyId = topology.getTopologyId();
-        switch (topology.getSegmentCase()) {
-            case START:
-                topologyChunkReceiver.startTopologyBroadcast(topology.getTopologyId(),
-                        createEntityConsumers(topology.getStart().getTopologyInfo()));
-                break;
-            case DATA:
-                topologyChunkReceiver.processData(topology.getTopologyId(),
-                        topology.getData().getEntitiesList());
-                break;
-            case END:
-                topologyChunkReceiver.finishTopologyBroadcast(topology.getTopologyId(),
-                        topology.getEnd().getTotalCount());
-                commitCommand.run();
-                break;
-            default:
-                getLogger().warn("Unknown broadcast data segment received: {}",
-                        topology.getSegmentCase());
-        }
-    }
-
-    private Collection<Consumer<RemoteIterator<TopologyEntityDTO>>> createEntityConsumers(
-            @Nonnull final TopologyInfo topologyInfo) {
-        getLogger().info("TopologyInfo : " + topologyInfo);
-        return entitiesListeners.stream().map(listener -> {
-            final Consumer<RemoteIterator<TopologyEntityDTO>> consumer =
-                    iterator -> listener.onTopologyNotification(topologyInfo, iterator);
-            return consumer;
-        }).collect(Collectors.toList());
-    }
-
-
     private void onActionProgressNotification(@Nonnull final TopologyProcessorNotification message) {
         final ActionProgress notification = message.getActionProgress();
         getLogger().debug("ActionProgress notification received for action {}", notification.getActionId());
@@ -166,7 +133,8 @@ class TopologyProcessorNotificationReceiver extends ComponentNotificationReceive
 
     @Override
     protected void processMessage(@Nonnull final TopologyProcessorNotification message) throws ApiClientException {
-        getLogger().trace("Processing message {}", message.getBroadcastId());
+        getLogger().trace("Processing message {} with id {}", message.getTypeCase(),
+                message.getBroadcastId());
         switch (message.getTypeCase()) {
             case TARGET_ADDED_NOTIFICATION:
                 onTargetAddedNotification(message);
@@ -198,15 +166,12 @@ class TopologyProcessorNotificationReceiver extends ComponentNotificationReceive
             default:
                 throw new TopologyProcessorException("Message type unrecognized: " + message);
         }
-        getLogger().trace("Message {} processed successfully", message.getBroadcastId());
+        getLogger().trace("Message {} with id {} processed successfully", message.getTypeCase(),
+                message.getBroadcastId());
     }
 
     public void addTargetListener(@Nonnull final TargetListener listener) {
         this.targetListeners.add(listener);
-    }
-
-    public void addEntitiesListener(@Nonnull final EntitiesListener listener) {
-        this.entitiesListeners.add(listener);
     }
 
     public void addActionListener(@Nonnull final ActionExecutionListener listener) {
@@ -215,5 +180,13 @@ class TopologyProcessorNotificationReceiver extends ComponentNotificationReceive
 
     public void addProbeListener(@Nonnull final ProbeListener listener) {
         this.probeListeners.add(listener);
+    }
+
+    public void addLiveTopoListener(@Nonnull final EntitiesListener listener) {
+        this.liveTopoReceiver.addListener(listener);
+    }
+
+    public void addPlanTopoListener(@Nonnull final EntitiesListener listener) {
+        this.planTopoReceiver.addListener(listener);
     }
 }

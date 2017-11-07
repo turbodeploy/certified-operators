@@ -77,9 +77,15 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
     }
 
     @Bean
-    public SenderReceiverPair<Topology> topologyConnection() {
+    public SenderReceiverPair<Topology> liveTopologyConnection() {
         return new SenderReceiverPair<>();
     }
+
+    @Bean
+    public SenderReceiverPair<Topology> planTopologyConnection() {
+        return new SenderReceiverPair<>();
+    }
+
     @Bean
     public SenderReceiverPair<TopologyProcessorNotification> notificationsConnection() {
         return new SenderReceiverPair<>();
@@ -89,7 +95,8 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
     public TopologyProcessorNotificationSender topologyProcessorNotificationSender() {
         final TopologyProcessorNotificationSender backend =
                 new TopologyProcessorNotificationSender(apiServerThreadPool(),
-                        topologyConnection(), notificationsConnection());
+                        liveTopologyConnection(), planTopologyConnection(),
+                        planTopologyConnection(), notificationsConnection());
         targetStore().addListener(backend);
         probeStore().addListener(backend);
         return backend;

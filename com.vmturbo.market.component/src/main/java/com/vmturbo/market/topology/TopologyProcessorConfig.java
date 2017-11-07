@@ -1,5 +1,7 @@
 package com.vmturbo.market.topology;
 
+import java.util.EnumSet;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -10,6 +12,7 @@ import org.springframework.context.annotation.Import;
 import com.vmturbo.market.runner.MarketRunnerConfig;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
+import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig.Subscription;
 
 /**
  * Configuration for integration with the Topology Processor.
@@ -17,8 +20,6 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 @Configuration
 @Import({MarketRunnerConfig.class, TopologyProcessorClientConfig.class})
 public class TopologyProcessorConfig {
-
-    private static Logger log = LogManager.getLogger();
 
     @Autowired
     private MarketRunnerConfig marketRunnerConfig;
@@ -33,8 +34,10 @@ public class TopologyProcessorConfig {
 
     @Bean
     public TopologyProcessor topologyProcessor() {
-        final TopologyProcessor topologyProcessor = tpConfig.topologyProcessor();
-        topologyProcessor.addEntitiesListener(topologyEntitiesListener());
+        final TopologyProcessor topologyProcessor = tpConfig.topologyProcessor(EnumSet.of(
+                Subscription.LiveTopologies, Subscription.PlanTopologies));
+        topologyProcessor.addLiveTopologyListener(topologyEntitiesListener());
+        topologyProcessor.addPlanTopologyListener(topologyEntitiesListener());
         return topologyProcessor;
     }
 }

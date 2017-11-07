@@ -76,7 +76,6 @@ public class TopologyEntitiesListenerTest {
         topologyEntitiesListener = new TopologyEntitiesListener(
                 topologyEventHandler,
                 globalSupplyChainRecorder,
-                realtimeTopologyContextId,
                 notificationSender);
 
         // Simulates three DTOs with two chunks received by the listener.
@@ -84,33 +83,6 @@ public class TopologyEntitiesListenerTest {
                                         .thenReturn(Sets.newHashSet(dsDTO));
         when(entityIterator.hasNext()).thenReturn(true).thenReturn(true).thenReturn(false);
         when(topologyEventHandler.initializeTopologyGraph(any())).thenReturn(topologyGraphCreator);
-    }
-
-    /**
-     * Test that the methods that need to be invoked are indeed invoked and with the right params.
-     * @throws Exception is not expected to happen during this test
-     */
-    @Test
-    public void testOnTopologyNotificationNonRealtime() throws Exception {
-        final long topologyContextId = 11L;
-        final long topologyId = 22222L;
-        final long creationTime = 33333L;
-        final TopologyID tid = new TopologyID(topologyContextId, topologyId, TopologyType.SOURCE);
-        topologyEntitiesListener.onTopologyNotification(
-                TopologyInfo.newBuilder()
-                        .setTopologyContextId(topologyContextId)
-                        .setTopologyId(topologyId)
-                        .setCreationTime(creationTime)
-                        .build(),
-                entityIterator);
-
-        verify(topologyEventHandler, never()).initializeTopologyGraph(tid);
-        verify(topologyEventHandler, never()).register(tid);
-        verify(topologyGraphCreator, never()).updateTopologyToDb(any());
-        verify(globalSupplyChainRecorder, never()).setGlobalSupplyChainProviderRels(any());
-        verify(notificationSender, never()).onSourceTopologyAvailable(anyLong(), anyLong());
-        verify(notificationSender, never())
-                .onSourceTopologyFailure(anyLong(), anyLong(), anyString());
     }
 
     @Test

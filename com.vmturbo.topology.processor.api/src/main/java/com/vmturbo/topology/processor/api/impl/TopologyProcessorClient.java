@@ -35,7 +35,9 @@ public class TopologyProcessorClient extends
         ComponentApiClient<TopologyProcessorRestClient> implements TopologyProcessor {
 
     public static final String NOTIFICATIONS_TOPIC = "tp-notifications";
-    public static final String TOPOLOGY_BROADCAST_TOPIC = "tp-topology-broadcast";
+    public static final String TOPOLOGY_LIVE = "tp-live-topologies";
+    public static final String TOPOLOGY_USER_PLAN = "tp-user-plan-topologies";
+    public static final String TOPOLOGY_SCHEDULED_PLAN = "tp-scheduled-plan-topologies";
 
     private final TopologyProcessorNotificationReceiver notificationClient;
 
@@ -47,9 +49,10 @@ public class TopologyProcessorClient extends
             @Nonnull final ComponentApiConnectionConfig connectionConfig,
             @Nonnull final ExecutorService executorService,
             @Nullable final IMessageReceiver<TopologyProcessorNotification> messageReceiver,
-            @Nullable final IMessageReceiver<Topology> topologyReceiver) {
-        return new TopologyProcessorClient(connectionConfig, messageReceiver, topologyReceiver,
-                executorService);
+            @Nullable IMessageReceiver<Topology> liveTopologyReceiver,
+            @Nullable IMessageReceiver<Topology> planTopologyReceiver) {
+        return new TopologyProcessorClient(connectionConfig, messageReceiver, liveTopologyReceiver,
+                planTopologyReceiver, executorService);
     }
 
     private TopologyProcessorClient(@Nonnull final ComponentApiConnectionConfig connectionConfig) {
@@ -67,12 +70,13 @@ public class TopologyProcessorClient extends
      */
     private TopologyProcessorClient(@Nonnull final ComponentApiConnectionConfig connectionConfig,
             @Nullable IMessageReceiver<TopologyProcessorNotification> messageReceiver,
-            @Nullable IMessageReceiver<Topology> topologyReceiver,
+            @Nullable IMessageReceiver<Topology> liveTopologyReceiver,
+            @Nullable IMessageReceiver<Topology> planTopologyReceiver,
             @Nonnull ExecutorService threadPool) {
         super(connectionConfig);
         this.notificationClient =
-                new TopologyProcessorNotificationReceiver(messageReceiver, topologyReceiver,
-                        threadPool);
+                new TopologyProcessorNotificationReceiver(messageReceiver, liveTopologyReceiver,
+                        planTopologyReceiver, threadPool);
     }
 
     @Nonnull
@@ -158,12 +162,6 @@ public class TopologyProcessorClient extends
     }
 
     @Override
-    public void addEntitiesListener(@Nonnull final EntitiesListener listener) {
-        Preconditions.checkArgument(listener != null);
-        getNotificationClient().addEntitiesListener(listener);
-    }
-
-    @Override
     public void addActionListener(@Nonnull final ActionExecutionListener listener) {
         Preconditions.checkArgument(listener != null);
         getNotificationClient().addActionListener(listener);
@@ -175,6 +173,16 @@ public class TopologyProcessorClient extends
         getNotificationClient().addProbeListener(listener);
     }
 
+    @Override
+    public void addLiveTopologyListener(@Nonnull EntitiesListener listener) {
+        getNotificationClient().addLiveTopoListener(listener);
+    }
+
+    @Override
+    public void addPlanTopologyListener(@Nonnull EntitiesListener listener) {
+        getNotificationClient().addPlanTopoListener(listener);
+    }
+
     @Nonnull
     private TopologyProcessorNotificationReceiver getNotificationClient() {
         if (notificationClient == null) {
@@ -182,4 +190,5 @@ public class TopologyProcessorClient extends
         }
         return notificationClient;
     }
+
 }

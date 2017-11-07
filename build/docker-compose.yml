@@ -330,7 +330,6 @@ services:
       component_type: repository
       instance_id: repository-1
       REPOSITORY_ARANGODB_HOST: arangodb
-      realtimeTopologyContextId: 777777
       kafkaServers: ${KAFKA_SERVERS}
       JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${REPOSITORY_XMX_MB}M ${REPOSITORY_SYSTEM_PROPERTIES}"
     volumes:

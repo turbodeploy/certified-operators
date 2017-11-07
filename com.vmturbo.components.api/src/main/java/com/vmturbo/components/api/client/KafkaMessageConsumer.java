@@ -1,6 +1,7 @@
 package com.vmturbo.components.api.client;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -149,17 +150,35 @@ public class KafkaMessageConsumer implements AutoCloseable {
      */
     public <T> IMessageReceiver<T> messageReceiver(@Nonnull String topic,
             @Nonnull Deserializer<T> deserializer) {
+        return messageReceiver(Collections.singleton(topic), deserializer);
+    }
+
+    /**
+     * Creates message receiver for the specific topic. Kafka consumer will not subscribe to any
+     * topics until this method is called.
+     *
+     * @param topics topic to subscribe to
+     * @param deserializer function to deserialize the message from bytes
+     * @param <T> type of messages to receive
+     * @return message receiver implementation
+     * @throws IllegalStateException if the topic has been already subscribed to
+     */
+    public <T> IMessageReceiver<T> messageReceiver(@Nonnull Collection<String> topics,
+            @Nonnull Deserializer<T> deserializer) {
         final KafkaMessageReceiver<T> receiver = new KafkaMessageReceiver<>(deserializer);
         synchronized (consumerLock) {
-            if (started) {
-                throw new IllegalStateException("It is not allowed to add message receivers after" +
-                        " consumer has been started");
+            for (String topic : topics) {
+                if (started) {
+                    throw new IllegalStateException(
+                            "It is not allowed to add message receivers after" +
+                                    " consumer has been started");
+                }
+                logger.debug("Adding receiver for topic {}", topic);
+                if (consumers.containsKey(topic)) {
+                    throw new IllegalStateException("Topic " + topic + " has been already added");
+                }
+                consumers.put(topic, receiver);
             }
-            logger.debug("Adding receiver for topic {}", topic);
-            if (consumers.containsKey(topic)) {
-                throw new IllegalStateException("Topic " + topic + " has been already added");
-            }
-            consumers.put(topic, receiver);
             return receiver;
         }
     }

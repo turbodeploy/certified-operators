@@ -65,9 +65,6 @@ public abstract class AbstractApiCallsTest {
      */
     private GrpcTestServer grpcServer;
 
-    private IMessageReceiver<TopologyProcessorNotification> notificationReceiver;
-    private IMessageReceiver<Topology> topologyReceiver;
-
     @Before
     public final void init() throws Exception {
         Thread.currentThread().setName(testName.getMethodName() + "-main");
@@ -83,11 +80,16 @@ public abstract class AbstractApiCallsTest {
                 integrationTestServer.getBean(ActionExecutionRpcService.class));
         grpcServer.start();
 
-        notificationReceiver = integrationTestServer.getBean("notificationsConnection");
-        topologyReceiver = integrationTestServer.getBean("topologyConnection");
+        final IMessageReceiver<TopologyProcessorNotification> notificationReceiver =
+                integrationTestServer.getBean("notificationsConnection");
+        final IMessageReceiver<Topology> liveTopologyReceiver =
+                integrationTestServer.getBean("liveTopologyConnection");
+        final IMessageReceiver<Topology> planTopologyReceiver =
+                integrationTestServer.getBean("planTopologyConnection");
         topologyProcessor =
                 TopologyProcessorClient.rpcAndNotification(integrationTestServer.connectionConfig(),
-                        threadPool, notificationReceiver, topologyReceiver);
+                        threadPool, notificationReceiver, liveTopologyReceiver,
+                        planTopologyReceiver);
 
         actionExecutionService =
                 ActionExecutionServiceGrpc.newBlockingStub(grpcServer.getChannel());

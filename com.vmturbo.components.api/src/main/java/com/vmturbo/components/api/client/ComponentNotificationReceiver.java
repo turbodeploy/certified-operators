@@ -4,6 +4,7 @@ import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -35,18 +36,21 @@ public abstract class ComponentNotificationReceiver<RecvMsg extends AbstractMess
      * @param executorService Executor service to use for communication with the server.
      */
     protected ComponentNotificationReceiver(
-            @Nonnull final IMessageReceiver<RecvMsg> messageReceiver,
+            @Nullable final IMessageReceiver<RecvMsg> messageReceiver,
             @Nonnull final ExecutorService executorService) {
-        this.executorService = Objects.requireNonNull(executorService, "Thread pool should not be null");
-        messageReceiver.addListener((message, commitCmd) -> {
-            try {
-                processMessage(message);
-                commitCmd.run();
-            } catch (ApiClientException | InterruptedException e) {
-                logger.error("Error occurred while processing message " +
-                        message.getClass().getSimpleName(), e);
-            }
-        });
+        this.executorService =
+                Objects.requireNonNull(executorService, "Thread pool should not be null");
+        if (messageReceiver != null) {
+            messageReceiver.addListener((message, commitCmd) -> {
+                try {
+                    processMessage(message);
+                    commitCmd.run();
+                } catch (ApiClientException | InterruptedException e) {
+                    logger.error("Error occurred while processing message " +
+                            message.getClass().getSimpleName(), e);
+                }
+            });
+        }
     }
 
     /**

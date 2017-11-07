@@ -72,11 +72,11 @@ public interface TopologyProcessor {
      * @param newData new target data to set for the specified target
      * @throws CommunicationException if persistent communication exception occurred
      * @throws TopologyProcessorException if target with specified id does not exist or new data is
-     *             not applicable.
+     * not applicable.
      * @throws IllegalArgumentException if specified target id or target data is {@code null}
      */
     void modifyTarget(long targetId, @Nonnull TargetData newData)
-                    throws CommunicationException, TopologyProcessorException;
+            throws CommunicationException, TopologyProcessorException;
 
     /**
      * Creates new target of the specified probe type and specified target configuration. TODO
@@ -87,11 +87,11 @@ public interface TopologyProcessor {
      * @return id of a newly created target
      * @throws CommunicationException if persistent communication exception occurred
      * @throws TopologyProcessorException if probe with the specified id does not exist or target
-     *             could not be created.
+     * could not be created.
      * @throws IllegalArgumentException if specified probe id or target data is {@code null}
      */
     long addTarget(long probeId, @Nonnull TargetData targetData)
-                    throws CommunicationException, TopologyProcessorException;
+            throws CommunicationException, TopologyProcessorException;
 
     /**
      * Triggers target validation. Method is blocked until validation has been started.
@@ -105,7 +105,7 @@ public interface TopologyProcessor {
      */
     @Nonnull
     ValidationStatus validateTarget(long targetId)
-                    throws CommunicationException, TopologyProcessorException, InterruptedException;
+            throws CommunicationException, TopologyProcessorException, InterruptedException;
 
     /**
      * Performs validation of all the targets. Method is blocked until validation has been started.
@@ -130,14 +130,14 @@ public interface TopologyProcessor {
      */
     @Nonnull
     DiscoveryStatus discoverTarget(long targetId)
-                    throws CommunicationException, TopologyProcessorException, InterruptedException;
+            throws CommunicationException, TopologyProcessorException, InterruptedException;
 
     /**
      * Peforms discovery of all the existing targets. Method is blocked until discovery has been
      * started.
      *
      * @return set of discovery results - one result per each target, that discovery has been
-     *         processed for
+     * processed for
      * @throws CommunicationException if persistent communication exception occurred
      * @throws InterruptedException if thread was interrupted during the call
      */
@@ -151,14 +151,6 @@ public interface TopologyProcessor {
      * @throws IllegalArgumentException if specified listener is {@code null}
      */
     void addTargetListener(@Nonnull TargetListener listener);
-
-    /**
-     * Registers entities listener.
-     *
-     * @param listener listener to register
-     * @throws IllegalArgumentException if specified listener is {@code null}
-     */
-    void addEntitiesListener(@Nonnull EntitiesListener listener);
 
     /**
      * Registers actions listener.
@@ -175,4 +167,23 @@ public interface TopologyProcessor {
      * @throws IllegalArgumentException if specified listener is {@code null}.
      */
     void addProbeListener(@Nonnull ProbeListener listener);
+
+    /**
+     * Registers listener to receive live topologies.
+     *
+     * @param listener listener to register
+     * @throws IllegalArgumentException if specified listener is {@code null}
+     * @throws IllegalStateException if there is no subscription to this event
+     */
+    void addLiveTopologyListener(@Nonnull EntitiesListener listener);
+
+    /**
+     * Registers listener to receive plan topologies.
+     *
+     * @param listener listener to register
+     * @throws IllegalArgumentException if specified listener is {@code null}
+     * @throws IllegalStateException if there is no subscription to this event
+     */
+    void addPlanTopologyListener(@Nonnull EntitiesListener listener);
 }
+

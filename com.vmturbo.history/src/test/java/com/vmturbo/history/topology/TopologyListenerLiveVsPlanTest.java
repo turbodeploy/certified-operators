@@ -35,7 +35,6 @@ public class TopologyListenerLiveVsPlanTest {
     private LiveStatsWriter liveStatsWriter;
     private PlanStatsWriter planStatsWriter;
     private RemoteIterator<TopologyDTO.TopologyEntityDTO> testTopologyDTOs;
-    private TopologyEntitiesListener serviceUndertest;
     private StatsAvailabilityTracker availabilityTracker;
 
     @Before
@@ -44,15 +43,13 @@ public class TopologyListenerLiveVsPlanTest {
         planStatsWriter = Mockito.mock(PlanStatsWriter.class);
         testTopologyDTOs = Mockito.mock(RemoteIterator.class);
         availabilityTracker = Mockito.mock(StatsAvailabilityTracker.class);
-        serviceUndertest = new TopologyEntitiesListener(
-                liveStatsWriter,
-                planStatsWriter,
-                REALTIME_TOPOLOGY_ID,
-            availabilityTracker);
     }
 
     @Test
     public void liveTopologyNotificationTest() throws Exception {
+        final LiveTopologyEntitiesListener serviceUndertest = new LiveTopologyEntitiesListener(
+                liveStatsWriter,
+                availabilityTracker);
         // Arrange
         RemoteIterator<TopologyDTO.TopologyEntityDTO> iterator
                 = Mockito.mock(RemoteIterator.class);
@@ -80,6 +77,9 @@ public class TopologyListenerLiveVsPlanTest {
 
     @Test
     public void planTopologyNotificationTest() throws Exception {
+        final PlanTopologyEntitiesListener serviceUndertest = new PlanTopologyEntitiesListener(
+                planStatsWriter,
+                availabilityTracker);
         // Arrange
 
         // Act

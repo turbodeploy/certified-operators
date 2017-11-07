@@ -47,18 +47,6 @@ public class TopologyProcessorApiConfig {
     }
 
     @Bean
-    public IMessageSender<Topology> topologySender() {
-        return baseKafkaServerConfig.kafkaMessageSender()
-                .messageSender(TopologyProcessorClient.TOPOLOGY_BROADCAST_TOPIC);
-    }
-
-    @Bean
-    public IMessageSender<TopologyProcessorNotification> notificationSender() {
-        return baseKafkaServerConfig.kafkaMessageSender()
-                .messageSender(TopologyProcessorClient.NOTIFICATIONS_TOPIC);
-    }
-
-    @Bean
     public TopologyProcessorNotificationSender topologyProcessorNotificationSender() {
         final TopologyProcessorNotificationSender backend =
                 TopologyProcessorKafkaSender.create(apiServerThreadPool(),

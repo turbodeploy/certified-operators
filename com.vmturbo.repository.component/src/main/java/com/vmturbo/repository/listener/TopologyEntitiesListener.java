@@ -28,7 +28,8 @@ import com.vmturbo.repository.topology.TopologyRelationshipRecorder;
 import com.vmturbo.topology.processor.api.EntitiesListener;
 
 /**
- * Handler for entity information coming in from the Topology Processor.
+ * Handler for entity information coming in from the Topology Processor. Only used to receive
+ * live topology.
  */
 public class TopologyEntitiesListener implements EntitiesListener {
     private final Logger logger = LoggerFactory.getLogger(TopologyEntitiesListener.class);
@@ -36,18 +37,15 @@ public class TopologyEntitiesListener implements EntitiesListener {
     private final TopologyEventHandler topologyEventHandler;
     private final TopologyRelationshipRecorder globalSupplyChainRecorder;
 
-    private final long realtimeTopologyContextId;
     private final RepositoryNotificationSender notificationSender;
 
     public TopologyEntitiesListener(final TopologyEventHandler topologyEventHandler,
                                     final TopologyRelationshipRecorder globalSupplyChainRecorder,
-                                    final long realtimeTopologyContextId,
                                     @Nonnull final RepositoryNotificationSender sender) {
         this.topologyEventHandler = Objects.requireNonNull(topologyEventHandler);
         this.globalSupplyChainRecorder = Objects.requireNonNull(globalSupplyChainRecorder);
 
         this.notificationSender = sender;
-        this.realtimeTopologyContextId = realtimeTopologyContextId;
     }
 
     @Override
@@ -68,13 +66,6 @@ public class TopologyEntitiesListener implements EntitiesListener {
         final long topologyContextId = topologyInfo.getTopologyContextId();
         logger.info("Received topology {} for context {} topology DTOs from TopologyProcessor",
                 topologyId, topologyContextId);
-
-        if (realtimeTopologyContextId != topologyContextId) {
-            logger.info("Skipped persisting the non-realtime topology {} for context {}",
-                topologyId, topologyContextId);
-            ignoreData(entityIterator);
-            return;
-        }
 
         final DataMetricTimer timer = SharedMetrics.TOPOLOGY_DURATION_SUMMARY
             .labels(SharedMetrics.SOURCE_LABEL)
@@ -122,18 +113,6 @@ public class TopologyEntitiesListener implements EntitiesListener {
         }
 
         timer.observe();
-    }
-
-    // TODO (pbaranchikov) instead add method to close remote iterator
-    private void ignoreData(@Nonnull RemoteIterator<?> remoteIterator) {
-        try {
-            while (remoteIterator.hasNext()) {
-                remoteIterator.nextChunk();
-            }
-        } catch (InterruptedException | TimeoutException | CommunicationException e) {
-            logger.warn("Error experienced, while awaiting for the next chunk (which is really " +
-                    "ignored)", e);
-        }
     }
 
     private void rollback(TopologyGraphCreator graphCreator, TopologyID tid) {

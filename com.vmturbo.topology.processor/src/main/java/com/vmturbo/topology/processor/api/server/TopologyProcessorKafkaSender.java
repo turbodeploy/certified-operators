@@ -23,7 +23,11 @@ public class TopologyProcessorKafkaSender {
             @Nonnull KafkaMessageProducer kafkaMessageProducer) {
         return new TopologyProcessorNotificationSender(threadPool,
                 kafkaMessageProducer.messageSender(
-                        TopologyProcessorClient.TOPOLOGY_BROADCAST_TOPIC),
+                        TopologyProcessorClient.TOPOLOGY_LIVE),
+                kafkaMessageProducer.messageSender(
+                        TopologyProcessorClient.TOPOLOGY_USER_PLAN),
+                kafkaMessageProducer.messageSender(
+                        TopologyProcessorClient.TOPOLOGY_SCHEDULED_PLAN),
                 kafkaMessageProducer.messageSender(TopologyProcessorClient.NOTIFICATIONS_TOPIC));
     }
 }

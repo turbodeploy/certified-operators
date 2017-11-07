@@ -118,7 +118,7 @@ public class AnalysisServiceTest {
 
         // Return a hard-coded number. It doesn't really matter
         // what the number is, since it just comes back in the gRPC response.
-        when(topologyHandler.broadcastTopology(any(), any()))
+        when(topologyHandler.broadcastUserPlanTopology(any(), any()))
                 .thenReturn(broadcastInfo);
         when(identityProvider.generateTopologyId()).thenReturn(topologyId);
         when(clock.millis()).thenReturn(clockTime);
@@ -148,7 +148,7 @@ public class AnalysisServiceTest {
                         .build());
 
         // assert
-        verify(topologyHandler).broadcastTopology(eq(topologyInfo.toBuilder()
+        verify(topologyHandler).broadcastUserPlanTopology(eq(topologyInfo.toBuilder()
                     .setTopologyId(oldTopologyId)
                     .build()),
                 broadcastCaptor.capture());
@@ -176,7 +176,7 @@ public class AnalysisServiceTest {
                     .build());
 
         verify(entityStore).constructTopology();
-        verify(topologyHandler).broadcastTopology(eq(topologyInfo), broadcastCaptor.capture());
+        verify(topologyHandler).broadcastUserPlanTopology(eq(topologyInfo), broadcastCaptor.capture());
 
         assertEquals(entities.values()
                 .stream()
@@ -207,7 +207,7 @@ public class AnalysisServiceTest {
                 .setDisplayName("test - Clone #0")
                 .build();
 
-        verify(topologyHandler).broadcastTopology(eq(topologyInfo), broadcastCaptor.capture());
+        verify(topologyHandler).broadcastUserPlanTopology(eq(topologyInfo), broadcastCaptor.capture());
 
         final Set<TopologyEntityDTO> newTopology =
                 Sets.newHashSet(broadcastCaptor.getValue());
@@ -241,7 +241,7 @@ public class AnalysisServiceTest {
                 .setEntityType(1)
                 .build();
 
-        verify(topologyHandler).broadcastTopology(eq(topologyInfo), broadcastCaptor.capture());
+        verify(topologyHandler).broadcastUserPlanTopology(eq(topologyInfo), broadcastCaptor.capture());
         final Set<TopologyEntityDTO> newTopology = Sets.newHashSet(broadcastCaptor.getValue());
 
         MatcherAssert.assertThat(newTopology,
@@ -262,7 +262,7 @@ public class AnalysisServiceTest {
                                 .setEntityId(entityId + 1)))
                 .build());
 
-        verify(topologyHandler).broadcastTopology(eq(topologyInfo), broadcastCaptor.capture());
+        verify(topologyHandler).broadcastUserPlanTopology(eq(topologyInfo), broadcastCaptor.capture());
         final Set<TopologyEntityDTO> newTopology = Sets.newHashSet(broadcastCaptor.getValue());
 
         MatcherAssert.assertThat(newTopology,
@@ -280,7 +280,7 @@ public class AnalysisServiceTest {
                     .setEntityId(entityId)))
                 .build());
 
-        verify(topologyHandler).broadcastTopology(eq(topologyInfo),
+        verify(topologyHandler).broadcastUserPlanTopology(eq(topologyInfo),
                 broadcastCaptor.capture());
 
         final Set<TopologyEntityDTO> newTopology = Sets.newHashSet(broadcastCaptor.getValue());
@@ -298,7 +298,7 @@ public class AnalysisServiceTest {
                                 .setEntityId(entityId + 1)))
                 .build());
 
-        verify(topologyHandler).broadcastTopology(eq(topologyInfo),
+        verify(topologyHandler).broadcastUserPlanTopology(eq(topologyInfo),
                 broadcastCaptor.capture());
 
         final Set<TopologyEntityDTO> newTopology = Sets.newHashSet(broadcastCaptor.getValue());

@@ -101,7 +101,7 @@ public class TopologyHandlerTest {
     @Test
     public void testBroadcastTopology() throws Exception {
         final TopologyBroadcast entitiesListener = mock(TopologyBroadcast.class);
-        when(topoBroadcastManager.broadcastTopology(eq(realtimeTopologyInfo)))
+        when(topoBroadcastManager.broadcastLiveTopology(eq(realtimeTopologyInfo)))
             .thenReturn(entitiesListener);
 
         addTestSnapshots();

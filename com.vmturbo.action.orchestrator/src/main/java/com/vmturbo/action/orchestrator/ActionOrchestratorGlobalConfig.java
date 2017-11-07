@@ -1,5 +1,6 @@
 package com.vmturbo.action.orchestrator;
 
+import java.util.EnumSet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
@@ -21,6 +22,7 @@ import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.grpc.extensions.PingingChannelBuilder;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
+import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig.Subscription;
 
 /**
  * Global beans for the component that don't belong in any
@@ -63,7 +65,7 @@ public class ActionOrchestratorGlobalConfig {
 
     @Bean
     public TopologyProcessor topologyProcessor() {
-        return tpClientConfig.topologyProcessor();
+        return tpClientConfig.topologyProcessor(EnumSet.of(Subscription.Notifications));
     }
 
     @Bean

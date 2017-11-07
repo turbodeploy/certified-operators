@@ -107,7 +107,7 @@ public class SystemTestBase {
     protected int publishTopology() throws Exception {
 
         final CompletableFuture<Integer> entitiesFuture = new CompletableFuture<>();
-        systemTestConfig.topologyProcessor().addEntitiesListener(
+        systemTestConfig.topologyProcessor().addLiveTopologyListener(
                 new TestEntitiesListener(entitiesFuture));
         systemTestConfig.topologyService().requestTopologyBroadcast(
                 TopologyBroadcastRequest.getDefaultInstance());

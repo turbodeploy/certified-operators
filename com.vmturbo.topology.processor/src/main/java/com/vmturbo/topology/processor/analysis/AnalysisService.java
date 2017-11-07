@@ -122,8 +122,9 @@ public class AnalysisService extends AnalysisServiceImplBase {
                 .build();
 
         try {
+            // TODO destinguish between user plan and scheduled plan
             final TopologyBroadcastInfo broadcastInfo =
-                    topologyHandler.broadcastTopology(topologyInfo,
+                    topologyHandler.broadcastUserPlanTopology(topologyInfo,
                             topology);
 
             responseObserver.onNext(StartAnalysisResponse.newBuilder()

@@ -15,9 +15,17 @@ topics:
   - topic: tp-notifications
     properties:
       retention.ms: 604800000 # 604800000 ms = 7 days
-  - topic: tp-topology-broadcast
+  - topic: tp-live-topologies
     properties:
       retention.ms: 3600000 # 3600k ms = 1 hr
+  - topic: tp-user-plan-topologies
+    properties:
+      retention.ms: 3600000 # 3600k ms = 1 hr
+  - topic: tp-scheduled-plan-topologies
+    properties:
+      retention.ms: 7200000 # 7200k ms = 2 hr
+
+  - topic: tp-topology-broadcast
   - topic: projected-topologies
     properties:
       retention.ms: 3600000 # 3600k ms = 1 hr
@@ -47,9 +55,6 @@ topics:
   - topic: probe-events
     properties:
       retention.ms: 604800000 # 604800000 ms = 7 days
-  - topic: live-topologies
-  - topic: user-plan-topologies
-  - topic: scheduled-plan-topologies
   - topic: live-projected-topologies
   - topic: user-plan-projected-topologies
   - topic: scheduled-plan-projected-topologies

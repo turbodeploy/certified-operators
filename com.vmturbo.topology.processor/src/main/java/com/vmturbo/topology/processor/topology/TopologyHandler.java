@@ -2,6 +2,7 @@ package com.vmturbo.topology.processor.topology;
 
 import java.time.Clock;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -171,14 +172,14 @@ public class TopologyHandler {
                     .setCreationTime(clock.millis())
                     .build();
 
-            return broadcastTopology(topologyInfo,
+            return broadcastLiveTopology(topologyInfo,
                     Collections2.transform(graph.vertices().collect(Collectors.toList()),
                             vertex -> vertex.getTopologyEntityDtoBuilder().build()));
         }
     }
 
     /**
-     * Broadcast an arbitrary set of entities as a topology.
+     * Broadcast an arbitrary set of entities as a live topology.
      *
      * @param topologyInfo Information about the topology.
      * @param topology The {@link TopologyEntityDTO} objects in the topology.
@@ -186,11 +187,44 @@ public class TopologyHandler {
      * @throws InterruptedException when the broadcast is interrupted
      * @throws CommunicationException if persistent communication error occurred
      */
-    public synchronized TopologyBroadcastInfo broadcastTopology(
+    public TopologyBroadcastInfo broadcastLiveTopology(
             @Nonnull final TopologyInfo topologyInfo, final Iterable<TopologyEntityDTO> topology)
             throws InterruptedException, CommunicationException {
-        final TopologyBroadcast broadcast =
-                topoBroadcastManager.broadcastTopology(topologyInfo);
+        return broadcastTopology(topoBroadcastManager::broadcastLiveTopology, topologyInfo,
+                topology);
+    }
+
+    /**
+     * Broadcast an arbitrary set of entities as a user plan topology.
+     *
+     * @param topologyInfo Information about the topology.
+     * @param topology The {@link TopologyEntityDTO} objects in the topology.
+     * @return The number of broadcast entities.
+     * @throws InterruptedException when the broadcast is interrupted
+     * @throws CommunicationException if persistent communication error occurred
+     */
+    public TopologyBroadcastInfo broadcastUserPlanTopology(
+            @Nonnull final TopologyInfo topologyInfo, final Iterable<TopologyEntityDTO> topology)
+            throws InterruptedException, CommunicationException {
+        return broadcastTopology(topoBroadcastManager::broadcastUserPlanTopology, topologyInfo,
+                topology);
+    }
+
+    /**
+     * Broadcast an arbitrary set of entities as a topology.
+     *
+     * @param topologyInfo Information about the topology.
+     * @param topology The {@link TopologyEntityDTO} objects in the topology.
+     * @param broadcastFunction function to create broadcast
+     * @return The number of broadcast entities.
+     * @throws InterruptedException when the broadcast is interrupted
+     * @throws CommunicationException if persistent communication error occurred
+     */
+    private TopologyBroadcastInfo broadcastTopology(
+            @Nonnull Function<TopologyInfo, TopologyBroadcast> broadcastFunction,
+            @Nonnull final TopologyInfo topologyInfo, final Iterable<TopologyEntityDTO> topology)
+            throws InterruptedException, CommunicationException {
+        final TopologyBroadcast broadcast = broadcastFunction.apply(topologyInfo);
         for (TopologyEntityDTO entity : topology) {
             broadcast.append(entity);
         }

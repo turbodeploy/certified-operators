@@ -103,14 +103,10 @@ public class MarketPerformanceTest {
                 .setCreationTime(0)
                 .build();
         final TopologyBroadcast topologyBroadcast =
-                tpNotificationSender.broadcastTopology(topologyInfo);
-        topoDTOs.forEach(entity -> {
-            try {
-                topologyBroadcast.append(entity);
-            } catch (InterruptedException | CommunicationException e) {
-                throw new RuntimeException("Broadcast interrupted.", e);
-            }
-        });
+                tpNotificationSender.broadcastLiveTopology(topologyInfo);
+        for (final TopologyEntityDTO entity : topoDTOs) {
+            topologyBroadcast.append(entity);
+        }
         topologyBroadcast.finish();
 
         final long start = System.currentTimeMillis();

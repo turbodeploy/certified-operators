@@ -1,6 +1,7 @@
 package com.vmturbo.repository;
 
 import java.net.URISyntaxException;
+import java.util.EnumSet;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -80,6 +81,7 @@ import com.vmturbo.repository.topology.TopologyRelationshipRecorder;
 import com.vmturbo.repository.topology.protobufs.TopologyProtobufsManager;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
+import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig.Subscription;
 
 @Configuration("theComponent")
 @SpringBootApplication
@@ -110,9 +112,6 @@ public class RepositoryComponent extends BaseVmtComponent {
 
     @Value("${arangoDumpRestorePort:8599}")
     private int arangoDumpRestorePort;
-
-    @Value("${realtimeTopologyContextId}")
-    private long realtimeTopologyContextId;
 
     @Value("${arangodbHealthCheckIntervalSeconds:60}")
     private int arangoHealthCheckIntervalSeconds;
@@ -388,7 +387,6 @@ public class RepositoryComponent extends BaseVmtComponent {
     public TopologyEntitiesListener topologyEntitiesListener() throws GraphDatabaseException {
         return new TopologyEntitiesListener(topologyEventHandler(),
                                             topologyRelationshipRecorder(),
-                                            realtimeTopologyContextId,
                                             apiConfig.repositoryNotificationSender());
     }
 
@@ -400,17 +398,11 @@ public class RepositoryComponent extends BaseVmtComponent {
         return componentStartUpManager;
     }
 
-    @Bean(destroyMethod = "shutdownNow")
-    public ExecutorService tpClientExecutorService() {
-        final ThreadFactory threadFactory =
-                new ThreadFactoryBuilder().setNameFormat("repository-component-tp-api-srv-%d").build();
-        return Executors.newCachedThreadPool(threadFactory);
-    }
-
     @Bean
     public TopologyProcessor topologyProcessor() throws GraphDatabaseException {
-        final TopologyProcessor topologyProcessor = tpClientConfig.topologyProcessor();
-        topologyProcessor.addEntitiesListener(topologyEntitiesListener());
+        final TopologyProcessor topologyProcessor =
+                tpClientConfig.topologyProcessor(EnumSet.of(Subscription.LiveTopologies));
+        topologyProcessor.addLiveTopologyListener(topologyEntitiesListener());
         return topologyProcessor;
     }
 
@@ -423,13 +415,6 @@ public class RepositoryComponent extends BaseVmtComponent {
                 .build();
 
         return CircuitBreakerRegistry.of(circuitBreakerConfig);
-    }
-
-    @Bean(destroyMethod = "shutdownNow")
-    public ExecutorService priceIndexReceiverThreadPool() {
-        final ThreadFactory threadFactory =
-                new ThreadFactoryBuilder().setNameFormat("priceindex-receiver-%d").build();
-        return Executors.newCachedThreadPool(threadFactory);
     }
 
     @Override

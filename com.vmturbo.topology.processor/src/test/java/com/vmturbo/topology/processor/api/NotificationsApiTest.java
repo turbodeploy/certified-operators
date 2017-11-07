@@ -85,7 +85,7 @@ public class NotificationsApiTest extends AbstractApiCallsTest {
 
         final EntitiesListener listener1 = Mockito.mock(EntitiesListener.class);
         final EntitiesListener listener2 = Mockito.mock(EntitiesListener.class);
-        getTopologyProcessor().addEntitiesListener(listener1);
+        getTopologyProcessor().addLiveTopologyListener(listener1);
         final Set<TopologyEntityDTO> entities = ImmutableSet.of(topology1, topology2);
 
         @SuppressWarnings({ "unchecked", "rawtypes" })
@@ -104,7 +104,7 @@ public class NotificationsApiTest extends AbstractApiCallsTest {
         Assert.assertEquals(topologyContextId, topologyInfoOneInstance.getTopologyContextId());
         Assert.assertEquals(entities, accumulate(targetCaptor1.getValue()));
 
-        getTopologyProcessor().addEntitiesListener(listener2);
+        getTopologyProcessor().addLiveTopologyListener(listener2);
         @SuppressWarnings({ "unchecked", "rawtypes" })
         final ArgumentCaptor<RemoteIterator<TopologyEntityDTO>> targetCaptor2 = ArgumentCaptor.forClass((Class)Set.class);
         final ArgumentCaptor<TopologyInfo> topologyInfoCaptor2 = ArgumentCaptor.forClass(TopologyInfo.class);
@@ -137,8 +137,8 @@ public class NotificationsApiTest extends AbstractApiCallsTest {
         Mockito.doThrow(new RuntimeException("Exception for tests")).when(failingListener)
                         .onTopologyNotification(Mockito.any(TopologyInfo.class), Mockito.any());
 
-        getTopologyProcessor().addEntitiesListener(failingListener);
-        getTopologyProcessor().addEntitiesListener(goodListener);
+        getTopologyProcessor().addLiveTopologyListener(failingListener);
+        getTopologyProcessor().addLiveTopologyListener(goodListener);
         final Set<TopologyEntityDTO> entities = Collections.singleton(topology);
 
         sendEntities(0L, 0L, entities);
@@ -528,7 +528,7 @@ public class NotificationsApiTest extends AbstractApiCallsTest {
                 .setCreationTime(0L)
                 .build();
         final TopologyBroadcast broadcast = getEntitiesListener()
-                        .broadcastTopology(topologyInfo);
+                        .broadcastLiveTopology(topologyInfo);
         for (TopologyEntityDTO entity: entities) {
             broadcast.append(entity);
         }
