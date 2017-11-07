@@ -25,7 +25,7 @@ import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionEvent.AutomaticAcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.FailureEvent;
-import com.vmturbo.action.orchestrator.execution.ActionExecutor.ActionExecutionException;
+import com.vmturbo.action.orchestrator.execution.ActionExecutor.SynchronousExecutionException;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.common.protobuf.ActionDTOUtil;
 import com.vmturbo.common.protobuf.UnsupportedActionException;
@@ -54,9 +54,9 @@ public class AutomatedActionExecutor {
 
     private final Logger logger = LogManager.getLogger();
 
-    public AutomatedActionExecutor(@Nonnull ActionExecutor executor,
-                                   @Nonnull ExecutorService executorService,
-                                   @Nonnull ActionTranslator translator) {
+    public AutomatedActionExecutor(@Nonnull final ActionExecutor executor,
+                                   @Nonnull final ExecutorService executorService,
+                                   @Nonnull final ActionTranslator translator) {
         this.actionExecutor = Objects.requireNonNull(executor);
         this.actionTranslator = Objects.requireNonNull(translator);
         this.executionService = Objects.requireNonNull(executorService);
@@ -193,6 +193,8 @@ public class AutomatedActionExecutor {
                 Action action = autoActions.get(actionId);
                 //todo: user id????
                 action.receive(new AutomaticAcceptanceEvent(0, targetId));
+                // We don't need to refresh severity cache because we will refresh it
+                // in the ActionStorehouse after calling this method.
                 executionService.submit(() -> {
 
                     action.receive(new BeginExecutionEvent());
@@ -207,15 +209,17 @@ public class AutomatedActionExecutor {
                             final String errorMsg = String.format(EXECUTION_START_MSG, actionId);
                             logger.error(errorMsg, e);
                             action.receive(new FailureEvent(errorMsg));
-                        } catch (ActionExecutionException e) {
-                            final String errormsg = e.getFailure().getErrorDescription();
-                            logger.error(errormsg, e);
-                            action.receive(new FailureEvent(errormsg));
+                        } catch (SynchronousExecutionException e) {
+                            logger.error(e.getFailure().getErrorDescription(), e);
+                            // We don't need fail the action here because ActionStateUpdater will
+                            // do it for us.
                         } catch (InterruptedException e) {
                             Thread.currentThread().interrupt();
-                            final String errormsg = "Automated action execution interrupted: "
-                                    + e.getMessage();
-                            action.receive(new FailureEvent(errormsg));
+                            logger.error("Automated action execution interrupted: {}",
+                                    e.getMessage());
+                            // We don't need fail the action here because we don't know if it
+                            // actually failed or not. ActionStateUpdater will still change the
+                            // action state if and when the action completes.
                         }
                     } else {
                         final String errorMsg = String.format(FAILED_TRANSFORM_MSG, actionId);

@@ -35,6 +35,7 @@ import com.vmturbo.action.orchestrator.action.ActionEvent.SuccessEvent;
 import com.vmturbo.action.orchestrator.store.ActionFactory;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
+import com.vmturbo.action.orchestrator.store.EntitySettingsCache;
 import com.vmturbo.action.orchestrator.store.EntitySeverityCache;
 import com.vmturbo.action.orchestrator.store.IActionFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreFactory;
@@ -45,18 +46,20 @@ import com.vmturbo.components.common.DiagnosticsWriter;
 
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Unit tests for {@link ActionOrchestratorDiagnostics}.
  */
 public class ActionOrchestratorDiagnosticsTest {
 
-    private final ActionStorehouse actionStorehouse = Mockito.mock(ActionStorehouse.class);
-    private final ActionStore actionStore = Mockito.mock(ActionStore.class);
-    private final EntitySeverityCache severityCache = Mockito.mock(EntitySeverityCache.class);
+    private final ActionStorehouse actionStorehouse = mock(ActionStorehouse.class);
+    private final ActionStore actionStore = mock(ActionStore.class);
+    private final EntitySeverityCache severityCache = mock(EntitySeverityCache.class);
 
     private final IActionFactory actionFactory = new ActionFactory();
-    private final IActionStoreFactory storeFactory = Mockito.mock(IActionStoreFactory.class);
+    private final IActionStoreFactory storeFactory = mock(IActionStoreFactory.class);
     private final DiagnosticsWriter diagnosticsWriter = new DiagnosticsWriter();
 
     private final ActionOrchestratorDiagnostics diagnostics =
@@ -72,18 +75,18 @@ public class ActionOrchestratorDiagnosticsTest {
     @Before
     public void setup() {
         MockitoAnnotations.initMocks(this);
-        Mockito.when(actionStorehouse.getActionStoreFactory()).thenReturn(storeFactory);
-        Mockito.when(actionStorehouse.getStore(eq(realtimeTopologyContextId))).thenReturn(
+        when(actionStorehouse.getActionStoreFactory()).thenReturn(storeFactory);
+        when(actionStorehouse.getStore(eq(realtimeTopologyContextId))).thenReturn(
             Optional.of(actionStore));
-        Mockito.when(actionStore.getEntitySeverityCache()).thenReturn(severityCache);
+        when(actionStore.getEntitySeverityCache()).thenReturn(severityCache);
     }
 
     @Test
     public void testNoActions() throws Exception {
-        Mockito.when(actionStorehouse.getAllStores()).thenReturn(
+        when(actionStorehouse.getAllStores()).thenReturn(
             ImmutableMap.<Long, ActionStore>builder().put(realtimeTopologyContextId, actionStore).build()
         );
-        Mockito.when(actionStore.getActions()).thenReturn(Collections.emptyMap());
+        when(actionStore.getActions()).thenReturn(Collections.emptyMap());
 
         dumpAndRestore();
     }
@@ -149,10 +152,10 @@ public class ActionOrchestratorDiagnosticsTest {
                 ActionOrchestratorTestUtils.createMoveRecommendation(1), 0L);
         final Action action2 = actionFactory.newAction(
                 ActionOrchestratorTestUtils.createMoveRecommendation(2), 0L);
-        Mockito.when(actionStorehouse.getAllStores()).thenReturn(
+        when(actionStorehouse.getAllStores()).thenReturn(
             ImmutableMap.<Long, ActionStore>builder().put(realtimeTopologyContextId, actionStore).build()
         );
-        Mockito.when(actionStore.getActions())
+        when(actionStore.getActions())
                .thenReturn(ImmutableMap.of(action1.getId(), action1, action2.getId(), action2));
 
         dumpAndRestore();
@@ -169,23 +172,23 @@ public class ActionOrchestratorDiagnosticsTest {
     @Test
     public void testRestoreStoreNotInStorehouse() throws Exception {
         final long planTopologyContextId = 5678L;
-        final ActionStore planStore = Mockito.mock(ActionStore.class);
-        final ActionStore newStore = Mockito.mock(ActionStore.class);
-        final EntitySeverityCache severityCache = Mockito.mock(EntitySeverityCache.class);
+        final ActionStore planStore = mock(ActionStore.class);
+        final ActionStore newStore = mock(ActionStore.class);
+        final EntitySeverityCache severityCache = mock(EntitySeverityCache.class);
 
         final Action action = actionFactory.newAction(
             ActionOrchestratorTestUtils.createMoveRecommendation(1), 0L);
-        Mockito.when(actionStorehouse.getAllStores()).thenReturn(
+        when(actionStorehouse.getAllStores()).thenReturn(
             ImmutableMap.<Long, ActionStore>builder()
                 .put(planTopologyContextId, planStore)
                 .build()
         );
 
-        Mockito.when(planStore.getActions())
+        when(planStore.getActions())
             .thenReturn(ImmutableMap.of(action.getId(), action));
-        Mockito.when(actionStorehouse.getStore(eq(planTopologyContextId))).thenReturn(Optional.empty());
-        Mockito.when(storeFactory.newStore(anyLong())).thenReturn(newStore);
-        Mockito.when(newStore.getEntitySeverityCache()).thenReturn(severityCache);
+        when(actionStorehouse.getStore(eq(planTopologyContextId))).thenReturn(Optional.empty());
+        when(storeFactory.newStore(anyLong())).thenReturn(newStore);
+        when(newStore.getEntitySeverityCache()).thenReturn(severityCache);
 
         dumpAndRestore();
 
@@ -199,27 +202,27 @@ public class ActionOrchestratorDiagnosticsTest {
     @Test
     public void testMultipleStores() throws Exception {
         final long planTopologyContextId = 5678L;
-        final ActionStore planStore = Mockito.mock(ActionStore.class);
-        final EntitySeverityCache planSeverityCache = Mockito.mock(EntitySeverityCache.class);
+        final ActionStore planStore = mock(ActionStore.class);
+        final EntitySeverityCache planSeverityCache = mock(EntitySeverityCache.class);
 
         final Action action1 = actionFactory.newAction(
             ActionOrchestratorTestUtils.createMoveRecommendation(1), 0L);
         final Action action2 = actionFactory.newAction(
             ActionOrchestratorTestUtils.createMoveRecommendation(2), 0L);
-        Mockito.when(actionStorehouse.getAllStores()).thenReturn(
+        when(actionStorehouse.getAllStores()).thenReturn(
             ImmutableMap.<Long, ActionStore>builder()
                 .put(realtimeTopologyContextId, actionStore)
                 .put(planTopologyContextId, planStore)
                 .build()
         );
 
-        Mockito.when(actionStore.getActions())
+        when(actionStore.getActions())
             .thenReturn(ImmutableMap.of(action1.getId(), action1));
-        Mockito.when(planStore.getActions())
+        when(planStore.getActions())
             .thenReturn(ImmutableMap.of(action2.getId(), action2));
-        Mockito.when(actionStorehouse.getStore(eq(planTopologyContextId)))
+        when(actionStorehouse.getStore(eq(planTopologyContextId)))
             .thenReturn(Optional.of(planStore));
-        Mockito.when(planStore.getEntitySeverityCache()).thenReturn(planSeverityCache);
+        when(planStore.getEntitySeverityCache()).thenReturn(planSeverityCache);
 
         dumpAndRestore();
 
@@ -239,17 +242,18 @@ public class ActionOrchestratorDiagnosticsTest {
     private void testSingleAction(@Nullable final Consumer<Action> actionModifier)
             throws Exception {
         final ActionDTO.Action rec = ActionOrchestratorTestUtils.createMoveRecommendation(1);
-        final Map<Long, List<Setting>> settings = ActionOrchestratorTestUtils
-                .makeSettingMap(rec.getInfo().getMove().getTargetId(), ActionMode.MANUAL);
-        final Action action = actionFactory.newAction(rec, settings, 0L);
+        final EntitySettingsCache settingsCache = mock(EntitySettingsCache.class);
+        when(settingsCache.getSettingsForEntity(eq(rec.getInfo().getMove().getTargetId())))
+                .thenReturn(ActionOrchestratorTestUtils.makeActionModeSetting(ActionMode.MANUAL));
+        final Action action = actionFactory.newAction(rec, settingsCache, 0L);
         if (actionModifier != null) {
             actionModifier.accept(action);
         }
 
-        Mockito.when(actionStorehouse.getAllStores()).thenReturn(
+        when(actionStorehouse.getAllStores()).thenReturn(
             ImmutableMap.<Long, ActionStore>builder().put(realtimeTopologyContextId, actionStore).build()
         );
-        Mockito.when(actionStore.getActions()).thenReturn(ImmutableMap.of(action.getId(), action));
+        when(actionStore.getActions()).thenReturn(ImmutableMap.of(action.getId(), action));
 
         dumpAndRestore();
 

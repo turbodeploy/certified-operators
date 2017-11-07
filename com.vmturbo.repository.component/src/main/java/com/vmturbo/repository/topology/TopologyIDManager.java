@@ -106,7 +106,9 @@ public class TopologyIDManager implements Diagnosable {
         }
 
         // For now, assuming there is only one topology if no topology id specified
-        return TopologyDatabase.from(databaseName(tids.get(0)));
+        // If there is more than one topology for whatever reason, choose the one
+        // that was inserted last (i.e. the most recent).
+        return TopologyDatabase.from(databaseName(tids.get(tids.size() - 1)));
     }
 
     @Nonnull

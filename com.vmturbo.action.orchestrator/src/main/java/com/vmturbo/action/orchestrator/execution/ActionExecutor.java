@@ -7,7 +7,6 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -230,15 +229,15 @@ public class ActionExecutor implements ActionExecutionListener {
     }
 
     public void executeSynchronously(final long targetId, @Nonnull final ActionDTO.Action action)
-            throws ExecutionStartException, InterruptedException, ActionExecutionException {
+            throws ExecutionStartException, InterruptedException, SynchronousExecutionException {
         execute(targetId, action);
         final CompletableFuture<Void> future = new CompletableFuture<>();
         inProgressSyncActions.put(action.getId(), future);
         try {
             future.get();
         } catch (ExecutionException e) {
-            if (e.getCause() instanceof ActionExecutionException) {
-                throw (ActionExecutionException)e.getCause();
+            if (e.getCause() instanceof SynchronousExecutionException) {
+                throw (SynchronousExecutionException)e.getCause();
             } else {
                 throw new IllegalStateException("Unexpected execution exception!", e);
             }
@@ -295,7 +294,7 @@ public class ActionExecutor implements ActionExecutionListener {
         final CompletableFuture<Void> futureForAction =
                 inProgressSyncActions.get(actionFailure.getActionId());
         if (futureForAction != null) {
-            futureForAction.completeExceptionally(new ActionExecutionException(actionFailure));
+            futureForAction.completeExceptionally(new SynchronousExecutionException(actionFailure));
         }
     }
 
@@ -304,10 +303,10 @@ public class ActionExecutor implements ActionExecutionListener {
      * {@link ActionExecutor#executeSynchronously(long, ActionDTO.Action)} fail
      * to complete.
      */
-    public static class ActionExecutionException extends Exception {
+    public static class SynchronousExecutionException extends Exception {
         private final ActionFailure actionFailure;
 
-        private ActionExecutionException(@Nonnull final ActionFailure failure) {
+        private SynchronousExecutionException(@Nonnull final ActionFailure failure) {
             this.actionFailure = Objects.requireNonNull(failure);
         }
 

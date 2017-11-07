@@ -10,6 +10,7 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
@@ -35,6 +36,7 @@ import com.vmturbo.action.orchestrator.state.machine.Transition.TransitionResult
 import com.vmturbo.action.orchestrator.store.ActionFactory;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
+import com.vmturbo.action.orchestrator.store.EntitySettingsCache;
 import com.vmturbo.action.orchestrator.store.EntitySeverityCache;
 import com.vmturbo.action.orchestrator.store.IActionFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreFactory;
@@ -68,13 +70,13 @@ public class ActionExecutionRpcTest {
     private ActionsServiceBlockingStub actionOrchestratorServiceClient;
 
     private final IActionFactory actionFactory = new ActionFactory();
-    private final IActionStoreFactory actionStoreFactory = Mockito.mock(IActionStoreFactory.class);
-    private final IActionStoreLoader actionStoreLoader = Mockito.mock(IActionStoreLoader.class);
-    private final AutomatedActionExecutor executor = Mockito.mock(AutomatedActionExecutor.class);
+    private final IActionStoreFactory actionStoreFactory = mock(IActionStoreFactory.class);
+    private final IActionStoreLoader actionStoreLoader = mock(IActionStoreLoader.class);
+    private final AutomatedActionExecutor executor = mock(AutomatedActionExecutor.class);
     private final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory,
             executor, actionStoreLoader);
 
-    private final ActionExecutor actionExecutor = Mockito.mock(ActionExecutor.class);
+    private final ActionExecutor actionExecutor = mock(ActionExecutor.class);
     // Have the translator pass-through translate all actions.
     private final ActionTranslator actionTranslator = Mockito.spy(new ActionTranslator(actionStream ->
         actionStream.map(action -> {
@@ -82,8 +84,10 @@ public class ActionExecutionRpcTest {
             return action;
         })));
 
-    private final ActionSupportResolver filter = Mockito.mock
+    private final ActionSupportResolver filter = mock
             (ActionSupportResolver.class);
+
+    private final EntitySettingsCache entitySettingsCache = mock(EntitySettingsCache.class);
 
     private final static long ACTION_PLAN_ID = 2;
     private final static long TOPOLOGY_CONTEXT_ID = 3;
@@ -92,10 +96,8 @@ public class ActionExecutionRpcTest {
     private final ActionsRpcService actionsRpcService =
             new ActionsRpcService(actionStorehouse, actionExecutor, actionTranslator);
 
-    private final TestSettingRpcService settingRpcService = Mockito.spy(new TestSettingRpcService());
-
     @Rule
-    public GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsRpcService, settingRpcService);
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsRpcService);
 
     private ActionStore actionStoreSpy;
 
@@ -104,10 +106,9 @@ public class ActionExecutionRpcTest {
     public void setup() throws Exception {
         IdentityGenerator.initPrefix(0);
 
-        final SettingPolicyServiceBlockingStub stub =
-                SettingPolicyServiceGrpc.newBlockingStub(grpcServer.getChannel());
         actionStoreSpy =
-                Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID, stub, filter));
+                Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
+                        filter, entitySettingsCache));
 
         actionOrchestratorServiceClient = ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);
@@ -181,7 +182,7 @@ public class ActionExecutionRpcTest {
             .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
             .build();
 
-        EntitySeverityCache severityCacheMock = Mockito.mock(EntitySeverityCache.class);
+        EntitySeverityCache severityCacheMock = mock(EntitySeverityCache.class);
         doReturn(severityCacheMock).when(actionStoreSpy).getEntitySeverityCache();
 
         actionStorehouse.storeActions(plan);
@@ -305,24 +306,5 @@ public class ActionExecutionRpcTest {
             .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
             .addAction(recommendation)
             .build();
-    }
-
-    private class TestSettingRpcService extends SettingPolicyServiceImplBase {
-        @Override
-        public void getEntitySettings(GetEntitySettingsRequest request,
-                                      StreamObserver<GetEntitySettingsResponse> responseObserver) {
-            responseObserver.onNext(GetEntitySettingsResponse.newBuilder()
-                    .addSettings(SettingsForEntity.newBuilder()
-                            .setEntityId(1L)
-                            .addSettings(Setting.newBuilder()
-                                .setBooleanSettingValue(BooleanSettingValue.newBuilder()
-                                        .setValue(true).build())
-                                .setSettingSpecName("abc")
-                                .build())
-                            .build())
-                    .build()
-            );
-            responseObserver.onCompleted();
-        }
     }
 }

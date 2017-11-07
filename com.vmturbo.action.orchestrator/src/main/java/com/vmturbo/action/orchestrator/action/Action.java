@@ -23,6 +23,7 @@ import com.vmturbo.action.orchestrator.action.ActionEvent.SuccessEvent;
 import com.vmturbo.action.orchestrator.action.ActionTranslation.TranslationStatus;
 import com.vmturbo.action.orchestrator.state.machine.StateMachine;
 import com.vmturbo.action.orchestrator.state.machine.Transition.TransitionResult;
+import com.vmturbo.action.orchestrator.store.EntitySettingsCache;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
@@ -72,9 +73,9 @@ public class Action implements ActionView {
     private Optional<ExecutableStep> executableStep;
 
     /**
-     * The map of entity IDs to the settings that apply to those entities.
+     * Cached settings for entities.
      */
-    private final Map<Long, List<Setting>> entitySettings;
+    private final EntitySettingsCache entitySettings;
 
     /**
      * The translation for this action.
@@ -121,7 +122,7 @@ public class Action implements ActionView {
         }
         this.stateMachine = ActionStateMachine.newInstance(this, savedState.currentState);
         this.actionTranslation = savedState.actionTranslation;
-        this.entitySettings = new HashMap<>();
+        this.entitySettings = null;
     }
 
     public Action(@Nonnull final ActionDTO.Action recommendation,
@@ -134,12 +135,12 @@ public class Action implements ActionView {
         this.executableStep = Optional.empty();
         this.decision = new Decision();
         this.actionTranslation = new ActionTranslation(this.recommendation);
-        this.entitySettings = new HashMap<>();
+        this.entitySettings = null;
     }
 
     public Action(@Nonnull final ActionDTO.Action recommendation,
                   @Nonnull final LocalDateTime recommendationTime,
-                  @Nonnull final Map<Long, List<Setting>> entitySettings,
+                  @Nonnull final EntitySettingsCache entitySettings,
                   final long actionPlanId) {
         this.recommendation = Objects.requireNonNull(recommendation);
         this.actionPlanId = actionPlanId;
@@ -160,7 +161,7 @@ public class Action implements ActionView {
         this.stateMachine = prototype.stateMachine;
         this.recommendation = ActionDTO.Action.newBuilder(prototype.recommendation)
                 .setSupportingLevel(supportLevel).build();
-        this.entitySettings = new HashMap<>();
+        this.entitySettings = prototype.entitySettings;
     }
 
     public Action(@Nonnull final ActionDTO.Action recommendation,
@@ -169,7 +170,7 @@ public class Action implements ActionView {
     }
 
     public Action(@Nonnull final ActionDTO.Action recommendation,
-                  @Nonnull final Map<Long, List<Setting>> entitySettings,
+                  @Nonnull final EntitySettingsCache entitySettings,
                   final long actionPlanId) {
         this(recommendation, LocalDateTime.now(), entitySettings, actionPlanId);
     }
@@ -271,8 +272,8 @@ public class Action implements ActionView {
         switch (recommendation.getInfo().getActionTypeCase()) {
             case MOVE:
                 long targetId = recommendation.getInfo().getMove().getTargetId();
-                List<Setting> targetSettings =
-                        entitySettings.getOrDefault(targetId, Collections.emptyList());
+                List<Setting> targetSettings = entitySettings == null ?
+                        Collections.emptyList() : entitySettings.getSettingsForEntity(targetId);
                 // ASSUMPTION: all move settings will have specs prefixed by "move"
                 return targetSettings.stream()
                         .filter(s -> s.getSettingSpecName().toLowerCase().startsWith("move") &&

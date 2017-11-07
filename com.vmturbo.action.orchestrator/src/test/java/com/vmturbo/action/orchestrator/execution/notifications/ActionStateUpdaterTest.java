@@ -1,12 +1,17 @@
 package com.vmturbo.action.orchestrator.execution.notifications;
 
-import java.util.List;
-import java.util.Map;
+import static com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils.makeActionModeSetting;
+import static org.junit.Assert.assertEquals;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import java.util.Optional;
 
 import org.junit.Before;
 import org.junit.Test;
-import org.mockito.Mockito;
 
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
@@ -15,6 +20,7 @@ import com.vmturbo.action.orchestrator.action.ExecutableStep;
 import com.vmturbo.action.orchestrator.api.ActionOrchestratorNotificationSender;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
+import com.vmturbo.action.orchestrator.store.EntitySettingsCache;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
@@ -25,23 +31,15 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionFailure;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionProgress;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionSuccess;
-import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
-
-import static com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils.makeSettingMap;
-import static org.junit.Assert.assertEquals;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 /**
  * Tests for the {@link ActionStateUpdater}.
  */
 public class ActionStateUpdaterTest {
 
-    private final ActionStorehouse actionStorehouse = Mockito.mock(ActionStorehouse.class);
-    private final ActionStore actionStore = Mockito.mock(ActionStore.class);
-    private final ActionOrchestratorNotificationSender notificationSender = Mockito.mock(ActionOrchestratorNotificationSender.class);
+    private final ActionStorehouse actionStorehouse = mock(ActionStorehouse.class);
+    private final ActionStore actionStore = mock(ActionStore.class);
+    private final ActionOrchestratorNotificationSender notificationSender = mock(ActionOrchestratorNotificationSender.class);
     private final long realtimeTopologyContextId = 0;
     private final ActionStateUpdater actionStateUpdater =
         new ActionStateUpdater(actionStorehouse, notificationSender, realtimeTopologyContextId);
@@ -55,15 +53,18 @@ public class ActionStateUpdaterTest {
             .setMove(Move.newBuilder().setDestinationId(1).setSourceId(2).setTargetId(3)))
         .setExplanation(Explanation.newBuilder().build())
         .build();
-    private final Map<Long, List<Setting>> settingMap = makeSettingMap(3L, ActionMode.MANUAL);
 
-    private final Action testAction = new Action(recommendation, settingMap, 4);
+    private final EntitySettingsCache entitySettingsCache = mock(EntitySettingsCache.class);
+
+    private final Action testAction = new Action(recommendation, entitySettingsCache, 4);
 
     @Before
     public void setup() {
         when(actionStorehouse.getStore(eq(realtimeTopologyContextId))).thenReturn(Optional.of(actionStore));
         when(actionStore.getAction(eq(actionId))).thenReturn(Optional.of(testAction));
         when(actionStore.getAction(eq(notFoundId))).thenReturn(Optional.empty());
+        when(entitySettingsCache.getSettingsForEntity(eq(3L)))
+            .thenReturn(makeActionModeSetting(ActionMode.MANUAL));
 
         testAction.receive(new ManualAcceptanceEvent(99, 102));
         testAction.receive(new BeginExecutionEvent());

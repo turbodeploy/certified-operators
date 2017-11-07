@@ -41,6 +41,11 @@ public class ActionStoreConfig {
     }
 
     @Bean
+    public EntitySettingsCache entitySettingsCache() {
+        return new EntitySettingsCache(actionOrchestratorGlobalConfig.groupChannel());
+    }
+
+    @Bean
     public AutomatedActionExecutor automatedActionExecutor() {
         return new AutomatedActionExecutor(actionExecutionConfig.actionExecutor(),
                 Executors.newSingleThreadExecutor(),
@@ -54,8 +59,8 @@ public class ActionStoreConfig {
             actionOrchestratorGlobalConfig.realtimeTopologyContextId(),
             databaseConfig.dsl(),
             actionOrchestratorGlobalConfig.topologyProcessorChannel(),
-            actionOrchestratorGlobalConfig.groupChannel(),
-            actionOrchestratorGlobalConfig.topologyProcessor());
+            actionOrchestratorGlobalConfig.topologyProcessor(),
+            entitySettingsCache());
     }
 
     @Bean

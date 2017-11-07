@@ -15,8 +15,6 @@ import static org.mockito.Mockito.when;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -30,6 +28,7 @@ import org.junit.rules.ExpectedException;
 import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 
 import io.grpc.Status;
 
@@ -41,16 +40,11 @@ import com.vmturbo.common.protobuf.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
-import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
-import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
-import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse.SettingsForEntity;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
-import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.commons.idgen.IdentityGenerator;
-import com.vmturbo.components.api.test.GrpcTestServer;
 
 /**
  * Integration tests related to the LiveActionStore.
@@ -90,7 +84,7 @@ public class LiveActionStoreTest {
         @Nonnull
         @Override
         public Action newAction(@Nonnull final ActionDTO.Action recommendation,
-                                @Nonnull final Map<Long, List<Setting>> entitySettingsMap,
+                                @Nonnull final EntitySettingsCache entitySettingsMap,
                                 long actionPlanId){
             return spy(new Action(recommendation, entitySettingsMap, actionPlanId));
         }
@@ -108,22 +102,16 @@ public class LiveActionStoreTest {
 
     private final ActionSupportResolver filter = Mockito.mock(ActionSupportResolver.class);
 
-    private final SettingPolicyServiceMole settingRpcService =
-            Mockito.spy(new SettingPolicyServiceMole());
+    private final EntitySettingsCache entitySettingsCache = mock(EntitySettingsCache.class);
 
-    @Rule
-    public GrpcTestServer grpcServer = GrpcTestServer.newServer(settingRpcService);
-
-    private SettingPolicyServiceBlockingStub stub;
     private SpyActionFactory spyActionFactory = spy(new SpyActionFactory());
     private ActionStore actionStore;
 
     @SuppressWarnings("unchecked")
     @Before
     public void setup() throws TargetResolutionException, UnsupportedActionException {
-
-        stub = SettingPolicyServiceGrpc.newBlockingStub(grpcServer.getChannel());
-        actionStore = new LiveActionStore(spyActionFactory, TOPOLOGY_CONTEXT_ID, stub, filter);
+        actionStore = new LiveActionStore(spyActionFactory, TOPOLOGY_CONTEXT_ID, filter,
+                entitySettingsCache);
 
         when(filter.resolveActionsSupporting(anyCollection())).thenAnswer(invocationOnMock
                 -> invocationOnMock.getArguments()[0]);
@@ -192,7 +180,8 @@ public class LiveActionStoreTest {
         // Can't use spies when checking for action state because action state machine will call
         // methods in the original action, not in the spy.
         ActionStore actionStore =
-                new LiveActionStore(new ActionFactory(), TOPOLOGY_CONTEXT_ID, stub, filter);
+                new LiveActionStore(new ActionFactory(), TOPOLOGY_CONTEXT_ID, filter,
+                        entitySettingsCache);
 
         ActionDTO.Action.Builder firstMove = move(vm1, hostA, hostB);
 
@@ -379,17 +368,6 @@ public class LiveActionStoreTest {
 
     @Test
     public void testGetEntitySettings() {
-        final Setting setting = Setting.newBuilder()
-                .setSettingSpecName("name")
-                .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance())
-                .build();
-        when(settingRpcService.getEntitySettings(any()))
-                .thenReturn(GetEntitySettingsResponse.newBuilder()
-                        .addSettings(SettingsForEntity.newBuilder()
-                                .setEntityId(vm1)
-                                .addSettings(setting))
-                        .build());
-
         ActionPlan plan = ActionPlan.newBuilder()
                 .setTopologyId(topologyId)
                 .setId(firstPlanId)
@@ -397,25 +375,11 @@ public class LiveActionStoreTest {
                 .build();
 
         actionStore.populateRecommendedActions(plan);
+        verify(entitySettingsCache).update(eq(ImmutableSet.of(vm1, hostA, hostB)),
+                eq(plan.getTopologyContextId()), eq(plan.getTopologyId()));
         verify(spyActionFactory).newAction(any(),
-                eq(ImmutableMap.of(vm1, Collections.singletonList(setting))),
+                eq(entitySettingsCache),
                 eq(firstPlanId));
         assertEquals(1, actionStore.size());
-    }
-
-    @Test
-    public void testGetEntitySettingsError() {
-        when(settingRpcService.getEntitySettingsError(any()))
-                .thenReturn(Optional.of(Status.INTERNAL.asException()));
-
-        ActionPlan plan = ActionPlan.newBuilder()
-                .setTopologyId(topologyId)
-                .setId(firstPlanId)
-                .addAction(move(vm1, hostA, hostB))
-                .addAction(move(vm2, hostB, hostC))
-                .build();
-
-        actionStore.populateRecommendedActions(plan);
-        assertEquals(2, actionStore.size());
     }
 }

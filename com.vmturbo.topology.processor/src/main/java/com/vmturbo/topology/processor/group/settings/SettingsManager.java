@@ -151,8 +151,13 @@ public class SettingsManager {
             // Resolving a bunch of groups at once(ORing of the group search parameters)
             // would probalby be more efficient.
             try {
-                apply(groupResolver.resolve(groups.get(groupId), topologyGraph),
-                    settingPolicies, userSettingsByEntityAndName, settingNameToSettingSpecs);
+                final Group group = groups.get(groupId);
+                if (group != null ) {
+                    apply(groupResolver.resolve(group, topologyGraph),
+                        settingPolicies, userSettingsByEntityAndName, settingNameToSettingSpecs);
+                } else {
+                    logger.error("Group {} does not exist.", groupId);
+                }
             } catch (GroupResolutionException gre) {
                 // should we throw an exception ?
                 logger.error("Failed to resolve group with id: {}", groupId, gre);

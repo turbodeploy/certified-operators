@@ -3,6 +3,10 @@ package com.vmturbo.action.orchestrator.action;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.anyLong;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -16,6 +20,7 @@ import org.junit.Test;
 
 import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ManualAcceptanceEvent;
+import com.vmturbo.action.orchestrator.store.EntitySettingsCache;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
@@ -35,14 +40,16 @@ public class ActionTest {
     final long actionPlanId = 1;
     private ActionDTO.Action recommendation;
     private Action action;
-    private Map<Long, List<Setting>> entitySettings = new HashMap<>();
+    private EntitySettingsCache entitySettingsCache = mock(EntitySettingsCache.class);
 
     @Before
     public void setup() {
         IdentityGenerator.initPrefix(0);
 
         recommendation = move(11, 22, 33, SupportLevel.SUPPORTED).build();
-        action = new Action(recommendation, entitySettings, actionPlanId);
+        when(entitySettingsCache.getSettingsForEntity(anyLong()))
+            .thenReturn(Collections.emptyList());
+        action = new Action(recommendation, entitySettingsCache, actionPlanId);
     }
 
     @Test
@@ -75,7 +82,8 @@ public class ActionTest {
     @Test
     public void testExecutionCreatesExecutionStep() throws Exception {
         final long targetId = 7;
-        entitySettings.put(11L, Collections.singletonList(makeMoveVmSetting(ActionMode.MANUAL)));
+        when(entitySettingsCache.getSettingsForEntity(eq(11L)))
+            .thenReturn(Collections.singletonList(makeMoveVmSetting(ActionMode.MANUAL)));
         action.receive(new ManualAcceptanceEvent(0L, targetId));
         Assert.assertTrue(action.getExecutableStep().isPresent());
         Assert.assertEquals(targetId, action.getExecutableStep().get().getTargetId());
@@ -84,7 +92,8 @@ public class ActionTest {
     @Test
     public void testBeginExecutionEventStartsExecute() throws Exception {
         final long targetId = 7;
-        entitySettings.put(11L, Collections.singletonList(makeMoveVmSetting(ActionMode.MANUAL)));
+        when(entitySettingsCache.getSettingsForEntity(eq(11L)))
+                .thenReturn(Collections.singletonList(makeMoveVmSetting(ActionMode.MANUAL)));
 
         action.receive(new ManualAcceptanceEvent(0L, targetId));
         action.receive(new BeginExecutionEvent());
@@ -97,7 +106,8 @@ public class ActionTest {
 
     @Test
     public void testDetermineExecutabilityInProgress() {
-        entitySettings.put(11L, Collections.singletonList(makeMoveVmSetting(ActionMode.MANUAL)));
+        when(entitySettingsCache.getSettingsForEntity(eq(11L)))
+                .thenReturn(Collections.singletonList(makeMoveVmSetting(ActionMode.MANUAL)));
 
         action.receive(new ManualAcceptanceEvent(0L, 24L));
 
@@ -116,8 +126,9 @@ public class ActionTest {
     @Test
     public void testGetModeMoveSpecNameCaseInsensitive(){
         //move prefix for setting spec is case insensitive
-        entitySettings.put(11L,
-                Collections.singletonList(settingNonstandardSpec("MoVeVM", ActionMode.AUTOMATIC)));
+        when(entitySettingsCache.getSettingsForEntity(eq(11L)))
+            .thenReturn(Collections.singletonList(settingNonstandardSpec("MoVeVM",
+                    ActionMode.AUTOMATIC)));
         assertEquals(action.getMode(), ActionMode.AUTOMATIC);
     }
 
@@ -126,11 +137,13 @@ public class ActionTest {
         //suffix of move spec doesn't matter
         //todo: this may change when non-moveVM settings are supported
         Setting move123 = settingNonstandardSpec("move123", ActionMode.RECOMMEND);
-        entitySettings.put(11L, Collections.singletonList(move123));
+        when(entitySettingsCache.getSettingsForEntity(eq(11L)))
+            .thenReturn(Collections.singletonList(move123));
         assertEquals(action.getMode(), ActionMode.RECOMMEND);
         //but an unrecognized spec name invalidates the setting
-        entitySettings.put(11L,
-                Arrays.asList(settingNonstandardSpec("badName", ActionMode.DISABLED), move123));
+        when(entitySettingsCache.getSettingsForEntity(eq(11L)))
+            .thenReturn(Arrays.asList(settingNonstandardSpec("badName", ActionMode.DISABLED),
+                    move123));
         assertEquals(action.getMode(), ActionMode.RECOMMEND);
     }
 
@@ -144,7 +157,7 @@ public class ActionTest {
                 settingNonstandardSpec("MovE456", ActionMode.MANUAL),
                 settingNonstandardSpec("bad123", ActionMode.DISABLED),
                 settingNonstandardSpec("bad456", ActionMode.AUTOMATIC));
-        entitySettings.put(11L, mixedSettings);
+        when(entitySettingsCache.getSettingsForEntity(eq(11L))).thenReturn(mixedSettings);
         assertEquals(action.getMode(), ActionMode.RECOMMEND);
 
     }
@@ -157,7 +170,8 @@ public class ActionTest {
 
     @Test
     public void testGetModeMoveOneSetting(){
-        entitySettings.put(11L, Collections.singletonList(makeMoveVmSetting(ActionMode.AUTOMATIC)));
+        when(entitySettingsCache.getSettingsForEntity(eq(11L)))
+            .thenReturn(Collections.singletonList(makeMoveVmSetting(ActionMode.AUTOMATIC)));
         assertEquals(action.getMode(), ActionMode.AUTOMATIC);
     }
 
@@ -165,8 +179,9 @@ public class ActionTest {
     public void testGetModeMoveSupportLevelShowOnly(){
         //SHOW ONLY support level - no modes above RECOMMEND even though set to AUTOMATIC
         recommendation = move(11, 22, 33, SupportLevel.SHOW_ONLY).build();
-        entitySettings.put(11L, Collections.singletonList(makeMoveVmSetting(ActionMode.AUTOMATIC)));
-        action = new Action(recommendation, entitySettings, actionPlanId);
+        when(entitySettingsCache.getSettingsForEntity(eq(11L)))
+                .thenReturn(Collections.singletonList(makeMoveVmSetting(ActionMode.AUTOMATIC)));
+        action = new Action(recommendation, entitySettingsCache, actionPlanId);
         assertEquals(action.getMode(), ActionMode.RECOMMEND);
     }
 
@@ -174,8 +189,9 @@ public class ActionTest {
     public void testGetModeMoveSupportLevelUnsupported(){
         //UNSUPPORTED support level - no modes above DISABLED even though set to RECOMMEND
         recommendation = move(11, 22, 33, SupportLevel.UNSUPPORTED).build();
-        entitySettings.put(11L, Collections.singletonList(makeMoveVmSetting(ActionMode.RECOMMEND)));
-        action = new Action(recommendation, entitySettings, actionPlanId);
+        when(entitySettingsCache.getSettingsForEntity(eq(11L)))
+            .thenReturn(Collections.singletonList(makeMoveVmSetting(ActionMode.RECOMMEND)));
+        action = new Action(recommendation, entitySettingsCache, actionPlanId);
         assertEquals(action.getMode(), ActionMode.DISABLED);
     }
 
@@ -183,8 +199,9 @@ public class ActionTest {
     public void testGetModeMoveSupportLevelSupported(){
         //SUPPORTED support level - all modes work
         recommendation = move(11, 22, 33, SupportLevel.SUPPORTED).build();
-        entitySettings.put(11L, Collections.singletonList(makeMoveVmSetting(ActionMode.AUTOMATIC)));
-        action = new Action(recommendation, entitySettings, actionPlanId);
+        when(entitySettingsCache.getSettingsForEntity(eq(11L)))
+            .thenReturn(Collections.singletonList(makeMoveVmSetting(ActionMode.AUTOMATIC)));
+        action = new Action(recommendation, entitySettingsCache, actionPlanId);
         assertEquals(action.getMode(), ActionMode.AUTOMATIC);
     }
 

@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
@@ -66,9 +67,9 @@ public class LiveActionStore implements ActionStore {
 
     private final long topologyContextId;
 
-    private final SettingPolicyServiceBlockingStub settingPolicyServiceStub;
-
     private final EntitySeverityCache severityCache;
+
+    private final EntitySettingsCache entitySettingsCache;
 
     private static final DataMetricSummary ACTION_COUNTS_SUMMARY = DataMetricSummary.builder()
         .withName("ao_live_action_counts")
@@ -104,13 +105,13 @@ public class LiveActionStore implements ActionStore {
      */
     public LiveActionStore(@Nonnull final IActionFactory actionFactory,
                            final long topologyContextId,
-                           @Nonnull final SettingPolicyServiceBlockingStub settingServiceStub,
-                           @Nonnull final ActionSupportResolver actionSupportResolver) {
+                           @Nonnull final ActionSupportResolver actionSupportResolver,
+                           @Nonnull final EntitySettingsCache entitySettingsCache) {
         this.actionFactory = Objects.requireNonNull(actionFactory);
         this.topologyContextId = topologyContextId;
         this.severityCache = new EntitySeverityCache(QueryFilter.VISIBILITY_FILTER);
-        this.settingPolicyServiceStub = Objects.requireNonNull(settingServiceStub);
         this.actionSupportResolver = actionSupportResolver;
+        this.entitySettingsCache = entitySettingsCache;
     }
 
     /**
@@ -260,37 +261,23 @@ public class LiveActionStore implements ActionStore {
              */
             final long planId = actionPlan.getId();
 
-            final List<Action> existingActions = new ArrayList<>();
-            final List<ActionDTO.Action> newActions = new ArrayList<>();
-
+            final Set<Long> entitiesToRetrieve = new HashSet<>();
             actionPlan.getActionList().forEach(recommendedAction -> {
-                Optional<Action> action = recommendations.take(recommendedAction.getInfo());
-                if (action.isPresent()){
-                    existingActions.add(action.get());
-                } else {
-                    newActions.add(recommendedAction);
+                final ActionInfo info = recommendedAction.getInfo();
+                final Action action = recommendations.take(info)
+                    .orElse(actionFactory.newAction(recommendedAction, entitySettingsCache, planId));
+                if (action.getState() == ActionState.READY) {
+                    try {
+                        entitiesToRetrieve.addAll(ActionDTOUtil.getInvolvedEntities(recommendedAction));
+                        actions.put(action.getId(), action);
+                    } catch (UnsupportedActionException e) {
+                        logger.error("Recommendation contains unsupported action", e);
+                    }
                 }
             });
-            // TODO: (Michelle Neuburger 2017-10-26) retrieve settings for all actions' entities,
-            // TODO: not just new ones, and refresh existing actions' entity setting map (OM-26182)
-            final Set<Long> entitiesToRetrieve = newActions.stream().flatMap(newAction -> {
-                try {
-                    return ActionDTOUtil.getInvolvedEntities(newAction).stream();
-                } catch (UnsupportedActionException e) {
-                    logger.error("Recommendation contains unsupported action", e);
-                    return Stream.empty();
-                }
-            }).collect(Collectors.toSet());
 
-            final Map<Long, List<Setting>> entitySettingMap =
-                    retrieveEntityToSettingListMap(entitiesToRetrieve,
-                            actionPlan.getTopologyContextId(), actionPlan.getTopologyId());
-
-            Stream.concat(existingActions.stream(),
-                          newActions.stream().map(newAction ->
-                            actionFactory.newAction(newAction, entitySettingMap, planId)))
-                    .filter(action -> action.getState() == ActionState.READY)
-                    .forEach(action -> actions.put(action.getId(), action));
+            entitySettingsCache.update(entitiesToRetrieve,
+                    actionPlan.getTopologyContextId(), actionPlan.getTopologyId());
 
             filterActionsByCapabilityForUiDisplaying();
 
@@ -411,27 +398,5 @@ public class LiveActionStore implements ActionStore {
     private boolean isAcceptedAndIncomplete(@Nonnull final Action action) {
         final ActionState state = action.getState();
         return (state == ActionState.QUEUED || state == ActionState.IN_PROGRESS);
-    }
-
-    private Map<Long, List<Setting>> retrieveEntityToSettingListMap(final Set<Long> entities,
-                                                                    final long topologyContextId,
-                                                                    final long topologyId) {
-        try {
-            GetEntitySettingsRequest request = GetEntitySettingsRequest.newBuilder()
-                    .setTopologySelection(TopologySelection.newBuilder()
-                            .setTopologyContextId(topologyContextId)
-                            .setTopologyId(topologyId))
-                    .setSettingFilter(EntitySettingFilter.newBuilder()
-                            .addAllEntities(entities))
-                    .build();
-            GetEntitySettingsResponse response = settingPolicyServiceStub.getEntitySettings(request);
-            return Collections.unmodifiableMap(
-                    response.getSettingsList().stream()
-                            .collect(Collectors.toMap(SettingsForEntity::getEntityId,
-                                    SettingsForEntity::getSettingsList)));
-        } catch (StatusRuntimeException e) {
-            logger.error("Failed to retrieve entity settings due to error: " + e.getMessage());
-            return Collections.emptyMap();
-        }
     }
 }

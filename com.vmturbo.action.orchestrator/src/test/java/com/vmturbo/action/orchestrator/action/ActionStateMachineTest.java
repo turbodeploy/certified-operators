@@ -18,6 +18,7 @@ import com.vmturbo.action.orchestrator.action.ActionEvent.ManualAcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.NotRecommendedEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ProgressEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.SuccessEvent;
+import com.vmturbo.action.orchestrator.store.EntitySettingsCache;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision.ClearingDecision.Reason;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision.ExecutionDecision;
@@ -30,16 +31,16 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 
 import static junit.framework.TestCase.assertEquals;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Integration tests for the {@link ActionStateMachine} interaction with {@link Action}s.
  */
 public class ActionStateMachineTest {
 
-    private final Map<Long, List<Setting>> manualSettingMap =
-            ActionOrchestratorTestUtils.makeSettingMap(1L, ActionMode.MANUAL);
-    private final Map<Long, List<Setting>> autoSettingMap =
-            ActionOrchestratorTestUtils.makeSettingMap(1L, ActionMode.AUTOMATIC);
+    private final EntitySettingsCache entitySettingsCache = mock(EntitySettingsCache.class);
 
     private final ActionDTO.Action move = ActionDTO.Action.newBuilder()
         .setId(0)
@@ -59,8 +60,10 @@ public class ActionStateMachineTest {
 
     @Test
     public void testManuallyAccept() {
+        when(entitySettingsCache.getSettingsForEntity(eq(1L)))
+            .thenReturn(ActionOrchestratorTestUtils.makeActionModeSetting(ActionMode.MANUAL));
 
-        Action action = new Action(move, manualSettingMap, actionPlanId);
+        Action action = new Action(move, entitySettingsCache, actionPlanId);
         assertEquals(ActionState.QUEUED, action.receive(new ManualAcceptanceEvent(userId, targetId)).getAfterState());
 
         Assert.assertEquals(ActionState.QUEUED, action.getState());
@@ -77,7 +80,9 @@ public class ActionStateMachineTest {
 
     @Test
     public void testAutomaticallyAccept() {
-        Action action = new Action(move, autoSettingMap, actionPlanId);
+        when(entitySettingsCache.getSettingsForEntity(eq(1L)))
+                .thenReturn(ActionOrchestratorTestUtils.makeActionModeSetting(ActionMode.AUTOMATIC));
+        Action action = new Action(move, entitySettingsCache, actionPlanId);
         assertEquals(ActionState.QUEUED, action.receive(new AutomaticAcceptanceEvent(userId, targetId)).getAfterState());
 
         Assert.assertEquals(ActionState.QUEUED, action.getState());
@@ -94,7 +99,9 @@ public class ActionStateMachineTest {
 
     @Test
     public void testBeginExecution() {
-        Action action = new Action(move, autoSettingMap, actionPlanId);
+        when(entitySettingsCache.getSettingsForEntity(eq(1L)))
+                .thenReturn(ActionOrchestratorTestUtils.makeActionModeSetting(ActionMode.AUTOMATIC));
+        Action action = new Action(move, entitySettingsCache, actionPlanId);
         assertEquals(ActionState.QUEUED, action.receive(new AutomaticAcceptanceEvent(userId, targetId)).getAfterState());
         assertEquals(ActionState.IN_PROGRESS, action.receive(new BeginExecutionEvent()).getAfterState());
 
@@ -135,7 +142,9 @@ public class ActionStateMachineTest {
 
     @Test
     public void testExecutionCreatesExecutionStep() {
-        Action action = new Action(move, manualSettingMap, actionPlanId);
+        when(entitySettingsCache.getSettingsForEntity(eq(1L)))
+                .thenReturn(ActionOrchestratorTestUtils.makeActionModeSetting(ActionMode.MANUAL));
+        Action action = new Action(move, entitySettingsCache, actionPlanId);
 
         action.receive(new ManualAcceptanceEvent(userId, targetId));
         Assert.assertEquals(Status.QUEUED, action.getExecutableStep().get().getStatus());
@@ -154,7 +163,9 @@ public class ActionStateMachineTest {
 
     @Test
     public void testProgressUpdates() {
-        Action action = new Action(move, manualSettingMap, actionPlanId);
+        when(entitySettingsCache.getSettingsForEntity(eq(1L)))
+                .thenReturn(ActionOrchestratorTestUtils.makeActionModeSetting(ActionMode.MANUAL));
+        Action action = new Action(move, entitySettingsCache, actionPlanId);
         action.receive(new ManualAcceptanceEvent(userId, targetId));
         action.receive(new BeginExecutionEvent());
 
@@ -175,7 +186,9 @@ public class ActionStateMachineTest {
 
     @Test
     public void testActionSuccess() {
-        Action action = new Action(move, manualSettingMap, actionPlanId);
+        when(entitySettingsCache.getSettingsForEntity(eq(1L)))
+                .thenReturn(ActionOrchestratorTestUtils.makeActionModeSetting(ActionMode.MANUAL));
+        Action action = new Action(move, entitySettingsCache, actionPlanId);
         action.receive(new ManualAcceptanceEvent(userId, targetId));
         action.receive(new BeginExecutionEvent());
 
@@ -191,7 +204,9 @@ public class ActionStateMachineTest {
 
     @Test
     public void testActionFailure() {
-        Action action = new Action(move, manualSettingMap, actionPlanId);
+        when(entitySettingsCache.getSettingsForEntity(eq(1L)))
+                .thenReturn(ActionOrchestratorTestUtils.makeActionModeSetting(ActionMode.MANUAL));
+        Action action = new Action(move, entitySettingsCache, actionPlanId);
         action.receive(new ManualAcceptanceEvent(userId, targetId));
         action.receive(new BeginExecutionEvent());
 

@@ -136,15 +136,12 @@ public class ActionOrchestratorTestUtils {
                 .setIsExecutable(true);
     }
 
-    public static Map<Long, List<Setting>> makeSettingMap(long entity, ActionMode mode) {
-        Map<Long, List<Setting>> result = new HashMap<>();
-        List<Setting> settings = Collections.singletonList(Setting.newBuilder()
+    public static List<Setting> makeActionModeSetting(ActionMode mode) {
+        return Collections.singletonList(Setting.newBuilder()
                 .setSettingSpecName("moveVM")
                 .setEnumSettingValue(EnumSettingValue.newBuilder()
                         .setValue(mode.toString()).build())
                 .build());
-        result.put(entity, settings);
-        return result;
     }
 
 }
