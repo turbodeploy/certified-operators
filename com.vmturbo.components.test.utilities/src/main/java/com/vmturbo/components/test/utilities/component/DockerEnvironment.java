@@ -144,8 +144,13 @@ public class DockerEnvironment {
             .put("KAFKA_EXTERNAL_PORT", Integer.toString(KAFKA_EXTERNAL_PORT))
             .put("KAFKA_EXTERNAL_BROKER_ADDRESS", getDockerHostName())
             .put("KAFKA_SERVERS", "kafka1:9092")
+            .put("KAFKA_XMX_MB", "768")
+            .put("KAFKA_MEM_LIMIT", "900")
             .put("ZOOKEEPER_SERVERS", "zoo1:2181")
-            // SYSTEM PROPERTIES
+            .put("ZOOKEEPER_MEM_LIMIT", "200")
+            .put("ZOOKEEPER_XMX_MB", "100")
+
+                // SYSTEM PROPERTIES
             .put("AUTH_SYSTEM_PROPERTIES", "")
             .put("CLUSTERMGR_SYSTEM_PROPERTIES", "")
             .put("API_SYSTEM_PROPERTIES", "")
