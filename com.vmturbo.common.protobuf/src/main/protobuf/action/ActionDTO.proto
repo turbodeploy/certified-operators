@@ -682,7 +682,22 @@ message GetActionCountsByEntityResponse {
     repeated ActionCountsByEntity action_counts_by_entity = 1;
 }
 
+// Request for getActionPriorities rpc method. May contain action type to get probe priorities for.
+message GetActionPrioritiesRequest {
+    optional ActionType action_type = 1;
+}
 
+// Response of getActionPriorities rpc method. Provides probe categories for each action type or for
+// the certain action type.
+message GetActionPrioritiesResponse {
+    repeated ActionProbePriorities action_probe_priorities = 1;
+}
+
+// Represents priorities of probe categories for action type
+message ActionProbePriorities {
+    required ActionType action_type = 1;
+    repeated string probe_category = 2;
+}
 
 // A service responsible for getting information about accepting actions and getting action information.
 service ActionsService {
@@ -725,4 +740,8 @@ service ActionsService {
     // Returns a NOT_FOUND status if the ActionService doesn't know about the
     // GetActionCountsByEntityRequest.topology_context_id.
     rpc getActionCountsByEntity(GetActionCountsByEntityRequest) returns (GetActionCountsByEntityResponse);
+
+    // Get probe priorities for some specific action type (if request provides action type)
+    // or for all action types.
+    rpc GetActionPriorities(GetActionPrioritiesRequest) returns (GetActionPrioritiesResponse);
 }

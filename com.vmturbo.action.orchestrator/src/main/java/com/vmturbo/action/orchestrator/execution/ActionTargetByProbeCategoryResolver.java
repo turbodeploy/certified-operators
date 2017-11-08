@@ -79,6 +79,20 @@ public class ActionTargetByProbeCategoryResolver implements ActionTargetResolver
     }
 
     /**
+     * Returns priorities for each probe category for the specified action type.
+     *
+     * @return probe priorities for action types
+     */
+    @Nonnull
+    public static List<String> getProbePrioritiesFor(ActionTypeCase actionTypeCase) {
+        final List<String> priorities = ACTION_TYPES_PROBE_PRIORITIES.get(actionTypeCase);
+        if (priorities == null) {
+            throw new IllegalArgumentException("There is not Probe Priorities for " + actionTypeCase);
+        }
+        return priorities;
+    }
+
+    /**
      * Resolves target for action which can be executed by multiple targets.
      * Resolving is based on probe category prorities which are hardcoded inside.
      *

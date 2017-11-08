@@ -1,6 +1,7 @@
 package com.vmturbo.action.orchestrator.rpc;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -24,9 +25,11 @@ import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.FailureEvent;
+import com.vmturbo.action.orchestrator.action.ActionTypeToActionTypeCaseConverter;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.action.QueryFilter;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
+import com.vmturbo.action.orchestrator.execution.ActionTargetByProbeCategoryResolver;
 import com.vmturbo.action.orchestrator.execution.ActionTranslator;
 import com.vmturbo.action.orchestrator.execution.ExecutionStartException;
 import com.vmturbo.action.orchestrator.execution.TargetResolutionException;
@@ -36,7 +39,9 @@ import com.vmturbo.action.orchestrator.store.ActionStorehouse.StoreDeletionExcep
 import com.vmturbo.common.protobuf.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.AcceptActionResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionProbePriorities;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
@@ -48,6 +53,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByEntityRespo
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByEntityResponse.ActionCountsByEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.GetActionPrioritiesRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.GetActionPrioritiesResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.MultiActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.TopologyContextInfoRequest;
@@ -315,6 +322,45 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                 .withDescription("Attempt to delete actions for context " + contextId + " failed.")
                 .asException());
         }
+    }
+
+    /**
+     * Sets to responseObserver probe priorities for the certain action type if request
+     * contains this type. Otherwise sets probe priorities for all types.
+     *
+     * @param request may contain the certain action type.
+     * @param responseObserver to set probe priorities in.
+     */
+    @Override
+    @Nonnull
+    public void getActionPriorities(@Nonnull GetActionPrioritiesRequest request,
+            @Nonnull StreamObserver<GetActionPrioritiesResponse> responseObserver) {
+        final GetActionPrioritiesResponse.Builder responseBuilder =
+                GetActionPrioritiesResponse.newBuilder();
+        if (request.hasActionType()) {
+            responseBuilder.addActionProbePriorities(getProbePrioritiesFor(request.getActionType()));
+        } else {
+            addAllActionProbePrioritiesToResponse(responseBuilder);
+        }
+        responseObserver.onNext(responseBuilder.build());
+        responseObserver.onCompleted();
+    }
+
+    private void addAllActionProbePrioritiesToResponse(
+            @Nonnull GetActionPrioritiesResponse.Builder responseBuilder) {
+        for (ActionType actionType : ActionType.values()) {
+            responseBuilder.addActionProbePriorities(getProbePrioritiesFor(actionType));
+        }
+    }
+
+    @Nonnull
+    private ActionProbePriorities getProbePrioritiesFor(@Nonnull ActionType actionType) {
+        final ActionTypeCase actionTypeCase = ActionTypeToActionTypeCaseConverter
+                .getActionTypeCaseFor(actionType);
+        final List<String> probePriorities =  ActionTargetByProbeCategoryResolver
+                .getProbePrioritiesFor(actionTypeCase);
+        return ActionProbePriorities.newBuilder().setActionType(actionType)
+                .addAllProbeCategory(probePriorities).build();
     }
 
     /**

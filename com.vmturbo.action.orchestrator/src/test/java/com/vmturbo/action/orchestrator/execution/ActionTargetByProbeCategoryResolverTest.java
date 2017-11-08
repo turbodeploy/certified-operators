@@ -12,6 +12,7 @@ import com.google.common.collect.ImmutableSet;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.communication.CommunicationException;
@@ -116,6 +117,17 @@ public class ActionTargetByProbeCategoryResolverTest {
         final long resolvedTarget = targetResolver.resolveExecutantTarget(action,
                 ImmutableSet.of(UNKNOWN_CATEGORY_PROBE, ID_3));
         Assert.assertEquals(ID_3, resolvedTarget);
+    }
+
+    /**
+     * Tests that for each {@link ActionTypeCase} there is probe priorities.
+     */
+    @Test
+    public void testAllActionTypesHaveProbePriorities() {
+        for (ActionTypeCase actionTypeCase : ActionTypeCase.values()) {
+            Assert.assertNotNull(ActionTargetByProbeCategoryResolver
+                    .getProbePrioritiesFor(actionTypeCase));
+        }
     }
 
     private Action createAction() {
