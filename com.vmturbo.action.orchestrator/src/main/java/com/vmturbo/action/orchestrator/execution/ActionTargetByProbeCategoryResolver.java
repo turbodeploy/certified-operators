@@ -1,5 +1,6 @@
 package com.vmturbo.action.orchestrator.execution;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -19,9 +20,14 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableMap.Builder;
 
+import com.vmturbo.action.orchestrator.action.ActionTypeToActionTypeCaseConverter;
+import com.vmturbo.action.orchestrator.store.ActionCapabilitiesStore;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
+import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability;
+import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability.ActionCapability;
+import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability.ActionCapabilityElement;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.topology.processor.api.ProbeInfo;
 import com.vmturbo.topology.processor.api.TargetInfo;
@@ -38,6 +44,8 @@ public class ActionTargetByProbeCategoryResolver implements ActionTargetResolver
 
     private final TopologyProcessor topologyProcessor;
 
+    private final ActionCapabilitiesStore actionCapabilitiesStore;
+
     /**
      * If multiple probes support the same action, this priority is used to determine which target
      * will execute the action. Position of category in list determines priority. List contains
@@ -53,7 +61,7 @@ public class ActionTargetByProbeCategoryResolver implements ActionTargetResolver
                     "HYPERVISOR",
                     "OPERATION MANAGER APPLIANCE",
                     "APPLICATION SERVER",
-                    "DATABASE",
+                    "DATABASE SERVER",
                     "FLOW",
                     "CUSTOM",
                     "GUEST OS PROCESSES");
@@ -74,8 +82,10 @@ public class ActionTargetByProbeCategoryResolver implements ActionTargetResolver
         ACTION_TYPES_PROBE_PRIORITIES = builder.build();
     }
 
-    public ActionTargetByProbeCategoryResolver(@Nonnull final TopologyProcessor topologyProcessor) {
+    public ActionTargetByProbeCategoryResolver(@Nonnull final TopologyProcessor topologyProcessor,
+            @Nonnull final ActionCapabilitiesStore actionCapabilitiesStore) {
         this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
+        this.actionCapabilitiesStore = Objects.requireNonNull(actionCapabilitiesStore);
     }
 
     /**
@@ -111,15 +121,77 @@ public class ActionTargetByProbeCategoryResolver implements ActionTargetResolver
         }
         logger.debug("There are multiple targets for action {}", action);
         final Map<Long, ProbeInfo> targetIdsToProbeInfos = getProbeInfosOfTargets(targets);
+        final Map<Long, ProbeInfo> supportActionTargetsToProbes =
+                getSupportActionTargetsToProbes(action, targetIdsToProbeInfos);
+        if (supportActionTargetsToProbes.size() == 1) {
+            return supportActionTargetsToProbes.keySet().iterator().next();
+        }
 
         final List<String> probePriorities =
                 ACTION_TYPES_PROBE_PRIORITIES.get(action.getInfo().getActionTypeCase());
 
-        final Map<Long, Integer> targetIdsToPriorities = targetIdsToProbeInfos.entrySet().stream()
+        final Map<Long, Integer> targetIdsToPriorities = supportActionTargetsToProbes.entrySet().stream()
                 .filter(targetIdProbe -> probePriorities.contains(getCategoryUppercase(targetIdProbe)))
                 .collect(Collectors.toMap(targetIdProbe -> targetIdProbe.getKey(),
                         targetIdProbe -> probePriorities.indexOf(getCategoryUppercase(targetIdProbe))));
         return targetIdsToPriorities.entrySet().stream().min(Entry.comparingByValue()).get().getKey();
+    }
+
+    @Nonnull
+    private Map<Long, ProbeInfo> getSupportActionTargetsToProbes(@Nonnull Action action,
+            @Nonnull Map<Long, ProbeInfo> targetIdsToProbeInfos) {
+        final Map<Long, List<ProbeActionCapability>> probesCapabilities =
+                actionCapabilitiesStore.getCapabilitiesForProbes(targetIdsToProbeInfos.values()
+                        .stream().map(ProbeInfo::getId).collect(Collectors.toSet()));
+        final Set<Long> probesWhichNotSupportAction = getProbesWhichDoNotSupportAction(action
+                .getInfo().getActionTypeCase(), probesCapabilities);
+        return filterUnsupported
+                (targetIdsToProbeInfos, probesWhichNotSupportAction);
+    }
+
+    @Nonnull
+    private Set<Long> getProbesWhichDoNotSupportAction(@Nonnull ActionTypeCase actionType,
+            @Nonnull Map<Long, List<ProbeActionCapability>> probesCapabilities) {
+        final Set<Long> probesWhichNotSupportAction = new HashSet<>();
+        for (Map.Entry<Long, List<ProbeActionCapability>> capabilitiesOfProbe :
+                probesCapabilities.entrySet()) {
+            if (!isActionSupportedByProbe(capabilitiesOfProbe.getValue(), actionType)) {
+                probesWhichNotSupportAction.add(capabilitiesOfProbe.getKey());
+            }
+        }
+        return probesWhichNotSupportAction;
+    }
+
+    private boolean isActionSupportedByProbe(@Nonnull List<ProbeActionCapability> capabilitiesOfProbe,
+            @Nonnull ActionTypeCase actionType) {
+        return capabilitiesOfProbe.stream().anyMatch(actionCapability ->
+                isActionSupportedByCapability(actionCapability, actionType));
+    }
+
+    private boolean isActionSupportedByCapability(@Nonnull ProbeActionCapability actionCapability,
+            @Nonnull ActionTypeCase actionType) {
+        return actionCapability.getCapabilityElementList().stream().anyMatch(capabilityElement ->
+                isActionSupportedByCapabilityElement(capabilityElement, actionType));
+    }
+
+    private boolean isActionSupportedByCapabilityElement(
+            @Nonnull ActionCapabilityElement capabilityElement,
+            @Nonnull ActionTypeCase actionType) {
+        final ActionTypeCase capabilityActionType = ActionTypeToActionTypeCaseConverter
+                .getActionTypeCaseFor(capabilityElement.getActionType());
+        return capabilityActionType == actionType &&
+                capabilityElement.getActionCapability() == ActionCapability.SUPPORTED;
+    }
+
+    private Map<Long, ProbeInfo> filterUnsupported(@Nonnull Map<Long, ProbeInfo> targetIdsToProbeInfos,
+            @Nonnull Set<Long> unsupportedProbeIds) {
+        final ImmutableMap.Builder<Long, ProbeInfo> builder = ImmutableMap.builder();
+        for (Entry<Long, ProbeInfo> targetIdToProbe : targetIdsToProbeInfos.entrySet()) {
+            if (!unsupportedProbeIds.contains(targetIdToProbe.getValue().getId())) {
+                builder.put(targetIdToProbe);
+            }
+        }
+        return builder.build();
     }
 
     private static String getCategoryUppercase(@Nonnull final Entry<Long, ProbeInfo> targetIdProbe) {

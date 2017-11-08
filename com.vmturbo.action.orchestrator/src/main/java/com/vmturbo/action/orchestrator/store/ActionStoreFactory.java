@@ -47,7 +47,7 @@ public class ActionStoreFactory implements IActionStoreFactory {
     public static final String PLAN_CONTEXT_TYPE_NAME = "plan";
     public static final String LIVE_CONTEXT_TYPE_NAME = "live";
 
-    private final ProbeActionCapabilitiesServiceBlockingStub actionCapabilitiesService;
+    private final ActionCapabilitiesStore actionCapabilitiesStore;
 
     /**
      * Create a new ActionStoreFactory.
@@ -72,8 +72,9 @@ public class ActionStoreFactory implements IActionStoreFactory {
         this.databaseDslContext = Objects.requireNonNull(databaseDslContext);
         this.actionTranslator = Objects.requireNonNull(actionTranslator);
         this.topologyProcessorChannel = Objects.requireNonNull(topologyProcessorChannel);
-        this.actionCapabilitiesService =
+        final ProbeActionCapabilitiesServiceBlockingStub actionCapabilitiesService =
                 ProbeActionCapabilitiesServiceGrpc.newBlockingStub(topologyProcessorChannel);
+        this.actionCapabilitiesStore = new ProbeActionCapabilitiesStore(actionCapabilitiesService);
         this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
         this.entitySettingsCache = Objects.requireNonNull(entitySettingsCache);
     }
@@ -88,10 +89,9 @@ public class ActionStoreFactory implements IActionStoreFactory {
     public ActionStore newStore(final long topologyContextId) {
         if (topologyContextId == realtimeTopologyContextId) {
             final ActionExecutor actionExecutor = new ActionExecutor(topologyProcessorChannel,
-                    new ActionTargetByProbeCategoryResolver(topologyProcessor));
+                    new ActionTargetByProbeCategoryResolver(topologyProcessor, actionCapabilitiesStore));
             return new LiveActionStore(actionFactory, topologyContextId,
-                    new ActionSupportResolver(actionCapabilitiesService, actionExecutor),
-                    entitySettingsCache);
+                    new ActionSupportResolver(actionCapabilitiesStore, actionExecutor), entitySettingsCache);
         } else {
             return new PlanActionStore(actionFactory, databaseDslContext, topologyContextId);
         }

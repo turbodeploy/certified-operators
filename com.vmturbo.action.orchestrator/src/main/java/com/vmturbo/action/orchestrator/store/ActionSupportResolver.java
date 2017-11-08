@@ -1,14 +1,11 @@
 package com.vmturbo.action.orchestrator.store;
 
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -24,31 +21,27 @@ import com.vmturbo.common.protobuf.ActionDTOUtil;
 import com.vmturbo.common.protobuf.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
-import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapabilities;
-import com.vmturbo.common.protobuf.topology.Probe.ListProbeActionCapabilitiesRequest;
 import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability;
 import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability.ActionCapability;
 import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability.ActionCapabilityElement;
-import com.vmturbo.common.protobuf.topology.ProbeActionCapabilitiesServiceGrpc.ProbeActionCapabilitiesServiceBlockingStub;
 
 public class ActionSupportResolver {
 
     private Logger logger = LogManager.getLogger();
 
-    private ProbeActionCapabilitiesServiceBlockingStub actionCapabilitiesBlockingStub;
+    private ActionCapabilitiesStore actionCapabilitiesStore;
 
     private ActionExecutor actionExecutor;
 
     /**
      * Class which determines whether action executed by probe or not.
      *
-     * @param actionCapabilitiesBlockingStub stub for action capabilities service
+     * @param actionCapabilitiesStore store to get action capabilities for probes
      * @param actionExecutor Action executor to determine entities of actions
      */
-    public ActionSupportResolver(@Nonnull final
-            ProbeActionCapabilitiesServiceBlockingStub actionCapabilitiesBlockingStub,
+    public ActionSupportResolver(@Nonnull final ActionCapabilitiesStore actionCapabilitiesStore,
             @Nonnull final ActionExecutor actionExecutor) {
-        this.actionCapabilitiesBlockingStub = actionCapabilitiesBlockingStub;
+        this.actionCapabilitiesStore = actionCapabilitiesStore;
         this.actionExecutor = actionExecutor;
     }
 
@@ -62,7 +55,7 @@ public class ActionSupportResolver {
             final Map<Action, Long> actionsProbes = actionExecutor.getProbeIdsForActions(actions);
             Set<Long> probeIds = actionsProbes.values().stream().collect(Collectors.toSet());
             Map<Long, List<ProbeActionCapability>> probeCapabilities =
-                    getCapabilitiesForProbes(probeIds);
+                    actionCapabilitiesStore.getCapabilitiesForProbes(probeIds);
             Map<Action, List<ProbeActionCapability>> actionsAndCapabilities =
                     actionsProbes.entrySet()
                             .stream()
@@ -112,25 +105,5 @@ public class ActionSupportResolver {
             Entry<Action, List<ProbeActionCapability>> entry, ActionCapabilityElement element) {
         return ActionDTOUtil.getActionInfoActionType(entry.getKey().getRecommendation()
                 .getInfo()) == element.getActionType();
-    }
-
-    private Map<Long, List<ProbeActionCapability>> getCapabilitiesForProbes(Set<Long> probeIds) {
-        Iterator<ProbeActionCapabilities> actionCapabilitiesIterator =
-                actionCapabilitiesBlockingStub.listProbeActionCapabilities(
-                        ListProbeActionCapabilitiesRequest.newBuilder()
-                                .addAllProbeIds(probeIds)
-                                .build());
-        Map<Long, List<ProbeActionCapability>> probesCapabilities = new HashMap<>();
-        actionCapabilitiesIterator.forEachRemaining(capabilitiesOfProbe -> {
-            if (!capabilitiesOfProbe.hasActionCapabilitiesList()) {
-                logger.warn("Cannot resolve action capabilities for probe {}",
-                        capabilitiesOfProbe.getProbeId());
-            } else {
-                probesCapabilities.put(capabilitiesOfProbe.getProbeId(),
-                        capabilitiesOfProbe.getActionCapabilitiesList()
-                                .getActionCapabilitiesList());
-            }
-        });
-        return probesCapabilities;
     }
 }

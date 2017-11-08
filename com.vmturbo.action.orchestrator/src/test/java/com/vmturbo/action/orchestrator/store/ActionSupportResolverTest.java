@@ -66,7 +66,9 @@ public class ActionSupportResolverTest {
     public void setup() throws TargetResolutionException, IOException, UnsupportedActionException {
         actionCapabilitiesStub =
                 ProbeActionCapabilitiesServiceGrpc.newBlockingStub(testServer.getChannel());
-        filter = new ActionSupportResolver(actionCapabilitiesStub, actionExecutor);
+        final ActionCapabilitiesStore actionCapabilitiesStore = new
+                ProbeActionCapabilitiesStore(actionCapabilitiesStub);
+        filter = new ActionSupportResolver(actionCapabilitiesStore, actionExecutor);
         resolvedBySupportActions = filter.resolveActionsSupporting(getTestedActions());
     }
 

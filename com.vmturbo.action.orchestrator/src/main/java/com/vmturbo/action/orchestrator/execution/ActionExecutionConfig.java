@@ -6,6 +6,10 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorGlobalConfig;
+import com.vmturbo.action.orchestrator.store.ActionCapabilitiesStore;
+import com.vmturbo.action.orchestrator.store.ProbeActionCapabilitiesStore;
+import com.vmturbo.common.protobuf.topology.ProbeActionCapabilitiesServiceGrpc;
+import com.vmturbo.common.protobuf.topology.ProbeActionCapabilitiesServiceGrpc.ProbeActionCapabilitiesServiceBlockingStub;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 
 /**
@@ -19,6 +23,11 @@ public class ActionExecutionConfig {
     @Autowired
     private ActionOrchestratorGlobalConfig globalConfig;
 
+    @Bean
+    public ActionCapabilitiesStore actionCapabilitiesStore() {
+        return new ProbeActionCapabilitiesStore(actionCapabilitiesService());
+    }
+
     /**
      * Object which is used to resolve which target should execute the action if there a multiple
      * targets which can do it.
@@ -27,7 +36,19 @@ public class ActionExecutionConfig {
      */
     @Bean
     public ActionTargetResolver actionTargetResolver() {
-        return new ActionTargetByProbeCategoryResolver(globalConfig.topologyProcessor());
+        return new ActionTargetByProbeCategoryResolver(globalConfig.topologyProcessor(),
+                actionCapabilitiesStore());
+    }
+
+    /**
+     * Returns grpc service to get action capabilities.
+     *
+     * @return action capabilities grpc service
+     */
+    @Bean
+    public ProbeActionCapabilitiesServiceBlockingStub actionCapabilitiesService() {
+        return ProbeActionCapabilitiesServiceGrpc.newBlockingStub(globalConfig
+                .topologyProcessorChannel());
     }
 
     @Bean
