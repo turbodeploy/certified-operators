@@ -191,8 +191,8 @@ public class StatsHistoryServiceTest {
         List<String> commodityNames = Lists.newArrayList("c1", "c2", "c3");
         reqStatsBuilder.addAllCommodityName(commodityNames);
 
+        // full 'Market' stats request has no entities
         Stats.EntityStatsRequest testStatsRequest = Stats.EntityStatsRequest.newBuilder()
-                .addEntities(REALTIME_CONTEXT_ID)
                 .setFilter(reqStatsBuilder)
                 .build();
 

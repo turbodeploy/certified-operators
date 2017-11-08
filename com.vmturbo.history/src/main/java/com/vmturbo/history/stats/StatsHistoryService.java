@@ -353,7 +353,7 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
      * @param responseObserver the chunking channel on which the response should be returned
      * @param startDate return stats with date equal to or after this date
      * @param endDate return stats with date before this date
-     * @param entities Should be a single id - either ServiceEntity uuid, Group uuid, or "Market"
+     * @param entities A list of service entity OIDs; an empty list implies full market
      * @param commodityNames the names of the commodities to include.
      * @throws VmtDbException if error writing to the db
      */
@@ -363,7 +363,7 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
 
         // get a full list of stats that satisfy this request, depending on the entity request
         final List<Record> statDBRecords;
-        final boolean fullMarket = entities.size() == 1 && entities.get(0) == realtimeContextId;
+        final boolean fullMarket = entities.size() == 0;
         if (fullMarket) {
             statDBRecords = liveStatsReader.getFullMarketStatsRecords(startDate, endDate,
                     commodityNames);
