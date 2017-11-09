@@ -7,6 +7,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nonnull;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -23,6 +25,7 @@ import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
+import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 
 /**
  * Convert a list of entity DTOs produced by SDK probes to topology
@@ -62,6 +65,87 @@ public class Converter {
         entityDTOs.forEach((oid, dto) -> builder.add(
             newTopologyEntityDTO(dto, oid, providerOIDs)));
         return builder.build();
+    }
+
+    public static TopologyDTO.TopologyEntityDTO.Builder newTopologyEntityDTO(
+        @Nonnull final TopologyStitchingEntity entity) {
+        final CommonDTO.EntityDTOOrBuilder dto = entity.getEntityBuilder();
+
+        final int entityType = type(dto);
+        final String displayName = dto.getDisplayName();
+        final TopologyDTO.EntityState entityState = entityState(dto.getPowerState());
+        final boolean availableAsProvider = dto.getProviderPolicy().getAvailableForPlacement();
+        final boolean isShopTogether = dto.getConsumerPolicy().getShopsTogether();
+
+        List<TopologyDTO.CommoditySoldDTO> soldList = entity.getTopologyCommoditiesSold().stream()
+            .map(commoditySold -> {
+                TopologyDTO.CommoditySoldDTO.Builder builder = newCommoditySoldDTOBuilder(commoditySold.sold);
+                if (commoditySold.accesses != null) {
+                    builder.setAccesses(commoditySold.accesses.getOid());
+                }
+                return builder.build();
+            }).collect(Collectors.toList());
+
+        // Map from provider oid to list of commodities bought
+        final Map<Long, List<TopologyDTO.CommodityBoughtDTO>> boughtMap = Maps.newHashMap();
+        final Map<Long, Integer> providerTypeMap = Maps.newHashMap();
+        entity.getCommoditiesBoughtByProvider().forEach((provider, commodityBoughtList) -> {
+            providerTypeMap.put(provider.getOid(), provider.getEntityType().getNumber());
+
+            commodityBoughtList.stream()
+                .map(Converter::newCommodityBoughtDTO)
+                .forEach(topologyCommodityDTO -> boughtMap
+                    .computeIfAbsent(provider.getOid(), id -> Lists.newArrayList())
+                    .add(topologyCommodityDTO));
+        });
+
+        // Copy properties map from probe DTO to topology DTO
+        // TODO: Support for namespaces and proper handling of duplicate properties (see
+        // OM-20545 for description of probe expectations related to duplicate properties).
+        Map<String, String> entityPropertyMap = dto.getEntityPropertiesList().stream()
+            .collect(Collectors.toMap(EntityProperty::getName, EntityProperty::getValue,
+                (valueA, valueB) -> {
+                    logger.warn("Duplicate entity property with values \"{}\", \"{}\" detected on entity {} (name: {}).",
+                        valueA, valueB, entity.getOid(), displayName);
+                    return valueA;
+                }));
+
+        // Add properties of related data to the entity property map - using reflection
+        Lists.newArrayList(
+            dto.getApplicationData(),
+            dto.getDiskArrayData(),
+            dto.getPhysicalMachineData(),
+            dto.getPhysicalMachineRelatedData(),
+            dto.getStorageControllerRelatedData(),
+            dto.getReplacementEntityData(),
+            dto.getStorageData(),
+            dto.getVirtualDatacenterData(),
+            dto.getVirtualMachineData(),
+            dto.getVirtualMachineRelatedData()
+        )
+            .stream().forEach(
+            data -> data.getAllFields().forEach(
+                // TODO: Lists, such as VirtualDatacenterData.VmUuidList are also converted to String
+                (f, v) -> entityPropertyMap.put(f.getFullName(), v.toString())
+            )
+        );
+
+        if (dto.hasOrigin()) {
+            entityPropertyMap.put("origin", dto.getOrigin().toString()); // TODO: DISCOVERED/PROXY use number?
+        }
+
+        return newTopologyEntityDTO(
+            entityType,
+            entity.getOid(),
+            displayName,
+            soldList,
+            boughtMap,
+            providerTypeMap,
+            entityState,
+            entityPropertyMap,
+            availableAsProvider,
+            isShopTogether
+        );
     }
 
     public static TopologyDTO.TopologyEntityDTO.Builder newTopologyEntityDTO(CommonDTO.EntityDTOOrBuilder dto,
@@ -224,10 +308,9 @@ public class Converter {
             .build();
     }
 
-    private static TopologyDTO.CommoditySoldDTO newCommoditySoldDTO(
-                    CommonDTO.CommodityDTO commDTO,
-                    Map<String, Long> providerOIDs) {
-        CommoditySoldDTO.Builder builder = TopologyDTO.CommoditySoldDTO.newBuilder()
+    private static TopologyDTO.CommoditySoldDTO.Builder newCommoditySoldDTOBuilder(
+        @Nonnull final CommonDTO.CommodityDTO commDTO) {
+        return TopologyDTO.CommoditySoldDTO.newBuilder()
             .setCommodityType(commodityType(commDTO))
             .setUsed(commDTO.getUsed())
             .setPeak(commDTO.getPeak())
@@ -236,17 +319,24 @@ public class Converter {
             .setReservedCapacity(commDTO.getReservation())
             .setIsThin(commDTO.getThin())
             .setActive(commDTO.getActive());
-        if (DSPM_OR_DATASTORE.contains(commDTO.getCommodityType())) {
-            final Long oid = providerOIDs.get(keyToUuid(commDTO.getKey()));
+    }
+
+    private static TopologyDTO.CommoditySoldDTO newCommoditySoldDTO(
+                    CommonDTO.CommodityDTO commDTO,
+                    Map<String, Long> providerOIDs) {
+        CommoditySoldDTO.Builder builder = newCommoditySoldDTOBuilder(commDTO);
+
+        parseAccessKey(commDTO).ifPresent(localId -> {
+            final Long oid = providerOIDs.get(localId);
             if (oid == null) {
                 // Note that this mechanism for lookup does not work for cloud-related
                 // hosts and datastores.
-                logger.error("No provider oid for uuid {} (original key={})",
-                    keyToUuid(commDTO.getKey()), commDTO.getKey());
+                logger.error("No provider oid for uuid {} (original key={})", localId, commDTO.getKey());
             } else {
-                builder.setAccesses(providerOIDs.get(keyToUuid(commDTO.getKey())));
+                builder.setAccesses(oid);
             }
-        }
+        });
+
         return builder.build();
     }
 
@@ -255,6 +345,14 @@ public class Converter {
                 .setType(type(commDTO))
                 .setKey(commDTO.getKey())
                 .build();
+    }
+
+    public static Optional<String> parseAccessKey(@Nonnull final CommonDTO.CommodityDTO commDTO) {
+        if (DSPM_OR_DATASTORE.contains(commDTO.getCommodityType())) {
+            return Optional.ofNullable(keyToUuid(commDTO.getKey()));
+        }
+
+        return Optional.empty();
     }
 
     /**

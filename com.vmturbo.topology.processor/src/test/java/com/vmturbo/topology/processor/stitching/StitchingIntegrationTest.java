@@ -1,20 +1,14 @@
 package com.vmturbo.topology.processor.stitching;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.hasItem;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.when;
 
-import java.io.FileInputStream;
-import java.io.InputStreamReader;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -29,19 +23,18 @@ import java.util.zip.ZipInputStream;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.core.util.IOUtils;
+import org.hamcrest.BaseMatcher;
+import org.hamcrest.Description;
+import org.hamcrest.Matcher;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import com.google.common.collect.ImmutableMap;
 import com.google.gson.Gson;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.components.api.ComponentGsonFactory;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.StitchingOperationLibrary;
 import com.vmturbo.stitching.storage.StorageStitchingOperation;
 import com.vmturbo.topology.processor.entity.EntitiesValidationException;
@@ -91,24 +84,24 @@ public class StitchingIntegrationTest {
         when(targetStore.getProbeTargets(netAppProbeId))
             .thenReturn(Collections.singletonList(netAppTarget));
 
-        final long startTime = System.currentTimeMillis();
         final StitchingContext stitchingContext = stitchingManager.stitch(entityStore, targetStore);
         final TopologyGraph topoGraph = stitchingContext.constructTopology();
 
-        final long endTime = System.currentTimeMillis();
-        System.out.println("Stitching " + topoGraph.vertexCount() + " entities took " + (endTime - startTime) + " millis.");
-
         final TopologyGraph otherGraph = new TopologyGraph(entityStore.constructTopology());
 
-        final Set<TopologyEntityDTO> stitchedEntities = topoGraph.vertices()
+        final Map<Long, TopologyEntityDTO> stitchedEntities = topoGraph.vertices()
             .map(Vertex::getTopologyEntityDtoBuilder)
             .map(TopologyEntityDTO.Builder::build)
-            .collect(Collectors.toSet());
-        final Set<TopologyEntityDTO> unstitchedEntities = otherGraph.vertices()
+            .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
+        final Map<Long, TopologyEntityDTO> unstitchedEntities = otherGraph.vertices()
             .map(Vertex::getTopologyEntityDtoBuilder)
             .map(TopologyEntityDTO.Builder::build)
-            .collect(Collectors.toSet());
-        stitchedEntities.forEach(entity -> assertThat(unstitchedEntities, hasItem(entity)));
+            .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
+
+        stitchedEntities.forEach((oid, stitched) -> {
+            final TopologyEntityDTO unstitched = unstitchedEntities.get(oid);
+            assertThat(stitched, matchesEntity(unstitched));
+        });
     }
 
     @Test
@@ -134,12 +127,8 @@ public class StitchingIntegrationTest {
         when(targetStore.getProbeTargets(netAppProbeId))
             .thenReturn(Collections.singletonList(netAppTarget));
 
-        final long startTime = System.currentTimeMillis();
         final StitchingContext stitchingContext = stitchingManager.stitch(entityStore, targetStore);
         final TopologyGraph topoGraph = stitchingContext.constructTopology();
-
-        final long endTime = System.currentTimeMillis();
-        System.out.println("Stitching " + topoGraph.vertexCount() + " entities took " + (endTime - startTime) + " millis.");
 
         // System should have found the following stitching points:
         // REMOVED                                RETAINED
@@ -194,4 +183,42 @@ public class StitchingIntegrationTest {
             .thenReturn(entities);
         entityStore.entitiesDiscovered(probeId, targetId, new ArrayList<>(entities.values()));
     }
-}
+
+    /**
+     * A matcher that allows asserting that a particular entity in the topology is acting as a provider
+     * for exactly a certain number of entities.
+     */
+    public static Matcher<TopologyEntityDTO> matchesEntity(final TopologyEntityDTO secondEntity) {
+        return new BaseMatcher<TopologyEntityDTO>() {
+            @Override
+            @SuppressWarnings("unchecked")
+            public boolean matches(Object o) {
+                final TopologyEntityDTO firstEntity = (TopologyEntityDTO) o;
+                final TopologyEntityDTO firstEntityWithoutBought = firstEntity.toBuilder()
+                    .clearCommoditiesBoughtFromProviders()
+                    .build();
+                final TopologyEntityDTO secondEntityWithoutBought = secondEntity.toBuilder()
+                    .clearCommoditiesBoughtFromProviders()
+                    .build();
+
+                if (!firstEntityWithoutBought.equals(secondEntityWithoutBought)) {
+                    return false;
+                }
+
+                // Compare ignoring order
+                final Set<CommoditiesBoughtFromProvider> firstCommodities =
+                    firstEntity.getCommoditiesBoughtFromProvidersList().stream()
+                        .collect(Collectors.toSet());
+                final Set<CommoditiesBoughtFromProvider> secondCommodities =
+                    secondEntity.getCommoditiesBoughtFromProvidersList().stream()
+                        .collect(Collectors.toSet());
+
+                return firstCommodities.equals(secondCommodities);
+            }
+            @Override
+            public void describeTo(Description description) {
+                description.appendText("Entities should match");
+            }
+        };
+    }
+ }

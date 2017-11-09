@@ -32,12 +32,13 @@ import com.google.common.collect.ImmutableMap;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.topology.processor.entity.EntityValidator.EntityValidationFailure;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
+import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingGraph;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
@@ -254,17 +255,20 @@ public class EntityStoreTest {
             .constructStitchingContext()
             .getStitchingGraph();
 
-        assertThat(graph.getConsumerEntities("bar")
-            .map(Builder::getId)
+        final TopologyStitchingEntity foo = entityByLocalId(graph, "foo");
+        assertThat(entityByLocalId(graph, "bar")
+            .getConsumers().stream()
+            .map(StitchingEntity::getLocalId)
             .collect(Collectors.toList()), contains("foo"));
-        assertThat(graph.getConsumerEntities("baz")
-            .map(Builder::getId)
+        assertThat(entityByLocalId(graph, "baz")
+            .getConsumers().stream()
+            .map(StitchingEntity::getLocalId)
             .collect(Collectors.toList()), contains("foo"));
-        assertThat(graph.getConsumerEntities("foo")
-            .map(Builder::getId)
+        assertThat(foo.getConsumers().stream()
+            .map(StitchingEntity::getLocalId)
             .collect(Collectors.toList()), is(empty()));
-        assertThat(graph.getProviderEntities("foo")
-            .map(Builder::getId)
+        assertThat(foo.getProviders().stream()
+            .map(StitchingEntity::getLocalId)
             .collect(Collectors.toList()), containsInAnyOrder("bar", "baz"));
     }
 
@@ -295,16 +299,26 @@ public class EntityStoreTest {
             .constructStitchingContext()
             .getStitchingGraph();
 
-        assertEquals(6, graph.vertexCount());
-        assertThat(graph.getProviderEntities("foo")
-            .map(Builder::getId)
+        assertEquals(6, graph.entityCount());
+        assertThat(entityByLocalId(graph, "foo")
+            .getProviders().stream()
+            .map(StitchingEntity::getLocalId)
             .collect(Collectors.toList()), containsInAnyOrder("bar", "baz"));
-        assertThat(graph.getProviderEntities("vampire")
-            .map(Builder::getId)
+        assertThat(entityByLocalId(graph, "vampire")
+            .getProviders().stream()
+            .map(StitchingEntity::getLocalId)
             .collect(Collectors.toList()), containsInAnyOrder("werewolf", "dragon"));
 
-        assertEquals(target1Id, graph.getVertex("foo").get().getStitchingData().get(0).getTargetId());
-        assertEquals(target2Id, graph.getVertex("werewolf").get().getStitchingData().get(0).getTargetId());
+        assertEquals(target1Id, entityByLocalId(graph, "foo").getTargetId());
+        assertEquals(target2Id, entityByLocalId(graph, "werewolf").getTargetId());
+    }
+
+    private TopologyStitchingEntity entityByLocalId(@Nonnull final TopologyStitchingGraph graph,
+                                                    @Nonnull final String id) {
+        return graph.entities()
+            .filter(e -> e.getLocalId().equals(id))
+            .findFirst()
+            .get();
     }
 
     private void addEntities(@Nonnull final Map<Long, EntityDTO> entities)

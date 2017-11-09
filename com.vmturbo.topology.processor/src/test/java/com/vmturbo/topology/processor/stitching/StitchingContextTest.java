@@ -8,6 +8,8 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 import java.util.Collections;
 import java.util.Map;
@@ -17,10 +19,10 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import com.google.common.collect.ImmutableMap;
+
 import com.vmturbo.commons.idgen.IdentityGenerator;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.stitching.StitchingOperationResult;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 public class StitchingContextTest {
@@ -59,61 +61,53 @@ public class StitchingContextTest {
 
     @Test
     public void testInternalEntities() {
-        assertThat(stitchingContext.internalEntities(EntityType.VIRTUAL_MACHINE, 1L).collect(Collectors.toList()),
+        assertThat(stitchingContext.internalEntities(EntityType.VIRTUAL_MACHINE, 1L)
+                .map(TopologyStitchingEntity::getEntityBuilder)
+                .collect(Collectors.toList()),
             containsInAnyOrder(e1_1.getEntityDtoBuilder(), e2_1.getEntityDtoBuilder()));
-        assertThat(stitchingContext.internalEntities(EntityType.VIRTUAL_MACHINE, 2L).collect(Collectors.toList()),
+        assertThat(stitchingContext.internalEntities(EntityType.VIRTUAL_MACHINE, 2L)
+                .map(TopologyStitchingEntity::getEntityBuilder)
+                .collect(Collectors.toList()),
             containsInAnyOrder(e3_2.getEntityDtoBuilder(), e4_2.getEntityDtoBuilder()));
     }
 
     @Test
     public void testExternalEntities() {
-        assertThat(stitchingContext.externalEntities(EntityType.VIRTUAL_MACHINE, 1L).collect(Collectors.toList()),
+        assertThat(stitchingContext.externalEntities(EntityType.VIRTUAL_MACHINE, 1L)
+                .map(TopologyStitchingEntity::getEntityBuilder)
+                .collect(Collectors.toList()),
             containsInAnyOrder(e3_2.getEntityDtoBuilder(), e4_2.getEntityDtoBuilder()));
-        assertThat(stitchingContext.externalEntities(EntityType.VIRTUAL_MACHINE, 2L).collect(Collectors.toList()),
+        assertThat(stitchingContext.externalEntities(EntityType.VIRTUAL_MACHINE, 2L)
+                .map(TopologyStitchingEntity::getEntityBuilder)
+                .collect(Collectors.toList()),
             containsInAnyOrder(e1_1.getEntityDtoBuilder(), e2_1.getEntityDtoBuilder()));
     }
 
     @Test
-    public void testApplyRemoval() {
-        final StitchingOperationResult result = StitchingOperationResult.newBuilder()
-            .removeEntity(e2_1.getEntityDtoBuilder())
-            .build();
+    public void testRemove() {
+        final TopologyStitchingEntity toRemove = stitchingContext
+            .getEntity(e2_1.getEntityDtoBuilder()).get();
+        boolean removed = stitchingContext.removeEntity(toRemove);
 
-        stitchingContext.applyStitchingResult(result);
+        assertTrue(removed);
         assertEquals(3, stitchingContext.size());
 
-        assertThat(stitchingContext.internalEntities(EntityType.VIRTUAL_MACHINE, 1L).collect(Collectors.toList()),
+        assertThat(stitchingContext.internalEntities(EntityType.VIRTUAL_MACHINE, 1L)
+                .map(TopologyStitchingEntity::getEntityBuilder)
+                .collect(Collectors.toList()),
             contains(e1_1.getEntityDtoBuilder()));
-        assertThat(stitchingContext.externalEntities(EntityType.VIRTUAL_MACHINE, 2L).collect(Collectors.toList()),
+        assertThat(stitchingContext.externalEntities(EntityType.VIRTUAL_MACHINE, 2L)
+                .map(TopologyStitchingEntity::getEntityBuilder)
+                .collect(Collectors.toList()),
             contains(e1_1.getEntityDtoBuilder()));
-        assertThat(stitchingContext.getStitchingGraph()
-            .getConsumerEntities(e1_1.getEntityDtoBuilder())
-            .collect(Collectors.toList()),
+
+        assertThat(stitchingContext.getEntity(e1_1.getEntityDtoBuilder()).get()
+                .getConsumers(),
             is(empty())
         );
-    }
 
-    @Test
-    public void testApplyUpdate() {
-        // Have entity2 also buy from entity3
-        final StitchingOperationResult result = StitchingOperationResult.newBuilder()
-            .updateCommoditiesBought(e2_1.getEntityDtoBuilder(), entity ->
-                entity.addCommoditiesBought(CommodityBought.newBuilder().setProviderId(e3_2.getLocalId())))
-            .build();
-
-        final TopologyStitchingGraph graph = stitchingContext.getStitchingGraph();
-        assertThat(graph.getConsumerEntities(e3_2.getEntityDtoBuilder()).collect(Collectors.toList()),
-            contains(e4_2.getEntityDtoBuilder()));
-        assertThat(graph.getProviderEntities(e2_1.getEntityDtoBuilder()).collect(Collectors.toList()),
-            contains(e1_1.getEntityDtoBuilder()));
-
-        stitchingContext.applyStitchingResult(result);
-        assertEquals(4, stitchingContext.size());
-
-        assertThat(graph.getConsumerEntities(e3_2.getEntityDtoBuilder()).collect(Collectors.toList()),
-            containsInAnyOrder(e4_2.getEntityDtoBuilder(), e2_1.getEntityDtoBuilder()));
-        assertThat(graph.getProviderEntities(e2_1.getEntityDtoBuilder()).collect(Collectors.toList()),
-            containsInAnyOrder(e1_1.getEntityDtoBuilder(), e3_2.getEntityDtoBuilder()));
+        // Removing an already removed entity should ail
+        assertFalse(stitchingContext.removeEntity(toRemove));
     }
 
     @Test
@@ -133,5 +127,36 @@ public class StitchingContextTest {
 
         assertEquals(0, topology.getConsumers(e4_2.getOid()).count());
         assertEquals(1, topology.getProducers(e4_2.getOid()).count());
+    }
+
+    // TODO: Remove this test after adding shared storage support and eliminating collision resolution.
+    @Test
+    public void testConstructTopologyDuplicateOids() {
+        final StitchingContext.Builder stitchingContextBuilder = StitchingContext.newBuilder(8);
+
+        stitchingContextBuilder.addEntity(e1_1, target1Graph);
+        final StitchingEntityData e1_2DuplicateOid = new StitchingEntityData(e3_2.getEntityDtoBuilder(),
+            e1_1.getTargetId() + 1, e1_1.getOid());
+
+        stitchingContextBuilder.addEntity(e1_1, target1Graph);
+        stitchingContextBuilder.addEntity(e1_2DuplicateOid, topologyMapOf(e1_2DuplicateOid));
+        final StitchingContext stitchingContext = stitchingContextBuilder.build();
+
+        assertEquals(1, stitchingContext.constructTopology().vertexCount());
+    }
+
+    @Test
+    public void testConstructTopologyWithDuplicateLocalIds() {
+        stitchingContextBuilder.addEntity(e1_1, target1Graph);
+        stitchingContextBuilder.addEntity(e2_1, target1Graph);
+        stitchingContextBuilder.addEntity(e3_2, target2Graph);
+        stitchingContextBuilder.addEntity(e4_2, target2Graph);
+
+        // Create 2 entities with the same id ("1") discovered by two different targets.
+        // We should still be able to successfully construct a topology.
+        final StitchingEntityData e1_3_duplicate = stitchingData("1", Collections.emptyList()).forTarget(3L);
+        stitchingContextBuilder.addEntity(e1_3_duplicate, ImmutableMap.of("1", e1_3_duplicate));
+
+        assertEquals(5, stitchingContextBuilder.build().constructTopology().vertexCount());
     }
 }

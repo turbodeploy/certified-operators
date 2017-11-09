@@ -16,15 +16,9 @@ import javax.annotation.concurrent.NotThreadSafe;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.annotations.VisibleForTesting;
-
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.stitching.StitchingOperationResult;
-import com.vmturbo.stitching.StitchingOperationResult.CommoditiesBoughtChange;
-import com.vmturbo.stitching.StitchingOperationResult.RemoveEntityChange;
-import com.vmturbo.stitching.StitchingOperationResult.StitchingChange;
 import com.vmturbo.topology.processor.conversions.Converter;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 
@@ -59,7 +53,7 @@ public class StitchingContext {
     /**
      * A map of EntityType -> Map<TargetId, List<Entities of the given type discovered by that target>>
      */
-    private final Map<EntityType, Map<Long, List<EntityDTO.Builder>>> entitiesByEntityTypeAndTarget;
+    private final Map<EntityType, Map<Long, List<TopologyStitchingEntity>>> entitiesByEntityTypeAndTarget;
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -71,7 +65,7 @@ public class StitchingContext {
      *                                       Map<TargetId, List<Entities of the given type discovered by that target>>
      */
     private StitchingContext(@Nonnull final TopologyStitchingGraph stitchingGraph,
-                             @Nonnull final Map<EntityType, Map<Long, List<EntityDTO.Builder>>>
+                             @Nonnull final Map<EntityType, Map<Long, List<TopologyStitchingEntity>>>
                                  entitiesByEntityTypeAndTarget) {
         this.stitchingGraph = Objects.requireNonNull(stitchingGraph);
         this.entitiesByEntityTypeAndTarget = Objects.requireNonNull(entitiesByEntityTypeAndTarget);
@@ -98,6 +92,10 @@ public class StitchingContext {
         return stitchingGraph;
     }
 
+    public Optional<TopologyStitchingEntity> getEntity(@Nonnull final EntityDTO.Builder entityBuilder) {
+        return stitchingGraph.getEntity(entityBuilder);
+    }
+
     /**
      * Get a stream of all entities of a given type discovered by a target (ie the "internal entities"
      * for a target of a given type).
@@ -108,13 +106,15 @@ public class StitchingContext {
      *         Returns {@link Optional#empty()} if the context does not know about the target.
      */
     @Nonnull
-    public Stream<EntityDTO.Builder> internalEntities(@Nonnull final EntityType entityType,
+    public Stream<TopologyStitchingEntity> internalEntities(@Nonnull final EntityType entityType,
                                                       @Nonnull final Long targetId) {
-        final Map<Long, List<EntityDTO.Builder>> entitiesByTarget = entitiesByEntityTypeAndTarget.get(entityType);
+        final Map<Long, List<TopologyStitchingEntity>> entitiesByTarget =
+            entitiesByEntityTypeAndTarget.get(entityType);
+
         if (entitiesByTarget == null) {
             return Stream.empty();
         } else {
-            final List<EntityDTO.Builder> entities = entitiesByTarget.get(targetId);
+            final List<TopologyStitchingEntity> entities = entitiesByTarget.get(targetId);
             return entities == null ? Stream.empty() : entities.stream();
         }
     }
@@ -129,9 +129,9 @@ public class StitchingContext {
      *         Returns all entities of the given type if the context does not know about the target.
      */
     @Nonnull
-    public Stream<EntityDTO.Builder> externalEntities(@Nonnull final EntityType entityType,
-                                                      @Nonnull final Long targetId) {
-        final Map<Long, List<EntityDTO.Builder>> entitiesByTarget = entitiesByEntityTypeAndTarget.get(entityType);
+    public Stream<TopologyStitchingEntity> externalEntities(@Nonnull final EntityType entityType,
+                                                            @Nonnull final Long targetId) {
+        final Map<Long, List<TopologyStitchingEntity>> entitiesByTarget = entitiesByEntityTypeAndTarget.get(entityType);
         if (entitiesByTarget == null) {
             return Stream.empty();
         } else {
@@ -141,24 +141,23 @@ public class StitchingContext {
         }
     }
 
-    /**
-     * Apply the {@link StitchingOperationResult} to modify the context and its graph
-     * according to the {@link StitchingChange}s in the result.
-     *
-     * @param result The {@link StitchingOperationResult} whose changes should be applied.
-     */
-    public void applyStitchingResult(@Nonnull final StitchingOperationResult result) {
-        logger.debug("Applying stitching result with {} changes", result.getChanges().size());
-
-        for (StitchingChange stitchingChange : result.getChanges()) {
-            // Consider visitor pattern here?
-            if (stitchingChange instanceof CommoditiesBoughtChange) {
-                final CommoditiesBoughtChange update = (CommoditiesBoughtChange)stitchingChange;
-                performUpdate(update);
+    public boolean removeEntity(@Nonnull final TopologyStitchingEntity toRemove) {
+        if (!stitchingGraph.removeEntity(toRemove).isEmpty()) {
+            final Map<Long, List<TopologyStitchingEntity>> entitiesOfTypeByTarget =
+                entitiesByEntityTypeAndTarget.get(toRemove.getEntityType());
+            if (entitiesOfTypeByTarget != null) {
+                final List<TopologyStitchingEntity> stitchingBuilders =
+                    entitiesOfTypeByTarget.get(toRemove.getTargetId());
+                stitchingBuilders.remove(toRemove);
             } else {
-                performRemoval((RemoveEntityChange)stitchingChange);
+                logger.error("Illegal state: an entity is in the stitching graph but not the stitching context");
+                throw new IllegalStateException("This should never happen!");
             }
+
+            return true;
         }
+
+        return false;
     }
 
     /**
@@ -171,33 +170,20 @@ public class StitchingContext {
     @Nonnull
     public TopologyGraph constructTopology() {
         /**
-         * If this line throws an {@link IllegalStateException} it means that there are duplicate
-         * localIds in the post-stitched topology. Note that a map containing localId -> OID
-         * for an individual target is insufficient because after stitching entities discovered by
-         * one target may be buying from entities discovered from different targets.
-         *
-         * TODO: (DavidBlinn 11/2/2017) Figure out, if possible, a more robust way of performing
-         * TODO: this conversion.
-         */
-        final Map<String, Long> localIdToOidMap = stitchingGraph.vertices()
-            .flatMap(vertex -> vertex.getStitchingData().stream())
-            .collect(Collectors.toMap(
-                StitchingEntityData::getLocalId,
-                StitchingEntityData::getOid));
-
-        /**
          * If this line throws an exception, it indicates an error in stitching. If stitching is
          * successful it should merge down all entities with duplicate OIDs into a single entity.
+         *
+         * TODO: Eliminate the collision resolution method after adding shared storage support.
          */
-        final Map<Long, TopologyEntityDTO.Builder> entityMap =
-            stitchingGraph.vertices()
-            .flatMap(vertex -> vertex.getStitchingData().stream())
+        final Map<Long, TopologyEntityDTO.Builder> entityMap = stitchingGraph.entities()
             .collect(Collectors.toMap(
-                StitchingEntityData::getOid,
-                stitchingEntityData -> Converter.newTopologyEntityDTO(
-                    stitchingEntityData.getEntityDtoBuilder(),
-                    stitchingEntityData.getOid(),
-                    localIdToOidMap)));
+                TopologyStitchingEntity::getOid,
+                Converter::newTopologyEntityDTO,
+                (oldValue, newValue) -> {
+                    logger.warn("Multiple entites with oid {}. Keeping the first.", oldValue.getOid());
+                    return oldValue;
+                }
+            ));
 
         return new TopologyGraph(entityMap);
     }
@@ -208,10 +194,7 @@ public class StitchingContext {
      * @return The number of entities in the context.
      */
     public int size() {
-        return entitiesByEntityTypeAndTarget.values().stream()
-            .flatMap(targetMap -> targetMap.values().stream())
-            .mapToInt(List::size)
-            .sum();
+        return stitchingGraph.entityCount();
     }
 
     /**
@@ -223,7 +206,7 @@ public class StitchingContext {
     public static class Builder {
         private final TopologyStitchingGraph stitchingGraph;
 
-        private final Map<EntityType, Map<Long, List<EntityDTO.Builder>>> entitiesByEntityTypeAndTarget;
+        private final Map<EntityType, Map<Long, List<TopologyStitchingEntity>>> entitiesByEntityTypeAndTarget;
 
         private Builder(final int entityCount) {
             this.stitchingGraph = new TopologyStitchingGraph(entityCount);
@@ -247,40 +230,24 @@ public class StitchingContext {
          */
         public void addEntity(@Nonnull final StitchingEntityData stitchingEntityData,
                               @Nonnull final Map<String, StitchingEntityData> targetIdMap) {
-            stitchingGraph.addStitchingData(stitchingEntityData, targetIdMap);
+            final TopologyStitchingEntity stitchingEntity =
+                stitchingGraph.addStitchingData(stitchingEntityData, targetIdMap);
 
             final EntityDTO.Builder stitchingBuilder = stitchingEntityData.getEntityDtoBuilder();
             final EntityType entityType = stitchingBuilder.getEntityType();
             final long targetId = stitchingEntityData.getTargetId();
 
-            final Map<Long, List<EntityDTO.Builder>> entitiesOfTypeByTarget =
+            final Map<Long, List<TopologyStitchingEntity>> entitiesOfTypeByTarget =
                 entitiesByEntityTypeAndTarget.computeIfAbsent(entityType, eType -> new HashMap<>());
 
-            final List<EntityDTO.Builder> targetEntitiesForType =
+            final List<TopologyStitchingEntity> targetEntitiesForType =
                 entitiesOfTypeByTarget.computeIfAbsent(targetId, type -> new ArrayList<>());
-            targetEntitiesForType.add(stitchingBuilder);
+            targetEntitiesForType.add(stitchingEntity);
+
+            // Remove all commodities on the builder so that nobody interacts with them by mistake.
+            // Interact with commodities directly via the StitchingEntity.
+            stitchingEntity.getEntityBuilder().clearCommoditiesSold();
+            stitchingEntity.getEntityBuilder().clearCommoditiesBought();
         }
-    }
-
-    @VisibleForTesting
-    void performRemoval(@Nonnull final RemoveEntityChange removal) {
-        final Optional<Long> relatedTargetId = stitchingGraph.getTargetId(removal.entityBuilder);
-        relatedTargetId.ifPresent(targetId -> {
-            stitchingGraph.removeEntity(removal);
-
-            final Map<Long, List<EntityDTO.Builder>> entitiesOfTypeByTarget =
-                entitiesByEntityTypeAndTarget.get(removal.entityBuilder.getEntityType());
-            if (entitiesOfTypeByTarget != null) {
-                final List<EntityDTO.Builder> stitchingBuilders = entitiesOfTypeByTarget.get(targetId);
-                stitchingBuilders.remove(removal.entityBuilder);
-            } else {
-                throw new IllegalStateException("This should never happen!");
-            }
-        });
-    }
-
-    @VisibleForTesting
-    void performUpdate(@Nonnull final CommoditiesBoughtChange update) {
-        stitchingGraph.updateCommoditiesBought(update);
     }
 }

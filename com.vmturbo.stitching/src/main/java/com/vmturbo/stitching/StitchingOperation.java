@@ -6,7 +6,6 @@ import java.util.Optional;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
 
 /**
  * An operation that edits entity properties and relationships and removes entities during stitching
@@ -14,7 +13,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
  *
  * StitchingOperations are generally written per-probe category. For example, one for Storage, one for Fabric,
  * one for HyperConverged, etc. with parameters used to tune the stitching behavior. Operations are chosen
- * based on probe category and
+ * based on probe category and type.
  *
  * {@link StitchingOperation}s are run on a per-target basis.
  *
@@ -32,7 +31,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
  * 2. Processing: During processing, the operation makes updates and removes entities in the topology.
  *    Updates to the properties and commodities of an entity may be made immediately, but updates to
  *    the relationship of an entity (as described in {@link StitchingOperationResult}) are applied only
- *    AFTER the {@link #stitch(Collection, StitchingGraph)} call returns.
+ *    AFTER the {@link #stitch(Collection, StitchingOperationResult.Builder)} call returns.
  *
  * @param <INTERNAL_SIGNATURE_TYPE> The type of the signature by which internal entities will be matched
  *                                  with external entities.
@@ -82,7 +81,7 @@ public interface StitchingOperation<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGNATURE_
      * @return The signature for the internal entity. Return {@link Optional#empty()} to skip considering
      *         this entity during matching.
      */
-    Optional<INTERNAL_SIGNATURE_TYPE> getInternalSignature(@Nonnull final EntityDTOOrBuilder internalEntity);
+    Optional<INTERNAL_SIGNATURE_TYPE> getInternalSignature(@Nonnull final StitchingEntity internalEntity);
 
     /**
      * Get the external signature for an external entity. External signatures will be matched against
@@ -102,13 +101,13 @@ public interface StitchingOperation<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGNATURE_
      * @return The signature for the external entity. Return {@link Optional#empty()} to skip considering
      *         this entity during matching.
      */
-    Optional<EXTERNAL_SIGNATURE_TYPE> getExternalSignature(@Nonnull final EntityDTOOrBuilder externalEntity);
+    Optional<EXTERNAL_SIGNATURE_TYPE> getExternalSignature(@Nonnull final StitchingEntity externalEntity);
 
     /**
      * Stitch a collection of {@link StitchingPoint}s.
      *
      * For a given stitching point, stitching may update the internal entity, external entities,
-     * and entities reachable in the {@link StitchingGraph} reachable from these entities.
+     * and entities reachable from these entities.
      *
      * Stitching may modify properties, modify entity relationships, or remove entities from the topology.
      * Stitching MAY NOT create entirely new entities.
@@ -117,18 +116,15 @@ public interface StitchingOperation<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGNATURE_
      * stitching is used to unify information discovered by targets that are unaware of each other
      * or any user or system settings until stitching occurs.
      *
-     * Any updates to relationships in the {@link StitchingGraph} must be noted in the returned
-     * {@link StitchingOperationResult} so that the graph and certain other acceleration structures
+     * Any updates to relationships in the entities in the {@link StitchingPoint}s must be noted in
+     * the returned {@link StitchingOperationResult} so that the graph and certain other acceleration structures
      * that track entities and relationships can be updated for further stitching.
      *
      * @param stitchingPoints The collection of {@link StitchingPoint}s that should be stitched.
-     * @param stitchingGraph A graph containing both the internal and external entities
-     *                       that permits traversal operations on the producers and consumers
-     *                       of entities in the graph.
      * @return A {@link StitchingOperationResult} that describes the result of stitching.
      */
     @Nonnull StitchingOperationResult stitch(@Nonnull final Collection<StitchingPoint> stitchingPoints,
-                                             @Nonnull final StitchingGraph stitchingGraph);
+                                             @Nonnull final StitchingOperationResult.Builder resultBuilder);
 
     /**
      * Create an index for use to accelerate match-finding for this {@link StitchingOperation}.

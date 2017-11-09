@@ -1,5 +1,7 @@
 package com.vmturbo.topology.processor.stitching;
 
+import static com.vmturbo.topology.processor.stitching.StitchingTestUtils.isBuyingCommodityFrom;
+import static com.vmturbo.topology.processor.stitching.StitchingTestUtils.newStitchingGraph;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
@@ -8,20 +10,19 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.collection.IsEmptyCollection.empty;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.hamcrest.BaseMatcher;
-import org.hamcrest.Description;
-import org.hamcrest.Matcher;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -30,13 +31,9 @@ import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.stitching.StitchingOperationResult.RemoveEntityChange;
-import com.vmturbo.stitching.StitchingOperationResult.CommoditiesBoughtChange;
-import com.vmturbo.topology.processor.stitching.TopologyStitchingGraph.UnknownEntityException;
-import com.vmturbo.topology.processor.stitching.TopologyStitchingGraph.Vertex;
+import com.vmturbo.stitching.StitchingEntity;
 
 public class TopologyStitchingGraphTest {
 
@@ -71,7 +68,7 @@ public class TopologyStitchingGraphTest {
     @Test
     public void testBuildConstructionEmptyMap() {
         final TopologyStitchingGraph graph = new TopologyStitchingGraph(50);
-        assertEquals(0, graph.vertexCount());
+        assertEquals(0, graph.entityCount());
         assertEquals(0, producerCount(graph));
         assertEquals(0, consumerCount(graph));
     }
@@ -80,7 +77,7 @@ public class TopologyStitchingGraphTest {
     public void testConstruction() {
         final TopologyStitchingGraph graph = newStitchingGraph(topologyMap);
 
-        assertEquals(5, graph.vertexCount());
+        assertEquals(5, graph.entityCount());
         assertEquals(4, producerCount(graph));
         assertEquals(4, consumerCount(graph));
     }
@@ -118,7 +115,7 @@ public class TopologyStitchingGraphTest {
     public void testGetEmptyProducers() throws Exception {
         final TopologyStitchingGraph graph = newStitchingGraph(topologyMap);
 
-        assertThat(graph.getProviders("1").collect(Collectors.toList()), is(empty()));
+        assertThat(providersFor(graph, "1"), is(empty()));
     }
 
     @Test
@@ -126,8 +123,8 @@ public class TopologyStitchingGraphTest {
         final TopologyStitchingGraph graph = newStitchingGraph(topologyMap);
 
         assertThat(
-            graph.getProviders("2")
-                .map(Vertex::getLocalId)
+            providersFor(graph, "2").stream()
+                .map(StitchingEntity::getLocalId)
                 .collect(Collectors.toList()),
             contains("1")
         );
@@ -153,8 +150,8 @@ public class TopologyStitchingGraphTest {
         final TopologyStitchingGraph graph = newStitchingGraph(topologyMap);
 
         assertThat(
-            graph.getProviders("3")
-                .map(Vertex::getLocalId)
+            providersFor(graph, "3").stream()
+                .map(StitchingEntity::getLocalId)
                 .collect(Collectors.toList()),
             containsInAnyOrder("1", "2")
         );
@@ -164,7 +161,7 @@ public class TopologyStitchingGraphTest {
     public void testGetEmptyConsumers() throws Exception {
         final TopologyStitchingGraph graph = newStitchingGraph(topologyMap);
 
-        assertThat(graph.getConsumers("5").collect(Collectors.toList()), is(empty()));
+        assertThat(consumersFor(graph, "5"), is(empty()));
     }
 
     @Test
@@ -172,36 +169,16 @@ public class TopologyStitchingGraphTest {
         final TopologyStitchingGraph graph = newStitchingGraph(topologyMap);
 
         assertThat(
-            graph.getConsumers("1")
-                .map(Vertex::getLocalId)
+            consumersFor(graph, "1").stream()
+                .map(StitchingEntity::getLocalId)
                 .collect(Collectors.toList()),
             containsInAnyOrder("2", "3")
         );
         assertThat(
-            graph.getConsumers("2")
-                .map(Vertex::getLocalId)
+            consumersFor(graph, "2").stream()
+                .map(StitchingEntity::getLocalId)
                 .collect(Collectors.toList()),
             containsInAnyOrder("4", "5")
-        );
-    }
-
-    @Test
-    public void testGetConsumersNotInGraph() {
-        final TopologyStitchingGraph graph = newStitchingGraph(Collections.emptyMap());
-
-        assertThat(
-            graph.getConsumers("1").collect(Collectors.toList()),
-            is(empty())
-        );
-    }
-
-    @Test
-    public void testGetProducersNotInGraph() {
-        final TopologyStitchingGraph graph = newStitchingGraph(Collections.emptyMap());
-
-        assertThat(
-            graph.getProviders("1").collect(Collectors.toList()),
-            is(empty())
         );
     }
 
@@ -209,14 +186,14 @@ public class TopologyStitchingGraphTest {
     public void testGetVertex() {
         final TopologyStitchingGraph graph = newStitchingGraph(topologyMap);
 
-        assertEquals("1", graph.getVertex("1").get().getLocalId());
+        assertEquals("1", entityByLocalId(graph, "1").get().getLocalId());
     }
 
     @Test
     public void testGetVertexNotInGraph() {
         final TopologyStitchingGraph graph = newStitchingGraph(Collections.emptyMap());
 
-        assertFalse(graph.getVertex("1").isPresent());
+        assertFalse(entityByLocalId(graph, "1").isPresent());
     }
 
     @Test
@@ -224,14 +201,14 @@ public class TopologyStitchingGraphTest {
         final TopologyStitchingGraph graph = newStitchingGraph(topologyMap);
 
         assertThat(
-            graph.getProviders("2")
-                .map(Vertex::getLocalId)
+            providersFor(graph, "2").stream()
+                .map(StitchingEntity::getLocalId)
                 .collect(Collectors.toList()),
             containsInAnyOrder("1")
         );
         assertThat(
-            graph.getProviders("3")
-                .map(Vertex::getLocalId)
+            providersFor(graph, "3").stream()
+                .map(StitchingEntity::getLocalId)
                 .collect(Collectors.toList()),
             containsInAnyOrder("1")
         );
@@ -257,14 +234,14 @@ public class TopologyStitchingGraphTest {
         final TopologyStitchingGraph graph = newStitchingGraph(topologyMap);
 
         assertThat(
-            graph.getConsumers("1")
-                .map(Vertex::getLocalId)
+            consumersFor(graph, "1").stream()
+                .map(StitchingEntity::getLocalId)
                 .collect(Collectors.toList()),
             contains("3")
         );
         assertThat(
-            graph.getConsumers("2")
-                .map(Vertex::getLocalId)
+            consumersFor(graph, "2").stream()
+                .map(StitchingEntity::getLocalId)
                 .collect(Collectors.toList()),
             contains("3")
         );
@@ -279,9 +256,13 @@ public class TopologyStitchingGraphTest {
         graph.addStitchingData(e1, topologyMapOf(e1));
         graph.addStitchingData(e2, topologyMapOf(e2));
 
-        assertEquals(1, graph.vertexCount());
-        assertEquals(e1.getEntityDtoBuilder(), graph.getEntityBuilder("1", 1L).get());
-        assertEquals(e2.getEntityDtoBuilder(), graph.getEntityBuilder("1", 2L).get());
+        assertEquals(2, graph.entityCount());
+        final List<EntityDTO.Builder> entitiesWithId1 = graph.entities()
+            .filter(entity -> entity.getLocalId().equals("1"))
+            .map(TopologyStitchingEntity::getEntityBuilder)
+            .collect(Collectors.toList());
+
+        assertThat(entitiesWithId1, containsInAnyOrder(e1.getEntityDtoBuilder(), e2.getEntityDtoBuilder()));
     }
 
     @Test
@@ -305,20 +286,26 @@ public class TopologyStitchingGraphTest {
         graph.addStitchingData(e2, target2Graph);
         graph.addStitchingData(e3_2, target2Graph);
 
-        assertEquals(3, graph.vertexCount());
-        assertThat(graph.getProviders("3")
-                .map(Vertex::getLocalId)
+        assertEquals(4, graph.entityCount());
+        assertThat(graph.getEntity(e3_1.getEntityDtoBuilder()).get()
+                .getProviders().stream()
+                .map(StitchingEntity::getLocalId)
                 .collect(Collectors.toList()),
-            containsInAnyOrder("1", "2"));
+            contains("1"));
+        assertThat(graph.getEntity(e3_2.getEntityDtoBuilder()).get()
+                .getProviders().stream()
+                .map(StitchingEntity::getLocalId)
+                .collect(Collectors.toList()),
+            contains("2"));
 
-        assertThat(graph.getConsumers("1")
-                .map(Vertex::getLocalId)
+        assertThat(consumersFor(graph, "1").stream()
+                .map(StitchingEntity::getEntityBuilder)
                 .collect(Collectors.toList()),
-            contains("3"));
-        assertThat(graph.getConsumers("2")
-                .map(Vertex::getLocalId)
+            contains(e3_1.getEntityDtoBuilder()));
+        assertThat(consumersFor(graph, "2").stream()
+                .map(StitchingEntity::getEntityBuilder)
                 .collect(Collectors.toList()),
-            contains("3"));
+            contains(e3_2.getEntityDtoBuilder()));
     }
 
     @Test
@@ -326,13 +313,20 @@ public class TopologyStitchingGraphTest {
         // Removing something not in the graph is treated as a no-op
         final TopologyStitchingGraph graph = newStitchingGraph(topologyMap);
 
-        final Set<String> updatedByRemoval = graph.removeEntity(new RemoveEntityChange(
-            EntityDTO.newBuilder()
-                .setId("-1")
-                .setEntityType(EntityType.VIRTUAL_MACHINE)
-        ));
+        final TopologyStitchingEntity toRemove =
+            new TopologyStitchingEntity(stitchingData("6", Collections.emptyList()));
+        assertTrue(graph.removeEntity(toRemove).isEmpty());
+    }
 
-        assertThat(updatedByRemoval, is(empty()));
+    @Test
+    public void testRemoveClearsConsumersAndProviders() {
+        // Removing something not in the graph is treated as a no-op
+        final TopologyStitchingGraph graph = newStitchingGraph(topologyMap);
+
+        final TopologyStitchingEntity toRemove = graph.getEntity(entity1.getEntityDtoBuilder()).get();
+        graph.removeEntity(toRemove);
+        assertTrue(toRemove.getConsumers().isEmpty());
+        assertTrue(toRemove.getProviders().isEmpty());
     }
 
     @Test
@@ -347,25 +341,28 @@ public class TopologyStitchingGraphTest {
         final TopologyStitchingGraph graph = newStitchingGraph(topologyMap);
 
         // Before removing, 2 and 3 should be buying from 1.
-        assertThat(graph.getProviders("2")
-                .map(Vertex::getLocalId)
+        assertThat(providersFor(graph, "2").stream()
+                .map(StitchingEntity::getLocalId)
                 .collect(Collectors.toList()),
             contains("1"));
-        assertThat(graph.getProviders("3")
-                .map(Vertex::getLocalId)
+        assertThat(providersFor(graph, "3").stream()
+                .map(StitchingEntity::getLocalId)
                 .collect(Collectors.toList()),
             contains("1"));
 
-        final Set<String> updatedByRemoval = graph.removeEntity(new RemoveEntityChange(entity1.getEntityDtoBuilder()));
+        final TopologyStitchingEntity toRemove = graph.getEntity(entity1.getEntityDtoBuilder()).get();
+        final List<String> affectedByRemoval = graph.removeEntity(toRemove).stream()
+            .map(StitchingEntity::getLocalId)
+            .collect(Collectors.toList());
 
-        assertFalse(graph.getVertex("1").isPresent());
-        assertThat(updatedByRemoval, containsInAnyOrder("1", "2", "3")); // 2 and 3 had their producers relations updated.
-        assertThat(graph.getProviders("2")
-            .map(Vertex::getLocalId)
+        assertFalse(entityByLocalId(graph, "1").isPresent());
+        assertThat(affectedByRemoval, containsInAnyOrder("1", "2", "3")); // 2 and 3 had their producers relations updated.
+        assertThat(providersFor(graph, "2").stream()
+            .map(StitchingEntity::getLocalId)
             .collect(Collectors.toList()),
             is(empty()));
-        assertThat(graph.getProviders("3")
-            .map(Vertex::getLocalId)
+        assertThat(providersFor(graph, "3").stream()
+            .map(StitchingEntity::getLocalId)
             .collect(Collectors.toList()),
             is(empty()));
     }
@@ -382,13 +379,14 @@ public class TopologyStitchingGraphTest {
         final TopologyStitchingGraph graph = newStitchingGraph(topologyMap);
 
         // Before removing, 2 and 3 should be buying from 1.
-        assertThat(entity2.getEntityDtoBuilder(), isBuyingCommodityFrom("1"));
-        assertThat(entity3.getEntityDtoBuilder(), isBuyingCommodityFrom("1"));
+        assertThat(graph.getEntity(entity2.getEntityDtoBuilder()).get(), isBuyingCommodityFrom("1"));
+        assertThat(graph.getEntity(entity3.getEntityDtoBuilder()).get(), isBuyingCommodityFrom("1"));
 
-        graph.removeEntity(new RemoveEntityChange(entity1.getEntityDtoBuilder()));
+        final TopologyStitchingEntity toRemove = graph.getEntity(entity1.getEntityDtoBuilder()).get();
+        graph.removeEntity(toRemove);
 
-        assertThat(entity2.getEntityDtoBuilder(), not(isBuyingCommodityFrom("1")));
-        assertThat(entity3.getEntityDtoBuilder(), not(isBuyingCommodityFrom("1")));
+        assertThat(graph.getEntity(entity2.getEntityDtoBuilder()).get(), not(isBuyingCommodityFrom("1")));
+        assertThat(graph.getEntity(entity3.getEntityDtoBuilder()).get(), not(isBuyingCommodityFrom("1")));
     }
 
     @Test
@@ -400,11 +398,11 @@ public class TopologyStitchingGraphTest {
         graph.addStitchingData(e1_1, topologyMapOf(e1_1));
         graph.addStitchingData(e1_2, topologyMapOf(e1_2));
 
-        assertEquals(1, graph.vertexCount());
-        graph.removeEntity(new RemoveEntityChange(e1_1.getEntityDtoBuilder()));
-        assertEquals(1, graph.vertexCount());
-        graph.removeEntity(new RemoveEntityChange(e1_2.getEntityDtoBuilder()));
-        assertEquals(0, graph.vertexCount());
+        assertEquals(2, graph.entityCount());
+        graph.removeEntity(graph.getEntity(e1_1.getEntityDtoBuilder()).get());
+        assertEquals(1, graph.entityCount());
+        graph.removeEntity(graph.getEntity(e1_2.getEntityDtoBuilder()).get());
+        assertEquals(0, graph.entityCount());
     }
 
     @Test
@@ -428,111 +426,48 @@ public class TopologyStitchingGraphTest {
 
         // e2_2 should buy from e1_2 both before and after removing e1_1 because it was discovered from a different
         // target than e1_1.
-        assertThat(e2_2.getEntityDtoBuilder(), isBuyingCommodityFrom("1"));
-        graph.removeEntity(new RemoveEntityChange(e1_1.getEntityDtoBuilder()));
-        assertThat(e2_2.getEntityDtoBuilder(), isBuyingCommodityFrom("1"));
+        assertThat(graph.getEntity(e2_2.getEntityDtoBuilder()).get(), isBuyingCommodityFrom("1"));
+        graph.removeEntity(graph.getEntity(e1_1.getEntityDtoBuilder()).get());
+        assertThat(graph.getEntity(e2_2.getEntityDtoBuilder()).get(), isBuyingCommodityFrom("1"));
     }
 
-    @Test
-    public void testUpdateNotExisting() {
-        final TopologyStitchingGraph graph = newStitchingGraph(topologyMap);
-
-        expectedException.expect(UnknownEntityException.class);
-        graph.updateCommoditiesBought(new CommoditiesBoughtChange(EntityDTO.newBuilder()
-            .setId("-1")
-            .setEntityType(EntityType.VIRTUAL_MACHINE), entity -> {
-        }));
+    private Optional<TopologyStitchingEntity> entityByLocalId(@Nonnull final TopologyStitchingGraph graph,
+                                                              @Nonnull final String entityLocalId) {
+        return graph.entities()
+            .filter(entity -> entity.getLocalId().equals(entityLocalId))
+            .findFirst();
     }
 
-    @Test
-    public void testRemoveBoughtRemovesSellers() {
-        /**
-         * 4   5            4   5
-         *  \ /              \ /
-         *   2   3   -->      2   3
-         *    \ /                /
-         *     1                1
-         */
-        final TopologyStitchingGraph graph = newStitchingGraph(topologyMap);
-
-        final Set<String> modifiedEntities = graph.updateCommoditiesBought(
-            new CommoditiesBoughtChange(entity2.getEntityDtoBuilder(), Builder::clearCommoditiesBought));
-        final List<String> consumersOf1 = graph.getConsumers("1")
-            .map(Vertex::getLocalId)
-            .collect(Collectors.toList());
-
-        assertThat(modifiedEntities, containsInAnyOrder("2", "1"));
-        assertThat(graph.getProviders("2").collect(Collectors.toList()), is(empty()));
-        assertThat(consumersOf1, not(contains("2")));
-        assertThat(consumersOf1, contains("3"));
+    /**
+     * Get the providers for an entity with a given localId.
+     * Throws a null pointer if no entity with the given id is in the graph.
+     * If multiple entities with the id are in the graph, returns one of them without making any guarantees
+     * about which you get.
+     *
+     * @param graph The graph.
+     * @param entityLocalId The id of the entity whose providers should be retrieved.
+     * @return providers for the entity with the given local id
+     */
+    private Set<StitchingEntity> providersFor(@Nonnull final TopologyStitchingGraph graph,
+                                              @Nonnull final String entityLocalId) {
+        return entityByLocalId(graph, entityLocalId).get()
+            .getProviders();
     }
 
-    @Test
-    public void testAddBoughtAddsSellers() {
-        /**
-         * 4   5            4   5
-         *  \ /              \ / \
-         *   2   3   -->      2   3
-         *    \ /              \ /
-         *     1                1
-         */
-        final TopologyStitchingGraph graph = newStitchingGraph(topologyMap);
-
-        assertThat(graph.getProviders("5")
-            .map(Vertex::getLocalId)
-            .collect(Collectors.toList()), contains("2"));
-        assertThat(graph.getConsumers("3")
-            .map(Vertex::getLocalId)
-            .collect(Collectors.toList()), is(empty()));
-
-        final Set<String> modifiedEntities = graph.updateCommoditiesBought(
-            new CommoditiesBoughtChange(entity5.getEntityDtoBuilder(), entity ->
-                entity.addCommoditiesBought(CommodityBought.newBuilder().setProviderId("3"))));
-        assertThat(modifiedEntities, containsInAnyOrder("5", "3"));
-
-        assertThat(graph.getProviders("5")
-            .map(Vertex::getLocalId)
-            .collect(Collectors.toList()), containsInAnyOrder("2", "3"));
-        assertThat(graph.getConsumers("3")
-            .map(Vertex::getLocalId)
-            .collect(Collectors.toList()), contains("5"));
-    }
-
-    @Test
-    public void testRemoveBoughtWhenOtherEntityStillBuying() {
-        /**
-         * 2_1|2_2  // Both 2_1 and 2_2 are buying from 1. Remove the relationship from 2_1,
-         *    |     // because 2_2 is still buying from 1, the 2 vertex should still be
-         * 1_1|1_2  // reachable from 1.
-         */
-        final StitchingEntityData e1_1 = stitchingData("1", Collections.emptyList()).forTarget(1L);
-        final StitchingEntityData e1_2 = stitchingData("1", Collections.emptyList()).forTarget(2L);
-        final StitchingEntityData e2_1 = stitchingData("2", Collections.singletonList("1")).forTarget(1L);
-        final StitchingEntityData e2_2 = stitchingData("2", Collections.singletonList("1")).forTarget(2L);
-        final Map<String, StitchingEntityData> target1Graph = topologyMapOf(e1_1, e2_1);
-        final Map<String, StitchingEntityData> target2Graph = topologyMapOf(e1_2, e2_2);
-
-        final TopologyStitchingGraph graph = new TopologyStitchingGraph(5);
-        graph.addStitchingData(e1_1, target1Graph);
-        graph.addStitchingData(e1_2, target2Graph);
-        graph.addStitchingData(e2_1, target2Graph);
-        graph.addStitchingData(e2_2, target2Graph);
-
-        graph.updateCommoditiesBought(new CommoditiesBoughtChange(e2_1.getEntityDtoBuilder(),
-            e -> e.removeCommoditiesBought(0)));
-
-        // First removal should leave relationship in place because e2_2 is still buying from e1_2
-        assertThat(graph.getProviders("2")
-            .map(Vertex::getLocalId)
-            .collect(Collectors.toList()), contains("1"));
-
-        graph.updateCommoditiesBought(new CommoditiesBoughtChange(e2_2.getEntityDtoBuilder(),
-            e -> e.removeCommoditiesBought(0)));
-
-        // Second removal should clear the relationship entirely
-        assertThat(graph.getProviders("2")
-            .map(Vertex::getLocalId)
-            .collect(Collectors.toList()), is(empty()));
+    /**
+     * Get the providers for an entity with a given localId.
+     * Throws a null pointer if no entity with the given id is in the graph.
+     * If multiple entities with the id are in the graph, returns one of them without making any guarantees
+     * about which you get.
+     *
+     * @param graph The graph.
+     * @param entityLocalId The id of the entity whose providers should be retrieved.
+     * @return providers for the entity with the given local id
+     */
+    private Set<StitchingEntity> consumersFor(@Nonnull final TopologyStitchingGraph graph,
+                                                 @Nonnull final String entityLocalId) {
+        return entityByLocalId(graph, entityLocalId).get()
+            .getConsumers();
     }
 
     @Nonnull StitchingDataAllowingTargetChange stitchingData(@Nonnull final String localId,
@@ -566,25 +501,15 @@ public class TopologyStitchingGraphTest {
         return map;
     }
 
-    @Nonnull
-    private TopologyStitchingGraph newStitchingGraph(@Nonnull final Map<String, StitchingEntityData> topologyMap) {
-        final TopologyStitchingGraph graph = new TopologyStitchingGraph(topologyMap.size());
-        topologyMap.values().forEach(entity -> graph.addStitchingData(entity, topologyMap));
-
-        return graph;
-    }
-
     private int producerCount(@Nonnull final TopologyStitchingGraph graph) {
-        return graph.vertices().mapToInt(
-            vertex -> graph.getProviders(vertex)
-                .collect(Collectors.summingInt(v -> 1))
+        return graph.entities().mapToInt(
+            entity -> entity.getProviders().size()
         ).sum();
     }
 
     private int consumerCount(@Nonnull final TopologyStitchingGraph graph) {
-        return graph.vertices().mapToInt(
-            vertex -> graph.getConsumers(vertex)
-                .collect(Collectors.summingInt(v -> 1))
+        return graph.entities().mapToInt(
+            entity -> entity.getConsumers().size()
         ).sum();
     }
 
@@ -598,31 +523,5 @@ public class TopologyStitchingGraphTest {
         public StitchingEntityData forTarget(final long targetId) {
             return new StitchingEntityData(getEntityDtoBuilder(), targetId, IdentityGenerator.next());
         }
-    }
-
-    /**
-     * A matcher that allows asserting that a particular entity in the topology is acting as a provider
-     * for exactly a certain number of entities.
-     */
-    public static Matcher<EntityDTO.Builder> isBuyingCommodityFrom(final String providerOid) {
-        return new BaseMatcher<EntityDTO.Builder>() {
-            @Override
-            @SuppressWarnings("unchecked")
-            public boolean matches(Object o) {
-                final EntityDTO.Builder entity = (EntityDTO.Builder) o;
-                for (CommodityBought bought : entity.getCommoditiesBoughtList()) {
-                    if (providerOid.equals(bought.getProviderId())) {
-                        return true;
-                    }
-                }
-
-                return false;
-            }
-            @Override
-            public void describeTo(Description description) {
-                description.appendText("Entity should be buying a commodity from provider with oid " +
-                    providerOid);
-            }
-        };
     }
 }

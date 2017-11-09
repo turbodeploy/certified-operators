@@ -7,16 +7,17 @@ import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -26,14 +27,13 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.MockitoAnnotations;
 
+import com.google.common.collect.ImmutableMap;
+
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
-import com.vmturbo.stitching.StitchingGraph;
+import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingOperation;
 import com.vmturbo.stitching.StitchingOperationResult;
-import com.vmturbo.stitching.StitchingOperationResult.CommoditiesBoughtChange;
-import com.vmturbo.stitching.StitchingOperationResult.RemoveEntityChange;
 import com.vmturbo.stitching.StitchingPoint;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.stitching.StitchingOperationStore.ProbeStitchingOperation;
@@ -45,12 +45,13 @@ public class StitchingManagerTest {
     private final TargetStore targetStore = mock(TargetStore.class);
     private final EntityStore entityStore = mock(EntityStore.class);
     private final StitchingOperationStore stitchingOperationStore = mock(StitchingOperationStore.class);
-    final StitchingContext stitchingContext = mock(StitchingContext.class);
     private final Target target = mock(Target.class);
 
     private final long probeId = 1234L;
-    private final long targetId = 5678L;
+    private final long firstTargetId = 5678L;
+    private final long secondTargetId = 9012L;
 
+    // Entities on the first target are internal
     private final EntityDTO.Builder vmFoo = virtualMachine("foo")
         .guestName("foo")
         .build().toBuilder();
@@ -58,6 +59,7 @@ public class StitchingManagerTest {
         .guestName("bar")
         .build().toBuilder();
 
+    // Entities on the second target are external
     private final EntityDTO.Builder otherFoo = virtualMachine("other-foo")
         .guestName("foo")
         .build().toBuilder();
@@ -65,21 +67,30 @@ public class StitchingManagerTest {
         .guestName("bar")
         .build().toBuilder();
 
+    private final Map<String, StitchingEntityData> entityData = ImmutableMap.of(
+        vmFoo.getId(), nextEntity(vmFoo, firstTargetId),
+        vmBar.getId(), nextEntity(vmBar, firstTargetId),
+        otherFoo.getId(), nextEntity(otherFoo, secondTargetId),
+        otherBar.getId(), nextEntity(otherBar, secondTargetId)
+    );
+
     @Captor
-    private ArgumentCaptor<StitchingOperationResult> resultCaptor;
+    private ArgumentCaptor<TopologyStitchingEntity> stitchingEntityCaptor;
 
     @Before
     public void setup() {
         MockitoAnnotations.initMocks(this);
 
-        when(target.getId()).thenReturn(targetId);
+        when(target.getId()).thenReturn(firstTargetId);
         when(targetStore.getProbeTargets(eq(probeId)))
             .thenReturn(Collections.singletonList(target));
-        when(entityStore.constructStitchingContext()).thenReturn(stitchingContext);
     }
 
     @Test
     public void testStitchGeneratesContext() throws Exception {
+        final StitchingContext stitchingContext = mock(StitchingContext.class);
+        when(entityStore.constructStitchingContext()).thenReturn(stitchingContext);
+
         when(stitchingOperationStore.getAllOperations()).thenReturn(Collections.emptyList());
         final StitchingManager stitchingManager = spy(new StitchingManager(stitchingOperationStore));
         final StitchingContext returnedContext = stitchingManager.stitch(entityStore, targetStore);
@@ -91,28 +102,21 @@ public class StitchingManagerTest {
     @Test
     public void testStitchAloneOperation()  {
         final StitchingOperation<?, ?> stitchingOperation = new StitchVmsAlone("foo", "bar");
+        final StitchingContext.Builder contextBuilder = StitchingContext.newBuilder(5);
+        entityData.values()
+            .forEach(entity -> contextBuilder.addEntity(entity, entityData));
+        final StitchingContext stitchingContext = spy(contextBuilder.build());
+        when(entityStore.constructStitchingContext()).thenReturn(stitchingContext);
+
         when(stitchingOperationStore.getAllOperations())
             .thenReturn(Collections.singletonList(new ProbeStitchingOperation(probeId, stitchingOperation)));
-        when(stitchingContext.internalEntities(EntityType.VIRTUAL_MACHINE, targetId))
-            .thenReturn(Stream.of(vmBar, vmFoo, otherFoo, otherBar));
         final StitchingManager stitchingManager = new StitchingManager(stitchingOperationStore);
 
-        final StitchingContext resultContext = stitchingManager.stitch(stitchingContext, targetStore);
-        verify(resultContext).applyStitchingResult(resultCaptor.capture());
+        stitchingManager.stitch(stitchingContext, targetStore);
+        verify(stitchingContext).removeEntity(stitchingEntityCaptor.capture());
 
-        final RemoveEntityChange removal = (RemoveEntityChange)resultCaptor.getValue()
-            .getChanges().stream()
-            .filter(change -> change instanceof RemoveEntityChange)
-            .findFirst()
-            .get();
-        final CommoditiesBoughtChange update = (CommoditiesBoughtChange)resultCaptor.getValue()
-            .getChanges().stream()
-            .filter(change -> change instanceof CommoditiesBoughtChange)
-            .findFirst()
-            .get();
-
-        assertEquals("foo", removal.entityBuilder.getId());
-        assertEquals("bar", update.entityBuilder.getId());
+        assertEquals("foo", stitchingEntityCaptor.getValue().getLocalId());
+        assertEquals("updated-vm", vmBar.getDisplayName());
     }
 
     @Test
@@ -120,31 +124,29 @@ public class StitchingManagerTest {
         final StitchingOperation<?, ?> stitchingOperation = new StitchVmsByGuestName();
         when(stitchingOperationStore.getAllOperations())
             .thenReturn(Collections.singletonList(new ProbeStitchingOperation(probeId, stitchingOperation)));
-        when(stitchingContext.internalEntities(EntityType.VIRTUAL_MACHINE, targetId))
-            .thenReturn(Stream.of(vmBar, vmFoo));
-        when(stitchingContext.externalEntities(EntityType.VIRTUAL_MACHINE, targetId))
-            .thenReturn(Stream.of(otherBar, otherFoo));
+        final StitchingContext.Builder contextBuilder = StitchingContext.newBuilder(5);
+        entityData.values()
+            .forEach(entity -> contextBuilder.addEntity(entity, entityData));
+        final StitchingContext stitchingContext = spy(contextBuilder.build());
+        when(entityStore.constructStitchingContext()).thenReturn(stitchingContext);
 
         final StitchingManager stitchingManager = new StitchingManager(stitchingOperationStore);
 
-        final StitchingContext resultContext = stitchingManager.stitch(stitchingContext, targetStore);
-        verify(resultContext).applyStitchingResult(resultCaptor.capture());
+        stitchingManager.stitch(stitchingContext, targetStore);
+        verify(stitchingContext, times(2)).removeEntity(stitchingEntityCaptor.capture());
 
-        final List<String> removedEntities = resultCaptor.getValue()
-            .getChanges().stream()
-            .filter(change -> change instanceof RemoveEntityChange)
-            .map(change -> (RemoveEntityChange)change)
-            .map(removal -> removal.entityBuilder.getId())
-            .collect(Collectors.toList());
-        final List<String> updatedEntities = resultCaptor.getValue()
-            .getChanges().stream()
-            .filter(change -> change instanceof CommoditiesBoughtChange)
-            .map(change -> (CommoditiesBoughtChange)change)
-            .map(removal -> removal.entityBuilder.getId())
+        final List<String> removedEntities = stitchingEntityCaptor.getAllValues().stream()
+            .map(StitchingEntity::getLocalId)
             .collect(Collectors.toList());
 
         assertThat(removedEntities, containsInAnyOrder("other-foo", "other-bar"));
-        assertThat(updatedEntities, containsInAnyOrder("foo", "bar"));
+        assertEquals("updated-foo", vmFoo.getDisplayName());
+        assertEquals("updated-bar", vmBar.getDisplayName());
+    }
+
+    private long curOid = 1L;
+    private StitchingEntityData nextEntity(@Nonnull final EntityDTO.Builder entityDto, final long targetId) {
+        return new StitchingEntityData(entityDto, targetId, curOid++);
     }
 
     public static class StitchVmsAlone implements  StitchingOperation<String, Void> {
@@ -172,27 +174,26 @@ public class StitchingManagerTest {
         }
 
         @Override
-        public Optional<String> getInternalSignature(@Nonnull EntityDTOOrBuilder internalEntity) {
-            return Optional.of(internalEntity.getId());
+        public Optional<String> getInternalSignature(@Nonnull StitchingEntity internalEntity) {
+            return Optional.of(internalEntity.getLocalId());
         }
 
         @Override
-        public Optional<Void> getExternalSignature(@Nonnull EntityDTOOrBuilder externalEntity) {
+        public Optional<Void> getExternalSignature(@Nonnull StitchingEntity externalEntity) {
             return Optional.empty();
         }
 
         @Nonnull
         @Override
         public StitchingOperationResult stitch(@Nonnull Collection<StitchingPoint> stitchingPoints,
-                                               @Nonnull StitchingGraph stitchingGraph) {
-            final StitchingOperationResult.Builder result = StitchingOperationResult.newBuilder();
+                                               @Nonnull StitchingOperationResult.Builder result) {
             for (StitchingPoint stitchingPoint : stitchingPoints) {
-                final EntityDTO.Builder internalEntity = stitchingPoint.getInternalEntity();
+                final StitchingEntity internalEntity = stitchingPoint.getInternalEntity();
 
-                if (internalEntity.getId().equals(vmToRemove)) {
-                    result.removeEntity(internalEntity);
-                } else if (internalEntity.getId().equals(vmToUpdate)) {
-                    result.updateCommoditiesBought(internalEntity, entity -> {});
+                if (internalEntity.getLocalId().equals(vmToRemove)) {
+                    result.queueEntityRemoval(internalEntity);
+                } else if (internalEntity.getLocalId().equals(vmToUpdate)) {
+                    internalEntity.getEntityBuilder().setDisplayName("updated-vm");
                 }
             }
             return result.build();
@@ -213,23 +214,23 @@ public class StitchingManagerTest {
         }
 
         @Override
-        public Optional<String> getInternalSignature(@Nonnull EntityDTOOrBuilder internalEntity) {
-            return Optional.of(internalEntity.getVirtualMachineData().getGuestName());
+        public Optional<String> getInternalSignature(@Nonnull StitchingEntity internalEntity) {
+            return Optional.of(internalEntity.getEntityBuilder().getVirtualMachineData().getGuestName());
         }
 
         @Override
-        public Optional<String> getExternalSignature(@Nonnull EntityDTOOrBuilder externalEntity) {
-            return Optional.of(externalEntity.getVirtualMachineData().getGuestName());
+        public Optional<String> getExternalSignature(@Nonnull StitchingEntity externalEntity) {
+            return Optional.of(externalEntity.getEntityBuilder().getVirtualMachineData().getGuestName());
         }
 
         @Nonnull
         @Override
         public StitchingOperationResult stitch(@Nonnull final Collection<StitchingPoint> stitchingPoints,
-                                               @Nonnull StitchingGraph stitchingGraph) {
-            final StitchingOperationResult.Builder result = StitchingOperationResult.newBuilder();
+                                               @Nonnull StitchingOperationResult.Builder result) {
             stitchingPoints.forEach(stitchingPoint -> {
-                stitchingPoint.getExternalMatches().forEach(result::removeEntity);
-                result.updateCommoditiesBought(stitchingPoint.getInternalEntity(), entity -> {});
+                stitchingPoint.getExternalMatches().forEach(result::queueEntityRemoval);
+                stitchingPoint.getInternalEntity().getEntityBuilder()
+                    .setDisplayName("updated-" + stitchingPoint.getInternalEntity().getLocalId());
             });
 
             return result.build();

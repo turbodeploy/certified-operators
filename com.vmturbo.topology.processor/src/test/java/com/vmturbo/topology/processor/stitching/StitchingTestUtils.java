@@ -14,9 +14,9 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.stitching.StitchingEntity;
 
 /**
  * Utilities for generating data used in stitching tests.
@@ -75,18 +75,33 @@ public class StitchingTestUtils {
         }
     }
 
+    @Nonnull
+    public static TopologyStitchingGraph newStitchingGraph(
+        @Nonnull final Map<String, StitchingEntityData> topologyMap) {
+
+        final TopologyStitchingGraph graph = new TopologyStitchingGraph(topologyMap.size());
+        topologyMap.values().forEach(entity -> graph.addStitchingData(entity, topologyMap));
+
+        return graph;
+    }
+
     /**
      * A matcher that allows asserting that a particular entity in the topology is acting as a provider
      * for exactly a certain number of entities.
      */
-    public static Matcher<Builder> isBuyingCommodityFrom(final String providerOid) {
-        return new BaseMatcher<Builder>() {
+
+    /**
+     * A matcher that allows asserting that a particular entity in the topology is acting as a provider
+     * for exactly a certain number of entities.
+     */
+    public static Matcher<StitchingEntity> isBuyingCommodityFrom(final String providerOid) {
+        return new BaseMatcher<StitchingEntity>() {
             @Override
             @SuppressWarnings("unchecked")
             public boolean matches(Object o) {
-                final EntityDTO.Builder entity = (EntityDTO.Builder) o;
-                for (CommodityBought bought : entity.getCommoditiesBoughtList()) {
-                    if (providerOid.equals(bought.getProviderId())) {
+                final StitchingEntity entity = (StitchingEntity) o;
+                for (StitchingEntity provider : entity.getCommoditiesBoughtByProvider().keySet()) {
+                    if (providerOid.equals(provider.getLocalId())) {
                         return true;
                     }
                 }

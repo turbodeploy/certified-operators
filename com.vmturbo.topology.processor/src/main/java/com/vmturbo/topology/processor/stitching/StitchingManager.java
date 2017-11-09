@@ -17,14 +17,13 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.stitching.StitchingIndex;
 import com.vmturbo.stitching.StitchingOperation;
 import com.vmturbo.stitching.StitchingOperationResult;
+import com.vmturbo.stitching.StitchingOperationResult.StitchingChange;
 import com.vmturbo.stitching.StitchingPoint;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.targets.TargetStore;
@@ -140,6 +139,11 @@ public class StitchingManager {
     /**
      * Apply a specific stitching operation for a specific target.
      *
+     * If an exception occurs for the operation-target pair, the rest of the operation results
+     * are skipped. If some of the results were already applied when the exception is thrown,
+     * those results continue to be applied and are not rolled back, but the rest of the results
+     * for this operation-target pair are abandoned.
+     *
      * @param operation The operation to apply.
      * @param stitchingContext The stitching context containing the data necessary for stitching.
      * @param targetId The id of the target that is being stitched via the operation.
@@ -154,7 +158,7 @@ public class StitchingManager {
                 applyStitchWithExternalEntitiesOperation(operation, stitchingContext, targetId, externalType.get()) :
                 applyStitchAloneOperation(operation, stitchingContext, targetId);
 
-            stitchingContext.applyStitchingResult(results);
+            results.getChanges().forEach(StitchingChange::applyChange);
         } catch (RuntimeException e) {
             logger.error("Unable to apply stitching operation " + operation.getClass().getSimpleName() +
                 " due to exception: ", e);
@@ -184,7 +188,8 @@ public class StitchingManager {
             .map(StitchingPoint::new)
             .collect(Collectors.toList());
 
-        return operation.stitch(stitchingPoints, stitchingContext.getStitchingGraph());
+        final TopologyStitchingResultBuilder resultBuilder = new TopologyStitchingResultBuilder(stitchingContext);
+        return operation.stitch(stitchingPoints, resultBuilder);
     }
 
     /**
@@ -213,14 +218,14 @@ public class StitchingManager {
         // We will use this map later to look up the internal entities by their signature.
         // Be sure to use an identity hash map because it is important that signatures that are equal
         // by their equals method map to different keys for lookup purposes here.
-        final IdentityHashMap<INTERNAL_SIGNATURE_TYPE, EntityDTO.Builder> signaturesToBuilders =
+        final IdentityHashMap<INTERNAL_SIGNATURE_TYPE, TopologyStitchingEntity> signaturesToEntities =
             new IdentityHashMap<>();
         final EntityType internalEntityType = operation.getInternalEntityType();
 
         stitchingContext
             .internalEntities(internalEntityType, targetId)
             .forEach(internalEntity -> operation.getInternalSignature(internalEntity)
-                .ifPresent(internalSignature -> signaturesToBuilders.put(internalSignature, internalEntity)));
+                .ifPresent(internalSignature -> signaturesToEntities.put(internalSignature, internalEntity)));
 
         // Now construct an index that can quickly calculate which internal signatures that an
         // external signature matches. Note that the internal implementation of the index are
@@ -228,21 +233,22 @@ public class StitchingManager {
         // provide as close to a constant-time lookup as possible for all internal signatures
         // that match a given external signature.
         final StitchingIndex<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGNATURE_TYPE> stitchingIndex =
-            operation.createIndex(signaturesToBuilders.size());
-        signaturesToBuilders.keySet().forEach(stitchingIndex::add);
+            operation.createIndex(signaturesToEntities.size());
+        signaturesToEntities.keySet().forEach(stitchingIndex::add);
 
         // Compute a map of all internal entities to their matching external entities using
         // the index provided by the operation.
-        final Stream<EntityDTO.Builder> externalEntities =
+        final Stream<TopologyStitchingEntity> externalEntities =
             stitchingContext.externalEntities(externalEntityType, targetId);
-        final MatchMap matchMap = new MatchMap(signaturesToBuilders.size());
+        final MatchMap matchMap = new MatchMap(signaturesToEntities.size());
         externalEntities.forEach(externalEntity -> operation.getExternalSignature(externalEntity)
             .ifPresent(externalSignature -> stitchingIndex.findMatches(externalSignature)
                 .forEach(internalSignature ->
-                    matchMap.addMatch(signaturesToBuilders.get(internalSignature), externalEntity))));
+                    matchMap.addMatch(signaturesToEntities.get(internalSignature), externalEntity))));
 
         // Process the matches.
-        return operation.stitch(matchMap.createStitchingPoints(), stitchingContext.getStitchingGraph());
+        final TopologyStitchingResultBuilder resultBuilder = new TopologyStitchingResultBuilder(stitchingContext);
+        return operation.stitch(matchMap.createStitchingPoints(), resultBuilder);
     }
 
     /**
@@ -252,7 +258,7 @@ public class StitchingManager {
      * Unused by stitch alone operations because external entities are ignored in such operations.
      */
     private static class MatchMap {
-        private final Map<EntityDTO.Builder, List<Builder>> matches;
+        private final Map<TopologyStitchingEntity, List<TopologyStitchingEntity>> matches;
 
         public MatchMap(final int expectedSize) {
             matches = new IdentityHashMap<>(expectedSize);
@@ -265,12 +271,12 @@ public class StitchingManager {
          * @param internalEntity The internal entity part of the match.
          * @param externalEntity The external entity part of the match.
          */
-        public void addMatch(@Nonnull final EntityDTO.Builder internalEntity,
-                             @Nonnull final EntityDTO.Builder externalEntity) {
-            final List<EntityDTO.Builder> partners =
+        public void addMatch(@Nonnull final TopologyStitchingEntity internalEntity,
+                             @Nonnull final TopologyStitchingEntity externalEntity) {
+            final List<TopologyStitchingEntity> matchList =
                 matches.computeIfAbsent(internalEntity, key -> new ArrayList<>());
 
-            partners.add(externalEntity);
+            matchList.add(externalEntity);
         }
 
         /**

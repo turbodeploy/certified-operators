@@ -4,34 +4,50 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 import java.util.function.Consumer;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
-
 /**
  * A {@link StitchingOperationResult} is returned for each call to
- * {@link StitchingOperation#stitch(Collection, StitchingGraph)}. It is used to represent
+ * {@link StitchingOperation#stitch(Collection, Builder)}. It is used to represent
  * all the changes to the topology (either relationship updates or entity removals) made by a particular
  * {@link StitchingOperation} at a particular stitching point.
  *
- * Note that changes to individual entities that do not affect relationships do NOT need to be
+ * Note that changes added to the Result are NOT immediately applied at the time the changes are created.
+ * Instead, changes are applied AFTER the operation's {@link StitchingOperation#stitch(Collection, Builder)}
+ * call completes and returns. This is done in order to maintain the expected supply chain of a target
+ * until a stitching operation completes. For example, imagine a hypervisor probe discovers the following
+ * entities
+ *
+ * ST1    ST2
+ *    \  /
+ *     DA
+ *
+ * And during storage stitching, the DA is removed. If the DA was immediately removed, by the time ST2 is
+ * processed it would no longer be connected to the DA which would require operation developers to consider
+ * all possible intermediate states for all possible entities that they process. By applying operations
+ * AFTER the stitching code has finished running and making some topology edits such as removals idempotent
+ * (ie removing an entity from the topology twice has the same effect as removing it once), it becomes
+ * easier to reason about the state of the topological graph as stitching operations make edits. Changes
+ * in {@link StitchingOperationResult}s are applied in the order that they are added to the result.
+ *
+ * Changes should be added to a result via the appropriate {@link StitchingOperationResult.Builder}
+ * method.
+ *
+ * Note that changes to individual entities that do not affect relationships do not NEED to be
  * recorded in the results. So if I need to multiply the capacity of a commodity by 10, because
  * this change does not impact relationships, the operation can make this change directly
  * rather than recording it on the results it returned. However, if the change affects relationships,
- * because this affects the relationships in the {@link StitchingGraph}, it should be recorded
- * in the {@link StitchingOperationResult} so that those changes can be properly reflected
- * in the graph.
- *
- * Collects together an ordered list of {@link StitchingChange}s that indicate the next change
- * made by the operation that should be processed.
+ * it MUST be recorded in the {@link StitchingOperationResult} so that those changes can be properly
+ * reflected in the graph. It is still recommended that edits to entities that do not affect relationships
+ * still be made via {@link Builder#queueUpdateEntityAlone(StitchingEntity, Consumer)} because this will ensure
+ * that the change can be recorded for debugging purposes and because it will cause that change to be applied
+ * lazily in the order the change was added to the result instead of immediately.
  *
  * {@link StitchingChange}s in the result are processed in the order that they are received.
  *
- * A change only needs to be recorded in the result if it affects relationships in the topology graph.
  * Changes to entity relationships permitted during stitching:
  * 1. Removing an entity - Removing an entity from the graph propagates a change to all buyers of commodities
  *                         from the entity being removed.
@@ -43,9 +59,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
  * 2. Commodities sold - No destructive mutations are permitted to commodities sold (that is, changes
  *                       that would change or remove relationships to buyers of the commodities being changed).
  *                       If a use case for this arises, we may consider supporting it in the future.
- *
- * An invalid change (ie updating an entity that has already been removed) will cause
- * an exception to be thrown and all stitching to be abandoned.
  */
 @Immutable
 public class StitchingOperationResult {
@@ -69,23 +82,15 @@ public class StitchingOperationResult {
     }
 
     /**
-     * Create a builder for a {@link StitchingOperationResult}.
-     *
-     * @return A builder for a {@link StitchingOperationResult}.
-     */
-    public static Builder newBuilder() {
-        return new Builder();
-    }
-
-    /**
      * A builder for a {@link StitchingOperationResult}.
+     *
+     * This builder will be subclassed to provide concrete implementations of the various methods
+     * for queueing the appropriate changes in the TopologyProcessor component.
      */
-    public static class Builder {
-        private final List<StitchingChange> changes = new ArrayList<>();
+    public static abstract class Builder {
+        protected final List<StitchingChange> changes = new ArrayList<>();
 
-        public StitchingOperationResult build() {
-            return new StitchingOperationResult(changes);
-        }
+        public abstract StitchingOperationResult build();
 
         /**
          * Get the list of all changes in the result.
@@ -98,43 +103,66 @@ public class StitchingOperationResult {
 
         /**
          * Request the removal of an entity from the topology.
-         *
+         * <p>
          * Requesting the removal of an entity that has already been removed results in a no-op.
          *
          * @param entity The entity to be removed.
          * @return A reference to {@link this} to support method chaining.
          */
-        public Builder removeEntity(@Nonnull final EntityDTO.Builder entity) {
-            changes.add(new RemoveEntityChange(entity));
-            return this;
-        }
+        public abstract Builder queueEntityRemoval(@Nonnull final StitchingEntity entity);
 
         /**
-         * Request the update of the relationships of an entity in the topology based on a change
-         * to its commodities bought.
-         *
-         * Requesting the update of an entity that has already been removed results in an exception
-         * that causes stitching to be abandoned.
-         *
+         * Request the update of the relationships of an entity in the topology based on updates to
+         * the commodities bought on that entity.
+         * <p>
          * Note that this method does NOT perform any checks to verify that the updates made
          * are valid (ie it does not check that if adding a new commodity bought that the provider
          * is actually selling that commodity).
+         * <p>
+         * Updating an entity to buy a commodity from a provider it did not formerly buy from causes
+         * that entity to add the new provider to its collection of providers and causes the entity to be
+         * added to that provider's collection of consumers.
+         * <p>
+         * Removing a provider has the opposite effect - that provider will be removed from the entity's
+         * collection of providers and the provider's collection of consumers will be updated to drop
+         * the relationship to the entity that is no longer buying from it.
          *
-         * Also note that a change to commodities sold that would propagate to buyers is NOT
-         * handled by this change. This change only accounts for updates to commodities bought, not
-         * sold. Destructive changes to commodities sold are not permitted during stitching.
-         * TODO: If a use case arises for support for destructive changes to commodities sold, add support.
-         *
-         * @param entity The entity whose relationships should be updated.
-         * @param updateMethod A method that receives the entity being updated and attaches new
-         *                     commodities bought to update the relationships of the entity and its
-         *                     potential new producers.
+         * @param entityToUpdate The entity whose relationships should be updated.
+         * @param updateMethod A function that can be called to perform the update to the entity's commodities
+         *                     bought. Changes to providers as identified through commodities bought on the
+         *                     entity will propagate changes to providers and consumers in the topological graph.
          * @return A reference to {@link this} to support method chaining.
          */
-        public Builder updateCommoditiesBought(@Nonnull final EntityDTO.Builder entity,
-                                               @Nonnull final Consumer<EntityDTO.Builder> updateMethod) {
-            changes.add(new CommoditiesBoughtChange(entity, updateMethod));
-            return this;
+        public abstract Builder queueChangeRelationships(@Nonnull final StitchingEntity entityToUpdate,
+                                                         @Nonnull final Consumer<StitchingEntity> updateMethod);
+
+        /**
+         * Queue a change to the entity that DOES NOT affect the entity's relationships in the topological
+         * graph. Examples of such a change including modifying the capacity of a commodity sold, setting
+         * the active flag to false, etc.
+         * <p>
+         * Note that this change will be applied AFTER the call to
+         * {@link StitchingOperation#stitch(Collection, Builder)} returns. The change will be applied in the same
+         * order it was added to the {@link StitchingOperationResult} relative to the other changes that were
+         * added to the result.
+         *
+         * @param entityToUpdate The entity to update.
+         * @param updateMethod A function that can be called to update the entity.
+         * @return A reference to {@link this} to support method chaining.
+         */
+        public abstract Builder queueUpdateEntityAlone(@Nonnull final StitchingEntity entityToUpdate,
+                                                       @Nonnull final Consumer<StitchingEntity> updateMethod);
+
+        /**
+         * A method to complete the construction of the {@link StitchingOperationResult}.
+         * Called internally by a subclass of the {@link StitchingOperationResult.Builder}
+         * to construct the result object.
+         *
+         * @return A {@link StitchingOperationResult} containing the changes that were queued on this
+         * {@link StitchingOperationResult.Builder}.
+         */
+        protected StitchingOperationResult buildInternal() {
+            return new StitchingOperationResult(changes);
         }
     }
 
@@ -142,64 +170,12 @@ public class StitchingOperationResult {
      * A {@link StitchingChange} represents an individual change to the topology made by a
      * {@link StitchingOperation}. These changes are collected together in order to represent
      * the change that a {@link StitchingOperation} wishes to make at a particular stitching point.
-     *
+     * <p>
      * When mutating entities during stitching, those changes only need to be explicitly
      * recorded when those changes modify relationships to other entities. See the comments
      * on {@link StitchingOperationResult} for further details.
      */
-    @Immutable
-    public abstract static class StitchingChange {
-        /**
-         * The builder for the entity whose relationships are being changed by the specific {@link StitchingChange}.
-         * The builder will be used to construct the entity resulting in the final topology.
-         */
-        public final EntityDTO.Builder entityBuilder;
-
-        /**
-         * Construct a new stitching change.
-         * Package-private to prevent unwanted overrides.
-         *
-         * @param entity The entity affected by the change.
-         */
-        StitchingChange(@Nonnull final EntityDTO.Builder entity) {
-            this.entityBuilder = Objects.requireNonNull(entity);
-        }
-    }
-
-    /**
-     * Represents the removal of an individual {@link EntityDTO} from the eventual topology.
-     */
-    @Immutable
-    public static class RemoveEntityChange extends StitchingChange {
-        public RemoveEntityChange(@Nonnull final EntityDTO.Builder entityBuilder) {
-            super(entityBuilder);
-        }
-    }
-
-    /**
-     * Represents the update of relationships of an individual {@link EntityDTO} in the eventual topology.
-     *
-     * The update method can add new commodities to an entity in order to add a directed relationship
-     * that makes the entity with the commodities a consumer of the entity it is buying the commodity from
-     * and it makes tne entity selling the commodity a producer of the entity purchasing the commodity.
-     *
-     * The update method can also remove commodities from an entity in order to remove a directed
-     * relationship from the updating entity to the entity it was buying the commodity from if
-     * it was the last commodity bought from that provider.
-     *
-     * If, for example, entity A is buying CPU and MEM from entity B and the {@link #updateMethod} removes
-     * the CPU commodity, the graph retains a connection between A and B because of the MEM commodity.
-     * However, if MEM is also removed, A will be disconnected from B in the graph.
-     */
-    @Immutable
-    public static class CommoditiesBoughtChange extends StitchingChange {
-        public final Consumer<EntityDTO.Builder> updateMethod;
-
-        public CommoditiesBoughtChange(@Nonnull final EntityDTO.Builder entityBuilder,
-                                       @Nonnull final Consumer<EntityDTO.Builder> updateMethod) {
-            super(entityBuilder);
-
-            this.updateMethod = Objects.requireNonNull(updateMethod);
-        }
+    public interface StitchingChange {
+        void applyChange();
     }
 }
