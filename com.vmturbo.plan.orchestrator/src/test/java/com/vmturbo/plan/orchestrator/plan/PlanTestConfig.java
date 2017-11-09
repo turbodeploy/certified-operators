@@ -30,6 +30,7 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationR
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponseCode;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.AnalysisDTOMoles.AnalysisServiceMole;
 import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc;
 import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc.AnalysisServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc.AnalysisServiceImplBase;
@@ -87,7 +88,7 @@ public class PlanTestConfig {
 
     @Bean
     public AnalysisServiceImplBase analysisServer() {
-        return Mockito.spy(new TestAnalysisService());
+        return Mockito.spy(new AnalysisServiceMole());
     }
 
     @Bean

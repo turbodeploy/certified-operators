@@ -20,6 +20,9 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Maps;
 import com.google.gson.Gson;
 
+import io.grpc.Status;
+import io.grpc.stub.StreamObserver;
+
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyAddition;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyRemoval;
@@ -39,9 +42,6 @@ import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.template.TemplateConverterFactory;
 import com.vmturbo.topology.processor.topology.TopologyHandler;
 import com.vmturbo.topology.processor.topology.TopologyHandler.TopologyBroadcastInfo;
-
-import io.grpc.Status;
-import io.grpc.stub.StreamObserver;
 
 /**
  * See: topology/AnalysisDTO.proto.
