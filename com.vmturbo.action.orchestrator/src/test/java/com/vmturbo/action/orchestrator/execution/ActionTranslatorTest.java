@@ -5,24 +5,25 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.doThrow;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
 
-import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
-import io.grpc.stub.StreamObserver;
+import io.grpc.Status;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
@@ -33,10 +34,10 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision.ClearingDecision;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
+import com.vmturbo.common.protobuf.topology.EntityInfoMoles.EntityServiceMole;
 import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass.GetHostInfoRequest;
 import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass.GetHostInfoResponse;
 import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass.HostInfo;
-import com.vmturbo.common.protobuf.topology.EntityServiceGrpc;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
@@ -46,33 +47,16 @@ public class ActionTranslatorTest {
 
     private final long actionPlanId = 1234;
 
-    private final Map<Long, HostInfo> hostInfos = new HashMap<>();
-
     private static final int CPU_SPEED_MHZ = 2000;
     private static final long VM_TARGET_ID = 2;
 
     final int OLD_VCPU_MHZ = 2000;
     final int NEW_VPCU_MHZ = 4000;
 
-    private EntityServiceGrpc.EntityServiceImplBase entityServiceBackend =
-        Mockito.spy(new EntityServiceGrpc.EntityServiceImplBase() {
-            @Override
-            public void getHostsInfo(GetHostInfoRequest request,
-                                        StreamObserver<GetHostInfoResponse> responseObserver) {
-                request.getVirtualMachineIdsList().forEach(vmId -> {
-                    final GetHostInfoResponse.Builder builder = GetHostInfoResponse.newBuilder()
-                        .setVirtualMachineId(vmId);
-                    Optional.ofNullable(hostInfos.get(vmId)).ifPresent(builder::setHostInfo);
-
-                    responseObserver.onNext(builder.build());
-                });
-
-                responseObserver.onCompleted();
-            }
-        });
+    private EntityServiceMole entityServiceSpy = spy(new EntityServiceMole());
 
     @Rule
-    public GrpcTestServer server = GrpcTestServer.newServer(entityServiceBackend);
+    public GrpcTestServer server = GrpcTestServer.newServer(entityServiceSpy);
 
     @Before
     public void setup() throws IOException {
@@ -116,6 +100,13 @@ public class ActionTranslatorTest {
 
     @Test
     public void testInfoUnavailableDuringTranslation() throws Exception {
+        when(entityServiceSpy.getHostsInfo(eq(GetHostInfoRequest.newBuilder()
+                .addVirtualMachineIds(ActionOrchestratorTestUtils.TARGET_ID)
+                .build())))
+                .thenReturn(Collections.singletonList(GetHostInfoResponse.newBuilder()
+                        .setVirtualMachineId(ActionOrchestratorTestUtils.TARGET_ID)
+                        // No host info
+                        .build()));
         final Action resize = new Action(
             ActionOrchestratorTestUtils.createResizeRecommendation(1, CommodityType.VCPU), actionPlanId);
 
@@ -127,8 +118,8 @@ public class ActionTranslatorTest {
     @SuppressWarnings("unchecked")
     @Test
     public void testExceptionDuringTranslation() throws Exception {
-        doThrow(new RuntimeException("Failure")).when(entityServiceBackend)
-            .getHostsInfo(any(GetHostInfoRequest.class), any(StreamObserver.class));
+        when(entityServiceSpy.getHostsInfoError(any()))
+            .thenReturn(Optional.of(Status.INTERNAL.asException()));
         final Action resize = new Action(
             ActionOrchestratorTestUtils.createResizeRecommendation(1, CommodityType.VCPU), actionPlanId);
 
@@ -155,7 +146,7 @@ public class ActionTranslatorTest {
         resize.getActionTranslation().setPassthroughTranslationSuccess();
 
         assertEquals(2, translator.translate(Stream.of(resize, move)).count());
-        verify(entityServiceBackend, never()).getHostsInfo(any(GetHostInfoRequest.class), any(StreamObserver.class));
+        verify(entityServiceSpy, never()).getHostsInfo(any());
     }
 
     @Test
@@ -218,7 +209,13 @@ public class ActionTranslatorTest {
     }
 
     private Action setupDefaultResizeAction() {
-        hostInfos.put(VM_TARGET_ID, hostInfo(CPU_SPEED_MHZ, 1234));
+        when(entityServiceSpy.getHostsInfo(eq(GetHostInfoRequest.newBuilder()
+                .addVirtualMachineIds(VM_TARGET_ID)
+                .build())))
+            .thenReturn(Collections.singletonList(GetHostInfoResponse.newBuilder()
+                .setVirtualMachineId(VM_TARGET_ID)
+                .setHostInfo(hostInfo(CPU_SPEED_MHZ, 1234))
+                .build()));
 
         return new Action(ActionOrchestratorTestUtils
             .createResizeRecommendation(1, VM_TARGET_ID, CommodityType.VCPU, OLD_VCPU_MHZ, NEW_VPCU_MHZ),
