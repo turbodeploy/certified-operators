@@ -24,7 +24,6 @@ topics:
   - topic: tp-scheduled-plan-topologies
     properties:
       retention.ms: 7200000 # 7200k ms = 2 hr
-
   - topic: tp-topology-broadcast
   - topic: projected-topologies
     properties:
@@ -48,13 +47,13 @@ topics:
     properties:
       retention.ms: 86400000 # 86400k ms = 24 hr
 # the following topics are not in use yet.
-  - topic: action-status
-    properties:
-      max.message.bytes: 32767 # 32k -- these are small messages, so the batch size can be small
-      retention.ms: 604800000 # 604800000 ms = 7 days
-  - topic: probe-events
-    properties:
-      retention.ms: 604800000 # 604800000 ms = 7 days
-  - topic: live-projected-topologies
-  - topic: user-plan-projected-topologies
-  - topic: scheduled-plan-projected-topologies
+#  - topic: action-status
+#    properties:
+#      max.message.bytes: 32767 # 32k -- these are small messages, so the batch size can be small
+#      retention.ms: 604800000 # 604800000 ms = 7 days
+#  - topic: probe-events
+#    properties:
+#      retention.ms: 604800000 # 604800000 ms = 7 days
+#  - topic: live-projected-topologies
+#  - topic: user-plan-projected-topologies
+#  - topic: scheduled-plan-projected-topologies
