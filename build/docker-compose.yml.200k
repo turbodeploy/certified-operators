@@ -72,7 +72,6 @@ services:
       service: kafka1-prod
     environment:
       KAFKA_HEAP_OPTS: "-Xmx1024M -Xms1024M"
-    mem_limit: 1280M
     depends_on:
       - rsyslog
       - zoo1
