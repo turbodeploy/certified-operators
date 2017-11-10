@@ -1,6 +1,8 @@
 package com.vmturbo.topology.processor.analysis;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
@@ -18,7 +20,6 @@ import java.util.stream.Collectors;
 import org.assertj.core.util.Lists;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -39,6 +40,7 @@ import com.vmturbo.common.protobuf.topology.AnalysisDTO.StartAnalysisRequest;
 import com.vmturbo.common.protobuf.topology.AnalysisDTO.StartAnalysisResponse;
 import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc;
 import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc.AnalysisServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
@@ -214,7 +216,7 @@ public class AnalysisServiceTest {
 
         MatcherAssert.assertThat(newTopology,
                 Matchers.containsInAnyOrder(
-                        Matchers.equalTo(testEntity.build()), Matchers.equalTo(expectedClone)));
+                        equalTo(testEntity.build()), equalTo(expectedClone)));
     }
 
     @Test
@@ -246,8 +248,8 @@ public class AnalysisServiceTest {
 
         MatcherAssert.assertThat(newTopology,
                 Matchers.containsInAnyOrder(
-                        Matchers.equalTo(testEntity.build()), Matchers.equalTo(expectedClone1),
-                        Matchers.equalTo(expectedClone2)));
+                        equalTo(testEntity.build()), equalTo(expectedClone1),
+                        equalTo(expectedClone2)));
 
     }
 
@@ -266,7 +268,7 @@ public class AnalysisServiceTest {
         final Set<TopologyEntityDTO> newTopology = Sets.newHashSet(broadcastCaptor.getValue());
 
         MatcherAssert.assertThat(newTopology,
-                Matchers.contains(Matchers.equalTo(testEntity.build())));
+                Matchers.contains(equalTo(testEntity.build())));
     }
 
     @Test
@@ -284,7 +286,10 @@ public class AnalysisServiceTest {
                 broadcastCaptor.capture());
 
         final Set<TopologyEntityDTO> newTopology = Sets.newHashSet(broadcastCaptor.getValue());
-        Assert.assertTrue(newTopology.isEmpty());
+        assertThat(newTopology,
+                Matchers.contains(equalTo(testEntity
+                        .setEntityState(EntityState.POWERED_OFF)
+                        .build())));
     }
 
     @Test
@@ -303,6 +308,6 @@ public class AnalysisServiceTest {
 
         final Set<TopologyEntityDTO> newTopology = Sets.newHashSet(broadcastCaptor.getValue());
         MatcherAssert.assertThat(newTopology,
-                Matchers.contains(Matchers.equalTo(testEntity.build())));
+                Matchers.contains(equalTo(testEntity.build())));
     }
 }

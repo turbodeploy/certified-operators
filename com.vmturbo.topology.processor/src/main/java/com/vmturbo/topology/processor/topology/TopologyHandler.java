@@ -100,7 +100,7 @@ public class TopologyHandler {
      */
     public synchronized TopologyBroadcastInfo broadcastLatestTopology(@Nonnull final TargetStore targetStore)
         throws CommunicationException, InterruptedException {
-        
+
         try {
             discoveredTemplateDeploymentProfileNotifier.sendTemplateDeploymentProfileData();
         } catch (CommunicationException e) {

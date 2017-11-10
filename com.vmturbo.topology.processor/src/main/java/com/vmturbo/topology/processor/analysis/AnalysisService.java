@@ -31,6 +31,7 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO;
 import com.vmturbo.common.protobuf.topology.AnalysisDTO;
 import com.vmturbo.common.protobuf.topology.AnalysisDTO.StartAnalysisResponse;
 import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc.AnalysisServiceImplBase;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -151,7 +152,8 @@ public class AnalysisService extends AnalysisServiceImplBase {
                     @Nonnull final IdentityProvider identityProvider,
                     @Nonnull final TemplateConverterFactory templateConverterFactor) {
         final Map<Long, Long> entityAdditions = new HashMap<>();
-        final Set<Long> entityToRemove = new HashSet<>();
+        final Set<Long> entitiesToRemove = new HashSet<>();
+        final Set<Long> entitiesToReplace = new HashSet<>();
         final Map<Long, Long> templateToAdd = new HashMap<>();
 
         changes.forEach(change -> {
@@ -168,7 +170,7 @@ public class AnalysisService extends AnalysisServiceImplBase {
             } else if (change.hasTopologyRemoval()) {
                 final TopologyRemoval removal = change.getTopologyRemoval();
                 if (removal.hasEntityId()) {
-                    entityToRemove.add(removal.getEntityId());
+                    entitiesToRemove.add(removal.getEntityId());
                 } else {
                     logger.warn("Unimplemented handling for topology removal with {}",
                             removal.getEntityOrGroupIdCase());
@@ -178,7 +180,7 @@ public class AnalysisService extends AnalysisServiceImplBase {
                 templateToAdd.put(replace.getAddTemplateId(),
                     templateToAdd.getOrDefault(replace.getAddTemplateId(), 0L) + 1);
                 if (replace.hasRemoveEntityId()) {
-                    entityToRemove.add(replace.getRemoveEntityId());
+                    entitiesToReplace.add(replace.getRemoveEntityId());
                 } else {
                     logger.warn("Unimplemented handling for topology removal with {}",
                         replace.getEntityOrGroupRemovalIdCase());
@@ -197,9 +199,15 @@ public class AnalysisService extends AnalysisServiceImplBase {
                 updatedEntities.add(clone(entity, identityProvider, i));
             }
 
-            // Preserve the entity in the updated set unless it was
-            // specifically targeted for removal or need to be replaced.
-            if (!entityToRemove.contains(entity.getOid())) {
+            if (entitiesToRemove.contains(entity.getOid())) {
+                // Removed entities are considered "powered off". We don't want to completely
+                // get rid of them because that will make the topology inconsistent.
+                updatedEntities.add(entity.toBuilder()
+                        .setEntityState(EntityState.POWERED_OFF)
+                        .build());
+            } else if (!entitiesToReplace.contains(entity.getOid())) {
+                // Preserve the entity in the updated set unless it was
+                // specifically targeted for replacement.
                 updatedEntities.add(entity);
             }
         });
