@@ -95,6 +95,7 @@ public class ActionTargetByProbeCategoryResolver implements ActionTargetResolver
         if (targets.size() == 1) {
             return targets.iterator().next();
         }
+        logger.debug("There are multiple targets for action {}", action);
         final Map<Long, ProbeInfo> targetIdsToProbeInfos = getProbeInfosOfTargets(targets);
 
         final List<String> probePriorities =

@@ -164,10 +164,6 @@ public class ActionExecutor implements ActionExecutionListener {
                     "Entities: " + involvedEntityInfos.keySet() + " has no overlapping " +
                             "targets between the entities involved.");
         }
-        if (overlappingTarget.size() == 1) {
-            return overlappingTarget.iterator().next();
-        }
-        logger.debug("There are multiple targets for action {}", action);
         return targetResolver.resolveExecutantTarget(action, overlappingTarget);
     }
 

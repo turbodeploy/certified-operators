@@ -1,13 +1,16 @@
 package com.vmturbo.action.orchestrator.execution;
 
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.when;
+
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
-
-import io.grpc.stub.StreamObserver;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -18,8 +21,7 @@ import org.mockito.Captor;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
@@ -27,11 +29,9 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
-import com.vmturbo.common.protobuf.topology.ActionExecutionServiceGrpc.ActionExecutionServiceImplBase;
+import com.vmturbo.common.protobuf.topology.ActionExecutionMoles.ActionExecutionServiceMole;
 import com.vmturbo.common.protobuf.topology.EntityInfoMoles.EntityServiceMole;
 import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass.EntityInfo;
-import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass.GetEntitiesInfoRequest;
-import com.vmturbo.common.protobuf.topology.EntityServiceGrpc;
 import com.vmturbo.components.api.test.GrpcTestServer;
 
 /**
@@ -44,74 +44,39 @@ public class ActionExecutorTest {
     private final long probeId = 10;
     private final long targetId = 7;
 
-    private final long moveTargetEntityId = 11L;
-    private final long moveSourceEntityId = 22L;
-    private final long moveDestinationEntityId = 33L;
-
-    private final long resolvedTargetId = moveSourceEntityId;
-
     private ActionTargetResolver actionTargetResolver;
 
-    private final Map<Long, Long> targetToProbeMap = ImmutableMap.of(moveTargetEntityId,
-            moveTargetEntityId, moveSourceEntityId, moveSourceEntityId,
-            moveDestinationEntityId, moveDestinationEntityId);
+    private final ActionExecutionServiceMole actionExecutionBackend =
+            Mockito.spy(new ActionExecutionServiceMole());
 
-
-    private final ActionExecutionServiceImplBase actionExecutionBackend =
-            Mockito.spy(new ActionExecutionServiceImplBase() {} );
-
-    private final EntityServiceGrpc.EntityServiceImplBase entityServiceBackend =
-            Mockito.spy(new EntityServiceGrpc.EntityServiceImplBase() {
-                @Override
-                public void getEntitiesInfo(GetEntitiesInfoRequest request,
-                                            StreamObserver<EntityInfo> responseObserver) {
-                    Stream.of(1, 2, 3).forEach(id ->
-                            responseObserver.onNext(EntityInfo.newBuilder()
-                                    .setEntityId(id)
-                                    .putTargetIdToProbeId(targetId, probeId)
-                                    .build())
-                    );
-
-                    responseObserver.onCompleted();
-                }
-            });
-
-    private final EntityServiceMole targetsConflictEntityService = Mockito.spy(new
-            EntityServiceMole());
+    private final EntityServiceMole entityServiceMole =
+            Mockito.spy(new EntityServiceMole());
 
     @Captor
     private ArgumentCaptor<ExecuteActionRequest> actionSpecCaptor;
 
     @Rule
     public final GrpcTestServer server =
-            GrpcTestServer.newServer(actionExecutionBackend, entityServiceBackend);
-
-    @Rule
-    public final GrpcTestServer targetConflictServer =
-            GrpcTestServer.newServer(actionExecutionBackend, targetsConflictEntityService);
+            GrpcTestServer.newServer(actionExecutionBackend, entityServiceMole);
 
     @Before
     public void setup() throws IOException, TargetResolutionException {
         actionTargetResolver = Mockito.mock(ActionTargetResolver.class);
         MockitoAnnotations.initMocks(this);
-        Mockito.when(actionTargetResolver.resolveExecutantTarget(Mockito.any(ActionDTO.Action
-                .class), Mockito.anySet())).thenReturn(resolvedTargetId);
         actionExecutor = new ActionExecutor(server.getChannel(), actionTargetResolver);
-        Mockito.when(targetsConflictEntityService.getEntitiesInfo(Mockito.any()))
-                .thenReturn(ImmutableList.of(
-                        buildEntityInfo(moveTargetEntityId),
-                        buildEntityInfo(moveSourceEntityId),
-                        buildEntityInfo(moveDestinationEntityId)));
-    }
-
-    @Nonnull
-    private EntityInfo buildEntityInfo(long id) {
-        return EntityInfo.newBuilder().setEntityId(id)
-                .putAllTargetIdToProbeId(targetToProbeMap).build();
     }
 
     @Test
     public void testMove() throws Exception {
+        when(entityServiceMole.getEntitiesInfo(any()))
+            .thenReturn(Stream.of(1, 2, 3).map(id ->
+                EntityInfo.newBuilder()
+                    .setEntityId(id)
+                    .putTargetIdToProbeId(targetId, probeId)
+                    .build()).collect(Collectors.toList()));
+        when(actionTargetResolver.resolveExecutantTarget(any(), eq(ImmutableSet.of(targetId))))
+                .thenReturn(targetId);
+
         final ActionDTO.Action action = buildMoveAction(1, 2, 3);
 
         Assert.assertEquals(targetId, actionExecutor.getTargetId(action));
@@ -125,7 +90,7 @@ public class ActionExecutorTest {
 
         // However, the backend should have been called, and we can capture
         // and examine the arguments.
-        Mockito.verify(actionExecutionBackend).executeAction(actionSpecCaptor.capture(), Mockito.any());
+        Mockito.verify(actionExecutionBackend).executeAction(actionSpecCaptor.capture(), any());
         final ExecuteActionRequest sentSpec = actionSpecCaptor.getValue();
         Assert.assertTrue(sentSpec.hasActionInfo());
         Assert.assertEquals(ActionTypeCase.MOVE, sentSpec.getActionInfo().getActionTypeCase());
@@ -152,11 +117,23 @@ public class ActionExecutorTest {
      */
     @Test
     public void testGetTargetForActionWithConflict() throws TargetResolutionException {
-        final ActionDTO.Action action = buildMoveAction(moveTargetEntityId, moveSourceEntityId,
-                moveDestinationEntityId);
+        when(entityServiceMole.getEntitiesInfo(any()))
+            .thenReturn(Stream.of(1, 2, 3)
+                .map(id ->
+                    EntityInfo.newBuilder()
+                            .setEntityId(id)
+                            .putTargetIdToProbeId(targetId, probeId)
+                            .putTargetIdToProbeId(targetId + 1, probeId)
+                            .build())
+                .collect(Collectors.toList()));
+        when(actionTargetResolver.resolveExecutantTarget(any(),
+                eq(ImmutableSet.of(targetId, targetId + 1))))
+            .thenReturn(targetId);
+        final ActionDTO.Action action = buildMoveAction(1, 2,
+                3);
 
-        actionExecutor = new ActionExecutor(targetConflictServer.getChannel(), actionTargetResolver);
-        Assert.assertEquals(resolvedTargetId, actionExecutor.getTargetId(action));
+        actionExecutor = new ActionExecutor(server.getChannel(), actionTargetResolver);
+        Assert.assertEquals(targetId, actionExecutor.getTargetId(action));
     }
 
     @Nonnull
@@ -181,6 +158,10 @@ public class ActionExecutorTest {
                 .build();
         mapArg.put(1L, info1);
         mapArg.put(2L, info2);
+
+        when(actionTargetResolver.resolveExecutantTarget(any(),
+                eq(ImmutableSet.of(targetId))))
+                .thenReturn(targetId);
 
         Assert.assertEquals(Long.valueOf(targetId),
                 actionExecutor.getEntitiesTarget(buildMoveAction(1, 2, 3), mapArg));

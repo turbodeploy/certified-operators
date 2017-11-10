@@ -7,6 +7,7 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.isA;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -77,12 +78,12 @@ public class AutomatedActionExecutorTest {
 
     @Before
     public void setup() throws Exception {
-        Mockito.when(actionStore.getActions()).thenReturn(actionMap);
+        when(actionStore.getActions()).thenReturn(actionMap);
         Mockito.doReturn(entityMap).when(actionExecutor).getEntityInfo(entitySet);
         Mockito.doCallRealMethod()
                 .when(actionExecutor).getEntitiesTarget(any(ActionDTO.Action.class), eq(entityMap));
         Mockito.doNothing().when(actionExecutor).executeSynchronously(anyLong(), any(ActionDTO.Action.class));
-        Mockito.when(actionStore.allowsExecution()).thenReturn(true);
+        when(actionStore.allowsExecution()).thenReturn(true);
     }
 
     @After
@@ -92,7 +93,7 @@ public class AutomatedActionExecutorTest {
 
     @Test
     public void testOnlyExecuteIfAllowed() {
-        Mockito.when(actionStore.allowsExecution()).thenReturn(false);
+        when(actionStore.allowsExecution()).thenReturn(false);
 
         automatedActionExecutor.executeAutomatedFromStore(actionStore);
 
@@ -115,7 +116,7 @@ public class AutomatedActionExecutorTest {
         final Action nonAutoAction = Mockito.mock(Action.class);
 
         actionMap.put(99L, nonAutoAction);
-        Mockito.when(nonAutoAction.getMode()).thenReturn(ActionMode.MANUAL);
+        when(nonAutoAction.getMode()).thenReturn(ActionMode.MANUAL);
 
         automatedActionExecutor.executeAutomatedFromStore(actionStore);
 
@@ -195,7 +196,7 @@ public class AutomatedActionExecutorTest {
         translation.setTranslationFailure();
 
         setUpMocks(failedTranslationAction, 99L, rec);
-        Mockito.when(failedTranslationAction.getActionTranslation()).thenReturn(translation);
+        when(failedTranslationAction.getActionTranslation()).thenReturn(translation);
 
         automatedActionExecutor.executeAutomatedFromStore(actionStore);
         executorService.shutdown();
@@ -232,8 +233,10 @@ public class AutomatedActionExecutorTest {
         final ActionTranslation translation = new ActionTranslation(rec);
         translation.setPassthroughTranslationSuccess();
         setUpMocks(failedExecuteAction, 99L, rec);
-        Mockito.when(failedExecuteAction.getActionTranslation()).thenReturn(translation);
+        when(failedExecuteAction.getActionTranslation()).thenReturn(translation);
 
+        when(resolver.resolveExecutantTarget(any(), any()))
+            .thenReturn(targetId1);
         Mockito.doThrow(new ExecutionStartException("EPIC FAIL!!!"))
                 .when(actionExecutor).executeSynchronously(targetId1, rec);
         automatedActionExecutor.executeAutomatedFromStore(actionStore);
@@ -274,7 +277,10 @@ public class AutomatedActionExecutorTest {
         final ActionTranslation translation = new ActionTranslation(rec);
         translation.setPassthroughTranslationSuccess();
         setUpMocks(goodAction, 1L, rec);
-        Mockito.when(goodAction.getActionTranslation()).thenReturn(translation);
+        when(goodAction.getActionTranslation()).thenReturn(translation);
+
+        when(resolver.resolveExecutantTarget(any(), any()))
+            .thenReturn(targetId1);
 
         automatedActionExecutor.executeAutomatedFromStore(actionStore);
 
@@ -301,7 +307,7 @@ public class AutomatedActionExecutorTest {
 
         final Action nonAutoAction = Mockito.mock(Action.class);
         actionMap.put(99L, nonAutoAction);
-        Mockito.when(nonAutoAction.getMode()).thenReturn(ActionMode.MANUAL);
+        when(nonAutoAction.getMode()).thenReturn(ActionMode.MANUAL);
 
         final Action unsupportedAction = Mockito.mock(Action.class);
         final long unsupportedId = 98;
@@ -322,7 +328,7 @@ public class AutomatedActionExecutorTest {
         final ActionTranslation badTrans = new ActionTranslation(noTransRec);
         badTrans.setTranslationFailure();
         setUpMocks(failedTranslationAction, noTransId, noTransRec);
-        Mockito.when(failedTranslationAction.getActionTranslation()).thenReturn(badTrans);
+        when(failedTranslationAction.getActionTranslation()).thenReturn(badTrans);
 
         final Action failedExecuteAction = Mockito.mock(Action.class);
         final long execFailId = 95;
@@ -331,7 +337,7 @@ public class AutomatedActionExecutorTest {
         final ActionTranslation execFailTrans = new ActionTranslation(execFailRec);
         execFailTrans.setPassthroughTranslationSuccess();
         setUpMocks(failedExecuteAction, execFailId, execFailRec);
-        Mockito.when(failedExecuteAction.getActionTranslation()).thenReturn(execFailTrans);
+        when(failedExecuteAction.getActionTranslation()).thenReturn(execFailTrans);
         Mockito.doThrow(new ExecutionStartException("EPIC FAIL!!!!"))
                 .when(actionExecutor).executeSynchronously(targetId2, execFailRec);
 
@@ -342,7 +348,7 @@ public class AutomatedActionExecutorTest {
         final ActionTranslation goodTrans = new ActionTranslation(goodRec);
         goodTrans.setPassthroughTranslationSuccess();
         setUpMocks(goodAction, goodId, goodRec);
-        Mockito.when(goodAction.getActionTranslation()).thenReturn(goodTrans);
+        when(goodAction.getActionTranslation()).thenReturn(goodTrans);
 
         entitySet.addAll(Arrays.asList(entityId1, entityId2, entityId3, entityId4, 555L, 666L));
         entityMap.put(entityId1, entityInfo1);
@@ -351,6 +357,11 @@ public class AutomatedActionExecutorTest {
         entityMap.put(entityId4, entityInfo4);
         entityMap.put(555L, makeEntityInfo(555L, targetId2));
         entityMap.put(666L, makeEntityInfo(666L, targetId2));
+
+        when(resolver.resolveExecutantTarget(eq(goodRec), any()))
+            .thenReturn(targetId1);
+        when(resolver.resolveExecutantTarget(eq(execFailRec), any()))
+                .thenReturn(targetId2);
 
         automatedActionExecutor.executeAutomatedFromStore(actionStore);
 
@@ -434,9 +445,9 @@ public class AutomatedActionExecutorTest {
 
     private void setUpMocks(Action action, long id, ActionDTO.Action rec) {
         actionMap.put(id, action);
-        Mockito.when(action.getMode()).thenReturn(ActionMode.AUTOMATIC);
-        Mockito.when(action.getId()).thenReturn(id);
-        Mockito.when(action.getRecommendation()).thenReturn(rec);
+        when(action.getMode()).thenReturn(ActionMode.AUTOMATIC);
+        when(action.getId()).thenReturn(id);
+        when(action.getRecommendation()).thenReturn(rec);
     }
 
 }
