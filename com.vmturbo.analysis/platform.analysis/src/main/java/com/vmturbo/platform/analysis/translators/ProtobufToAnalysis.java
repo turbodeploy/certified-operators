@@ -77,6 +77,9 @@ public final class ProtobufToAnalysis {
                     input.getStep().getPriceBelow(), input.getStep().getPriceAbove());
             case STEP_FOR_CLOUD:
                 return PriceFunction.Cache.createStepPriceFunctionForCloud();
+            case NONINFINITE_STANDARD_WEIGHTED:
+                return PriceFunction.Cache.createNonInfiniteStandardWeightedPriceFunction(
+                                input.getStandardWeighted().getWeight());
             case PRICEFUNCTIONTYPE_NOT_SET:
             default:
                 throw new IllegalArgumentException("input = " + input);

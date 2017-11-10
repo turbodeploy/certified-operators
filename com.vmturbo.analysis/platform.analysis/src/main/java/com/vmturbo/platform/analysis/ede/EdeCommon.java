@@ -114,10 +114,6 @@ public final class EdeCommon {
         final double utilUpperBound = commSold.getSettings().getUtilizationUpperBound();
         final double excessQuantity = peakQuantities[boughtIndex] - boughtQnty;
 
-        if (newQuantity > effectiveCapacity || newPeakQuantity > effectiveCapacity) {
-            return costCurrentMinMax;
-        }
-
         // calculate the price per unit for quantity and peak quantity
         final PriceFunction pf = commSold.getSettings().getPriceFunction();
         final double priceUsed = pf.unitPrice(newQuantity/effectiveCapacity, seller, commSold, economy);

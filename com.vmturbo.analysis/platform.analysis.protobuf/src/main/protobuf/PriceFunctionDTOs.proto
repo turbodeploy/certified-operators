@@ -33,6 +33,11 @@ message PriceFunctionTO {
         optional float price_above = 3 [default = 1.0];
     }
 
+    // Same as standard price function but returns non-infinite value (1e22) for utilization > 1.
+    message NonInfiniteStandardWeighted {
+        optional float weight = 1 [default = 1.0]; // The 'w' in the above formula.
+    }
+
     message StepForCloud {
     }
 
@@ -47,5 +52,6 @@ message PriceFunctionTO {
         Step step = 3;
         StepForCloud step_for_cloud = 4;
         Inverse inverse = 5;
+        NonInfiniteStandardWeighted nonInfinite_standard_weighted = 6;
     }
 }

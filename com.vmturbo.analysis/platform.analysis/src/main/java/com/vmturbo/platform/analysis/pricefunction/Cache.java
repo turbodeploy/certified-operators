@@ -31,20 +31,39 @@ class Cache {
 
     // Methods
 
+    /*
+     * The standard price function used by most commodities in the first incarnation of the market.
+     * The formula is P(u) = min(w / (1-u)^2, MAX_UNIT_PRICE) for us < 1, and Double.POSITIVE_INFINITY for u > 1.
+     */
     public static synchronized PriceFunction createStandardWeightedPriceFunction(double weight) {
         String key = "SWPF-" + weight;
-        // The reason it is implemented this way is that in the ternary expression,
-        // the last argument is not evaluated when the condition is true. So if the map
-        // contains the key, we will not unnecessarily create a new instance of
-        // UnaryOperator.
         PriceFunction pf = pfMap.get(key);
         if (pf == null) {
-            pf = (u, seller, commSold, e) ->  u > 1 ? Double.POSITIVE_INFINITY : Math.min(weight / ((1.0f - u) * (1.0f - u)), MAX_UNIT_PRICE);
+            pf = (u, seller, commSold, e) ->
+                u > 1 ? Double.POSITIVE_INFINITY : Math.min(weight / ((1.0f - u) * (1.0f - u)), MAX_UNIT_PRICE);
             pfMap.put(key, pf);
         }
         return pf;
     }
 
+    /*
+    * Same as standard price function but returns non-infinite value MAX_UNIT_PRICE for utilization > 1.
+    */
+   public static synchronized PriceFunction createNonInfiniteStandardWeightedPriceFunction(double weight) {
+       String key = "NISWPF-" + weight;
+       PriceFunction pf = pfMap.get(key);
+       if (pf == null) {
+           pf = (u, seller, commSold, e) ->
+               u > 1 ? MAX_UNIT_PRICE : Math.min(weight / ((1.0f - u) * (1.0f - u)), MAX_UNIT_PRICE);
+           pfMap.put(key, pf);
+       }
+       return pf;
+   }
+
+   /*
+    * A constant function. The formula is P(u) = parameter if u <= 1
+    * and Double.POSITIVE_INFINITY for u > 1.
+    */
     public static PriceFunction createConstantPriceFunction(double constant) {
         String key = "CPF-" + constant;
         PriceFunction pf = pfMap.get(key);
@@ -55,11 +74,17 @@ class Cache {
         return pf;
     }
 
+    /*
+     * A step function.
+     * The formula is P(u) = if u < stepAt then priceBelow else priceAbove, if u <= 1
+     * and Double.POSITIVE_INFINITY for u > 1.
+     */
     public static PriceFunction createStepPriceFunction(double stepAt, double priceBelow, double priceAbove) {
         String key = String.format("SPF-%.10f,%.10f,%.10f", stepAt, priceBelow, priceAbove);
         PriceFunction pf = pfMap.get(key);
         if (pf == null) {
-            pf = (u, seller, commSold, e) ->  u > 1 ? Double.POSITIVE_INFINITY : u < stepAt ? priceBelow : priceAbove;
+            pf = (u, seller, commSold, e) ->
+                u > 1 ? Double.POSITIVE_INFINITY : u < stepAt ? priceBelow : priceAbove;
             pfMap.put(key, pf);
         }
         return pf;
