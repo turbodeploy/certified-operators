@@ -6,9 +6,13 @@ import java.util.ConcurrentModificationException;
 import java.util.List;
 import java.util.Objects;
 import java.util.Properties;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -176,6 +180,47 @@ public class KafkaSenderReceiverIT {
         sender.sendMessage(hugeMessage);
         kafkaConsumer.start();
         awaitEquals(Collections.singletonList(hugeMessage), received, 30);
+    }
+
+    /**
+     * Tests sending messages during the only broker restart. It is expected, that all the
+     * messages are successfully processed.
+     *
+     * @throws Exception if errors occur.
+     */
+    @Test
+    public void testBrokerRestart() throws Exception {
+        final List<DynamicMessage> sentMessages =
+                Stream.of("The Ministry has fallen", "Scrimgeour is dead", "They're coming")
+                        .map(KafkaSenderReceiverIT::createMessage)
+                        .collect(Collectors.toList());
+        final String topic = "patronus-message";
+        final IMessageReceiver<DynamicMessage> receiver = kafkaConsumer.messageReceiver(topic,
+                msg -> DynamicMessage.parseFrom(messageDescriptor, msg));
+        final IMessageSender<DynamicMessage> sender = kafkaProducer.messageSender(topic);
+        sender.sendMessage(sentMessages.get(0));
+        final List<DynamicMessage> receivedMessage = new ArrayList<>();
+        final CountDownLatch commitLatch = new CountDownLatch(1);
+        final CountDownLatch receivedLatch = new CountDownLatch(2);
+        receiver.addListener((msg, commitCmd) -> {
+            receivedLatch.countDown();
+            try {
+                commitLatch.await();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+            commitCmd.run();
+            receivedMessage.add(msg);
+        });
+        kafkaConsumer.start();
+        receivedLatch.await(30, TimeUnit.SECONDS);
+        kafkaServer.stopKafka();
+        kafkaServer.startKafka();
+        for (int i = 1; i < sentMessages.size(); i++) {
+            sender.sendMessage(sentMessages.get(i));
+        }
+        commitLatch.countDown();
+        awaitEquals(sentMessages, receivedMessage, 120);
     }
 
     /**

@@ -18,7 +18,6 @@ import org.apache.zookeeper.server.quorum.QuorumPeerConfig;
 import org.junit.rules.ExternalResource;
 
 import com.google.common.io.Files;
-
 import kafka.server.KafkaConfig;
 import kafka.server.KafkaServerStartable;
 
@@ -53,12 +52,13 @@ public class KafkaServer extends ExternalResource {
     protected void before() throws IOException {
         threadPool = Executors.newCachedThreadPool();
         tmpDir = Files.createTempDir();
-        this.kafka = startKafka();
+        kafka = configueKafka();
+        startKafka();
     }
 
     @Override
     protected void after() {
-        kafka.shutdown();
+        stopKafka();
         threadPool.shutdownNow();
         try {
             FileUtils.forceDelete(tmpDir);
@@ -83,7 +83,7 @@ public class KafkaServer extends ExternalResource {
     }
 
     @Nonnull
-    private KafkaServerStartable startKafka() throws IOException {
+    private KafkaServerStartable configueKafka() throws IOException {
         logger.info("starting local zookeeper...");
         final int zooPort = startZookeeper();
         logger.info("done");
@@ -99,10 +99,18 @@ public class KafkaServer extends ExternalResource {
         this.bootstrapServers = "localhost:" + kafkaPort;
         final KafkaConfig kafkaConfig = new KafkaConfig(kafkaProperties);
         final KafkaServerStartable kafka = new KafkaServerStartable(kafkaConfig);
+        return kafka;
+    }
+
+    public void startKafka() throws IOException {
         logger.info("starting local kafka broker...");
         kafka.startup();
         logger.info("done");
-        return kafka;
+    }
+
+    public void stopKafka() {
+        kafka.shutdown();
+        kafka.awaitShutdown();
     }
 
     private int startZookeeper() throws IOException {

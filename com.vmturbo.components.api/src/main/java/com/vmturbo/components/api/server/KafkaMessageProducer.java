@@ -17,13 +17,21 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.protobuf.AbstractMessage;
-
 import io.prometheus.client.Counter;
 import io.prometheus.client.Gauge;
 
 import com.vmturbo.communication.CommunicationException;
 
 public class KafkaMessageProducer implements AutoCloseable {
+
+    /**
+     * Interval between retrials to send the message.
+     */
+    private static final long RETRY_INTERVAL_MS = 1000;
+    /**
+     * Number of retries to perform on failures.
+     */
+    private static final int MAX_RETRIES = 30;
     // OM-25600: Adding metrics to help understand producer and consumer behavior and configuration
     // needs as a result.
     static private Counter MESSAGES_SENT_COUNT = Counter.build()
@@ -56,7 +64,8 @@ public class KafkaMessageProducer implements AutoCloseable {
         final Properties props = new Properties();
         props.put("bootstrap.servers", bootstrapServer);
         props.put("acks", "all");
-        props.put("retries", 0);
+        props.put("retries", MAX_RETRIES);
+        props.put("retry.backoff.ms", RETRY_INTERVAL_MS);
         props.put("batch.size", 16384);
         props.put("linger.ms", 1);
         // pjs: set a max request size based on standard max protobuf serializabe size for now

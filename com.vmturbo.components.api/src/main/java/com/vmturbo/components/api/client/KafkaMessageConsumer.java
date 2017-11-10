@@ -17,7 +17,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.StampedLock;
 import java.util.function.BiConsumer;
 
 import javax.annotation.Nonnull;
@@ -36,7 +35,6 @@ import org.apache.logging.log4j.Logger;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.InvalidProtocolBufferException;
-
 import io.prometheus.client.Counter;
 import io.prometheus.client.Histogram;
 
