@@ -4,6 +4,7 @@ import static com.vmturbo.topology.processor.template.TemplateConverterTestUtil.
 import static com.vmturbo.topology.processor.template.TemplateConverterTestUtil.getCommoditySoldValue;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
@@ -18,6 +19,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class PhysicalMachineEntityConstructorTest {
+    private double epsilon = 1e-5;
+
     private final static TemplateInfo PM_TEMPLATE_INFO = TemplateInfo.newBuilder()
         .setName("test-PM-template")
         .setTemplateSpecId(2)
@@ -69,21 +72,21 @@ public class PhysicalMachineEntityConstructorTest {
         assertEquals(4, topologyEntityDTO.getCommoditySoldListCount());
         assertEquals(1, topologyEntityDTO.getCommoditiesBoughtFromProvidersCount());
         assertEquals(200.0, getCommoditySoldValue(topologyEntityDTO.getCommoditySoldListList(),
-            CommodityType.CPU_VALUE), 0.00000001);
+            CommodityType.CPU_VALUE), epsilon);
         assertEquals(100.0, getCommoditySoldValue(topologyEntityDTO.getCommoditySoldListList(),
-            CommodityType.MEM_VALUE), 0.00000001);
+            CommodityType.MEM_VALUE), epsilon);
         assertEquals(30.0, getCommoditySoldValue(topologyEntityDTO.getCommoditySoldListList(),
-            CommodityType.IO_THROUGHPUT_VALUE), 0.00000001);
+            CommodityType.IO_THROUGHPUT_VALUE), epsilon);
         assertEquals(40.0, getCommoditySoldValue(topologyEntityDTO.getCommoditySoldListList(),
-            CommodityType.NET_THROUGHPUT_VALUE), 0.00000001);
+            CommodityType.NET_THROUGHPUT_VALUE), epsilon);
 
         assertEquals(200.0, getCommodityBoughtValue(topologyEntityDTO.getCommoditiesBoughtFromProvidersList(),
-            CommodityType.POWER_VALUE), 0.00000001);
+            CommodityType.POWER_VALUE), epsilon);
         assertEquals(300.0, getCommodityBoughtValue(topologyEntityDTO.getCommoditiesBoughtFromProvidersList(),
-            CommodityType.COOLING_VALUE), 0.00000001);
+            CommodityType.COOLING_VALUE), epsilon);
         assertEquals(400.0, getCommodityBoughtValue(topologyEntityDTO.getCommoditiesBoughtFromProvidersList(),
-            CommodityType.SPACE_VALUE), 0.00000001);
-
-        assertFalse(topologyEntityDTO.getConsumerPolicy().getShopsTogether());
+            CommodityType.SPACE_VALUE), epsilon);
+        assertTrue(topologyEntityDTO.getCommoditiesBoughtFromProviders(0).getMovable());
+        assertFalse(topologyEntityDTO.getAnalysisSettings().getShopTogether());
     }
 }

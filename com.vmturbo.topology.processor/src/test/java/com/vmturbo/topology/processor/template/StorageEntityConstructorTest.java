@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.template;
 import static com.vmturbo.topology.processor.template.TemplateConverterTestUtil.getCommodityBoughtValue;
 import static com.vmturbo.topology.processor.template.TemplateConverterTestUtil.getCommoditySoldValue;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
@@ -17,6 +18,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class StorageEntityConstructorTest {
+    private double epsilon = 1e-5;
+
     private final static TemplateInfo ST_TEMPLATE_INFO = TemplateInfo.newBuilder()
         .setName("test-st-template")
         .setTemplateSpecId(3)
@@ -44,13 +47,15 @@ public class StorageEntityConstructorTest {
             .setOid(1);
         final TopologyEntityDTO topologyEntityDTO =
             new StorageEntityConstructor().createTopologyEntityFromTemplate(ST_TEMPLATE, builder);
+
         assertEquals(2, topologyEntityDTO.getCommoditySoldListCount());
         assertEquals(1, topologyEntityDTO.getCommoditiesBoughtFromProvidersCount());
         assertEquals(200.0, getCommoditySoldValue(topologyEntityDTO.getCommoditySoldListList(),
-            CommodityType.STORAGE_AMOUNT_VALUE), 0.00000001);
+            CommodityType.STORAGE_AMOUNT_VALUE), epsilon);
         assertEquals(100.0, getCommoditySoldValue(topologyEntityDTO.getCommoditySoldListList(),
-            CommodityType.STORAGE_ACCESS_VALUE), 0.00000001);
+            CommodityType.STORAGE_ACCESS_VALUE), epsilon);
         assertEquals(1.0, getCommodityBoughtValue(topologyEntityDTO.getCommoditiesBoughtFromProvidersList(),
-            CommodityType.EXTENT_VALUE), 0.00000001);
+            CommodityType.EXTENT_VALUE), epsilon);
+        assertTrue(topologyEntityDTO.getCommoditiesBoughtFromProviders(0).getMovable());
     }
 }

@@ -34,6 +34,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.analysis.InvalidTopologyException;
@@ -537,4 +538,57 @@ public class TopologyConverterTest {
                         .isEmpty());
     }
 
+    /**
+     * If the fields in Analysis setting have been set, they will be directly used in trader settings.
+     *
+     * @throws InvalidTopologyException
+     */
+    @Test
+    public void testTraderSetting() throws InvalidTopologyException {
+        final TopologyEntityDTO entityDTO = TopologyEntityDTO.newBuilder()
+            .setEntityType(1)
+            .setOid(123)
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setMovable(false)
+                .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                    .setCommodityType(CommodityType.newBuilder()
+                        .setType(CommodityDTO.CommodityType.CPU_VALUE))))
+            .setAnalysisSettings(AnalysisSettings.newBuilder()
+                .setIsAvailableAsProvider(false)
+                .setShopTogether(false)
+                .setCloneable(false)
+                .setSuspendable(false)
+                .setMinDesiredUtilization(0.1f)
+                .setMaxDesiredUtilization(0.9f))
+            .build();
+        TraderTO trader = convert(Sets.newHashSet(entityDTO), TopologyType.REALTIME).iterator().next();
+        assertFalse(trader.getShoppingLists(0).getMovable());
+        assertFalse(trader.getSettings().getCanAcceptNewCustomers());
+        assertFalse(trader.getSettings().getIsShopTogether());
+        assertFalse(trader.getSettings().getClonable());
+        assertFalse(trader.getSettings().getSuspendable());
+        assertEquals(0.1f, trader.getSettings().getMinDesiredUtilization(), epsilon);
+        assertEquals(0.9f, trader.getSettings().getMaxDesiredUtilization(), epsilon);
+
+        final TopologyEntityDTO oppositeEntityDTO = TopologyEntityDTO.newBuilder()
+            .setEntityType(1)
+            .setOid(123)
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setMovable(true)
+                .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                    .setCommodityType(CommodityType.newBuilder()
+                        .setType(CommodityDTO.CommodityType.CPU_VALUE))))
+            .setAnalysisSettings(AnalysisSettings.newBuilder()
+                .setIsAvailableAsProvider(true)
+                .setShopTogether(true)
+                .setCloneable(true)
+                .setSuspendable(true))
+            .build();
+        TraderTO traderTwo = convert(Sets.newHashSet(oppositeEntityDTO), TopologyType.REALTIME).iterator().next();
+        assertTrue(traderTwo.getShoppingLists(0).getMovable());
+        assertTrue(traderTwo.getSettings().getCanAcceptNewCustomers());
+        assertTrue(traderTwo.getSettings().getIsShopTogether());
+        assertTrue(traderTwo.getSettings().getClonable());
+        assertTrue(traderTwo.getSettings().getSuspendable());
+    }
 }

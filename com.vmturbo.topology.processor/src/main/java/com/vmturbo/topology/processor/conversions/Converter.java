@@ -155,7 +155,7 @@ public class Converter {
         final String displayName = dto.getDisplayName();
         final TopologyDTO.EntityState entityState = entityState(dto.getPowerState());
         final boolean availableAsProvider = dto.getProviderPolicy().getAvailableForPlacement();
-        final boolean isShopTogether = dto.getConsumerPolicy().getShopsTogether();
+        final boolean isShopTogether =  dto.getConsumerPolicy().getShopsTogether();
 
         List<TopologyDTO.CommoditySoldDTO> soldList = Lists.newArrayList();
         dto.getCommoditiesSoldList()
@@ -218,7 +218,7 @@ public class Converter {
                 dto.getVirtualDatacenterData(),
                 dto.getVirtualMachineData(),
                 dto.getVirtualMachineRelatedData()
-                )
+        )
         .stream().forEach(
                 data -> data.getAllFields().forEach(
                         // TODO: Lists, such as VirtualDatacenterData.VmUuidList are also converted to String
@@ -266,21 +266,17 @@ public class Converter {
                 .ifPresent(providerType -> commodityBoughtGroupingBuilder.setProviderEntityType(providerType));
             commodityBoughtGroups.add(commodityBoughtGroupingBuilder.build());
         });
-        TopologyDTO.TopologyEntityDTO.ProviderPolicy providerPolicy =
-            TopologyDTO.TopologyEntityDTO.ProviderPolicy.newBuilder()
+        TopologyDTO.TopologyEntityDTO.AnalysisSettings analysisSetting =
+            TopologyDTO.TopologyEntityDTO.AnalysisSettings.newBuilder()
+                .setShopTogether(isShopTogether)
                 .setIsAvailableAsProvider(availableAsProvider)
-                .build();
-        TopologyDTO.TopologyEntityDTO.ConsumerPolicy consumerPolicy =
-            TopologyDTO.TopologyEntityDTO.ConsumerPolicy.newBuilder()
-                .setShopsTogether(isShopTogether)
-                .build();
+            .build();
         return TopologyDTO.TopologyEntityDTO.newBuilder()
             .setEntityType(entityType)
             .setOid(oid)
             .setDisplayName(displayName)
             .setEntityState(entityState)
-            .setProviderPolicy(providerPolicy)
-            .setConsumerPolicy(consumerPolicy)
+            .setAnalysisSettings(analysisSetting)
             .putAllEntityPropertyMap(entityPropertyMap)
             .addAllCommoditySoldList(soldList)
             .addAllCommoditiesBoughtFromProviders(commodityBoughtGroups);

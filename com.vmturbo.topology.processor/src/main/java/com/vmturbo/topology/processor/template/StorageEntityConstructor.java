@@ -10,12 +10,9 @@ import java.util.Map;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
-import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateResource;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -69,6 +66,7 @@ public class StorageEntityConstructor implements TopologyEntityConstructor {
         topologyEntityBuilder.addCommoditiesBoughtFromProviders(
             CommoditiesBoughtFromProvider.newBuilder()
                 .addCommodityBought(extentCommodityBought)
+                .setMovable(true)
                 .build());
     }
 

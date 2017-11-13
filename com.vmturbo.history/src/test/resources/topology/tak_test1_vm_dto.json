@@ -245,7 +245,7 @@
       "shopTogether": "true",
       "LocalName": "vm-72"
     },
-    "providerPolicy": {
+    "analysisSettings": {
       "isAvailableAsProvider": true
     }
   }

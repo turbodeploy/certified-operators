@@ -122,8 +122,8 @@ public class ConverterTest {
         }
         // In case someone changes the test file
         assertEquals("A Value", vdcPropertiesMap.get("A Key"));
-        assertFalse(vdcTopologyDTO.getProviderPolicy().getIsAvailableAsProvider());
-        assertTrue(vdcTopologyDTO.getConsumerPolicy().getShopsTogether());
+        assertFalse(vdcTopologyDTO.getAnalysisSettings().getIsAvailableAsProvider());
+        assertTrue(vdcTopologyDTO.getAnalysisSettings().getShopTogether());
     }
 
     @Test

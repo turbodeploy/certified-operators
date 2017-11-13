@@ -16,10 +16,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConsumerPolicy;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ProviderPolicy;
-import com.vmturbo.platform.common.dto.CommonDTO;
-import com.vmturbo.platform.common.dto.CommonDTOREST.CommodityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 
 /**
  * A helper class used for create TopologyEntity from Templates.
@@ -57,12 +54,9 @@ public class TemplatesConverterUtils {
         final TopologyEntityDTO.Builder topologyEntityBuilder = TopologyEntityDTO.newBuilder()
             .setEntityType(templateInfo.getEntityType())
             .setEntityState(EntityState.POWERED_ON)
-            .setProviderPolicy(ProviderPolicy.newBuilder()
+            .setAnalysisSettings(AnalysisSettings.newBuilder()
                 .setIsAvailableAsProvider(true)
-                .build())
-            .setConsumerPolicy(ConsumerPolicy.newBuilder()
-                .setShopsTogether(false)
-                .build());
+                .setShopTogether(false));
         return topologyEntityBuilder;
     }
 

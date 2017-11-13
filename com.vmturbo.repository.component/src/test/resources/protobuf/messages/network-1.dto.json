@@ -3,7 +3,7 @@
   "oid": 72067798599441,
   "displayName": "Host Network [HP-DL592]",
   "entityState": "POWERED_ON",
-  "providerPolicy": {
+  "analysisSettings": {
     "isAvailableAsProvider": true
   }
 }

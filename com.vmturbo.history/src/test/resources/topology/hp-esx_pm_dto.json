@@ -445,7 +445,7 @@
     "LocalName": "host-35",
     "common_dto.EntityDTO.PhysicalMachineData.pmState": "maintenance: false\n"
   },
-  "providerPolicy": {
+  "analysisSettings": {
     "isAvailableAsProvider": true
   }
 }

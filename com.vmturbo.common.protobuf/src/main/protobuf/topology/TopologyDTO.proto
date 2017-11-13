@@ -45,6 +45,11 @@ message TopologyEntityDTO {
 
         // a list of commodities bought from this provider
         repeated CommodityBoughtDTO commodity_bought = 3;
+
+        // Whether the group of commodities bought can be moved from one provider to another provider.
+        // If unset, the movable value for an entity will be calculated based on its entityType from
+        // the list of movable types in AnalysisUtil.
+        optional bool movable = 4;
     }
 
     // entity state
@@ -53,21 +58,31 @@ message TopologyEntityDTO {
     // entity properties in free (string <-> string) form, used for probe-defined values.
     map<string, string> entityPropertyMap = 7;
 
-    // entity's policies, when acting as a provider
-    optional ProviderPolicy providerPolicy = 8;
+    // Contains all settings for market analysis purpose.
+    optional AnalysisSettings analysis_settings = 8;
 
-    message ProviderPolicy {
-        // if the entity could be a potential provider for new consumer
-        optional bool isAvailableAsProvider = 1 [default = true];
-    }
+    message AnalysisSettings {
+        // Whether the entity could be a potential provider for consumers.
+        optional bool is_available_as_provider = 1 [default = true];
 
-    // specified properties required for the behavior of the entity as a consumer.
-    optional ConsumerPolicy consumerPolicy = 9;
+        // ShopsTogether is set by the Probe and will be passed to Market.
+        optional bool shop_together = 2 [default = false];
 
-    message ConsumerPolicy {
-        // shopsTogether comes from Probe discovery and will be passed to Market. If shopsTogether
-        // is true, it allows Market to decide whether move related entities to different Biclique.
-        optional bool shopsTogether = 1 [default = false];
+        // Whether the Market can clone this entity.
+        // If unset, the clonable value for an entity will be calculated based on its entityType from
+        // the list of ENABLE_PROVISION in EntitySettings.
+        optional bool cloneable = 3;
+
+        // Whether the Market can suspend this entity.
+        // If unset, the suspendable value for an entity will be calculated based on its entityType from
+        // the list of ENABLE_SUSPEND types in EntitySettings.
+        optional bool suspendable = 4;
+
+        // Minimum desired utilization for this entity. This is the lower bound of the desired state.
+        optional float min_desired_utilization = 5 [default = 0.0];
+
+        // Maximum desired utilization for this entity. This is the upper bound of the disired state.
+        optional float max_desired_utilization = 6 [default = 1.0];
     }
 }
 

@@ -62,6 +62,7 @@ import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ReconfigureTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ResizeTO;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults.NewShoppingListToBuyerEntry;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO;
 import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO;
@@ -379,15 +380,16 @@ public class TopologyConverter {
                             ? TopologyDTO.EntityState.POWERED_ON
                             : TopologyDTO.EntityState.SUSPENDED;
         }
-
-        TopologyDTO.TopologyEntityDTO.ProviderPolicy providerPolicy =
-            TopologyDTO.TopologyEntityDTO.ProviderPolicy.newBuilder()
-                .setIsAvailableAsProvider(traderTO.getSettings().getCanAcceptNewCustomers())
-                .build();
-        TopologyDTO.TopologyEntityDTO.ConsumerPolicy consumerPolicy =
-            TopologyDTO.TopologyEntityDTO.ConsumerPolicy.newBuilder()
-                .setShopsTogether(traderTO.getSettings().getIsShopTogether())
-                .build();
+        final TraderSettingsTO traderSetting = traderTO.getSettings();
+        TopologyDTO.TopologyEntityDTO.AnalysisSettings analysisSetting =
+            TopologyDTO.TopologyEntityDTO.AnalysisSettings.newBuilder()
+                .setIsAvailableAsProvider(traderSetting.getCanAcceptNewCustomers())
+                .setShopTogether(traderSetting.getIsShopTogether())
+                .setCloneable(traderSetting.getClonable())
+                .setSuspendable(traderSetting.getSuspendable())
+                .setMinDesiredUtilization(traderSetting.getMinDesiredUtilization())
+                .setMaxDesiredUtilization(traderSetting.getMaxDesiredUtilization())
+            .build();
 
         TopologyDTO.TopologyEntityDTO.Builder entityDTO =
                 TopologyDTO.TopologyEntityDTO.newBuilder()
@@ -397,8 +399,7 @@ public class TopologyConverter {
                     .setDisplayName(displayName)
                     .addAllCommoditySoldList(retrieveCommSoldList(traderTO))
                     .addAllCommoditiesBoughtFromProviders(topoDTOCommonBoughtGrouping)
-                    .setProviderPolicy(providerPolicy)
-                    .setConsumerPolicy(consumerPolicy);
+                    .setAnalysisSettings(analysisSetting);
         if (originalTrader == null) {
             // this is a clone trader
             originalTrader = traderOidToEntityDTO.get(traderTO.getCloneOf());
@@ -493,7 +494,7 @@ public class TopologyConverter {
     private EconomyDTOs.TraderTO topologyDTOtoTraderTO(
             @Nonnull final TopologyDTO.TopologyEntityDTO topologyDTO)
                             throws InvalidTopologyException {
-        final boolean shopTogether = topologyDTO.getConsumerPolicy().getShopsTogether();
+        final boolean shopTogether = topologyDTO.getAnalysisSettings().getShopTogether();
         final EconomyDTOs.TraderStateTO state = traderState(topologyDTO);
         final boolean active = EconomyDTOs.TraderStateTO.ACTIVE.equals(state);
         final boolean bottomOfSupplyChain = topologyDTO.getCommoditiesBoughtFromProvidersList().isEmpty();
@@ -516,16 +517,28 @@ public class TopologyConverter {
         if (topOfSupplyChain) { // Workaround for OM-25254. Should be set by mediation.
             suspendable = false;
         }
+        // If topologyEntity set clonable value, we should directly use it.
+        clonable = topologyDTO.getAnalysisSettings().hasCloneable()
+            ? topologyDTO.getAnalysisSettings().getCloneable()
+            : clonable;
+        // If topologyEntity set suspendable value, we should directly use it.
+        suspendable = topologyDTO.getAnalysisSettings().hasSuspendable()
+            ? topologyDTO.getAnalysisSettings().getSuspendable()
+            : suspendable;
         final boolean isGuranteedBuyer = guaranteedBuyer(topologyDTO);
         final EconomyDTOs.TraderSettingsTO settings = EconomyDTOs.TraderSettingsTO.newBuilder()
             .setClonable(clonable)
             .setSuspendable(suspendable)
             .setMinDesiredUtilization(
-                EntitySettings.NumericKey.DESIRED_UTILIZATION_MIN.value(topologyDTO))
+                topologyDTO.getAnalysisSettings().hasMinDesiredUtilization()
+                    ? topologyDTO.getAnalysisSettings().getMinDesiredUtilization()
+                    : EntitySettings.NumericKey.DESIRED_UTILIZATION_MIN.value(topologyDTO))
             .setMaxDesiredUtilization(
-                EntitySettings.NumericKey.DESIRED_UTILIZATION_MAX.value(topologyDTO))
+                topologyDTO.getAnalysisSettings().hasMaxDesiredUtilization()
+                    ? topologyDTO.getAnalysisSettings().getMaxDesiredUtilization()
+                    : EntitySettings.NumericKey.DESIRED_UTILIZATION_MAX.value(topologyDTO))
             .setGuaranteedBuyer(isGuranteedBuyer)
-            .setCanAcceptNewCustomers(topologyDTO.getProviderPolicy().getIsAvailableAsProvider())
+            .setCanAcceptNewCustomers(topologyDTO.getAnalysisSettings().getIsAvailableAsProvider())
             .setIsShopTogether(shopTogether)
             .setIsEligibleForResizeDown(isPlan)
             .build();
@@ -616,9 +629,9 @@ public class TopologyConverter {
             .map(commBoughtGrouping -> createShoppingList(
                     topologyEntity.getOid(),
                     topologyEntity.getEntityType(),
-                    topologyEntity.getConsumerPolicy().getShopsTogether(),
+                    topologyEntity.getAnalysisSettings().getShopTogether(),
                     getProviderId(commBoughtGrouping),
-                    commBoughtGrouping.getCommodityBoughtList(),
+                    commBoughtGrouping,
                     providers))
             .collect(Collectors.toList());
     }
@@ -654,17 +667,17 @@ public class TopologyConverter {
      * @param entityType the entity type of the buyer
      * @param shopTogether whether the entity supports the shop-together feature
      * @param providerOid the oid of the seller of the shopping list
-     * @param commoditiesBought the commodities bought by the buyer from the provider
+     * @param commBoughtGrouping the commodities bought group by the buyer from the provider
      * @param providers a map that captures the previous placement for unplaced plan entities
      * @return a shopping list between the buyer and seller
      */
     @Nonnull
     private EconomyDTOs.ShoppingListTO createShoppingList(
             final long buyerOid,
-            final long entityType,
+            final int entityType,
             final boolean shopTogether,
             @Nullable final Long providerOid,
-            @Nonnull final List<TopologyDTO.CommodityBoughtDTO> commoditiesBought,
+            @Nonnull final CommoditiesBoughtFromProvider commBoughtGrouping,
             final Map<Long, Long> providers) {
         TopologyDTO.TopologyEntityDTO provider = (providerOid != null) ? entityOidToDto.get(providerOid) : null;
         float moveCost = !isPlan && (entityType == EntityType.VIRTUAL_MACHINE_VALUE
@@ -672,24 +685,27 @@ public class TopologyConverter {
                 && provider.getEntityType() == EntityType.STORAGE_VALUE)
                         ? (float)(totalStorageAmountBought(buyerOid) / Units.KIBI)
                         : 0.0f;
-        Set<EconomyDTOs.CommodityBoughtTO> values = commoditiesBought
+        Set<EconomyDTOs.CommodityBoughtTO> values = commBoughtGrouping.getCommodityBoughtList()
             .stream()
             .filter(topoCommBought -> topoCommBought.getActive())
             .map(topoCommBought -> convertCommodityBought(topoCommBought, providerOid, shopTogether, providers))
             .filter(comm -> comm != null) // Null for DSPMAccess/Datastore and shop-together
             .collect(Collectors.toSet());
         final long id = shoppingListId++;
+        final boolean isMovable = commBoughtGrouping.hasMovable()
+            ? commBoughtGrouping.getMovable()
+            : AnalysisUtil.MOVABLE_TYPES.contains(entityType);
         final EconomyDTOs.ShoppingListTO.Builder economyShoppingListBuilder = EconomyDTOs.ShoppingListTO
                 .newBuilder()
                 .addAllCommoditiesBought(values)
                 .setOid(id)
                 .setStorageMoveCost(moveCost)
-                .setMovable(AnalysisUtil.MOVABLE_TYPES.contains((int)entityType));
+                .setMovable(isMovable);
         if (providerOid != null) {
             economyShoppingListBuilder.setSupplier(providerOid);
         }
         shoppingListOidToInfos.put(id,
-            new ShoppingListInfo(id, buyerOid, providerOid, commoditiesBought));
+            new ShoppingListInfo(id, buyerOid, providerOid, commBoughtGrouping.getCommodityBoughtList()));
         return economyShoppingListBuilder.build();
     }
 
@@ -809,7 +825,7 @@ public class TopologyConverter {
                             throws InvalidTopologyException {
         // DSPMAccess and Datastore commodities are always dropped (shop-together or not)
         List<String> exceptions = Lists.newArrayList();
-        final boolean shopTogether = topologyDTO.getConsumerPolicy().getShopsTogether();
+        final boolean shopTogether = topologyDTO.getAnalysisSettings().getShopTogether();
         List<EconomyDTOs.CommoditySoldTO> list = topologyDTO.getCommoditySoldListList().stream()
             .filter(commSold -> commSold.getActive())
             .filter(commSold -> !isBicliqueCommodity(commSold.getCommodityType()))
