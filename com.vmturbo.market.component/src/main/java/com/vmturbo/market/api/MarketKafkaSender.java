@@ -4,7 +4,7 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.components.api.server.KafkaMessageProducer;
 import com.vmturbo.market.MarketNotificationSender;
-import com.vmturbo.market.component.api.impl.MarketComponentClient;
+import com.vmturbo.market.component.api.impl.MarketComponentNotificationReceiver;
 import com.vmturbo.priceindex.api.PriceIndexNotificationSender;
 import com.vmturbo.priceindex.api.impl.PriceIndexNotificationReceiver;
 
@@ -24,8 +24,9 @@ public class MarketKafkaSender {
     public static MarketNotificationSender createMarketSender(
             @Nonnull KafkaMessageProducer kafkaMessageProducer) {
         return new MarketNotificationSender(kafkaMessageProducer.messageSender(
-                MarketComponentClient.PROJECTED_TOPOLOGIES_TOPIC),
-                kafkaMessageProducer.messageSender(MarketComponentClient.ACTION_PLANS_TOPIC));
+                MarketComponentNotificationReceiver.PROJECTED_TOPOLOGIES_TOPIC),
+                kafkaMessageProducer.messageSender(
+                        MarketComponentNotificationReceiver.ACTION_PLANS_TOPIC));
     }
 
     /**

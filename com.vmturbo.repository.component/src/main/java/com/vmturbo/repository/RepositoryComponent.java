@@ -404,7 +404,8 @@ public class RepositoryComponent extends BaseVmtComponent {
 
     @Bean
     public MarketComponent marketComponent() {
-        final MarketComponent market = marketClientConfig.marketComponent();
+        final MarketComponent market = marketClientConfig.marketComponent(
+                EnumSet.of(MarketClientConfig.Subscription.ProjectedTopologies));
         market.addProjectedTopologyListener(marketTopologyListener());
         return market;
     }

@@ -10,6 +10,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
@@ -22,35 +23,55 @@ import com.vmturbo.components.api.client.ApiClientException;
 import com.vmturbo.components.api.client.ComponentNotificationReceiver;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.market.component.api.ActionsListener;
+import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.ProjectedTopologyListener;
 
 /**
  * The notification receiver connecting to the Market Component.
  */
 public class MarketComponentNotificationReceiver extends
-        ComponentNotificationReceiver<ActionPlan> {
+        ComponentNotificationReceiver<ActionPlan> implements MarketComponent{
 
-    private final Set<ActionsListener> actionsListenersSet =
-            Collections.newSetFromMap(new ConcurrentHashMap<>());
+    /**
+     * Projected topologies topic.
+     */
+    public static final String PROJECTED_TOPOLOGIES_TOPIC = "projected-topologies";
+    /**
+     * Action plans topic.
+     */
+    public static final String ACTION_PLANS_TOPIC = "action-plans";
 
-    private final Set<ProjectedTopologyListener> projectedTopologyListenersSet =
-                    Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private final Set<ActionsListener> actionsListenersSet;
+
+    private final Set<ProjectedTopologyListener> projectedTopologyListenersSet;
     private final ChunkingReceiver<TopologyEntityDTO> topologyChunkReceiver;
 
     public MarketComponentNotificationReceiver(
-            @Nonnull final IMessageReceiver<ProjectedTopology> projectedTopologyReceiver,
-            @Nonnull final IMessageReceiver<ActionPlan> actionPlanReceiver,
+            @Nullable final IMessageReceiver<ProjectedTopology> projectedTopologyReceiver,
+            @Nullable final IMessageReceiver<ActionPlan> actionPlanReceiver,
             @Nonnull final ExecutorService executorService) {
         super(actionPlanReceiver, executorService);
+        if (projectedTopologyReceiver != null) {
+            projectedTopologyListenersSet = Collections.newSetFromMap(new ConcurrentHashMap<>());
+            projectedTopologyReceiver.addListener(this::processProjectedTopology);
+        } else {
+            projectedTopologyListenersSet = Collections.emptySet();
+        }
+        if (actionPlanReceiver != null) {
+            actionsListenersSet = Collections.newSetFromMap(new ConcurrentHashMap<>());
+        } else {
+            actionsListenersSet = Collections.emptySet();
+        }
         topologyChunkReceiver = new ChunkingReceiver<>(executorService);
-        projectedTopologyReceiver.addListener(this::processProjectedTopology);
     }
 
-    void addActionsListener(@Nonnull final ActionsListener listener) {
+    @Override
+    public void addActionsListener(@Nonnull final ActionsListener listener) {
         actionsListenersSet.add(Objects.requireNonNull(listener));
     }
 
-    void addProjectedTopologyListener(@Nonnull final ProjectedTopologyListener listener) {
+    @Override
+    public void addProjectedTopologyListener(@Nonnull final ProjectedTopologyListener listener) {
         projectedTopologyListenersSet.add(Objects.requireNonNull(listener));
     }
 

@@ -27,7 +27,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.components.api.test.IntegrationTestServer;
 import com.vmturbo.market.MarketNotificationSender;
 import com.vmturbo.market.component.api.ActionsListener;
-import com.vmturbo.market.component.api.impl.MarketComponentClient;
+import com.vmturbo.market.component.api.impl.MarketComponentNotificationReceiver;
 
 /**
  * Integration test for Market API client and server.
@@ -44,7 +44,7 @@ public class MarketApiIntegrationTest {
 
     private MarketNotificationSender notificationSender;
 
-    protected MarketComponentClient market;
+    protected MarketComponentNotificationReceiver market;
 
     @Rule
     public TestName testName = new TestName();
@@ -64,9 +64,9 @@ public class MarketApiIntegrationTest {
         threadPool = Executors.newCachedThreadPool(threadFactory);
 
         integrationTestServer = new IntegrationTestServer(testName, TestApiServerConfig.class);
-        market = MarketComponentClient.rpcAndNotification(integrationTestServer.connectionConfig(),
-                threadPool, integrationTestServer.getBean("projectedTopologySender"),
-                integrationTestServer.getBean("actionPlanSender"));
+        market = new MarketComponentNotificationReceiver(
+                integrationTestServer.getBean("projectedTopologySender"),
+                integrationTestServer.getBean("actionPlanSender"), threadPool);
 
         notificationSender = integrationTestServer.getBean(MarketNotificationSender.class);
 

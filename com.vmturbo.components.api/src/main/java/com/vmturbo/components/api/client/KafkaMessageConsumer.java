@@ -22,6 +22,13 @@ import java.util.function.BiConsumer;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import com.google.protobuf.CodedInputStream;
+import com.google.protobuf.InvalidProtocolBufferException;
+
+import io.prometheus.client.Counter;
+import io.prometheus.client.Histogram;
+
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -31,12 +38,6 @@ import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-import com.google.protobuf.CodedInputStream;
-import com.google.protobuf.InvalidProtocolBufferException;
-import io.prometheus.client.Counter;
-import io.prometheus.client.Histogram;
 
 /**
  * Kafka message consumer is a class to receive all the messages from Kafka. Received messages

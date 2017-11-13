@@ -1,5 +1,7 @@
 package com.vmturbo.action.orchestrator.market;
 
+import java.util.EnumSet;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -10,6 +12,7 @@ import com.vmturbo.action.orchestrator.execution.ActionExecutionConfig;
 import com.vmturbo.action.orchestrator.store.ActionStoreConfig;
 import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.impl.MarketClientConfig;
+import com.vmturbo.market.component.api.impl.MarketClientConfig.Subscription;
 
 /**
  * Configuration for integration with the {@link MarketComponent}.
@@ -44,7 +47,8 @@ public class MarketConfig {
 
     @Bean
     public MarketComponent marketComponent() {
-        final MarketComponent market = marketClientConfig.marketComponent();
+        final MarketComponent market =
+                marketClientConfig.marketComponent(EnumSet.of(Subscription.ActionPlans));
         market.addActionsListener(marketActionListener());
         return market;
     }

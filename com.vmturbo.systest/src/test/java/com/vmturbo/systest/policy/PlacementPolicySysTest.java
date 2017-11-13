@@ -105,7 +105,7 @@ import com.vmturbo.components.test.utilities.component.ComponentUtils;
 import com.vmturbo.market.component.api.ActionsListener;
 import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.ProjectedTopologyListener;
-import com.vmturbo.market.component.api.impl.MarketComponentClient;
+import com.vmturbo.market.component.api.impl.MarketComponentNotificationReceiver;
 import com.vmturbo.mediation.delegatingprobe.DelegatingProbeAccount;
 import com.vmturbo.platform.common.builders.EntityBuilders;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -159,7 +159,7 @@ public class PlacementPolicySysTest {
     @Autowired
     private DiscoveryDriverController discoveryDriverController;
     @Autowired
-    private KafkaMessageConsumer kakfaMessageConsumer;
+    private KafkaMessageConsumer kafkaMessageConsumer;
 
     @LocalServerPort
     int port;
@@ -247,21 +247,23 @@ public class PlacementPolicySysTest {
 
         topologyService = TopologyServiceGrpc.newBlockingStub(
             componentTestRule.getCluster().newGrpcChannel("topology-processor"));
-        tpTopologyReceiver = kakfaMessageConsumer.messageReceiver(
+        tpTopologyReceiver = kafkaMessageConsumer.messageReceiver(
                 TopologyProcessorClient.TOPOLOGY_LIVE, Topology::parseFrom);
         tpMessageReceiver =
-                kakfaMessageConsumer.messageReceiver(TopologyProcessorClient.NOTIFICATIONS_TOPIC,
+                kafkaMessageConsumer.messageReceiver(TopologyProcessorClient.NOTIFICATIONS_TOPIC,
                         TopologyProcessorNotification::parseFrom);
         ;
         topologyProcessor = TopologyProcessorClient.rpcAndNotification(
             componentTestRule.getCluster().getConnectionConfig("topology-processor"),
             threadPool, tpMessageReceiver, tpTopologyReceiver, null);
 
-        projectedTopologyReceiver = null;
-        actionsReceiver = null;
-        marketComponent = MarketComponentClient.rpcAndNotification(
-            componentTestRule.getCluster().getConnectionConfig("market"),
-            threadPool, projectedTopologyReceiver, actionsReceiver);
+        projectedTopologyReceiver = kafkaMessageConsumer.messageReceiver(
+                MarketComponentNotificationReceiver.PROJECTED_TOPOLOGIES_TOPIC,
+                ProjectedTopology::parseFrom);
+        actionsReceiver = kafkaMessageConsumer.messageReceiver(
+                MarketComponentNotificationReceiver.ACTION_PLANS_TOPIC, ActionPlan::parseFrom);
+        marketComponent = new MarketComponentNotificationReceiver(
+                projectedTopologyReceiver, actionsReceiver, threadPool);
     }
 
     @After

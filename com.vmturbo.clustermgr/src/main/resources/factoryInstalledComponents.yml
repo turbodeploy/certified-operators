@@ -60,7 +60,6 @@ topology-processor:
   planOrchestratorHost: 'plan-orchestrator'
 
 repository:
-  marketHost: 'market'
   topologyProcessorHost: 'topology-processor'
   actionOrchestratorHost: 'action-orchestrator'
   grpcPingIntervalSeconds: 300
@@ -198,7 +197,6 @@ history:
   readonlyPassword: vmturbo
   queryTimeoutSeconds: 120
   migrationTimeoutSeconds: 600
-  marketHost: market
   numRetainedMinutes: 120
   numRetainedHours: 72
   numRetainedDays: 60

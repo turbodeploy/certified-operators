@@ -1,5 +1,6 @@
 package com.vmturbo.history.market;
 
+import java.util.EnumSet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
@@ -19,6 +20,7 @@ import com.vmturbo.history.stats.StatsConfig;
 import com.vmturbo.history.topology.TopologyListenerConfig;
 import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.impl.MarketClientConfig;
+import com.vmturbo.market.component.api.impl.MarketClientConfig.Subscription;
 import com.vmturbo.priceindex.api.impl.PriceIndexClientConfig;
 import com.vmturbo.priceindex.api.impl.PriceIndexNotificationReceiver;
 
@@ -78,7 +80,8 @@ public class MarketListenerConfig {
      */
     @Bean
     public MarketComponent marketComponent() {
-        final MarketComponent market = marketClientConfig.marketComponent();
+        final MarketComponent market =
+                marketClientConfig.marketComponent(EnumSet.of(Subscription.ProjectedTopologies));
         market.addProjectedTopologyListener(marketListener());
         return market;
     }

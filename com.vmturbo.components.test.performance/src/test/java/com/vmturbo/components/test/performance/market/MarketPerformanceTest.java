@@ -22,7 +22,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
-import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.client.KafkaMessageConsumer;
@@ -34,7 +33,7 @@ import com.vmturbo.components.test.utilities.component.DockerEnvironment;
 import com.vmturbo.components.test.utilities.utils.TopologyUtils;
 import com.vmturbo.market.component.api.ActionsListener;
 import com.vmturbo.market.component.api.MarketComponent;
-import com.vmturbo.market.component.api.impl.MarketComponentClient;
+import com.vmturbo.market.component.api.impl.MarketComponentNotificationReceiver;
 import com.vmturbo.topology.processor.api.server.TopologyBroadcast;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorKafkaSender;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
@@ -67,15 +66,17 @@ public class MarketPerformanceTest {
 
     @Before
     public void setup() {
-        final ComponentApiConnectionConfig connectionConfig =
-                componentTestRule.getCluster().getConnectionConfig("market");
         kafkaMessageConsumer =
                 new KafkaMessageConsumer(DockerEnvironment.getKafkaBootstrapServers(),
                         "market-perf-test");
-        actionsReceiver = kafkaMessageConsumer.messageReceiver(MarketComponentClient.ACTION_PLANS_TOPIC,ActionPlan::parseFrom);
-        projectedTopologyReceiver = kafkaMessageConsumer.messageReceiver(MarketComponentClient.PROJECTED_TOPOLOGIES_TOPIC,ProjectedTopology::parseFrom);
-        marketComponent = MarketComponentClient.rpcAndNotification(connectionConfig, threadPool,
-                projectedTopologyReceiver, actionsReceiver);
+        actionsReceiver = kafkaMessageConsumer.messageReceiver(
+                MarketComponentNotificationReceiver.ACTION_PLANS_TOPIC, ActionPlan::parseFrom);
+        projectedTopologyReceiver = kafkaMessageConsumer.messageReceiver(
+                MarketComponentNotificationReceiver.PROJECTED_TOPOLOGIES_TOPIC,
+                ProjectedTopology::parseFrom);
+        marketComponent =
+                new MarketComponentNotificationReceiver(projectedTopologyReceiver, actionsReceiver,
+                        threadPool);
         kafkaMessageConsumer.start();
     }
 
