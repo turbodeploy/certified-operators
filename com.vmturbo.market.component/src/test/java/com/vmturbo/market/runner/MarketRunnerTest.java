@@ -27,7 +27,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
-import com.vmturbo.market.component.api.MarketNotificationSender;
+import com.vmturbo.market.MarketNotificationSender;
 import com.vmturbo.market.runner.Analysis.AnalysisState;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
 import com.vmturbo.priceindex.api.PriceIndexNotificationSender;

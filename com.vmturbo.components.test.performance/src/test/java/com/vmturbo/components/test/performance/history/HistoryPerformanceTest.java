@@ -22,15 +22,14 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistorySer
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
-import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.server.KafkaMessageProducer;
 import com.vmturbo.components.test.utilities.component.ComponentUtils;
 import com.vmturbo.components.test.utilities.utils.TopologyUtils;
 import com.vmturbo.history.component.api.HistoryComponent;
 import com.vmturbo.history.component.api.HistoryComponentNotifications.HistoryComponentNotification;
+import com.vmturbo.market.MarketNotificationSender;
 import com.vmturbo.market.api.MarketKafkaSender;
-import com.vmturbo.market.component.api.MarketNotificationSender;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessagePayload;
 import com.vmturbo.priceindex.api.PriceIndexNotificationSender;

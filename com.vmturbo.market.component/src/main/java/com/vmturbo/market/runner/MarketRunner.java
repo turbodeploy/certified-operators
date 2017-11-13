@@ -14,8 +14,8 @@ import com.google.common.collect.Maps;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.market.component.api.MarketNotificationSender;
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.market.MarketNotificationSender;
 import com.vmturbo.market.runner.Analysis.AnalysisState;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
 import com.vmturbo.priceindex.api.PriceIndexNotificationSender;

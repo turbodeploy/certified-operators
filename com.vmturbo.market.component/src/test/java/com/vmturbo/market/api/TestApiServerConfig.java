@@ -9,7 +9,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
 import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.components.api.test.SenderReceiverPair;
-import com.vmturbo.market.component.api.MarketNotificationSender;
+import com.vmturbo.market.MarketNotificationSender;
 
 /**
  * API server-side Spring configuration.
