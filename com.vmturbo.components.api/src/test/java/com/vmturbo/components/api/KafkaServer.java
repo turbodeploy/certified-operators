@@ -52,7 +52,7 @@ public class KafkaServer extends ExternalResource {
     protected void before() throws IOException {
         threadPool = Executors.newCachedThreadPool();
         tmpDir = Files.createTempDir();
-        kafka = configueKafka();
+        kafka = configureKafka();
         startKafka();
     }
 
@@ -83,7 +83,7 @@ public class KafkaServer extends ExternalResource {
     }
 
     @Nonnull
-    private KafkaServerStartable configueKafka() throws IOException {
+    private KafkaServerStartable configureKafka() throws IOException {
         logger.info("starting local zookeeper...");
         final int zooPort = startZookeeper();
         logger.info("done");
