@@ -26,7 +26,9 @@ import com.vmturbo.repository.graph.parameter.GraphCmd;
  */
 public class ResultsConverter {
 
-    private static final String PHYSICAL_MACHINE = "PhysicalMachine";
+
+    private ResultsConverter() {
+    }
 
     /**
      * Convert {@link SupplyChainExecutorResult} returned the {@link GraphDBExecutor} to
@@ -115,8 +117,8 @@ public class ResultsConverter {
      *
      * @param supplyChainNodeBuilders The different entity types in the supply chain.
      * @param relationships The provider or consumer relations between those entity types.
+     * @param inverseRelationships The inverse of relationships.
      * @param direction Either PROVIDER or CONSUMER.
-     * @return The entries inside the supply chain.
      */
     public static void fillNodeRelationships(
             @Nonnull final Map<String, SupplyChainNode.Builder> supplyChainNodeBuilders,
@@ -126,38 +128,41 @@ public class ResultsConverter {
         final LinkedList<String> queue = new LinkedList<>();
         final Set<String> processed = new HashSet<>();
 
-        // The result needs to be scoped to PHYSICAL_MACHINE, that is how Legacy works.
-        queue.push(PHYSICAL_MACHINE);
-        while (!queue.isEmpty()) {
-            final String currentType = queue.pop();
+        for (String rel : relationships.keys()) {
 
-            if (processed.contains(currentType)) {
-                continue;
-            }
+            queue.push(rel);
+            while (!queue.isEmpty()) {
+                final String currentType = queue.pop();
 
-            final Collection<String> rels = relationships.get(currentType);
-            final Optional<SupplyChainNode.Builder> supplyChainNodeBuilder =
-                Optional.ofNullable(supplyChainNodeBuilders.get(currentType));
-
-            supplyChainNodeBuilder.ifPresent(nodeBuilder -> {
-                if (direction == GraphCmd.SupplyChainDirection.PROVIDER) {
-                    nodeBuilder.addAllConnectedProviderTypes(rels);
-                } else if (direction == GraphCmd.SupplyChainDirection.CONSUMER) {
-                    nodeBuilder.addAllConnectedConsumerTypes(rels);
+                if (processed.contains(currentType)) {
+                    continue;
                 }
-            });
 
-            processed.add(currentType);
+                final Collection<String> rels = relationships.get(currentType);
+                final Optional<SupplyChainNode.Builder> supplyChainNodeBuilder =
+                    Optional.ofNullable(supplyChainNodeBuilders.get(currentType));
 
-            queue.addAll(rels);
+                supplyChainNodeBuilder.ifPresent(nodeBuilder -> {
+                    if (direction == GraphCmd.SupplyChainDirection.PROVIDER) {
+                        nodeBuilder.addAllConnectedProviderTypes(rels);
+                    } else if (direction == GraphCmd.SupplyChainDirection.CONSUMER) {
+                        nodeBuilder.addAllConnectedConsumerTypes(rels);
+                    }
+                });
 
-            // Check and create sublinks
-            // Current UI does not perform this step.
-            if (!currentType.equals(PHYSICAL_MACHINE)) {
-                final List<String> inverseRels = inverseRelationships.get(currentType).stream()
-                        .filter(r -> !processed.contains(r)).collect(Collectors.toList());
-                queue.addAll(inverseRels);
+                processed.add(currentType);
+
+                queue.addAll(rels);
+
+                // Check and create sublinks
+                // Current UI does not perform this step.
+                if (!currentType.equals(rel)) {
+                    final List<String> inverseRels = inverseRelationships.get(currentType).stream()
+                            .filter(r -> !processed.contains(r)).collect(Collectors.toList());
+                    queue.addAll(inverseRels);
+                }
             }
+            queue.clear();
         }
     }
 }
