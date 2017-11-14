@@ -20,7 +20,6 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.ImmutableList;
 
-import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.AccountValue;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
@@ -28,6 +27,7 @@ import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.topology.TopologyHandler;
+import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.TopologyPipelineException;
 
 /**
  * The consul-backed target store uses consul purely as a
@@ -194,7 +194,7 @@ public class KVBackedTargetStore implements TargetStore {
             throws TargetNotFoundException {
         final Target oldTarget = removeTarget(targetId);
         try {
-            topologyHandler.broadcastLatestTopology(this);
+            topologyHandler.broadcastLatestTopology();
             scheduler.resetBroadcastSchedule();
         } catch (InterruptedException e) {
           // Although this broadcast is interrupted, it could be recovered on next scheduled
@@ -202,7 +202,7 @@ public class KVBackedTargetStore implements TargetStore {
           // not throw back to the client.
           Thread.currentThread().interrupt(); // set interrupt flag
           logger.error("Interruption during broadcast of latest topology.");
-        } catch (CommunicationException e) {
+        } catch (TopologyPipelineException e) {
             logger.error("Could not send topology broadcast after removing target " + targetId, e);
         }
         return oldTarget;

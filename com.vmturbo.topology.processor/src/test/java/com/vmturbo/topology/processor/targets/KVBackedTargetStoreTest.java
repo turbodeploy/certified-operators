@@ -3,7 +3,6 @@ package com.vmturbo.topology.processor.targets;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.verify;
 
 import java.io.IOException;
@@ -518,7 +517,7 @@ public class KVBackedTargetStoreTest {
         targetStore.removeTargetAndBroadcastTopology(target.getId(), topologyHandler, scheduler);
         Assert.assertEquals(0, targetStore.getAll().size());
         Mockito.verify(targetListener).onTargetRemoved(target);
-        verify(topologyHandler).broadcastLatestTopology(eq(targetStore));
+        verify(topologyHandler).broadcastLatestTopology();
         verify(scheduler).resetBroadcastSchedule();
     }
 

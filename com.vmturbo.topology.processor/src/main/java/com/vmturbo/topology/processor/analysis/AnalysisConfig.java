@@ -40,13 +40,11 @@ public class AnalysisConfig {
     private PlanConfig planConfig;
 
     @Bean
-    public AnalysisService analysisService() {
-        return new AnalysisService(topologyConfig.topologyHandler(),
-                entityConfig.entityStore(),
+    public AnalysisRpcService analysisService() {
+        return new AnalysisRpcService(topologyConfig.topologyPipelineFactory(),
                 identityProviderConfig.identityProvider(),
-                repositoryConfig.repository(),
-                Clock.systemUTC(),
-                templateConverterFactory());
+                entityConfig.entityStore(),
+                Clock.systemUTC());
     }
 
     @Bean
@@ -54,9 +52,4 @@ public class AnalysisConfig {
         return new AnalysisServiceController(analysisService());
     }
 
-    @Bean
-    public TemplateConverterFactory templateConverterFactory() {
-        return new TemplateConverterFactory(planConfig.templateServiceBlockingStub(),
-            identityProviderConfig.identityProvider());
-    }
 }

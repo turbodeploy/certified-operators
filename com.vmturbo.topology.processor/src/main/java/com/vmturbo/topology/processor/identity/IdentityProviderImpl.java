@@ -23,6 +23,7 @@ import com.google.gson.JsonSyntaxException;
 import com.google.gson.reflect.TypeToken;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.kvstore.KeyValueStore;
@@ -230,7 +231,7 @@ public class IdentityProviderImpl implements IdentityProvider {
     }
 
     @Override
-    public long getCloneId(@Nonnull final TopologyEntityDTO inputEntity) {
+    public long getCloneId(@Nonnull final TopologyEntityDTOOrBuilder inputEntity) {
         return IdentityGenerator.next();
     }
 

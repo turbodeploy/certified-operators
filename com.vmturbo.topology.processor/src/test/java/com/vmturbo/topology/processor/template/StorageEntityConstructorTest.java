@@ -45,7 +45,7 @@ public class StorageEntityConstructorTest {
         final TopologyEntityDTO.Builder builder = TopologyEntityDTO.newBuilder()
             .setEntityType(EntityType.STORAGE_VALUE)
             .setOid(1);
-        final TopologyEntityDTO topologyEntityDTO =
+        final TopologyEntityDTO.Builder topologyEntityDTO =
             new StorageEntityConstructor().createTopologyEntityFromTemplate(ST_TEMPLATE, builder);
 
         assertEquals(2, topologyEntityDTO.getCommoditySoldListCount());

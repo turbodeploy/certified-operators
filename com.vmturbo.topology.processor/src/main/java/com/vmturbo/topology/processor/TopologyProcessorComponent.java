@@ -40,6 +40,7 @@ import com.vmturbo.topology.processor.rpc.TopologyProcessorRpcConfig;
 import com.vmturbo.topology.processor.scheduling.SchedulerConfig;
 import com.vmturbo.topology.processor.targets.TargetConfig;
 import com.vmturbo.topology.processor.plan.PlanConfig;
+import com.vmturbo.topology.processor.template.TemplateConfig;
 import com.vmturbo.topology.processor.topology.TopologyConfig;
 
 /**
@@ -68,6 +69,7 @@ import com.vmturbo.topology.processor.topology.TopologyConfig;
     TopologyProcessorRpcConfig.class,
     SchedulerConfig.class,
     TargetConfig.class,
+    TemplateConfig.class,
     PlanConfig.class,
     GlobalConfig.class,
     KVConfig.class,

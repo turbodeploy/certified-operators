@@ -1,5 +1,7 @@
 package com.vmturbo.topology.processor.topology;
 
+import static com.vmturbo.topology.processor.group.filter.FilterUtils.topologyEntity;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -20,8 +22,6 @@ import org.junit.Test;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.topology.TopologyGraph.Vertex;
-
-import static com.vmturbo.topology.processor.group.filter.FilterUtils.topologyEntity;
 
 public class TopologyGraphIT {
 

@@ -34,7 +34,7 @@ public class PhysicalMachineEntityConstructor implements TopologyEntityConstruct
      * @return {@link TopologyEntityDTO}
      */
     @Override
-    public TopologyEntityDTO createTopologyEntityFromTemplate(
+    public TopologyEntityDTO.Builder createTopologyEntityFromTemplate(
         @Nonnull final Template template,
         @Nonnull final TopologyEntityDTO.Builder topologyEntityBuilder) {
         final List<TemplateResource> computeTemplateResources =
@@ -45,7 +45,7 @@ public class PhysicalMachineEntityConstructor implements TopologyEntityConstruct
             TemplatesConverterUtils.getTemplateResources(template, Infrastructure);
         addInfraCommodities(topologyEntityBuilder, storageTemplateResources);
 
-        return topologyEntityBuilder.build();
+        return topologyEntityBuilder;
     }
 
     /**

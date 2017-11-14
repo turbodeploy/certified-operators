@@ -49,15 +49,13 @@ public class TopologyGraph {
     public TopologyGraph(@Nonnull final Map<Long, TopologyEntityDTO.Builder> topologyMap) {
         graph = new HashMap<>();
 
-        topologyMap.entrySet()
-            .forEach(mapEntry -> {
-                final TopologyEntityDTO.Builder topologyEntityDTO = mapEntry.getValue();
-                if (mapEntry.getKey() != topologyEntityDTO.getOid()) {
-                    throw new IllegalArgumentException("Map key " + mapEntry.getValue() +
-                        " does not match OID value: " + topologyEntityDTO.getOid());
-                }
-                addVertex(topologyEntityDTO, topologyMap);
-            });
+        topologyMap.forEach((oid, entity) -> {
+            if (oid != entity.getOid()) {
+                throw new IllegalArgumentException("Map key " + entity +
+                        " does not match OID value: " + entity.getOid());
+            }
+            addVertex(entity, topologyMap);
+        });
     }
 
     /**
@@ -177,23 +175,34 @@ public class TopologyGraph {
         final Vertex vertex = getOrCreateVertex(topologyEntityDTO);
 
         for (Long producerOid : getCommodityBoughtProviderIds(topologyEntityDTO)) {
-            final Vertex producer = getOrCreateVertex(topologyMap.get(producerOid));
+            final TopologyEntityDTO.Builder producerEntity = topologyMap.get(producerOid);
+            // The producer might be null if the entity has unplaced commodities (e.g. for clones)
+            if (producerEntity != null) {
+                final Vertex producerVertex = getOrCreateVertex(topologyMap.get(producerOid));
 
-            // Note that producers and consumers are lists, but we do not perform an explicit check
-            // that the edge does not already exist. That is because such a check is unnecessary on
-            // properly formed input. The producers are pulled from a set, so they must be unique,
-            // and because the vertices themselves must be unique by OID (keys in constructor map are unique
-            // plus check that key==OID in the constructor ensures this as long as OIDs are unique),
-            // we are guaranteed that:
-            //
-            // 1. the producer cannot already be in the vertex's list of producers
-            // 2. the vertex cannot already be in the producer's list of consumers
-            //
-            // Having an explicit check for this invariant given the current implementation would
-            // be both expensive and redundant. However, keep this requirement in mind if making changes
-            // to the implementation.
-            vertex.producers.add(producer);
-            producer.consumers.add(vertex);
+                // Note that producers and consumers are lists, but we do not perform an explicit check
+                // that the edge does not already exist. That is because such a check is unnecessary on
+                // properly formed input. The producers are pulled from a set, so they must be unique,
+                // and because the vertices themselves must be unique by OID (keys in constructor map are unique
+                // plus check that key==OID in the constructor ensures this as long as OIDs are unique),
+                // we are guaranteed that:
+                //
+                // 1. the producer cannot already be in the vertex's list of producers
+                // 2. the vertex cannot already be in the producer's list of consumers
+                //
+                // Having an explicit check for this invariant given the current implementation would
+                // be both expensive and redundant. However, keep this requirement in mind if making changes
+                // to the implementation.
+                vertex.producers.add(producerVertex);
+                producerVertex.consumers.add(vertex);
+            } else if (producerOid >= 0) {
+                // Clones have negative OIDs for their unplaced commodities.
+                // If the OID is non-negative (and, thus, a valid ID), this means
+                // the input topology is inconsistent.
+                throw new IllegalArgumentException("Illegal topology! Entity " +
+                    topologyEntityDTO.getOid() + " (name " + topologyEntityDTO.getDisplayName() +
+                    ") is consuming a commodity from non-existing provider " + producerOid);
+            }
         }
     }
 

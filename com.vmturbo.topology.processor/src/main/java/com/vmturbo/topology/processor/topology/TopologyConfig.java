@@ -14,8 +14,11 @@ import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.group.GroupConfig;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
 import com.vmturbo.topology.processor.plan.PlanConfig;
+import com.vmturbo.topology.processor.repository.RepositoryConfig;
 import com.vmturbo.topology.processor.stitching.StitchingConfig;
 import com.vmturbo.topology.processor.targets.TargetConfig;
+import com.vmturbo.topology.processor.template.TemplateConfig;
+import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineFactory;
 
 /**
  * Configuration for the Topology package in TopologyProcessor.
@@ -28,7 +31,8 @@ import com.vmturbo.topology.processor.targets.TargetConfig;
     GroupConfig.class,
     StitchingConfig.class,
     PlanConfig.class,
-    TargetConfig.class
+    RepositoryConfig.class,
+    TemplateConfig.class
 })
 public class TopologyConfig {
 
@@ -48,10 +52,13 @@ public class TopologyConfig {
     private PlanConfig planConfig;
 
     @Autowired
+    private RepositoryConfig repositoryConfig;
+
+    @Autowired
     private StitchingConfig stitchingConfig;
 
     @Autowired
-    private TargetConfig targetConfig;
+    private TemplateConfig templateConfig;
 
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
@@ -59,20 +66,33 @@ public class TopologyConfig {
     @Bean
     public TopologyHandler topologyHandler() {
         return new TopologyHandler(realtimeTopologyContextId(),
-                apiConfig.topologyProcessorNotificationSender(),
-                entityConfig.entityStore(),
+                topologyPipelineFactory(),
                 identityProviderConfig.identityProvider(),
+                entityConfig.entityStore(),
+                Clock.systemUTC());
+    }
+
+    @Bean
+    public TopologyEditor topologyEditor() {
+        return new TopologyEditor(identityProviderConfig.identityProvider(),
+                templateConfig.templateConverterFactory());
+    }
+
+    @Bean
+    public TopologyPipelineFactory topologyPipelineFactory() {
+        return new TopologyPipelineFactory(apiConfig.topologyProcessorNotificationSender(),
                 groupConfig.policyManager(),
                 stitchingConfig.stitchingManager(),
                 planConfig.discoveredTemplatesUploader(),
                 groupConfig.discoveredGroupUploader(),
                 groupConfig.settingsManager(),
-                Clock.systemUTC());
+                topologyEditor(),
+                repositoryConfig.repository());
     }
 
     @Bean
     public TopologyRpcService topologyRpcService() {
-        return new TopologyRpcService(topologyHandler(), targetConfig.targetStore());
+        return new TopologyRpcService(topologyHandler());
     }
 
     @Bean

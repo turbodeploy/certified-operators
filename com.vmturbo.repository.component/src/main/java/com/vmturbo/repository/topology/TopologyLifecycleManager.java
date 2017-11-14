@@ -70,18 +70,29 @@ public class TopologyLifecycleManager implements Diagnosable {
                                     @Nonnull final GraphDefinition graphDefinition,
                                     @Nonnull final TopologyProtobufsManager topologyProtobufsManager,
                                     final long realtimeTopologyContextId) {
+        this(graphDatabaseDriverBuilder, graphDefinition,
+                topologyProtobufsManager, realtimeTopologyContextId, true);
+    }
+
+    @VisibleForTesting
+    TopologyLifecycleManager(@Nonnull final GraphDatabaseDriverBuilder graphDatabaseDriverBuilder,
+                                    @Nonnull final GraphDefinition graphDefinition,
+                                    @Nonnull final TopologyProtobufsManager topologyProtobufsManager,
+                                    final long realtimeTopologyContextId,
+                                    final boolean loadExisting) {
         this.graphDatabaseDriverBuilder = graphDatabaseDriverBuilder;
         this.graphDefinition = graphDefinition;
         this.topologyProtobufsManager = topologyProtobufsManager;
         this.realtimeTopologyContextId = realtimeTopologyContextId;
 
-
-        // TODO (roman, July 17 2017): This would be cleaner if the health monitor system supported
-        // queueing operations until the dependency is available, so consider extending it to do
-        // that.
-        Executors.newSingleThreadExecutor().execute(
-                new RegisteredTopologyLoader(TimeUnit.MILLISECONDS.convert(10, TimeUnit.SECONDS),
-                        graphDatabaseDriverBuilder, this));
+        if (loadExisting) {
+            // TODO (roman, July 17 2017): This would be cleaner if the health monitor system supported
+            // queueing operations until the dependency is available, so consider extending it to do
+            // that.
+            Executors.newSingleThreadExecutor().execute(
+                    new RegisteredTopologyLoader(TimeUnit.MILLISECONDS.convert(10, TimeUnit.SECONDS),
+                            graphDatabaseDriverBuilder, this));
+        }
     }
 
     @Nonnull

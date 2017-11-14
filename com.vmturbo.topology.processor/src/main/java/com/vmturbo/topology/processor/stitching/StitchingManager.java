@@ -83,15 +83,19 @@ public class StitchingManager {
     /**
      * A store of the operations to be applied during stitching.
      */
-    final StitchingOperationStore stitchingOperationStore;
+    private final StitchingOperationStore stitchingOperationStore;
+
+    private final TargetStore targetStore;
 
     /**
      * Create a new {@link StitchingManager} instance.
      *
      * @param stitchingOperationStore The store of the operations to be applied during stitching.
      */
-    public StitchingManager(@Nonnull final StitchingOperationStore stitchingOperationStore) {
+    public StitchingManager(@Nonnull final StitchingOperationStore stitchingOperationStore,
+                            @Nonnull final TargetStore targetStore) {
         this.stitchingOperationStore = Objects.requireNonNull(stitchingOperationStore);
+        this.targetStore = Objects.requireNonNull(targetStore);
     }
 
     /**
@@ -100,25 +104,22 @@ public class StitchingManager {
      * See comments on the {@link StitchingManager} class for further details.
      *
      * @param entityStore The store of all discovered entities.
-     * @param targetStore The store of all targets.
      * @return A {@link StitchingContext} that contains the results of applying the stitching
      *         operations to the entities in the {@link TargetStore}. This context can be used
      *         to construct a {@link com.vmturbo.topology.processor.topology.TopologyGraph}.
      */
     @Nonnull
-    public StitchingContext stitch(@Nonnull final EntityStore entityStore,
-                                   @Nonnull final TargetStore targetStore) {
+    public StitchingContext stitch(@Nonnull final EntityStore entityStore) {
 
         final DataMetricTimer preparationTimer = STITCHING_PREPARATION_DURATION_SUMMARY.startTimer();
         final StitchingContext stitchingContext = entityStore.constructStitchingContext();
         preparationTimer.observe();
 
-        return stitch(stitchingContext, targetStore);
+        return stitch(stitchingContext);
     }
 
     @VisibleForTesting
-    StitchingContext stitch(@Nonnull final StitchingContext stitchingContext,
-                            @Nonnull final TargetStore targetStore) {
+    StitchingContext stitch(@Nonnull final StitchingContext stitchingContext) {
         logger.info("Applying {} stitching operations for {} probes.",
             stitchingOperationStore.operationCount(), stitchingOperationStore.probeCount());
 

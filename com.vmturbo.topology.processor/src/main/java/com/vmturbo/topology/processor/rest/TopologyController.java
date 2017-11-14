@@ -21,18 +21,17 @@ import io.swagger.annotations.ApiModelProperty;
 import io.swagger.annotations.ApiOperation;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.entity.IdentifiedEntityDTO;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.filter.TopologyFilterFactory;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
-import com.vmturbo.topology.processor.targets.TargetStore;
+import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 import com.vmturbo.topology.processor.topology.TopologyGraph.Vertex;
 import com.vmturbo.topology.processor.topology.TopologyHandler;
-import com.vmturbo.topology.processor.topology.TopologyHandler.TopologyBroadcastInfo;
+import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.TopologyPipelineException;
 
 /**
  * REST controller for topology processor management.
@@ -46,20 +45,25 @@ public class TopologyController {
     private final TopologyHandler topologyHandler;
     private final EntityStore entityStore;
     private final PolicyManager policyManager;
-    private final TargetStore targetStore;
 
     public TopologyController(@Nonnull final Scheduler scheduler,
                               @Nonnull final TopologyHandler topologyHandler,
                               @Nonnull final EntityStore entityStore,
-                              @Nonnull final PolicyManager policyManager,
-                              @Nonnull final TargetStore targetStore) {
+                              @Nonnull final PolicyManager policyManager) {
         this.scheduler = Objects.requireNonNull(scheduler);
         this.topologyHandler = Objects.requireNonNull(topologyHandler);
         this.entityStore = Objects.requireNonNull(entityStore);
         this.policyManager = Objects.requireNonNull(policyManager);
-        this.targetStore = Objects.requireNonNull(targetStore);
     }
 
+    /**
+     * Triggers converting the probe DTOs from all registered targets to topology DTOs, and
+     * sending them to subscribed listeners.
+     *
+     * @return The response entity containing the response.
+     * @throws TopologyPipelineException If there is an issue broadcasting the topology.
+     * @throws InterruptedException If the broadcast is interrupted.
+     */
     @RequestMapping(value = "/send",
             method = RequestMethod.POST,
             produces = MediaType.APPLICATION_JSON_UTF8_VALUE)
@@ -68,13 +72,10 @@ public class TopologyController {
             + "registered targets to topology DTOs, and "
             + "sending them to subscribed listeners."
     )
-    /**
-     * Triggers converting the probe DTOs from all registered targets to topology DTOs, and
-     * sending them to subscribed listeners.
-     */ public ResponseEntity<SendTopologyResponse> send()
-            throws CommunicationException, InterruptedException {
+    public ResponseEntity<SendTopologyResponse> send()
+            throws TopologyPipelineException, InterruptedException {
         scheduler.resetBroadcastSchedule();
-        final TopologyBroadcastInfo broadcastInfo = topologyHandler.broadcastLatestTopology(targetStore);
+        final TopologyBroadcastInfo broadcastInfo = topologyHandler.broadcastLatestTopology();
         return new ResponseEntity<>(
                 new SendTopologyResponse("Sent " + broadcastInfo.getEntityCount() + " entities",
                     broadcastInfo.getEntityCount(),

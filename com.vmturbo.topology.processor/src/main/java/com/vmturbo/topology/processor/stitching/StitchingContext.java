@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.stitching;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -17,6 +18,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.conversions.Converter;
@@ -165,10 +167,10 @@ public class StitchingContext {
      *
      * After stitching, this should return a valid, well-formed topology.
      *
-     * @return A {@link TopologyGraph} composed of the entities in the {@link StitchingContext}.
+     * @return The entities in the {@link StitchingContext}, arranged by ID.
      */
     @Nonnull
-    public TopologyGraph constructTopology() {
+    public Map<Long, TopologyEntityDTO.Builder> constructTopology() {
         /**
          * If this line throws an exception, it indicates an error in stitching. If stitching is
          * successful it should merge down all entities with duplicate OIDs into a single entity.
@@ -185,7 +187,7 @@ public class StitchingContext {
                 }
             ));
 
-        return new TopologyGraph(entityMap);
+        return entityMap;
     }
 
     /**

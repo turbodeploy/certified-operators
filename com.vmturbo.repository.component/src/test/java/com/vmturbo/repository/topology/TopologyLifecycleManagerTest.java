@@ -44,7 +44,7 @@ public class TopologyLifecycleManagerTest {
     @Before
     public void setup() {
         topologyLifecycleManager = new TopologyLifecycleManager(graphDatabaseDriverBuilder,
-                graphDefinition, topologyProtobufsManager, realtimeContextId);
+                graphDefinition, topologyProtobufsManager, realtimeContextId, false);
     }
 
     @Test
@@ -83,7 +83,7 @@ public class TopologyLifecycleManagerTest {
 
         final TopologyLifecycleManager topologyLifecycleManager =
             new TopologyLifecycleManager(graphDatabaseDriverBuilder, graphDefinition,
-                    topologyProtobufsManager, realtimeContextId);
+                    topologyProtobufsManager, realtimeContextId, false);
 
         final TopologyID source =
                 new TopologyID(1L, 1L, TopologyType.SOURCE);

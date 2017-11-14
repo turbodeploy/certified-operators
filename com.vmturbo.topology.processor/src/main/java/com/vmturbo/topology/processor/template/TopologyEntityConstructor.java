@@ -14,8 +14,8 @@ public interface TopologyEntityConstructor {
      *
      * @param template {@link Template}
      * @param topologyEntityBuilder builder of TopologyEntityDTO which could contains some setting already.
-     * @return {@link TopologyEntityDTO}
+     * @return {@link TopologyEntityDTO.Builder}
      */
-    TopologyEntityDTO createTopologyEntityFromTemplate(@Nonnull final Template template,
+    TopologyEntityDTO.Builder createTopologyEntityFromTemplate(@Nonnull final Template template,
                                                        @Nonnull final TopologyEntityDTO.Builder topologyEntityBuilder);
 }

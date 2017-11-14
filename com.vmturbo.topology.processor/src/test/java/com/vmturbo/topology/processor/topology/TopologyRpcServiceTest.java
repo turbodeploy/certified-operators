@@ -2,7 +2,6 @@ package com.vmturbo.topology.processor.topology;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -27,7 +26,7 @@ public class TopologyRpcServiceTest {
 
     private TargetStore targetStore = Mockito.mock(TargetStore.class);
 
-    private TopologyRpcService topologyRpcServiceBackend = new TopologyRpcService(topologyHandler, targetStore);
+    private TopologyRpcService topologyRpcServiceBackend = new TopologyRpcService(topologyHandler);
 
     @Rule
     public GrpcTestServer server = GrpcTestServer.newServer(topologyRpcServiceBackend);
@@ -42,12 +41,12 @@ public class TopologyRpcServiceTest {
         topologyRpcClient.requestTopologyBroadcast(
             TopologyBroadcastRequest.newBuilder()
                 .build());
-        verify(topologyHandler).broadcastLatestTopology(eq(targetStore));
+        verify(topologyHandler).broadcastLatestTopology();
     }
 
     @Test
     public void testRequestTopologyError() throws Exception {
-        when(topologyHandler.broadcastLatestTopology(eq(targetStore))).thenThrow(new RuntimeException("foo"));
+        when(topologyHandler.broadcastLatestTopology()).thenThrow(new RuntimeException("foo"));
 
         try {
             topologyRpcClient.requestTopologyBroadcast(

@@ -112,7 +112,7 @@ public class StitchingContextTest {
 
     @Test
     public void testConstructTopology() {
-        final TopologyGraph topology = stitchingContext.constructTopology();
+        final TopologyGraph topology = new TopologyGraph(stitchingContext.constructTopology());
         assertEquals(4, topology.vertexCount());
 
         assertEquals(e1_1.getOid(), topology.getVertex(e1_1.getOid()).get().getOid());
@@ -142,7 +142,7 @@ public class StitchingContextTest {
         stitchingContextBuilder.addEntity(e1_2DuplicateOid, topologyMapOf(e1_2DuplicateOid));
         final StitchingContext stitchingContext = stitchingContextBuilder.build();
 
-        assertEquals(1, stitchingContext.constructTopology().vertexCount());
+        assertEquals(1, stitchingContext.constructTopology().size());
     }
 
     @Test
@@ -157,6 +157,6 @@ public class StitchingContextTest {
         final StitchingEntityData e1_3_duplicate = stitchingData("1", Collections.emptyList()).forTarget(3L);
         stitchingContextBuilder.addEntity(e1_3_duplicate, ImmutableMap.of("1", e1_3_duplicate));
 
-        assertEquals(5, stitchingContextBuilder.build().constructTopology().vertexCount());
+        assertEquals(5, stitchingContextBuilder.build().constructTopology().size());
     }
 }

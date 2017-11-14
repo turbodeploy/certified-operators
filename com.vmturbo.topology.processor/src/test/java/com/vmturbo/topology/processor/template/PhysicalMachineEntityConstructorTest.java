@@ -67,7 +67,7 @@ public class PhysicalMachineEntityConstructorTest {
         final TopologyEntityDTO.Builder builder = TopologyEntityDTO.newBuilder()
             .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
             .setOid(1);
-        final TopologyEntityDTO topologyEntityDTO =
+        final TopologyEntityDTO.Builder topologyEntityDTO =
             new PhysicalMachineEntityConstructor().createTopologyEntityFromTemplate(PM_TEMPLATE, builder);
         assertEquals(4, topologyEntityDTO.getCommoditySoldListCount());
         assertEquals(1, topologyEntityDTO.getCommoditiesBoughtFromProvidersCount());

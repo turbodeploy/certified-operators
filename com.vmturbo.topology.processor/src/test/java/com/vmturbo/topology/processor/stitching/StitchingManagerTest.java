@@ -92,10 +92,11 @@ public class StitchingManagerTest {
         when(entityStore.constructStitchingContext()).thenReturn(stitchingContext);
 
         when(stitchingOperationStore.getAllOperations()).thenReturn(Collections.emptyList());
-        final StitchingManager stitchingManager = spy(new StitchingManager(stitchingOperationStore));
-        final StitchingContext returnedContext = stitchingManager.stitch(entityStore, targetStore);
+        final StitchingManager stitchingManager =
+                spy(new StitchingManager(stitchingOperationStore, targetStore));
+        final StitchingContext returnedContext = stitchingManager.stitch(entityStore);
 
-        verify(stitchingManager).stitch(eq(stitchingContext), eq(targetStore));
+        verify(stitchingManager).stitch(eq(stitchingContext));
         assertEquals(stitchingContext, returnedContext);
     }
 
@@ -110,9 +111,10 @@ public class StitchingManagerTest {
 
         when(stitchingOperationStore.getAllOperations())
             .thenReturn(Collections.singletonList(new ProbeStitchingOperation(probeId, stitchingOperation)));
-        final StitchingManager stitchingManager = new StitchingManager(stitchingOperationStore);
+        final StitchingManager stitchingManager =
+                new StitchingManager(stitchingOperationStore, targetStore);
 
-        stitchingManager.stitch(stitchingContext, targetStore);
+        stitchingManager.stitch(stitchingContext);
         verify(stitchingContext).removeEntity(stitchingEntityCaptor.capture());
 
         assertEquals("foo", stitchingEntityCaptor.getValue().getLocalId());
@@ -130,9 +132,10 @@ public class StitchingManagerTest {
         final StitchingContext stitchingContext = spy(contextBuilder.build());
         when(entityStore.constructStitchingContext()).thenReturn(stitchingContext);
 
-        final StitchingManager stitchingManager = new StitchingManager(stitchingOperationStore);
+        final StitchingManager stitchingManager =
+                new StitchingManager(stitchingOperationStore, targetStore);
 
-        stitchingManager.stitch(stitchingContext, targetStore);
+        stitchingManager.stitch(stitchingContext);
         verify(stitchingContext, times(2)).removeEntity(stitchingEntityCaptor.capture());
 
         final List<String> removedEntities = stitchingEntityCaptor.getAllValues().stream()

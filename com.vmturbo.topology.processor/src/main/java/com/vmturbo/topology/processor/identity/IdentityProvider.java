@@ -6,6 +6,7 @@ import java.util.Map;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.components.common.diagnostics.Diagnosable;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
@@ -64,7 +65,7 @@ public interface IdentityProvider extends Diagnosable {
      * @param inputEntity The entity to clone.
      * @return The OID to use to identify the clone.
      */
-    long getCloneId(@Nonnull TopologyEntityDTO inputEntity);
+    long getCloneId(@Nonnull TopologyEntityDTOOrBuilder inputEntity);
 
     /**
      * Generate an ID for a new operation.

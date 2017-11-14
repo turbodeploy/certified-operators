@@ -1,7 +1,10 @@
 package com.vmturbo.topology.processor.rest;
 
+import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -50,6 +53,7 @@ import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileNotifier;
+import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyHandler;
 
 /**
@@ -64,8 +68,8 @@ public class TopologyControllerTest {
     private final Gson gson = new Gson();
     private MockMvc mockMvc;
     private EntityStore entityStore;
-    private TopoBroadcastManager topoBroadcastManager;
     private Scheduler scheduler;
+    private TopologyHandler topologyHandler;
 
     /**
      * Nested configuration for Spring context.
@@ -73,19 +77,10 @@ public class TopologyControllerTest {
     @Configuration
     @EnableWebMvc
     static class ContextConfiguration extends WebMvcConfigurerAdapter {
-        @Bean
-        TopoBroadcastManager apiController() {
-            return Mockito.mock(TopoBroadcastManager.class);
-        }
 
         @Bean
         Scheduler scheduler() {
             return Mockito.mock(Scheduler.class);
-        }
-
-        @Bean
-        IdentityProvider identityProvider() {
-            return Mockito.mock(IdentityProvider.class);
         }
 
         @Bean
@@ -99,40 +94,8 @@ public class TopologyControllerTest {
         }
 
         @Bean
-        DiscoveredGroupUploader discoveredGroupUploader() {
-            return Mockito.mock(DiscoveredGroupUploader.class);
-        }
-
-        @Bean
-        SettingsManager settingsManager() {
-            return Mockito.mock(SettingsManager.class);
-        }
-
-        @Bean
-        StitchingManager stitchingManager() {
-            final StitchingManager stitchingManager = Mockito.mock(StitchingManager.class);
-            Mockito.when(stitchingManager.stitch(Mockito.any(EntityStore.class), Mockito.any(TargetStore.class)))
-                .thenReturn(StitchingContext.newBuilder(0).build());
-
-            return stitchingManager;
-        }
-
-        @Bean
         TopologyHandler topologyHandler() {
-            return new TopologyHandler(0, apiController(), entityStore(),
-                identityProvider(), policyManager(), stitchingManager(),
-                discoveredTemplatesNotifier(), discoveredGroupUploader(),
-                settingsManager(), Clock.systemUTC());
-        }
-
-        @Bean
-        TargetStore targetStore() {
-            return Mockito.mock(TargetStore.class);
-        }
-
-        @Bean
-        DiscoveredTemplateDeploymentProfileNotifier discoveredTemplatesNotifier() {
-            return Mockito.mock(DiscoveredTemplateDeploymentProfileNotifier.class);
+            return Mockito.mock(TopologyHandler.class);
         }
 
         @Bean
@@ -141,8 +104,7 @@ public class TopologyControllerTest {
                 scheduler(),
                 topologyHandler(),
                 entityStore(),
-                policyManager(),
-                targetStore()
+                policyManager()
             );
         }
 
@@ -160,12 +122,9 @@ public class TopologyControllerTest {
     @Before
     public void setup() {
         mockMvc = MockMvcBuilders.webAppContextSetup(wac).build();
-        topoBroadcastManager = wac.getBean(TopoBroadcastManager.class);
+        topologyHandler = wac.getBean(TopologyHandler.class);
         scheduler = wac.getBean(Scheduler.class);
         entityStore = wac.getBean(EntityStore.class);
-
-        IdentityProvider identityProvider = wac.getBean(IdentityProvider.class);
-        Mockito.when(identityProvider.generateTopologyId()).thenReturn(0L);
     }
 
     /**
@@ -175,9 +134,11 @@ public class TopologyControllerTest {
      */
     @Test
     public void testTopologySend() throws Exception {
-        final TopologyBroadcast broadcast = Mockito.mock(TopologyBroadcast.class);
-        Mockito.when(entityStore.constructTopology()).thenReturn(Collections.emptyMap());
-        Mockito.when(topoBroadcastManager.broadcastLiveTopology(any())).thenReturn(broadcast);
+        TopologyBroadcastInfo info = Mockito.mock(TopologyBroadcastInfo.class);
+        when(info.getEntityCount()).thenReturn(10L);
+        when(info.getTopologyContextId()).thenReturn(1L);
+        when(info.getTopologyId()).thenReturn(2L);
+        when(topologyHandler.broadcastLatestTopology()).thenReturn(info);
 
         final MvcResult result = mockMvc.perform(post("/topology/send")
                 .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
@@ -186,13 +147,11 @@ public class TopologyControllerTest {
                 .andReturn();
         String contentJson = result.getResponse().getContentAsString();
         SendTopologyResponse response = gson.fromJson(contentJson, SendTopologyResponse.class);
-        assertEquals("Sent 0 entities", response.message);
-        assertEquals(0, response.numberOfEntities);
-        assertEquals(0, response.topologyContextId);
+        assertThat(response.message, is("Sent 10 entities"));
+        assertThat(response.numberOfEntities, is(10L));
+        assertThat(response.topologyContextId, is(1L));
+        assertThat(response.topologyId, is(2L));
 
-        Mockito.verify(topoBroadcastManager).broadcastLiveTopology(Mockito.any());
-        Mockito.verify(broadcast).finish();
-        Mockito.verify(broadcast, Mockito.never()).append(any(TopologyEntityDTO.class));
         Mockito.verify(scheduler).resetBroadcastSchedule();
     }
 }

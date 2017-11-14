@@ -1,14 +1,16 @@
-package com.vmturbo.topology.processor.analysis;
+package com.vmturbo.topology.processor.topology;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -26,15 +28,15 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.template.TemplateConverterFactory;
-import com.vmturbo.topology.processor.template.TopologyEntityConstructor;
 
 /**
  * Unit tests for {@link ScenarioChange}.
  */
-public class ScenarioChangeTest {
+public class TopologyEditorTest {
 
     private static final long vmId = 10;
     private static final long pmId = 20;
@@ -86,8 +88,13 @@ public class ScenarioChangeTest {
                         .build())
                     .build();
 
-    private static IdentityProvider identityProvider = Mockito.mock(IdentityProvider.class);
-    private static long cloneId = 1000L;
+    private IdentityProvider identityProvider = mock(IdentityProvider.class);
+    private long cloneId = 1000L;
+
+    private TemplateConverterFactory templateConverterFactory = mock(TemplateConverterFactory.class);
+
+    private TopologyEditor topologyEditor =
+            new TopologyEditor(identityProvider, templateConverterFactory);
 
     @Before
     public void setup() {
@@ -104,26 +111,29 @@ public class ScenarioChangeTest {
      */
     @Test
     public void testTopologyAddition() {
-        List<TopologyEntityDTO> topology = Lists.newArrayList(vm, pm, st);
+        Map<Long, TopologyEntityDTO.Builder> topology = Stream.of(vm, pm, st)
+                .map(TopologyEntityDTO::toBuilder)
+                .collect(Collectors.toMap(TopologyEntityDTOOrBuilder::getOid, Function.identity()));
         List<ScenarioChange> changes = Lists.newArrayList(ADD);
-        TemplateConverterFactory templateConverterFactory = Mockito.mock(TemplateConverterFactory.class);
-        Collection<TopologyEntityDTO> result =
-            AnalysisService.editTopology(topology, changes, identityProvider, templateConverterFactory);
-        List<TopologyEntityDTO> clones = result.stream()
+
+        topologyEditor.editTopology(topology, changes);
+
+        List<TopologyEntityDTOOrBuilder> clones = topology.values().stream()
+                        .filter(entity -> entity.getOid() != vm.getOid())
                         .filter(entity -> entity.getEntityType() == vm.getEntityType())
                         .collect(Collectors.toList());
         clones.remove(vm);
         assertEquals(NUM_CLONES, clones.size());
 
         // Verify display names are (e.g.) "VM - Clone #123"
-        List<String> names = clones.stream().map(TopologyEntityDTO::getDisplayName)
+        List<String> names = clones.stream().map(TopologyEntityDTOOrBuilder::getDisplayName)
                         .collect(Collectors.toList());
         names.sort(String::compareTo);
         IntStream.range(0, NUM_CLONES).forEach(i -> {
             assertEquals(names.get(i), vm.getDisplayName() + " - Clone #" + i);
         });
 
-        TopologyEntityDTO oneClone = clones.get(0);
+        TopologyEntityDTOOrBuilder oneClone = clones.get(0);
         // clones are unplaced - all provider IDs are negative
         boolean allNegative = oneClone.getCommoditiesBoughtFromProvidersList()
                         .stream()

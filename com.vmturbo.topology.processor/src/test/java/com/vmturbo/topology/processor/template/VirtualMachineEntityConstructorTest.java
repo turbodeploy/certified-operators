@@ -72,7 +72,7 @@ public class VirtualMachineEntityConstructorTest {
         final TopologyEntityDTO.Builder builder = TopologyEntityDTO.newBuilder()
             .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
             .setOid(1);
-        final TopologyEntityDTO topologyEntityDTO =
+        final TopologyEntityDTO.Builder topologyEntityDTO =
             new VirtualMachineEntityConstructor().createTopologyEntityFromTemplate(VM_TEMPLATE, builder);
         assertEquals(3, topologyEntityDTO.getCommoditySoldListCount());
         assertEquals(2, topologyEntityDTO.getCommoditiesBoughtFromProvidersCount());

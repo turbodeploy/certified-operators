@@ -59,9 +59,7 @@ public class RESTConfig {
             schedulerConfig.scheduler(),
             topologyConfig.topologyHandler(),
             entityConfig.entityStore(),
-            groupConfig.policyManager(),
-            targetConfig.targetStore()
-        );
+            groupConfig.policyManager());
     }
 
     @Bean

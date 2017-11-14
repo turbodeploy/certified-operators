@@ -2,6 +2,8 @@ package com.vmturbo.topology.processor.stitching;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.when;
 
@@ -77,15 +79,16 @@ public class StitchingIntegrationTest {
 
         stitchingOperationStore.setOperationsForProbe(vcProbeId, Collections.emptyList());
 
-        final StitchingManager stitchingManager = new StitchingManager(stitchingOperationStore);
+        final StitchingManager stitchingManager =
+                new StitchingManager(stitchingOperationStore, targetStore);
         final Target netAppTarget = Mockito.mock(Target.class);
         when(netAppTarget.getId()).thenReturn(netAppTargetId);
 
         when(targetStore.getProbeTargets(netAppProbeId))
             .thenReturn(Collections.singletonList(netAppTarget));
 
-        final StitchingContext stitchingContext = stitchingManager.stitch(entityStore, targetStore);
-        final TopologyGraph topoGraph = stitchingContext.constructTopology();
+        final StitchingContext stitchingContext = stitchingManager.stitch(entityStore);
+        final TopologyGraph topoGraph = new TopologyGraph(stitchingContext.constructTopology());
 
         final TopologyGraph otherGraph = new TopologyGraph(entityStore.constructTopology());
 
@@ -120,15 +123,16 @@ public class StitchingIntegrationTest {
             Collections.singletonList(new StorageStitchingOperation()));
         stitchingOperationStore.setOperationsForProbe(vcProbeId, Collections.emptyList());
 
-        final StitchingManager stitchingManager = new StitchingManager(stitchingOperationStore);
+        final StitchingManager stitchingManager =
+                new StitchingManager(stitchingOperationStore, targetStore);
         final Target netAppTarget = Mockito.mock(Target.class);
         when(netAppTarget.getId()).thenReturn(netAppTargetId);
 
         when(targetStore.getProbeTargets(netAppProbeId))
             .thenReturn(Collections.singletonList(netAppTarget));
 
-        final StitchingContext stitchingContext = stitchingManager.stitch(entityStore, targetStore);
-        final TopologyGraph topoGraph = stitchingContext.constructTopology();
+        final StitchingContext stitchingContext = stitchingManager.stitch(entityStore);
+        final Map<Long, TopologyEntityDTO.Builder> topology = stitchingContext.constructTopology();
 
         // System should have found the following stitching points:
         // REMOVED                                RETAINED
@@ -145,8 +149,8 @@ public class StitchingIntegrationTest {
             "NetApp90:ISCSI-SVM1",
             "NetApp90:ISCSI-SVM2"), hypervisorEntities);
 
-        expectedRemoved.forEach(oid -> assertFalse(topoGraph.getVertex(oid).isPresent()));
-        expectedRetained.forEach(oid -> assertTrue(topoGraph.getVertex(oid).isPresent()));
+        expectedRemoved.forEach(oid -> assertNull(topology.get(oid)));
+        expectedRetained.forEach(oid -> assertNotNull(topology.get(oid)));
     }
 
     List<Long> oidsFor(@Nonnull final Stream<String> displayNames,

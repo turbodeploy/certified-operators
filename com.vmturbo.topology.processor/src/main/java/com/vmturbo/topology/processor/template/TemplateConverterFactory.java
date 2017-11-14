@@ -4,6 +4,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Stream;
 import java.util.stream.LongStream;
 import java.util.stream.StreamSupport;
 
@@ -46,49 +47,46 @@ public class TemplateConverterFactory {
      * Ids are valid. And right now, it only support Virtual Machine, Physical Machine and Storage
      * templates.
      *
-     * @param templateIds set of template ids.
-     * @return set of {@link TopologyEntityDTO}.
+     * @param templateAdditions A map of the IDs to add, where the value is the number of entities
+     *                          to generate from that template.
+     * @return Stream of {@link TopologyEntityDTO}.
      */
-    public Set<TopologyEntityDTO> generateTopologyEntityFromTemplates(@Nonnull final Set<Long> templateIds,
-                                                                      @Nonnull final Map<Long, Long> templateAdditions) {
-        final Set<TopologyEntityDTO> topologyEntities = new HashSet<>();
-        GetTemplatesByIdsRequest getTemplatesRequest = GetTemplatesByIdsRequest.newBuilder()
-            .addAllTemplateIds(templateIds)
+    public Stream<TopologyEntityDTO.Builder> generateTopologyEntityFromTemplates(
+            @Nonnull final Map<Long, Long> templateAdditions) {
+        final GetTemplatesByIdsRequest getTemplatesRequest = GetTemplatesByIdsRequest.newBuilder()
+            .addAllTemplateIds(templateAdditions.keySet())
             .build();
         Iterable<Template> templates = () -> templateService.getTemplatesByIds(getTemplatesRequest);
-        StreamSupport.stream(templates.spliterator(), false)
-            .forEach(template -> {
+        return StreamSupport.stream(templates.spliterator(), false)
+            .flatMap(template -> {
                 final long additionCount = templateAdditions.getOrDefault(template.getId(), 1L);
-                LongStream.range(0L, additionCount)
-                    .forEach(number -> {
-                        final TopologyEntityDTO.Builder topologyEntityBuilder =
-                            TemplatesConverterUtils.generateTopologyEntityBuilder(template);
-                        topologyEntityBuilder
-                            .setOid(identityProvider.generateTopologyId())
-                            .setDisplayName(template.getTemplateInfo().getName() + " - Clone #" + number);
-                        generateTopologyEntityByType(template, topologyEntityBuilder, topologyEntities);
-                    });
+                return LongStream.range(0L, additionCount)
+                    .mapToObj(number -> generateTopologyEntityByType(template, number));
             });
-        return topologyEntities;
     }
 
     /**
      * Based on different template type, delegate create topology entity logic to different instance.
      *
      * @param template {@link Template} used to create {@link TopologyEntityDTO}.
-     * @param topologyEntityBuilder builder of {@link TopologyEntityDTO}.
-     * @param topologyEntities set of topologyEntities contains all new created topology entities from
-     *                         templates.
+     * @param instanceNum The number of the entity (used for the name when generating multiple entities
+     *              from one template).
+     * @return The {@link TopologyEntityDTO.Builder} for the newly generated entity.
      */
-    private void generateTopologyEntityByType(@Nonnull final Template template,
-                                              @Nonnull final TopologyEntityDTO.Builder topologyEntityBuilder,
-                                              @Nonnull final Set<TopologyEntityDTO> topologyEntities) {
+    @Nonnull
+    private TopologyEntityDTO.Builder generateTopologyEntityByType(
+            @Nonnull final Template template,
+            final long instanceNum) {
         final int templateEntityType = template.getTemplateInfo().getEntityType();
         if (!templateConverterMap.containsKey(templateEntityType)) {
             throw new NotImplementedException(templateEntityType + " template is not supported.");
         }
-        final TopologyEntityDTO topologyEntityDTO = templateConverterMap.get(templateEntityType)
+        final TopologyEntityDTO.Builder topologyEntityBuilder =
+                TemplatesConverterUtils.generateTopologyEntityBuilder(template);
+        topologyEntityBuilder
+                .setOid(identityProvider.generateTopologyId())
+                .setDisplayName(template.getTemplateInfo().getName() + " - Clone #" + instanceNum);
+        return templateConverterMap.get(templateEntityType)
             .createTopologyEntityFromTemplate(template, topologyEntityBuilder);
-        topologyEntities.add(topologyEntityDTO);
     }
 }

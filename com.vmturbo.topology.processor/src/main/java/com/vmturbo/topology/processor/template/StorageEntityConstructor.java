@@ -32,13 +32,13 @@ public class StorageEntityConstructor implements TopologyEntityConstructor {
      * @return {@link TopologyEntityDTO}.
      */
     @Override
-    public TopologyEntityDTO createTopologyEntityFromTemplate (
+    public TopologyEntityDTO.Builder createTopologyEntityFromTemplate (
         @Nonnull final Template template,
         @Nonnull final TopologyEntityDTO.Builder topologyEntityBuilder) {
         final List<TemplateResource> storageTemplateResources =
             TemplatesConverterUtils.getTemplateResources(template, Storage);
         addStorageCommodities(topologyEntityBuilder, storageTemplateResources);
-        return topologyEntityBuilder.build();
+        return topologyEntityBuilder;
     }
 
     /**
