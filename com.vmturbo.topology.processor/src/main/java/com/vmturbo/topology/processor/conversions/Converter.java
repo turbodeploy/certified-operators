@@ -12,6 +12,7 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -20,11 +21,14 @@ import com.google.common.collect.Sets;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 
 /**
@@ -144,7 +148,8 @@ public class Converter {
             entityState,
             entityPropertyMap,
             availableAsProvider,
-            isShopTogether
+            isShopTogether,
+            calculateSuspendability(dto)
         );
     }
 
@@ -240,7 +245,8 @@ public class Converter {
                 entityState,
                 entityPropertyMap,
                 availableAsProvider,
-                isShopTogether
+                isShopTogether,
+                calculateSuspendability(dto)
         );
     }
 
@@ -254,7 +260,8 @@ public class Converter {
             TopologyDTO.EntityState entityState,
             Map<String, String> entityPropertyMap,
             boolean availableAsProvider,
-            boolean isShopTogether
+            boolean isShopTogether,
+            Optional<Boolean> suspendable
         ) {
         final List<TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider> commodityBoughtGroups = new ArrayList<>();
         boughtMap.forEach((providerId, commodityBoughtList) -> {
@@ -263,20 +270,21 @@ public class Converter {
                     .setProviderId(providerId)
                     .addAllCommodityBought(commodityBoughtList);
             Optional.ofNullable(providerTypeMap.get(providerId))
-                .ifPresent(providerType -> commodityBoughtGroupingBuilder.setProviderEntityType(providerType));
+                .ifPresent(commodityBoughtGroupingBuilder::setProviderEntityType);
             commodityBoughtGroups.add(commodityBoughtGroupingBuilder.build());
         });
-        TopologyDTO.TopologyEntityDTO.AnalysisSettings analysisSetting =
+        AnalysisSettings.Builder analysisSettingsBuilder =
             TopologyDTO.TopologyEntityDTO.AnalysisSettings.newBuilder()
                 .setShopTogether(isShopTogether)
-                .setIsAvailableAsProvider(availableAsProvider)
-            .build();
+                .setIsAvailableAsProvider(availableAsProvider);
+        suspendable.ifPresent(analysisSettingsBuilder::setSuspendable);
+
         return TopologyDTO.TopologyEntityDTO.newBuilder()
             .setEntityType(entityType)
             .setOid(oid)
             .setDisplayName(displayName)
             .setEntityState(entityState)
-            .setAnalysisSettings(analysisSetting)
+            .setAnalysisSettings(analysisSettingsBuilder)
             .putAllEntityPropertyMap(entityPropertyMap)
             .addAllCommoditySoldList(soldList)
             .addAllCommoditiesBoughtFromProviders(commodityBoughtGroups);
@@ -364,5 +372,24 @@ public class Converter {
      */
     public static String keyToUuid(String key) {
         return key.split("::")[1];
+    }
+
+    /**
+     * Discovered entities may be suspended. Proxy/replacable entities should never be suspended by the market.
+     * They are often the top of the supply chain if they are not removed or replaced during stitching.
+     * Thus, only unstitched proxy/replaceable entities will ever ben converted here.
+     *
+     * TODO: Proxy/Replacable should be removed when we no longer need to support classic. Do not rely on it here.
+     *
+     * @param entity The entity whose suspendability should be calculated.
+     * @return If the entity is discovered, an empty value to indicate the default suspendability should
+     *         be retained. If the entity origin is not discovered, an Optional of false to indicate the entity
+     *         should never be suspended by the market.
+     */
+    @VisibleForTesting
+    static Optional<Boolean> calculateSuspendability(@Nonnull final EntityDTOOrBuilder entity) {
+        return entity.getOrigin() == EntityOrigin.DISCOVERED
+            ? Optional.empty()
+            : Optional.of(false);
     }
 }

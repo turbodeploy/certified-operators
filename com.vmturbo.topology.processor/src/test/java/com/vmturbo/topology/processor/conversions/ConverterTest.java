@@ -11,6 +11,7 @@ import java.net.URL;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.junit.Test;
@@ -28,6 +29,7 @@ import com.vmturbo.platform.common.builders.EntityBuilders;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualDatacenterData;
@@ -200,6 +202,30 @@ public class ConverterTest {
                         .findFirst().get()
                         .getAccesses();
         assertEquals(PM_ID, stAccesses);
+    }
+
+    @Test
+    public void testDiscoveredEntitySuspendability() {
+        assertEquals(Optional.empty(), Converter.calculateSuspendability(EntityDTO.newBuilder()
+            .setId("foo")
+            .setEntityType(EntityType.VIRTUAL_MACHINE)
+            .setOrigin(EntityOrigin.DISCOVERED)));
+    }
+
+    @Test
+    public void testProxyEntitySuspendability() {
+        assertEquals(Optional.of(false), Converter.calculateSuspendability(EntityDTO.newBuilder()
+            .setId("foo")
+            .setEntityType(EntityType.VIRTUAL_MACHINE)
+            .setOrigin(EntityOrigin.PROXY)));
+    }
+
+    @Test
+    public void testReplacableEntitySuspendability() {
+        assertEquals(Optional.of(false), Converter.calculateSuspendability(EntityDTO.newBuilder()
+            .setId("foo")
+            .setEntityType(EntityType.VIRTUAL_MACHINE)
+            .setOrigin(EntityOrigin.REPLACEABLE)));
     }
 
     private static boolean isAccessCommodity(CommoditySoldDTO comm) {
