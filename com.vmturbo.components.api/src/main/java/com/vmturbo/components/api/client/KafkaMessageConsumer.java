@@ -77,6 +77,8 @@ public class KafkaMessageConsumer implements AutoCloseable {
      */
     private static final int PROTOBUF_MESSAGE_MAX_LIMIT = 1024 << 20;
     private static final int POLL_AWAIT_TIME = 100;
+    private static final int POLL_INTERVAL_MS = 10; // sleep between polls to allow other threads to access the lock
+
     /**
      * Maximum amount of messages, that are buffered for each partition, while the other message
      * for the partition is being processed.
@@ -199,6 +201,8 @@ public class KafkaMessageConsumer implements AutoCloseable {
                                 record::topic, record::serializedValueSize, () -> (System.currentTimeMillis() - record.timestamp()));
                         onNewMessage(record);
                     }
+                } else {
+                    Thread.sleep(POLL_INTERVAL_MS);
                 }
             }
         } catch (org.apache.kafka.common.errors.InterruptException e) {
