@@ -198,7 +198,7 @@
                 failure();
             };
 
-            img.src = "https://" + thisHost + ":443/assets/img/vmtLogoGreenNew.png";
+            img.src = "https://" + thisHost + ":443/assets/img/logos/favicon-32x32.png";
             setTimeout(function () {
                 checkPort();
             }, 5000);
@@ -216,10 +216,6 @@
         function success() {
             setTimeout(function () {
                 successMsg();
-            }, 10000);
-
-            setTimeout(function () {
-                fadeCircle();
             }, 10000);
 
             setTimeout(function () {

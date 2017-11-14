@@ -5,6 +5,8 @@ chmod +x cgi-bin/init_worker.sh
 
 # This password is used later on to convert keystore from PKCS#12 format to JKS.
 KEYPASS="jumpy-crazy-experience"
+# we need to create an empty folder to hold the certs
+mkdir cgi-bin/cert >/dev/null
 pushd cgi-bin/cert >/dev/null
 rm -f * >/dev/null
 mkdir -p /tmp/certs >/dev/null
