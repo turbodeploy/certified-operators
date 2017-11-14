@@ -206,7 +206,7 @@ public class MarketsService implements IMarketsService {
             StreamSupport.stream(result.spliterator(), false)
                 .filter(ActionOrchestratorAction::hasActionSpec)
                 .map(ActionOrchestratorAction::getActionSpec)
-                .collect(Collectors.toList()));
+                .collect(Collectors.toList()), apiId.oid());
     }
 
     @Override

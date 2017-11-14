@@ -33,9 +33,8 @@ import com.vmturbo.repository.graph.parameter.GraphCmd;
 import com.vmturbo.repository.graph.result.SupplyChainExecutorResult;
 import com.vmturbo.repository.graph.result.SupplyChainQueryResult;
 import com.vmturbo.repository.topology.TopologyDatabase;
-import com.vmturbo.repository.topology.TopologyIDManager;
-import com.vmturbo.repository.topology.TopologyIDManager.TopologyID;
-import com.vmturbo.repository.topology.TopologyIDManager.TopologyType;
+import com.vmturbo.repository.topology.TopologyID;
+import com.vmturbo.repository.topology.TopologyLifecycleManager;
 
 /**
  * unit test for {@link SupplyChainService}.
@@ -62,18 +61,17 @@ public class GraphDBServiceTest {
 
     @Before
     public void setup() throws Exception {
-        final TopologyIDManager result = Mockito.mock(TopologyIDManager.class);
+        final TopologyLifecycleManager result = Mockito.mock(TopologyLifecycleManager.class);
         final TopologyDatabase topologyDatabase = Mockito.mock(TopologyDatabase.class);
-        when(result.currentRealTimeDatabase())
+        when(result.getRealtimeDatabase())
             .thenReturn(Optional.of(topologyDatabase));
-        final TopologyID topologyId = new TopologyID(1, 2, TopologyType.SOURCE);
-        when(result.getCurrentRealTimeTopologyId()).thenReturn(Optional.of(topologyId));
+        final TopologyID topologyId = new TopologyID(1, 2, TopologyID.TopologyType.SOURCE);
+        when(result.getRealtimeTopologyId()).thenReturn(Optional.of(topologyId));
 
         graphDBService = new GraphDBService(
             graphDBExecutor,
             graphDefinition,
-            result
-        );
+            result);
     }
 
     @Test

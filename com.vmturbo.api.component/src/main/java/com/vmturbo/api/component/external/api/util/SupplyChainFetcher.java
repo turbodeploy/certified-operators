@@ -32,6 +32,7 @@ import io.grpc.Channel;
 import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
@@ -363,7 +364,9 @@ public class SupplyChainFetcher {
                 // fetch a map from member OID to optional<ServiceEntityApiDTO>, where the
                 // optional is empty if the OID was not found; include severities
                 Map<Long, Optional<ServiceEntityApiDTO>> serviceEntitiesFromRepository =
-                        repositoryApi.getServiceEntitiesById(new HashSet<>(memberOidsList));
+                        repositoryApi.getServiceEntitiesById(ServiceEntitiesRequest.newBuilder(
+                                new HashSet<>(memberOidsList)).build());
+
                 // ignore the unknown OIDs for now...perhaps should complain in the future
                 serviceEntityApiDTOS.putAll(serviceEntitiesFromRepository.entrySet().stream()
                         .filter(entry -> entry.getValue().isPresent())

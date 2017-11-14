@@ -7,7 +7,6 @@ import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -27,14 +26,15 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
-import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.IStatsService;
@@ -215,8 +215,9 @@ public class StatsService implements IStatsService {
         // evaluate the Optional for each ServiceEntityApiDTO returned, and throw an exception if
         // the corresponding oid is not found
         Map<Long, EntityStatsApiDTO> entityStatsMap = new HashMap<>();
-        for (Map.Entry<Long, Optional<ServiceEntityApiDTO>> entry : repositoryApi
-                .getServiceEntitiesById(expandedUuids).entrySet()) {
+        for (Map.Entry<Long, Optional<ServiceEntityApiDTO>> entry :
+                repositoryApi.getServiceEntitiesById(
+                        ServiceEntitiesRequest.newBuilder(expandedUuids).build()).entrySet()) {
             final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
             ServiceEntityApiDTO serviceEntity = entry.getValue().orElseThrow(()
                     -> new UnknownObjectException(

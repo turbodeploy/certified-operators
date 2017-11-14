@@ -3,9 +3,6 @@ package com.vmturbo.repository;
 import java.net.URISyntaxException;
 import java.util.EnumSet;
 import java.util.Optional;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadFactory;
 import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
@@ -34,7 +31,6 @@ import com.arangodb.velocypack.exception.VPackBuilderException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.guava.GuavaModule;
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.google.protobuf.InvalidProtocolBufferException;
 
 import io.grpc.Server;
@@ -54,19 +50,22 @@ import com.vmturbo.components.common.FileFolderZipper;
 import com.vmturbo.components.common.OsCommandProcessRunner;
 import com.vmturbo.components.common.diagnostics.RecursiveZipReaderFactory;
 import com.vmturbo.components.common.diagnostics.RecursiveZipReaderFactory.DefaultRecursiveZipReaderFactory;
+import com.vmturbo.market.component.api.MarketComponent;
+import com.vmturbo.market.component.api.impl.MarketClientConfig;
 import com.vmturbo.repository.controller.GraphServiceEntityController;
 import com.vmturbo.repository.controller.GraphTopologyController;
 import com.vmturbo.repository.controller.RepositoryDiagnosticController;
 import com.vmturbo.repository.controller.SearchController;
 import com.vmturbo.repository.exception.GraphDatabaseExceptions.GraphDatabaseException;
 import com.vmturbo.repository.graph.GraphDefinition;
+import com.vmturbo.repository.graph.driver.ArangoDatabaseDriverBuilder;
 import com.vmturbo.repository.graph.driver.ArangoDatabaseFactory;
-import com.vmturbo.repository.graph.driver.ArangoGraphDatabaseDriver;
 import com.vmturbo.repository.graph.driver.GraphDatabaseDriverBuilder;
 import com.vmturbo.repository.graph.executor.ArangoDBExecutor;
 import com.vmturbo.repository.graph.executor.GraphDBExecutor;
 import com.vmturbo.repository.graph.executor.ReactiveArangoDBExecutor;
 import com.vmturbo.repository.graph.executor.ReactiveGraphDBExecutor;
+import com.vmturbo.repository.listener.MarketTopologyListener;
 import com.vmturbo.repository.listener.TopologyEntitiesListener;
 import com.vmturbo.repository.search.SearchHandler;
 import com.vmturbo.repository.service.GraphDBService;
@@ -75,8 +74,7 @@ import com.vmturbo.repository.service.RepositoryRpcService;
 import com.vmturbo.repository.service.SearchService;
 import com.vmturbo.repository.service.SupplyChainRpcService;
 import com.vmturbo.repository.service.SupplyChainService;
-import com.vmturbo.repository.topology.TopologyEventHandler;
-import com.vmturbo.repository.topology.TopologyIDManager;
+import com.vmturbo.repository.topology.TopologyLifecycleManager;
 import com.vmturbo.repository.topology.TopologyRelationshipRecorder;
 import com.vmturbo.repository.topology.protobufs.TopologyProtobufsManager;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
@@ -87,7 +85,7 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig.Sub
 @SpringBootApplication
 @EnableDiscoveryClient
 @EnableConfigurationProperties(RepositoryProperties.class)
-@Import({RepositoryApiConfig.class, TopologyProcessorClientConfig.class})
+@Import({RepositoryApiConfig.class, TopologyProcessorClientConfig.class, MarketClientConfig.class})
 public class RepositoryComponent extends BaseVmtComponent {
     private static final Logger logger = LoggerFactory.getLogger(RepositoryComponent.class);
     private static final String DOCUMENT_KEY_FIELD = "_key";
@@ -98,8 +96,12 @@ public class RepositoryComponent extends BaseVmtComponent {
 
     @Autowired
     RepositoryApiConfig apiConfig;
+
     @Autowired
     private TopologyProcessorClientConfig tpClientConfig;
+
+    @Autowired
+    private  MarketClientConfig marketClientConfig;
 
     RepositoryProperties repositoryProperties;
 
@@ -115,6 +117,9 @@ public class RepositoryComponent extends BaseVmtComponent {
 
     @Value("${arangodbHealthCheckIntervalSeconds:60}")
     private int arangoHealthCheckIntervalSeconds;
+
+    @Value("${realtimeTopologyContextId}")
+    private long realtimeTopologyContextId;
 
     public RepositoryComponent(final RepositoryProperties repositoryProperties,
                                final FileFolderZipper fileFolderZipper,
@@ -193,6 +198,12 @@ public class RepositoryComponent extends BaseVmtComponent {
     }
 
     @Bean
+    public TopologyLifecycleManager topologyManager() {
+        return new TopologyLifecycleManager(graphDatabaseDriverBuilder(), graphDefinition(),
+                topologyProtobufsManager(), realtimeTopologyContextId);
+    }
+
+    @Bean
     public GraphDefinition graphDefinition() {
         return new GraphDefinition.Builder()
                 .setGraphName("seGraph")
@@ -242,7 +253,7 @@ public class RepositoryComponent extends BaseVmtComponent {
         return new RepositoryDiagnosticsHandler(arangoDump(),
                 arangoRestore(),
                 topologyRelationshipRecorder(),
-                topologyIDManager(),
+                topologyManager(),
                 restTemplate(),
                 recursiveZipReaderFactory(),
                 diagnosticsWriter());
@@ -262,7 +273,7 @@ public class RepositoryComponent extends BaseVmtComponent {
     public GraphDBService graphDBService() throws InterruptedException, URISyntaxException, CommunicationException {
         return new GraphDBService(arangoDBExecutor(),
                                   graphDefinition(),
-                                  topologyIDManager());
+                                  topologyManager());
     }
 
     @Bean
@@ -271,7 +282,7 @@ public class RepositoryComponent extends BaseVmtComponent {
                                       graphDBService(),
                                       graphDefinition(),
                                       topologyRelationshipRecorder(),
-                                      topologyIDManager());
+                                      topologyManager());
     }
 
     @Bean
@@ -296,13 +307,13 @@ public class RepositoryComponent extends BaseVmtComponent {
 
     @Bean
     public RepositoryRpcService repositoryRpcService() throws GraphDatabaseException {
-        return new RepositoryRpcService(topologyProtobufsManager(), topologyEventHandler());
+        return new RepositoryRpcService(topologyManager(), topologyProtobufsManager());
     }
 
     @Bean
     public SearchService searchService() throws InterruptedException, CommunicationException, URISyntaxException {
         return new SearchService(supplyChainService(),
-                                 topologyIDManager(),
+                                 topologyManager(),
                                  searchHandler());
     }
 
@@ -353,19 +364,7 @@ public class RepositoryComponent extends BaseVmtComponent {
 
     @Bean
     public GraphDatabaseDriverBuilder graphDatabaseDriverBuilder() {
-        // TODO: Unify GraphDatabaseDriverBuilder and ArangoDatabaseFactory.
-        return database -> {
-            com.vmturbo.repository.RepositoryProperties.ArangoDB props =
-                    repositoryProperties.getArangodb();
-
-            final ArangoDB arangoDB = new ArangoDB.Builder()
-                                                .host(props.getHost(), props.getPort())
-                                                .password(props.getPassword())
-                                                .user(props.getUsername())
-                                                .build();
-
-            return new ArangoGraphDatabaseDriver(arangoDB, database);
-        };
+        return new ArangoDatabaseDriverBuilder(arangoDatabaseFactory());
     }
 
     @Bean
@@ -374,20 +373,17 @@ public class RepositoryComponent extends BaseVmtComponent {
     }
 
     @Bean
-    public TopologyIDManager topologyIDManager() {
-        return new TopologyIDManager();
-    }
-
-    @Bean
-    public TopologyEventHandler topologyEventHandler() throws GraphDatabaseException {
-        return new TopologyEventHandler(graphDatabaseDriverBuilder(), graphDefinition(), topologyIDManager());
-    }
-
-    @Bean
     public TopologyEntitiesListener topologyEntitiesListener() throws GraphDatabaseException {
-        return new TopologyEntitiesListener(topologyEventHandler(),
+        return new TopologyEntitiesListener(topologyManager(),
                                             topologyRelationshipRecorder(),
                                             apiConfig.repositoryNotificationSender());
+    }
+
+    @Bean
+    public MarketTopologyListener marketTopologyListener() {
+        return new MarketTopologyListener(
+                apiConfig.repositoryNotificationSender(),
+                topologyManager());
     }
 
     @Bean
@@ -404,6 +400,13 @@ public class RepositoryComponent extends BaseVmtComponent {
                 tpClientConfig.topologyProcessor(EnumSet.of(Subscription.LiveTopologies));
         topologyProcessor.addLiveTopologyListener(topologyEntitiesListener());
         return topologyProcessor;
+    }
+
+    @Bean
+    public MarketComponent marketComponent() {
+        final MarketComponent market = marketClientConfig.marketComponent();
+        market.addProjectedTopologyListener(marketTopologyListener());
+        return market;
     }
 
     @Bean

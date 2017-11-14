@@ -258,7 +258,7 @@ public class ScenarioMapperTest {
         vmDto.setClassName("VirtualMachine");
         vmDto.setDisplayName("VM #100");
 
-        when(repositoryApi.getServiceEntitiesById(eq(Sets.newHashSet(1L))))
+        when(repositoryApi.getServiceEntitiesById(any()))
                 .thenReturn(ImmutableMap.of(1L, Optional.of(vmDto)));
 
         ScenarioApiDTO dto = scenarioMapper.toScenarioApiDTO(scenario);

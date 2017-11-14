@@ -23,23 +23,25 @@ import com.google.common.base.CaseFormat;
 import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.dto.BaseApiDTO;
-import com.vmturbo.api.dto.notification.LogEntryApiDTO;
-import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
+import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.api.dto.notification.LogEntryApiDTO;
 import com.vmturbo.api.enums.ActionMode;
 import com.vmturbo.api.enums.ActionState;
+import com.vmturbo.api.enums.ActionType;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.ActionDTOUtil;
 import com.vmturbo.common.protobuf.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
@@ -66,31 +68,33 @@ public class ActionSpecMapper {
     }
 
     /**
-     * The equivalent of {@link ActionSpecMapper#mapActionSpecToActionApiDTO(ActionSpec)}
+     * The equivalent of {@link ActionSpecMapper#mapActionSpecToActionApiDTO(ActionSpec, long)}
      * for a collection of {@link ActionSpec}s.
      *
      * <p>Processes the input specs atomically. If there is an error processing an individual action spec
      * that action is skipped and an error is logged.
      *
      * @param actionSpecs The collection of {@link ActionSpec}s to convert.
+     * @param topologyContextId The topology context within which the {@link ActionSpec}s were
+     *                          produced. We need this to get the right information from related
+     *                          entities.
      * @return A collection of {@link ActionApiDTO}s in the same order as the incoming actionSpecs.
      * @throws UnsupportedActionException If the action type of the {@link ActionSpec}
      * is not supported.
      */
     @Nonnull
     public List<ActionApiDTO> mapActionSpecsToActionApiDTOs(
-            @Nonnull final Collection<ActionSpec> actionSpecs
-    ) throws UnsupportedActionException {
+            @Nonnull final Collection<ActionSpec> actionSpecs,
+            final long topologyContextId) throws UnsupportedActionException {
         final List<ActionDTO.Action> recommendations =
                 actionSpecs.stream()
                         .map(ActionSpec::getRecommendation)
                         .collect(Collectors.toList());
 
         final Set<Long> involvedEntities = ActionDTOUtil.getInvolvedEntities(recommendations);
-        final Map<Long, Optional<ServiceEntityApiDTO>> entities =
-                repositoryApi.getServiceEntitiesById(involvedEntities);
 
-        final ActionSpecMappingContext context = new ActionSpecMappingContext(entities);
+        final ActionSpecMappingContext context = new ActionSpecMappingContext(topologyContextId,
+                involvedEntities, repositoryApi);
 
         final ImmutableList.Builder<ActionApiDTO> retBuilder = new ImmutableList.Builder<>();
         for (final ActionSpec spec : actionSpecs) {
@@ -114,6 +118,9 @@ public class ActionSpecMapper {
      * Some fields are ignored:
      *
      * @param actionSpec The {@link ActionSpec} object to be mapped into an {@link ActionApiDTO}.
+     * @param topologyContextId The topology context within which the {@link ActionSpec} was
+     *                          produced. We need this to get the right information froGm related
+     *                          entities.
      * @return an {@link ActionApiDTO} object populated from the given ActionSpec
      * @throws UnknownObjectException If any entities involved in the action are not found in
      * the repository.
@@ -121,14 +128,14 @@ public class ActionSpecMapper {
      * supported.
      */
     @Nonnull
-    public ActionApiDTO mapActionSpecToActionApiDTO(@Nonnull final ActionSpec actionSpec)
+    public ActionApiDTO mapActionSpecToActionApiDTO(@Nonnull final ActionSpec actionSpec,
+                                                    final long topologyContextId)
             throws UnknownObjectException, UnsupportedActionException {
         final Set<Long> involvedEntities = ActionDTOUtil.getInvolvedEntities(actionSpec
                 .getRecommendation());
-        final Map<Long, Optional<ServiceEntityApiDTO>> entities =
-                repositoryApi.getServiceEntitiesById(involvedEntities);
 
-        final ActionSpecMappingContext context = new ActionSpecMappingContext(entities);
+        final ActionSpecMappingContext context = new ActionSpecMappingContext(topologyContextId,
+                involvedEntities, repositoryApi);
         return mapActionSpecToActionApiDTOInternal(actionSpec, context);
     }
 
@@ -155,9 +162,7 @@ public class ActionSpecMapper {
         } else {
             actionApiDTO.setActionState(ActionState.valueOf(actionState.name()));
         }
-        // actionType and displayName are the same
-        actionApiDTO.setActionType(com.vmturbo.api.enums.ActionType.valueOf(
-                actionSpec.getRecommendation().getInfo().getActionTypeCase().name()));
+
         actionApiDTO.setDisplayName(actionMode.name());
 
         // map the recommendation info
@@ -238,14 +243,18 @@ public class ActionSpecMapper {
             throws UnknownObjectException {
 
         final boolean initialPlacement = moveExplanation.hasInitialPlacement();
-        // The UI (and legacy) expect the action type to be CHANGE for storage moves
-        // and MOVE for host moves. We determine if we're dealing with a storage move or
-        // a host move by looking at the type of the source entity.
-        final String sourceType = context.getEntity(move.getSourceId()).getClassName();
-        if (sourceType.equals(UIEntityType.STORAGE.getValue())) {
-            actionApiDTO.setActionType(com.vmturbo.api.enums.ActionType.CHANGE);
+        if (initialPlacement) {
+            actionApiDTO.setActionType(com.vmturbo.api.enums.ActionType.START);
         } else {
-            actionApiDTO.setActionType(com.vmturbo.api.enums.ActionType.MOVE);
+            // The UI (and legacy) expect the action type to be CHANGE for storage moves
+            // and MOVE for host moves. We determine if we're dealing with a storage move or
+            // a host move by looking at the type of the source entity.
+            final String sourceType = context.getEntity(move.getSourceId()).getClassName();
+            if (sourceType.equals(UIEntityType.STORAGE.getValue())) {
+                actionApiDTO.setActionType(com.vmturbo.api.enums.ActionType.CHANGE);
+            } else {
+                actionApiDTO.setActionType(com.vmturbo.api.enums.ActionType.MOVE);
+            }
         }
 
         // Set entity DTO fields for target, source (if needed) and destination entities
@@ -557,7 +566,20 @@ public class ActionSpecMapper {
     private static class ActionSpecMappingContext {
         private final Map<Long, Optional<ServiceEntityApiDTO>> entities;
 
-        ActionSpecMappingContext(@Nonnull final Map<Long, Optional<ServiceEntityApiDTO>> entities) {
+        ActionSpecMappingContext(final long topologyContextId,
+                                 @Nonnull final Set<Long> involvedEntities,
+                                 @Nonnull final RepositoryApi repositoryApi) {
+            final Map<Long, Optional<ServiceEntityApiDTO>> entities =
+                    // We always search the projected topology because the projected topology is
+                    // a super-set of the source topology. All involved entities that are in
+                    // the source topology will also be in the projected topology, but there will
+                    // be entities that are ONLY in the projected topology (e.g. actions involving
+                    // newly provisioned hosts/VMs).
+                    repositoryApi.getServiceEntitiesById(
+                            ServiceEntitiesRequest.newBuilder(involvedEntities)
+                                .setTopologyContextId(topologyContextId)
+                                .searchProjectedTopology()
+                                .build());
             this.entities = Collections.unmodifiableMap(entities);
         }
 

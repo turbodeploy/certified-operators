@@ -32,23 +32,24 @@ import com.vmturbo.repository.graph.result.ScopedEntity;
 import com.vmturbo.repository.search.AQLRepr;
 import com.vmturbo.repository.search.SearchDTOConverter;
 import com.vmturbo.repository.search.SearchHandler;
+import com.vmturbo.repository.topology.TopologyDatabase;
 import com.vmturbo.repository.topology.TopologyDatabases;
-import com.vmturbo.repository.topology.TopologyIDManager;
+import com.vmturbo.repository.topology.TopologyLifecycleManager;
 
 public class SearchService extends SearchServiceImplBase {
 
     private final Logger logger = LoggerFactory.getLogger(SearchService.class);
     private final SupplyChainService supplyChainService;
-    private final TopologyIDManager topologyIDManager;
+    private final TopologyLifecycleManager lifecycleManager;
     private final SearchHandler searchHandler;
 
 
     public SearchService(final SupplyChainService supplyChainService,
-                         final TopologyIDManager topologyIDManager,
+                         final TopologyLifecycleManager lifecycleManager,
                          final SearchHandler searchHandler
                          ) {
         this.supplyChainService = checkNotNull(supplyChainService);
-        this.topologyIDManager = checkNotNull(topologyIDManager);
+        this.lifecycleManager = checkNotNull(lifecycleManager);
         this.searchHandler = checkNotNull(searchHandler);
     }
 
@@ -58,7 +59,8 @@ public class SearchService extends SearchServiceImplBase {
         logger.info("Searching for entity OIDs with request: {}", request);
 
         // Return empty result if current topology doesn't exist.
-        if (!topologyIDManager.currentRealTimeDatabase().isPresent()) {
+        Optional<TopologyDatabase> realtimeDb = lifecycleManager.getRealtimeDatabase();
+        if (!realtimeDb.isPresent()) {
             logger.warn("No real-time topology exists for searching request");
             responseObserver.onNext(
                     SearchResponse.newBuilder().addAllEntities(Collections.emptyList()).build());
@@ -66,8 +68,7 @@ public class SearchService extends SearchServiceImplBase {
             return;
         }
 
-        final String db = TopologyDatabases.getDbName(
-                topologyIDManager.currentRealTimeDatabase().get());
+        final String db = TopologyDatabases.getDbName(realtimeDb.get());
         try {
             Optional<Set<Long>> entitiesSet = Optional.empty();
             List<SearchParameters> searchParametersList = request.getSearchParametersList();
@@ -106,14 +107,14 @@ public class SearchService extends SearchServiceImplBase {
         logger.info("Searching for entities with request: {}", request);
 
         // Return empty result if current topology doesn't exist.
-        if (!topologyIDManager.currentRealTimeDatabase().isPresent()) {
+        if (!lifecycleManager.getRealtimeDatabase().isPresent()) {
             logger.warn("No real-time topology exists for searching request");
             responseObserver.onCompleted();
             return;
         }
 
         final String db = TopologyDatabases.getDbName(
-                topologyIDManager.currentRealTimeDatabase().get());
+                lifecycleManager.getRealtimeDatabase().get());
         try {
             Optional<Set<Entity>> entitiesSet = Optional.empty();
             List<SearchParameters> searchParametersList = request.getSearchParametersList();
@@ -177,12 +178,11 @@ public class SearchService extends SearchServiceImplBase {
 
     private Collection<BaseApiDTO> getSearchResults(List<String> types,
                                                     String scope) throws Exception {
-        if (!topologyIDManager.currentRealTimeDatabase().isPresent()) {
+        if (!lifecycleManager.getRealtimeTopologyId().isPresent()) {
             return new HashSet<BaseApiDTO>();
         }
 
-        final String contextId = Long.toString(
-                topologyIDManager.getCurrentRealTimeTopologyId().get().getContextId());
+        final long contextId = lifecycleManager.getRealtimeTopologyId().get().getContextId();
         Flux<ScopedEntity> scopedEntities = supplyChainService.scopedEntities(contextId, scope, types);
         return scopedEntities.toStream().map(SearchService::convert).collect(Collectors.toList());
     }

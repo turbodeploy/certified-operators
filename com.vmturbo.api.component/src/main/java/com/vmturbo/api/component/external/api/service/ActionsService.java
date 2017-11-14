@@ -23,6 +23,7 @@ import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionCountsMapper;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.dto.notification.LogEntryApiDTO;
@@ -100,7 +101,8 @@ public class ActionsService implements IActionsService {
         }
 
         log.debug("Mapping actions for: {}", uuid);
-        final ActionApiDTO answer = actionSpecMapper.mapActionSpecToActionApiDTO(action.getActionSpec());
+        final ActionApiDTO answer = actionSpecMapper.mapActionSpecToActionApiDTO(action.getActionSpec(),
+                realtimeTopologyContextId);
         log.trace("Result: {}", () -> answer.toString());
         return answer;
     }
@@ -172,8 +174,10 @@ public class ActionsService implements IActionsService {
             .map(Long::valueOf)
             .collect(Collectors.toSet());
         final Map<Long, EntityStatsApiDTO> entityStatsMap = new HashMap<>();
-        for (Map.Entry<Long, Optional<ServiceEntityApiDTO>> entry : repositoryApi
-            .getServiceEntitiesById(entityIds).entrySet()) {
+        for (Map.Entry<Long, Optional<ServiceEntityApiDTO>> entry :
+                repositoryApi.getServiceEntitiesById(
+                        ServiceEntitiesRequest.newBuilder(entityIds).build())
+                    .entrySet()) {
             final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
             ServiceEntityApiDTO serviceEntity = entry.getValue().orElseThrow(()
                 -> new UnknownObjectException(

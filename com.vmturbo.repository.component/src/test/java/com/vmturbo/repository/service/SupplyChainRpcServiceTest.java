@@ -15,7 +15,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
 
-import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -71,7 +70,7 @@ public class SupplyChainRpcServiceTest {
     @Test
     public void testGetSingleSourceSupplyChainSuccess() throws Exception {
         doReturn(Either.right(Stream.of(pmNode, vmNode)))
-            .when(graphDBService).getSupplyChain(eq(Optional.of("1234")), eq("5678"));
+            .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq("5678"));
 
         final List<SupplyChainNode> nodes = Lists.newArrayList(
             supplyChainStub.getSupplyChain(SupplyChainRequest.newBuilder()
@@ -87,7 +86,7 @@ public class SupplyChainRpcServiceTest {
     @Test
     public void testGetSingleSourceSupplyChainFiltered() throws Exception {
         doReturn(Either.right(Stream.of(pmNode, vmNode)))
-            .when(graphDBService).getSupplyChain(eq(Optional.of("1234")), eq("5678"));
+            .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq("5678"));
 
         final List<SupplyChainNode> nodes = Lists.newArrayList(
             supplyChainStub.getSupplyChain(SupplyChainRequest.newBuilder()
@@ -103,7 +102,7 @@ public class SupplyChainRpcServiceTest {
     @Test
     public void testGetSingleSourceSupplyChainFailure() throws Exception {
         doReturn(Either.left("failed"))
-            .when(graphDBService).getSupplyChain(eq(Optional.of("1234")), eq("5678"));
+            .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq("5678"));
 
         expectedException.expect(GrpcRuntimeExceptionMatcher
             .hasCode(Code.INTERNAL)
@@ -137,9 +136,9 @@ public class SupplyChainRpcServiceTest {
                 .build();
 
         doReturn(Either.right(Stream.of(pmNode, vmNode)))
-                .when(graphDBService).getSupplyChain(eq(Optional.of("1234")), eq("5678"));
+                .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq("5678"));
         doReturn(Either.right(Stream.of(pmNode2, vmNode2)))
-                .when(graphDBService).getSupplyChain(eq(Optional.of("1234")), eq("91011"));
+                .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq("91011"));
 
         final List<SupplyChainNode> nodes = Lists.newArrayList(
                 supplyChainStub.getSupplyChain(SupplyChainRequest.newBuilder()
@@ -173,9 +172,9 @@ public class SupplyChainRpcServiceTest {
                 .build();
 
         doReturn(Either.right(Stream.of(pmNode, vmNode)))
-                .when(graphDBService).getSupplyChain(eq(Optional.of("1234")), eq("5678"));
+                .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq("5678"));
         doReturn(Either.right(Stream.of(pmNode2, vmNode2)))
-                .when(graphDBService).getSupplyChain(eq(Optional.of("1234")), eq("91011"));
+                .when(graphDBService).getSupplyChain(eq(Optional.of(1234L)), eq("91011"));
 
         final List<SupplyChainNode> nodes = Lists.newArrayList(
                 supplyChainStub.getSupplyChain(SupplyChainRequest.newBuilder()
@@ -193,7 +192,7 @@ public class SupplyChainRpcServiceTest {
         final Map<String, SupplyChainNode> inputNodes = ImmutableMap.of(
             "PhysicalMachine", pmNode,
             "VirtualMachine", vmNode);
-        when(supplyChainService.getGlobalSupplyChain(eq(Optional.of("1234"))))
+        when(supplyChainService.getGlobalSupplyChain(eq(Optional.of(1234L))))
             .thenReturn(Mono.just(inputNodes));
 
         // Force evaluation of the stream
@@ -206,7 +205,7 @@ public class SupplyChainRpcServiceTest {
 
     @Test
     public void testGetGlobalSupplyChainFailure() throws Exception {
-        when(supplyChainService.getGlobalSupplyChain(eq(Optional.of("1234"))))
+        when(supplyChainService.getGlobalSupplyChain(eq(Optional.of(1234L))))
             .thenReturn(Mono.error(new RuntimeException("failed")));
 
         expectedException.expect(GrpcRuntimeExceptionMatcher

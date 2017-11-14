@@ -27,7 +27,6 @@ import com.arangodb.ArangoDatabase;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.repository.graph.GraphDefinition;
 import com.vmturbo.repository.graph.driver.ArangoDatabaseFactory;
-import com.vmturbo.repository.topology.TopologyIDManager;
 
 
 @RunWith(MockitoJUnitRunner.class)
@@ -50,9 +49,6 @@ public class GraphTopologyServiceTest {
 
     @Mock
     private ArangoDatabaseFactory arangoDatabaseFactory;
-
-    @Mock
-    private TopologyIDManager topologyIDManager;
 
     @Rule
     public TemporaryFolder folder = new TemporaryFolder();

@@ -2,6 +2,7 @@ package com.vmturbo.repository;
 
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -9,8 +10,8 @@ import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpStatus;
@@ -29,9 +30,9 @@ import com.vmturbo.components.common.diagnostics.Diagnosable;
 import com.vmturbo.components.common.diagnostics.Diags;
 import com.vmturbo.components.common.diagnostics.RecursiveZipReader;
 import com.vmturbo.components.common.diagnostics.RecursiveZipReaderFactory;
-import com.vmturbo.repository.topology.TopologyDatabases;
-import com.vmturbo.repository.topology.TopologyIDManager;
-import com.vmturbo.repository.topology.TopologyIDManager.TopologyID;
+import com.vmturbo.repository.topology.TopologyID;
+import com.vmturbo.repository.topology.TopologyID.TopologyType;
+import com.vmturbo.repository.topology.TopologyLifecycleManager;
 import com.vmturbo.repository.topology.TopologyRelationshipRecorder;
 
 /**
@@ -48,7 +49,7 @@ import com.vmturbo.repository.topology.TopologyRelationshipRecorder;
  */
 public class RepositoryDiagnosticsHandler {
 
-    private final Logger logger = LoggerFactory.getLogger(RepositoryDiagnosticsHandler.class);
+    private final Logger logger = LogManager.getLogger();
 
     /**
      * The file name for the state of the {@link TopologyRelationshipRecorder}. It's a string file,
@@ -58,32 +59,36 @@ public class RepositoryDiagnosticsHandler {
     static final String SUPPLY_CHAIN_RELATIONSHIP_FILE = "provider-rels.diags";
 
     /**
-     * The file name for the state of the {@link TopologyIDManager}. It's a string file,
+     * The file name for the state of the {@link TopologyLifecycleManager}. It's a string file,
      * so the "diags" extension is required for compatibility with {@link RecursiveZipReader}.
      */
     @VisibleForTesting
     static final String ID_MGR_FILE = "database-metadata.diags";
 
     /**
-     * The file name for the topology dump collected from the arangodb container.
+     * The file name for the source topology dump collected from the arangodb container.
      * It's a binary file, so the "binary" extension is required for compatibility
      * with {@link RecursiveZipReader}.
      */
     @VisibleForTesting
-    static final String TOPOLOGY_DUMP_FILE = "topology_dump.binary";
+    static final String SOURCE_TOPOLOGY_DUMP_FILE = "source_topology_dump.binary";
+
+    /**
+     * The file name for the projected topology dump collected from the arangodb container.
+     * It's a binary file, so the "binary" extension is required for compatibility
+     * with {@link RecursiveZipReader}.
+     */
+    @VisibleForTesting
+    static final String PROJECTED_TOPOLOGY_DUMP_FILE = "projected_topology_dump.binary";
 
     @VisibleForTesting
     static final String ERRORS_FILE = "dump_errors";
 
-    private final ArangoDump arangoDump;
-
-    private final ArangoRestore arangoRestore;
-
     private final TopologyRelationshipRecorder globalSupplyChainRecorder;
 
-    private final TopologyIDManager topologyIDManager;
+    private final TopologyLifecycleManager topologyLifecycleManager;
 
-    private final RestTemplate restTemplate;
+    private final TopologyDiagnostics topologyDiagnostics;
 
     private final RecursiveZipReaderFactory zipReaderFactory;
 
@@ -92,17 +97,29 @@ public class RepositoryDiagnosticsHandler {
     public RepositoryDiagnosticsHandler(final ArangoDump arangoDump,
                                         final ArangoRestore arangoRestore,
                                         final TopologyRelationshipRecorder globalSupplyChainRecorder,
-                                        final TopologyIDManager topologyIDManager,
+                                        final TopologyLifecycleManager topologyLifecycleManager,
                                         final RestTemplate restTemplate,
                                         final RecursiveZipReaderFactory zipReaderFactory,
                                         final DiagnosticsWriter diagnosticsWriter) {
-        this.arangoDump = Objects.requireNonNull(arangoDump);
-        this.arangoRestore = Objects.requireNonNull(arangoRestore);
         this.globalSupplyChainRecorder = Objects.requireNonNull(globalSupplyChainRecorder);
-        this.topologyIDManager = Objects.requireNonNull(topologyIDManager);
-        this.restTemplate = Objects.requireNonNull(restTemplate);
+        this.topologyLifecycleManager = Objects.requireNonNull(topologyLifecycleManager);
         this.zipReaderFactory = Objects.requireNonNull(zipReaderFactory);
         this.diagnosticsWriter = Objects.requireNonNull(diagnosticsWriter);
+        this.topologyDiagnostics = new DefaultTopologyDiagnostics(arangoDump, arangoRestore,
+                topologyLifecycleManager, restTemplate);
+    }
+
+    @VisibleForTesting
+    RepositoryDiagnosticsHandler(final TopologyRelationshipRecorder globalSupplyChainRecorder,
+                                        final TopologyLifecycleManager topologyLifecycleManager,
+                                        final RecursiveZipReaderFactory zipReaderFactory,
+                                        final DiagnosticsWriter diagnosticsWriter,
+                                        final TopologyDiagnostics topologyDiagnostics) {
+        this.globalSupplyChainRecorder = Objects.requireNonNull(globalSupplyChainRecorder);
+        this.topologyLifecycleManager = Objects.requireNonNull(topologyLifecycleManager);
+        this.zipReaderFactory = Objects.requireNonNull(zipReaderFactory);
+        this.diagnosticsWriter = Objects.requireNonNull(diagnosticsWriter);
+        this.topologyDiagnostics = Objects.requireNonNull(topologyDiagnostics);
     }
 
     /**
@@ -112,46 +129,43 @@ public class RepositoryDiagnosticsHandler {
      * @return The list of errors encountered, or an empty list if successful.
      */
     public List<String> dump(@Nonnull final ZipOutputStream diagnosticZip) {
-        final Optional<TopologyID> topologyId = topologyIDManager.getCurrentRealTimeTopologyId();
-
         final List<String> errors = new ArrayList<>();
-        if (!topologyId.isPresent()) {
-            errors.add("No real-time topology found.");
+
+        final Optional<TopologyID> sourceTopologyId =
+                topologyLifecycleManager.getRealtimeTopologyId(TopologyType.SOURCE);
+        if (!sourceTopologyId.isPresent()) {
+            errors.add("No source real-time topology found.");
         } else {
-            final TopologyID tid = topologyId.get();
-            final String db = topologyIDManager.databaseName(tid);
-
-            logger.info("Dumping real-time topology with database {}, {}", db, tid);
-
-            // Dump the specified topology from arangodb.
-            final String fullDumpUrl = arangoDump.getEndpoint() + "/" + db;
-            logger.info("Dumping topology database by calling {}", fullDumpUrl);
             try {
-                final ResponseEntity<byte[]> databaseDumpEntity =
-                        restTemplate.getForEntity(fullDumpUrl, byte[].class);
-                if (databaseDumpEntity.getStatusCode() == HttpStatus.OK) {
-                    diagnosticsWriter.writeZipEntry(TOPOLOGY_DUMP_FILE,
-                            databaseDumpEntity.getBody(), diagnosticZip);
-                    logger.info("Finished dumping topology");
-                } else {
-                    errors.add("Fail to dump topology database: "
-                            + new String(databaseDumpEntity.getBody()));
-                }
-            } catch (RestClientException e) {
-                errors.add("Error retrieving ArangoDB dump from the remote service: " +
-                        e.getLocalizedMessage());
+                final byte[] srcTopology = topologyDiagnostics.dumpTopology(sourceTopologyId.get());
+                diagnosticsWriter.writeZipEntry(SOURCE_TOPOLOGY_DUMP_FILE, srcTopology, diagnosticZip);
+            } catch (DiagnosticsException e) {
+                errors.addAll(e.getErrors());
             }
-
-            // Dumps the SE provider relationship
-            logger.info("Dumping provider relationships");
-            diagnosticsWriter.writeZipEntry(SUPPLY_CHAIN_RELATIONSHIP_FILE,
-                    globalSupplyChainRecorder.collectDiags(), diagnosticZip);
-
-            // Dumps the topology id and database name
-            logger.info("Dumping topology IDs and database names");
-            diagnosticsWriter.writeZipEntry(ID_MGR_FILE,
-                    topologyIDManager.collectDiags(), diagnosticZip);
         }
+
+        final Optional<TopologyID> projectedTopologyId =
+                topologyLifecycleManager.getRealtimeTopologyId(TopologyType.PROJECTED);
+        if (!projectedTopologyId.isPresent()) {
+            errors.add("No projected real-time topology found.");
+        } else {
+            try {
+                final byte[] projectedTopology = topologyDiagnostics.dumpTopology(projectedTopologyId.get());
+                diagnosticsWriter.writeZipEntry(PROJECTED_TOPOLOGY_DUMP_FILE, projectedTopology, diagnosticZip);
+            } catch (DiagnosticsException e) {
+                errors.addAll(e.getErrors());
+            }
+        }
+
+        // Dumps the SE provider relationship
+        logger.info("Dumping provider relationships");
+        diagnosticsWriter.writeZipEntry(SUPPLY_CHAIN_RELATIONSHIP_FILE,
+                globalSupplyChainRecorder.collectDiags(), diagnosticZip);
+
+        // Dumps the topology id and database name
+        logger.info("Dumping topology IDs and database names");
+        diagnosticsWriter.writeZipEntry(ID_MGR_FILE,
+                topologyLifecycleManager.collectDiags(), diagnosticZip);
 
         if (!errors.isEmpty()) {
             diagnosticsWriter.writeZipEntry(ERRORS_FILE, errors, diagnosticZip);
@@ -174,7 +188,8 @@ public class RepositoryDiagnosticsHandler {
         // In order to be able to handle arbitrary orders of input files,
         // defer the topology dump restoration.
         boolean idRestored = false;
-        Optional<Diags> topoDumpDiags = Optional.empty();
+        Optional<Diags> sourceTopoDumpDiags = Optional.empty();
+        Optional<Diags> projectedTopoDumpDiags = Optional.empty();
 
         for (Diags diags : zipReaderFactory.createReader(zis)) {
             final String name = diags.getName();
@@ -183,7 +198,7 @@ public class RepositoryDiagnosticsHandler {
                     errors.add("The file " + ID_MGR_FILE + " was not saved as lines of strings " +
                             "with the appropriate suffix!");
                 } else {
-                    topologyIDManager.restoreDiags(diags.getLines());
+                    topologyLifecycleManager.restoreDiags(diags.getLines());
                     idRestored = true;
                     logger.info("Restored {} ", ID_MGR_FILE);
                 }
@@ -195,10 +210,14 @@ public class RepositoryDiagnosticsHandler {
                     globalSupplyChainRecorder.restoreDiags(diags.getLines());
                     logger.info("Restored {} ", SUPPLY_CHAIN_RELATIONSHIP_FILE);
                 }
-            } else if (name.equals(TOPOLOGY_DUMP_FILE)) {
+            } else if (name.equals(SOURCE_TOPOLOGY_DUMP_FILE)) {
                 // We'll handle this later, if the Repository's internal state gets initialized
                 // correctly.
-                topoDumpDiags = Optional.of(diags);
+                sourceTopoDumpDiags = Optional.of(diags);
+            } else if (name.equals(PROJECTED_TOPOLOGY_DUMP_FILE)) {
+                // We'll handle this later, if the Repository's internal state gets initialized
+                // correctly.
+                projectedTopoDumpDiags = Optional.of(diags);
             } else {
                 logger.warn("Skipping file: {}", name);
             }
@@ -206,18 +225,100 @@ public class RepositoryDiagnosticsHandler {
 
         // Restore the topology in ArangoDB.
         if (idRestored) {
-            if (!topoDumpDiags.isPresent()) {
-                errors.add("Did not find the file " + TOPOLOGY_DUMP_FILE +
-                        " in the uploaded diags.");
+            try {
+                topologyDiagnostics.restoreTopology(sourceTopoDumpDiags, TopologyType.SOURCE);
+            } catch (DiagnosticsException e) {
+                errors.addAll(e.getErrors());
             }
-            topoDumpDiags.ifPresent(topoDump -> {
+
+            try {
+                topologyDiagnostics.restoreTopology(projectedTopoDumpDiags, TopologyType.PROJECTED);
+            } catch (DiagnosticsException e) {
+                errors.addAll(e.getErrors());
+            }
+        } else {
+            errors.add("Did not successfully restore the realtime topology ID - was " +
+                    ID_MGR_FILE + " not in the diags?");
+        }
+        return errors;
+    }
+
+    /**
+     * An interface to abstract away the details of interacting with the arango_dump_restore.py
+     * web server in ArangoDB.
+     * <p>
+     * Mostly here for testing purposes (and also because it's cleaner :)).
+     */
+    @VisibleForTesting
+    interface TopologyDiagnostics {
+
+        /**
+         * Restore a topology dumped by {@link TopologyDiagnostics#dumpTopology(TopologyID)}.
+         *
+         * @param diags An optional containing the {@link Diags} object.
+         *              The {@link Diags#getBytes()} method should return the bytes
+         *              returned by {@link TopologyDiagnostics#dumpTopology(TopologyID)}.
+         * @param topologyType The type of the topology.
+         * @throws DiagnosticsException
+         */
+        void restoreTopology(@Nonnull final Optional<Diags> diags,
+                             @Nonnull final TopologyType topologyType) throws DiagnosticsException;
+
+        /**
+         * Dump the topology identified by the {@link TopologyID}.
+         *
+         * @param tid The {@link TopologyID} to dump.
+         * @return The byte array containing the dumped topology.
+         * @throws DiagnosticsException If there is an issue collecting diagnostics.
+         */
+        @Nonnull
+        byte[] dumpTopology(@Nonnull TopologyID tid) throws DiagnosticsException;
+    }
+
+    @VisibleForTesting
+    static class DefaultTopologyDiagnostics implements TopologyDiagnostics {
+        private static final Logger logger = LogManager.getLogger();
+
+        private final ArangoDump arangoDump;
+
+        private final ArangoRestore arangoRestore;
+        private final TopologyLifecycleManager topologyLifecycleManager;
+
+        private final RestTemplate restTemplate;
+
+        @VisibleForTesting
+        DefaultTopologyDiagnostics(@Nonnull final ArangoDump arangoDump,
+                                           @Nonnull final ArangoRestore arangoRestore,
+                                           @Nonnull final TopologyLifecycleManager topologyLifecycleManager,
+                                           @Nonnull final RestTemplate restTemplate) {
+            this.arangoDump = Objects.requireNonNull(arangoDump);
+            this.arangoRestore = Objects.requireNonNull(arangoRestore);
+            this.topologyLifecycleManager = Objects.requireNonNull(topologyLifecycleManager);
+            this.restTemplate = Objects.requireNonNull(restTemplate);
+        }
+
+        @Nonnull
+        @Override
+        public void restoreTopology(@Nonnull final Optional<Diags> diags,
+                                    @Nonnull final TopologyType topologyType)
+                throws DiagnosticsException {
+            final List<String> errors = new LinkedList<>();
+            if (!diags.isPresent()) {
+                errors.add("Did not find the " + topologyType + " topology in the uploaded diags.");
+            }
+
+            diags.ifPresent(topoDump -> {
                 if (topoDump.getBytes() == null) {
-                    errors.add("The file " + TOPOLOGY_DUMP_FILE + " was not saved as" +
+                    errors.add("The file for the " + topologyType + " topology was not saved as" +
                             " a binary file with the appropriate suffix!");
                 } else {
                     // Restore topology
-                    final String database = TopologyDatabases.getDbName(
-                            topologyIDManager.currentRealTimeDatabase().get());
+                    // Since we restored the IDs earlier, and we had originally dumped this topology,
+                    // (which only works if the topology is in the lifecycle manager) the lifecycle
+                    // manager should have an entry for the realtime database.
+                    final TopologyID tid =
+                            topologyLifecycleManager.getRealtimeTopologyId(topologyType).get();
+                    final String database = tid.toDatabaseName();
                     final String fullRestoreUrl = arangoRestore.getEndpoint() + "/" + database;
 
                     final MultiValueMap<String, Object> map = new LinkedMultiValueMap<>();
@@ -226,7 +327,7 @@ public class RepositoryDiagnosticsHandler {
                     map.add("file", new ByteArrayResource(topoDump.getBytes()) {
                         @Override
                         public String getFilename() {
-                            return TOPOLOGY_DUMP_FILE;
+                            return "random-file-name";
                         }
                     });
 
@@ -237,9 +338,10 @@ public class RepositoryDiagnosticsHandler {
                                 restTemplate.postForEntity(fullRestoreUrl, request, String.class);
 
                         if (responseEntity.getStatusCode() != HttpStatus.CREATED) {
-                            errors.add("Failed to restore topology: " + responseEntity.getBody());
+                            errors.add("Failed to restore " + topologyType + " topology: "
+                                    + responseEntity.getBody());
                         } else {
-                            logger.info("Restored topology from {}", TOPOLOGY_DUMP_FILE);
+                            logger.info("Restored " + topologyType + " topology.");
                         }
                     } catch (RestClientException e) {
                         errors.add("POST to arangodb to restore topology failed with exception: " +
@@ -247,10 +349,57 @@ public class RepositoryDiagnosticsHandler {
                     }
                 }
             });
-        } else {
-            errors.add("Did not successfully restore the realtime topology ID - was " +
-                    ID_MGR_FILE + " not in the diags?");
+
+            if (!errors.isEmpty()) {
+                throw new DiagnosticsException(errors);
+            }
         }
-        return errors;
+
+        @Nonnull
+        @Override
+        public byte[] dumpTopology(@Nonnull final TopologyID tid) throws DiagnosticsException {
+            final List<String> errors = new ArrayList<>();
+            final String db = tid.toDatabaseName();
+
+            logger.info("Dumping real-time topology with database {}, {}", db, tid);
+
+            byte[] retBytes = new byte[0];
+            // Dump the specified topology from arangodb.
+            try {
+                final String fullDumpUrl = arangoDump.getEndpoint() + "/" + db;
+                logger.info("Dumping topology database by calling {}", fullDumpUrl);
+                final ResponseEntity<byte[]> databaseDumpEntity =
+                        restTemplate.getForEntity(fullDumpUrl, byte[].class);
+                if (databaseDumpEntity.getStatusCode() == HttpStatus.OK) {
+                    logger.info("Finished dumping topology");
+                    retBytes = databaseDumpEntity.getBody();
+                } else {
+                    errors.add("Fail to dump topology database: "
+                            + new String(databaseDumpEntity.getBody()));
+                }
+            } catch (RestClientException e) {
+                errors.add("Error retrieving ArangoDB dump from the remote service: " +
+                        e.getLocalizedMessage());
+            }
+
+            if (!errors.isEmpty()) {
+                throw new DiagnosticsException(errors);
+            }
+
+            return retBytes;
+        }
+    }
+
+    public static class DiagnosticsException extends Exception {
+
+        private final List<String> errors;
+
+        public DiagnosticsException(@Nonnull final List<String> errors) {
+            this.errors = errors;
+        }
+
+        public List<String> getErrors() {
+            return errors;
+        }
     }
 }

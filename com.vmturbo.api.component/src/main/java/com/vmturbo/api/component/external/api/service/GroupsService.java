@@ -24,6 +24,7 @@ import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionCountsMapper;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
@@ -196,7 +197,7 @@ public class GroupsService implements IGroupsService {
         List<ActionSpec> specs = StreamSupport.stream(actions.spliterator(), false)
             .map(ActionOrchestratorAction::getActionSpec)
             .collect(Collectors.toList());
-        return actionSpecMapper.mapActionSpecsToActionApiDTOs(specs);
+        return actionSpecMapper.mapActionSpecsToActionApiDTOs(specs, realtimeTopologyContextId);
     }
 
     @Override
@@ -355,7 +356,8 @@ public class GroupsService implements IGroupsService {
 
             // Get entities of group members from the repository component
             final Map<Long, Optional<ServiceEntityApiDTO>> entities =
-                    repositoryApi.getServiceEntitiesById(Sets.newHashSet(memberIds));
+                    repositoryApi.getServiceEntitiesById(ServiceEntitiesRequest.newBuilder(
+                            Sets.newHashSet(memberIds)).build());
 
             final List<ServiceEntityApiDTO> results = new ArrayList<>();
 

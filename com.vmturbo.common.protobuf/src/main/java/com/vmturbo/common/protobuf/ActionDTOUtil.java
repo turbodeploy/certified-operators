@@ -97,7 +97,11 @@ public class ActionDTOUtil {
         switch (action.getInfo().getActionTypeCase()) {
             case MOVE:
                 final ActionDTO.Move move = action.getInfo().getMove();
-                return ImmutableSet.of(move.getSourceId(), move.getDestinationId(), move.getTargetId());
+                if (move.getSourceId() == 0) {
+                    return ImmutableSet.of(move.getDestinationId(), move.getTargetId());
+                } else {
+                    return ImmutableSet.of(move.getSourceId(), move.getDestinationId(), move.getTargetId());
+                }
             case RESIZE:
                 return ImmutableSet.of(action.getInfo().getResize().getTargetId());
             case ACTIVATE:

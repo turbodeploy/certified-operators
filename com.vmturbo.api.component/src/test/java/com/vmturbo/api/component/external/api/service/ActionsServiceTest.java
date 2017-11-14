@@ -4,6 +4,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
 
 import java.io.IOException;
 import java.util.List;
@@ -148,7 +149,7 @@ public class ActionsServiceTest {
                 .addOids(2L))
             .build();
 
-        Mockito.when(repositoryApi.getServiceEntitiesById(entityIds))
+        Mockito.when(repositoryApi.getServiceEntitiesById(any()))
             .thenReturn(serviceEntityMap);
 
         Mockito.when(actionSpecMapper.createActionFilter(actionApiInputDTO, Optional.of(entityIds)))

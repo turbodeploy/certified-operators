@@ -116,7 +116,7 @@ public class SupplyChainRpcService extends SupplyChainServiceImplBase {
                                       @Nonnull final Optional<Long> contextId,
                                       @Nonnull final StreamObserver<SupplyChainNode> responseObserver) {
         GLOBAL_SUPPLY_CHAIN_DURATION_SUMMARY.startTimer().time(() -> {
-            supplyChainService.getGlobalSupplyChain(contextId.map(Object::toString))
+            supplyChainService.getGlobalSupplyChain(contextId)
                 .subscribe(supplyChainNodes -> {
                     supplyChainNodes.values().stream()
                             // if entityTypes are to be limited, restrict to SupplyChainNode types in the list
@@ -185,7 +185,7 @@ public class SupplyChainRpcService extends SupplyChainServiceImplBase {
 
         SINGLE_SOURCE_SUPPLY_CHAIN_DURATION_SUMMARY.startTimer().time(() -> {
             Either<String, Stream<SupplyChainNode>> supplyChain = graphDBService.getSupplyChain(
-                contextId.map(Object::toString), startingVertexOid.toString());
+                contextId, startingVertexOid.toString());
 
             Match(supplyChain).of(
                 Case(Right($()), v -> {

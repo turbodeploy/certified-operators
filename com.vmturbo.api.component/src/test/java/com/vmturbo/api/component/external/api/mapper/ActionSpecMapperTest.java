@@ -5,6 +5,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -71,6 +72,8 @@ public class ActionSpecMapperTest {
     @Mock
     private RepositoryApi repositoryApi;
 
+    private final long contextId = 777L;
+
     private CommodityType commodityCpu;
     private CommodityType commodityMem;
 
@@ -98,7 +101,7 @@ public class ActionSpecMapperTest {
                                         .build())
                         .build();
         ActionApiDTO actionApiDTO =
-                        mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveInfo, compliance));
+            mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveInfo, compliance), contextId);
         assertEquals("Target", actionApiDTO.getTarget().getDisplayName());
         assertEquals("0", actionApiDTO.getTarget().getUuid());
 
@@ -123,7 +126,7 @@ public class ActionSpecMapperTest {
                                         .build())
                         .build();
         ActionApiDTO actionApiDTO =
-                        mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveInfo, placement));
+            mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveInfo, placement), contextId);
         assertEquals("Target", actionApiDTO.getTarget().getDisplayName());
         assertEquals("0", actionApiDTO.getTarget().getUuid());
 
@@ -133,7 +136,7 @@ public class ActionSpecMapperTest {
         assertEquals("Destination", actionApiDTO.getNewEntity().getDisplayName());
         assertEquals("2", actionApiDTO.getNewValue());
 
-        assertEquals(ActionType.MOVE, actionApiDTO.getActionType());
+        assertEquals(ActionType.START, actionApiDTO.getActionType());
         assertEquals("default explanation", actionApiDTO.getRisk().getDescription());
 
         assertTrue(actionApiDTO.getDetails().startsWith("Start"));
@@ -150,7 +153,7 @@ public class ActionSpecMapperTest {
                         .build())
                 .build();
         ActionApiDTO actionApiDTO =
-                mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveInfo, compliance));
+            mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveInfo, compliance), contextId);
         assertEquals("Target", actionApiDTO.getTarget().getDisplayName());
         assertEquals("0", actionApiDTO.getTarget().getUuid());
 
@@ -173,14 +176,13 @@ public class ActionSpecMapperTest {
                                         .setReconfigure(ReconfigureExplanation.newBuilder()
                                                         .addReconfigureCommodity(2).build())
                                         .build();
-        Mockito.when(repositoryApi.getServiceEntitiesById(Mockito.eq(ImmutableSet.of(0L, 1L))
-        ))
+        Mockito.when(repositoryApi.getServiceEntitiesById(any()))
                         .thenReturn(oidToEntityMap(
                                 entityApiDTO("Target", 0L, "C0"),
                                 entityApiDTO("Source", 1L, "C1")));
 
-        ActionApiDTO actionApiDTO =
-                        mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveInfo, reconfigure));
+        final ActionApiDTO actionApiDTO =
+            mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveInfo, reconfigure), contextId);
         assertEquals("Target", actionApiDTO.getTarget().getDisplayName());
         assertEquals("0", actionApiDTO.getTarget().getUuid());
         assertEquals("C0", actionApiDTO.getTarget().getClassName());
@@ -204,13 +206,11 @@ public class ActionSpecMapperTest {
                         .newBuilder().setProvisionBySupplyExplanation(ProvisionBySupplyExplanation
                                         .newBuilder().setMostExpensiveCommodity(21).build())
                         .build()).build();
-        Mockito.when(repositoryApi.getServiceEntitiesById(Mockito.eq(ImmutableSet.of(0L))
-        ))
-                        .thenReturn(oidToEntityMap(
-                                entityApiDTO("EntityToClone", 0L, "c0")));
+        Mockito.when(repositoryApi.getServiceEntitiesById(any()))
+            .thenReturn(oidToEntityMap(entityApiDTO("EntityToClone", 0L, "c0")));
 
-        ActionApiDTO actionApiDTO =
-                        mapper.mapActionSpecToActionApiDTO(buildActionSpec(provisionInfo, provision));
+        final ActionApiDTO actionApiDTO = mapper.mapActionSpecToActionApiDTO(
+                buildActionSpec(provisionInfo, provision), contextId);
         assertEquals("EntityToClone", actionApiDTO.getCurrentEntity().getDisplayName());
         assertEquals("0", actionApiDTO.getCurrentValue());
 
@@ -242,12 +242,11 @@ public class ActionSpecMapperTest {
                 .setEndUtilization(0.4f).build())
             .build();
 
-        Mockito.when(repositoryApi.getServiceEntitiesById(Mockito.eq(ImmutableSet.of(targetId))))
-            .thenReturn(oidToEntityMap(
-                    entityApiDTO("EntityToResize", targetId, "c0")));
+        Mockito.when(repositoryApi.getServiceEntitiesById(any()))
+            .thenReturn(oidToEntityMap(entityApiDTO("EntityToResize", targetId, "c0")));
 
         final ActionApiDTO actionApiDTO =
-            mapper.mapActionSpecToActionApiDTO(buildActionSpec(resizeInfo, resize));
+            mapper.mapActionSpecToActionApiDTO(buildActionSpec(resizeInfo, resize), contextId);
         assertEquals("EntityToResize", actionApiDTO.getTarget().getDisplayName());
         assertEquals(targetId, Long.parseLong(actionApiDTO.getTarget().getUuid()));
         assertEquals(ActionType.RESIZE, actionApiDTO.getActionType());
@@ -268,13 +267,12 @@ public class ActionSpecMapperTest {
                                         .setActivate(ActivateExplanation.newBuilder()
                                                         .setMostExpensiveCommodity(40).build())
                                         .build();
-        Mockito.when(repositoryApi.getServiceEntitiesById(Mockito.eq(ImmutableSet.of(targetId))
-        ))
+        Mockito.when(repositoryApi.getServiceEntitiesById(any()))
                         .thenReturn(oidToEntityMap(
                                 entityApiDTO("EntityToActivate", targetId, "c0")));
 
-        final ActionApiDTO actionApiDTO =
-                        mapper.mapActionSpecToActionApiDTO(buildActionSpec(activateInfo, activate));
+        final ActionApiDTO actionApiDTO = mapper.mapActionSpecToActionApiDTO(
+                buildActionSpec(activateInfo, activate), contextId);
         assertEquals("EntityToActivate", actionApiDTO.getTarget().getDisplayName());
         assertEquals(targetId, Long.parseLong(actionApiDTO.getTarget().getUuid()));
         assertEquals(ActionType.START, actionApiDTO.getActionType());
@@ -297,15 +295,12 @@ public class ActionSpecMapperTest {
         final String entityToDeactivateName = "EntityToDeactivate";
         final String className = "C0";
         final String prettyClassName = "C 0";
-        Mockito.when(repositoryApi.getServiceEntitiesById(Mockito.eq(ImmutableSet.of(targetId))
-        ))
-                        .thenReturn(oidToEntityMap(
-                                entityApiDTO(entityToDeactivateName, targetId, className)));
+        Mockito.when(repositoryApi.getServiceEntitiesById(any()))
+            .thenReturn(oidToEntityMap(entityApiDTO(entityToDeactivateName, targetId, className)));
 
 
-        final ActionApiDTO actionApiDTO =
-                        mapper.mapActionSpecToActionApiDTO(
-                                        buildActionSpec(deactivateInfo, deactivate));
+        final ActionApiDTO actionApiDTO = mapper.mapActionSpecToActionApiDTO(
+            buildActionSpec(deactivateInfo, deactivate), contextId);
         assertEquals(entityToDeactivateName, actionApiDTO.getTarget().getDisplayName());
         assertEquals(targetId, Long.parseLong(actionApiDTO.getTarget().getUuid()));
         assertEquals(ActionType.DEACTIVATE, actionApiDTO.getActionType());
@@ -328,7 +323,7 @@ public class ActionSpecMapperTest {
                         Optional.of(decision));
 
         // Act
-        ActionApiDTO actionApiDTO = mapper.mapActionSpecToActionApiDTO(actionSpec);
+        ActionApiDTO actionApiDTO = mapper.mapActionSpecToActionApiDTO(actionSpec, contextId);
 
         // Assert
         assertThat(actionApiDTO.getUpdateTime(), is(expectedUpdateTime));
@@ -363,14 +358,14 @@ public class ActionSpecMapperTest {
         involvedEntities.put(badSource, Optional.empty());
         involvedEntities.put(badDestination, Optional.empty());
 
-        Mockito.when(repositoryApi.getServiceEntitiesById(
-            Mockito.eq(ImmutableSet.of(badTarget, badSource, badDestination, goodTarget))))
+        Mockito.when(repositoryApi.getServiceEntitiesById(any()))
             .thenReturn(involvedEntities);
 
         final ActionSpec moveSpec = buildActionSpec(moveInfo, Explanation.getDefaultInstance(), Optional.empty());
         final ActionSpec resizeSpec = buildActionSpec(resizeInfo, Explanation.getDefaultInstance(), Optional.empty());
 
-        final List<ActionApiDTO> dtos = mapper.mapActionSpecsToActionApiDTOs(Arrays.asList(moveSpec, resizeSpec));
+        final List<ActionApiDTO> dtos = mapper.mapActionSpecsToActionApiDTOs(
+                Arrays.asList(moveSpec, resizeSpec), contextId);
         assertEquals(1, dtos.size());
         assertEquals(ActionType.RESIZE, dtos.get(0).getActionType());
     }
@@ -414,8 +409,7 @@ public class ActionSpecMapperTest {
                 .build()
         ).build();
 
-        Mockito.when(repositoryApi.getServiceEntitiesById(
-                    Mockito.eq(ImmutableSet.of(0L, 1L, 2L))))
+        Mockito.when(repositoryApi.getServiceEntitiesById(any()))
                 .thenReturn(oidToEntityMap(
                                 entityApiDTO("Target", 0L, UIEntityType.VIRTUAL_MACHINE.getValue()),
                                 entityApiDTO("Source", 1L, srcAndDestType),

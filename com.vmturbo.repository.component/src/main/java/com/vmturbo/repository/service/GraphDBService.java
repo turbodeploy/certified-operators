@@ -34,14 +34,15 @@ import com.vmturbo.repository.graph.parameter.GraphCmd;
 import com.vmturbo.repository.graph.result.ResultsConverter;
 import com.vmturbo.repository.graph.result.SupplyChainExecutorResult;
 import com.vmturbo.repository.topology.TopologyDatabase;
-import com.vmturbo.repository.topology.TopologyIDManager;
-import com.vmturbo.repository.topology.TopologyIDManager.TopologyID;
+import com.vmturbo.repository.topology.TopologyID;
+import com.vmturbo.repository.topology.TopologyID.TopologyType;
+import com.vmturbo.repository.topology.TopologyLifecycleManager;
 
 public class GraphDBService {
     private final Logger logger = LoggerFactory.getLogger(GraphDBService.class);
     private final GraphDBExecutor executor;
     private final GraphDefinition graphDefinition;
-    private final TopologyIDManager topologyIDManager;
+    private final TopologyLifecycleManager topologyManager;
 
     private static final DataMetricSummary SINGLE_SOURCE_SUPPLY_CHAIN_CONVERSION_DURATION_SUMMARY = DataMetricSummary
         .builder()
@@ -58,10 +59,10 @@ public class GraphDBService {
 
     public GraphDBService(final GraphDBExecutor executor,
                           final GraphDefinition graphDefinition,
-                          final TopologyIDManager topologyIDManager) {
+                          final TopologyLifecycleManager topologyManager) {
         this.executor = checkNotNull(executor);
         this.graphDefinition = checkNotNull(graphDefinition);
-        this.topologyIDManager = checkNotNull(topologyIDManager);
+        this.topologyManager = checkNotNull(topologyManager);
     }
 
     /**
@@ -72,12 +73,13 @@ public class GraphDBService {
      * @param startId The identifier of the starting service entity.
      * @return Either a String describing an error, or a stream of {@link SupplyChainNode}s.
      */
-    public Either<String, java.util.stream.Stream<SupplyChainNode>> getSupplyChain(final Optional<String> contextID,
+    public Either<String, java.util.stream.Stream<SupplyChainNode>> getSupplyChain(final Optional<Long> contextID,
                                                                                    final String startId) {
-        final Option<String> maybeContextID = Option.ofOptional(contextID);
-        final Option<TopologyDatabase> databaseToUse =
-            maybeContextID.map(topologyIDManager::databaseOf)
-                .orElse(Option.ofOptional(topologyIDManager.currentRealTimeDatabase()));
+        final Optional<TopologyID> targetTopologyId = contextID
+                .map(id -> topologyManager.getTopologyId(id, TopologyType.SOURCE))
+                .orElse(topologyManager.getRealtimeTopologyId());
+
+        final Optional<TopologyDatabase> databaseToUse = targetTopologyId.map(TopologyID::database);
 
         // Use the topology associated with the `contextID`, or the real-time topology.
         return databaseToUse.map(topologyDB -> {
@@ -91,10 +93,8 @@ public class GraphDBService {
             final Try<SupplyChainExecutorResult> supplyChainResults = executor.executeSupplyChainCmd(cmd);
             logger.debug("Values returned by the GraphExecutor {}", supplyChainResults);
 
-            final Option<TopologyID> maybeRealTimeID = Option.ofOptional(
-                topologyIDManager.getCurrentRealTimeTopologyId());
-            final Option<Long> contextIDToUse = maybeContextID.map(Long::parseLong)
-                .orElse(maybeRealTimeID.map(TopologyID::getContextId));
+            final Option<Long> contextIDToUse =
+                    Option.ofOptional(targetTopologyId.map(TopologyID::getContextId));
 
             final Option<Either<String, java.util.stream.Stream<SupplyChainNode>>> supplyChainResult =
                 contextIDToUse.map(cid ->
@@ -109,7 +109,7 @@ public class GraphDBService {
             return supplyChainResult.getOrElse(Either.right(java.util.stream.Stream.empty()));
         })
         // Real-time topology database is not yet created.
-        .getOrElse(() -> {
+        .orElseGet(() -> {
             logger.warn("No topology database available to use. Returning an empty supply chain");
             return Either.right(java.util.stream.Stream.empty());
         });
@@ -139,13 +139,15 @@ public class GraphDBService {
      */
     @Nonnull
     public Either<String, Collection<ServiceEntityApiDTO>> findMultipleEntities(
-            @Nonnull final Optional<String> contextId,
-            @Nonnull final Set<Long> entitiesToFind) {
+            @Nonnull final Optional<Long> contextId,
+            @Nonnull final Set<Long> entitiesToFind,
+            @Nonnull final TopologyType targetType) {
 
-        final Option<String> maybeContextID = Option.ofOptional(contextId);
+        final Optional<TopologyID> targetTopologyId = contextId
+                .map(id -> topologyManager.getTopologyId(id, targetType))
+                .orElse(topologyManager.getRealtimeTopologyId());
         final Option<TopologyDatabase> databaseToUse =
-                maybeContextID.map(topologyIDManager::databaseOf)
-                              .orElse(Option.ofOptional(topologyIDManager.currentRealTimeDatabase()));
+                Option.ofOptional(targetTopologyId.map(TopologyID::database));
 
         // Use the topology associated with the `contextID`, or the real-time topology.
         final Option<Either<String, Collection<ServiceEntityApiDTO>>> results = databaseToUse.map(topologyDB -> {
@@ -172,15 +174,16 @@ public class GraphDBService {
     }
 
     public Either<String, Collection<ServiceEntityApiDTO>> searchServiceEntity(
-           final Optional<String> contextId,
+           final Optional<Long> contextId,
            final String field,
            final String query,
            final GraphCmd.SearchType searchType) {
 
-        final Option<String> maybeContextID = Option.ofOptional(contextId);
+        final Optional<TopologyID> targetTopologyId = contextId
+                .map(id -> topologyManager.getTopologyId(id, TopologyType.SOURCE))
+                .orElse(topologyManager.getRealtimeTopologyId());
         final Option<TopologyDatabase> databaseToUse =
-                maybeContextID.map(topologyIDManager::databaseOf)
-                              .orElse(Option.ofOptional(topologyIDManager.currentRealTimeDatabase()));
+                Option.ofOptional(targetTopologyId.map(TopologyID::database));
 
         final Option<Either<String, Collection<ServiceEntityApiDTO>>> results = databaseToUse.map(topologyDB -> {
             final GraphCmd.SearchServiceEntity cmd = new GraphCmd.SearchServiceEntity(

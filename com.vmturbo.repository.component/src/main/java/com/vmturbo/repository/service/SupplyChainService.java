@@ -29,7 +29,9 @@ import com.vmturbo.repository.graph.result.GlobalSupplyChainFluxResult;
 import com.vmturbo.repository.graph.result.ScopedEntity;
 import com.vmturbo.repository.graph.result.SupplyChainResultsConverter;
 import com.vmturbo.repository.topology.TopologyDatabase;
-import com.vmturbo.repository.topology.TopologyIDManager;
+import com.vmturbo.repository.topology.TopologyID;
+import com.vmturbo.repository.topology.TopologyID.TopologyType;
+import com.vmturbo.repository.topology.TopologyLifecycleManager;
 import com.vmturbo.repository.topology.TopologyRelationshipRecorder;
 
 /**
@@ -44,18 +46,18 @@ public class SupplyChainService {
     private final GraphDefinition graphDefinition;
     private final TopologyRelationshipRecorder globalSupplyChainRecorder;
     private final GraphDBService graphDBService;
-    private final TopologyIDManager topologyIDManager;
+    private final TopologyLifecycleManager lifecycleManager;
 
     public SupplyChainService(final ReactiveGraphDBExecutor executorArg,
                               final GraphDBService graphDBServiceArg,
                               final GraphDefinition graphDefinitionArg,
                               final TopologyRelationshipRecorder globalSupplyChainRecorderArg,
-                              final TopologyIDManager topologyIDManagerArg) {
+                              final TopologyLifecycleManager lifecycleManager) {
         executor = Objects.requireNonNull(executorArg);
         graphDBService = Objects.requireNonNull(graphDBServiceArg);
         graphDefinition = Objects.requireNonNull(graphDefinitionArg);
         globalSupplyChainRecorder = Objects.requireNonNull(globalSupplyChainRecorderArg);
-        topologyIDManager = Objects.requireNonNull(topologyIDManagerArg);
+        this.lifecycleManager = Objects.requireNonNull(lifecycleManager);
     }
 
     /**
@@ -66,16 +68,20 @@ public class SupplyChainService {
      *
      * @return A map of entity type names to {@link SupplyChainNode}s.
      */
-    public Mono<Map<String, SupplyChainNode>> getGlobalSupplyChain(final Optional<String> contextID) {
-        // The real-time topology database is not yet created.
-        if (!contextID.isPresent() && !topologyIDManager.currentRealTimeDatabase().isPresent()) {
+    public Mono<Map<String, SupplyChainNode>> getGlobalSupplyChain(final Optional<Long> contextID) {
+
+        Optional<TopologyID> targetTopology = contextID
+            .map(context -> lifecycleManager.getTopologyId(context, TopologyType.SOURCE))
+            .orElse(lifecycleManager.getRealtimeTopologyId());
+
+        if (!targetTopology.isPresent()) {
+            contextID.ifPresent(id -> LOGGER.error("Requested topology context {} not found." +
+                    " Returning empty supply chain.", id));
             return Mono.just(new java.util.HashMap<>());
         }
 
-        final TopologyDatabase topologyDatabase = contextID.map(topologyIDManager::databaseOf)
-                .orElse(topologyIDManager.currentRealTimeDatabase().get());
-
-        final GlobalSupplyChainFluxResult results = globalSupplyChainResult(topologyDatabase);
+        final GlobalSupplyChainFluxResult results =
+                globalSupplyChainResult(targetTopology.map(TopologyID::database).get());
 
         // Using the mapping, construct a supply chain.
         return SupplyChainResultsConverter.toSupplyChainNodes(results,
@@ -91,9 +97,9 @@ public class SupplyChainService {
      * @param startId The starting entity ID.
      * @return A mapping between entity types and OIDs.
      */
-    public Mono<Map<String, Set<Long>>> getSupplyChainInternal(final String contextID, final String startId) {
+    public Mono<Map<String, Set<Long>>> getSupplyChainInternal(final long contextID, final String startId) {
         if (startId.equals(GLOBAL_SCOPE)) {
-            return getGlobalSupplyChain(Optional.ofNullable(contextID))
+            return getGlobalSupplyChain(Optional.of(contextID))
                 .map(nodeMap -> nodeMap.entrySet().stream()
                     .collect(Collectors.toMap(
                         Entry::getKey,
@@ -124,19 +130,25 @@ public class SupplyChainService {
      *
      * @return The {@link ScopedEntity}.
      */
-    public Flux<ScopedEntity> scopedEntities(final String contextID,
+    public Flux<ScopedEntity> scopedEntities(final long contextID,
                                              final String startId,
                                              final Collection<String> entityTypes) {
-        return getSupplyChainInternal(contextID, startId)
-            .flatMap(m -> {
+        return lifecycleManager.databaseOf(contextID, TopologyType.SOURCE)
+            .map(database -> getSupplyChainInternal(contextID, startId)
+                .flatMap(m -> {
                     final Map<String, Set<Long>> filteredMap = HashMap.ofAll(m)
                             .filter(entry -> entityTypes.contains(entry._1)).toJavaMap();
                     final List<Long> oids = List.ofAll(filteredMap.values()).flatMap(List::ofAll);
-                    final Iterator<Flux<ScopedEntity>> oidPublishers = oids.grouped(OID_CHUNK_SIZE).map(oidChunk ->
-                            executor.fetchScopedEntities(topologyIDManager.databaseOf(contextID),
-                                                         graphDefinition.getServiceEntityVertex(), oidChunk));
+                    final Iterator<Flux<ScopedEntity>> oidPublishers = oids.grouped(OID_CHUNK_SIZE)
+                            .map(oidChunk -> executor.fetchScopedEntities(database,
+                                graphDefinition.getServiceEntityVertex(), oidChunk));
                     return Flux.merge(oidPublishers);
-                });
+                }))
+            .orElseGet(() -> {
+                LOGGER.error("Unable to find database with topology context {}." +
+                        " Returning empty list of scoped entities.", contextID);
+                return Flux.empty();
+            });
     }
 
     /**

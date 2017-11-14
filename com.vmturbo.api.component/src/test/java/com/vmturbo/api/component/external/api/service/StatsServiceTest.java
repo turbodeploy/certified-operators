@@ -269,7 +269,7 @@ public class StatsServiceTest {
         Map<Long, Optional<ServiceEntityApiDTO>> serviceEntityMap = ImmutableMap.of(
                 1L, Optional.of(new ServiceEntityApiDTO()),
                 2L, Optional.of(new ServiceEntityApiDTO()));
-        when(repositoryApi.getServiceEntitiesById(anySetOf(Long.class))).thenReturn(serviceEntityMap);
+        when(repositoryApi.getServiceEntitiesById(any())).thenReturn(serviceEntityMap);
 
         // act
         List<EntityStatsApiDTO> result = statsService.getStatsByUuidsQuery(inputDto);
@@ -303,7 +303,7 @@ public class StatsServiceTest {
         Map<Long, Optional<ServiceEntityApiDTO>> serviceEntityMap = ImmutableMap.of(
                 1L, Optional.of(new ServiceEntityApiDTO()),
                 2L, Optional.of(new ServiceEntityApiDTO()));
-        when(repositoryApi.getServiceEntitiesById(anySetOf(Long.class))).thenReturn(serviceEntityMap);
+        when(repositoryApi.getServiceEntitiesById(any())).thenReturn(serviceEntityMap);
 
         // act
         List<EntityStatsApiDTO> result = statsService.getStatsByUuidsQuery(inputDto);

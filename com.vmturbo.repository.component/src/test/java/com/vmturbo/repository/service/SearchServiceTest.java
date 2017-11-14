@@ -10,7 +10,7 @@ import com.vmturbo.repository.search.AQLRepr;
 import com.vmturbo.repository.search.SearchDTOConverter;
 import com.vmturbo.repository.search.SearchHandler;
 import com.vmturbo.repository.topology.TopologyDatabase;
-import com.vmturbo.repository.topology.TopologyIDManager;
+import com.vmturbo.repository.topology.TopologyLifecycleManager;
 
 import io.grpc.stub.StreamObserver;
 import javaslang.control.Either;
@@ -44,7 +44,7 @@ public class SearchServiceTest {
     private SupplyChainService supplyChainService;
 
     @Mock
-    private TopologyIDManager topologyIDManager;
+    private TopologyLifecycleManager topologyManager;
 
     @Mock
     private SearchHandler searchHandler;
@@ -63,10 +63,10 @@ public class SearchServiceTest {
     @Before
     public void setUp() throws Throwable {
         searchService = new SearchService(supplyChainService,
-                                          topologyIDManager,
+                                          topologyManager,
                                           searchHandler);
 
-        given(topologyIDManager.currentRealTimeDatabase()).willReturn(
+        given(topologyManager.getRealtimeDatabase()).willReturn(
                 Optional.of(TopologyDatabase.from(db)));
 
         for (SearchParameters searchParameters : simpleRequest.getSearchParametersList()) {
@@ -101,7 +101,7 @@ public class SearchServiceTest {
     public void testSearchEntityOidsNoTopology() {
         final StreamObserver<SearchResponse> mockObserver = Mockito.mock(StreamObserver.class);
 
-        given(topologyIDManager.currentRealTimeDatabase()).willReturn(Optional.empty());
+        given(topologyManager.getRealtimeDatabase()).willReturn(Optional.empty());
 
         searchService.searchEntityOids(simpleRequest, mockObserver);
 
@@ -144,7 +144,7 @@ public class SearchServiceTest {
     public void testSearchEntitiesNoTopology() {
         final StreamObserver<Entity> mockObserver = Mockito.mock(StreamObserver.class);
 
-        given(topologyIDManager.currentRealTimeDatabase()).willReturn(Optional.empty());
+        given(topologyManager.getRealtimeDatabase()).willReturn(Optional.empty());
 
         searchService.searchEntities(simpleRequest, mockObserver);
 

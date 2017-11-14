@@ -289,8 +289,8 @@ public class SupplyChainFetcherTest {
 
         @Override
         public @Nonnull Map<Long, Optional<ServiceEntityApiDTO>>getServiceEntitiesById(
-                @Nonnull Set<Long> memberOidsList) {
-            return memberOidsList.stream()
+                @Nonnull final ServiceEntitiesRequest serviceEntitiesRequest) {
+            return serviceEntitiesRequest.getEntityIds().stream()
                     .collect(Collectors.toMap(oid -> oid,
                             oid -> seMap.containsKey(oid) ? Optional.of(seMap.get(oid)) :
                                     Optional.empty()

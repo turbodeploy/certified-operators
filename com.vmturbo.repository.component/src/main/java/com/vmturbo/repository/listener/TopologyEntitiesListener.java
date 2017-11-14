@@ -16,14 +16,12 @@ import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.repository.RepositoryNotificationSender;
 import com.vmturbo.repository.SharedMetrics;
-import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
 import com.vmturbo.repository.exception.GraphDatabaseExceptions.GraphDatabaseException;
-import com.vmturbo.repository.graph.operator.TopologyGraphCreator;
 import com.vmturbo.repository.topology.IncrementalTopologyRelationshipRecorder;
-import com.vmturbo.repository.topology.TopologyConverter;
-import com.vmturbo.repository.topology.TopologyEventHandler;
-import com.vmturbo.repository.topology.TopologyIDManager.TopologyID;
-import com.vmturbo.repository.topology.TopologyIDManager.TopologyType;
+import com.vmturbo.repository.topology.TopologyID;
+import com.vmturbo.repository.topology.TopologyLifecycleManager;
+import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyCreator;
+import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyEntitiesException;
 import com.vmturbo.repository.topology.TopologyRelationshipRecorder;
 import com.vmturbo.topology.processor.api.EntitiesListener;
 
@@ -34,18 +32,17 @@ import com.vmturbo.topology.processor.api.EntitiesListener;
 public class TopologyEntitiesListener implements EntitiesListener {
     private final Logger logger = LoggerFactory.getLogger(TopologyEntitiesListener.class);
 
-    private final TopologyEventHandler topologyEventHandler;
     private final TopologyRelationshipRecorder globalSupplyChainRecorder;
 
     private final RepositoryNotificationSender notificationSender;
+    private final TopologyLifecycleManager topologyManager;
 
-    public TopologyEntitiesListener(final TopologyEventHandler topologyEventHandler,
-                                    final TopologyRelationshipRecorder globalSupplyChainRecorder,
+    public TopologyEntitiesListener(@Nonnull final TopologyLifecycleManager topologyManager,
+                                    @Nonnull final TopologyRelationshipRecorder globalSupplyChainRecorder,
                                     @Nonnull final RepositoryNotificationSender sender) {
-        this.topologyEventHandler = Objects.requireNonNull(topologyEventHandler);
         this.globalSupplyChainRecorder = Objects.requireNonNull(globalSupplyChainRecorder);
-
-        this.notificationSender = sender;
+        this.notificationSender = Objects.requireNonNull(sender);
+        this.topologyManager = Objects.requireNonNull(topologyManager);
     }
 
     @Override
@@ -70,11 +67,11 @@ public class TopologyEntitiesListener implements EntitiesListener {
         final DataMetricTimer timer = SharedMetrics.TOPOLOGY_DURATION_SUMMARY
             .labels(SharedMetrics.SOURCE_LABEL)
             .startTimer();
-        final TopologyID tid = new TopologyID(topologyContextId, topologyId, TopologyType.SOURCE);
-        TopologyGraphCreator graphCreator = null;
+        final TopologyID tid = new TopologyID(topologyContextId, topologyId, TopologyID.TopologyType.SOURCE);
+        TopologyCreator topologyCreator = topologyManager.newTopologyCreator(tid);
         try {
             logger.info("Start updating topology {}", tid);
-            graphCreator = topologyEventHandler.initializeTopologyGraph(tid);
+            topologyCreator.initialize();
             IncrementalTopologyRelationshipRecorder recorder = new IncrementalTopologyRelationshipRecorder();
             int numberOfEntities = 0;
             int chunkNumber = 0;
@@ -82,42 +79,36 @@ public class TopologyEntitiesListener implements EntitiesListener {
                 Collection<TopologyEntityDTO> chunk = entityIterator.nextChunk();
                 logger.debug("Received chunk #{} of size {} for topology {}", ++chunkNumber, chunk.size(), tid);
                 recorder.processChunk(chunk);
-                final Collection<ServiceEntityRepoDTO> repoDTOs = TopologyConverter.convert(chunk);
-                graphCreator.updateTopologyToDb(repoDTOs);
+                topologyCreator.addEntities(chunk);
                 numberOfEntities += chunk.size();
             }
             globalSupplyChainRecorder.setGlobalSupplyChainProviderRels(recorder.supplyChain());
-            topologyEventHandler.register(tid);
+            topologyCreator.complete();
             SharedMetrics.TOPOLOGY_ENTITY_COUNT_GAUGE
                 .labels(SharedMetrics.SOURCE_LABEL)
                 .setData((double)numberOfEntities);
             logger.info("Finished updating topology {} with {} entities", tid, numberOfEntities);
             notificationSender.onSourceTopologyAvailable(topologyId, topologyContextId);
-        } catch (GraphDatabaseException | CommunicationException | TimeoutException e) {
+        } catch (GraphDatabaseException | CommunicationException |
+                TopologyEntitiesException | TimeoutException e) {
             logger.error("Error occurred while receiving topology " + topologyId, e);
-            rollback(graphCreator, tid);
+            topologyCreator.rollback();
             notificationSender.onSourceTopologyFailure(topologyId, topologyContextId,
                 "Error receiving source topology " + topologyId + ": " + e.getMessage());
         } catch (InterruptedException e) {
             logger.info("Thread interrupted receiving topology " + topologyId, e);
-            rollback(graphCreator, tid);
+            topologyCreator.rollback();
             notificationSender.onSourceTopologyFailure(topologyId, topologyContextId,
                 "Error receiving source topology " + topologyId + ": " + e.getMessage());
             throw e;
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             logger.error("Exception while receiving topology " + topologyId, e);
-            rollback(graphCreator, tid);
+            topologyCreator.rollback();
             notificationSender.onSourceTopologyFailure(topologyId, topologyContextId,
                 "Error receiving source topology " + topologyId + ": " + e.getMessage());
             throw e;
         }
 
         timer.observe();
-    }
-
-    private void rollback(TopologyGraphCreator graphCreator, TopologyID tid) {
-        if (graphCreator != null) {
-            topologyEventHandler.dropDatabase(tid);
-        }
     }
 }

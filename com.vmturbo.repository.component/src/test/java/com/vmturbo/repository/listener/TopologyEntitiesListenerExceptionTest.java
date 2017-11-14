@@ -2,6 +2,7 @@ package com.vmturbo.repository.listener;
 
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyString;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -24,10 +25,9 @@ import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.repository.RepositoryNotificationSender;
 import com.vmturbo.repository.exception.GraphDatabaseExceptions.GraphDatabaseException;
 import com.vmturbo.repository.graph.driver.GraphDatabaseDriver;
-import com.vmturbo.repository.graph.operator.TopologyGraphCreator;
-import com.vmturbo.repository.topology.TopologyEventHandler;
-import com.vmturbo.repository.topology.TopologyIDManager.TopologyID;
-import com.vmturbo.repository.topology.TopologyIDManager.TopologyType;
+import com.vmturbo.repository.topology.TopologyID;
+import com.vmturbo.repository.topology.TopologyLifecycleManager;
+import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyCreator;
 import com.vmturbo.repository.topology.TopologyRelationshipRecorder;
 import com.vmturbo.repository.util.RepositoryTestUtil;
 
@@ -45,13 +45,13 @@ public class TopologyEntitiesListenerExceptionTest {
     private GraphDatabaseDriver graphDatabaseBuilder;
 
     @Mock
-    private TopologyEventHandler topologyEventHandler;
-
-    @Mock
     private TopologyRelationshipRecorder globalSupplyChainRecorder;
 
     @Mock
-    private TopologyGraphCreator topologyGraphCreator;
+    private TopologyLifecycleManager topologyManager;
+
+    @Mock
+    private TopologyCreator topologyCreator;
 
     private final long realtimeTopologyContextId = 77L;
 
@@ -72,7 +72,7 @@ public class TopologyEntitiesListenerExceptionTest {
     @Before
     public void setUp() throws Exception {
         topologyEntitiesListener = new TopologyEntitiesListener(
-                topologyEventHandler,
+                topologyManager,
                 globalSupplyChainRecorder,
                 notificationSender);
 
@@ -80,7 +80,6 @@ public class TopologyEntitiesListenerExceptionTest {
         when(entityIterator.nextChunk()).thenReturn(Sets.newHashSet(vmDTO, pmDTO))
                                         .thenThrow(GraphDatabaseException.class);
         when(entityIterator.hasNext()).thenReturn(true).thenReturn(true).thenReturn(false);
-        when(topologyEventHandler.initializeTopologyGraph(any())).thenReturn(topologyGraphCreator);
     }
 
     @Test
@@ -88,7 +87,10 @@ public class TopologyEntitiesListenerExceptionTest {
         final long topologyContextId = realtimeTopologyContextId;
         final long topologyId = 22222L;
         final long creationTime = 33333L;
-        final TopologyID tid = new TopologyID(topologyContextId, topologyId, TopologyType.SOURCE);
+        final TopologyID tid = new TopologyID(topologyContextId, topologyId,
+                TopologyID.TopologyType.SOURCE);
+
+        when(topologyManager.newTopologyCreator(eq(tid))).thenReturn(topologyCreator);
 
         topologyEntitiesListener.onTopologyNotification(
                 TopologyInfo.newBuilder()
@@ -98,10 +100,10 @@ public class TopologyEntitiesListenerExceptionTest {
                         .build(),
                 entityIterator);
 
-        verify(topologyEventHandler).initializeTopologyGraph(tid);
-        verify(topologyEventHandler, never()).register(tid);
-        verify(topologyEventHandler, times(1)).dropDatabase(tid);
-        verify(topologyGraphCreator, times(1)).updateTopologyToDb(any());
+        verify(topologyCreator).initialize();
+        verify(topologyCreator, never()).complete();
+        verify(topologyCreator, times(1)).rollback();
+        verify(topologyCreator, times(1)).addEntities(any());
         verify(globalSupplyChainRecorder, never()).setGlobalSupplyChainProviderRels(any());
         verify(notificationSender, never()).onSourceTopologyAvailable(anyLong(), anyLong());
         verify(notificationSender).onSourceTopologyFailure(anyLong(), anyLong(), anyString());

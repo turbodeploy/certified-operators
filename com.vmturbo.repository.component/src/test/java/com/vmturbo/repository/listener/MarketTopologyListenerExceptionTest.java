@@ -13,7 +13,6 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 import org.mockito.runners.MockitoJUnitRunner;
 
@@ -25,12 +24,10 @@ import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.repository.RepositoryNotificationSender;
 import com.vmturbo.repository.exception.GraphDatabaseExceptions.GraphDatabaseException;
-import com.vmturbo.repository.graph.operator.TopologyGraphCreator;
-import com.vmturbo.repository.topology.TopologyEventHandler;
-import com.vmturbo.repository.topology.TopologyIDManager.TopologyID;
-import com.vmturbo.repository.topology.TopologyIDManager.TopologyType;
-import com.vmturbo.repository.topology.protobufs.TopologyProtobufWriter;
-import com.vmturbo.repository.topology.protobufs.TopologyProtobufsManager;
+import com.vmturbo.repository.topology.TopologyID;
+import com.vmturbo.repository.topology.TopologyLifecycleManager;
+import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyCreator;
+import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyEntitiesException;
 import com.vmturbo.repository.util.RepositoryTestUtil;
 
 /**
@@ -43,19 +40,13 @@ public class MarketTopologyListenerExceptionTest {
     private MarketTopologyListener marketTopologyListener;
 
     @Mock
-    private TopologyEventHandler topologyEventHandler;
-
-    @Mock
     private RepositoryNotificationSender apiBackend;
 
     @Mock
-    TopologyProtobufsManager topologyProtobufsManager;
+    private TopologyLifecycleManager topologyManager;
 
     @Mock
-    TopologyProtobufWriter writer;
-
-    @Mock
-    private TopologyGraphCreator topologyGraphCreator;
+    private TopologyCreator topologyCreator;
 
     @Mock
     private RemoteIterator<TopologyEntityDTO> entityIterator;
@@ -67,7 +58,7 @@ public class MarketTopologyListenerExceptionTest {
     private static final long srcTopologyId = 11111L;
     private static final long projectedTopologyId = 33333L;
     private static final long creationTime = 44444L;
-    private static final TopologyID tid = new TopologyID(topologyContextId, projectedTopologyId, TopologyType.PROJECTED);
+    private static final TopologyID tid = new TopologyID(topologyContextId, projectedTopologyId, TopologyID.TopologyType.PROJECTED);
 
     public MarketTopologyListenerExceptionTest() throws IOException {
         vmDTO = RepositoryTestUtil.messageFromJsonFile("protobuf/messages/vm-1.dto.json");
@@ -77,14 +68,10 @@ public class MarketTopologyListenerExceptionTest {
     @Before
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
-        marketTopologyListener = new MarketTopologyListener(
-                topologyEventHandler,
-                apiBackend,
-                topologyProtobufsManager);
+        marketTopologyListener = new MarketTopologyListener( apiBackend, topologyManager);
 
         when(entityIterator.hasNext()).thenReturn(true).thenReturn(true).thenReturn(false);
-        when(topologyEventHandler.initializeTopologyGraph(any())).thenReturn(topologyGraphCreator);
-        when(topologyProtobufsManager.createTopologyProtobufWriter(Mockito.anyLong())).thenReturn(writer);
+        when(topologyManager.newTopologyCreator(any())).thenReturn(topologyCreator);
     }
 
     /**
@@ -108,7 +95,6 @@ public class MarketTopologyListenerExceptionTest {
         verifyMocks();
         verify(apiBackend, never()).onProjectedTopologyFailure(
             eq(projectedTopologyId), eq(topologyContextId), any(String.class));
-        verify(writer).delete();
     }
 
     /**
@@ -132,7 +118,6 @@ public class MarketTopologyListenerExceptionTest {
         verifyMocks();
         verify(apiBackend).onProjectedTopologyFailure(
             eq(projectedTopologyId), eq(topologyContextId), any(String.class));
-        verify(writer).delete();
     }
 
     /**
@@ -159,16 +144,14 @@ public class MarketTopologyListenerExceptionTest {
         verifyMocks();
         verify(apiBackend, never()).onProjectedTopologyFailure(
             any(long.class), any(long.class), any(String.class));
-        verify(writer).delete();
     }
 
     private void verifyMocks() throws Exception {
-        verify(topologyEventHandler).initializeTopologyGraph(tid);
-        verify(topologyEventHandler, never()).register(tid);
-        verify(topologyEventHandler).dropDatabase(tid);
-        verify(writer).storeChunk(any());
+        verify(topologyManager).newTopologyCreator(tid);
+        verify(topologyCreator, never()).complete();
+        verify(topologyCreator).rollback();
         // 1 invocation before the exception is thrown
-        verify(topologyGraphCreator, times(1)).updateTopologyToDb(any());
+        verify(topologyCreator).addEntities(any());
         verify(apiBackend, never()).onProjectedTopologyAvailable(any(long.class), any(long.class));
     }
 }

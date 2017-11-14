@@ -31,6 +31,7 @@ import javaslang.control.Either;
 
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.repository.service.GraphDBService;
+import com.vmturbo.repository.topology.TopologyID.TopologyType;
 
 /**
  * Implements Service Entity endpoint.
@@ -74,37 +75,22 @@ public class GraphServiceEntityController {
     @ApiOperation(value = "Query the service entities in the repository by OID.")
     @ResponseBody
     public ResponseEntity<Collection<ServiceEntityApiDTO>> searchServiceEntities(
+            @RequestParam(required = false, value = "contextId")
+                final Long contextId,
+            @RequestParam(required = false, value = "projected", defaultValue = "false")
+                final boolean searchProjected,
             @ApiParam(value = "The list of IDs of service entities to retrieve.")
             @RequestBody final ImmutableSet<Long> requestedIds) {
 
         LOGGER.debug("Searching for service entities {}", requestedIds);
         final Either<String, Collection<ServiceEntityApiDTO>> result =
-                graphDBService.findMultipleEntities(Optional.empty(), Sets.newHashSet(requestedIds));
+                graphDBService.findMultipleEntities(Optional.ofNullable(contextId),
+                        Sets.newHashSet(requestedIds),
+                        searchProjected ? TopologyType.PROJECTED : TopologyType.SOURCE);
 
         return Match(result).of(
             Case(Right($()), entities -> ResponseEntity.ok(entities)),
             Case(Left($()), err -> ResponseEntity.ok(Collections.emptyList())));
-    }
-
-    @RequestMapping(
-            path = "/{topologyId}/serviceentity/query/id",
-            method = RequestMethod.POST,
-            produces = MediaType.APPLICATION_JSON_UTF8_VALUE
-    )
-    @ApiOperation(value = "Query the service entities in the repository by OID.")
-    @ResponseBody
-    public ResponseEntity<Collection<ServiceEntityApiDTO>> searchServiceEntities(
-            @ApiParam("The ID of the topology to get the service entities from.")
-            @PathVariable("topologyId") final String topologyId
-          , @ApiParam(value = "The list of IDs of service entities to retrieve.")
-            @RequestBody final ImmutableSet<Long> requestedIds) {
-
-        LOGGER.debug("Searching for service entities with IDs {} in topology {}", requestedIds, topologyId);
-        final Either<String, Collection<ServiceEntityApiDTO>> result =
-                graphDBService.findMultipleEntities(Optional.of(topologyId), Sets.newHashSet(requestedIds));
-        return Match(result).of(
-                Case(Right($()), entities -> ResponseEntity.ok(entities)),
-                Case(Left($()), err -> ResponseEntity.ok(Collections.emptyList())));
     }
 
     @RequestMapping(

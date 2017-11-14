@@ -89,15 +89,18 @@ public class MarketRunner {
         analysisMap.remove(analysis.getContextId());
         if (analysis.getState() == AnalysisState.SUCCEEDED) {
             try {
+                // Send projected topology before recommended actions, because some recommended
+                // actions will have OIDs that are only present in the projected topology, and we
+                // want to minimize the risk of the projected topology being unavailable.
+                serverApi.notifyProjectedTopology(analysis.getTopologyInfo(),
+                        analysis.getProjectedTopologyId().get(),
+                        analysis.getProjectedTopology().get());
                 serverApi.notifyActionsRecommended(analysis.getActionPlan().get());
-            serverApi.notifyProjectedTopology(analysis.getTopologyInfo(),
-                    analysis.getProjectedTopologyId().get(),
-                    analysis.getProjectedTopology().get());
-            final PriceIndexMessage pim =
-                PriceIndexMessage.newBuilder(analysis.getPriceIndexMessage().get())
-                    .setTopologyContextId(analysis.getContextId())
-                    .build();
-            priceIndexApi.sendPriceIndex(analysis.getTopologyInfo(), pim);
+                final PriceIndexMessage pim =
+                    PriceIndexMessage.newBuilder(analysis.getPriceIndexMessage().get())
+                        .setTopologyContextId(analysis.getContextId())
+                        .build();
+                priceIndexApi.sendPriceIndex(analysis.getTopologyInfo(), pim);
             } catch (CommunicationException | InterruptedException e) {
                 // TODO we need to decide, whether to commit the incoming topology here or not.
                 logger.error("Could not send market notifications", e);

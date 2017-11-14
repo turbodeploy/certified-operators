@@ -66,6 +66,7 @@ repository:
   grpcPingIntervalSeconds: 300
   websocket.pong.timeout: 30000
   arangodbHealthCheckIntervalSeconds: 60
+  realtimeTopologyContextId: 777777
 
 group:
   repositoryHost: 'repository'

@@ -34,9 +34,8 @@ import com.vmturbo.repository.graph.result.ImmutableGlobalSupplyChainFluxResult;
 import com.vmturbo.repository.graph.result.TypeAndOids;
 import com.vmturbo.repository.service.SupplyChainServiceTest.TestConfig;
 import com.vmturbo.repository.topology.TopologyDatabase;
-import com.vmturbo.repository.topology.TopologyIDManager;
-import com.vmturbo.repository.topology.TopologyIDManager.TopologyID;
-import com.vmturbo.repository.topology.TopologyIDManager.TopologyType;
+import com.vmturbo.repository.topology.TopologyID;
+import com.vmturbo.repository.topology.TopologyLifecycleManager;
 import com.vmturbo.repository.topology.TopologyRelationshipRecorder;
 
 /**
@@ -84,13 +83,13 @@ public class SupplyChainServiceTest {
     @Configuration
     public static class TestConfig {
         @Bean
-        public TopologyIDManager topologyIDManagerArg() {
-            final TopologyIDManager result = Mockito.mock(TopologyIDManager.class);
+        public TopologyLifecycleManager topologyManager() {
+            final TopologyLifecycleManager result = Mockito.mock(TopologyLifecycleManager.class);
             final TopologyDatabase topologyDatabase = Mockito.mock(TopologyDatabase.class);
-            Mockito.when(result.currentRealTimeDatabase())
+            Mockito.when(result.getRealtimeDatabase())
                     .thenReturn(Optional.of(topologyDatabase));
-            final TopologyID topologyId = new TopologyID(1, 2, TopologyType.SOURCE);
-            Mockito.when(result.getCurrentRealTimeTopologyId()).thenReturn(Optional.of(topologyId));
+            final TopologyID topologyId = new TopologyID(1, 2, TopologyID.TopologyType.SOURCE);
+            Mockito.when(result.getRealtimeTopologyId()).thenReturn(Optional.of(topologyId));
             return result;
         }
 
@@ -121,7 +120,7 @@ public class SupplyChainServiceTest {
         @Bean
         public SupplyChainService supplyChainService() throws IOException {
             return new SupplyChainService(reactiveExecutor(), graphDbService(),
-                    graphDefinition(), topologyRelationshipRecorder(), topologyIDManagerArg());
+                    graphDefinition(), topologyRelationshipRecorder(), topologyManager());
         }
     }
 }

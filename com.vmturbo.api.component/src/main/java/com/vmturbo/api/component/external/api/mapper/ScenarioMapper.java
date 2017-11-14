@@ -20,6 +20,7 @@ import com.google.common.base.MoreObjects;
 import com.google.common.base.Preconditions;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -280,7 +281,9 @@ public class ScenarioMapper {
         // and as long as we're not retrieving detailed information about lots of scenarios.
         // If necessary we can optimize it by exposing an API call that returns only entity types.
         final Map<Long, ServiceEntityApiDTO> serviceEntityMap =
-            repositoryApi.getServiceEntitiesById(PlanDTOUtil.getInvolvedEntities(changes))
+            repositoryApi.getServiceEntitiesById(
+                    ServiceEntitiesRequest.newBuilder(PlanDTOUtil.getInvolvedEntities(changes))
+                            .build())
                 .entrySet().stream()
                 .filter(entry -> entry.getValue().isPresent())
                 // The .get() here is safe because we filtered out entries where the entity

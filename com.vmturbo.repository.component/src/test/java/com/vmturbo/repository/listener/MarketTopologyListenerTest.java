@@ -12,7 +12,6 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
 
 import com.google.common.collect.Sets;
@@ -22,12 +21,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.repository.RepositoryNotificationSender;
 import com.vmturbo.repository.exception.GraphDatabaseExceptions.GraphDatabaseException;
-import com.vmturbo.repository.graph.operator.TopologyGraphCreator;
-import com.vmturbo.repository.topology.TopologyEventHandler;
-import com.vmturbo.repository.topology.TopologyIDManager.TopologyID;
-import com.vmturbo.repository.topology.TopologyIDManager.TopologyType;
-import com.vmturbo.repository.topology.protobufs.TopologyProtobufWriter;
-import com.vmturbo.repository.topology.protobufs.TopologyProtobufsManager;
+import com.vmturbo.repository.topology.TopologyID;
+import com.vmturbo.repository.topology.TopologyLifecycleManager;
+import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyCreator;
 import com.vmturbo.repository.util.RepositoryTestUtil;
 
 /**
@@ -40,19 +36,13 @@ public class MarketTopologyListenerTest {
     private MarketTopologyListener marketTopologyListener;
 
     @Mock
-    private TopologyEventHandler topologyEventHandler;
+    private TopologyLifecycleManager topologyManager;
 
     @Mock
     private RepositoryNotificationSender apiBackend;
 
     @Mock
-    TopologyProtobufsManager topologyProtobufsManager;
-
-    @Mock
-    TopologyProtobufWriter writer;
-
-    @Mock
-    private TopologyGraphCreator topologyGraphCreator;
+    private TopologyCreator topologyCreator;
 
     @Mock
     private RemoteIterator<TopologyEntityDTO> entityIterator;
@@ -70,29 +60,26 @@ public class MarketTopologyListenerTest {
     @Before
     public void setUp() throws Exception {
         marketTopologyListener = new MarketTopologyListener(
-                topologyEventHandler,
                 apiBackend,
-                topologyProtobufsManager);
+                topologyManager);
 
         // Simulates three DTOs with two chunks received by the listener.
         when(entityIterator.nextChunk()).thenReturn(Sets.newHashSet(vmDTO, pmDTO))
                                         .thenReturn(Sets.newHashSet(dsDTO));
         when(entityIterator.hasNext()).thenReturn(true).thenReturn(true).thenReturn(false);
-        when(topologyEventHandler.initializeTopologyGraph(any())).thenReturn(topologyGraphCreator);
-        when(topologyProtobufsManager.createTopologyProtobufWriter(Mockito.anyLong())).thenReturn(writer);
+        when(topologyManager.newTopologyCreator(any())).thenReturn(topologyCreator);
     }
 
     /**
      * Test that the methods that need to be invoked are indeed invoked and with the right params.
-     * @throws GraphDatabaseException is not expected to happen during this test
      */
     @Test
-    public void testOnProjectedTopologyReceived() throws GraphDatabaseException {
+    public void testOnProjectedTopologyReceived() throws Exception {
         final long topologyContextId = 11L;
         final long srcTopologyId = 11111L;
         final long projectedTopologyId = 33333L;
         final long creationTime = 44444L;
-        final TopologyID tid = new TopologyID(topologyContextId, projectedTopologyId, TopologyType.PROJECTED);
+        final TopologyID tid = new TopologyID(topologyContextId, projectedTopologyId, TopologyID.TopologyType.PROJECTED);
         marketTopologyListener.onProjectedTopologyReceived(
                 projectedTopologyId,
                 TopologyInfo.newBuilder()
@@ -102,11 +89,10 @@ public class MarketTopologyListenerTest {
                         .build(),
                 entityIterator);
 
-        verify(topologyEventHandler).initializeTopologyGraph(tid);
-        verify(topologyEventHandler).register(tid);
-        verify(topologyEventHandler, never()).dropDatabase(tid);
+        verify(topologyManager).newTopologyCreator(tid);
+        verify(topologyCreator).complete();
+        verify(topologyCreator, never()).rollback();
         // 2 invocations, one for each chunk
-        verify(topologyGraphCreator, times(2)).updateTopologyToDb(any());
-        verify(writer, times(2)).storeChunk(any());
+        verify(topologyCreator, times(2)).addEntities(any());
     }
 }

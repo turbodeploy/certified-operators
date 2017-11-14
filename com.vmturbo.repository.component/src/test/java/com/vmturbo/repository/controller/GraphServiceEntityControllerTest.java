@@ -5,6 +5,8 @@ import com.google.common.collect.Sets;
 import com.vmturbo.repository.ComponentStartUpManager;
 import com.vmturbo.repository.graph.driver.ArangoDatabaseFactory;
 import com.vmturbo.repository.service.GraphDBService;
+import com.vmturbo.repository.topology.TopologyID.TopologyType;
+
 import javaslang.control.Either;
 
 import org.junit.Ignore;
@@ -62,9 +64,9 @@ public class GraphServiceEntityControllerTest {
     public void testServiceEntitiesOIDSearchURLParsing() throws Exception {
 
         final Set<Long> oids = Sets.newHashSet(1L, 2L, 3L);
-        final String topologyId = "my-topo-id";
+        final long topologyId = 10;
 
-        given(graphDBService.findMultipleEntities(Optional.of(topologyId), oids))
+        given(graphDBService.findMultipleEntities(Optional.of(topologyId), oids, TopologyType.SOURCE))
             .willReturn(Either.right(Collections.emptyList()));
 
         final MvcResult mvcResult = mvc.perform(

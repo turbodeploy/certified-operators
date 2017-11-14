@@ -1,34 +1,35 @@
 package com.vmturbo.repository.service;
 
+import static org.junit.Assert.assertThat;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
-import java.util.NoSuchElementException;
-
-import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
-import org.junit.runner.RunWith;
-import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
-import org.mockito.runners.MockitoJUnitRunner;
 
-import com.arangodb.ArangoDBException;
 import io.grpc.Status.Code;
+import io.grpc.StatusException;
+import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.DeleteTopologyRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponseCode;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
+import com.vmturbo.components.api.test.GrpcExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.repository.api.RepositoryClient;
-import com.vmturbo.repository.topology.TopologyEventHandler;
-import com.vmturbo.repository.topology.TopologyIDManager.TopologyID;
-import com.vmturbo.repository.topology.TopologyIDManager.TopologyType;
+import com.vmturbo.repository.topology.TopologyID;
+import com.vmturbo.repository.topology.TopologyID.TopologyType;
+import com.vmturbo.repository.topology.TopologyLifecycleManager;
+import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyDeletionException;
 import com.vmturbo.repository.topology.protobufs.TopologyProtobufHandler;
 import com.vmturbo.repository.topology.protobufs.TopologyProtobufReader;
 import com.vmturbo.repository.topology.protobufs.TopologyProtobufsManager;
@@ -49,11 +50,10 @@ public class RepositoryRpcServiceTest {
 
     private TopologyProtobufHandler topologyProtobufHandler = mock(TopologyProtobufHandler.class);
 
-    private TopologyEventHandler topologyEventHandler = mock(TopologyEventHandler.class);
+    private TopologyLifecycleManager topologyLifecycleManager = mock(TopologyLifecycleManager.class);
 
     private RepositoryRpcService repoRpcService = new RepositoryRpcService(
-            topologyProtobufsManager,
-            topologyEventHandler);
+            topologyLifecycleManager, topologyProtobufsManager);
 
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(repoRpcService);
@@ -69,21 +69,18 @@ public class RepositoryRpcServiceTest {
     }
 
     @Test
-    public void testDeleteTopology() {
+    public void testDeleteTopology() throws TopologyDeletionException {
 
         Mockito.when(topologyProtobufsManager.createTopologyProtobufReader(
                     topologyId)).thenReturn(topologyProtobufReader);
-
-        Mockito.when(topologyEventHandler.dropDatabase(
-                    new TopologyID(topologyContextId,
-                        topologyId,
-                        TopologyType.PROJECTED)))
-                .thenReturn(true);
 
         RepositoryOperationResponse repoResponse =
             repoClient.deleteTopology(topologyId,
                     topologyContextId);
 
+        verify(topologyLifecycleManager).deleteTopology(eq(new TopologyID(topologyContextId,
+                topologyId,
+                TopologyType.PROJECTED)));
         Assert.assertEquals(repoResponse.getResponseCode(),
                 RepositoryOperationResponseCode.OK);
     }
@@ -100,63 +97,22 @@ public class RepositoryRpcServiceTest {
     }
 
     @Test
-    public void testDeleteTopologyProtoBufNotFoundException() throws Exception {
-
-        Mockito.when(topologyProtobufsManager.createTopologyProtobufReader(
-                    topologyId)).thenReturn(topologyProtobufReader);
-
-        Mockito.doThrow(new NoSuchElementException("Error deleting topology"))
-            .when(topologyProtobufReader).delete();
-
-        expectedException.expect(GrpcRuntimeExceptionMatcher.hasCode(Code.NOT_FOUND)
-            .descriptionContains("Cannot find rawTopology with topologyId: " +
-                topologyId + " and topologyContextId: " + topologyContextId));
-
-        RepositoryOperationResponse response = repositoryService.deleteTopology(
-                createDeleteTopologyRequest(topologyId, topologyContextId));
-    }
-
-    @Test
-    public void testDeleteTopologyDBNotFoundException() throws Exception {
-
-        Mockito.when(topologyProtobufsManager.createTopologyProtobufReader(
-                    topologyId)).thenReturn(topologyProtobufReader);
-
-        ArangoDBException arangoException = mock(ArangoDBException.class);
-        Mockito.doThrow(arangoException)
-                .when(topologyEventHandler).dropDatabase(
-                    new TopologyID(topologyContextId,
+    public void testDeleteTopologyException() throws Exception {
+        Mockito.doThrow(TopologyDeletionException.class)
+            .when(topologyLifecycleManager).deleteTopology(new TopologyID(topologyContextId,
                         topologyId,
                         TopologyType.PROJECTED));
 
-        Mockito.when(arangoException.getErrorNum())
-            .thenReturn(RepositoryRpcService.ERROR_ARANGO_DATABASE_NOT_FOUND);
+        final StreamObserver<RepositoryOperationResponse> responseObserver =
+                (StreamObserver<RepositoryOperationResponse>)mock(StreamObserver.class);
 
-        expectedException.expect(GrpcRuntimeExceptionMatcher.hasCode(Code.NOT_FOUND)
-            .descriptionContains("Cannot find topologyGraph with topologyId: " +
-                topologyId + " and topologyContextId: " + topologyContextId));
+        repoRpcService.deleteTopology(createDeleteTopologyRequest(topologyId, topologyContextId),
+                responseObserver);
 
-        RepositoryOperationResponse response = repositoryService.deleteTopology(
-                createDeleteTopologyRequest(topologyId, topologyContextId));
-    }
-
-    @Test
-    public void testDeleteTopologyUnknownException() throws Exception {
-
-        Mockito.when(topologyProtobufsManager.createTopologyProtobufReader(
-                    topologyId)).thenReturn(topologyProtobufReader);
-
-        Mockito.doThrow(new RuntimeException("Error deleting topology"))
-            .when(topologyEventHandler).dropDatabase(
-                    new TopologyID(topologyContextId,
-                        topologyId,
-                        TopologyType.PROJECTED));
-
-        expectedException.expect(GrpcRuntimeExceptionMatcher.hasCode(Code.UNKNOWN)
-                .anyDescription());
-
-        RepositoryOperationResponse response = repositoryService.deleteTopology(
-                createDeleteTopologyRequest(topologyId, topologyContextId));
+        final ArgumentCaptor<StatusException> errCaptor =
+                ArgumentCaptor.forClass(StatusException.class);
+        verify(responseObserver).onError(errCaptor.capture());
+        assertThat(errCaptor.getValue(), GrpcExceptionMatcher.hasCode(Code.INTERNAL).anyDescription());
     }
 
     private DeleteTopologyRequest createDeleteTopologyRequest(long topologyId) {

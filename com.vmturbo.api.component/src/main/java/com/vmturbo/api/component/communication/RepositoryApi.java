@@ -23,7 +23,6 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
-import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.utils.ParamStrings;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
@@ -71,6 +70,16 @@ public class RepositoryApi {
      * The query parameter used to specify the desired display name.
      */
     private static final String DISPLAY_NAME_QUERY_PARAM = "q";
+
+    /**
+     * The query parameter to specify whether to search in the projected topology.
+     */
+    private static final String PROJECTED_TOPOLOGY_QUERY_PARAM = "projected";
+
+    /**
+     * The query parameter to specify the topology context to search in.
+     */
+    private static final String CONTEXT_ID_QUERY_PARAM = "contextId";
 
     private final Logger logger = LogManager.getLogger();
 
@@ -226,19 +235,24 @@ public class RepositoryApi {
     /**
      * Request several service entity descriptions from the Repository.
      *
-     * @param entityIds The OIDs of the entities to look for.
+     * @param request The {@link ServiceEntitiesRequest} describing the search.
      * @return A map of OID -> an optional containing the entity, or an empty optional if the entity was not found.
      *         Each OID in entityIds will have a matching entry in the returned map.
      */
     @Nonnull
-    public Map<Long, Optional<ServiceEntityApiDTO>> getServiceEntitiesById(@Nonnull final Set<Long> entityIds) {
+    public Map<Long, Optional<ServiceEntityApiDTO>> getServiceEntitiesById(@Nonnull final ServiceEntitiesRequest request) {
+        final long contextId = request.getTopologyContextId().orElse(realtimeTopologyContextId);
         final String getEntitiesByIdSetRequest = newUriBuilder()
                 .path(SERVICE_ENTITY_MULTIGET_URI)
+                .queryParam(PROJECTED_TOPOLOGY_QUERY_PARAM, request.searchProjectedTopology())
+                .queryParam(CONTEXT_ID_QUERY_PARAM, contextId)
                 .build()
                 .toUriString();
-        final Map<Long, Optional<ServiceEntityApiDTO>> retMap = new HashMap<>(entityIds.size());
-        entityIds.forEach(id -> retMap.put(id, Optional.empty()));
-        HttpEntity<Set> idList = new HttpEntity<>(entityIds);
+        final Set<Long> requestedIds = request.getEntityIds();
+        final Map<Long, Optional<ServiceEntityApiDTO>> retMap =
+                new HashMap<>(requestedIds.size());
+        requestedIds.forEach(id -> retMap.put(id, Optional.empty()));
+        HttpEntity<Set> idList = new HttpEntity<>(requestedIds);
         try {
             final ResponseEntity<List<ServiceEntityApiDTO>> response =
                     restTemplate.exchange(getEntitiesByIdSetRequest, HttpMethod.POST, idList,
@@ -257,24 +271,87 @@ public class RepositoryApi {
     }
 
     /**
-     * Request the supply chain for the given entity id.
-     *
-     * @param entityId the ID for which we are requesting the Supply Chain
-     * @return the {@link SupplychainApiDTO} for the given entity id
+     * A request for a multi-get for information about a set of service entities.
      */
-    public SupplychainApiDTO getSupplyChainForUuid(String entityId) {
-        // todo: implement template and replacement within getForObject() instead of
-        // concatenating to build URI here
-        final String getSupplychainRequest = newUriBuilder()
-                .pathSegment(SUPPLYCHAIN_URI_COMPONENT, entityId)
-                .build()
-                .toUriString();
-        try {
-            return restTemplate.getForObject(getSupplychainRequest, SupplychainApiDTO.class);
-        } catch (RestClientException e) {
-            logger.error("Error encountered while computing supply chain through REST call {}: {}", getSupplychainRequest, e);
-            throw new RuntimeException(
-                    "Error retrieving data through REST call " + getSupplychainRequest, e);
+    public static class ServiceEntitiesRequest {
+
+        private final Set<Long> entityIds;
+
+        /**
+         * See: {@link Builder#setTopologyContextId(long)}.
+         */
+        private final Optional<Long> topologyContextId;
+
+        /**
+         * See: {@link Builder#searchProjectedTopology()}.
+         */
+        private final boolean searchProjectedTopology;
+
+        private ServiceEntitiesRequest(final Optional<Long> topologyContextId,
+                                       @Nonnull final Set<Long> entityIds,
+                                       final boolean searchProjectedTopology) {
+            this.topologyContextId = topologyContextId;
+            this.entityIds = Objects.requireNonNull(entityIds);
+            this.searchProjectedTopology = searchProjectedTopology;
+        }
+
+        public Optional<Long> getTopologyContextId() {
+            return topologyContextId;
+        }
+
+        public Set<Long> getEntityIds() {
+            return entityIds;
+        }
+
+        public boolean searchProjectedTopology() {
+            return searchProjectedTopology;
+        }
+
+        public static Builder newBuilder(@Nonnull final Set<Long> entityIds) {
+            return new Builder(entityIds);
+        }
+
+        public static class Builder {
+            private Optional<Long> topologyContextId = Optional.empty();
+            private boolean searchProjectedTopology = false;
+            private final Set<Long> entityIds;
+
+            public Builder(@Nonnull final Set<Long> entityIds) {
+                this.entityIds = entityIds;
+            }
+
+            /**
+             * Override the topology context ID to use for the request. The default is to
+             * search in the realtime topology context.
+             *
+             * @param contextId The desired topology context ID.
+             * @return The builder, for method chaining.
+             */
+            public Builder setTopologyContextId(final long contextId) {
+                this.topologyContextId = Optional.of(contextId);
+                return this;
+            }
+
+            /**
+             * Request the search of entities in the projected topology instead of the source
+             * topology. The projected topology is the simulated result of applying all actions
+             * recommended by the market to the source topology in the same topology context.
+             * <p>
+             * Search in the projected topology if the entities you're looking for may include
+             * entities created (in the simulation) by the market - e.g. if the market recommends
+             * provisioning a host, and you're looking for that host.
+             *
+             * @return The builder, for method chaining.
+             */
+            public Builder searchProjectedTopology() {
+                this.searchProjectedTopology = true;
+                return this;
+            }
+
+            public ServiceEntitiesRequest build() {
+                return new ServiceEntitiesRequest(topologyContextId, entityIds,
+                        searchProjectedTopology);
+            }
         }
     }
 

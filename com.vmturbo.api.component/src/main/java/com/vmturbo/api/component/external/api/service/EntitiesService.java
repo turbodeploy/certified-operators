@@ -142,7 +142,8 @@ public class EntitiesService implements IEntitiesService {
         final Map<Long, ActionSpec> entityRelatedActionInfo = StreamSupport.stream(actions.spliterator(), false)
             .collect(Collectors.toMap(ActionOrchestratorAction::getActionId, ActionOrchestratorAction::getActionSpec));
 
-        return actionSpecMapper.mapActionSpecsToActionApiDTOs(entityRelatedActionInfo.values());
+        return actionSpecMapper.mapActionSpecsToActionApiDTOs(entityRelatedActionInfo.values(),
+                realtimeTopologyContextId);
     }
 
     @Override
