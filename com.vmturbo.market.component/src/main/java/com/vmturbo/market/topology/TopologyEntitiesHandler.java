@@ -12,11 +12,13 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.commons.analysis.CommodityResizeDependencyMap;
 import com.vmturbo.commons.analysis.RawMaterialsMap;
 import com.vmturbo.commons.analysis.UpdateFunction;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.economy.CommodityResizeSpecification;
+import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.ede.Ede;
 import com.vmturbo.platform.analysis.ledger.PriceStatement;
@@ -86,6 +88,7 @@ public class TopologyEntitiesHandler {
 
         populateCommodityResizeDependencyMap(topology);
         populateRawMaterialsMap(topology);
+        commToAllowOverheadInClone(topology);
 
         final Economy economy = (Economy)topology.getEconomy();
         // enable estimates
@@ -167,5 +170,11 @@ public class TopologyEntitiesHandler {
      */
     private static void populateRawMaterialsMap(Topology topology) {
         topology.getModifiableRawCommodityMap().putAll(RawMaterialsMap.rawMaterialsMap);
+    }
+
+    private static void commToAllowOverheadInClone(Topology topology) {
+        AnalysisUtil.COMM_TYPES_TO_ALLOW_OVERHEAD.stream()
+            .map(CommoditySpecification::new)
+            .forEach(topology::addCommsToAdjustOverhead);
     }
 }
