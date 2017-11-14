@@ -1,6 +1,9 @@
 package com.vmturbo.history.topology;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.TimeoutException;
 
 import javax.annotation.Nonnull;
 
@@ -9,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.history.SharedMetrics;
 import com.vmturbo.history.api.StatsAvailabilityTracker;
@@ -25,9 +29,15 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
 
     private final Logger logger = LogManager.getLogger();
 
+    private static final int MAX_CONCURRENT_LIVE_TOPOLOGIES = 1;
+
     // the database access utility classes for the History-related RDB tables
     private final LiveStatsWriter liveStatsWriter;
     private final StatsAvailabilityTracker availabilityTracker;
+
+    // keeps track of the live topologies being processed. Used to prevent processing more than the
+    // expected amount.
+    List<TopologyInfo> topologiesInProcess = new ArrayList<>();
 
     public LiveTopologyEntitiesListener(@Nonnull final LiveStatsWriter liveStatsWriter,
                                     @Nonnull final StatsAvailabilityTracker statsAvailabilityTracker) {
@@ -58,6 +68,27 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
         });
     }
 
+    /**
+     * Skip processing of the rest of the topology in the iterator by consuming the chunks and
+     * doing nothing with them.
+     */
+    private void skipRestOfTopology(TopologyInfo topologyInfo,
+                                    RemoteIterator<TopologyEntityDTO> iterator) {
+        final long topologyContextId = topologyInfo.getTopologyContextId();
+        final long topologyId = topologyInfo.getTopologyId();
+        logger.warn("Going to skip writing data for topology {} since one is still in progress.",
+                topologyId);
+        // register this topology as invalid
+        liveStatsWriter.invalidTopologyReceived(topologyContextId,topologyId);
+        // drain the remote iterator
+        try {
+            while (iterator.hasNext()) {
+                iterator.nextChunk();
+            }
+        } catch (InterruptedException | CommunicationException | TimeoutException e) {
+            logger.warn("Ignoring error occurred while skipping realtime topology broadcast " + topologyId, e);
+        }
+    }
 
     private void handleLiveTopology(TopologyInfo topologyInfo,
                                     RemoteIterator<TopologyEntityDTO> dtosIterator) {
@@ -65,6 +96,15 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
         final long topologyId = topologyInfo.getTopologyId();
         final long creationTime = topologyInfo.getCreationTime();
         logger.info("Receiving live topology, context: {}, id: {}", topologyContextId, topologyId);
+        synchronized (topologiesInProcess) {
+            if (topologiesInProcess.size() >= MAX_CONCURRENT_LIVE_TOPOLOGIES) {
+                // skip this live topology if another is still in progress
+                skipRestOfTopology(topologyInfo, dtosIterator);
+                return;
+            }
+            // not skipping -- add to list of topologies being processed
+            topologiesInProcess.add(topologyInfo);
+        }
         TopologyOrganizer topologyOrganizer = new TopologyOrganizer(topologyContextId, topologyId, creationTime);
         try {
             int numEntities = liveStatsWriter.processChunks(topologyOrganizer, dtosIterator);
@@ -77,6 +117,11 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
             logger.warn("Error occurred while processing data for realtime topology broadcast "
                             + topologyOrganizer.getTopologyId(), e);
             liveStatsWriter.invalidTopologyReceived(topologyContextId, topologyId);
+        } finally {
+            // remove from the in-progress list
+            synchronized (topologiesInProcess) {
+                topologiesInProcess.remove(topologyInfo);
+            }
         }
     }
 }
