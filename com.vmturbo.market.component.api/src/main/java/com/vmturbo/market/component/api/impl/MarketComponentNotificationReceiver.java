@@ -24,7 +24,9 @@ import com.vmturbo.components.api.client.ComponentNotificationReceiver;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.market.component.api.ActionsListener;
 import com.vmturbo.market.component.api.MarketComponent;
+import com.vmturbo.market.component.api.PriceIndexListener;
 import com.vmturbo.market.component.api.ProjectedTopologyListener;
+import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
 
 /**
  * The notification receiver connecting to the Market Component.
@@ -40,15 +42,21 @@ public class MarketComponentNotificationReceiver extends
      * Action plans topic.
      */
     public static final String ACTION_PLANS_TOPIC = "action-plans";
+    /**
+     * Price index topic.
+     */
+    public static final String PRICE_INDICES_TOPIC = "price-indices";
 
     private final Set<ActionsListener> actionsListenersSet;
 
     private final Set<ProjectedTopologyListener> projectedTopologyListenersSet;
+    private final Set<PriceIndexListener> priceIndexListenerSet;
     private final ChunkingReceiver<TopologyEntityDTO> topologyChunkReceiver;
 
     public MarketComponentNotificationReceiver(
             @Nullable final IMessageReceiver<ProjectedTopology> projectedTopologyReceiver,
             @Nullable final IMessageReceiver<ActionPlan> actionPlanReceiver,
+            @Nullable final IMessageReceiver<PriceIndexMessage> priceIndexReceiver,
             @Nonnull final ExecutorService executorService) {
         super(actionPlanReceiver, executorService);
         if (projectedTopologyReceiver != null) {
@@ -63,6 +71,12 @@ public class MarketComponentNotificationReceiver extends
             actionsListenersSet = Collections.emptySet();
         }
         topologyChunkReceiver = new ChunkingReceiver<>(executorService);
+        if (priceIndexReceiver != null) {
+            priceIndexListenerSet = Collections.newSetFromMap(new ConcurrentHashMap<>());
+            priceIndexReceiver.addListener(this::processPriceIndex);
+        } else {
+            priceIndexListenerSet = Collections.emptySet();
+        }
     }
 
     @Override
@@ -73,6 +87,11 @@ public class MarketComponentNotificationReceiver extends
     @Override
     public void addProjectedTopologyListener(@Nonnull final ProjectedTopologyListener listener) {
         projectedTopologyListenersSet.add(Objects.requireNonNull(listener));
+    }
+
+    @Override
+    public void addPriceIndexListener(@Nonnull PriceIndexListener listener) {
+        priceIndexListenerSet.add(Objects.requireNonNull(listener));
     }
 
     @Override
@@ -104,6 +123,14 @@ public class MarketComponentNotificationReceiver extends
                 getLogger().warn("Unknown broadcast data segment received: {}",
                         topology.getSegmentCase());
         }
+    }
+
+    private void processPriceIndex(@Nonnull final PriceIndexMessage topology,
+            @Nonnull Runnable commitCommand) {
+        for (final PriceIndexListener listener : priceIndexListenerSet) {
+            listener.onPriceIndexReceived(topology);
+        }
+        commitCommand.run();
     }
 
     private Collection<Consumer<RemoteIterator<TopologyEntityDTO>>> createEntityConsumers(

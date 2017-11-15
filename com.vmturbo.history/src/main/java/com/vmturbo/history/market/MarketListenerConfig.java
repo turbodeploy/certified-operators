@@ -5,13 +5,13 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
-
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import com.vmturbo.history.HistoryComponent;
 import com.vmturbo.history.api.HistoryApiConfig;
@@ -21,15 +21,13 @@ import com.vmturbo.history.topology.TopologyListenerConfig;
 import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.impl.MarketClientConfig;
 import com.vmturbo.market.component.api.impl.MarketClientConfig.Subscription;
-import com.vmturbo.priceindex.api.impl.PriceIndexClientConfig;
-import com.vmturbo.priceindex.api.impl.PriceIndexNotificationReceiver;
 
 /**
  * Configuration for the PriceIndex Listener for the History component
  **/
 @Configuration
 @Import({TopologyListenerConfig.class, StatsConfig.class, HistoryApiConfig.class,
-        MarketClientConfig.class, PriceIndexClientConfig.class})
+        MarketClientConfig.class})
 public class MarketListenerConfig {
 
     @Autowired
@@ -56,9 +54,6 @@ public class MarketListenerConfig {
     @Autowired
     private MarketClientConfig marketClientConfig;
 
-    @Autowired
-    private PriceIndexClientConfig priceIndexClientConfig;
-
     /**
      * Create a listener for both Projected Market and PriceIndex information as created by the
      * Market as a result of Analysis.
@@ -80,9 +75,10 @@ public class MarketListenerConfig {
      */
     @Bean
     public MarketComponent marketComponent() {
-        final MarketComponent market =
-                marketClientConfig.marketComponent(EnumSet.of(Subscription.ProjectedTopologies));
+        final MarketComponent market = marketClientConfig.marketComponent(
+                EnumSet.of(Subscription.ProjectedTopologies, Subscription.PriceIndexes));
         market.addProjectedTopologyListener(marketListener());
+        market.addPriceIndexListener(marketListener());
         return market;
     }
 
@@ -102,15 +98,5 @@ public class MarketListenerConfig {
                 statsConfig.topologySnapshotRegistry(),
                 historyComponent.historyDbIO(),
                 writeTopologyChunkSize);
-    }
-
-    /**
-     * Register the listener for PriceIndex information with the Market.
-     */
-    @Bean
-    public PriceIndexNotificationReceiver priceIndexReceiver() {
-        final PriceIndexNotificationReceiver client = priceIndexClientConfig.priceIndexReceiver();
-        client.setPriceIndexListener(marketListener());
-        return client;
     }
 }

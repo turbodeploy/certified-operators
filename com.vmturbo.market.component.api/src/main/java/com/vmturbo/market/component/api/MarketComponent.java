@@ -21,4 +21,11 @@ public interface MarketComponent {
      * @param listener Listener to register.
      */
     void addProjectedTopologyListener(@Nonnull final ProjectedTopologyListener listener);
+
+    /**
+     * Registers a listener for price index notifications.
+     *
+     * @param listener listener to register
+     */
+    void addPriceIndexListener(@Nonnull final PriceIndexListener listener);
 }

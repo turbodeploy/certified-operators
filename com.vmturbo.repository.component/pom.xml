@@ -100,10 +100,6 @@
         </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>
-            <artifactId>priceindex-api</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.vmturbo</groupId>
             <artifactId>market-component-api</artifactId>
         </dependency>
         <dependency>

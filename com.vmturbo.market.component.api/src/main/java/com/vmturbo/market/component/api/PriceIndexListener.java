@@ -1,4 +1,4 @@
-package com.vmturbo.priceindex.api;
+package com.vmturbo.market.component.api;
 
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs;
 

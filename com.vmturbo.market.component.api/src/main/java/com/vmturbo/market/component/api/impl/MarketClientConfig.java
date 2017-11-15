@@ -20,6 +20,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
 import com.vmturbo.components.api.client.BaseKafkaConsumerConfig;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.market.component.api.MarketComponent;
+import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
 
 /**
  * Spring configuration to import to connecto to Market instance.
@@ -48,6 +49,13 @@ public class MarketClientConfig {
                 ProjectedTopology::parseFrom);
     }
 
+    @Bean
+    protected IMessageReceiver<PriceIndexMessage> priceIndexReceiver() {
+        return baseKafkaConfig.kafkaConsumer().messageReceiver(
+                MarketComponentNotificationReceiver.PRICE_INDICES_TOPIC,
+                PriceIndexMessage::parseFrom);
+    }
+
     @Bean(destroyMethod = "shutdownNow")
     protected ExecutorService marketClientThreadPool() {
         final ThreadFactory threadFactory =
@@ -61,12 +69,13 @@ public class MarketClientConfig {
         final IMessageReceiver<ProjectedTopology> projectedTopologyReceiver =
                 subscriptions.contains(Subscription.ProjectedTopologies) ?
                         projectedTopologyReceiver() : null;
-
+        final IMessageReceiver<PriceIndexMessage> priceIndexReeiver =
+                subscriptions.contains(Subscription.PriceIndexes) ? priceIndexReceiver() : null;
         return new MarketComponentNotificationReceiver(projectedTopologyReceiver,
-                actionPlansReceiver, marketClientThreadPool());
+                actionPlansReceiver, priceIndexReeiver, marketClientThreadPool());
     }
 
     public enum Subscription {
-        ActionPlans, ProjectedTopologies;
+        ActionPlans, ProjectedTopologies, PriceIndexes;
     }
 }

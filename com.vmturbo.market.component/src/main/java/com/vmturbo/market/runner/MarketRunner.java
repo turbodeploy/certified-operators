@@ -18,7 +18,6 @@ import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.market.MarketNotificationSender;
 import com.vmturbo.market.runner.Analysis.AnalysisState;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
-import com.vmturbo.priceindex.api.PriceIndexNotificationSender;
 import com.vmturbo.proactivesupport.DataMetricHistogram;
 
 /**
@@ -30,7 +29,6 @@ public class MarketRunner {
     private final Logger logger = LogManager.getLogger();
     private final ExecutorService runnerThreadPool;
     private final MarketNotificationSender serverApi;
-    private final PriceIndexNotificationSender priceIndexApi;
 
     private final Map<Long, Analysis> analysisMap = Maps.newConcurrentMap();
 
@@ -43,11 +41,9 @@ public class MarketRunner {
 
     public MarketRunner(
             ExecutorService runnerThreadPool,
-            MarketNotificationSender serverApi,
-            PriceIndexNotificationSender priceIndexApi) {
+            MarketNotificationSender serverApi) {
         this.runnerThreadPool = runnerThreadPool;
         this.serverApi = serverApi;
-        this.priceIndexApi = priceIndexApi;
     }
 
     @Nonnull
@@ -100,7 +96,7 @@ public class MarketRunner {
                     PriceIndexMessage.newBuilder(analysis.getPriceIndexMessage().get())
                         .setTopologyContextId(analysis.getContextId())
                         .build();
-                priceIndexApi.sendPriceIndex(analysis.getTopologyInfo(), pim);
+                serverApi.sendPriceIndex(analysis.getTopologyInfo(), pim);
             } catch (CommunicationException | InterruptedException e) {
                 // TODO we need to decide, whether to commit the incoming topology here or not.
                 logger.error("Could not send market notifications", e);

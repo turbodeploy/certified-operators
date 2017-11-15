@@ -10,6 +10,7 @@ import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.components.api.test.SenderReceiverPair;
 import com.vmturbo.market.MarketNotificationSender;
+import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
 
 /**
  * API server-side Spring configuration.
@@ -25,7 +26,8 @@ public class TestApiServerConfig {
 
     @Bean
     public MarketNotificationSender marketNotificationSender() {
-        return new MarketNotificationSender(projectedTopologySender(), actionPlanSender());
+        return new MarketNotificationSender(projectedTopologySender(), actionPlanSender(),
+                priceIndexSender());
     }
 
     @Bean
@@ -35,6 +37,11 @@ public class TestApiServerConfig {
 
     @Bean
     public IMessageSender<ProjectedTopology> projectedTopologySender() {
+        return new SenderReceiverPair<>();
+    }
+
+    @Bean
+    public IMessageSender<PriceIndexMessage> priceIndexSender() {
         return new SenderReceiverPair<>();
     }
 

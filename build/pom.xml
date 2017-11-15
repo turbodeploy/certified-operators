@@ -356,7 +356,6 @@
                 <module>../com.vmturbo.history.component.api</module>
                 <module>../com.vmturbo.plan.orchestrator</module>
                 <module>../com.vmturbo.plan.orchestrator.api</module>
-                <module>../com.vmturbo.priceindex.api</module>
 
                 <!-- Probe components. This should only include the probes
                      that we currently support in XL. -->
@@ -440,7 +439,6 @@
                 <module>../com.vmturbo.history.component.api</module>
                 <module>../com.vmturbo.plan.orchestrator</module>
                 <module>../com.vmturbo.plan.orchestrator.api</module>
-                <module>../com.vmturbo.priceindex.api</module>
 
                 <!-- Probe components. These are ALL the probes. -->
                 <module>../com.vmturbo.mediation.client</module>
@@ -903,11 +901,6 @@
             <dependency>
                 <groupId>com.vmturbo</groupId>
                 <artifactId>topology-processor-</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.vmturbo</groupId>
-                <artifactId>priceindex-api</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

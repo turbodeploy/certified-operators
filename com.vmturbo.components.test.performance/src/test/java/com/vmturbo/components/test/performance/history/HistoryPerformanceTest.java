@@ -32,7 +32,6 @@ import com.vmturbo.market.MarketNotificationSender;
 import com.vmturbo.market.api.MarketKafkaSender;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessagePayload;
-import com.vmturbo.priceindex.api.PriceIndexNotificationSender;
 import com.vmturbo.topology.processor.api.server.TopologyBroadcast;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorKafkaSender;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
@@ -42,7 +41,6 @@ public abstract class HistoryPerformanceTest {
 
     private MarketNotificationSender marketSender;
     private TopologyProcessorNotificationSender tpSender;
-    private PriceIndexNotificationSender piSender;
 
     protected HistoryComponent historyComponent;
     protected IMessageReceiver<HistoryComponentNotification> historyMessageReceiver;
@@ -98,7 +96,6 @@ public abstract class HistoryPerformanceTest {
     public void createSenders() {
         tpSender = TopologyProcessorKafkaSender.create(threadPool, getKafkaMessageProducer());
         marketSender = MarketKafkaSender.createMarketSender(getKafkaMessageProducer());
-        piSender = MarketKafkaSender.createPriceIndexSender(getKafkaMessageProducer());
     }
 
     protected void executeTest(final int topologySize, final long topologyContextId) throws Exception {
@@ -166,7 +163,7 @@ public abstract class HistoryPerformanceTest {
             );
         });
 
-        piSender.sendPriceIndex(TOPOLOGY_INFO
+        marketSender.sendPriceIndex(TOPOLOGY_INFO
             .setTopologyContextId(topologyContextId)
             .setTopologyType(ComponentUtils.topologyType(topologyContextId))
             .build(), builder.build());

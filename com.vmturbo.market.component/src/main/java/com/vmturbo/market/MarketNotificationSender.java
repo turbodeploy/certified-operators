@@ -2,6 +2,7 @@ package com.vmturbo.market;
 
 import java.util.Collection;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -16,6 +17,8 @@ import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.MessageChunker;
 import com.vmturbo.components.api.server.ComponentNotificationSender;
 import com.vmturbo.components.api.server.IMessageSender;
+import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
+import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessagePayload;
 
 /**
  * Handles the websocket connections with clients using the
@@ -26,12 +29,15 @@ public class MarketNotificationSender extends
 
     private final IMessageSender<ProjectedTopology> projectedTopologySender;
     private final IMessageSender<ActionPlan> actionPlanSender;
+    private final IMessageSender<PriceIndexMessage> priceIndexSender;
 
     public MarketNotificationSender(
             @Nonnull IMessageSender<ProjectedTopology> projectedTopologySender,
-            @Nonnull IMessageSender<ActionPlan> actionPlanSender) {
+            @Nonnull IMessageSender<ActionPlan> actionPlanSender,
+            @Nonnull IMessageSender<PriceIndexMessage> priceIndexSender) {
         this.projectedTopologySender = Objects.requireNonNull(projectedTopologySender);
         this.actionPlanSender = Objects.requireNonNull(actionPlanSender);
+        this.priceIndexSender = Objects.requireNonNull(priceIndexSender);
     }
 
     /**
@@ -85,6 +91,52 @@ public class MarketNotificationSender extends
         getLogger().debug("Sending topology {} segment {}", segment::getTopologyId,
                 segment::getSegmentCase);
         projectedTopologySender.sendMessage(segment);
+    }
+
+    /**
+     * Notify the counterpart about the PriceIndices for all the traders in the market.
+     *
+     * @param topologyInfo The {@link TopologyInfo} of the topology the price index describes.
+     * @param priceIndexMessage The message to send.
+     * @throws InterruptedException if thread has been interrupted
+     * @throws CommunicationException if perfistent communication error occurred
+     */
+    public void sendPriceIndex(@Nonnull final TopologyInfo topologyInfo,
+            final PriceIndexMessage priceIndexMessage)
+            throws CommunicationException, InterruptedException {
+        PriceIndexMessage.Builder builder = PriceIndexMessage.newBuilder();
+        final PriceIndexMessage serverMessage = builder.addAllPayload(
+                priceIndexMessage.getPayloadList()
+                        .stream()
+                        .map(p -> createPayload(p.getOid(), (float)p.getPriceindexCurrent(),
+                                (float)p.getPriceindexProjected()))
+                        .collect(Collectors.toList()))
+                .setMarketId(priceIndexMessage.getMarketId())
+                .setTopologyContextId(priceIndexMessage.getTopologyContextId())
+                .setTopologyId(topologyInfo.getTopologyId())
+                .setSourceTopologyCreationTime(topologyInfo.getCreationTime())
+                .build();
+        priceIndexSender.sendMessage(serverMessage);
+        getLogger().info("Successfully sent price index information for {}",
+                topologyInfo.getTopologyId());
+    }
+
+    /**
+     * Creates the payload.
+     *
+     * @param oid The OID.
+     * @param piNow The current Price Index.
+     * @param piProjected The projected Price Index.
+     * @return The price index message payload.
+     */
+    @Nonnull
+    private PriceIndexMessagePayload createPayload(final long oid, final float piNow,
+            final float piProjected) {
+        return PriceIndexMessagePayload.newBuilder()
+                .setOid(oid)
+                .setPriceindexCurrent(piNow)
+                .setPriceindexProjected(piProjected)
+                .build();
     }
 
     @Override

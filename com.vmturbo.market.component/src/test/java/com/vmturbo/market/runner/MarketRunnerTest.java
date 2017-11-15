@@ -30,7 +30,6 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.market.MarketNotificationSender;
 import com.vmturbo.market.runner.Analysis.AnalysisState;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
-import com.vmturbo.priceindex.api.PriceIndexNotificationSender;
 
 /**
  * Unit tests for the {@link MarketRunner}.
@@ -40,7 +39,6 @@ public class MarketRunnerTest {
     private MarketRunner runner;
     private ExecutorService threadPool;
     private MarketNotificationSender serverApi = Mockito.mock(MarketNotificationSender.class);
-    private PriceIndexNotificationSender priceIndexApi = Mockito.mock(PriceIndexNotificationSender.class);
 
     private long topologyContextId = 1000;
     private long topologyId = 2000;
@@ -57,7 +55,7 @@ public class MarketRunnerTest {
     public void before() {
         IdentityGenerator.initPrefix(0);
         threadPool = Executors.newFixedThreadPool(2);
-        runner = new MarketRunner(threadPool, serverApi, priceIndexApi);
+        runner = new MarketRunner(threadPool, serverApi);
         topologyContextId += 100;
     }
 
@@ -89,7 +87,7 @@ public class MarketRunnerTest {
         PriceIndexMessage pim = PriceIndexMessage.newBuilder(analysis.getPriceIndexMessage().get())
                         .setTopologyContextId(analysis.getContextId())
                         .build();
-        Mockito.verify(priceIndexApi).sendPriceIndex(eq(topologyInfo), eq(pim));
+        Mockito.verify(serverApi).sendPriceIndex(eq(topologyInfo), eq(pim));
     }
 
     /**

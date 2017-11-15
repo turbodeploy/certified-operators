@@ -1,7 +1,5 @@
 package com.vmturbo.market;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.builder.SpringApplicationBuilder;
@@ -11,7 +9,6 @@ import org.springframework.context.annotation.Import;
 
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.market.api.MarketApiConfig;
-import com.vmturbo.market.priceindex.PriceIndexApiConfig;
 import com.vmturbo.market.topology.TopologyProcessorConfig;
 
 /**
@@ -20,11 +17,8 @@ import com.vmturbo.market.topology.TopologyProcessorConfig;
 @Configuration("theComponent")
 @EnableAutoConfiguration
 @EnableDiscoveryClient
-@Import({MarketGlobalConfig.class, TopologyProcessorConfig.class, PriceIndexApiConfig.class,
-        MarketApiConfig.class})
+@Import({MarketGlobalConfig.class, TopologyProcessorConfig.class, MarketApiConfig.class})
 public class MarketComponent extends BaseVmtComponent {
-
-    private Logger log = LogManager.getLogger();
 
     public static void main(String[] args) {
         new SpringApplicationBuilder()

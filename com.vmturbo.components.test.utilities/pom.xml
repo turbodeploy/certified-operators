@@ -126,10 +126,6 @@
             <artifactId>history-component-api</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.vmturbo</groupId>
-            <artifactId>priceindex-api</artifactId>
-        </dependency>
-        <dependency>
             <groupId>org.apache.httpcomponents</groupId>
             <artifactId>httpclient</artifactId>
         </dependency>

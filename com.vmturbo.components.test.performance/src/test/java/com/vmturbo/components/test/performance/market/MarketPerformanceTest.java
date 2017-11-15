@@ -34,6 +34,7 @@ import com.vmturbo.components.test.utilities.utils.TopologyUtils;
 import com.vmturbo.market.component.api.ActionsListener;
 import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.impl.MarketComponentNotificationReceiver;
+import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
 import com.vmturbo.topology.processor.api.server.TopologyBroadcast;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorKafkaSender;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
@@ -76,7 +77,7 @@ public class MarketPerformanceTest {
                 ProjectedTopology::parseFrom);
         marketComponent =
                 new MarketComponentNotificationReceiver(projectedTopologyReceiver, actionsReceiver,
-                        threadPool);
+                        null, threadPool);
         kafkaMessageConsumer.start();
     }
 

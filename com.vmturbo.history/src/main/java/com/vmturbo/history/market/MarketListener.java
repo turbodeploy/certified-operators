@@ -24,7 +24,7 @@ import com.vmturbo.history.topology.TopologySnapshotRegistry;
 import com.vmturbo.history.utils.TopologyOrganizer;
 import com.vmturbo.market.component.api.ProjectedTopologyListener;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs;
-import com.vmturbo.priceindex.api.PriceIndexListener;
+import com.vmturbo.market.component.api.PriceIndexListener;
 import com.vmturbo.reports.db.VmtDbException;
 
 /**

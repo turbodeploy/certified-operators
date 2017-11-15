@@ -81,10 +81,6 @@
         </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>
-            <artifactId>priceindex-api</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.vmturbo</groupId>
             <artifactId>com.vmturbo.commons</artifactId>
         </dependency>
         <dependency>
