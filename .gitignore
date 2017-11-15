@@ -14,3 +14,7 @@ target/
 
 # Mac OS X
 .DS_Store
+
+# OVA builds
+build/packer.io/packer_cache
+build/packer.io/turbonomic_xl
