@@ -307,18 +307,18 @@ mount -a
 
 # Install the specified version of Docker.
 pushd /tmp
-DOCKER_VERSION=1.13.1
-curl -sO https://yum.dockerproject.org/repo/main/centos/7/Packages/docker-engine-${DOCKER_VERSION}-1.el7.centos.x86_64.rpm
-curl -sO https://yum.dockerproject.org/repo/main/centos/7/Packages/docker-engine-selinux-${DOCKER_VERSION}-1.el7.centos.noarch.rpm
-yum install -y policycoreutils-python libtool-ltdl libseccomp
-rpm -i docker-engine-selinux-${DOCKER_VERSION}-1.el7.centos.noarch.rpm
-rpm -i docker-engine-${DOCKER_VERSION}-1.el7.centos.x86_64.rpm
-rm docker-engine-selinux-${DOCKER_VERSION}-1.el7.centos.noarch.rpm
-rm docker-engine-${DOCKER_VERSION}-1.el7.centos.x86_64.rpm
+DOCKER_VERSION=docker-ce-17.09.0.ce-1.el7.centos
+yum install -y yum-utils \
+    device-mapper-persistent-data \
+    lvm2
+yum-config-manager \
+    --add-repo \
+    https://download.docker.com/linux/centos/docker-ce.repo
+yum install -y ${DOCKER_VERSION}
 popd
 
 # Update docker daemon
-sed -i 's|ExecStart.*|ExecStart=/usr/bin/docker daemon -H tcp://0.0.0.0:2375 -H unix:///var/run/docker.sock --log-driver=json-file --log-opt max-size=100m --log-opt max-file=100|' /usr/lib/systemd/system/docker.service
+sed -i 's|ExecStart.*|ExecStart=/usr/bin/dockerd -H tcp://0.0.0.0:2375 -H unix:///var/run/docker.sock --log-driver=json-file --log-opt max-size=100m --log-opt max-file=100|' /usr/lib/systemd/system/docker.service
 systemctl daemon-reload
 systemctl start docker.service
 systemctl enable docker.service
