@@ -1,11 +1,10 @@
 package com.vmturbo.history.topology;
 
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 
 import java.util.concurrent.CountDownLatch;
@@ -17,14 +16,12 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.history.api.StatsAvailabilityTracker;
 import com.vmturbo.history.api.StatsAvailabilityTracker.TopologyContextType;
 import com.vmturbo.history.stats.LiveStatsWriter;
-import com.vmturbo.history.stats.PlanStatsWriter;
 
 /**
  * Test the Live Topology processing classes
@@ -33,15 +30,11 @@ public class LiveTopologyListenerTest {
     private static final long REALTIME_TOPOLOGY_ID = 7777777;
 
     private LiveStatsWriter liveStatsWriter;
-    private PlanStatsWriter planStatsWriter;
-    private RemoteIterator<TopologyEntityDTO> testTopologyDTOs;
     private StatsAvailabilityTracker availabilityTracker;
 
     @Before
     public void setup() {
         liveStatsWriter = Mockito.mock(LiveStatsWriter.class);
-        planStatsWriter = Mockito.mock(PlanStatsWriter.class);
-        testTopologyDTOs = Mockito.mock(RemoteIterator.class);
         availabilityTracker = Mockito.mock(StatsAvailabilityTracker.class);
     }
 
@@ -54,7 +47,7 @@ public class LiveTopologyListenerTest {
                 liveStatsWriter,
                 availabilityTracker);
 
-        RemoteIterator<TopologyDTO.TopologyEntityDTO> iterator = Mockito.mock(RemoteIterator.class);
+        RemoteIterator<TopologyEntityDTO> iterator = Mockito.mock(RemoteIterator.class);
 
         CountDownLatch latch = new CountDownLatch(1);
 
@@ -62,7 +55,7 @@ public class LiveTopologyListenerTest {
         doAnswer(invocationOnMock -> {
                 latch.await();
                 return null;
-            }).when(liveStatsWriter).processChunks(any(),any());
+            }).when(liveStatsWriter).processChunks(any(), any());
 
         TopologyInfo topology1 = TopologyInfo.newBuilder()
                 .setTopologyContextId(REALTIME_TOPOLOGY_ID)
@@ -76,21 +69,30 @@ public class LiveTopologyListenerTest {
                 .setCreationTime(2)
                 .build();
 
-        ExecutorService threadPool = Executors.newCachedThreadPool();
+        final ExecutorService threadPool = Executors.newSingleThreadExecutor();
 
-        // send the topologies for processing
-        Future<?> t1Future = threadPool.submit(() -> {serviceUndertest.onTopologyNotification(topology1,iterator);});
-        Future<?> t2Future = threadPool.submit(() -> {serviceUndertest.onTopologyNotification(topology2,iterator);});
+        // Send the first topology for processing
+        Future<?> t1Future = threadPool.submit(() ->
+                serviceUndertest.onTopologyNotification(topology1, iterator));
+
+        // Wait for the processing to start.
+        // It doesn't finish, because the processing is blocked until latch counts down.
+        verify(liveStatsWriter, timeout(1000)).processChunks(any(), any());
+
+        // New notification comes in while processing is still in progress.
+        serviceUndertest.onTopologyNotification(topology2, iterator);
+
+        // It should get dropped.
+        verify(liveStatsWriter).invalidTopologyReceived(eq(REALTIME_TOPOLOGY_ID),
+                eq(topology2.getTopologyId()));
 
         // unblock the processor
         latch.countDown();
 
         t1Future.get();
-        t2Future.get();
 
-        // verify that one topology was marked available and one invalid
-        verify(availabilityTracker,times(1)).topologyAvailable(eq(REALTIME_TOPOLOGY_ID), eq(TopologyContextType.LIVE));
-        verify(liveStatsWriter,times(1)).invalidTopologyReceived(eq(REALTIME_TOPOLOGY_ID), anyInt());
+        // verify that one topology (the first one) was marked available.
+        verify(availabilityTracker).topologyAvailable(eq(REALTIME_TOPOLOGY_ID), eq(TopologyContextType.LIVE));
 
         // verify that the next one goes through fine
         TopologyInfo topology3 = TopologyInfo.newBuilder()
