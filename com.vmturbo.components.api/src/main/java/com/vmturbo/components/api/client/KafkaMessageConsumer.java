@@ -1,6 +1,7 @@
 package com.vmturbo.components.api.client;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -215,8 +216,11 @@ public class KafkaMessageConsumer implements AutoCloseable {
 
     private void onNewMessage(ConsumerRecord<String, byte[]> record) {
         // time between now and the record timestamp represents transmission latency
-        long latency = System.currentTimeMillis() - record.timestamp();
-        MESSAGES_RECEIVED_LATENCY_MS.labels(record.topic()).inc((double) latency);
+        long latency = Instant.now().toEpochMilli() - record.timestamp();
+        if ( latency < 0 ) {
+            logger.warn("negative latency {} reported. message.timestamp is {}", latency, record.timestamp());
+        }
+        MESSAGES_RECEIVED_LATENCY_MS.labels(record.topic()).inc((double) Math.max(latency,0));
         // update the # received and total bytes received metrics
         MESSAGES_RECEIVED_COUNT.labels(record.topic()).inc();
         final byte[] payload = record.value();

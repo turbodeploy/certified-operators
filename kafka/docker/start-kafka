@@ -52,6 +52,8 @@ start_kafka() {
     KAFKA_PARAMS="$KAFKA_PARAMS --override log.retention.hours=$KAFKA_LOG_RETENTION_HRS"
     # set the max.message.bytes for the whole server, until we can tune this with more granularity
     KAFKA_PARAMS="$KAFKA_PARAMS --override message.max.bytes=$KAFKA_MAX_MESSAGE_BYTES"
+    # set the broker default message timestamp type
+    KAFKA_PARAMS="$KAFKA_PARAMS --override log.message.timestamp.type=LogAppendTime"
 
     echo Executing kafka with options: $KAFKA_PARAMS
 

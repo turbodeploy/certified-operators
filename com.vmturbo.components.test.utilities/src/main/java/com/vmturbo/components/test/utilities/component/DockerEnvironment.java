@@ -146,6 +146,7 @@ public class DockerEnvironment {
             .put("KAFKA_SERVERS", "kafka1:9092")
             .put("KAFKA_XMX_MB", "1024")
             .put("KAFKA_MEM_LIMIT", "20000")
+            .put("KAFKA_LOG_TIMESTAMP_TYPE", "LogAppendTime")
             .put("ZOOKEEPER_SERVERS", "zoo1:2181")
             .put("ZOOKEEPER_MEM_LIMIT", "200")
             .put("ZOOKEEPER_XMX_MB", "100")
