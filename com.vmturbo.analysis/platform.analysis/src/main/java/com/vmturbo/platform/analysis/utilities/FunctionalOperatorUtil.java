@@ -36,8 +36,8 @@ public class FunctionalOperatorUtil {
                     -> {if (take) {
                             return new double[]{commSold.getQuantity(), commSold.getPeakQuantity()};
                         } else {
-                            return ((buyer.getQuantities()[boughtIndex] < commSold.getCapacity()) &&
-                                    (buyer.getPeakQuantities()[boughtIndex] < commSold.getCapacity())) ?
+                            return ((buyer.getQuantities()[boughtIndex] <= commSold.getCapacity()) &&
+                                    (buyer.getPeakQuantities()[boughtIndex] <= commSold.getCapacity())) ?
                                     new double[]{0, 0} : new double[]{Double.POSITIVE_INFINITY,
                                                     Double.POSITIVE_INFINITY};
                         }
