@@ -2,6 +2,7 @@ package com.vmturbo.api.component.external.api.service;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -16,6 +17,7 @@ import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.dto.setting.SettingApiInputDTO;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
+import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.serviceinterfaces.ISettingsService;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.SearchSettingSpecsRequest;
@@ -67,13 +69,36 @@ public class SettingsService implements ISettingsService {
         final List<SettingSpec> specs = StreamSupport.stream(specIt.spliterator(), false)
                 .filter(spec -> settingMatchEntityType(spec, entityType))
                 .collect(Collectors.toList());
+        final List<SettingsManagerApiDTO> retMgrs;
         if (managerUuid != null) {
-            return settingsMapper.toManagerDto(specs, managerUuid)
+            retMgrs = settingsMapper.toManagerDto(specs, managerUuid)
                     .map(Collections::singletonList)
                     .orElse(Collections.emptyList());
         } else {
-            return settingsMapper.toManagerDtos(specs);
+            retMgrs = settingsMapper.toManagerDtos(specs);
         }
+
+        // Set the entity type.
+        //
+        // At the time of this writing (Nov 2017) the UI is designed to only allow searching
+        // settings by entity type. The API DTOs don't support multiple entity types per setting
+        // spec, and there's no straightforward way to map a setting spec that supports multiple
+        // entity types to an API setting spec. Our solution? Look up supported settings for that
+        // entity type, and set the entity type of the SettingApiDTO to whatever the UI
+        // requested.
+        //
+        // If it becomes necessary, we can create "fake" per-entity-type SettingApiDTOs when
+        // no entity type is provided in the request. However, for now if the API/UI does not
+        // request an entity type it will not be set in the returned SettingApiDTOs.
+        if (entityType != null) {
+            retMgrs.forEach(retMgr -> {
+                if (retMgr.getSettings() != null) {
+                    retMgr.getSettings().forEach(setting -> setting.setEntityType(entityType));
+                }
+            });
+        }
+
+        return retMgrs;
     }
 
     @VisibleForTesting

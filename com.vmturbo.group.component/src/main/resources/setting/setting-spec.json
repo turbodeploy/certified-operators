@@ -1,14 +1,33 @@
 {
   "settingSpecs": [
     {
-      "name": "moveVM",
+      "name": "move",
       "displayName" : "Move",
       "entitySettingSpec": {
         "tiebreaker": "SMALLER",
         "entitySettingScope": {
           "entityTypeSet": {
             "entityType": [
-              10
+              10 // Virtual Machine
+            ]
+          }
+        }
+      },
+      "enumSettingValueType": {
+        "enumValues" : [ "DISABLED", "RECOMMEND", "MANUAL", "AUTOMATIC" ],
+        "default" : "MANUAL"
+      }
+    },
+    {
+      "name": "suspend",
+      "displayName" : "Suspend",
+      "entitySettingSpec": {
+        "tiebreaker": "SMALLER",
+        "entitySettingScope": {
+          "entityTypeSet": {
+            "entityType": [
+              10, // Virtual Machine
+              14  // Physical Machine
             ]
           }
         }

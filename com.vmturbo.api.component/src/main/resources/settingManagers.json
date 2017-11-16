@@ -9,7 +9,7 @@
       "displayName": "Action Mode Settings",
       "defaultCategory": "Automation",
       "settings": [
-        "moveVM"
+        "move", "suspend"
       ]
     }
   }

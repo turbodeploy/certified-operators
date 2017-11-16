@@ -127,24 +127,9 @@ public class ActionTest {
     public void testGetModeMoveSpecNameCaseInsensitive(){
         //move prefix for setting spec is case insensitive
         when(entitySettingsCache.getSettingsForEntity(eq(11L)))
-            .thenReturn(Collections.singletonList(settingNonstandardSpec("MoVeVM",
+            .thenReturn(Collections.singletonList(settingNonstandardSpec("MoVe",
                     ActionMode.AUTOMATIC)));
         assertEquals(action.getMode(), ActionMode.AUTOMATIC);
-    }
-
-    @Test
-    public void testGetModeMoveSpecNameNeedsValidPrefix(){
-        //suffix of move spec doesn't matter
-        //todo: this may change when non-moveVM settings are supported
-        Setting move123 = settingNonstandardSpec("move123", ActionMode.RECOMMEND);
-        when(entitySettingsCache.getSettingsForEntity(eq(11L)))
-            .thenReturn(Collections.singletonList(move123));
-        assertEquals(action.getMode(), ActionMode.RECOMMEND);
-        //but an unrecognized spec name invalidates the setting
-        when(entitySettingsCache.getSettingsForEntity(eq(11L)))
-            .thenReturn(Arrays.asList(settingNonstandardSpec("badName", ActionMode.DISABLED),
-                    move123));
-        assertEquals(action.getMode(), ActionMode.RECOMMEND);
     }
 
     @Test
@@ -153,10 +138,8 @@ public class ActionTest {
         //when an entity has multiple settings, the strictest of the "move*" settings is the one that applies
         List<Setting> mixedSettings = Arrays.asList(makeMoveVmSetting(ActionMode.MANUAL),
                 makeMoveVmSetting(ActionMode.RECOMMEND),
-                settingNonstandardSpec("move123", ActionMode.AUTOMATIC),
-                settingNonstandardSpec("MovE456", ActionMode.MANUAL),
-                settingNonstandardSpec("bad123", ActionMode.DISABLED),
-                settingNonstandardSpec("bad456", ActionMode.AUTOMATIC));
+                makeMoveVmSetting(ActionMode.AUTOMATIC),
+                settingNonstandardSpec("bad", ActionMode.MANUAL));
         when(entitySettingsCache.getSettingsForEntity(eq(11L))).thenReturn(mixedSettings);
         assertEquals(action.getMode(), ActionMode.RECOMMEND);
 
@@ -220,7 +203,7 @@ public class ActionTest {
     }
 
     private Setting makeMoveVmSetting(ActionMode mode) {
-        return Setting.newBuilder().setSettingSpecName("moveVM")
+        return Setting.newBuilder().setSettingSpecName("move")
                 .setEnumSettingValue(EnumSettingValue.newBuilder()
                         .setValue(mode.toString()).build())
                 .build();

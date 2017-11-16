@@ -1,6 +1,8 @@
 package com.vmturbo.api.component.external.api.service;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.core.IsNull.notNullValue;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
@@ -18,7 +20,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
-import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -26,11 +27,11 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.MockitoAnnotations;
 
-import io.grpc.stub.StreamObserver;
-
+import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
+import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
-import com.vmturbo.common.protobuf.setting.SettingProto.SearchSettingSpecsRequest;
+import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.AllEntityType;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.EntityTypeSet;
@@ -39,14 +40,15 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.GlobalSettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingTiebreaker;
+import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
-import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceImplBase;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class SettingsServiceTest {
 
-    private TestSettingRpcService settingRpcServiceSpy = spy(new TestSettingRpcService());
+    private SettingServiceMole settingRpcServiceSpy = spy(new SettingServiceMole());
 
     private SettingServiceBlockingStub settingServiceStub;
 
@@ -54,13 +56,16 @@ public class SettingsServiceTest {
 
     private SettingsMapper settingsMapper = mock(SettingsMapper.class);
 
+    private static final int ENTITY_TYPE = EntityType.VIRTUAL_MACHINE_VALUE;
+    private static final String ENTITY_TYPE_STR = ServiceEntityMapper.toUIEntityType(ENTITY_TYPE);
+
     private final SettingSpec vmSettingSpec = SettingSpec.newBuilder()
             .setName("moveVM")
             .setDisplayName("Move")
             .setEntitySettingSpec(EntitySettingSpec.newBuilder()
                     .setTiebreaker(SettingTiebreaker.SMALLER)
                     .setEntitySettingScope(EntitySettingScope.newBuilder()
-                            .setEntityTypeSet(EntityTypeSet.newBuilder().addEntityType(10))))
+                            .setEntityTypeSet(EntityTypeSet.newBuilder().addEntityType(ENTITY_TYPE))))
             .setEnumSettingValueType(EnumSettingValueType.newBuilder()
                     .addAllEnumValues(Arrays.asList("DISABLED", "MANUAL"))
                     .setDefault("MANUAL"))
@@ -76,12 +81,30 @@ public class SettingsServiceTest {
 
         settingsService = new SettingsService(settingServiceStub, settingsMapper);
 
-        when(settingRpcServiceSpy.getAllSettingSpec(any()))
-                .thenReturn(Arrays.asList(vmSettingSpec));
+        when(settingRpcServiceSpy.searchSettingSpecs(any()))
+                .thenReturn(Collections.singletonList(vmSettingSpec));
     }
 
     @Captor
     private ArgumentCaptor<List<SettingSpec>> specCaptor;
+
+    @Test
+    public void testGetSpecsEntityTypeApplied() throws Exception {
+        final SettingsManagerApiDTO mgrDto = new SettingsManagerApiDTO();
+        mgrDto.setUuid("test");
+        final SettingApiDTO settingDto = new SettingApiDTO();
+        mgrDto.setSettings(Collections.singletonList(settingDto));
+
+        when(settingsMapper.toManagerDtos(any()))
+                .thenReturn(Collections.singletonList(mgrDto));
+
+        List<SettingsManagerApiDTO> result =
+                settingsService.getSettingsSpecs(null, ENTITY_TYPE_STR, false);
+        assertThat(result.size(), is(1));
+        SettingsManagerApiDTO retDto = result.get(0);
+        assertThat(retDto.getSettings(), notNullValue());
+        assertThat(retDto.getSettings().get(0).getEntityType(), is(ENTITY_TYPE_STR));
+    }
 
     /**
      * Verify that a request without a specific manager UUID calls the appropriate mapping method.
@@ -91,7 +114,8 @@ public class SettingsServiceTest {
         SettingsManagerApiDTO mgrDto = new SettingsManagerApiDTO();
         mgrDto.setUuid("test");
 
-        when(settingsMapper.toManagerDtos(any())).thenReturn(Collections.singletonList(mgrDto));
+        when(settingsMapper.toManagerDtos(any()))
+            .thenReturn(Collections.singletonList(mgrDto));
 
         List<SettingsManagerApiDTO> result =
                 settingsService.getSettingsSpecs(null, null, false);
@@ -112,7 +136,8 @@ public class SettingsServiceTest {
         mgrDto.setUuid("test");
 
         final String mgrId = "mgrId";
-        when(settingsMapper.toManagerDto(any(), eq(mgrId))).thenReturn(Optional.of(mgrDto));
+        when(settingsMapper.toManagerDto(any(), eq(mgrId)))
+            .thenReturn(Optional.of(mgrDto));
         List<SettingsManagerApiDTO> result =
                 settingsService.getSettingsSpecs(mgrId, null, false);
         assertEquals(1, result.size());
@@ -128,7 +153,8 @@ public class SettingsServiceTest {
     public void testGetSingleEntityTypeSpecs() throws Exception {
         final SettingsManagerApiDTO mgrDto = new SettingsManagerApiDTO();
         mgrDto.setUuid("test");
-        when(settingsMapper.toManagerDtos(any())).thenReturn(Collections.singletonList(mgrDto));
+        when(settingsMapper.toManagerDtos(any()))
+                .thenReturn(Collections.singletonList(mgrDto));
 
         List<SettingsManagerApiDTO> result =
                 settingsService.getSettingsSpecs(null, "Container", false);
@@ -166,19 +192,5 @@ public class SettingsServiceTest {
             SettingSpec.newBuilder()
                 .setEntitySettingSpec(EntitySettingSpec.getDefaultInstance())
                 .build(), "VirtualMachine"));
-    }
-
-    private static class TestSettingRpcService extends SettingServiceImplBase {
-
-        public List<SettingSpec> getAllSettingSpec(SearchSettingSpecsRequest request) {
-            return Collections.emptyList();
-        }
-
-        @Override
-        public void searchSettingSpecs(SearchSettingSpecsRequest request,
-                                      StreamObserver<SettingSpec> responseObserver) {
-            getAllSettingSpec(request).forEach(responseObserver::onNext);
-            responseObserver.onCompleted();
-        }
     }
 }

@@ -17,13 +17,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
-import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 
 import io.grpc.Status;
-import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
@@ -35,12 +33,9 @@ import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
-import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceImplBase;
 import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.DeleteSettingPolicyRequest;
-import com.vmturbo.common.protobuf.setting.SettingProto.DeleteSettingPolicyResponse;
-import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.Scope;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
@@ -48,6 +43,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.UpdateSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.UpdateSettingPolicyResponse;
+import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -100,7 +96,7 @@ public class SettingPoliciesServiceTest {
 
     private SettingsPoliciesService settingsPoliciesService;
 
-    private TestSettingPolicyService settingPolicyBackend = spy(new TestSettingPolicyService());
+    private SettingPolicyServiceMole settingPolicyBackend = spy(new SettingPolicyServiceMole());
 
     private SettingsMapper settingsMapper = mock(SettingsMapper.class);
 
@@ -170,7 +166,7 @@ public class SettingPoliciesServiceTest {
 
     @Test
     public void testCreatePolicy() throws Exception {
-        when(settingsMapper.convertInputPolicy(eq(inputPolicy)))
+        when(settingsMapper.convertNewInputPolicy(eq(inputPolicy)))
             .thenReturn(SCOPE_POLICY_INFO);
 
         when(settingPolicyBackend.createSettingPolicy(CreateSettingPolicyRequest.newBuilder()
@@ -190,7 +186,7 @@ public class SettingPoliciesServiceTest {
     @Test
     public void testUpdatePolicy() throws Exception {
         final long id = 7;
-        when(settingsMapper.convertInputPolicy(eq(inputPolicy)))
+        when(settingsMapper.convertEditedInputPolicy(eq(id), eq(inputPolicy)))
                 .thenReturn(SCOPE_POLICY_INFO);
         when(settingPolicyBackend.updateSettingPolicy(UpdateSettingPolicyRequest.newBuilder()
                 .setId(id)
@@ -211,7 +207,7 @@ public class SettingPoliciesServiceTest {
     @Test(expected = OperationFailedException.class)
     public void testUpdatePolicyExistingName() throws Exception {
         final long id = 7;
-        when(settingsMapper.convertInputPolicy(eq(inputPolicy)))
+        when(settingsMapper.convertEditedInputPolicy(eq(id), eq(inputPolicy)))
                 .thenReturn(DEFAULT_POLICY_INFO);
 
         when(settingPolicyBackend.updateSettingPolicyError(any()))
@@ -223,7 +219,7 @@ public class SettingPoliciesServiceTest {
     @Test(expected = UnknownObjectException.class)
     public void testUpdatePolicyNotFound() throws Exception {
         final long id = 7;
-        when(settingsMapper.convertInputPolicy(eq(inputPolicy)))
+        when(settingsMapper.convertEditedInputPolicy(eq(id), eq(inputPolicy)))
                 .thenReturn(DEFAULT_POLICY_INFO);
 
         when(settingPolicyBackend.updateSettingPolicyError(any()))
@@ -235,7 +231,7 @@ public class SettingPoliciesServiceTest {
     @Test(expected = InvalidOperationException.class)
     public void testUpdatePolicyNotValid() throws Exception {
         final long id = 7;
-        when(settingsMapper.convertInputPolicy(eq(inputPolicy)))
+        when(settingsMapper.convertEditedInputPolicy(eq(id), eq(inputPolicy)))
                 .thenReturn(DEFAULT_POLICY_INFO);
 
         when(settingPolicyBackend.updateSettingPolicyError(any()))
@@ -289,7 +285,7 @@ public class SettingPoliciesServiceTest {
     @Test(expected = OperationFailedException.class)
     public void testCreateExistingPolicy() throws Exception {
 
-        when(settingsMapper.convertInputPolicy(eq(inputPolicy)))
+        when(settingsMapper.convertNewInputPolicy(eq(inputPolicy)))
             .thenReturn(DEFAULT_POLICY_INFO);
 
         when(settingPolicyBackend.createSettingPolicyError(any()))
@@ -300,78 +296,8 @@ public class SettingPoliciesServiceTest {
 
     @Test(expected = InvalidOperationException.class)
     public void testCreateInvalidPolicy() throws Exception {
-        when(settingsMapper.convertInputPolicy(any())).thenThrow(InvalidOperationException.class);
+        when(settingsMapper.convertNewInputPolicy(any())).thenThrow(InvalidOperationException.class);
 
         settingsPoliciesService.createSettingsPolicy(inputPolicy);
-    }
-
-    private static class TestSettingPolicyService extends SettingPolicyServiceImplBase {
-        public List<SettingPolicy> listSettingPolicies(ListSettingPoliciesRequest request) {
-            return Collections.emptyList();
-        }
-
-        public CreateSettingPolicyResponse createSettingPolicy(CreateSettingPolicyRequest request) {
-            return CreateSettingPolicyResponse.getDefaultInstance();
-        }
-
-        public Optional<Throwable> createSettingPolicyError(CreateSettingPolicyRequest request) {
-            return Optional.empty();
-        }
-
-        public UpdateSettingPolicyResponse updateSettingPolicy(UpdateSettingPolicyRequest request) {
-            return UpdateSettingPolicyResponse.getDefaultInstance();
-        }
-
-        public Optional<Throwable> updateSettingPolicyError(UpdateSettingPolicyRequest request) {
-            return Optional.empty();
-        }
-
-        public Optional<Throwable> deleteSettingPolicyError(DeleteSettingPolicyRequest request) {
-            return Optional.empty();
-        }
-
-        @Override
-        public void listSettingPolicies(ListSettingPoliciesRequest request,
-                                        StreamObserver<SettingPolicy> responseObserver) {
-            listSettingPolicies(request).forEach(responseObserver::onNext);
-            responseObserver.onCompleted();
-        }
-
-        @Override
-        public void createSettingPolicy(CreateSettingPolicyRequest request,
-                                        StreamObserver<CreateSettingPolicyResponse> responseObserver) {
-            Optional<Throwable> error = createSettingPolicyError(request);
-            if (error.isPresent()) {
-                responseObserver.onError(error.get());
-            } else {
-                responseObserver.onNext(createSettingPolicy(request));
-                responseObserver.onCompleted();
-            }
-        }
-
-        @Override
-        public void updateSettingPolicy(UpdateSettingPolicyRequest request,
-                                        StreamObserver<UpdateSettingPolicyResponse> responseObserver) {
-            Optional<Throwable> error = updateSettingPolicyError(request);
-            if (error.isPresent()) {
-                responseObserver.onError(error.get());
-            } else {
-                responseObserver.onNext(updateSettingPolicy(request));
-                responseObserver.onCompleted();
-            }
-        }
-
-        @Override
-        public void deleteSettingPolicy(DeleteSettingPolicyRequest request,
-                                        StreamObserver<DeleteSettingPolicyResponse> responseObserver) {
-            Optional<Throwable> error = deleteSettingPolicyError(request);
-            if (error.isPresent()) {
-                responseObserver.onError(error.get());
-            } else {
-                responseObserver.onNext(DeleteSettingPolicyResponse.getDefaultInstance());
-                responseObserver.onCompleted();
-            }
-        }
-
     }
 }

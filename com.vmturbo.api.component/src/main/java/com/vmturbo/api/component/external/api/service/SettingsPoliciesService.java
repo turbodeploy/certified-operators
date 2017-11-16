@@ -31,6 +31,8 @@ import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolic
 import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.DeleteSettingPolicyRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
@@ -104,8 +106,7 @@ public class SettingsPoliciesService implements ISettingsPoliciesService {
     @Override
     public SettingsPolicyApiDTO createSettingsPolicy(SettingsPolicyApiDTO settingPolicy) throws Exception {
 
-        final SettingPolicyInfo policyInfo =
-                settingsMapper.convertInputPolicy(settingPolicy);
+        final SettingPolicyInfo policyInfo = settingsMapper.convertNewInputPolicy(settingPolicy);
 
         final CreateSettingPolicyResponse response;
         try {
@@ -132,7 +133,7 @@ public class SettingsPoliciesService implements ISettingsPoliciesService {
             throws Exception {
         final long id = Long.valueOf(uuid);
         final SettingPolicyInfo policyInfo =
-                settingsMapper.convertInputPolicy(settingPolicy);
+                settingsMapper.convertEditedInputPolicy(id, settingPolicy);
 
         final UpdateSettingPolicyResponse response;
         try {

@@ -10,13 +10,14 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -34,17 +35,23 @@ import com.vmturbo.api.dto.settingspolicy.SettingsPolicyApiDTO;
 import com.vmturbo.api.enums.InputValueType;
 import com.vmturbo.api.enums.SettingScope;
 import com.vmturbo.api.exceptions.InvalidOperationException;
+import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.SettingDTOUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.EntityTypeSet;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.ScopeCase;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.Scope;
@@ -61,6 +68,7 @@ import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.GsonPostProcessable;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Responsible for mapping Settings-related XL objects to their API counterparts.
@@ -84,6 +92,8 @@ public class SettingsMapper {
 
     private final SettingServiceBlockingStub settingService;
 
+    private final SettingPolicyServiceBlockingStub settingPolicyService;
+
     public SettingsMapper(@Nonnull final String specJsonFile,
                           @Nonnull final Channel groupComponentChannel) {
         this.managerMapping = loadManagerMappings(specJsonFile);
@@ -91,6 +101,7 @@ public class SettingsMapper {
         this.settingPolicyMapper = new DefaultSettingPolicyMapper(this);
         this.groupService = GroupServiceGrpc.newBlockingStub(groupComponentChannel);
         this.settingService = SettingServiceGrpc.newBlockingStub(groupComponentChannel);
+        this.settingPolicyService = SettingPolicyServiceGrpc.newBlockingStub(groupComponentChannel);
     }
 
     @VisibleForTesting
@@ -103,6 +114,7 @@ public class SettingsMapper {
         this.settingPolicyMapper = policyMapper;
         this.groupService = GroupServiceGrpc.newBlockingStub(groupComponentChannel);
         this.settingService = SettingServiceGrpc.newBlockingStub(groupComponentChannel);
+        this.settingPolicyService = SettingPolicyServiceGrpc.newBlockingStub(groupComponentChannel);
     }
 
     @Nonnull
@@ -117,6 +129,58 @@ public class SettingsMapper {
             return mapping;
         } catch (IOException e) {
             throw new RuntimeException("Unable to load setting manager mapping.", e);
+        }
+    }
+
+    /**
+     * Get the entity type associated with a new {@link SettingsPolicyApiDTO} received through
+     * the API (usually from the UI) for setting policy creation. Since the UI input does not
+     * always set the entity type directly, we infer it from the scopes of the policy.
+     *
+     * @param settingPolicy The setting policy DTO received from the API/UI to create a setting
+     *                      policy.
+     * @return The entity type that should be associated with the setting policy.
+     * @throws InvalidOperationException If the input is illegal.
+     * @throws UnknownObjectException If the groups the setting policy is scoped to don't exist.
+     */
+    @VisibleForTesting
+    int resolveEntityType(@Nonnull final SettingsPolicyApiDTO settingPolicy)
+            throws InvalidOperationException, UnknownObjectException {
+        if (settingPolicy.getScopes() == null || settingPolicy.getScopes().isEmpty()) {
+            throw new InvalidOperationException("Unscoped setting policy: " +
+                    settingPolicy.getDisplayName());
+        }
+
+        final Set<Long> groupIds = settingPolicy.getScopes().stream()
+                .filter(group -> group.getUuid() != null)
+                .map(GroupApiDTO::getUuid)
+                .filter(Objects::nonNull)
+                .map(Long::valueOf)
+                .collect(Collectors.toSet());
+        if (groupIds.isEmpty()) {
+            throw new InvalidOperationException("No IDS specified for scopes in setting policy: " +
+                    settingPolicy.getDisplayName());
+        }
+
+        // Get all groups referred to by the scopes of the input policy.
+        final Iterable<Group> groups = () -> groupService.getGroups(GetGroupsRequest.newBuilder()
+                .addAllId(groupIds)
+                .build());
+        final Map<Integer, List<Group>> groupsByEntityType =
+            StreamSupport.stream(groups.spliterator(), false)
+                .collect(Collectors.groupingBy(GroupProtoUtil::getEntityType));
+        if (groupsByEntityType.isEmpty()) {
+            // This can only happen if the groups are not found.
+            throw new UnknownObjectException("Group IDs " + groupIds + " not found.");
+        } else if (groupsByEntityType.size() > 1) {
+            // All the groups should share the same entity type.
+            throw new InvalidOperationException("Setting policy scopes have " +
+                "different entity types: " + groupsByEntityType.keySet().stream()
+                    .map(EntityType::forNumber)
+                    .map(EntityType::name)
+                    .collect(Collectors.joining(",")));
+        } else {
+            return groupsByEntityType.keySet().iterator().next();
         }
     }
 
@@ -177,15 +241,61 @@ public class SettingsMapper {
     }
 
     /**
+     * Convert a {@link SettingsPolicyApiDTO} received as input to create a new setting policy to
+     * a matching {@link SettingPolicyInfo} that can be used inside XL.
+     *
+     * @param apiInputPolicy The {@link SettingsPolicyApiDTO} received from the user.
+     * @return The {@link SettingPolicyInfo} for use inside XL.
+     * @throws InvalidOperationException If the input is illegal.
+     * @throws UnknownObjectException If the groups the setting policy is scoped to don't exist.
+     */
+    @Nonnull
+    public SettingPolicyInfo convertNewInputPolicy(@Nonnull final SettingsPolicyApiDTO apiInputPolicy)
+            throws InvalidOperationException, UnknownObjectException {
+        return convertInputPolicy(apiInputPolicy, resolveEntityType(apiInputPolicy));
+    }
+
+    /**
+     * Convert a {@link SettingsPolicyApiDTO} received as input to edit an existing setting policy to
+     * a matching {@link SettingPolicyInfo} that can be used inside XL.
+     *
+     * @param existingPolicyId The ID of the existing policy.
+     * @param newPolicy The {@link SettingsPolicyApiDTO} received from the user.
+     * @return The {@link SettingPolicyInfo} for use inside XL.
+     * @throws InvalidOperationException If the input is illegal.
+     * @throws UnknownObjectException If the existing policy doesn't exist.
+     */
+    @Nonnull
+    public SettingPolicyInfo convertEditedInputPolicy(final long existingPolicyId,
+                                                      @Nonnull final SettingsPolicyApiDTO newPolicy)
+            throws InvalidOperationException, UnknownObjectException {
+        final GetSettingPolicyResponse getResponse =
+                settingPolicyService.getSettingPolicy(GetSettingPolicyRequest.newBuilder()
+                        .setId(existingPolicyId)
+                        .build());
+        if (!getResponse.hasSettingPolicy()) {
+            throw new UnknownObjectException("Setting policy not found: " + existingPolicyId);
+        }
+        return convertInputPolicy(newPolicy,
+                getResponse.getSettingPolicy().getInfo().getEntityType());
+    }
+
+
+    /**
      * Convert a {@link SettingsPolicyApiDTO} received as input to create a setting policy into
      * a matching {@link SettingPolicyInfo} that can be used inside XL.
      *
      * @param apiInputPolicy The {@link SettingsPolicyApiDTO} received from the user.
+     * @param entityType The entity type of the {@link SettingsPolicyApiDTO}. This needs to be
+     *                   provided externally because it's usually not set in the input DTO.
      * @return The {@link SettingPolicyInfo} representing the input DTO for internal XL
      *         communication.
+     * @throws InvalidOperationException If the input is illegal.
      */
     @Nonnull
-    public SettingPolicyInfo convertInputPolicy(@Nonnull final SettingsPolicyApiDTO apiInputPolicy)
+    @VisibleForTesting
+    SettingPolicyInfo convertInputPolicy(@Nonnull final SettingsPolicyApiDTO apiInputPolicy,
+                                         final int entityType)
             throws InvalidOperationException {
         final Map<String, SettingSpec> specsByName = new HashMap<>();
         if (apiInputPolicy.getSettingsManagers() != null) {
@@ -222,15 +332,7 @@ public class SettingsMapper {
             infoBuilder.setScope(scopeBuilder);
         }
 
-        if (apiInputPolicy.getEntityType() == null) {
-            // At the time of this writing (Oct 4, 2017) the UI does NOT set the entity type
-            // in the input policy, because all settings in legacy apply to at most one entity type.
-            // We will try to infer the entity type based on the specs.
-            infoBuilder.setEntityType(inferEntityType(specsByName));
-        } else {
-            infoBuilder.setEntityType(ServiceEntityMapper.fromUIEntityType(
-                    apiInputPolicy.getEntityType()));
-        }
+        infoBuilder.setEntityType(entityType);
 
         infoBuilder.setEnabled(apiInputPolicy.getDisabled() == null || !apiInputPolicy.getDisabled());
 
@@ -329,47 +431,18 @@ public class SettingsMapper {
      */
     @Nonnull
     private SettingsManagerApiDTO createMgrDto(@Nonnull final String mgrId,
-                                            @Nonnull final SettingManagerInfo info,
-                                            @Nonnull final Collection<SettingSpec> specs) {
+                                        @Nonnull final SettingManagerInfo info,
+                                        @Nonnull final Collection<SettingSpec> specs) {
         final SettingsManagerApiDTO mgrApiDto = new SettingsManagerApiDTO();
         mgrApiDto.setUuid(mgrId);
         mgrApiDto.setDisplayName(info.getDisplayName());
         mgrApiDto.setCategory(info.getDefaultCategory());
 
         mgrApiDto.setSettings(specs.stream()
-                .map(settingSpecMapper::settingSpecToApi)
+                .map(spec -> settingSpecMapper.settingSpecToApi(spec))
                 .filter(Optional::isPresent).map(Optional::get)
                 .collect(Collectors.toList()));
         return mgrApiDto;
-    }
-
-    /**
-     * Infer the entity type based on the list of specs a policy applies to. Extracted from
-     * {@link SettingsMapper#convertInputPolicy(SettingsPolicyApiDTO)} for easier testing.
-     * This is built on the assumption that, as in legacy, entity types can be inferred from the
-     * settings. That assumption is not necessarily true in XL, but it will be true for the settings
-     * we migrate from legacy.
-     *
-     * @param specsByName The list of specs to look at, arranged by name.
-     * @return The entity type shared by the specs.
-     * @throws IllegalArgumentException If it's impossible to narrow the specs down to exactly
-     *                                  one entity type.
-     */
-    @VisibleForTesting
-    int inferEntityType(@Nonnull final Map<String, SettingSpec> specsByName) {
-        final Optional<Set<Integer>> entityTypesOpt =
-                SettingDTOUtil.getOverlappingEntityTypes(specsByName.values());
-        if (!entityTypesOpt.isPresent() || entityTypesOpt.get().size() != 1) {
-            // This means that we couldn't narrow things down to exactly one entity type
-            // from the provided settings. This is a violation of the assumption that entity
-            // types can be inferred from the settings, so throw an exception!
-            // If this becomes an issue, we could still try to infer the entity type from
-            // the groups, but that shouldn't be necessary.
-            throw new IllegalArgumentException("Cannot infer a single entity type from the " +
-                    "setting specs: " + StringUtils.join(specsByName.keySet(), ", "));
-        }
-        // At this point, we expect exactly one entity type.
-        return entityTypesOpt.get().iterator().next();
     }
 
     /**
@@ -504,6 +577,8 @@ public class SettingsMapper {
                             case ENUM_SETTING_VALUE:
                                 apiDto.setValue(setting.getEnumSettingValue().getValue());
                                 break;
+                            default:
+                                logger.error("No value for setting: {}", setting);
                         }
                         return apiDto;
                     })
@@ -557,23 +632,12 @@ public class SettingsMapper {
                     // In the API, something that has both LOCAL and GLOBAL scope has a "null"
                     // scope at the time of this writing (Oct 10 2017) :)
                     apiDTO.setScope(null);
-                    if (entityScope.getScopeCase().equals(ScopeCase.ENTITY_TYPE_SET)) {
-                        // TODO (roman, Sept 12, 2017): Right now there are no settings that
-                        // have multiple entity types, so we can just print a warning if we
-                        // see one. In the future, either the UI API should change, or we should
-                        // create a list of SettingApiDTOs when a SettingSpec contains multiple
-                        // types.
-                        final EntityTypeSet supportedTypes = entityScope.getEntityTypeSet();
-                        if (!supportedTypes.getEntityTypeList().isEmpty()) {
-                            if (supportedTypes.getEntityTypeCount() > 1) {
-                                logger.warn("The spec {} supports multiple entity types: {}." +
-                                                " Using only the first one.", settingSpec.getName(),
-                                        supportedTypes.getEntityTypeList());
-                            }
-                            apiDTO.setEntityType(
-                                ServiceEntityMapper.toUIEntityType(supportedTypes.getEntityType(0)));
-                        }
-                    }
+
+                    // (Nov 2017) In XL, Setting Specs can support multiple entity types.
+                    // The SettingApiDTO only supports one type. Therefore, we set the entity type
+                    // to null, and rely on the caller (SettingsService) to set the entity type
+                    // based on the entity type the API/UI requested settings for.
+                    apiDTO.setEntityType(null);
                     break;
                 case GLOBAL_SETTING_SPEC:
                     apiDTO.setScope(SettingScope.GLOBAL);

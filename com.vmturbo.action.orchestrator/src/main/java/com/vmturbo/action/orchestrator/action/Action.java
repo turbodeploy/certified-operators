@@ -274,9 +274,8 @@ public class Action implements ActionView {
                 long targetId = recommendation.getInfo().getMove().getTargetId();
                 List<Setting> targetSettings = entitySettings == null ?
                         Collections.emptyList() : entitySettings.getSettingsForEntity(targetId);
-                // ASSUMPTION: all move settings will have specs prefixed by "move"
                 return targetSettings.stream()
-                        .filter(s -> s.getSettingSpecName().toLowerCase().startsWith("move") &&
+                        .filter(s -> s.getSettingSpecName().toLowerCase().equals("move") &&
                                 s.hasEnumSettingValue())
                         .map(s -> ActionMode.valueOf(s.getEnumSettingValue().getValue()).getNumber())
                         .min(Integer::compareTo)
