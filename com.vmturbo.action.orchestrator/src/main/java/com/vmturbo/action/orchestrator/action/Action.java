@@ -2,11 +2,10 @@ package com.vmturbo.action.orchestrator.action;
 
 import java.time.LocalDateTime;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Predicate;
 import java.util.function.UnaryOperator;
 
 import javax.annotation.Nonnull;
@@ -25,7 +24,6 @@ import com.vmturbo.action.orchestrator.state.machine.StateMachine;
 import com.vmturbo.action.orchestrator.state.machine.Transition.TransitionResult;
 import com.vmturbo.action.orchestrator.store.EntitySettingsCache;
 import com.vmturbo.common.protobuf.action.ActionDTO;
-import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
@@ -269,23 +267,27 @@ public class Action implements ActionView {
     private ActionMode calculateActionMode() {
         // TODO: (Michelle Neuburger, 2017-10-23). Support other action types besides Move.
         // TODO: Determine which settings apply when action involves more than one entity.
+        final long targetId;
+        final Predicate<Setting> targetSettingFilter;
         switch (recommendation.getInfo().getActionTypeCase()) {
             case MOVE:
-                long targetId = recommendation.getInfo().getMove().getTargetId();
-                List<Setting> targetSettings = entitySettings == null ?
-                        Collections.emptyList() : entitySettings.getSettingsForEntity(targetId);
-                return targetSettings.stream()
-                        .filter(s -> s.getSettingSpecName().toLowerCase().equals("move") &&
-                                s.hasEnumSettingValue())
-                        .map(s -> ActionMode.valueOf(s.getEnumSettingValue().getValue()).getNumber())
-                        .min(Integer::compareTo)
-                        .map(ActionMode::forNumber)
-                        .orElse(ActionMode.MANUAL);
+                targetId = recommendation.getInfo().getMove().getTargetId();
+                targetSettingFilter = s -> s.getSettingSpecName().toLowerCase().equals("move");
+                break;
             case RESIZE: case ACTIVATE: case DEACTIVATE:
                 return ActionMode.MANUAL;
             default:
                 return ActionMode.RECOMMEND;
         }
+
+        List<Setting> targetSettings = entitySettings == null ?
+                Collections.emptyList() : entitySettings.getSettingsForEntity(targetId);
+        return targetSettings.stream()
+                .filter(targetSettingFilter.and(Setting::hasEnumSettingValue))
+                .map(s -> ActionMode.valueOf(s.getEnumSettingValue().getValue()).getNumber())
+                .min(Integer::compareTo)
+                .map(ActionMode::forNumber)
+                .orElse(ActionMode.MANUAL);
     }
 
     /**
