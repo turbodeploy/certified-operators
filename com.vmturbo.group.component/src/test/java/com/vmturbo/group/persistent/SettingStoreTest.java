@@ -22,8 +22,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import com.google.protobuf.ProtocolStringList;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -39,8 +42,6 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.context.support.AnnotationConfigContextLoader;
-
-import com.google.protobuf.ProtocolStringList;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValueType;
@@ -64,9 +65,6 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingTiebreaker;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValueType;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.persistent.SettingStore.DefaultSettingPolicyCreator;
-import com.vmturbo.group.persistent.SettingStore.DefaultSettingPolicyValidator;
-import com.vmturbo.group.persistent.SettingStore.SettingPolicyValidator;
-import com.vmturbo.group.persistent.SettingStore.SettingSpecStore;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
 
@@ -81,13 +79,14 @@ public class SettingStoreTest {
     private final Logger logger = LogManager.getLogger();
 
     private SettingStore settingStore;
+    private SettingSpecStore settingSpecStore;
 
     private final SettingPolicyInfo info = SettingPolicyInfo.newBuilder()
             .setName("test")
             .build();
 
-
-    private String settingSpecJsonFile = "setting-test-json/setting-spec.json";
+    private static final String SETTING_TEST_JSON_SETTING_SPEC_JSON =
+            "setting-test-json/setting-spec.json";
 
     @Autowired
     protected TestSQLDatabaseConfig dbConfig;
@@ -101,8 +100,10 @@ public class SettingStoreTest {
     @Before
     public void setUp() throws Exception {
         final DSLContext dsl = prepareDatabase();
-       settingStore = new SettingStore(settingSpecJsonFile, dsl, identityProviderSpy,
-               settingPolicyValidator);
+        settingSpecStore = new FileBasedSettingsSpecStore(SETTING_TEST_JSON_SETTING_SPEC_JSON);
+        settingStore =
+                new SettingStore(settingSpecStore, dsl, identityProviderSpy, settingPolicyValidator,
+                        Long.MAX_VALUE, TimeUnit.SECONDS);
     }
 
     private DSLContext prepareDatabase() throws Exception {
@@ -298,7 +299,8 @@ public class SettingStoreTest {
         List<SettingPolicy> allPolicies =
                 settingStore.getSettingPolicies(SettingPolicyFilter.newBuilder().build())
                     .collect(Collectors.toList());
-        assertThat(allPolicies, containsInAnyOrder(policy, policy2));
+        assertTrue(allPolicies.contains(policy));
+        assertTrue(allPolicies.contains(policy2));
     }
 
     @Test
@@ -325,7 +327,7 @@ public class SettingStoreTest {
         String barEnumString = "BAR";
 
         // get 1st spec
-        Optional<SettingSpec> specOpt = settingStore.getSettingSpec(existingSpecName1);
+        Optional<SettingSpec> specOpt = settingSpecStore.getSettingSpec(existingSpecName1);
         assertTrue(specOpt.isPresent());
         SettingSpec retrievedSettingSpec = specOpt.get();
 
@@ -356,7 +358,7 @@ public class SettingStoreTest {
 
 
         // get 2nd spec
-        Optional<SettingSpec> specOpt2 = settingStore.getSettingSpec(existingSpecName2);
+        Optional<SettingSpec> specOpt2 = settingSpecStore.getSettingSpec(existingSpecName2);
         assertTrue(specOpt2.isPresent());
         SettingSpec retrievedSettingSpec2 = specOpt2.get();
 
@@ -389,7 +391,7 @@ public class SettingStoreTest {
         // this test is depending on the JSON file that the store is parsing, so altering it
         // might make this test to fail
 
-        Collection<SettingSpec> retrievedSettingSpecs = settingStore.getAllSettingSpec();
+        Collection<SettingSpec> retrievedSettingSpecs = settingSpecStore.getAllSettingSpec();
         assertEquals(retrievedSettingSpecs.size(), 4);
     }
 
@@ -504,8 +506,8 @@ public class SettingStoreTest {
         // can also fail, but the benefit is worth the test inter-dependency.
         GroupStore groupStore = mock(GroupStore.class);
         SettingSpecStore settingSpecStore = mock(SettingSpecStore.class);
-        when(settingSpecStore.getSpec(spec1.getName())).thenReturn(Optional.of(spec1));
-        when(settingSpecStore.getSpec(spec2.getName())).thenReturn(Optional.of(spec2));
+        when(settingSpecStore.getSettingSpec(spec1.getName())).thenReturn(Optional.of(spec1));
+        when(settingSpecStore.getSettingSpec(spec2.getName())).thenReturn(Optional.of(spec2));
         DefaultSettingPolicyValidator validator =
                 new DefaultSettingPolicyValidator(settingSpecStore, groupStore);
         validator.validateSettingPolicy(info, Type.DEFAULT);
@@ -555,7 +557,7 @@ public class SettingStoreTest {
         // can also fail, but the benefit is worth the test inter-dependency.
         GroupStore groupStore = mock(GroupStore.class);
         SettingSpecStore settingSpecStore = mock(SettingSpecStore.class);
-        when(settingSpecStore.getSpec(spec1.getName())).thenReturn(Optional.of(spec1));
+        when(settingSpecStore.getSettingSpec(spec1.getName())).thenReturn(Optional.of(spec1));
         DefaultSettingPolicyValidator validator =
                 new DefaultSettingPolicyValidator(settingSpecStore, groupStore);
         validator.validateSettingPolicy(info1, Type.DEFAULT);
@@ -580,8 +582,8 @@ public class SettingStoreTest {
         infos.put(info.getEntityType(), info);
         when(mockStore.defaultSettingPoliciesFromSpecs(any()))
             .thenReturn(infos);
-        final DefaultSettingPolicyCreator creator = new DefaultSettingPolicyCreator(specMap,
-                mockStore, timeBetweenIterations);
+        final DefaultSettingPolicyCreator creator =
+                new DefaultSettingPolicyCreator(settingSpecStore, mockStore, timeBetweenIterations);
 
         boolean needAnotherIteration = creator.runIteration();
         assertFalse(needAnotherIteration);
@@ -609,8 +611,8 @@ public class SettingStoreTest {
         when(mockStore.defaultSettingPoliciesFromSpecs(any()))
                 .thenReturn(infos);
 
-        final DefaultSettingPolicyCreator creator = new DefaultSettingPolicyCreator(specMap,
-                mockStore, timeBetweenIterations);
+        final DefaultSettingPolicyCreator creator =
+                new DefaultSettingPolicyCreator(settingSpecStore, mockStore, timeBetweenIterations);
 
         boolean needAnotherIteration = creator.runIteration();
         assertFalse(needAnotherIteration);
@@ -637,8 +639,8 @@ public class SettingStoreTest {
         infos.put(info.getEntityType(), info);
         when(mockStore.defaultSettingPoliciesFromSpecs(any()))
                 .thenReturn(infos);
-        final DefaultSettingPolicyCreator creator = new DefaultSettingPolicyCreator(specMap,
-                mockStore, timeBetweenIterations);
+        final DefaultSettingPolicyCreator creator =
+                new DefaultSettingPolicyCreator(settingSpecStore, mockStore, timeBetweenIterations);
 
         when(mockStore.internalCreateSettingPolicy(eq(info), eq(Type.DEFAULT)))
             .thenThrow(new InvalidSettingPolicyException("ERROR"));
@@ -663,8 +665,8 @@ public class SettingStoreTest {
         infos.put(info.getEntityType(), info);
         when(mockStore.defaultSettingPoliciesFromSpecs(any()))
                 .thenReturn(infos);
-        final DefaultSettingPolicyCreator creator = new DefaultSettingPolicyCreator(specMap,
-                mockStore, timeBetweenIterations);
+        final DefaultSettingPolicyCreator creator =
+                new DefaultSettingPolicyCreator(settingSpecStore, mockStore, timeBetweenIterations);
 
         when(mockStore.internalCreateSettingPolicy(eq(info), eq(Type.DEFAULT)))
                 .thenThrow(DuplicateNameException.class);
@@ -691,8 +693,8 @@ public class SettingStoreTest {
         infos.put(info.getEntityType(), info);
         when(mockStore.defaultSettingPoliciesFromSpecs(any()))
                 .thenReturn(infos);
-        final DefaultSettingPolicyCreator creator = new DefaultSettingPolicyCreator(specMap,
-                mockStore, timeBetweenIterations);
+        final DefaultSettingPolicyCreator creator =
+                new DefaultSettingPolicyCreator(settingSpecStore, mockStore, timeBetweenIterations);
 
         when(mockStore.internalCreateSettingPolicy(eq(info), eq(Type.DEFAULT)))
             .thenThrow(DataAccessException.class).thenReturn(SettingPolicy.getDefaultInstance());

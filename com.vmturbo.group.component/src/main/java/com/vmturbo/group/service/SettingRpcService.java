@@ -4,28 +4,30 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import javax.annotation.Nonnull;
 
 import com.google.common.collect.Sets;
 
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.common.protobuf.setting.SettingProto.SearchSettingSpecsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.SingleSettingSpecRequest;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceImplBase;
-import com.vmturbo.group.persistent.SettingStore;
+import com.vmturbo.group.persistent.SettingSpecStore;
 
 public class SettingRpcService extends SettingServiceImplBase {
 
     private final Logger logger = LogManager.getLogger();
 
-    private final SettingStore settingStore;
+    private final SettingSpecStore settingSpecStore;
 
-    public SettingRpcService(final SettingStore settingStore) {
-        this.settingStore = Objects.requireNonNull(settingStore);
+    public SettingRpcService(final @Nonnull SettingSpecStore settingSpecStore) {
+        this.settingSpecStore = Objects.requireNonNull(settingSpecStore);
     }
 
     /**
@@ -49,7 +51,7 @@ public class SettingRpcService extends SettingServiceImplBase {
         }
 
         // retrieve the spec from the store
-        Optional<SettingSpec> settingSpec = settingStore.getSettingSpec(settingSpecName);
+        Optional<SettingSpec> settingSpec = settingSpecStore.getSettingSpec(settingSpecName);
 
         // check if spec was found
         if (settingSpec.isPresent()) {
@@ -78,7 +80,7 @@ public class SettingRpcService extends SettingServiceImplBase {
         Optional<Set<String>> requestedNames = request.getSettingSpecNameCount() > 0 ?
                 Optional.of(Sets.newHashSet(request.getSettingSpecNameList())) : Optional.empty();
 
-        settingStore.getAllSettingSpec().stream()
+        settingSpecStore.getAllSettingSpec().stream()
                 // If specific names are requested, filter out anything that doesn't match.
                 .filter(spec -> requestedNames
                     .map(names -> names.contains(spec.getName()))

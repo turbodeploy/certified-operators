@@ -4,12 +4,27 @@
 // See the comments on SettingsMapper#SettingManagerMapping for more
 // information.
 {
-  "managersByUuid" : {
+  "managersByUuid": {
     "automationmanager": {
       "displayName": "Action Mode Settings",
       "defaultCategory": "Automation",
       "settings": [
-        "move", "suspend"
+        "move",
+        "suspend"
+      ]
+    },
+    "marketsettingsmanager": {
+      "displayName": "Operational Constraints",
+      "defaultCategory": "Analysis",
+      "settings": [
+        "cpuUtilization",
+        "memoryUtilization",
+        "ioThroughput",
+        "netThroughput",
+        "swappingUtilization",
+        "readyQueueUtilization",
+        "cpuOverprovisionedPercentage",
+        "memoryOverprovisionedPercentage"
       ]
     }
   }

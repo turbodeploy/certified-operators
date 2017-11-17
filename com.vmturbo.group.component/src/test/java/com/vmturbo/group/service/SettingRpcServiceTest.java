@@ -9,6 +9,10 @@ import static org.mockito.Mockito.verify;
 
 import java.util.Optional;
 
+import com.google.common.collect.ImmutableSet;
+
+import io.grpc.stub.StreamObserver;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.Before;
@@ -19,15 +23,10 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
 
-import com.google.common.collect.ImmutableSet;
-
-import io.grpc.stub.StreamObserver;
-
 import com.vmturbo.common.protobuf.setting.SettingProto.SearchSettingSpecsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.SingleSettingSpecRequest;
-import com.vmturbo.group.persistent.SettingStore;
-
+import com.vmturbo.group.persistent.SettingSpecStore;
 
 @RunWith(MockitoJUnitRunner.class)
 public class SettingRpcServiceTest {
@@ -35,7 +34,7 @@ public class SettingRpcServiceTest {
     private final Logger logger = LogManager.getLogger();
 
     @Mock
-    private SettingStore settingStore;
+    private SettingSpecStore settingStore;
 
     private SettingRpcService settingRpcService;
 
@@ -49,7 +48,7 @@ public class SettingRpcServiceTest {
         injectSettingSpecIntoStore(settingStore);
     }
 
-    private void injectSettingSpecIntoStore(final SettingStore settingStore) {
+    private void injectSettingSpecIntoStore(final SettingSpecStore settingStore) {
 
         // create spec1
         SettingSpec injectedSettingSpec1 = SettingSpec.newBuilder()

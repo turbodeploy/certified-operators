@@ -7,10 +7,10 @@ import static org.mockito.Mockito.when;
 
 import java.util.Optional;
 
+import com.google.common.collect.ImmutableMap;
+
 import org.junit.Before;
 import org.junit.Test;
-
-import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
@@ -31,8 +31,6 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValueType;
-import com.vmturbo.group.persistent.SettingStore.DefaultSettingPolicyValidator;
-import com.vmturbo.group.persistent.SettingStore.SettingSpecStore;
 
 /**
  * Tests for {@link DefaultSettingPolicyValidator}.
@@ -62,7 +60,7 @@ public class SettingPolicyValidatorTest {
                 .setGroup(GroupInfo.newBuilder()
                         .setEntityType(ENTITY_TYPE))
                 .build()));
-        when(specStore.getSpec(any())).thenReturn(Optional.empty());
+        when(specStore.getSettingSpec(any())).thenReturn(Optional.empty());
     }
 
     @Test(expected = InvalidSettingPolicyException.class)
@@ -86,7 +84,7 @@ public class SettingPolicyValidatorTest {
 
     @Test(expected = InvalidSettingPolicyException.class)
     public void testSettingSpecNotFound() throws InvalidSettingPolicyException {
-        when(specStore.getSpec(any())).thenReturn(Optional.empty());
+        when(specStore.getSettingSpec(any())).thenReturn(Optional.empty());
         validator.validateSettingPolicy(newInfo()
                 .putSettings(SPEC_NAME, newSetting().build())
                 .build(), Type.USER);
@@ -94,7 +92,7 @@ public class SettingPolicyValidatorTest {
 
     @Test(expected = InvalidSettingPolicyException.class)
     public void testSettingPolicyForGlobal() throws InvalidSettingPolicyException {
-        when(specStore.getSpec(eq(SPEC_NAME))).thenReturn(Optional.of(SettingSpec.newBuilder()
+        when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(SettingSpec.newBuilder()
                 .setGlobalSettingSpec(GlobalSettingSpec.getDefaultInstance())
                 .setBooleanSettingValueType(BooleanSettingValueType.getDefaultInstance())
                 .build()));
@@ -105,7 +103,7 @@ public class SettingPolicyValidatorTest {
 
     @Test(expected = InvalidSettingPolicyException.class)
     public void testSettingNoName() throws InvalidSettingPolicyException {
-        when(specStore.getSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
+        when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
                 .setNumericSettingValueType(NumericSettingValueType.getDefaultInstance())
                 .build()));
         validator.validateSettingPolicy(SettingPolicyInfo.newBuilder()
@@ -115,7 +113,7 @@ public class SettingPolicyValidatorTest {
 
     @Test(expected = InvalidSettingPolicyException.class)
     public void testSettingNoEntityType() throws InvalidSettingPolicyException {
-        when(specStore.getSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
+        when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
                 .setNumericSettingValueType(NumericSettingValueType.getDefaultInstance())
                 .build()));
         validator.validateSettingPolicy(SettingPolicyInfo.newBuilder()
@@ -125,7 +123,7 @@ public class SettingPolicyValidatorTest {
 
     @Test(expected = InvalidSettingPolicyException.class)
     public void testDefaultSettingWithScope() throws InvalidSettingPolicyException {
-        when(specStore.getSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
+        when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
             .setNumericSettingValueType(NumericSettingValueType.getDefaultInstance())
             .build()));
         validator.validateSettingPolicy(SettingPolicyInfo.newBuilder()
@@ -137,7 +135,7 @@ public class SettingPolicyValidatorTest {
 
     @Test
     public void testNumericSettingNoConstraints() throws InvalidSettingPolicyException {
-        when(specStore.getSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
+        when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
                 .setNumericSettingValueType(NumericSettingValueType.getDefaultInstance())
                 .build()));
         validator.validateSettingPolicy(newInfo()
@@ -150,7 +148,7 @@ public class SettingPolicyValidatorTest {
 
     @Test
     public void testNumericSettingWithinConstraints() throws InvalidSettingPolicyException {
-        when(specStore.getSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
+        when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
                 .setNumericSettingValueType(NumericSettingValueType.newBuilder()
                     .setMin(1.0f)
                     .setMax(1.2f))
@@ -165,7 +163,7 @@ public class SettingPolicyValidatorTest {
 
     @Test(expected = InvalidSettingPolicyException.class)
     public void testNumericSettingTooLow() throws InvalidSettingPolicyException {
-        when(specStore.getSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
+        when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
                 .setNumericSettingValueType(NumericSettingValueType.newBuilder()
                         .setMin(1.0f)
                         .setMax(1.2f))
@@ -180,7 +178,7 @@ public class SettingPolicyValidatorTest {
 
     @Test(expected = InvalidSettingPolicyException.class)
     public void testNumericSettingTooHigh() throws InvalidSettingPolicyException {
-        when(specStore.getSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
+        when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
                 .setNumericSettingValueType(NumericSettingValueType.newBuilder()
                         .setMin(1.0f)
                         .setMax(1.2f))
@@ -195,7 +193,7 @@ public class SettingPolicyValidatorTest {
 
     @Test
     public void testStringSettingNoValidationRegex() throws InvalidSettingPolicyException {
-        when(specStore.getSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
+        when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
                 .setStringSettingValueType(StringSettingValueType.getDefaultInstance())
                 .build()));
         validator.validateSettingPolicy(newInfo()
@@ -208,7 +206,7 @@ public class SettingPolicyValidatorTest {
 
     @Test
     public void testStringSettingValidationMatch() throws InvalidSettingPolicyException {
-        when(specStore.getSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
+        when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
                 .setStringSettingValueType(StringSettingValueType.newBuilder()
                     .setValidationRegex("foo.*"))
                 .build()));
@@ -222,7 +220,7 @@ public class SettingPolicyValidatorTest {
 
     @Test(expected = InvalidSettingPolicyException.class)
     public void testStringSettingInvalid() throws InvalidSettingPolicyException {
-        when(specStore.getSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
+        when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
                 .setStringSettingValueType(StringSettingValueType.newBuilder()
                         .setValidationRegex("foo.*"))
                 .build()));
@@ -236,7 +234,7 @@ public class SettingPolicyValidatorTest {
 
     @Test(expected = InvalidSettingPolicyException.class)
     public void testEnumSettingInvalid() throws InvalidSettingPolicyException{
-        when(specStore.getSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
+        when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
                 .setEnumSettingValueType(EnumSettingValueType.newBuilder()
                         .addEnumValues("1").addEnumValues("2"))
                 .build()));
@@ -250,7 +248,7 @@ public class SettingPolicyValidatorTest {
 
     @Test
     public void testEnumSettingValid() throws InvalidSettingPolicyException {
-        when(specStore.getSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
+        when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
                 .setEnumSettingValueType(EnumSettingValueType.newBuilder()
                         .addEnumValues("1").addEnumValues("2"))
                 .build()));
@@ -264,7 +262,7 @@ public class SettingPolicyValidatorTest {
 
     @Test(expected = InvalidSettingPolicyException.class)
     public void testSettingPolicyEnumMismatchedTypes() throws InvalidSettingPolicyException {
-        when(specStore.getSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
+        when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
                 .setEnumSettingValueType(EnumSettingValueType.getDefaultInstance())
                 .build()));
         validator.validateSettingPolicy(newInfo()
@@ -276,7 +274,7 @@ public class SettingPolicyValidatorTest {
 
     @Test(expected = InvalidSettingPolicyException.class)
     public void testSettingPolicyBooleanMismatchedTypes() throws InvalidSettingPolicyException {
-        when(specStore.getSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
+        when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
                 .setBooleanSettingValueType(BooleanSettingValueType.getDefaultInstance())
                 .build()));
         validator.validateSettingPolicy(newInfo()
@@ -288,7 +286,7 @@ public class SettingPolicyValidatorTest {
 
     @Test(expected = InvalidSettingPolicyException.class)
     public void testSettingPolicyStringMismatchedTypes() throws InvalidSettingPolicyException {
-        when(specStore.getSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
+        when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
                 .setStringSettingValueType(StringSettingValueType.getDefaultInstance())
                 .build()));
         validator.validateSettingPolicy(newInfo()
@@ -300,7 +298,7 @@ public class SettingPolicyValidatorTest {
 
     @Test(expected = InvalidSettingPolicyException.class)
     public void testSettingPolicyNumericMismatchedTypes() throws InvalidSettingPolicyException {
-        when(specStore.getSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
+        when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
                 .setEnumSettingValueType(EnumSettingValueType.getDefaultInstance())
                 .build()));
         validator.validateSettingPolicy(newInfo()
@@ -312,7 +310,7 @@ public class SettingPolicyValidatorTest {
 
     @Test(expected = InvalidSettingPolicyException.class)
     public void testSettingPolicyInvalidGroup() throws Exception {
-        when(specStore.getSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
+        when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
                 .setStringSettingValueType(StringSettingValueType.getDefaultInstance())
                 .build()));
         when(groupStore.getGroups(any())).thenReturn(ImmutableMap.of(7L, Optional.empty()));
@@ -324,7 +322,7 @@ public class SettingPolicyValidatorTest {
 
     @Test(expected = InvalidSettingPolicyException.class)
     public void testGroupScopeEntityTypeMismatch() throws Exception {
-        when(specStore.getSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
+        when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
                 .setStringSettingValueType(StringSettingValueType.getDefaultInstance())
                 .build()));
         when(groupStore.getGroups(any())).thenReturn(ImmutableMap.of(7L, Optional.of(Group.newBuilder()
@@ -340,7 +338,7 @@ public class SettingPolicyValidatorTest {
 
     @Test(expected = InvalidSettingPolicyException.class)
     public void testGroupRetrievalDatabaseError() throws Exception {
-        when(specStore.getSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
+        when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
                 .build()));
         when(groupStore.getGroups(any())).thenThrow(DatabaseException.class);
         validator.validateSettingPolicy(newInfo()
@@ -352,7 +350,7 @@ public class SettingPolicyValidatorTest {
     @Test(expected = InvalidSettingPolicyException.class)
     public void testSettingPolicyAndSettingSpecEntityTypeMismatch()
             throws InvalidSettingPolicyException {
-        when(specStore.getSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
+        when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
                 .setEntitySettingSpec(EntitySettingSpec.newBuilder()
                         .setEntitySettingScope(EntitySettingScope.newBuilder()
                                 .setEntityTypeSet(EntityTypeSet.newBuilder()

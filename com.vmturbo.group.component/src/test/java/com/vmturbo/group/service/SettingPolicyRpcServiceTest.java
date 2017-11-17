@@ -59,11 +59,14 @@ import com.vmturbo.group.persistent.EntitySettingStore.NoSettingsForTopologyExce
 import com.vmturbo.group.persistent.InvalidSettingPolicyException;
 import com.vmturbo.group.persistent.SettingPolicyFilter;
 import com.vmturbo.group.persistent.SettingPolicyNotFoundException;
+import com.vmturbo.group.persistent.SettingSpecStore;
 import com.vmturbo.group.persistent.SettingStore;
 
 public class SettingPolicyRpcServiceTest {
 
     private SettingStore settingStore = mock(SettingStore.class);
+
+    private SettingSpecStore settingSpecStore = mock(SettingSpecStore.class);
 
     private SettingSpec settingSpec = SettingSpec.newBuilder()
             .setName("doStuff")
@@ -87,7 +90,7 @@ public class SettingPolicyRpcServiceTest {
     private final EntitySettingStore entitySettingStore = mock(EntitySettingStore.class);
 
     private final SettingPolicyRpcService service =
-            new SettingPolicyRpcService(settingStore, entitySettingStore);
+            new SettingPolicyRpcService(settingStore, settingSpecStore, entitySettingStore);
 
     @Test
     public void testCreatePolicy() throws Exception {
@@ -403,7 +406,7 @@ public class SettingPolicyRpcServiceTest {
                 (StreamObserver<GetSettingPolicyResponse>)mock(StreamObserver.class);
 
         when(settingStore.getSettingPolicy(eq(7L))).thenReturn(Optional.of(settingPolicy));
-        when(settingStore.getSettingSpec(settingSpec.getName()))
+        when(settingSpecStore.getSettingSpec(settingSpec.getName()))
             .thenReturn(Optional.of(settingSpec));
         service.getSettingPolicy(GetSettingPolicyRequest.newBuilder()
                 .setId(7L)
@@ -422,7 +425,7 @@ public class SettingPolicyRpcServiceTest {
                 (StreamObserver<GetSettingPolicyResponse>)mock(StreamObserver.class);
 
         when(settingStore.getSettingPolicy(eq(7L))).thenReturn(Optional.of(settingPolicy));
-        when(settingStore.getSettingSpec(settingSpec.getName()))
+        when(settingSpecStore.getSettingSpec(settingSpec.getName()))
                 .thenReturn(Optional.empty());
         service.getSettingPolicy(GetSettingPolicyRequest.newBuilder()
                 .setId(7L)

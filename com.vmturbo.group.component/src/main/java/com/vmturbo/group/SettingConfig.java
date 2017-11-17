@@ -10,7 +10,10 @@ import org.springframework.context.annotation.Import;
 
 import com.vmturbo.common.protobuf.setting.SettingProtoREST.SettingPolicyServiceController;
 import com.vmturbo.common.protobuf.setting.SettingProtoREST.SettingServiceController;
+import com.vmturbo.group.persistent.DefaultSettingPolicyValidator;
 import com.vmturbo.group.persistent.EntitySettingStore;
+import com.vmturbo.group.persistent.FileBasedSettingsSpecStore;
+import com.vmturbo.group.persistent.SettingPolicyValidator;
 import com.vmturbo.group.persistent.SettingStore;
 import com.vmturbo.group.service.SettingPolicyRpcService;
 import com.vmturbo.group.service.SettingRpcService;
@@ -39,10 +42,19 @@ public class SettingConfig {
     private long realtimeTopologyContextId;
 
     @Bean
+    public FileBasedSettingsSpecStore settingSpecsSource() {
+        return new FileBasedSettingsSpecStore(settingSpecJsonFile);
+    }
+
+    @Bean
+    public SettingPolicyValidator settingPolicyValidator() {
+        return new DefaultSettingPolicyValidator(settingSpecsSource(), arangoDBConfig.groupStore());
+    }
+
+    @Bean
     public SettingStore settingStore() {
-        return new SettingStore(settingSpecJsonFile, databaseConfig.dsl(),
-                identityProviderConfig.identityProvider(),
-                arangoDBConfig.groupStore(),
+        return new SettingStore(settingSpecsSource(), databaseConfig.dsl(),
+                identityProviderConfig.identityProvider(), settingPolicyValidator(),
                 createDefaultSettingPolicyRetryIntervalSec, TimeUnit.SECONDS);
     }
 
@@ -53,7 +65,7 @@ public class SettingConfig {
 
     @Bean
     public SettingRpcService settingService() {
-        return new SettingRpcService(settingStore());
+        return new SettingRpcService(settingSpecsSource());
     }
 
     @Bean
@@ -63,7 +75,8 @@ public class SettingConfig {
 
     @Bean
     public SettingPolicyRpcService settingPolicyService() {
-        return new SettingPolicyRpcService(settingStore(), entitySettingStore());
+        return new SettingPolicyRpcService(settingStore(), settingSpecsSource(),
+                entitySettingStore());
     }
 
     @Bean

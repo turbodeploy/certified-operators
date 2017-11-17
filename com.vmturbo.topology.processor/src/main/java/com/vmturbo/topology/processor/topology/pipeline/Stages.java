@@ -205,6 +205,9 @@ public class Stages {
      * applying setting overrides from plan scenarios.
      */
     public static class SettingsResolutionStage extends Stage<TopologyGraph, GraphWithSettings> {
+
+        private final Logger logger = LogManager.getLogger();
+
         private final Map<String, Setting> settingOverrides;
 
         private final EntitySettingsResolver entitySettingsResolver;
@@ -236,6 +239,7 @@ public class Stages {
                 return entitySettingsResolver.resolveSettings(getContext().getGroupResolver(),
                         topologyGraph, settingOverrides);
             } catch (RuntimeException e) {
+                logger.error("Error resolving settings for graph", e);
                 return new GraphWithSettings(topologyGraph,
                         Collections.emptyMap(), Collections.emptyMap());
             }

@@ -36,6 +36,158 @@
         "enumValues" : [ "DISABLED", "RECOMMEND", "MANUAL", "AUTOMATIC" ],
         "default" : "MANUAL"
       }
+    },
+    {
+      "name": "cpuUtilization",
+      "displayName": "CPU Utilization",
+      "entitySettingSpec": {
+        "tiebreaker": "SMALLER",
+        "entitySettingScope": {
+          "entityTypeSet": {
+            "entityType": [
+              14 // Physical Machine
+            ]
+          }
+        }
+      },
+      "numericSettingValueType": {
+        "min": 20.0,
+        "max": 100.0,
+        "default": 100.0
+      }
+    },
+    {
+      "name": "memoryUtilization",
+      "displayName": "Memory Utilization",
+      "entitySettingSpec": {
+        "tiebreaker": "SMALLER",
+        "entitySettingScope": {
+          "entityTypeSet": {
+            "entityType": [
+              14 // Physical Machine
+            ]
+          }
+        }
+      },
+      "numericSettingValueType": {
+        "min": 1.0,
+        "max": 100.0,
+        "default": 100.0
+      }
+    },
+    {
+      "name": "ioThroughput",
+      "displayName": "IO Throughtput",
+      "entitySettingSpec": {
+        "tiebreaker": "SMALLER",
+        "entitySettingScope": {
+          "entityTypeSet": {
+            "entityType": [
+              14 // Physical Machine
+            ]
+          }
+        }
+      },
+      "numericSettingValueType": {
+        "min": 10.0,
+        "max": 100.0,
+        "default": 50.0
+      }
+    },
+    {
+      "name": "netThroughput",
+      "displayName": "Net Throughput",
+      "entitySettingSpec": {
+        "tiebreaker": "SMALLER",
+        "entitySettingScope": {
+          "entityTypeSet": {
+            "entityType": [
+              14 // Physical Machine
+            ]
+          }
+        }
+      },
+      "numericSettingValueType": {
+        "min": 10.0,
+        "max": 100.0,
+        "default": 50.0
+      }
+    },
+    {
+      "name": "swappingUtilization",
+      "displayName": "Swapping Utilization",
+      "entitySettingSpec": {
+        "tiebreaker": "SMALLER",
+        "entitySettingScope": {
+          "entityTypeSet": {
+            "entityType": [
+              14 // Physical Machine
+            ]
+          }
+        }
+      },
+      "numericSettingValueType": {
+        "min": 0.0,
+        "max": 100.0,
+        "default": 20.0
+      }
+    },
+    {
+      "name": "readyQueueUtilization",
+      "displayName": "Ready Queue Utilization",
+      "entitySettingSpec": {
+        "tiebreaker": "SMALLER",
+        "entitySettingScope": {
+          "entityTypeSet": {
+            "entityType": [
+              14 // Physical Machine
+            ]
+          }
+        }
+      },
+      "numericSettingValueType": {
+        "min": 0.0,
+        "max": 100.0,
+        "default": 50.0
+      }
+    },
+    {
+      "name": "cpuOverprovisionedPercentage",
+      "displayName": "CPU Overprovisioned Percentage",
+      "entitySettingSpec": {
+        "tiebreaker": "SMALLER",
+        "entitySettingScope": {
+          "entityTypeSet": {
+            "entityType": [
+              14 // Physical Machine
+            ]
+          }
+        }
+      },
+      "numericSettingValueType": {
+        "min": 0.0,
+        "max": 1000000.0,
+        "default": 1000.0
+      }
+    },
+    {
+      "name": "memoryOverprovisionedPercentage",
+      "displayName": "Memory Overprovisioned Percentage",
+      "entitySettingSpec": {
+        "tiebreaker": "SMALLER",
+        "entitySettingScope": {
+          "entityTypeSet": {
+            "entityType": [
+              14 // Physical Machine
+            ]
+          }
+        }
+      },
+      "numericSettingValueType": {
+        "min": 0.0,
+        "max": 1000000.0,
+        "default": 1000.0
+      }
     }
   ]
 }

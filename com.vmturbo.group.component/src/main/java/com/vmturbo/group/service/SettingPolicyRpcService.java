@@ -8,11 +8,11 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceImplBase;
 import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyRequest;
@@ -38,6 +38,7 @@ import com.vmturbo.group.persistent.EntitySettingStore.NoSettingsForTopologyExce
 import com.vmturbo.group.persistent.InvalidSettingPolicyException;
 import com.vmturbo.group.persistent.SettingPolicyFilter;
 import com.vmturbo.group.persistent.SettingPolicyNotFoundException;
+import com.vmturbo.group.persistent.SettingSpecStore;
 import com.vmturbo.group.persistent.SettingStore;
 
 /**
@@ -50,12 +51,16 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
 
     private final SettingStore settingStore;
 
+    private final SettingSpecStore settingSpecStore;
+
     private final EntitySettingStore entitySettingStore;
 
     public SettingPolicyRpcService(@Nonnull final SettingStore settingStore,
+                                   @Nonnull final SettingSpecStore settingSpecStore,
                                    @Nonnull final EntitySettingStore entitySettingStore) {
         this.settingStore = Objects.requireNonNull(settingStore);
         this.entitySettingStore = Objects.requireNonNull(entitySettingStore);
+        this.settingSpecStore = Objects.requireNonNull(settingSpecStore);
     }
 
     /**
@@ -185,7 +190,7 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
     private Stream<SettingSpec> getSpecsForPolicy(@Nonnull final SettingPolicy settingPolicy) {
         return settingPolicy.getInfo().getSettingsMap().keySet().stream()
                 .map(name -> {
-                    Optional<SettingSpec> specOpt = settingStore.getSettingSpec(name);
+                    Optional<SettingSpec> specOpt = settingSpecStore.getSettingSpec(name);
                     if (!specOpt.isPresent()) {
                         logger.warn("Setting {} from setting policy ID: {} Name: {} does not" +
                                         " exist. Did it get deleted?", name, settingPolicy.getId(),
