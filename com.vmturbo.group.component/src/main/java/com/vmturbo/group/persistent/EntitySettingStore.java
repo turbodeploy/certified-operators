@@ -345,8 +345,7 @@ public class EntitySettingStore {
                 final SettingPolicy defaultSettingPolicy =
                         defaultPolicies.get(userSettings.getDefaultSettingPolicyId());
                 if (defaultSettingPolicy != null) {
-                    defaultSettingPolicy.getInfo().getSettingsList().forEach(
-                            setting -> settings.put(setting.getSettingSpecName(), setting));
+                    settings.putAll(defaultSettingPolicy.getInfo().getSettingsMap());
                 } else {
                     // This shouldn't happen, because we checked that the default setting policy
                     // exists when constructing the snapshot.
@@ -358,8 +357,7 @@ public class EntitySettingStore {
             // Once default settings are in the map,
             // go through any user settings and overwrite the
             // defaults.
-            userSettings.getUserSettingsList().forEach(
-                setting -> settings.put(setting.getSettingSpecName(), setting));
+            settings.putAll(userSettings.getUserSettingsMap());
 
             return settings.values();
         }

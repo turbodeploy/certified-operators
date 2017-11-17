@@ -14,7 +14,8 @@ import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.group.filter.TopologyFilterFactory;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
-import com.vmturbo.topology.processor.group.settings.SettingsManager;
+import com.vmturbo.topology.processor.group.settings.EntitySettingsApplicator;
+import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
 import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileNotifier;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
@@ -22,7 +23,10 @@ import com.vmturbo.topology.processor.topology.TopologyEditor;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.BroadcastStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.GraphCreationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PolicyStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.ExtractTopologyGraphStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.SettingsApplicationStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.SettingsResolutionStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.SettingsUploadStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.StitchingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.TopologyAcquisitionStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.TopologyEditStage;
@@ -48,29 +52,36 @@ public class TopologyPipelineFactory {
 
     private final DiscoveredGroupUploader discoveredGroupUploader;
 
-    private final SettingsManager settingsManager;
+    private final EntitySettingsApplicator settingsApplicator;
+
+    private final EntitySettingsResolver entitySettingsResolver;
 
     private final TopologyEditor topologyEditor;
 
-
     private final RepositoryClient repositoryClient;
 
+    private final TopologyFilterFactory topologyFilterFactory;
+
     public TopologyPipelineFactory(@Nonnull final TopoBroadcastManager topoBroadcastManager,
-            @Nonnull final PolicyManager policyManager,
-            @Nonnull final StitchingManager stitchingManager,
-            @Nonnull final DiscoveredTemplateDeploymentProfileNotifier discoveredTemplateDeploymentProfileNotifier,
-            @Nonnull final DiscoveredGroupUploader discoveredGroupUploader,
-            @Nonnull final SettingsManager settingsManager,
-            @Nonnull final TopologyEditor topologyEditor,
-            @Nonnull final RepositoryClient repositoryClient) {
+               @Nonnull final PolicyManager policyManager,
+               @Nonnull final StitchingManager stitchingManager,
+               @Nonnull final DiscoveredTemplateDeploymentProfileNotifier discoveredTemplateDeploymentProfileNotifier,
+               @Nonnull final DiscoveredGroupUploader discoveredGroupUploader,
+               @Nonnull final EntitySettingsResolver entitySettingsResolver,
+               @Nonnull final EntitySettingsApplicator settingsApplicator,
+               @Nonnull final TopologyEditor topologyEditor,
+               @Nonnull final RepositoryClient repositoryClient,
+               @Nonnull final TopologyFilterFactory topologyFilterFactory) {
         this.topoBroadcastManager = topoBroadcastManager;
         this.policyManager = policyManager;
         this.stitchingManager = stitchingManager;
         this.discoveredTemplateDeploymentProfileNotifier = discoveredTemplateDeploymentProfileNotifier;
         this.discoveredGroupUploader = discoveredGroupUploader;
-        this.settingsManager = settingsManager;
+        this.settingsApplicator = Objects.requireNonNull(settingsApplicator);
+        this.entitySettingsResolver = entitySettingsResolver;
         this.topologyEditor = Objects.requireNonNull(topologyEditor);
         this.repositoryClient = Objects.requireNonNull(repositoryClient);
+        this.topologyFilterFactory = Objects.requireNonNull(topologyFilterFactory);
     }
 
     /**
@@ -82,7 +93,6 @@ public class TopologyPipelineFactory {
      */
     public TopologyPipeline<EntityStore, TopologyBroadcastInfo> liveTopology(
             @Nonnull final TopologyInfo topologyInfo) {
-        final TopologyFilterFactory topologyFilterFactory = new TopologyFilterFactory();
         final GroupResolver groupResolver = new GroupResolver(topologyFilterFactory);
         final TopologyPipelineContext context =
                 new TopologyPipelineContext(groupResolver, topologyInfo);
@@ -92,7 +102,10 @@ public class TopologyPipelineFactory {
                 .addStage(new StitchingStage(stitchingManager))
                 .addStage(new GraphCreationStage())
                 .addStage(new PolicyStage(policyManager))
-                .addStage(new SettingsApplicationStage(settingsManager))
+                .addStage(SettingsResolutionStage.live(entitySettingsResolver))
+                .addStage(new SettingsUploadStage(entitySettingsResolver))
+                .addStage(new SettingsApplicationStage(settingsApplicator))
+                .addStage(new ExtractTopologyGraphStage())
                 .addStage(new BroadcastStage(topoBroadcastManager))
                 .build();
     }
@@ -118,7 +131,9 @@ public class TopologyPipelineFactory {
                 .addStage(new TopologyEditStage(topologyEditor, changes))
                 .addStage(new GraphCreationStage())
                 .addStage(new PolicyStage(policyManager))
-                .addStage(new SettingsApplicationStage(settingsManager))
+                .addStage(SettingsResolutionStage.plan(entitySettingsResolver, changes))
+                .addStage(new SettingsApplicationStage(settingsApplicator))
+                .addStage(new ExtractTopologyGraphStage())
                 .addStage(new BroadcastStage(topoBroadcastManager))
                 .build();
     }

@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.topology.pipeline;
 
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -14,7 +15,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.SettingOverride;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
@@ -26,7 +29,9 @@ import com.vmturbo.topology.processor.api.server.TopologyBroadcast;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
-import com.vmturbo.topology.processor.group.settings.SettingsManager;
+import com.vmturbo.topology.processor.group.settings.EntitySettingsApplicator;
+import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
+import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
 import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileNotifier;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
@@ -194,28 +199,100 @@ public class Stages {
     }
 
     /**
-     * This stages resolves per-entity settings in the {@link TopologyGraph}, applies
-     * any topology-affecting settings to the graph, and sends the settings to the group
-     * component.
-     *
-     * TODO (roman, Nov 13 2017): Split up the uploading of settings into a separate stage, and
-     * don't run that stage in plans.
+     * This stages resolves per-entity settings in the {@link TopologyGraph}.
+     * It's responsible for determining which settings apply to which entities, performing
+     * conflict resolution (when multiple setting policies apply to a single entity), and
+     * applying setting overrides from plan scenarios.
      */
-    public static class SettingsApplicationStage extends PassthroughStage<TopologyGraph> {
+    public static class SettingsResolutionStage extends Stage<TopologyGraph, GraphWithSettings> {
+        private final Map<String, Setting> settingOverrides;
 
-        private SettingsManager settingsManager;
+        private final EntitySettingsResolver entitySettingsResolver;
 
-        public SettingsApplicationStage(@Nonnull final SettingsManager settingsManager) {
-            this.settingsManager = settingsManager;
+        private SettingsResolutionStage(@Nonnull final EntitySettingsResolver entitySettingsResolver,
+                                        @Nonnull final List<ScenarioChange> scenarioChanges) {
+            this.entitySettingsResolver = entitySettingsResolver;
+            this.settingOverrides = scenarioChanges.stream()
+                    .filter(ScenarioChange::hasSettingOverride)
+                    .map(ScenarioChange::getSettingOverride)
+                    .map(SettingOverride::getSetting)
+                    .collect(Collectors.toMap(Setting::getSettingSpecName, Function.identity()));
+        }
+
+        public static SettingsResolutionStage live(@Nonnull final EntitySettingsResolver entitySettingsResolver) {
+            return new SettingsResolutionStage(entitySettingsResolver, Collections.emptyList());
+        }
+
+        public static SettingsResolutionStage plan(
+                @Nonnull final EntitySettingsResolver entitySettingsResolver,
+                @Nonnull final List<ScenarioChange> scenarioChanges) {
+            return new SettingsResolutionStage(entitySettingsResolver, scenarioChanges);
+        }
+
+        @Nonnull
+        @Override
+        public GraphWithSettings execute(@Nonnull final TopologyGraph topologyGraph) {
+            try {
+                return entitySettingsResolver.resolveSettings(getContext().getGroupResolver(),
+                        topologyGraph, settingOverrides);
+            } catch (RuntimeException e) {
+                return new GraphWithSettings(topologyGraph,
+                        Collections.emptyMap(), Collections.emptyMap());
+            }
+        }
+    }
+
+    /**
+     * This stage uploads settings resolved in {@link SettingsResolutionStage} to
+     * the group component.
+     */
+    public static class SettingsUploadStage extends PassthroughStage<GraphWithSettings> {
+        private final EntitySettingsResolver entitySettingsResolver;
+
+        public SettingsUploadStage(@Nonnull final EntitySettingsResolver entitySettingsResolver) {
+            this.entitySettingsResolver = entitySettingsResolver;
         }
 
         @Override
-        public void passthrough(@Nonnull final TopologyGraph input) {
+        public void passthrough(final GraphWithSettings input) throws PipelineStageException {
             // This method does a sync call to Group Component.
             // If GC has trouble, the topology broadcast would be delayed.
-            settingsManager.applyAndSendEntitySettings(getContext().getGroupResolver(), input,
-                    getContext().getTopologyInfo().getTopologyContextId(),
-                    getContext().getTopologyInfo().getTopologyId());
+            entitySettingsResolver.sendEntitySettings(getContext().getTopologyInfo(),
+                    input.getEntitySettings());
+        }
+    }
+
+    /**
+     * This stage applies settings resolved in {@link SettingsResolutionStage} to the
+     * {@link TopologyGraph} the settings got resolved on. For example, if "suspend" is disabled
+     * for entity 10, this stage is responsible for making sure that the relevant property
+     * in {@link TopologyEntityDTO} reflects that.
+     */
+    public static class SettingsApplicationStage extends PassthroughStage<GraphWithSettings> {
+        private final EntitySettingsApplicator settingsApplicator;
+
+        public SettingsApplicationStage(@Nonnull final EntitySettingsApplicator settingsApplicator) {
+            this.settingsApplicator = settingsApplicator;
+        }
+
+        @Override
+        public void passthrough(final GraphWithSettings input) throws PipelineStageException {
+            settingsApplicator.applySettings(input);
+        }
+    }
+
+    /**
+     * Placeholder stage to extract the {@link TopologyGraph} for the {@link BroadcastStage}
+     * in the live and plan (but not plan-over-plan) topology.
+     *
+     * We shouldn't need this once plan-over-plan supports policies and settings.
+     */
+    public static class ExtractTopologyGraphStage extends Stage<GraphWithSettings, TopologyGraph> {
+        @Nonnull
+        @Override
+        public TopologyGraph execute(@Nonnull final GraphWithSettings graphWithSettings)
+                throws PipelineStageException, InterruptedException {
+            return graphWithSettings.getTopologyGraph();
         }
     }
 

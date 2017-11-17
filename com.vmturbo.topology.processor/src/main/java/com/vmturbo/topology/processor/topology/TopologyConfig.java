@@ -86,8 +86,10 @@ public class TopologyConfig {
                 planConfig.discoveredTemplatesUploader(),
                 groupConfig.discoveredGroupUploader(),
                 groupConfig.settingsManager(),
+                groupConfig.entitySettingsApplicator(),
                 topologyEditor(),
-                repositoryConfig.repository());
+                repositoryConfig.repository(),
+                groupConfig.topologyFilterFactory());
     }
 
     @Bean

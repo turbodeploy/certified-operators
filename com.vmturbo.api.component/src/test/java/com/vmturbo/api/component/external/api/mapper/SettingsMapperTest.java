@@ -447,7 +447,7 @@ public class SettingsMapperTest {
         assertEquals(true, info.getEnabled());
         assertTrue(info.hasScope());
         assertThat(info.getScope().getGroupsList(), containsInAnyOrder(7L));
-        assertThat(info.getSettingsList(),
+        assertThat(info.getSettingsMap().values(),
                 containsInAnyOrder(boolSettingProto, numSettingProto,
                         strSettingProto, enumSettingProto));
     }
@@ -488,10 +488,11 @@ public class SettingsMapperTest {
                     .setEnabled(true)
                     .setScope(Scope.newBuilder()
                             .addGroups(7L))
-                    .addSettings(Setting.newBuilder()
+                    .putSettings(settingSpec1.getName(), Setting.newBuilder()
                             .setSettingSpecName(settingSpec1.getName())
                             .setEnumSettingValue(EnumSettingValue.newBuilder()
-                                    .setValue("AUTOMATIC"))))
+                                    .setValue("AUTOMATIC"))
+                            .build()))
                 .build();
 
         when(mapper.getManagerMapping()).thenReturn(mapping);

@@ -368,7 +368,9 @@ public class SettingsMapper {
                             break;
                     }
                     return settingBuilder;
-                }).forEach(infoBuilder::addSettings);
+                }).forEach(setting -> infoBuilder.putSettings(
+                        setting.getSettingSpecName(),
+                        setting.build()));
         }
 
         return infoBuilder.build();
@@ -513,7 +515,7 @@ public class SettingsMapper {
             final SettingManagerMapping managerMapping = mapper.getManagerMapping();
 
             // Do the actual settings mapping.
-            final Map<String, List<Setting>> settingsByMgr = info.getSettingsList().stream()
+            final Map<String, List<Setting>> settingsByMgr = info.getSettingsMap().values().stream()
                     .collect(Collectors.groupingBy(setting ->
                             managerMapping.getManagerUuid(setting.getSettingSpecName())
                                     .orElse(NO_MANAGER)));

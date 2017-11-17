@@ -269,9 +269,9 @@ public class SettingStore {
                 .setEnabled(true);
             final List<SettingSpec> specsForType = entry.getValue();
             specsForType.stream()
-                    .map(this::defaultSettingFromSpec)
-                    .filter(Optional::isPresent).map(Optional::get)
-                    .forEach(policyBuilder::addSettings);
+                .map(this::defaultSettingFromSpec)
+                .filter(Optional::isPresent).map(Optional::get)
+                .forEach(setting -> policyBuilder.putSettings(setting.getSettingSpecName(), setting));
             return policyBuilder.build();
         }));
     }
@@ -719,10 +719,16 @@ public class SettingStore {
                 errors.add("Setting policy must have an entity type!");
             }
 
-            if (settingPolicyInfo.getSettingsList().stream()
-                    .anyMatch(setting -> !setting.hasSettingSpecName())) {
-                errors.add("Setting policy has unnamed settings!");
-            }
+            settingPolicyInfo.getSettingsMap().forEach((specName, setting) -> {
+                if (specName == null || specName.equals("")) {
+                    errors.add("Null/empty key in setting spec map!");
+                } else if (!setting.hasSettingSpecName()) {
+                    errors.add("Setting for spec " + specName + " has unset name field.");
+                } else if (!specName.equals(setting.getSettingSpecName())) {
+                    errors.add("Spec name " + specName +
+                        " mapped to setting with inconsistent name: " + setting.getSettingSpecName());
+                }
+            });
 
             errors.addAll(validateReferencedSpecs(settingPolicyInfo));
 
@@ -775,7 +781,7 @@ public class SettingStore {
             final List<String> errors = new LinkedList<>();
 
             final Map<Setting, Optional<SettingSpec>> referencedSpecs =
-                    settingPolicyInfo.getSettingsList().stream()
+                    settingPolicyInfo.getSettingsMap().values().stream()
                         .filter(Setting::hasSettingSpecName)
                         .collect(Collectors.toMap(Function.identity(),
                                 setting -> settingSpecStore.getSpec(setting.getSettingSpecName())));

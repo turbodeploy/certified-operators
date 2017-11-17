@@ -9,8 +9,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import java.time.Clock;
-import java.util.Collections;
 import java.util.List;
 
 import org.junit.Before;
@@ -38,21 +36,11 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter
 
 import com.google.gson.Gson;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.api.ComponentGsonFactory;
-import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
-import com.vmturbo.topology.processor.api.server.TopologyBroadcast;
 import com.vmturbo.topology.processor.entity.EntityStore;
-import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
-import com.vmturbo.topology.processor.group.settings.SettingsManager;
-import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.rest.TopologyController.SendTopologyResponse;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
-import com.vmturbo.topology.processor.stitching.StitchingContext;
-import com.vmturbo.topology.processor.stitching.StitchingManager;
-import com.vmturbo.topology.processor.targets.TargetStore;
-import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileNotifier;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyHandler;
 

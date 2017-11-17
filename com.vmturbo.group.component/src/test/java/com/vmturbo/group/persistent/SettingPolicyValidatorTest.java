@@ -62,13 +62,25 @@ public class SettingPolicyValidatorTest {
                 .setGroup(GroupInfo.newBuilder()
                         .setEntityType(ENTITY_TYPE))
                 .build()));
+        when(specStore.getSpec(any())).thenReturn(Optional.empty());
     }
 
     @Test(expected = InvalidSettingPolicyException.class)
     public void testSettingWithNoName() throws InvalidSettingPolicyException {
         validator.validateSettingPolicy(newInfo()
-                .addSettings(Setting.newBuilder()
-                        .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance()))
+                .putSettings("", Setting.newBuilder()
+                        .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance())
+                        .build())
+                .build(), Type.USER);
+    }
+
+    @Test(expected = InvalidSettingPolicyException.class)
+    public void testSettingNamesMismatch() throws InvalidSettingPolicyException {
+        validator.validateSettingPolicy(newInfo()
+                .putSettings("foo", Setting.newBuilder()
+                        .setSettingSpecName("bar")
+                        .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance())
+                        .build())
                 .build(), Type.USER);
     }
 
@@ -76,7 +88,7 @@ public class SettingPolicyValidatorTest {
     public void testSettingSpecNotFound() throws InvalidSettingPolicyException {
         when(specStore.getSpec(any())).thenReturn(Optional.empty());
         validator.validateSettingPolicy(newInfo()
-                .addSettings(newSetting())
+                .putSettings(SPEC_NAME, newSetting().build())
                 .build(), Type.USER);
     }
 
@@ -87,7 +99,7 @@ public class SettingPolicyValidatorTest {
                 .setBooleanSettingValueType(BooleanSettingValueType.getDefaultInstance())
                 .build()));
         validator.validateSettingPolicy(newInfo()
-                .addSettings(newSetting())
+                .putSettings(SPEC_NAME, newSetting().build())
                 .build(), Type.USER);
     }
 
@@ -129,9 +141,10 @@ public class SettingPolicyValidatorTest {
                 .setNumericSettingValueType(NumericSettingValueType.getDefaultInstance())
                 .build()));
         validator.validateSettingPolicy(newInfo()
-                .addSettings(newSetting()
+                .putSettings(SPEC_NAME, newSetting()
                         .setNumericSettingValue(NumericSettingValue.newBuilder()
-                                .setValue(10)))
+                                .setValue(10))
+                        .build())
                 .build(), Type.USER);
     }
 
@@ -143,9 +156,10 @@ public class SettingPolicyValidatorTest {
                     .setMax(1.2f))
                 .build()));
         validator.validateSettingPolicy(newInfo()
-                .addSettings(newSetting()
+                .putSettings(SPEC_NAME, newSetting()
                         .setNumericSettingValue(NumericSettingValue.newBuilder()
-                                .setValue(1.1f)))
+                                .setValue(1.1f))
+                        .build())
                 .build(), Type.USER);
     }
 
@@ -157,9 +171,10 @@ public class SettingPolicyValidatorTest {
                         .setMax(1.2f))
                 .build()));
         validator.validateSettingPolicy(newInfo()
-                .addSettings(newSetting()
+                .putSettings(SPEC_NAME, newSetting()
                         .setNumericSettingValue(NumericSettingValue.newBuilder()
-                                .setValue(0.9f)))
+                                .setValue(0.9f))
+                        .build())
                 .build(), Type.USER);
     }
 
@@ -171,9 +186,10 @@ public class SettingPolicyValidatorTest {
                         .setMax(1.2f))
                 .build()));
         validator.validateSettingPolicy(newInfo()
-                .addSettings(newSetting()
+                .putSettings(SPEC_NAME, newSetting()
                         .setNumericSettingValue(NumericSettingValue.newBuilder()
-                                .setValue(1.3f)))
+                                .setValue(1.3f))
+                        .build())
                 .build(), Type.USER);
     }
 
@@ -183,9 +199,10 @@ public class SettingPolicyValidatorTest {
                 .setStringSettingValueType(StringSettingValueType.getDefaultInstance())
                 .build()));
         validator.validateSettingPolicy(newInfo()
-                .addSettings(newSetting()
+                .putSettings(SPEC_NAME, newSetting()
                         .setStringSettingValue(StringSettingValue.newBuilder()
-                                .setValue("foo")))
+                                .setValue("foo"))
+                        .build())
                 .build(), Type.USER);
     }
 
@@ -196,9 +213,10 @@ public class SettingPolicyValidatorTest {
                     .setValidationRegex("foo.*"))
                 .build()));
         validator.validateSettingPolicy(newInfo()
-                .addSettings(newSetting()
+                .putSettings(SPEC_NAME, newSetting()
                         .setStringSettingValue(StringSettingValue.newBuilder()
-                                .setValue("foo123")))
+                                .setValue("foo123"))
+                        .build())
                 .build(), Type.USER);
     }
 
@@ -209,9 +227,10 @@ public class SettingPolicyValidatorTest {
                         .setValidationRegex("foo.*"))
                 .build()));
         validator.validateSettingPolicy(newInfo()
-                .addSettings(newSetting()
+                .putSettings(SPEC_NAME, newSetting()
                         .setStringSettingValue(StringSettingValue.newBuilder()
-                                .setValue("boo123")))
+                                .setValue("boo123"))
+                        .build())
                 .build(), Type.USER);
     }
 
@@ -222,9 +241,10 @@ public class SettingPolicyValidatorTest {
                         .addEnumValues("1").addEnumValues("2"))
                 .build()));
         validator.validateSettingPolicy(newInfo()
-                .addSettings(newSetting()
+                .putSettings(SPEC_NAME, newSetting()
                         .setEnumSettingValue(EnumSettingValue.newBuilder()
-                                .setValue("x")))
+                                .setValue("x"))
+                        .build())
                 .build(), Type.USER);
     }
 
@@ -235,9 +255,10 @@ public class SettingPolicyValidatorTest {
                         .addEnumValues("1").addEnumValues("2"))
                 .build()));
         validator.validateSettingPolicy(newInfo()
-                .addSettings(newSetting()
+                .putSettings(SPEC_NAME, newSetting()
                         .setEnumSettingValue(EnumSettingValue.newBuilder()
-                                .setValue("2")))
+                                .setValue("2"))
+                        .build())
                 .build(), Type.USER);
     }
 
@@ -247,8 +268,9 @@ public class SettingPolicyValidatorTest {
                 .setEnumSettingValueType(EnumSettingValueType.getDefaultInstance())
                 .build()));
         validator.validateSettingPolicy(newInfo()
-                .addSettings(newSetting()
-                        .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance()))
+                .putSettings(SPEC_NAME, newSetting()
+                        .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance())
+                        .build())
                 .build(), Type.USER);
     }
 
@@ -258,8 +280,9 @@ public class SettingPolicyValidatorTest {
                 .setBooleanSettingValueType(BooleanSettingValueType.getDefaultInstance())
                 .build()));
         validator.validateSettingPolicy(newInfo()
-                .addSettings(newSetting()
-                        .setEnumSettingValue(EnumSettingValue.getDefaultInstance()))
+                .putSettings(SPEC_NAME, newSetting()
+                        .setEnumSettingValue(EnumSettingValue.getDefaultInstance())
+                        .build())
                 .build(), Type.USER);
     }
 
@@ -269,8 +292,9 @@ public class SettingPolicyValidatorTest {
                 .setStringSettingValueType(StringSettingValueType.getDefaultInstance())
                 .build()));
         validator.validateSettingPolicy(newInfo()
-                .addSettings(newSetting()
-                        .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance()))
+                .putSettings(SPEC_NAME, newSetting()
+                        .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance())
+                        .build())
                 .build(), Type.USER);
     }
 
@@ -280,8 +304,9 @@ public class SettingPolicyValidatorTest {
                 .setEnumSettingValueType(EnumSettingValueType.getDefaultInstance())
                 .build()));
         validator.validateSettingPolicy(newInfo()
-                .addSettings(newSetting()
-                        .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance()))
+                .putSettings(SPEC_NAME, newSetting()
+                        .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance())
+                        .build())
                 .build(), Type.USER);
     }
 
@@ -334,7 +359,7 @@ public class SettingPolicyValidatorTest {
                                         .addEntityType(ENTITY_TYPE + 1))))
                 .build()));
         validator.validateSettingPolicy(newInfo()
-                .addSettings(newSetting())
+                .putSettings(SPEC_NAME, newSetting().build())
                 .build(), Type.USER);
     }
 

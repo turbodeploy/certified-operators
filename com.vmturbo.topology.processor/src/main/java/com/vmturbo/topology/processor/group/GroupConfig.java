@@ -25,7 +25,8 @@ import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.group.filter.TopologyFilterFactory;
 import com.vmturbo.topology.processor.group.policy.PolicyFactory;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
-import com.vmturbo.topology.processor.group.settings.SettingsManager;
+import com.vmturbo.topology.processor.group.settings.EntitySettingsApplicator;
+import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
 
 /**
  * The configuration for dealing with groups.
@@ -88,11 +89,15 @@ public class GroupConfig {
     }
 
     @Bean
-    public SettingsManager settingsManager() {
-        return new SettingsManager(settingPolicyServiceClient(),
+    public EntitySettingsApplicator entitySettingsApplicator() {
+        return new EntitySettingsApplicator();
+    }
+
+    @Bean
+    public EntitySettingsResolver settingsManager() {
+        return new EntitySettingsResolver(settingPolicyServiceClient(),
                     groupServiceClient(),
-                    settingServiceClient(),
-                    topologyFilterFactory());
+                    settingServiceClient());
     }
 
     @Bean

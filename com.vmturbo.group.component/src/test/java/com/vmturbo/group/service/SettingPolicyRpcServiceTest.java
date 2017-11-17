@@ -22,6 +22,7 @@ import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 
 import com.google.common.collect.ImmutableMap;
+
 import io.grpc.Status.Code;
 import io.grpc.StatusException;
 import io.grpc.stub.StreamObserver;
@@ -72,9 +73,10 @@ public class SettingPolicyRpcServiceTest {
 
     private SettingPolicyInfo settingPolicyInfo = SettingPolicyInfo.newBuilder()
             .setName("name")
-            .addSettings(Setting.newBuilder()
+            .putSettings(settingSpec.getName(), Setting.newBuilder()
                     .setSettingSpecName(settingSpec.getName())
-                    .setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(true)))
+                    .setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(true))
+                    .build())
             .build();
 
     private SettingPolicy settingPolicy = SettingPolicy.newBuilder()
@@ -491,7 +493,7 @@ public class SettingPolicyRpcServiceTest {
         EntitySettings es =
             EntitySettings.newBuilder()
                 .setEntityOid(1234)
-                .addAllUserSettings(settingPolicyInfo.getSettingsList())
+                .putAllUserSettings(settingPolicyInfo.getSettingsMap())
             .build();
 
         List<EntitySettings> esList = new LinkedList<>();

@@ -3,6 +3,8 @@ package plan;
 
 option java_package = "com.vmturbo.common.protobuf.plan";
 
+import "setting/Setting.proto";
+
 // A scenario specifies the changes to the topology, and changes to configuration
 // to be used when running a plan.
 message Scenario {
@@ -129,6 +131,8 @@ message ScenarioChange {
         TopologyAddition topology_addition = 15;
         TopologyRemoval topology_removal = 16;
         TopologyReplace topology_replace = 17;
+
+        SettingOverride setting_override = 21;
     };
 
     // A change to supply or demand made by cloning an entity in the topology
@@ -182,6 +186,14 @@ message ScenarioChange {
         }
     }
 
+    // A change to set the value of some setting to some particular value.
+    // Right now this is unscoped - it will override that setting for all entities
+    // to which the setting applies to (e.g. if you set "suspend" to disabled, it will
+    // disable suspend of VMs, hosts, etc).
+    message SettingOverride {
+        // The setting to override.
+        optional .setting.Setting setting = 1;
+    }
 }
 
 message ScenarioList {

@@ -33,7 +33,7 @@ import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
-import com.vmturbo.topology.processor.group.settings.SettingsManager;
+import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
 import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileNotifier;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
@@ -44,7 +44,7 @@ import com.vmturbo.topology.processor.topology.TopologyGraph.Vertex;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.BroadcastStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.GraphCreationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PolicyStage;
-import com.vmturbo.topology.processor.topology.pipeline.Stages.SettingsApplicationStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.SettingsResolutionStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.StitchingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.TopologyAcquisitionStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.TopologyEditStage;
@@ -156,9 +156,9 @@ public class StagesTest {
     }
 
     @Test
-    public void testSettingsApplicationStage() throws PipelineStageException {
-        final SettingsManager settingsManager = mock(SettingsManager.class);
-        final SettingsApplicationStage stage = new SettingsApplicationStage(settingsManager);
+    public void testLiveSettingsResolutionStage() throws PipelineStageException {
+        final EntitySettingsResolver entitySettingsResolver = mock(EntitySettingsResolver.class);
+        final SettingsResolutionStage stage = SettingsResolutionStage.live(entitySettingsResolver);
 
         final TopologyPipelineContext context = mock(TopologyPipelineContext.class);
         final GroupResolver groupResolver = mock(GroupResolver.class);
@@ -175,8 +175,8 @@ public class StagesTest {
         stage.setContext(context);
         stage.execute(topologyGraph);
 
-        verify(settingsManager).applyAndSendEntitySettings(eq(groupResolver), eq(topologyGraph),
-                eq(topologyInfo.getTopologyContextId()), eq(topologyInfo.getTopologyId()));
+        verify(entitySettingsResolver).resolveSettings(eq(groupResolver), eq(topologyGraph),
+                eq(Collections.emptyMap()));
     }
 
     @Test

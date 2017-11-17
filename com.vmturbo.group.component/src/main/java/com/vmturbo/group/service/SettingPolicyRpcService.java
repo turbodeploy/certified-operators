@@ -183,8 +183,7 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
      * @return A stream of {@link SettingSpec}s.
      */
     private Stream<SettingSpec> getSpecsForPolicy(@Nonnull final SettingPolicy settingPolicy) {
-        return settingPolicy.getInfo().getSettingsList().stream()
-                .map(Setting::getSettingSpecName)
+        return settingPolicy.getInfo().getSettingsMap().keySet().stream()
                 .map(name -> {
                     Optional<SettingSpec> specOpt = settingStore.getSettingSpec(name);
                     if (!specOpt.isPresent()) {
