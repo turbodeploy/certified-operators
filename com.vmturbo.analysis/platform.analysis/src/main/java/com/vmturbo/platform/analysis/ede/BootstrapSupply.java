@@ -69,8 +69,7 @@ public class BootstrapSupply {
      * Guarantee enough supply to place all demand at utilization levels that comply to user-set
      * upper limits.
      *
-     * @param the {@Link Economy} for which we want to guarantee enough supply.
-     *
+     * @param economy the {@Link Economy} for which we want to guarantee enough supply.
      * @return list of actions that might include provision, move and reconfigure.
      */
     public static @NonNull List<@NonNull Action>
@@ -91,43 +90,56 @@ public class BootstrapSupply {
      */
     protected static @NonNull List<@NonNull Action> shopTogetherBootstrap(Economy economy) {
         List<@NonNull Action> allActions = new ArrayList<@NonNull Action>();
-        int tradesSize = economy.getShopTogetherTraders().size();
-        // Go through all buyers
-        // We may need add some items in the economy.getTraders() list,
-        // so we can not use iterator to go through all items
-        for (int idx = 0; idx < tradesSize; idx++) {
-            if (economy.getForceStop()) {
-                return allActions;
+        try {
+            int tradesSize = economy.getShopTogetherTraders().size();
+            // Go through all buyers
+            // We may need to add some items in the economy.getTraders() list,
+            // so we can not use iterator to go through all items
+            for (int idx = 0; idx < tradesSize; idx++) {
+                if (economy.getForceStop()) {
+                    return allActions;
+                }
+                allActions.addAll(shopTogetherBootstrapForIndividualBuyer(economy, economy.getShopTogetherTraders().get(idx)));
             }
-            allActions.addAll(shopTogetherBootstrapForIndividualBuyer(economy, economy.getShopTogetherTraders().get(idx)));
-        }
-        // process shoppingLists in slsThatNeedProvBySupplyList and generate provisionBySupply
-        for (Entry<ShoppingList, Long> entry : slsThatNeedProvBySupply.entrySet()) {
-            ShoppingList sl = entry.getKey();
-            Market market = economy.getMarket(sl);
-            @NonNull List<@NonNull Trader> sellers = market.getCliques().get(entry.getValue());
-            @NonNull Stream<@NonNull Trader> stream =
-                            sellers.size() < economy.getSettings().getMinSellersForParallelism()
-                                            ? sellers.stream() : sellers.parallelStream();
-            @NonNull
-            QuoteMinimizer minimizer = stream.collect(() -> new QuoteMinimizer(economy, sl),
-                            QuoteMinimizer::accept, QuoteMinimizer::combine);
-            if (Double.isInfinite(minimizer.getBestQuote())) {
-                // we use only ActiveSellersAvailableForPlacement for finding possible provider
-                Trader sellerThatFits = findTraderThatFitsBuyer(entry.getKey(), market
-                                .getActiveSellersAvailableForPlacement(), market);
-                Map<@NonNull ShoppingList, @NonNull Trader> newSuppliers = new HashMap<>();
-                newSuppliers.put(sl, provisionOrActivateTrader(sellerThatFits, market, allActions,
+            // process shoppingLists in slsThatNeedProvBySupplyList and generate provisionBySupply
+            for (Entry<ShoppingList, Long> entry : slsThatNeedProvBySupply.entrySet()) {
+                ShoppingList sl = entry.getKey();
+                Market market = economy.getMarket(sl);
+                @NonNull List<@NonNull Trader> sellers = market.getCliques().get(entry.getValue());
+                @NonNull Stream<@NonNull Trader> stream =
+                        sellers.size() < economy.getSettings().getMinSellersForParallelism()
+                                ? sellers.stream() : sellers.parallelStream();
+                @NonNull
+                QuoteMinimizer minimizer = stream.collect(() -> new QuoteMinimizer(economy, sl),
+                        QuoteMinimizer::accept, QuoteMinimizer::combine);
+                if (Double.isInfinite(minimizer.getBestQuote())) {
+                    // we use only ActiveSellersAvailableForPlacement for finding possible provider
+                    Trader sellerThatFits = findTraderThatFitsBuyer(entry.getKey(), market
+                            .getActiveSellersAvailableForPlacement(), market);
+                    if (sellerThatFits != null) {
+                        Map<@NonNull ShoppingList, @NonNull Trader> newSuppliers = new HashMap<>();
+                        newSuppliers.put(sl, provisionOrActivateTrader(sellerThatFits, market, allActions,
                                 economy));
-                final @NonNull @ReadOnly Set<Entry<@NonNull ShoppingList, @NonNull Market>>
-                            slByMarket = economy.getMarketsAsBuyer(sl.getBuyer()).entrySet();
-                final @NonNull @ReadOnly List<Entry<@NonNull ShoppingList, @NonNull Market>>
-                            movableSlByMarket = slByMarket.stream().filter(entry1 ->
-                            entry1.getKey().isMovable()).collect(Collectors.toList());
-                allActions.add(createCompoundMove(newSuppliers, movableSlByMarket, economy));
+                        final @NonNull @ReadOnly Set<Entry<@NonNull ShoppingList, @NonNull Market>>
+                                slByMarket = economy.getMarketsAsBuyer(sl.getBuyer()).entrySet();
+                        final @NonNull @ReadOnly List<Entry<@NonNull ShoppingList, @NonNull Market>>
+                                movableSlByMarket = slByMarket.stream().filter(entry1 ->
+                                entry1.getKey().isMovable()).collect(Collectors.toList());
+                        allActions.add(createCompoundMove(newSuppliers, movableSlByMarket, economy));
+                    } else {
+                        @NonNull Trader buyer = entry.getKey().getBuyer();
+                        if (buyer.isDebugEnabled()) {
+                            logger.debug("Quote is infinity, and unable to find a seller that will fit the trader: {}",
+                                    buyer.getDebugInfoNeverUseInCode());
+                        }
+                    }
+                }
             }
+        } finally{
+            // we should always clear the slsThatNeedProvBySupply map, even when an exception is
+            // thrown, otherwise the following analysis cycles will be affected
+            slsThatNeedProvBySupply.clear();
         }
-        slsThatNeedProvBySupply.clear();
         return allActions;
     }
 
@@ -313,86 +325,98 @@ public class BootstrapSupply {
      */
     protected static @NonNull List<@NonNull Action> nonShopTogetherBootstrap(Economy economy) {
         List<@NonNull Action> allActions = new ArrayList<@NonNull Action>();
-        for (Market market : economy.getMarkets()) {
-            if (economy.getForceStop()) {
-                return allActions;
-            }
-            // do not provision traders in markets where guaranteedBuyers are unplaced
-            if (market.getBuyers().stream().allMatch(
-                            sl -> sl.getBuyer().getSettings().isGuaranteedBuyer())) {
-                continue;
-            }
-            List<Trader> sellers = market.getActiveSellersAvailableForPlacement();
-            for (@NonNull ShoppingList shoppingList : market.getBuyers()) {
-                // below is the provision logic for non shop together traders, if the trader
-                // should shop together, skip the logic
-                if (shoppingList.getBuyer().getSettings().isShopTogether()
-                                || !shoppingList.isMovable()) {
+        try {
+            for (Market market : economy.getMarkets()) {
+                if (economy.getForceStop()) {
+                    return allActions;
+                }
+                // do not provision traders in markets where guaranteedBuyers are unplaced
+                if (market.getBuyers().stream().allMatch(
+                        sl -> sl.getBuyer().getSettings().isGuaranteedBuyer())) {
                     continue;
                 }
-                // find the bestQuote
-                final QuoteMinimizer minimizer =
-                                (sellers.size() < economy.getSettings().getMinSellersForParallelism()
+                List<Trader> sellers = market.getActiveSellersAvailableForPlacement();
+                for (@NonNull ShoppingList shoppingList : market.getBuyers()) {
+                    // below is the provision logic for non shop together traders, if the trader
+                    // should shop together, skip the logic
+                    if (shoppingList.getBuyer().getSettings().isShopTogether()
+                            || !shoppingList.isMovable()) {
+                        continue;
+                    }
+                    // find the bestQuote
+                    final QuoteMinimizer minimizer =
+                            (sellers.size() < economy.getSettings().getMinSellersForParallelism()
                                     ? sellers.stream() : sellers.parallelStream())
-                                .collect(()->new QuoteMinimizer(economy,shoppingList),
-                                    QuoteMinimizer::accept, QuoteMinimizer::combine);
+                                    .collect(() -> new QuoteMinimizer(economy, shoppingList),
+                                            QuoteMinimizer::accept, QuoteMinimizer::combine);
 
-                // unplaced buyer
-                if (shoppingList.getSupplier() == null) {
-                    if (Double.isFinite(minimizer.getBestQuote())) {
-                        // on getting finiteQuote, move unplaced Trader to the best provider
-                        allActions.add(new Move(economy,shoppingList,minimizer.getBestSeller())
-                                        .take().setImportance(Double.POSITIVE_INFINITY));
+                    // unplaced buyer
+                    if (shoppingList.getSupplier() == null) {
+                        if (Double.isFinite(minimizer.getBestQuote())) {
+                            // on getting finiteQuote, move unplaced Trader to the best provider
+                            allActions.add(new Move(economy, shoppingList, minimizer.getBestSeller())
+                                    .take().setImportance(Double.POSITIVE_INFINITY));
+                        } else {
+                            // on getting an infiniteQuote, provision new Seller and move unplaced Trader to it
+                            allActions.addAll(checkAndApplyProvision(economy, shoppingList, market));
+                        }
                     } else {
-                        // on getting an infiniteQuote, provision new Seller and move unplaced Trader to it
-                        allActions.addAll(checkAndApplyProvision(economy, shoppingList, market));
+                        // already placed Buyer
+                        if (Double.isInfinite(minimizer.getBestQuote())) {
+                            // Start by cloning the best provider that can fit the buyer. If none can fit
+                            // the buyer, provision a new seller large enough to fit the demand.
+                            allActions.addAll(checkAndApplyProvision(economy, shoppingList, market));
+                        } else if (Double.isInfinite(minimizer.getCurrentQuote()) &&
+                                minimizer.getBestSeller() != shoppingList.getSupplier()) {
+                            // If we have a seller that can fit the buyer getting an infiniteQuote,
+                            // move buyer to this provider
+                            allActions.add(new Move(economy, shoppingList, minimizer.getBestSeller())
+                                    .take().setImportance(minimizer.getCurrentQuote()));
+                        }
+                    }
+                }
+            }
+
+            // process shoppingLists in slsThatNeedProvBySupplyList and generate provisionBySupply
+            for (ShoppingList sl : slsThatNeedProvBySupply.keySet()) {
+                // find the bestQuote
+                Market market = economy.getMarket(sl);
+                List<Trader> sellers = market.getActiveSellersAvailableForPlacement();
+                final QuoteMinimizer minimizer =
+                        (sellers.size() < economy.getSettings().getMinSellersForParallelism()
+                                ? sellers.stream() : sellers.parallelStream())
+                                .collect(() -> new QuoteMinimizer(economy, sl),
+                                        QuoteMinimizer::accept, QuoteMinimizer::combine);
+
+                if (Double.isInfinite(minimizer.getBestQuote())) {
+                    // on getting an infiniteQuote, provision new Seller and move unplaced Trader to it
+                    // clone one of the sellers or reactivate an inactive seller that the VM can fit in
+                    Trader sellerThatFits = findTraderThatFitsBuyer(sl, sellers, market);
+                    if (sellerThatFits != null) {
+                        Trader provisionedSeller = provisionOrActivateTrader(sellerThatFits, market,
+                                allActions, economy);
+                        allActions.add(new Move(economy, sl, provisionedSeller).take()
+                                .setImportance(Double.POSITIVE_INFINITY));
+                    } else {
+                        @NonNull Trader buyer = sl.getBuyer();
+                        if (buyer.isDebugEnabled()) {
+                            logger.debug("Quote is infinity, and unable to find a seller that will fit the trader: {}",
+                                    buyer.getDebugInfoNeverUseInCode());
+                        }
                     }
                 } else {
-                    // already placed Buyer
-                    if (Double.isInfinite(minimizer.getBestQuote())) {
-                        // Start by cloning the best provider that can fit the buyer. If none can fit
-                        // the buyer, provision a new seller large enough to fit the demand.
-                        allActions.addAll(checkAndApplyProvision(economy, shoppingList, market));
-                    } else if (Double.isInfinite(minimizer.getCurrentQuote()) &&
-                                    minimizer.getBestSeller() != shoppingList.getSupplier()) {
-                        // If we have a seller that can fit the buyer getting an infiniteQuote,
-                        // move buyer to this provider
-                        allActions.add(new Move(economy,shoppingList,minimizer.getBestSeller())
-                                       .take().setImportance(minimizer.getCurrentQuote()));
+                    if (minimizer.getBestSeller() != sl.getSupplier()) {
+                        allActions.add(new Move(economy, sl, minimizer.getBestSeller()).take()
+                                .setImportance(minimizer.getCurrentQuote()
+                                        - minimizer.getBestQuote()));
                     }
                 }
             }
+        } finally{
+            // we should always clear the slsThatNeedProvBySupply map, even when an exception is
+            // thrown, otherwise the following analysis cycles will be affected
+            slsThatNeedProvBySupply.clear();
         }
-
-        // process shoppingLists in slsThatNeedProvBySupplyList and generate provisionBySupply
-        for (ShoppingList sl : slsThatNeedProvBySupply.keySet()) {
-            // find the bestQuote
-            Market market = economy.getMarket(sl);
-            List<Trader> sellers = market.getActiveSellersAvailableForPlacement();
-            final QuoteMinimizer minimizer =
-                            (sellers.size() < economy.getSettings().getMinSellersForParallelism()
-                                ? sellers.stream() : sellers.parallelStream())
-                            .collect(()->new QuoteMinimizer(economy,sl),
-                                QuoteMinimizer::accept, QuoteMinimizer::combine);
-
-            if (Double.isInfinite(minimizer.getBestQuote())) {
-                // on getting an infiniteQuote, provision new Seller and move unplaced Trader to it
-                // clone one of the sellers or reactivate an inactive seller that the VM can fit in
-                Trader sellerThatFits = findTraderThatFitsBuyer (sl, sellers, market);
-                Trader provisionedSeller = provisionOrActivateTrader(sellerThatFits, market,
-                                allActions, economy);
-                allActions.add(new Move(economy, sl, provisionedSeller).take()
-                                .setImportance(Double.POSITIVE_INFINITY));
-            } else {
-                if (minimizer.getBestSeller() != sl.getSupplier()) {
-                    allActions.add(new Move(economy, sl, minimizer.getBestSeller()).take()
-                                    .setImportance(minimizer.getCurrentQuote()
-                                                    - minimizer.getBestQuote()));
-                }
-            }
-        }
-
-        slsThatNeedProvBySupply.clear();
         return allActions;
     }
 
