@@ -37,6 +37,8 @@ public class TopologyCreatorTest {
     private final TopologyGraphCreatorFactory graphCreatorFactory =
             mock(TopologyGraphCreatorFactory.class);
 
+    private final long realtimeTopologyContextId = 123456L;
+
     private final GraphDatabaseDriver mockDriver = mock(GraphDatabaseDriver.class);
 
     private final TopologyProtobufWriter protobufWriter = mock(TopologyProtobufWriter.class);
@@ -45,10 +47,15 @@ public class TopologyCreatorTest {
 
     private final TopologyGraphCreator graphCreator = mock(TopologyGraphCreator.class);
 
-    private final TopologyID sourceId =
+    private final TopologyID realtimeSourceId =
+            new TopologyID(realtimeTopologyContextId, 1L, TopologyType.SOURCE);
+    private final TopologyID realtimeProjectedId =
+            new TopologyID(realtimeTopologyContextId, 1L, TopologyType.PROJECTED);
+    private final TopologyID planSourceId =
             new TopologyID(1L, 1L, TopologyType.SOURCE);
-    private final TopologyID projectedId =
+    private final TopologyID planProjectedId =
             new TopologyID(1L, 1L, TopologyType.PROJECTED);
+
 
     @Before
     public void setup() {
@@ -59,45 +66,77 @@ public class TopologyCreatorTest {
     }
 
     @Test
-    public void testTopologyCreatorConstructor() {
-
-        new TopologyCreator(sourceId,
+    public void testTopologyCreatorRealtimeSourceTopology() {
+        new TopologyCreator(realtimeSourceId,
                 graphDatabaseDriverBuilder,
                 topologyProtobufsManager,
                 onComplete,
                 graphCreatorFactory,
-                entityConverter);
+                entityConverter,
+                realtimeTopologyContextId);
 
-        verify(graphDatabaseDriverBuilder).build(eq(sourceId.toDatabaseName()));
+        verify(graphDatabaseDriverBuilder).build(eq(realtimeSourceId.toDatabaseName()));
         verify(graphCreatorFactory).newGraphCreator(eq(mockDriver));
         verify(topologyProtobufsManager, never()).createTopologyProtobufWriter(anyLong());
     }
 
     @Test
-    public void testTopologyCreatorProjectedTopology() {
-        new TopologyCreator(projectedId,
+    public void testTopologyCreatorRealtimeProjectedTopology() {
+        new TopologyCreator(realtimeProjectedId,
                 graphDatabaseDriverBuilder,
                 topologyProtobufsManager,
                 onComplete,
                 graphCreatorFactory,
-                entityConverter);
+                entityConverter,
+                realtimeTopologyContextId);
 
-        verify(graphDatabaseDriverBuilder).build(eq(projectedId.toDatabaseName()));
+        verify(graphDatabaseDriverBuilder).build(eq(realtimeProjectedId.toDatabaseName()));
+        verify(graphCreatorFactory).newGraphCreator(eq(mockDriver));
+        verify(topologyProtobufsManager, never()).createTopologyProtobufWriter(anyLong());
+
+    }
+
+    @Test
+    public void testTopologyCreatorPlanSourceTopology() {
+        new TopologyCreator(planSourceId,
+                graphDatabaseDriverBuilder,
+                topologyProtobufsManager,
+                onComplete,
+                graphCreatorFactory,
+                entityConverter,
+                realtimeTopologyContextId);
+
+        verify(graphDatabaseDriverBuilder).build(eq(planSourceId.toDatabaseName()));
+        verify(graphCreatorFactory).newGraphCreator(eq(mockDriver));
+        verify(topologyProtobufsManager, never()).createTopologyProtobufWriter(anyLong());
+    }
+
+    @Test
+    public void testTopologyCreatorPlanProjectedTopology() {
+        new TopologyCreator(planProjectedId,
+                graphDatabaseDriverBuilder,
+                topologyProtobufsManager,
+                onComplete,
+                graphCreatorFactory,
+                entityConverter,
+                realtimeTopologyContextId);
+
+        verify(graphDatabaseDriverBuilder).build(eq(planProjectedId.toDatabaseName()));
         verify(graphCreatorFactory).newGraphCreator(eq(mockDriver));
         verify(topologyProtobufsManager)
-            .createTopologyProtobufWriter(eq(projectedId.getTopologyId()));
+            .createTopologyProtobufWriter(eq(planProjectedId.getTopologyId()));
     }
 
     @Test
     public void testTopologyCreatorInitialize() throws Exception {
-        TopologyCreator creator = newTopologyCreator(sourceId);
+        TopologyCreator creator = newTopologyCreator(planSourceId);
         creator.initialize();
         verify(graphCreator).init();
     }
 
     @Test
     public void testTopologyCreatorAddEntities() throws Exception {
-        TopologyCreator creator = newTopologyCreator(sourceId);
+        TopologyCreator creator = newTopologyCreator(planSourceId);
 
         when(entityConverter.convert(any())).thenReturn(Collections.emptySet());
         creator.addEntities(Collections.emptySet());
@@ -109,7 +148,7 @@ public class TopologyCreatorTest {
 
     @Test
     public void testTopologyCreatorProjectedAddEntities() throws Exception {
-        TopologyCreator creator = newTopologyCreator(projectedId);
+        TopologyCreator creator = newTopologyCreator(planProjectedId);
 
         when(entityConverter.convert(any())).thenReturn(Collections.emptySet());
         creator.addEntities(Collections.emptySet());
@@ -121,21 +160,21 @@ public class TopologyCreatorTest {
 
     @Test
     public void testTopologyCreatorComplete() throws Exception {
-        TopologyCreator creator = newTopologyCreator(sourceId);
+        TopologyCreator creator = newTopologyCreator(planSourceId);
         creator.complete();
-        verify(onComplete).accept(eq(sourceId));
+        verify(onComplete).accept(eq(planSourceId));
     }
 
     @Test
     public void testTopologyCreatorRollback() throws Exception {
-        TopologyCreator creator = newTopologyCreator(sourceId);
+        TopologyCreator creator = newTopologyCreator(planSourceId);
         creator.rollback();
         verify(mockDriver).dropDatabase();
     }
 
     @Test
     public void testProjectedTopologyCreatorRollback() throws Exception {
-        TopologyCreator creator = newTopologyCreator(projectedId);
+        TopologyCreator creator = newTopologyCreator(planProjectedId);
         creator.rollback();
         verify(mockDriver).dropDatabase();
         verify(protobufWriter).delete();
@@ -147,7 +186,8 @@ public class TopologyCreatorTest {
                 topologyProtobufsManager,
                 onComplete,
                 graphCreatorFactory,
-                entityConverter);
+                entityConverter,
+                realtimeTopologyContextId);
 
     }
 }

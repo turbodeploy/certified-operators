@@ -22,7 +22,6 @@ import org.apache.logging.log4j.Logger;
 
 import com.arangodb.ArangoDBException;
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.common.diagnostics.Diagnosable;
@@ -173,10 +172,15 @@ public class TopologyLifecycleManager implements Diagnosable {
     }
 
     public TopologyCreator newTopologyCreator(@Nonnull final TopologyID topologyID) {
-        return new TopologyCreator(topologyID, graphDatabaseDriverBuilder,
-                topologyProtobufsManager, this::registerTopology,
+        return new TopologyCreator(
+                topologyID,
+                graphDatabaseDriverBuilder,
+                topologyProtobufsManager,
+                this::registerTopology,
                 graphDriver -> new TopologyGraphCreator(graphDriver, graphDefinition),
-                TopologyConverter::convert);
+                TopologyConverter::convert,
+                realtimeTopologyContextId
+        );
     }
 
     /**
@@ -402,16 +406,22 @@ public class TopologyLifecycleManager implements Diagnosable {
                         @Nonnull final TopologyProtobufsManager protobufsManager,
                         @Nonnull final Consumer<TopologyID> onComplete,
                         @Nonnull final TopologyGraphCreatorFactory topologyGraphCreatorFactory,
-                        @Nonnull final EntityConverter entityConverter) {
+                        @Nonnull final EntityConverter entityConverter,
+                        final long realtimeTopologyContextId) {
             this.topologyID = Objects.requireNonNull(topologyID);
             this.graphDatabaseDriver = Objects.requireNonNull(graphDatabaseDriverBuilder.build(
                     topologyID.toDatabaseName()));
             this.onComplete = onComplete;
-            // For now we only persist projected topologies, because there is no use for
-            // old source topologies.
-            topologyProtobufWriter = topologyID.getType().equals(TopologyID.TopologyType.PROJECTED) ?
-                Optional.of(protobufsManager.createTopologyProtobufWriter(topologyID.getTopologyId())) : Optional.empty();
-            this.topologyGraphCreator = topologyGraphCreatorFactory.newGraphCreator(graphDatabaseDriver);
+
+            // persist raw topology protobuf only for plan projected topologies.
+            // realtime (both source and projected) and plan source raw topologies are not used yet.
+            if (TopologyUtil.isPlanProjectedTopology(topologyID, realtimeTopologyContextId)) {
+                topologyProtobufWriter = Optional.of(protobufsManager.createTopologyProtobufWriter(topologyID.getTopologyId()));
+            } else {
+                topologyProtobufWriter = Optional.empty();
+            }
+
+            topologyGraphCreator = topologyGraphCreatorFactory.newGraphCreator(graphDatabaseDriver);
             this.entityConverter = entityConverter;
         }
 
