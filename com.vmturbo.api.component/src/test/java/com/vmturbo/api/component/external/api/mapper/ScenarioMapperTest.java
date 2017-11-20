@@ -9,14 +9,17 @@ import static org.mockito.Mockito.when;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
@@ -26,20 +29,26 @@ import com.vmturbo.api.component.external.api.util.TemplatesUtils;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.scenario.AddObjectApiDTO;
+import com.vmturbo.api.dto.scenario.ConfigChangesApiDTO;
 import com.vmturbo.api.dto.scenario.RemoveObjectApiDTO;
 import com.vmturbo.api.dto.scenario.ReplaceObjectApiDTO;
 import com.vmturbo.api.dto.scenario.ScenarioApiDTO;
 import com.vmturbo.api.dto.scenario.TopologyChangesApiDTO;
+import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.Builder;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.DetailsCase;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.SettingOverride;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyAddition;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyRemoval;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyReplace;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
+import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 
 public class ScenarioMapperTest {
     private static final String SCENARIO_NAME = "MyScenario";
@@ -189,6 +198,66 @@ public class ScenarioMapperTest {
         assertEquals(2, removal.getEntityId());
     }
 
+    /**
+     * Tests converting of DesiredState setting to ScenarioInfo.
+     */
+    @Test
+    public void testToScenarioInfoWithDesiredState() {
+        final SettingApiDTO targetBand = ScenarioMapper
+                .createSettingApiDTO(10, ScenarioMapper.TARGET_BAND);
+        final SettingApiDTO utilTarget = ScenarioMapper
+                .createSettingApiDTO(20, ScenarioMapper.TARGET_UTILIZATION);
+        final List<SettingApiDTO> automationSettings = ImmutableList.of(targetBand, utilTarget);
+        final ScenarioInfo scenarioInfo = getScenarioInfo(automationSettings);
+        assertDesiredStateInScenarioChange(scenarioInfo.getChanges(0), 20.0f);
+        assertDesiredStateInScenarioChange(scenarioInfo.getChanges(1), 10.0f);
+    }
+
+    private void assertDesiredStateInScenarioChange(@Nonnull ScenarioChange scenarioChange,
+            float expectedValue) {
+        Assert.assertTrue(scenarioChange.hasSettingOverride());
+        Assert.assertTrue(scenarioChange.getSettingOverride().hasSetting());
+        Assert.assertEquals(expectedValue, scenarioChange.getSettingOverride()
+                .getSetting().getNumericSettingValue().getValue(), 0);
+    }
+
+    /**
+     * Tests converting of ScenarioApiDto without config changes to ScenarioInfo.
+     */
+    @Test
+    public void testToScenarioInfoWithoutDesiredState() {
+        final ScenarioApiDTO dto = new ScenarioApiDTO();
+        dto.setConfigChanges(null);
+        final ScenarioInfo scenarioInfo = scenarioMapper.toScenarioInfo("name", dto);
+        Assert.assertTrue(scenarioInfo.getChangesList().isEmpty());
+    }
+
+    /**
+     * Tests converting of ScenarioApiDto with empty config changes to ScenarioInfo.
+     */
+    @Test
+    public void testToScenarioInfoWithEmptyConfigChanges() {
+        final ScenarioInfo scenarioInfo = getScenarioInfo(null);
+        Assert.assertTrue(scenarioInfo.getChangesList().isEmpty());
+    }
+
+    /**
+     * Tests converting of ScenarioApiDto with empty automation settings list to ScenarioInfo.
+     */
+    @Test
+    public void testToScenarioInfoWithEmptyAutomationSettingsList() {
+        final ScenarioInfo scenarioInfo = getScenarioInfo(Collections.emptyList());
+        Assert.assertTrue(scenarioInfo.getChangesList().isEmpty());
+    }
+
+    private ScenarioInfo getScenarioInfo(@Nonnull List<SettingApiDTO> automationSettings) {
+        final ScenarioApiDTO dto = new ScenarioApiDTO();
+        final ConfigChangesApiDTO configChanges = new ConfigChangesApiDTO();
+        configChanges.setAutomationSettingList(automationSettings);
+        dto.setConfigChanges(configChanges);
+        return scenarioMapper.toScenarioInfo("name", dto);
+    }
+
     @Test
     public void testToApiAdditionChange() {
         Scenario scenario = buildScenario(ScenarioChange.newBuilder()
@@ -304,6 +373,46 @@ public class ScenarioMapperTest {
         BaseApiDTO target = changeDto.getTarget();
         assertEquals(UIEntityType.UNKNOWN.getValue(), target.getClassName());
         assertEquals(UIEntityType.UNKNOWN.getValue(), target.getDisplayName());
+    }
+
+    /**
+     * Tests converting of scenario with desired state setting to ScenarioApiDto.
+     */
+    @Test
+    public void testToScenarioApiDtoWithDesiredState() {
+        final Scenario scenario = buildScenario(
+                buildScenarioChange(ScenarioMapper.TARGET_UTILIZATION, 20.0f),
+                buildScenarioChange(ScenarioMapper.TARGET_BAND, 10.0f)
+        );
+        final ScenarioApiDTO scenarioApiDTO = scenarioMapper.toScenarioApiDTO(scenario);
+        final SettingApiDTO utilTarget = scenarioApiDTO.getConfigChanges().getAutomationSettingList().get(0);
+        final SettingApiDTO targetBand = scenarioApiDTO.getConfigChanges().getAutomationSettingList().get(1);
+        assertSettingApiDTOHasSetting(utilTarget, "20.0", ScenarioMapper.TARGET_UTILIZATION);
+        assertSettingApiDTOHasSetting(targetBand, "10.0", ScenarioMapper.TARGET_BAND);
+    }
+
+    private void assertSettingApiDTOHasSetting(@Nonnull SettingApiDTO setting,
+            @Nonnull String value, @Nonnull String settingName) {
+        Assert.assertEquals(value, setting.getValue());
+        Assert.assertEquals(settingName, setting.getUuid());
+    }
+
+    private ScenarioChange buildScenarioChange(@Nonnull String name, float value) {
+        return ScenarioChange.newBuilder().setSettingOverride(
+                SettingOverride.newBuilder().setSetting(Setting.newBuilder()
+                        .setSettingSpecName(name)
+                        .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(value))
+                        .build()).build()).build();
+    }
+
+    /**
+     * Tests converting of empty scenario to scenarioApiDto.
+     */
+    @Test
+    public void testToScenarioApiDtoEmptyScenario() {
+        final Scenario scenario = buildScenario(ScenarioChange.newBuilder().build());
+        final ScenarioApiDTO scenarioApiDTO = scenarioMapper.toScenarioApiDTO(scenario);
+        Assert.assertTrue(scenarioApiDTO.getConfigChanges().getAutomationSettingList().isEmpty());
     }
 
     private Scenario buildScenario(ScenarioChange... changes) {

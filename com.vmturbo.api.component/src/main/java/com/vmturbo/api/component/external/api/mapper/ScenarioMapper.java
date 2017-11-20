@@ -9,15 +9,20 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.util.CollectionUtils;
 
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
@@ -25,20 +30,26 @@ import com.vmturbo.api.component.external.api.util.TemplatesUtils;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.scenario.AddObjectApiDTO;
+import com.vmturbo.api.dto.scenario.ConfigChangesApiDTO;
 import com.vmturbo.api.dto.scenario.MigrateObjectApiDTO;
 import com.vmturbo.api.dto.scenario.RemoveObjectApiDTO;
 import com.vmturbo.api.dto.scenario.ReplaceObjectApiDTO;
 import com.vmturbo.api.dto.scenario.ScenarioApiDTO;
 import com.vmturbo.api.dto.scenario.TopologyChangesApiDTO;
+import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.common.protobuf.PlanDTOUtil;
 import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.SettingOverride;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyAddition;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyRemoval;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyReplace;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
+import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting.ValueCase;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -54,9 +65,29 @@ public class ScenarioMapper {
 
     private static final Logger logger = LogManager.getLogger();
 
+    /**
+     * Name for utilization value of DesiredState setting which API is using.
+     */
+    protected static final String TARGET_UTILIZATION = "utilTarget";
+    /**
+     * Name for band value of DesiredState setting which API is using.
+     */
+    protected static final String TARGET_BAND = "targetBand";
+
+    private static final Set<String> SETTINGS_NAMES = ImmutableSet.of(TARGET_UTILIZATION, TARGET_BAND);
+
     private RepositoryApi repositoryApi;
 
     private TemplatesUtils templatesUtils;
+
+    private static final Map<ValueCase, Function<Setting, String>> VALUES_OF_VALUE_CASES = ImmutableMap.of(
+            ValueCase.BOOLEAN_SETTING_VALUE, setting ->
+                    Boolean.toString(setting.getBooleanSettingValue().getValue()),
+            ValueCase.NUMERIC_SETTING_VALUE, setting ->
+                    Float.toString(setting.getNumericSettingValue().getValue()),
+            ValueCase.STRING_SETTING_VALUE, setting -> setting.getStringSettingValue().getValue(),
+            ValueCase.ENUM_SETTING_VALUE, setting -> setting.getEnumSettingValue().getValue()
+    );
 
     public ScenarioMapper(@Nonnull final RepositoryApi repositoryApi,
                           @Nonnull final TemplatesUtils templatesUtils) {
@@ -91,6 +122,9 @@ public class ScenarioMapper {
             infoBuilder.setType(dto.getType());
         }
 
+        if (dto.getConfigChanges() != null) {
+            addScenarioChanges(dto.getConfigChanges(), infoBuilder);
+        }
         return infoBuilder.build();
     }
 
@@ -117,7 +151,49 @@ public class ScenarioMapper {
         // TODO (gabriele, Oct 27 2017) We need to extend the Plan Orchestrator with support
         // for the other types of changes: time based topology, load and config
 
+        dto.setConfigChanges(getConfigChanges(scenario));
         return dto;
+    }
+
+    @Nonnull
+    private ConfigChangesApiDTO getConfigChanges(@Nonnull Scenario scenario) {
+        final ConfigChangesApiDTO configChanges = new ConfigChangesApiDTO();
+        final List<SettingApiDTO> automationSettings = getAutomationSettings(scenario);
+        configChanges.setAutomationSettingList(automationSettings);
+        return configChanges;
+    }
+
+    @Nonnull
+    private List<SettingApiDTO> getAutomationSettings(@Nonnull final Scenario scenario) {
+        ImmutableList.Builder<SettingApiDTO> listBuilder = ImmutableList.builder();
+        for (ScenarioChange change : scenario.getScenarioInfo().getChangesList()) {
+            if (change.hasSettingOverride()) {
+                listBuilder.add(getOverrideSetting(change.getSettingOverride()));
+            }
+        }
+        return listBuilder.build();
+    }
+
+    @Nonnull
+    private SettingApiDTO getOverrideSetting(@Nonnull SettingOverride settingOverride) {
+        final Setting setting = settingOverride.getSetting();
+        final SettingApiDTO settingApiDTO = new SettingApiDTO();
+        settingApiDTO.setUuid(setting.getSettingSpecName());
+        final ValueCase valueCase = setting.getValueCase();
+        final String settingValue = VALUES_OF_VALUE_CASES.get(valueCase).apply(setting);
+        if (settingValue == null) {
+            throw new IllegalArgumentException("Cannot eject value from setting" + setting);
+        }
+        settingApiDTO.setValue(settingValue);
+        return settingApiDTO;
+    }
+
+    @Nonnull
+    public static SettingApiDTO createSettingApiDTO(int value, @Nonnull String uuid) {
+        final SettingApiDTO setting = new SettingApiDTO();
+        setting.setValue(Integer.toString(value));
+        setting.setUuid(uuid);
+        return setting;
     }
 
     private static void addTopologyChanges(final TopologyChangesApiDTO topoChanges,
@@ -154,6 +230,51 @@ public class ScenarioMapper {
                 });
             }
         }
+    }
+
+    private void addScenarioChanges(@Nonnull ConfigChangesApiDTO configChanges,
+            @Nonnull ScenarioInfo.Builder infoBuilder) {
+        if (!CollectionUtils.isEmpty(configChanges.getAutomationSettingList())) {
+            addDesiredStateScenarioChange(configChanges.getAutomationSettingList(), infoBuilder);
+        }
+    }
+
+    private void addDesiredStateScenarioChange(@Nonnull List<SettingApiDTO> settings,
+            @Nonnull ScenarioInfo.Builder infoBuilder) {
+        final Map<String, Integer> desiredStateValues = getDesiredStateValues(settings);
+        if (!desiredStateValues.isEmpty()) {
+            SETTINGS_NAMES.forEach(settingName -> {
+                final Integer value = desiredStateValues.get(settingName);
+                if (value == null) {
+                    throw new IllegalArgumentException("Cannot resolve value for setting " + settingName);
+                }
+                infoBuilder.addChanges(createScenarioChange(settingName,
+                        value));
+            });
+        }
+    }
+
+    @Nonnull
+    private ScenarioChange createScenarioChange(@Nonnull String settingName, int value) {
+        return ScenarioChange.newBuilder()
+                .setSettingOverride(SettingOverride.newBuilder()
+                    .setSetting(Setting.newBuilder()
+                        .setSettingSpecName(settingName)
+                        .setNumericSettingValue(
+                            NumericSettingValue.newBuilder().setValue(value)
+                            .build()))
+                        .build())
+                .build();
+    }
+
+    private Map<String, Integer> getDesiredStateValues(@Nonnull List<SettingApiDTO> settings) {
+        final ImmutableMap.Builder<String, Integer> settingsValuesBuilder = ImmutableMap.builder();
+        for (SettingApiDTO setting : settings) {
+            if (SETTINGS_NAMES.contains(setting.getUuid())) {
+                settingsValuesBuilder.put(setting.getUuid(), Integer.parseInt(setting.getValue()));
+            }
+        }
+        return settingsValuesBuilder.build();
     }
 
     /**
