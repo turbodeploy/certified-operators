@@ -12,10 +12,10 @@ import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
 
-import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.CommodityBoughtTO;
-import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.CommoditySoldSettingsTO;
-import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.CommoditySoldTO;
-import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.CommoditySpecificationTO;
+import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
+import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldSettingsTO;
+import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
+import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderStateTO;
@@ -23,6 +23,8 @@ import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.Constant;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.StandardWeighted;
+import com.vmturbo.platform.analysis.protobuf.QuoteFunctionDTOs.QuoteFunctionDTO;
+import com.vmturbo.platform.analysis.protobuf.QuoteFunctionDTOs.QuoteFunctionDTO.SumOfCommodity;
 import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO;
 import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO.Delta;
 
@@ -30,6 +32,20 @@ public class PlacementIntegrationTest {
 
     @Test
     public void testPlacementDecisions() {
+        TraderSettingsTO shoptogetherTrueTO =
+                        TraderSettingsTO.newBuilder().setIsShopTogether(true)
+                                        .setQuoteFunction(QuoteFunctionDTO.newBuilder()
+                                                        .setSumOfCommodity(SumOfCommodity
+                                                                        .newBuilder().build())
+                                                        .build())
+                                        .build();
+        TraderSettingsTO shoptogetherFalseTO =
+                        TraderSettingsTO.newBuilder().setIsShopTogether(false)
+                                        .setQuoteFunction(QuoteFunctionDTO.newBuilder()
+                                                        .setSumOfCommodity(SumOfCommodity
+                                                                        .newBuilder().build())
+                                                        .build())
+                                        .build();
         CommoditySpecificationTO cpuSpecTO =
                         CommoditySpecificationTO.newBuilder().setBaseType(0).setType(1).build();
         CommoditySpecificationTO bicliqueSpecTO =
@@ -78,7 +94,7 @@ public class PlacementIntegrationTest {
         // shop together vm should have shoptogether falg true and not buying biclique commodity
         TraderTO shopTogetherVMTO = TraderTO.newBuilder().setOid(12345)
                         .setType(55555).setState(TraderStateTO.ACTIVE)
-                        .setSettings(TraderSettingsTO.newBuilder().setIsShopTogether(true).build())
+                        .setSettings(shoptogetherTrueTO)
                         .addShoppingLists(ShoppingListTO.newBuilder()
                                         .setOid(11112).setMovable(true).setSupplier(34567)
                                         .addCommoditiesBought(cpuBoughtTO).build())
@@ -89,7 +105,7 @@ public class PlacementIntegrationTest {
         // non shop together vm should have flag false and buying bicliquc commodity
         TraderTO shopAloneVMTO = TraderTO.newBuilder().setOid(23456).setType(55555)
                         .setState(TraderStateTO.ACTIVE)
-                        .setSettings(TraderSettingsTO.newBuilder().setIsShopTogether(false).build())
+                        .setSettings(shoptogetherFalseTO)
                         .addShoppingLists(ShoppingListTO.newBuilder()
                                         .setOid(11113).setMovable(true).setSupplier(34567)
                                         .addCommoditiesBought(cpuBoughtTO)
@@ -101,22 +117,22 @@ public class PlacementIntegrationTest {
                         .build();
         TraderTO pm1TO = TraderTO.newBuilder().setOid(34567).setType(66666)
                         .setState(TraderStateTO.ACTIVE)
-                        .setSettings(TraderSettingsTO.newBuilder().setIsShopTogether(false).build())
+                        .setSettings(shoptogetherFalseTO)
                         .addCommoditiesSold(cpuSoldByPM1).addCommoditiesSold(bicliqueSoldTO)
                         .addCliques(0).build();
         TraderTO pm2TO = TraderTO.newBuilder().setOid(45678).setType(66666)
                         .setState(TraderStateTO.ACTIVE)
-                        .setSettings(TraderSettingsTO.newBuilder().setIsShopTogether(false).build())
+                        .setSettings(shoptogetherFalseTO)
                         .addCommoditiesSold(cpuSoldByPM2).addCommoditiesSold(bicliqueSoldTO)
                         .addCliques(0).build();
         TraderTO st1TO = TraderTO.newBuilder().setOid(56789).setType(77777)
                         .setState(TraderStateTO.ACTIVE)
-                        .setSettings(TraderSettingsTO.newBuilder().setIsShopTogether(false).build())
+                        .setSettings(shoptogetherFalseTO)
                         .addCommoditiesSold(storageSoldByST1).addCommoditiesSold(bicliqueSoldTO)
                         .addCliques(0).build();
         TraderTO st2TO = TraderTO.newBuilder().setOid(67890).setType(77777)
                         .setState(TraderStateTO.ACTIVE)
-                        .setSettings(TraderSettingsTO.newBuilder().setIsShopTogether(false).build())
+                        .setSettings(shoptogetherFalseTO)
                         .addCommoditiesSold(storageSoldByST2).addCommoditiesSold(bicliqueSoldTO)
                         .addCliques(0)
                         .build();

@@ -27,6 +27,7 @@ import com.google.common.primitives.Longs;
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.ede.ActionClassifier;
+import com.vmturbo.platform.analysis.economy.BalanceAccount;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.topology.Topology;
 
@@ -62,7 +63,8 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     private final @NonNull List<@NonNull Trader> shopTogetherTraders_ = new ArrayList<>();
     private final List<TraderTO> tradersForHeadroom_ = new ArrayList<>();
     private Topology topology_;
-    private float spent_ = 0;
+    // the map for user to  its balance account
+    private Map<Integer, BalanceAccount> balanceAccountMap = new HashMap<>();;
     // Cached data
 
     // Cached unmodifiable view of the markets_.values() collection.
@@ -765,15 +767,14 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
         return topology_;
     }
 
+    /**
+     * @return return the balance account map associates with this {@link Economy}
+     */
     @Override
-    public float getSpent() {
-        return spent_;
+    public Map<Integer, BalanceAccount> getBalanceAccountMap() {
+        return balanceAccountMap;
     }
 
-    @Override
-    public void setSpent(float spent) {
-        this.spent_ = spent;
-    }
 
     public Set<CommoditySpecification> getCommsToAdjustOverhead() {
         return commsToAdjustOverhead_;

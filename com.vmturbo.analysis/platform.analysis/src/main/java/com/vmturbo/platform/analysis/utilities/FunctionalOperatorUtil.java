@@ -1,5 +1,6 @@
 package com.vmturbo.platform.analysis.utilities;
 
+import com.vmturbo.platform.analysis.economy.BalanceAccount;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 
 public class FunctionalOperatorUtil {
@@ -17,16 +18,17 @@ public class FunctionalOperatorUtil {
     public static FunctionalOperator UPDATE_EXPENSES = (buyer, boughtIndex, commSold, seller,
                         economy, take)
                     -> {
+        BalanceAccount ba = buyer.getBuyer().getSettings().getBalanceAccount();
                         if (take) {
                             // updating the action spent when taking it
                             CommoditySold commSoldByCurrSeller = buyer.getSupplier() != null ? buyer.getSupplier()
                                             .getCommoditySold(buyer.getBasket().get(boughtIndex)) : null;
                             double currCost = commSoldByCurrSeller == null ? 0 : commSoldByCurrSeller.getQuantity();
-                            economy.setSpent((float)(economy.getSpent() - currCost + commSold.getQuantity()));
+                            ba.setSpent((float)(ba.getSpent() - currCost + commSold.getQuantity()));
                             // do not update the usedValues of the soldCommodities when the action is being taken
                             return new double[]{commSold.getQuantity(), commSold.getPeakQuantity()};
                         } else {
-                            return new double[]{economy.getSpent() - buyer.getQuantities()[boughtIndex] +
+                            return new double[]{ba.getSpent() - buyer.getQuantities()[boughtIndex] +
                                                 commSold.getQuantity(), 0};
                     }};
 

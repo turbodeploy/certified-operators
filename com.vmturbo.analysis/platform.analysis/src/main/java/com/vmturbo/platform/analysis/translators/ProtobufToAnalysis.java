@@ -19,6 +19,7 @@ import com.vmturbo.platform.analysis.actions.ProvisionByDemand;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
 import com.vmturbo.platform.analysis.actions.Reconfigure;
 import com.vmturbo.platform.analysis.actions.Resize;
+import com.vmturbo.platform.analysis.economy.BalanceAccount;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommodityResizeSpecification;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
@@ -30,22 +31,26 @@ import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderSettings;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
+import com.vmturbo.platform.analysis.pricefunction.QuoteFunction;
+import com.vmturbo.platform.analysis.pricefunction.QuoteFunctionFactory;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTopology;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTopology.CommodityRawMaterialEntry;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTopology.CommodityResizeDependency;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTopology.CommodityResizeDependencyEntry;
-import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.CommodityBoughtTO;
-import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.CommoditySoldSettingsTO;
-import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.CommoditySoldTO;
-import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.CommoditySpecificationTO;
+import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
+import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldSettingsTO;
+import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
+import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderStateTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO;
 import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO;
+import com.vmturbo.platform.analysis.protobuf.QuoteFunctionDTOs.QuoteFunctionDTO;
 import com.vmturbo.platform.analysis.topology.Topology;
+import com.vmturbo.platform.analysis.utilities.CostFunctionFactory;
 import com.vmturbo.platform.analysis.utilities.DoubleTernaryOperator;
 import com.vmturbo.platform.analysis.utilities.FunctionalOperator;
 import com.vmturbo.platform.analysis.utilities.FunctionalOperatorUtil;
@@ -270,7 +275,8 @@ public final class ProtobufToAnalysis {
      * @param source The {@link TraderSettingsTO} from which to get the settings.
      * @param destination The {@link TraderSettings} instance to put the settings to.
      */
-    public static void populateTraderSettings(@NonNull TraderSettingsTO source,
+    public static void populateTraderSettings(@NonNull Topology topology,
+                                              @NonNull TraderSettingsTO source,
                                               @NonNull TraderSettings destination) {
         destination.setCloneable(source.getClonable());
         destination.setSuspendable(source.getSuspendable());
@@ -280,8 +286,33 @@ public final class ProtobufToAnalysis {
         destination.setCanAcceptNewCustomers(source.getCanAcceptNewCustomers());
         destination.setIsEligibleForResizeDown(source.getIsEligibleForResizeDown());
         destination.setIsShopTogether(source.getIsShopTogether());
+        destination.setQuoteFunction(populateQuoteFunction(destination, source.getQuoteFunction()));
+        if (source.hasCost()) {
+            destination.setCostFunction(
+                            CostFunctionFactory.createCostFunction(source.getCost()));
+        }
+        if (source.hasBalanceAccount()) {
+            populateCloudSpent(topology, source, destination);
+        }
     }
 
+    /**
+     * Populates the {@link QuoteFunction} for each trader.
+     *
+     * @param quoteFunctionDTO The {@link QuoteFunctionDTO}
+     * @return QuoteFunction
+     */
+    public static QuoteFunction populateQuoteFunction(TraderSettings traderSettings,
+                    QuoteFunctionDTO quoteFunctionDTO) {
+        switch (quoteFunctionDTO.getQuoteFunctionTypeCase()) {
+            case SUM_OF_COMMODITY:
+                return QuoteFunctionFactory.sumOfCommodityQuoteFunction();
+            case RISK_BASED:
+                return QuoteFunctionFactory.budgetDepletionRiskBasedQuoteFunction();
+            default:
+                throw new IllegalArgumentException("input = " + quoteFunctionDTO);
+        }
+    }
     /**
      * Converts a {@link TraderStateTO} to a {@link TraderState} instance.
      *
@@ -312,7 +343,7 @@ public final class ProtobufToAnalysis {
         @NonNull Trader output = topology.addTrader(input.getOid(), input.getType(), traderState(input.getState()),
                                                     basketSold, input.getCliquesList());
         output.setDebugInfoNeverUseInCode(input.getDebugInfoNeverUseInCode());
-        populateTraderSettings(input.getSettings(), output.getSettings());
+        populateTraderSettings(topology, input.getSettings(), output.getSettings());
         output.setDebugEnabled(input.getDebugEnabled());
         for (CommoditySoldTO commoditySold : input.getCommoditiesSoldList()) {
             populateCommoditySold(commoditySold, output.getCommoditySold(commoditySpecification(commoditySold.getSpecification())));
@@ -439,8 +470,26 @@ public final class ProtobufToAnalysis {
 
     }
 
-    public static void populateCloudSpent (@NonNull EndDiscoveredTopology source,
-                    @NonNull Topology destination) {
-        destination.setSpent(source.getSpent());
+    /**
+     * Construct balance account map for a trader and save it in economy.
+     *
+     * @param topology the topology holding the economy
+     * @param source the TraderSettingsTO
+     * @param destination the TraderSettings to be created based on source
+     */
+    public static void populateCloudSpent(@NonNull Topology topology,
+                                          @NonNull TraderSettingsTO source,
+                                          @NonNull TraderSettings destination) {
+        BalanceAccount balanceAccount = topology.getEconomy().getBalanceAccountMap()
+                        .get(source.getBalanceAccount().getId());
+        if (balanceAccount == null) {
+            balanceAccount = new BalanceAccount(source.getBalanceAccount().getSpent(),
+                                                source.getBalanceAccount().getBudget(),
+                                                source.getBalanceAccount().getId());
+            topology.getEconomy().getBalanceAccountMap().put(balanceAccount.getId(),
+                                                             balanceAccount);
+        }
+        destination.setBalanceAccount(balanceAccount);
     }
+
 } // end ProtobufToAnalysis class

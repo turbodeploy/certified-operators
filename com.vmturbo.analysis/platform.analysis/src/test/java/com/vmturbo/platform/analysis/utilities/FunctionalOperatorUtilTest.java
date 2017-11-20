@@ -1,11 +1,11 @@
 package com.vmturbo.platform.analysis.utilities;
 
 import java.util.Arrays;
-
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.vmturbo.platform.analysis.economy.BalanceAccount;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -73,9 +73,8 @@ public class FunctionalOperatorUtilTest {
      */
     @Test
     public void testUpdateExpenses() {
-        economy.setSpent(200);
-
         Trader vm1 = TestUtils.createVM(economy);
+        vm1.getSettings().setBalanceAccount(new BalanceAccount(200, 0, 0));
         Trader pm1 = TestUtils.createTrader(economy, TestUtils.PM_TYPE, Arrays.asList(0L),
                         Arrays.asList(TestUtils.COST_COMMODITY), new double[] {100}, true, false);
         TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.COST_COMMODITY), vm1,
@@ -90,6 +89,7 @@ public class FunctionalOperatorUtilTest {
 
         double[] res2 = FunctionalOperatorUtil.UPDATE_EXPENSES.operate(sl3, 0,
                         pm1.getCommoditySold(TestUtils.COST_COMMODITY), null, economy, true);
+
         Assert.assertEquals(40, res2[0], epsilon);
         Assert.assertEquals(60, res2[1], epsilon);
     }

@@ -6,13 +6,13 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
 
 import com.vmturbo.platform.analysis.actions.Move;
-import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
-import com.vmturbo.platform.analysis.economy.CommoditySpecification;
+import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
+import com.vmturbo.platform.analysis.pricefunction.QuoteFunction;
 import com.vmturbo.platform.analysis.utilities.FunctionalOperator;
 import com.vmturbo.platform.analysis.utilities.FunctionalOperatorUtil;
 
@@ -41,39 +41,9 @@ public final class EdeCommon {
      */
     @Pure
     public static double[] quote(@NonNull UnmodifiableEconomy economy, @NonNull ShoppingList shoppingList,
-            @NonNull Trader seller, final double bestQuoteSoFar, boolean forTraderIncomeStmt) {
-        // TODO (Apostolos): we have not dealt with equivalent commodities
-        double quote[] = {0.0, 0.0, 0.0};
-        Basket basket = shoppingList.getBasket();
-        // go over all commodities in basket
-        int boughtIndex = 0;
-        for (int soldIndex = 0; boughtIndex < basket.size()
-                && quote[0] < bestQuoteSoFar && Double.isFinite(quote[0]); boughtIndex++, soldIndex++) {
-            CommoditySpecification basketCommSpec = basket.get(boughtIndex);
-
-            // Find corresponding commodity sold. Commodities sold are ordered the same way as the
-            // basket commodities, so iterate once (O(N)) as opposed to searching each time (O(NLog(N))
-            while (!basketCommSpec.isSatisfiedBy(seller.getBasketSold().get(soldIndex))) {
-                soldIndex++;
-            }
-
-            double[] tempQuote = computeCommodityCost(economy, shoppingList, seller, soldIndex, boughtIndex, forTraderIncomeStmt);
-            quote[0] += tempQuote[0];
-            if (forTraderIncomeStmt) {
-                quote[1] += tempQuote[1];
-                quote[2] += tempQuote[2];
-            }
-        }
-        if (seller.isDebugEnabled()) {
-            if(shoppingList.getSupplier() == seller) {
-                if(Double.isInfinite(quote[0])) {
-                    CommoditySpecification basketCommSpec = basket.get(boughtIndex-1);
-                    logger.info("{" + shoppingList.getBuyer().getDebugInfoNeverUseInCode()
-                                    + "} The commodity causing the infinite quote: " + basketCommSpec.getDebugInfoNeverUseInCode());
-                }
-            }
-        }
-        return quote;
+                    @NonNull Trader seller, final double bestQuoteSoFar, boolean forTraderIncomeStmt) {
+        return seller.getSettings().getQuoteFunction().calculateQuote(shoppingList, seller, bestQuoteSoFar,
+                        forTraderIncomeStmt, (Economy)economy);
     }
 
     /**

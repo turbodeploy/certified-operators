@@ -17,6 +17,15 @@ import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
+import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ResourceBundleCostDTO;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ResourceBundleCostDTO.PriceData;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ResourceBundleCostDTO.ResourceCost;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ResourceBundleCostDTO.ResourceDependency;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ResourceBundleCostDTO.ResourceLimitation;
+import com.vmturbo.platform.analysis.utilities.CostFunction;
+import com.vmturbo.platform.analysis.utilities.CostFunctionFactory;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 import com.vmturbo.platform.analysis.economy.CommoditySoldSettings;
 import com.vmturbo.platform.analysis.utilities.M2Utils;
@@ -33,6 +42,7 @@ public class TestUtils {
     public static final int ST_TYPE = 2;
     public static final int VDC_TYPE = 3;
     public static final int APP_TYPE = 4;
+    public static final int IOPS_TYPE = 5;
 
     // CommoditySpecifications to use in tests
     public static final CommoditySpecification CPU = new CommoditySpecification(0);
@@ -43,6 +53,14 @@ public class TestUtils {
     public static final CommoditySpecification VCPU = new CommoditySpecification(5);
     public static final CommoditySpecification VMEM = new CommoditySpecification(6);
     public static final CommoditySpecification COST_COMMODITY = new CommoditySpecification(7);
+    public static final CommoditySpecification IOPS = new CommoditySpecification(8);
+
+    public static final CommoditySpecificationTO iopsTO =
+                    CommoditySpecificationTO.newBuilder().setBaseType(TestUtils.IOPS.getBaseType())
+                                    .setType(TestUtils.IOPS.getType()).build();
+    public static final CommoditySpecificationTO stAmtTO = CommoditySpecificationTO.newBuilder()
+                    .setBaseType(TestUtils.ST_AMT.getBaseType()).setType(TestUtils.ST_AMT.getType())
+                    .build();
 
     /**
      * @param economy - Economy where you want to create a trader.
@@ -210,5 +228,93 @@ public class TestUtils {
         Map<Integer, List<Integer>> rawMaterialMap = economy.getModifiableRawCommodityMap();
         rawMaterialMap.put(TestUtils.VCPU.getType(), Arrays.asList(TestUtils.CPU.getType()));
         rawMaterialMap.put(TestUtils.VMEM.getType(), Arrays.asList(TestUtils.MEM.getType()));
+    }
+
+    public static CostFunction setUpGP2CostFunction() {
+        // create cost function DTO for gp2
+        ResourceDependency dependencyDTO =
+                        ResourceDependency.newBuilder().setBaseResourceType(stAmtTO)
+                                        .setDependentResourceType(iopsTO).setRatio(3).build();
+        PriceData stAmtPriceDTO = PriceData.newBuilder().setUpperBound(Double.POSITIVE_INFINITY)
+                        .setIsUnitPrice(true).setIsAccumulativeCost(false).setPrice(0.10).build();
+        ResourceCost stAmtCostDTO = ResourceCost.newBuilder().setResourceType(stAmtTO)
+                        .addPriceData(stAmtPriceDTO).build();
+        CostDTO costDTO = CostDTO.newBuilder()
+                        .setResourceBundleCost(ResourceBundleCostDTO.newBuilder()
+                                               .addResourceCost(stAmtCostDTO)
+                                               .addResourceLimitation(ResourceLimitation.newBuilder()
+                                               .setResourceType(stAmtTO).setMaxCapacity(16 * 1024)
+                                               .setMinCapacity(1).build())
+                                               .addResourceLimitation(ResourceLimitation.newBuilder()
+                                               .setResourceType(iopsTO).setMaxCapacity(10000)
+                                               .setMinCapacity(100).build())
+                                               .addResourceDependency(dependencyDTO).build())
+                        .build();
+        return CostFunctionFactory.createCostFunction(costDTO);
+    }
+
+    public static CostFunction setUpIO1CostFunction() {
+        // create cost function DTO for io1
+        ResourceDependency dependencyDTO =
+                        ResourceDependency.newBuilder().setBaseResourceType(stAmtTO)
+                                        .setDependentResourceType(iopsTO).setRatio(50).build();
+        PriceData stAmtPriceDTO = PriceData.newBuilder().setUpperBound(Double.POSITIVE_INFINITY)
+                        .setIsUnitPrice(true).setIsAccumulativeCost(false).setPrice(0.125).build();
+        PriceData iopsPriceDTO = PriceData.newBuilder().setUpperBound(Double.POSITIVE_INFINITY)
+                        .setIsUnitPrice(true).setIsAccumulativeCost(false).setPrice(0.065).build();
+        ResourceCost stAmtCostDTO = ResourceCost.newBuilder().setResourceType(stAmtTO)
+                        .addPriceData(stAmtPriceDTO).build();
+        ResourceCost iopsCostDTO = ResourceCost.newBuilder().setResourceType(iopsTO)
+                        .addPriceData(iopsPriceDTO).build();
+        CostDTO costDTO = CostDTO.newBuilder()
+                        .setResourceBundleCost(ResourceBundleCostDTO.newBuilder()
+                                               .addResourceCost(stAmtCostDTO)
+                                               .addResourceCost(iopsCostDTO)
+                                               .addResourceLimitation(ResourceLimitation.newBuilder()
+                                               .setResourceType(stAmtTO).setMaxCapacity(16 * 1024)
+                                               .setMinCapacity(4).build())
+                                               .addResourceLimitation(ResourceLimitation.newBuilder()
+                                               .setResourceType(iopsTO).setMaxCapacity(20000)
+                                               .setMinCapacity(100).build())
+                                               .addResourceDependency(dependencyDTO).build())
+                        .build();
+        return CostFunctionFactory.createCostFunction(costDTO);
+    }
+
+    public static CostFunction setUpPremiumManagedCostFunction() {
+        // create cost function DTO for azure premium managed storage
+        PriceData stAmt32GBPriceDTO = PriceData.newBuilder().setUpperBound(32).setIsUnitPrice(false)
+                        .setIsAccumulativeCost(false).setPrice(5.28).build();
+        PriceData stAmt64GBPriceDTO = PriceData.newBuilder().setUpperBound(64).setIsUnitPrice(false)
+                        .setIsAccumulativeCost(false).setPrice(10.21).build();
+        ResourceCost stAmtDTO = ResourceCost.newBuilder().setResourceType(stAmtTO)
+                        .addPriceData(stAmt32GBPriceDTO).addPriceData(stAmt64GBPriceDTO).build();
+        CostDTO costDTO = CostDTO.newBuilder()
+                        .setResourceBundleCost(ResourceBundleCostDTO.newBuilder()
+                                               .addResourceCost(stAmtDTO)
+                                               .addResourceLimitation(ResourceLimitation.newBuilder()
+                                               .setResourceType(stAmtTO).setMaxCapacity(4 * 1024)
+                                               .setMinCapacity(1).build()).build())
+                        .build();
+        return CostFunctionFactory.createCostFunction(costDTO);
+    }
+
+    public static CostFunction setUpStandardUnmanagedCostFunction() {
+        // create cost function DTO for azure standard unmanaged storage
+        PriceData stAmtLRS1TBPriceDTO = PriceData.newBuilder().setUpperBound(1024)
+                        .setIsAccumulativeCost(true).setIsUnitPrice(true).setPrice(0.05).build();
+        PriceData stAmtLRS50TBPriceDTO = PriceData.newBuilder().setUpperBound(1024 * 50)
+                        .setIsAccumulativeCost(true).setIsUnitPrice(true).setPrice(0.10).build();
+        ResourceCost resourceCostDTO = ResourceCost.newBuilder().setResourceType(stAmtTO)
+                        .addPriceData(stAmtLRS1TBPriceDTO).addPriceData(stAmtLRS50TBPriceDTO)
+                        .build();
+        CostDTO costDTO = CostDTO.newBuilder()
+                        .setResourceBundleCost(ResourceBundleCostDTO.newBuilder()
+                                               .addResourceCost(resourceCostDTO)
+                                               .addResourceLimitation(ResourceLimitation.newBuilder()
+                                               .setResourceType(stAmtTO).setMaxCapacity(4 * 1024)
+                                               .setMinCapacity(1).build()).build())
+                        .build();
+        return CostFunctionFactory.createCostFunction(costDTO);
     }
 }

@@ -10,7 +10,6 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
 import org.checkerframework.dataflow.qual.SideEffectFree;
 
-import com.vmturbo.platform.analysis.utilities.DoubleTernaryOperator;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 
 /**
@@ -219,8 +218,9 @@ public interface UnmodifiableEconomy {
      */
     List<TraderTO> getTradersForHeadroom();
 
-    public @PolyRead float getSpent();
-
-    public void setSpent(float f);
+    /**
+     * @return balance account map associates with the {@link Economy}
+     */
+    Map<Integer, BalanceAccount> getBalanceAccountMap();
 
 } // end UnmodifiableEconomy interface

@@ -22,9 +22,9 @@ import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 
 import com.vmturbo.platform.analysis.topology.Topology;
-import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.CommodityBoughtTO;
-import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.CommoditySoldTO;
-import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.CommoditySpecificationTO;
+import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
+import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
+import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderStateTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;

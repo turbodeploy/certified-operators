@@ -2,6 +2,9 @@ package com.vmturbo.platform.analysis.economy;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
 
+import com.vmturbo.platform.analysis.pricefunction.QuoteFunction;
+import com.vmturbo.platform.analysis.utilities.CostFunction;
+
 /**
  * The settings associated with and controlling the behavior of a single {@link Trader}.
  */
@@ -61,6 +64,22 @@ public interface TraderSettings {
      * Whether the associated {@link Trader} should shop together or not.
      */
     boolean isShopTogether();
+
+    /**
+     * Returns the associated {@link CostFunction} if there is any.
+     */
+    CostFunction getCostFunction();
+
+    /**
+     * Returns the associated {@link QuoteFunction}.
+     */
+    QuoteFunction getQuoteFunction();
+
+    /**
+     * Returns the associated balance account with trader.
+     *
+     */
+    BalanceAccount getBalanceAccount();
 
     /**
      * Sets the value of the <b>suspendable</b> field.
@@ -160,4 +179,19 @@ public interface TraderSettings {
      */
     @NonNull
     TraderSettings setIsShopTogether(boolean isShopTogether);
+
+    /**
+     * Sets the {@link CostFunction} for a trader.
+     */
+    void setCostFunction(CostFunction costFunction);
+
+    /**
+     * Sets the {@link QuoteFunction} for a trader.
+     */
+    void setQuoteFunction(QuoteFunction quoteFunction);
+
+    /**
+     * Sets the {@link BalanceAccount} with a trader
+     */
+    void setBalanceAccount(BalanceAccount balanceAccount);
 } // end TraderSettings interface

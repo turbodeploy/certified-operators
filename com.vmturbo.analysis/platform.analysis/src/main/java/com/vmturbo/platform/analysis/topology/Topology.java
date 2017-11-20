@@ -330,8 +330,4 @@ public final class Topology implements Serializable {
         return economy_.getCommsToAdjustOverhead().add(cs);
     }
 
-    public void setSpent (float cloudSpent) {
-        economy_.setSpent(cloudSpent);
-    }
-
 } // end Topology class

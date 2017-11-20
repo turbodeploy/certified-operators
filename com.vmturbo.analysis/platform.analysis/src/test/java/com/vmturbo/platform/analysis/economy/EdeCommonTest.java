@@ -4,12 +4,17 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import com.vmturbo.platform.analysis.ede.EdeCommon;
+import com.vmturbo.platform.analysis.pricefunction.QuoteFunctionFactory;
+import com.vmturbo.platform.analysis.testUtilities.TestUtils;
+import com.vmturbo.platform.analysis.utilities.CostFunction;
 import com.vmturbo.platform.analysis.utilities.FunctionalOperator;
 import com.vmturbo.platform.analysis.utilities.FunctionalOperatorUtil;
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
 import junitparams.naming.TestCaseName;
 import static org.junit.Assert.*;
+
+import java.util.Arrays;
 
 /**
  * A test case for the {@link Basket} class.
@@ -143,5 +148,32 @@ public class EdeCommonTest {
         assertTrue(isCorrect != qInf);
     }
 
+    /**
+     * Case: vm1 requests 100GB and 200 iops and it is on io1.
+     * Expected: vm1's gets cheaper quote from gp2
+     */
+    @Test
+    public void testQuote() {
+        Economy economy = new Economy();
+        CostFunction io1CostFunc = TestUtils.setUpIO1CostFunction();
+        CostFunction gp2CostFunc = TestUtils.setUpGP2CostFunction();
+        Trader gp2 = TestUtils.createTrader(economy, TestUtils.ST_TYPE, Arrays.asList(4l),
+                        Arrays.asList(TestUtils.ST_AMT, TestUtils.IOPS),
+                        new double[] {16 * 1024, 10000}, true, false);
+        gp2.getSettings().setQuoteFunction(
+                        QuoteFunctionFactory.budgetDepletionRiskBasedQuoteFunction());
+        gp2.getSettings().setCostFunction(gp2CostFunc);
+        Trader io1 = TestUtils.createStorage(economy, Arrays.asList(0l), 4, false);
+        io1.getSettings().setCostFunction(io1CostFunc);
+        Trader vm1 = TestUtils.createVM(economy);
+        vm1.getSettings().setBalanceAccount(new BalanceAccount(200, 2000, 0));
+        ShoppingList sl1 = TestUtils.createAndPlaceShoppingList(economy,
+                        Arrays.asList(TestUtils.ST_AMT, TestUtils.IOPS), vm1,
+                        new double[] {100, 200}, gp2);
+        assertTrue(EdeCommon.quote(economy, sl1, gp2, Double.POSITIVE_INFINITY,
+                        false)[0] < EdeCommon.quote(economy, sl1, io1, Double.POSITIVE_INFINITY,
+                                        false)[0]);
+
+    }
 
 } // end class QuoteTest

@@ -44,7 +44,7 @@ import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionByDemandTO.Com
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionBySupplyTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ReconfigureTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ResizeTO;
-import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.CommoditySpecificationTO;
+import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.topology.Topology;
 
 import junitparams.JUnitParamsRunner;

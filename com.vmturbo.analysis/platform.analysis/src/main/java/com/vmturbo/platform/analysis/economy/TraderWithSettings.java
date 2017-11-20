@@ -7,11 +7,17 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import javax.annotation.Nullable;
+
 import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Deterministic;
 import org.checkerframework.dataflow.qual.Pure;
+
+import com.vmturbo.platform.analysis.pricefunction.QuoteFunction;
+import com.vmturbo.platform.analysis.pricefunction.QuoteFunctionFactory;
+import com.vmturbo.platform.analysis.utilities.CostFunction;
 
 final class TraderWithSettings extends Trader implements TraderSettings {
     // Internal fields
@@ -27,6 +33,10 @@ final class TraderWithSettings extends Trader implements TraderSettings {
     private boolean isShopTogether_ = false;
     private double maxDesiredUtilization_ = 1.0;
     private double minDesiredUtilization_ = 0.0;
+    @Nullable private CostFunction costFunction_ = null;
+    // default quote function is sum of commodity
+    private QuoteFunction quoteFunction_ = QuoteFunctionFactory.sumOfCommodityQuoteFunction();
+    private BalanceAccount balanceAccount_;
 
     // Constructors
 
@@ -191,5 +201,37 @@ final class TraderWithSettings extends Trader implements TraderSettings {
     public @NonNull TraderSettings setIsShopTogether(boolean isShopTogether) {
         isShopTogether_ = isShopTogether;
         return this;
+    }
+
+    @Override
+    public CostFunction getCostFunction() {
+        return costFunction_;
+    }
+
+    @Override
+    public void setCostFunction(CostFunction costFunction) {
+        costFunction_ = costFunction;
+
+    }
+
+    @Override
+    public QuoteFunction getQuoteFunction() {
+        return quoteFunction_;
+    }
+
+    @Override
+    public void setQuoteFunction(QuoteFunction quoteFunction) {
+        quoteFunction_ = quoteFunction;
+
+    }
+
+    @Override
+    public void setBalanceAccount(BalanceAccount balanceAccount) {
+        balanceAccount_ = balanceAccount;
+    }
+
+    @Override
+    public BalanceAccount getBalanceAccount() {
+        return balanceAccount_;
     }
 } // end TraderWithSettings class
