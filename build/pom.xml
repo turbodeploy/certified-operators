@@ -98,7 +98,7 @@
 
         <arangodb.version>3.0.ON</arangodb.version>
         <arangodb.driver.version>4.2.6</arangodb.driver.version>
-        <kafka.version>0.11.0.1</kafka.version>
+        <kafka.version>0.11.0.2</kafka.version>
 
         <st4.version>4.0.8</st4.version>
         <failsafe.version>2.19.1</failsafe.version>

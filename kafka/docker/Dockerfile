@@ -2,7 +2,7 @@ FROM ubuntu:17.04
 MAINTAINER Pavel Baranchikov <pavel.baranchikov@turbonomic.com>
 
 # This is the release of Kafka and Scala to pull in.
-ENV KAFKA_VERSION=0.11.0.1
+ENV KAFKA_VERSION=0.11.0.2
 ENV SCALA_VERSION=2.11
 
 # Create a kafka user and group first so the IDs get set the same way, even as
