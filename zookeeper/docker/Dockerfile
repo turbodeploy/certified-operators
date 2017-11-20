@@ -15,7 +15,7 @@ COPY start_zookeeper /
 RUN apt-get update -q -y && apt-get upgrade -q -y && \
     apt-get install -q -y openjdk-8-jdk iproute2 wget bash rsyslog && \
     cd /tmp && \
-    wget --quiet http://apache-mirror.rbc.ru/pub/apache/zookeeper/zookeeper-${ZOOKEEPER_VERSION}/zookeeper-${ZOOKEEPER_VERSION}.tar.gz && \
+    wget --quiet --no-check-certificate https://10.10.150.66/repository/xl/zookeeper-${ZOOKEEPER_VERSION}.tar.gz && \
     tar -C /opt -xvf zookeeper-${ZOOKEEPER_VERSION}.tar.gz && \
     ln -s zookeeper-${ZOOKEEPER_VERSION} /opt/zookeeper && \
     rm zookeeper-${ZOOKEEPER_VERSION}.tar.gz && \

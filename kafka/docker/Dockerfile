@@ -16,7 +16,7 @@ COPY start-kafka /
 RUN apt-get update -q -y && apt-get upgrade -q -y && \
     apt-get install -q -y openjdk-8-jdk iproute2 wget bash rsyslog && \
     cd /tmp && \
-    wget -q -O kafka.tgz  http://mirror.linux-ia64.org/apache/kafka/${KAFKA_VERSION}/kafka_${SCALA_VERSION}-${KAFKA_VERSION}.tgz && \
+    wget -q --no-check-certificate -O kafka.tgz  https://10.10.150.66/repository/xl/kafka_${SCALA_VERSION}-${KAFKA_VERSION}.tgz && \
     tar -C /opt -xvf kafka.tgz && \
     ln -s kafka_${SCALA_VERSION}-${KAFKA_VERSION} /opt/kafka && \
     rm kafka.tgz && \
