@@ -1,6 +1,7 @@
 syntax = "proto2";
 package com.vmturbo.platform.analysis.protobuf;
 
+import "CommodityDTOs.proto";
 import "EconomyDTOs.proto";
 
 // More information may be added to any or all the messages below to facilitate construction of

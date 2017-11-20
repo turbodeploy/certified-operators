@@ -2,6 +2,7 @@ syntax = "proto2";
 package com.vmturbo.platform.analysis.protobuf;
 
 import "ActionDTOs.proto";
+import "CommodityDTOs.proto";
 import "EconomyDTOs.proto";
 import "UpdatingFunctionDTOs.proto";
 import "PriceIndexDTOs.proto";
@@ -33,6 +34,7 @@ message StartDiscoveredTopology {
 
     // The flag to indicate if this analysis run is for realtime
     required bool realTime = 4;
+
 }
 
 // The message to force a running plan to stop
@@ -97,8 +99,6 @@ message EndDiscoveredTopology {
     optional bool enableResize = 6;
     // specifies what commodities to allow overhead for in clones
     repeated CommoditySpecificationTO commToAllowOverheadInClone = 7;
-    // cloud spent
-    required float spent = 8 [default = 0];
 }
 
 // A compound message to encapsulate any one of command messages.

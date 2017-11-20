@@ -1,8 +1,10 @@
 syntax = "proto2";
 package com.vmturbo.platform.analysis.protobuf;
 
-import "PriceFunctionDTOs.proto";
-import "UpdatingFunctionDTOs.proto";
+import "CommodityDTOs.proto";
+import "QuoteFunctionDTOs.proto";
+import "CostDTOs.proto";
+import "BalanceAccountDTOs.proto";
 
 // The settings associated with the Economy.
 // The acceptable commodity utilization range used in resize engage criteria.
@@ -31,99 +33,6 @@ message EconomySettingsTO {
     required float quote_factor = 7 [default = 0.75];
 }
 
-// A detailed, exact statement of particulars about a commodity a buyer needs to buy (but may not be
-// currently buying) or a seller is able to sell (but may not be currently selling).
-message CommoditySpecificationTO {
-    // The type of the commodity provided or requested. e.g. CPU or Memory. Using an int32 instead
-    // of an enum keeps us agnostic and lets us support all types that may be added in the future.
-    required int32 type = 1;
-
-    // The base type of the commodity. This does not include information about the subtype that
-    // is part of the type field above.
-    required int32 base_type = 2;
-
-    // Two commodities (one bought and one sold) will match iff their types are the same and their
-    // quality ranges overlap. This may be used e.g. to match a VM that needs 4 cores with a host
-    // that sells 1-8 cores, for storage tiers, or to encode keys if the ranges only contain one
-    // element.
-
-    // The lower bound on the quality provided or requested.
-    optional int32 quality_lower_bound = 3;
-
-    // The upper bound on the quality provided or requested. The default is intended to be
-    // Integer.MAX_VALUE. The relationship quality_lower_bound <= quality_upper_bound must hold.
-    optional int32 quality_upper_bound = 4 [default = 2147483647];
-
-    // The field contains info about commodity's eclass and key, it is used for debugging only
-    optional string debug_info_never_use_in_code = 5;
-}
-
-// A commodity that is bought or needs to be bought by a particular buyer from a particular seller
-// as part of a particular shopping list. It includes the amount(s) bought or requested.
-message CommodityBoughtTO {
-    // Defines the type and quality that needs to be bought.
-    required CommoditySpecificationTO specification = 1;
-
-    // The quantity that is currently bought or needs to be bought.
-    optional float quantity = 2;
-
-    // The peak quantity that is currently bought or needs to be bought. The relationship
-    // quantity <= peak_quantity must hold.
-    optional float peak_quantity = 3;
-}
-
-// The settings associated with and controlling the behavior of a single commodity sold.
-message CommoditySoldSettingsTO {
-    // Whether the analysis engine is allowed to change the commodity's  capacity.
-    optional bool resizable = 1;
-
-    // The lowest value the analysis engine can resize the capacity to.
-    optional float capacity_lower_bound = 2;
-
-    // The highest value the analysis engine can resize the capacity to. The default is intended to
-    // be Double.MAX_VALUE. The relationship capacity_lower_bound <= capacity_upper_bound must hold.
-    optional float capacity_upper_bound = 3 [default = 3.402823e+38];
-
-    // When the analysis engine resizes a commodity sold's capacity, the new value must be an
-    // integer multiple of this value.
-    optional float capacity_increment = 4 [default = 1.0];
-
-    // The analysis engine should produce actions to prevent utilization above this limit.
-    optional float utilization_upper_bound = 5 [default = 1.0];
-
-    // A function from quantity sold to the price charged for this quantity.
-    optional PriceFunctionTO price_function = 6;
-
-    // A function from comm sold to the method used to update its quantity.
-    optional UpdatingFunctionTO update_function = 7;
-}
-
-// A commodity sold by a single trader. It includes the quantity(s) sold and a number of settings.
-message CommoditySoldTO {
-    // Defines the type and quality that are offered.
-    optional CommoditySpecificationTO specification = 1;
-
-    // The quantity that is currently sold.
-    optional float quantity = 2;
-
-    // The peak quantity that is currently sold.
-    optional float peak_quantity = 3;
-
-    // The max quantity sold.
-    optional float max_quantity = 4;
-
-    // The maximum quantity and peak quantity that can potentially be sold. The default is intended
-    // to be Double.MAX_VALUE.
-    optional float capacity = 5 [default = 3.402823e+38];
-
-    // Whether this commodity is thin provisioned. This is related to
-    // <a href="https://en.wikipedia.org/wiki/Thin_provisioning">thin provisioning</a>.
-    optional bool thin = 6;
-
-    // The settings associated with and controlling the behavior of this commodity sold.
-    optional CommoditySoldSettingsTO settings = 7;
-}
-
 // A list of commodities that must be bought from the same provider, with some additional information.
 message ShoppingListTO {
     // The unique identifier of this shopping list. Used to control individual volumes.
@@ -142,6 +51,7 @@ message ShoppingListTO {
 
     // The cost of moving a shopping list to a new storage. Used for VM and Container shopping lists
     optional float storage_move_cost = 5;
+
 }
 
 // A group of parameters effecting how a trader will be treated by the analysis engine.
@@ -168,6 +78,15 @@ message TraderSettingsTO {
 
     // This field specifies if a trader should shop together or not
     optional bool isShopTogether = 8;
+
+	// This field specifies which function to use for computing quote
+    optional QuoteFunctionDTO quote_function = 9;
+
+    // This field contains data needed for building cost function
+    optional CostDTO cost = 10;
+
+    // This field refers to the balance account that the trader associated with
+    optional BalanceAccountDTO balance_account = 11;
 }
 
 // The different states a trader can be in. The intention is to make this a boolean once we confirm
@@ -218,4 +137,5 @@ message TraderTO {
 
     // This field specifies whether we will print debug info for a trader
     optional bool debugEnabled = 12 [default = false];
+
 }

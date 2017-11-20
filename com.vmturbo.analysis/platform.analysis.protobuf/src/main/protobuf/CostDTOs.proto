@@ -1,0 +1,43 @@
+syntax = "proto2";
+package com.vmturbo.platform.analysis.protobuf;
+
+import "CommodityDTOs.proto";
+
+// A message to help build up the cloud cost information
+message CostDTO {
+    // the type of cost DTO that will be used to create cost function
+    oneof cost_type {
+       ResourceBundleCostDTO resource_bundle_cost = 1;
+    }
+    // the DTOs specifically define cost for cloud storages
+    message ResourceBundleCostDTO {
+        // the commodity specification to min and max capacity limitation mapping
+        message ResourceLimitation {
+            optional CommoditySpecificationTO resource_type = 1;
+            optional double min_capacity = 2;
+            optional double max_capacity = 3;
+        }
+        // the commodity specification and its price data list
+        message ResourceCost {
+            required CommoditySpecificationTO resource_type = 1;
+            repeated PriceData price_data = 2;
+        }
+        // the price information
+        message PriceData {
+            optional double upper_bound = 1; // the commodity amount upper bound
+            optional double price = 2; // the price
+            optional bool is_unit_price = 3; // if the price is unit price or total price
+            optional bool is_accumulative_cost = 4; // if the cost should be accumulated
+        }
+        // the dependency commodity and its base commodity and the max ratio between dependent
+        // commodity's capacity and base commodity's capacity
+        message ResourceDependency {
+            required CommoditySpecificationTO base_resource_type = 1;
+            required CommoditySpecificationTO dependent_resource_type = 2;
+            required int32 ratio = 3;
+        }
+        repeated ResourceCost resource_cost = 1; // a list of commodity's pricing information
+        repeated ResourceLimitation resource_limitation = 2;// a list of commodity's capacity limitation
+        repeated ResourceDependency resource_dependency = 3; // a list of dependency information
+    }
+}

@@ -1,0 +1,22 @@
+syntax = "proto2";
+package com.vmturbo.platform.analysis.protobuf;
+
+import "CostDTOs.proto";
+
+// The message to indicate which function should be used to compute the quote
+message QuoteFunctionDTO {
+    // The function which considers the sum of each commodity's price times
+    // requested amount of that commodity from the buyer
+    message SumOfCommodity {
+    }
+    // The function which considers a bundle of commodities cost.
+    message RiskBased {
+        optional CostDTO cloud_cost = 1;// the DTO used to construct the cloud cost information
+    }
+
+    // Which one of the available functions this message contains.
+    oneof quote_function_type {
+       SumOfCommodity sum_of_commodity = 1;
+       RiskBased risk_based = 2;
+    }
+}
