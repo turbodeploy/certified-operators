@@ -42,18 +42,18 @@ public class SettingConfig {
     private long realtimeTopologyContextId;
 
     @Bean
-    public FileBasedSettingsSpecStore settingSpecsSource() {
+    public FileBasedSettingsSpecStore settingSpecsStore() {
         return new FileBasedSettingsSpecStore(settingSpecJsonFile);
     }
 
     @Bean
     public SettingPolicyValidator settingPolicyValidator() {
-        return new DefaultSettingPolicyValidator(settingSpecsSource(), arangoDBConfig.groupStore());
+        return new DefaultSettingPolicyValidator(settingSpecsStore(), arangoDBConfig.groupStore());
     }
 
     @Bean
     public SettingStore settingStore() {
-        return new SettingStore(settingSpecsSource(), databaseConfig.dsl(),
+        return new SettingStore(settingSpecsStore(), databaseConfig.dsl(),
                 identityProviderConfig.identityProvider(), settingPolicyValidator(),
                 createDefaultSettingPolicyRetryIntervalSec, TimeUnit.SECONDS);
     }
@@ -65,7 +65,7 @@ public class SettingConfig {
 
     @Bean
     public SettingRpcService settingService() {
-        return new SettingRpcService(settingSpecsSource());
+        return new SettingRpcService(settingSpecsStore());
     }
 
     @Bean
@@ -75,7 +75,7 @@ public class SettingConfig {
 
     @Bean
     public SettingPolicyRpcService settingPolicyService() {
-        return new SettingPolicyRpcService(settingStore(), settingSpecsSource(),
+        return new SettingPolicyRpcService(settingStore(), settingSpecsStore(),
                 entitySettingStore());
     }
 

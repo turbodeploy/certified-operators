@@ -358,8 +358,7 @@ public class SettingsMapper {
                                 " not found in the specs given to the mapper.");
                     }
                     return toProtoSetting(settingApiDto, spec);
-                }).forEach(setting -> infoBuilder.putSettings(
-                        setting.getSettingSpecName(),
+                }).forEach(setting -> infoBuilder.addSettings(
                         setting));
         }
 
@@ -502,7 +501,8 @@ public class SettingsMapper {
             final SettingsManagerMapping managerMapping = mapper.getManagerMapping();
 
             // Do the actual settings mapping.
-            final Map<String, List<Setting>> settingsByMgr = info.getSettingsMap().values().stream()
+            final Map<String, List<Setting>> settingsByMgr = info.getSettingsList()
+                    .stream()
                     .collect(Collectors.groupingBy(setting ->
                             managerMapping.getManagerUuid(setting.getSettingSpecName())
                                     .orElse(NO_MANAGER)));

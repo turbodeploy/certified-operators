@@ -76,7 +76,7 @@ public class SettingPolicyRpcServiceTest {
 
     private SettingPolicyInfo settingPolicyInfo = SettingPolicyInfo.newBuilder()
             .setName("name")
-            .putSettings(settingSpec.getName(), Setting.newBuilder()
+            .addSettings(Setting.newBuilder()
                     .setSettingSpecName(settingSpec.getName())
                     .setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(true))
                     .build())
@@ -496,7 +496,7 @@ public class SettingPolicyRpcServiceTest {
         EntitySettings es =
             EntitySettings.newBuilder()
                 .setEntityOid(1234)
-                .putAllUserSettings(settingPolicyInfo.getSettingsMap())
+                .addAllUserSettings(settingPolicyInfo.getSettingsList())
             .build();
 
         List<EntitySettings> esList = new LinkedList<>();

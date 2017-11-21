@@ -235,8 +235,8 @@ public class SettingStoreTest {
     public void testUpdateDefaultSettingPolicy() throws Exception {
         final String settingName = "set me";
         final SettingPolicyInfo updatedInfo = info.toBuilder()
-            .putSettings(settingName, Setting.newBuilder()
-                    .setSettingSpecName("set me")
+            .addSettings(Setting.newBuilder()
+                    .setSettingSpecName(settingName)
                     .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance())
                     .build())
             .build();
@@ -499,7 +499,7 @@ public class SettingStoreTest {
         assertEquals(true, info.getEnabled());
         assertFalse(info.hasScope());
         assertEquals(2, info.getSettingsCount());
-        assertThat(info.getSettingsMap().values(), containsInAnyOrder(setting1, setting2));
+        assertThat(info.getSettingsList(), containsInAnyOrder(setting1, setting2));
 
         // Make sure the produced setting policy infos pass validation.
         // Technically this means if there's a bug in the validator this test
@@ -542,7 +542,7 @@ public class SettingStoreTest {
         assertEquals(true, info1.getEnabled());
         assertFalse(info1.hasScope());
         assertEquals(1, info1.getSettingsCount());
-        assertEquals(setting1, info1.getSettingsOrThrow(setting1.getSettingSpecName()));
+        assertEquals(setting1, info1.getSettings(0));
 
         final SettingPolicyInfo info2 = defaultPolicyInfos.get(2);
         assertEquals("STORAGE Defaults", info2.getName());
@@ -550,7 +550,7 @@ public class SettingStoreTest {
         assertEquals(true, info2.getEnabled());
         assertFalse(info2.hasScope());
         assertEquals(1, info2.getSettingsCount());
-        assertEquals(setting1, info2.getSettingsOrThrow(setting1.getSettingSpecName()));
+        assertEquals(setting1, info2.getSettings(0));
 
         // Make sure the produced setting policy infos pass validation.
         // Technically this means if there's a bug in the validator this test
@@ -572,7 +572,6 @@ public class SettingStoreTest {
                 .build())))
             .thenReturn(Stream.empty());
 
-        final Map<String, SettingSpec> specMap = new HashMap<>();
         final long timeBetweenIterations = 10;
 
         final SettingPolicyInfo info = SettingPolicyInfo.newBuilder()

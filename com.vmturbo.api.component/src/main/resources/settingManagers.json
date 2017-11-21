@@ -49,6 +49,9 @@
         "netThroughput",
         "swappingUtilization",
         "readyQueueUtilization",
+        "storageAmountUtilization",
+        "iopsUtilization",
+        "latencyUtilization",
         "cpuOverprovisionedPercentage",
         "memoryOverprovisionedPercentage"
       ]

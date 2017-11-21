@@ -22,9 +22,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -34,9 +36,6 @@ import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameter;
 import org.junit.runners.Parameterized.Parameters;
 import org.mockito.ArgumentCaptor;
-
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
@@ -241,8 +240,6 @@ public class EntitySettingsResolverTest {
 
     @Test
     public void testNoUserOrDefaultSettingPolicies() throws Exception {
-
-        ArgumentCaptor<Group> groupArguments = ArgumentCaptor.forClass(Group.class);
         when(groupResolver.resolve(group, topologyGraph)).thenReturn(ImmutableSet.of(entityOid1));
         when(topologyGraph.vertices()).thenReturn(Stream.of(vertex1));
         when(testSettingPolicyService.listSettingPolicies(any()))
@@ -284,12 +281,20 @@ public class EntitySettingsResolverTest {
             new HashMap<>();
 
         Map<String, SettingSpec> settingSpecs =
-            ImmutableMap.<String, SettingSpec>builder()
-                .put("settingSpec1", SPEC_SMALLER_TIEBREAKER)
-                .put("settingSpec2", SPEC_SMALLER_TIEBREAKER)
-                .put("settingSpec3", SPEC_BIGGER_TIEBREAKER)
-                .put("settingSpec4", SPEC_BIGGER_TIEBREAKER)
-                .build();
+                ImmutableMap.<String, SettingSpec>builder().put("settingSpec1",
+                        SettingSpec.newBuilder(SPEC_SMALLER_TIEBREAKER)
+                                .setName("settingSpec1")
+                                .build())
+                        .put("settingSpec2", SettingSpec.newBuilder(SPEC_SMALLER_TIEBREAKER)
+                                .setName("settingSpec2")
+                                .build())
+                        .put("settingSpec3", SettingSpec.newBuilder(SPEC_BIGGER_TIEBREAKER)
+                                .setName("settingSpec3")
+                                .build())
+                        .put("settingSpec4", SettingSpec.newBuilder(SPEC_BIGGER_TIEBREAKER)
+                                .setName("settingSpec4")
+                                .build())
+                        .build();
 
         entitySettingsResolver.resolve(entities, Collections.singletonList(settingPolicy1),
             entitySettingsBySettingNameMap, settingSpecs);
@@ -451,8 +456,7 @@ public class EntitySettingsResolverTest {
             .setId(id)
             .setInfo(SettingPolicyInfo.newBuilder()
                 .setName(name)
-                .putAllSettings(settings.stream()
-                    .collect(Collectors.toMap(Setting::getSettingSpecName, Function.identity())))
+                .addAllSettings(settings)
                 .setEnabled(true)
                 .setEntityType(1)
                 .setScope(Scope.newBuilder()
@@ -471,8 +475,7 @@ public class EntitySettingsResolverTest {
             .setInfo(SettingPolicyInfo.newBuilder()
                 .setName(name)
                 .setEntityType(1)
-                .putAllSettings(settings.stream()
-                        .collect(Collectors.toMap(Setting::getSettingSpecName, Function.identity())))
+                .addAllSettings(settings)
                 .build())
             .build();
     }
@@ -482,8 +485,7 @@ public class EntitySettingsResolverTest {
                                                 long defaultSettingPolicyId) {
         return EntitySettings.newBuilder()
             .setEntityOid(oid)
-            .putAllUserSettings(userSettings.stream()
-                    .collect(Collectors.toMap(Setting::getSettingSpecName, Function.identity())))
+            .addAllUserSettings(userSettings)
             .setDefaultSettingPolicyId(defaultSettingPolicyId)
             .build();
     }
@@ -492,8 +494,7 @@ public class EntitySettingsResolverTest {
                                                 List<Setting> userSettings) {
         return EntitySettings.newBuilder()
             .setEntityOid(oid)
-            .putAllUserSettings(userSettings.stream()
-                    .collect(Collectors.toMap(Setting::getSettingSpecName, Function.identity())))
+            .addAllUserSettings(userSettings)
             .build();
     }
 
@@ -546,16 +547,10 @@ public class EntitySettingsResolverTest {
     }
 
     private static boolean hasSetting(String settingSpecName, EntitySettings entitySettings) {
-        for (final String specName : entitySettings.getUserSettingsMap().keySet()) {
-            if (specName.equals(settingSpecName)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static float getSettingNumericValue(Setting setting) {
-        return setting.getNumericSettingValue().getValue();
+        return entitySettings.getUserSettingsList()
+                .stream()
+                .anyMatch(setting -> setting.hasSettingSpecName() &&
+                        setting.getSettingSpecName().equals(settingSpecName));
     }
 
     private static Group createGroup(long groupId, String groupName) {

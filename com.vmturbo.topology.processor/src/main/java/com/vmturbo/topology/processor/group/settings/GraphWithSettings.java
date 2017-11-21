@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.group.settings;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -71,10 +72,10 @@ public class GraphWithSettings {
     }
 
     @Nonnull
-    public Map<String, Setting> getSettingsForEntity(final long entityId) {
+    public Collection<Setting> getSettingsForEntity(final long entityId) {
         final EntitySettings settingsForEntity = settingsByEntity.get(entityId);
         if (settingsForEntity == null || !settingsForEntity.hasDefaultSettingPolicyId()) {
-            return Collections.emptyMap();
+            return Collections.emptyList();
         }
 
         final SettingPolicy defaultSettingPolicy =
@@ -87,10 +88,10 @@ public class GraphWithSettings {
         // expensive, we can do it once at construction and save the
         // (entityID -> settingName -> setting) map, or save each settings lookup so that
         // we only do this once per entity.
-        final Map<String, Setting> settingsByName =
-                new HashMap<>(defaultSettingPolicy.getInfo().getSettingsMap());
+        final Collection<Setting> settingsByName =
+                new ArrayList<>(defaultSettingPolicy.getInfo().getSettingsList());
         // Override defaults with user-specific settings.
-        settingsByName.putAll(settingsForEntity.getUserSettingsMap());
+        settingsByName.addAll(settingsForEntity.getUserSettingsList());
 
         return settingsByName;
     }

@@ -56,7 +56,7 @@ public class FileBasedSettingsSpecStore implements SettingSpecStore {
         try (InputStream inputStream = Thread.currentThread()
                 .getContextClassLoader()
                 .getResourceAsStream(settingSpecJsonFile);
-             InputStreamReader reader = new InputStreamReader(inputStream);) {
+             InputStreamReader reader = new InputStreamReader(inputStream)) {
 
             // parse the json file
             JsonFormat.parser().merge(reader, collectionBuilder);
@@ -76,6 +76,7 @@ public class FileBasedSettingsSpecStore implements SettingSpecStore {
      *
      * @return a collection of {@link SettingSpec}
      */
+    @Nonnull
     @Override
     public Collection<SettingSpec> getAllSettingSpec() {
         return settingSpecMap.values();

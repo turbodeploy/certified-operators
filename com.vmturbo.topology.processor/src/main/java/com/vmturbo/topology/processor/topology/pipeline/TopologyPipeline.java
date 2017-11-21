@@ -95,7 +95,7 @@ public class TopologyPipeline<PipelineInput, PipelineOutput> {
                             stage.getClass().getSimpleName() + " with error: " + e.getMessage();
                     // Put a log message here as well, just in case the caller
                     // of the pipeline forgets to log the exception.
-                    LOGGER.error(message);
+                    LOGGER.error(message, e);
                     throw new TopologyPipelineException(message, e);
                 }
             }

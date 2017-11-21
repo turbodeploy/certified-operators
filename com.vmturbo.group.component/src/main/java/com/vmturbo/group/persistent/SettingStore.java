@@ -234,8 +234,7 @@ public class SettingStore {
                             .map(this::defaultSettingFromSpec)
                             .filter(Optional::isPresent)
                             .map(Optional::get)
-                            .forEach(setting -> policyBuilder.putSettings(
-                                    setting.getSettingSpecName(), setting));
+                            .forEach(policyBuilder::addSettings);
                     return policyBuilder.build();
                 }));
     }

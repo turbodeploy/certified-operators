@@ -266,7 +266,7 @@ message SettingPolicyInfo {
     //
     // The entity_type on the SettingSpecs associated with each of these Settings should match
     // the entity_type on the SettingPolicy.
-    map<string, Setting> settings = 2;
+    repeated Setting settings = 2;
 
     // The type of the entities to which the SettingPolicy applies.
     // If the SettingPolicy is a default, it applies to all entities of that type for which
@@ -388,7 +388,7 @@ message EntitySettings {
     // The user settings associated with this entity.
     // These are the settings after conflict resolution.
     // They are arranged by setting name.
-    map<string, Setting> user_settings = 2;
+    repeated Setting user_settings = 2;
 
     // The default setting policy that applies to this entity, if any. Since there is only one
     // default policy per entity type, each entity has at most one default policy.

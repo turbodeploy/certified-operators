@@ -77,7 +77,8 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
             errors.add("Setting policy must have an entity type!");
         }
 
-        settingPolicyInfo.getSettingsMap().forEach((specName, setting) -> {
+        settingPolicyInfo.getSettingsList().forEach((setting) -> {
+            final String specName = setting.getSettingSpecName();
             if (StringUtils.isBlank(specName)) {
                 errors.add("Null/empty key in setting spec map!");
             } else if (!setting.hasSettingSpecName()) {
@@ -141,8 +142,7 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
         final List<String> errors = new LinkedList<>();
 
         final Map<Setting, Optional<SettingSpec>> referencedSpecs =
-                settingPolicyInfo.getSettingsMap()
-                        .values()
+                settingPolicyInfo.getSettingsList()
                         .stream()
                         .filter(Setting::hasSettingSpecName)
                         .collect(Collectors.toMap(Function.identity(),

@@ -82,7 +82,8 @@
         "entitySettingScope": {
           "entityTypeSet": {
             "entityType": [
-              14 // Physical Machine
+              14, // Physical Machine
+              18  // Storage Controller
             ]
           }
         }
@@ -139,6 +140,7 @@
         "entitySettingScope": {
           "entityTypeSet": {
             "entityType": [
+              0, // Switch TODO default for switch is 70
               14 // Physical Machine
             ]
           }
@@ -186,6 +188,64 @@
         "min": 0.0,
         "max": 100.0,
         "default": 50.0
+      }
+    },
+    {
+      "name": "storageAmountUtilization",
+      "displayName": "Storage Amount Utilization",
+      "entitySettingSpec": {
+        "tiebreaker": "SMALLER",
+        "entitySettingScope": {
+          "entityTypeSet": {
+            "entityType": [
+              2, // Storage
+              18 // Storage Controller
+            ]
+          }
+        }
+      },
+      "numericSettingValueType": {
+        "min": 0.0,
+        "max": 100.0,
+        "default": 90.0
+      }
+    },
+    {
+      "name": "iopsUtilization",
+      "displayName": "IOPS Utilization",
+      "entitySettingSpec": {
+        "tiebreaker": "SMALLER",
+        "entitySettingScope": {
+          "entityTypeSet": {
+            "entityType": [
+              2 // Storage
+            ]
+          }
+        }
+      },
+      "numericSettingValueType": {
+        "min": 0.0,
+        "max": 100.0,
+        "default": 100.0
+      }
+    },
+    {
+      "name": "latencyUtilization",
+      "displayName": "Latency Utilization",
+      "entitySettingSpec": {
+        "tiebreaker": "SMALLER",
+        "entitySettingScope": {
+          "entityTypeSet": {
+            "entityType": [
+              2 // Storage
+            ]
+          }
+        }
+      },
+      "numericSettingValueType": {
+        "min": 0.0,
+        "max": 100.0,
+        "default": 100.0
       }
     },
     {

@@ -64,8 +64,9 @@ public class SettingOverrides {
      */
     public void overrideSettings(final TopologyEntityDTOOrBuilder entity,
                                  @Nonnull final EntitySettings.Builder settingsBuilder) {
-        settingsBuilder.putAllUserSettings(globalOverrides);
-        settingsBuilder.putAllUserSettings(
-            overridesForEntityType.getOrDefault(entity.getEntityType(), Collections.emptyMap()));
+        settingsBuilder.addAllUserSettings(globalOverrides.values());
+        settingsBuilder.addAllUserSettings(
+                overridesForEntityType.getOrDefault(entity.getEntityType(), Collections.emptyMap())
+                        .values());
     }
 }

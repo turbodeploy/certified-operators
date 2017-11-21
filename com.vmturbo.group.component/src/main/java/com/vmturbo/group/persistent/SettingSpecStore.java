@@ -12,18 +12,18 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
  */
 public interface SettingSpecStore {
     /**
-     * Returns setting specification by name.
+     * Returns setting specification (if any) identified by the specified name).
      *
-     * @param name setting name to look up for.
-     * @return setting specification or empty optional.
+     * @param name name of the setting to retrieve
+     * @return setting specification or empty optional, if none found
      */
     @Nonnull
     Optional<SettingSpec> getSettingSpec(@Nonnull final String name);
 
     /**
-     * Returns all the existing setting specifications.
+     * Returns all the existing spettings specifications avaiable.
      *
-     * @return settings specification collection
+     * @return settings specifications collection
      */
     @Nonnull
     Collection<SettingSpec> getAllSettingSpec();

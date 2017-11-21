@@ -225,6 +225,7 @@
             <modules>
                 <module>../com.vmturbo.common.protobuf</module>
                 <module>../com.vmturbo.group.component</module>
+                <module>../com.vmturbo.group.api</module>
             </modules>
         </profile>
 
@@ -352,6 +353,7 @@
                 <module>../com.vmturbo.market.component.api</module>
                 <module>../com.vmturbo.components.test.utilities</module>
                 <module>../com.vmturbo.action.orchestrator</module>
+                <module>../com.vmturbo.group.api</module>
                 <module>../com.vmturbo.group.component</module>
                 <module>../com.vmturbo.market.component</module>
                 <module>../com.vmturbo.kvstore</module>
@@ -435,6 +437,7 @@
                 <module>../com.vmturbo.market.component.api</module>
                 <module>../com.vmturbo.components.test.utilities</module>
                 <module>../com.vmturbo.action.orchestrator</module>
+                <module>../com.vmturbo.group.api</module>
                 <module>../com.vmturbo.group.component</module>
                 <module>../com.vmturbo.market.component</module>
                 <module>../com.vmturbo.kvstore</module>
@@ -914,6 +917,16 @@
             <dependency>
                 <groupId>com.vmturbo</groupId>
                 <artifactId>action-orchestrator-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>com.vmturbo.group</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>com.vmturbo.group.api</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

@@ -1,8 +1,10 @@
 package com.vmturbo.group.persistent;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -339,13 +341,13 @@ public class EntitySettingStore {
                 return Collections.emptyList();
             }
 
-            final Map<String, Setting> settings = new HashMap<>();
+            final Collection<Setting> settings = new HashSet<>();
             // Fill in default settings, if any.
             if (userSettings.hasDefaultSettingPolicyId()) {
                 final SettingPolicy defaultSettingPolicy =
                         defaultPolicies.get(userSettings.getDefaultSettingPolicyId());
                 if (defaultSettingPolicy != null) {
-                    settings.putAll(defaultSettingPolicy.getInfo().getSettingsMap());
+                    settings.addAll(defaultSettingPolicy.getInfo().getSettingsList());
                 } else {
                     // This shouldn't happen, because we checked that the default setting policy
                     // exists when constructing the snapshot.
@@ -357,9 +359,9 @@ public class EntitySettingStore {
             // Once default settings are in the map,
             // go through any user settings and overwrite the
             // defaults.
-            settings.putAll(userSettings.getUserSettingsMap());
+            settings.addAll(userSettings.getUserSettingsList());
 
-            return settings.values();
+            return settings;
         }
     }
 }

@@ -34,7 +34,7 @@ public class SettingsService implements ISettingsService {
 
     private final SettingsManagerMapping settingsManagerMapping;
 
-    SettingsService(@Nonnull final SettingServiceBlockingStub settingServiceBlockingStub,
+    public SettingsService(@Nonnull final SettingServiceBlockingStub settingServiceBlockingStub,
                     @Nonnull final SettingsMapper settingsMapper,
                     @Nonnull final SettingsManagerMapping settingsManagerMapping) {
         this.settingServiceBlockingStub = settingServiceBlockingStub;

@@ -194,17 +194,19 @@ public class EntitySettingsResolver {
                 userSettingsByEntityAndName.computeIfAbsent(
                     oid, k -> new HashMap<>());
             for (SettingPolicy sp : settingPolicies) {
-                sp.getInfo().getSettingsMap().forEach((specName, setting) -> {
-                    if (settingsMap.containsKey(specName)) {
+                sp.getInfo().getSettingsList().forEach((setting) -> {
+                    final String specName = setting.getSettingSpecName();
+                    final Setting existingSetting = settingsMap.get(specName);
+                    final Setting resultSetting;
+                    if (existingSetting != null) {
                         //  When 2 Settings have the same name and different values, there is a conflict
-                        logger.debug("Settings conflict : {} and {}",
-                                setting, settingsMap.get(specName));
-                        Setting resolvedSetting = resolveConflict(setting, settingsMap.get(specName),
+                        logger.debug("Settings conflict : {} and {}", setting, existingSetting);
+                        resultSetting = resolveConflict(setting, existingSetting,
                                 settingNameToSettingSpecs);
-                        settingsMap.put(setting.getSettingSpecName(), resolvedSetting);
                     } else {
-                        settingsMap.put(setting.getSettingSpecName(), setting);
+                        resultSetting = setting;
                     }
+                    settingsMap.put(specName, resultSetting);
                 });
             }
         }
@@ -336,7 +338,7 @@ public class EntitySettingsResolver {
             EntitySettings.newBuilder()
                     .setEntityOid(vertex.getOid());
         userSettings.forEach(setting ->
-            entitySettingsBuilder.putUserSettings(setting.getSettingSpecName(), setting));
+            entitySettingsBuilder.addUserSettings(setting));
 
         // Override user settings.
         settingOverrides.overrideSettings(vertex.getTopologyEntityDtoBuilder(), entitySettingsBuilder);

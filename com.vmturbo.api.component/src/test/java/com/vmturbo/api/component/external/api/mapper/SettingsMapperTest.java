@@ -23,11 +23,11 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import org.junit.Rule;
-import org.junit.Test;
-
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+
+import org.junit.Rule;
+import org.junit.Test;
 
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.PlanSettingInfo;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerInfo;
@@ -411,7 +411,7 @@ public class SettingsMapperTest {
         assertEquals(true, info.getEnabled());
         assertTrue(info.hasScope());
         assertThat(info.getScope().getGroupsList(), containsInAnyOrder(7L));
-        assertThat(info.getSettingsMap().values(),
+        assertThat(info.getSettingsList(),
                 containsInAnyOrder(boolSettingProto, numSettingProto,
                         strSettingProto, enumSettingProto));
     }
@@ -452,7 +452,7 @@ public class SettingsMapperTest {
                     .setEnabled(true)
                     .setScope(Scope.newBuilder()
                             .addGroups(7L))
-                    .putSettings(settingSpec1.getName(), Setting.newBuilder()
+                    .addSettings(Setting.newBuilder()
                             .setSettingSpecName(settingSpec1.getName())
                             .setEnumSettingValue(EnumSettingValue.newBuilder()
                                     .setValue("AUTOMATIC"))

@@ -78,7 +78,7 @@ public class EntitySettingStoreTest {
             .setId(7L)
             .setSettingPolicyType(Type.DEFAULT)
             .setInfo(SettingPolicyInfo.newBuilder()
-                    .putSettings(falseSetting.getSettingSpecName(), falseSetting))
+                    .addSettings(falseSetting))
             .build();
 
     @Before
@@ -324,7 +324,7 @@ public class EntitySettingStoreTest {
                 .build();
         final EntitySettings id1Settings = EntitySettings.newBuilder()
                 .setEntityOid(1L)
-                .putUserSettings(setting.getSettingSpecName(), setting)
+                .addUserSettings(setting)
                 .build();
 
         final EntitySettingSnapshot snapshot = new EntitySettingSnapshot(Stream.of(id1Settings),
@@ -343,12 +343,12 @@ public class EntitySettingStoreTest {
                 .build();
         final EntitySettings id1Settings = EntitySettings.newBuilder()
                 .setEntityOid(1L)
-                .putUserSettings(setting.getSettingSpecName(), setting)
+                .addUserSettings(setting)
                 .build();
 
         final EntitySettings id2Settings = EntitySettings.newBuilder()
                 .setEntityOid(2L)
-                .putUserSettings(setting.getSettingSpecName(), setting)
+                .addUserSettings(setting)
                 .build();
 
         final EntitySettingSnapshot snapshot = new EntitySettingSnapshot(
@@ -400,7 +400,7 @@ public class EntitySettingStoreTest {
     public void testSettingSnapshotOverrideDefault() {
         final EntitySettings settings = EntitySettings.newBuilder()
                 .setEntityOid(2L)
-                .putUserSettings(trueSetting.getSettingSpecName(), trueSetting)
+                .addUserSettings(trueSetting)
                 .setDefaultSettingPolicyId(settingPolicyWithFalseSetting.getId())
                 .build();
 
