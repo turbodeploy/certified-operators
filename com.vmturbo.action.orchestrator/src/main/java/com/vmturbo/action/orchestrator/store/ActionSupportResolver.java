@@ -53,7 +53,7 @@ public class ActionSupportResolver {
     public Collection<Action> resolveActionsSupporting(Collection<Action> actions) {
         try {
             final Map<Action, Long> actionsProbes = actionExecutor.getProbeIdsForActions(actions);
-            Set<Long> probeIds = actionsProbes.values().stream().collect(Collectors.toSet());
+            Set<Long> probeIds = new HashSet<>(actionsProbes.values());
             Map<Long, List<ProbeActionCapability>> probeCapabilities =
                     actionCapabilitiesStore.getCapabilitiesForProbes(probeIds);
             Map<Action, List<ProbeActionCapability>> actionsAndCapabilities =

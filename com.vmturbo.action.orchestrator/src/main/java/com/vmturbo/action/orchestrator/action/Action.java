@@ -274,8 +274,18 @@ public class Action implements ActionView {
                 targetId = recommendation.getInfo().getMove().getTargetId();
                 targetSettingFilter = s -> s.getSettingSpecName().toLowerCase().equals("move");
                 break;
-            case RESIZE: case ACTIVATE: case DEACTIVATE:
-                return ActionMode.MANUAL;
+            case RESIZE:
+                targetId = recommendation.getInfo().getResize().getTargetId();
+                targetSettingFilter = s -> s.getSettingSpecName().toLowerCase().equals("resize");
+                break;
+            case ACTIVATE:
+                targetId = recommendation.getInfo().getActivate().getTargetId();
+                targetSettingFilter = s -> s.getSettingSpecName().toLowerCase().equals("activate");
+                break;
+            case DEACTIVATE:
+                targetId = recommendation.getInfo().getDeactivate().getTargetId();
+                targetSettingFilter = s -> s.getSettingSpecName().toLowerCase().equals("suspend");
+                break;
             default:
                 return ActionMode.RECOMMEND;
         }
