@@ -1,19 +1,20 @@
 FROM ubuntu:17.04
 MAINTAINER Pavel Baranchikov <pavel.baranchikov@turbonomic.com>
 
+SHELL ["/bin/bash", "-c"]
 # This is the release of Kafka and Scala to pull in.
-ENV KAFKA_VERSION=0.11.0.2
-ENV SCALA_VERSION=2.11
+COPY kafka.profile /etc/kafka.profile
 
 # Create a kafka user and group first so the IDs get set the same way, even as
 # the rest of this may change over time.
-# The /tmp/kafka-logs dir is used by Kafka to store state.
+# The kafka-logs dir is used by Kafka to store data.
 RUN addgroup kafka && \
     adduser --system --disabled-password -home /home/kafka --ingroup kafka --disabled-login --shell /bin/bash kafka
 
 COPY start-kafka /
 
-RUN apt-get update -q -y && apt-get upgrade -q -y && \
+RUN source /etc/kafka.profile && \
+    apt-get update -q -y && apt-get upgrade -q -y && \
     apt-get install -q -y openjdk-8-jdk iproute2 wget bash rsyslog && \
     cd /tmp && \
     wget -q --no-check-certificate -O kafka.tgz  https://10.10.150.66/repository/xl/kafka_${SCALA_VERSION}-${KAFKA_VERSION}.tgz && \
@@ -22,12 +23,11 @@ RUN apt-get update -q -y && apt-get upgrade -q -y && \
     rm kafka.tgz && \
     mkdir /opt/kafka/logs && \
     chown -R kafka /opt/kafka/logs && \
-    mkdir /tmp/kafka-logs && \
-    chown -R kafka /tmp/kafka-logs && \
+    mkdir $KAFKA_DATA_DIR && \
+    chown -R kafka $KAFKA_DATA_DIR && \
     chmod a+x /start-kafka && \
     apt-get purge -y --auto-remove wget unzip && \
     rm -rf /var/lib/apt/lists/* && apt-get clean
-
 
 # rsyslog
 ADD rsyslog.conf /etc

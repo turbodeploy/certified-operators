@@ -69,7 +69,7 @@ services:
       KAFKA_LOG_RETENTION_HRS: 24
       KAFKA_MAX_MESSAGE_BYTES: 67108864
     volumes:
-      - kafka1-log:/tmp/kafka-logs
+      - kafka1-log:/home/kafka/data
 
   auth-prod:
     extends:

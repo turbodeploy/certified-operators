@@ -126,7 +126,7 @@ services:
       KAFKA_MAX_MESSAGE_BYTES: ${KAFKA_MAX_MESSAGE_BYTES}
       KAFKA_HEAP_OPTS: "-Xmx${KAFKA_XMX_MB}M -Xms${KAFKA_XMX_MB}M"
     volumes:
-      - kafka1-log:/tmp/kafka-logs
+      - kafka1-log:/home/kafka/data
     ports:
       # the external port mapping will have to be revisited for clustering, where external ports
       # would need to be unique per-host.
