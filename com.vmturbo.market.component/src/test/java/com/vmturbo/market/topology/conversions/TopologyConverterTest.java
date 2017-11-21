@@ -39,11 +39,12 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.analysis.InvalidTopologyException;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.platform.analysis.protobuf.CommodityDTOs;
+import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
+import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldSettingsTO;
+import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
+import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
-import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.CommodityBoughtTO;
-import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.CommoditySoldSettingsTO;
-import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.CommoditySoldTO;
-import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderStateTO;
@@ -61,9 +62,9 @@ public class TopologyConverterTest {
 
     private double epsilon = 1e-5; // used in assertEquals(double, double, epsilon)
 
-    private EconomyDTOs.CommoditySpecificationTO economyCommodity1;
+    private CommodityDTOs.CommoditySpecificationTO economyCommodity1;
     private CommodityType topologyCommodity1;
-    private EconomyDTOs.CommoditySpecificationTO economyCommodity2;
+    private CommodityDTOs.CommoditySpecificationTO economyCommodity2;
     private CommodityType topologyCommodity2;
 
     @Before
@@ -79,11 +80,11 @@ public class TopologyConverterTest {
                         .setType(2)
                         .setKey("blahblah")
                         .build();
-        economyCommodity1 = EconomyDTOs.CommoditySpecificationTO.newBuilder()
+        economyCommodity1 = CommodityDTOs.CommoditySpecificationTO.newBuilder()
                         .setType(0)
                         .setBaseType(1)
                         .build();
-        economyCommodity2 = EconomyDTOs.CommoditySpecificationTO.newBuilder()
+        economyCommodity2 = CommodityDTOs.CommoditySpecificationTO.newBuilder()
                         .setType(1)
                         .setBaseType(2)
                         .build();
@@ -401,13 +402,13 @@ public class TopologyConverterTest {
         shoppingListInfos.setAccessible(true);
         shoppingListInfos.set(converter, shoppingListMap);
 
-        final EconomyDTOs.CommoditySoldTO economyCPUSold = EconomyDTOs.CommoditySoldTO.newBuilder()
+        final CommodityDTOs.CommoditySoldTO economyCPUSold = CommodityDTOs.CommoditySoldTO.newBuilder()
                         .setSpecification(CommoditySpecificationTO.newBuilder()
                             .setBaseType(2)
                             .setType(cpuType)
                             .build())
                         .build();
-        final EconomyDTOs.CommoditySoldTO economyDSPMSold = EconomyDTOs.CommoditySoldTO.newBuilder()
+        final CommodityDTOs.CommoditySoldTO economyDSPMSold = CommodityDTOs.CommoditySoldTO.newBuilder()
                         .setSpecification(CommoditySpecificationTO.newBuilder()
                             .setBaseType(base)
                             .setType(dspmType)

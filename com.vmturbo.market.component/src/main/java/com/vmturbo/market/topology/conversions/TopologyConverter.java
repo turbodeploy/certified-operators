@@ -60,11 +60,14 @@ import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionByDemandTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionBySupplyTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ReconfigureTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ResizeTO;
+import com.vmturbo.platform.analysis.protobuf.CommodityDTOs;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults.NewShoppingListToBuyerEntry;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO;
+import com.vmturbo.platform.analysis.protobuf.QuoteFunctionDTOs.QuoteFunctionDTO;
+import com.vmturbo.platform.analysis.protobuf.QuoteFunctionDTOs.QuoteFunctionDTO.SumOfCommodity;
 import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO;
 import com.vmturbo.platform.analysis.utilities.BiCliquer;
 import com.vmturbo.platform.analysis.utilities.NumericIDAllocator;
@@ -151,13 +154,13 @@ public class TopologyConverter {
     private final BiCliquer bicliquer = new BiCliquer();
 
     // Map from bcKey to commodity bought
-    private Map<String, EconomyDTOs.CommodityBoughtTO> bcCommodityBoughtMap = Maps.newHashMap();
+    private Map<String, CommodityDTOs.CommodityBoughtTO> bcCommodityBoughtMap = Maps.newHashMap();
     // a BiMap from DSPMAccess and Datastore commodity sold key to seller oid
     // Note: the commodity key is composed of entity type and entity ID (which is different from
     // OID)
     private BiMap<String, Long> accessesByKey = HashBiMap.create();
 
-    private Set<EconomyDTOs.CommoditySoldTO> EMPTY_SET = Sets.newHashSet();
+    private Set<CommodityDTOs.CommoditySoldTO> EMPTY_SET = Sets.newHashSet();
     private Set<Long> EMPTY_LONG_SET = Sets.newHashSet();
 
     /**
@@ -334,7 +337,7 @@ public class TopologyConverter {
             List<TopologyDTO.CommodityBoughtDTO> commList =
                             new ArrayList<TopologyDTO.CommodityBoughtDTO>();
             int bicliqueBaseType = commodityTypeAllocator.allocate(BICLIQUE);
-            for (EconomyDTOs.CommodityBoughtTO commBought : sl.getCommoditiesBoughtList()) {
+            for (CommodityDTOs.CommodityBoughtTO commBought : sl.getCommoditiesBoughtList()) {
                 // if the commodity bought DTO type is biclique, create new
                 // DSPM and Datastore bought
                 if (bicliqueBaseType == commBought.getSpecification().getBaseType()) {
@@ -473,16 +476,16 @@ public class TopologyConverter {
     }
 
     /**
-     * Convert {@link EconomyDTOs.CommodityBoughtTO} of a trader to its corresponding
+     * Convert {@link CommodityDTOs.CommodityBoughtTO} of a trader to its corresponding
      * {@link TopologyDTO.CommodityBoughtDTO}.
      *
-     * @param commBoughtTO {@link EconomyDTOs.CommodityBoughtTO} that is to be converted to
+     * @param commBoughtTO {@link CommodityDTOs.CommodityBoughtTO} that is to be converted to
      * {@link TopologyDTO.CommodityBoughtDTO}
      * @return {@link TopologyDTO.CommoditySoldDTO} that the trader sells
      */
     @Nonnull
     private Optional<TopologyDTO.CommodityBoughtDTO> commBoughtTOtoCommBoughtDTO(
-            @Nonnull final EconomyDTOs.CommodityBoughtTO commBoughtTO) {
+            @Nonnull final CommodityDTOs.CommodityBoughtTO commBoughtTO) {
         return economyToTopologyCommodity(commBoughtTO.getSpecification())
                 .map(commType -> TopologyDTO.CommodityBoughtDTO.newBuilder()
                         .setUsed(commBoughtTO.getQuantity())
@@ -541,6 +544,8 @@ public class TopologyConverter {
             .setCanAcceptNewCustomers(topologyDTO.getAnalysisSettings().getIsAvailableAsProvider())
             .setIsShopTogether(shopTogether)
             .setIsEligibleForResizeDown(isPlan)
+            .setQuoteFunction(QuoteFunctionDTO.newBuilder()
+                .setSumOfCommodity(SumOfCommodity.getDefaultInstance()))
             .build();
         Set<Long> allCliques = shopTogether
                         ? bicliquer.getBcIDs(String.valueOf(topologyDTO.getOid()))
@@ -685,7 +690,7 @@ public class TopologyConverter {
                 && provider.getEntityType() == EntityType.STORAGE_VALUE)
                         ? (float)(totalStorageAmountBought(buyerOid) / Units.KIBI)
                         : 0.0f;
-        Set<EconomyDTOs.CommodityBoughtTO> values = commBoughtGrouping.getCommodityBoughtList()
+        Set<CommodityDTOs.CommodityBoughtTO> values = commBoughtGrouping.getCommodityBoughtList()
             .stream()
             .filter(topoCommBought -> topoCommBought.getActive())
             .map(topoCommBought -> convertCommodityBought(topoCommBought, providerOid, shopTogether, providers))
@@ -758,7 +763,7 @@ public class TopologyConverter {
         return comm.getCommodityType().getType() == CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE;
     }
 
-    private EconomyDTOs.CommodityBoughtTO convertCommodityBought(
+    private CommodityDTOs.CommodityBoughtTO convertCommodityBought(
             @Nonnull final TopologyDTO.CommodityBoughtDTO topologyCommBought,
             @Nullable final Long providerOid,
             final boolean shopTogether,
@@ -772,7 +777,7 @@ public class TopologyConverter {
                 : generateBcCommodityBoughtTO(
                     providers.getOrDefault(providerOid, providerOid), type)
             // all other commodities - convert to DTO regardless of shop-together
-            : EconomyDTOs.CommodityBoughtTO.newBuilder()
+            : CommodityDTOs.CommodityBoughtTO.newBuilder()
                 .setQuantity((float)topologyCommBought.getUsed())
                 .setPeakQuantity((float)topologyCommBought.getPeak())
                 .setSpecification(commoditySpecification(topologyCommBought.getCommodityType()))
@@ -789,7 +794,7 @@ public class TopologyConverter {
      * @return Biclique Commodity bought.
      */
     @Nullable
-    private EconomyDTOs.CommodityBoughtTO generateBcCommodityBoughtTO(@Nullable final Long providerOid,
+    private CommodityDTOs.CommodityBoughtTO generateBcCommodityBoughtTO(@Nullable final Long providerOid,
                                                                       final CommodityType type) {
         if (providerOid == null) {
             // TODO: After we remove provider ids of commodity bought for clone entities of Plan,
@@ -812,21 +817,21 @@ public class TopologyConverter {
     }
 
     @Nonnull
-    private EconomyDTOs.CommodityBoughtTO bcCommodityBought(@Nonnull String bcKey) {
+    private CommodityDTOs.CommodityBoughtTO bcCommodityBought(@Nonnull String bcKey) {
         return bcCommodityBoughtMap.computeIfAbsent(bcKey,
-            key -> EconomyDTOs.CommodityBoughtTO.newBuilder()
+            key -> CommodityDTOs.CommodityBoughtTO.newBuilder()
                 .setSpecification(bcSpec(key))
                 .build());
     }
 
     @Nonnull
-    private Collection<EconomyDTOs.CommoditySoldTO> commoditiesSoldList(
+    private Collection<CommodityDTOs.CommoditySoldTO> commoditiesSoldList(
             @Nonnull final TopologyDTO.TopologyEntityDTO topologyDTO)
                             throws InvalidTopologyException {
         // DSPMAccess and Datastore commodities are always dropped (shop-together or not)
         List<String> exceptions = Lists.newArrayList();
         final boolean shopTogether = topologyDTO.getAnalysisSettings().getShopTogether();
-        List<EconomyDTOs.CommoditySoldTO> list = topologyDTO.getCommoditySoldListList().stream()
+        List<CommodityDTOs.CommoditySoldTO> list = topologyDTO.getCommoditySoldListList().stream()
             .filter(commSold -> commSold.getActive())
             .filter(commSold -> !isBicliqueCommodity(commSold.getCommodityType()))
             .filter(commSold -> includeGuaranteedBuyer
@@ -855,7 +860,7 @@ public class TopologyConverter {
     }
 
     @Nonnull
-    private Set<EconomyDTOs.CommoditySoldTO> bcCommoditiesSold(
+    private Set<CommodityDTOs.CommoditySoldTO> bcCommoditiesSold(
                     @Nonnull final TopologyDTO.TopologyEntityDTO topologyDTO) {
         Set<String> bcKeys = bicliquer.getBcKeys(String.valueOf(topologyDTO.getOid()));
         return bcKeys != null
@@ -866,7 +871,7 @@ public class TopologyConverter {
     }
 
     @Nonnull
-    private EconomyDTOs.CommoditySoldTO commoditySold(
+    private CommodityDTOs.CommoditySoldTO commoditySold(
                     @Nonnull final TopologyDTO.CommoditySoldDTO topologyCommSold)
                                     throws InvalidTopologyException {
         final CommodityType commodityType = topologyCommSold.getCommodityType();
@@ -881,8 +886,8 @@ public class TopologyConverter {
                 throw new InvalidTopologyException(errorMsg(topologyCommSold));
             }
         }
-        final EconomyDTOs.CommoditySoldSettingsTO economyCommSoldSettings =
-                        EconomyDTOs.CommoditySoldSettingsTO.newBuilder()
+        final CommodityDTOs.CommoditySoldSettingsTO economyCommSoldSettings =
+                        CommodityDTOs.CommoditySoldSettingsTO.newBuilder()
                         .setResizable(topologyCommSold.getIsResizeable())
                         .setCapacityIncrement(capacity / 5) // TODO: use the probe DTO's UsedIncrement
                         .setCapacityUpperBound(capacity)
@@ -891,7 +896,7 @@ public class TopologyConverter {
                         .setPriceFunction(priceFunction(topologyCommSold))
                         .setUpdateFunction(updateFunction(topologyCommSold))
                         .build();
-        return EconomyDTOs.CommoditySoldTO.newBuilder()
+        return CommodityDTOs.CommoditySoldTO.newBuilder()
                         .setPeakQuantity((float)topologyCommSold.getPeak())
                         .setCapacity(capacity)
                         .setQuantity(used)
@@ -925,16 +930,16 @@ public class TopologyConverter {
     }
 
     @Nonnull
-    private EconomyDTOs.CommoditySoldTO newBiCliqueCommoditySoldDTO(String bcKey) {
-        return EconomyDTOs.CommoditySoldTO.newBuilder()
+    private CommodityDTOs.CommoditySoldTO newBiCliqueCommoditySoldDTO(String bcKey) {
+        return CommodityDTOs.CommoditySoldTO.newBuilder()
                         .setSpecification(bcSpec(bcKey))
                         .setSettings(AnalysisUtil.BC_SETTING_TO)
                         .build();
     }
 
     @Nonnull
-    private EconomyDTOs.CommoditySpecificationTO bcSpec(@Nonnull String bcKey) {
-        return EconomyDTOs.CommoditySpecificationTO.newBuilder()
+    private CommodityDTOs.CommoditySpecificationTO bcSpec(@Nonnull String bcKey) {
+        return CommodityDTOs.CommoditySpecificationTO.newBuilder()
                         .setBaseType(bcBaseType())
                         .setType(commodityTypeAllocator.allocate(bcKey))
                         .setDebugInfoNeverUseInCode(BICLIQUE + " " + bcKey)
@@ -952,7 +957,7 @@ public class TopologyConverter {
 
     @Nonnull
     private Optional<TopologyDTO.CommoditySoldDTO> commSoldTOtoCommSoldDTO(
-        @Nonnull final EconomyDTOs.CommoditySoldTO commSoldTO) {
+        @Nonnull final CommodityDTOs.CommoditySoldTO commSoldTO) {
         return economyToTopologyCommodity(commSoldTO.getSpecification())
                 .map(commType -> TopologyDTO.CommoditySoldDTO.newBuilder()
                     .setCapacity(commSoldTO.getCapacity())
@@ -967,10 +972,10 @@ public class TopologyConverter {
     }
 
     @Nonnull
-    private EconomyDTOs.CommoditySpecificationTO commoditySpecification(
+    private CommodityDTOs.CommoditySpecificationTO commoditySpecification(
             @Nonnull final CommodityType topologyCommodity) {
-        final EconomyDTOs.CommoditySpecificationTO economyCommodity =
-                        EconomyDTOs.CommoditySpecificationTO.newBuilder()
+        final CommodityDTOs.CommoditySpecificationTO economyCommodity =
+                        CommodityDTOs.CommoditySpecificationTO.newBuilder()
             .setType(commodityType(topologyCommodity))
             .setBaseType(topologyCommodity.getType())
             .setDebugInfoNeverUseInCode(commodityDebugInfo(topologyCommodity))
@@ -1328,7 +1333,7 @@ public class TopologyConverter {
     @VisibleForTesting
     @Nonnull
     Optional<CommodityType> economyToTopologyCommodity(
-            @Nonnull final EconomyDTOs.CommoditySpecificationTO economyCommodity) {
+            @Nonnull final CommodityDTOs.CommoditySpecificationTO economyCommodity) {
         final CommodityType topologyCommodity =
                 commoditySpecMap.get(new EconomyCommodityId(economyCommodity));
         if (topologyCommodity == null) {
@@ -1344,7 +1349,7 @@ public class TopologyConverter {
     }
 
     /**
-     * The {@link EconomyDTOs.CommoditySpecificationTO}s we get back from the market aren't exactly
+     * The {@link CommodityDTOs.CommoditySpecificationTO}s we get back from the market aren't exactly
      * equal to the ones we pass in - for example, the debug info may be absent. We only want to
      * compare the type and base_type.
      */
@@ -1352,7 +1357,7 @@ public class TopologyConverter {
         final int type;
         final int baseType;
 
-        EconomyCommodityId(@Nonnull final EconomyDTOs.CommoditySpecificationTO economyCommodity) {
+        EconomyCommodityId(@Nonnull final CommodityDTOs.CommoditySpecificationTO economyCommodity) {
             this.type = economyCommodity.getType();
             this.baseType = economyCommodity.getBaseType();
         }

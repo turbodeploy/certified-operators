@@ -31,7 +31,7 @@ import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionBySupplyTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ReconfigureTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ResizeTO;
-import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
+import com.vmturbo.platform.analysis.protobuf.CommodityDTOs;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 
@@ -40,9 +40,9 @@ import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
  */
 public class InterpretActionTest {
 
-    private EconomyDTOs.CommoditySpecificationTO economyCommodity1;
+    private CommodityDTOs.CommoditySpecificationTO economyCommodity1;
     private CommodityType topologyCommodity1;
-    private EconomyDTOs.CommoditySpecificationTO economyCommodity2;
+    private CommodityDTOs.CommoditySpecificationTO economyCommodity2;
     private CommodityType topologyCommodity2;
 
     @Before
@@ -58,11 +58,11 @@ public class InterpretActionTest {
                         .setType(2)
                         .setKey("blahblah")
                         .build();
-        economyCommodity1 = EconomyDTOs.CommoditySpecificationTO.newBuilder()
+        economyCommodity1 = CommodityDTOs.CommoditySpecificationTO.newBuilder()
                         .setType(0)
                         .setBaseType(1)
                         .build();
-        economyCommodity2 = EconomyDTOs.CommoditySpecificationTO.newBuilder()
+        economyCommodity2 = CommodityDTOs.CommoditySpecificationTO.newBuilder()
                         .setType(1)
                         .setBaseType(2)
                         .build();
