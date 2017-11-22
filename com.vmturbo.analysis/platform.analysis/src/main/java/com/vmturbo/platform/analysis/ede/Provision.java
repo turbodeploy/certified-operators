@@ -163,6 +163,11 @@ public class Provision {
                         break;
                     }
                 }
+                if (mostProfitableTrader.isDebugEnabled()) {
+                    logger.debug(mostProfitableTrader.getDebugInfoNeverUseInCode() + " triggered " +
+                                    ((provisionAction instanceof Activate) ? "ACTIVATION of " : "PROVISION of ")
+                                    + provisionedTrader.getDebugInfoNeverUseInCode());
+                }
                 ((ActionImpl)provisionAction).setImportance(oldRevenue - ledger
                                 .getTraderIncomeStatements().get(mostProfitableTrader
                                                 .getEconomyIndex()).getRevenues());

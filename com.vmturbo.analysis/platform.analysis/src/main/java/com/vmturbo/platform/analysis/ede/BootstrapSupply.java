@@ -222,6 +222,8 @@ public class BootstrapSupply {
             ShoppingList sl = entry.getKey();
             Market market = entry.getValue();
             @NonNull List<@NonNull Trader> sellers = market.getCliques().get(commonClique);
+            // consider just sellersAvailableForPlacement
+            sellers.retainAll(market.getActiveSellersAvailableForPlacement());
             @NonNull Stream<@NonNull Trader> stream =
                             sellers.size() < economy.getSettings().getMinSellersForParallelism()
                                             ? sellers.stream() : sellers.parallelStream();
@@ -442,7 +444,7 @@ public class BootstrapSupply {
         List<Action> provisionRelatedActionList = new ArrayList<>();
         Action bootstrapAction;
         Trader provisionedSeller;
-        List<Trader> activeSellers = market.getActiveSellers();
+        List<Trader> activeSellers = market.getActiveSellersAvailableForPlacement();
         // returns if all the sellers are not cloneable
         if (activeSellers.stream().filter(seller -> seller.getSettings().isCloneable())
                         .count() == 0) {

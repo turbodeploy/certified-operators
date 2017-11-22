@@ -7,11 +7,8 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.Spliterator;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.StreamSupport;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
@@ -202,11 +199,22 @@ public class Ledger {
         CommoditySold[] topSellingComm = {null, null};
         double[] topRev = new double[2];
         // Find the top 2 commodities that generate the most revenue
+        if (seller.isDebugEnabled()) {
+            logger.debug("________________________________________________________________________________");
+            logger.debug(seller.getDebugInfoNeverUseInCode());
+        }
         for (CommoditySold commSold : seller.getCommoditiesSold()) {
             double commSoldUtil = commSold.getQuantity()/commSold.getEffectiveCapacity();
             if (commSoldUtil != 0) {
                 PriceFunction pf = commSold.getSettings().getPriceFunction();
                 double revFromComm = pf.unitPrice(commSoldUtil, seller, commSold, economy) * commSoldUtil;
+                int index = seller.getCommoditiesSold().indexOf(commSold);
+                if (seller.isDebugEnabled()) {
+                    logger.debug(seller.getBasketSold().get(index).getDebugInfoNeverUseInCode() + " - util:" +
+                                commSoldUtil + ", price:" + revFromComm + ", MinDP:" +
+                                pf.unitPrice(sellerMinDesUtil, seller, commSold, economy) + ", MaxDP:" +
+                                pf.unitPrice(sellerMaxDesUtil, seller, commSold, economy));
+                }
                 if (topRev[0] < revFromComm) {
                     topRev[1] = topRev[0];
                     topRev[0] = revFromComm;

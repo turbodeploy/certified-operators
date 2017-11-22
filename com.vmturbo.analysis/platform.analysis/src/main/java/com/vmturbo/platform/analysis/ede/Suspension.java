@@ -7,6 +7,8 @@ import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -44,6 +46,8 @@ public class Suspension {
         double c2 = is2.getROI()/is2.getMinDesiredROI();
         return c1 > c2 ? 1 : c1 == c2 ? 0 : -1;
     });
+
+    static final Logger logger = LogManager.getLogger(Suspension.class);
 
     /**
      * Return a list of recommendations to optimize the suspension of all eligible traders in the
