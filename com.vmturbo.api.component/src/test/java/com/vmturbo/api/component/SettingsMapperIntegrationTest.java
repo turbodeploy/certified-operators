@@ -22,7 +22,7 @@ import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.group.api.SettingPolicySetting;
-import com.vmturbo.group.persistent.FileBasedSettingsSpecStore;
+import com.vmturbo.group.persistent.EnumBasedSettingSpecStore;
 import com.vmturbo.group.persistent.SettingSpecStore;
 import com.vmturbo.group.service.SettingRpcService;
 
@@ -39,9 +39,7 @@ public class SettingsMapperIntegrationTest {
      */
     @Test
     public void testSettingsMapping() throws Exception {
-
-        final SettingSpecStore specStore =
-                new FileBasedSettingsSpecStore("setting/setting-spec.json");
+        final SettingSpecStore specStore = new EnumBasedSettingSpecStore();
         final SettingRpcService settingRpcService = new SettingRpcService(specStore);
         final Server server =
                 InProcessServerBuilder.forName("test").addService(settingRpcService).build();

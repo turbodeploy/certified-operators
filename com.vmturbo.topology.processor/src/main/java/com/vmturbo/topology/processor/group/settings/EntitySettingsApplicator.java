@@ -77,7 +77,7 @@ public class EntitySettingsApplicator {
                 new UtilizationThresholdApplicator(CommodityType.SWAPPING));
         applicators.put(SettingPolicySetting.ReadyQueueUtilization,
                 new UtilizationThresholdApplicator(CommodityType.QN_VCPU));
-        applicators.put(SettingPolicySetting.StorageAmmountUtilization,
+        applicators.put(SettingPolicySetting.StorageAmountUtilization,
                 new UtilizationThresholdApplicator(CommodityType.STORAGE_AMOUNT));
         applicators.put(SettingPolicySetting.IopsUtilization,
                 new UtilizationThresholdApplicator(CommodityType.STORAGE_ACCESS));

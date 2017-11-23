@@ -114,14 +114,14 @@ public class EntitySettingsApplicatorTest {
                 SettingPolicySetting.NetThroughput);
 
         testUtilizationSettings(EntityType.STORAGE, CommodityType.STORAGE_AMOUNT,
-                SettingPolicySetting.StorageAmmountUtilization);
+                SettingPolicySetting.StorageAmountUtilization);
         testUtilizationSettings(EntityType.STORAGE, CommodityType.STORAGE_ACCESS,
                 SettingPolicySetting.IopsUtilization);
         testUtilizationSettings(EntityType.STORAGE, CommodityType.STORAGE_LATENCY,
                 SettingPolicySetting.LatencyUtilization);
 
         testUtilizationSettings(EntityType.STORAGE_CONTROLLER, CommodityType.STORAGE_AMOUNT,
-                SettingPolicySetting.StorageAmmountUtilization);
+                SettingPolicySetting.StorageAmountUtilization);
         testUtilizationSettings(EntityType.STORAGE_CONTROLLER, CommodityType.CPU,
                 SettingPolicySetting.CpuUtilization);
     }

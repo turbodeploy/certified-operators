@@ -1,6 +1,11 @@
 package com.vmturbo.group;
 
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -10,10 +15,12 @@ import org.springframework.context.annotation.Import;
 
 import com.vmturbo.common.protobuf.setting.SettingProtoREST.SettingPolicyServiceController;
 import com.vmturbo.common.protobuf.setting.SettingProtoREST.SettingServiceController;
+import com.vmturbo.group.persistent.DefaultSettingPolicyCreator;
 import com.vmturbo.group.persistent.DefaultSettingPolicyValidator;
 import com.vmturbo.group.persistent.EntitySettingStore;
-import com.vmturbo.group.persistent.FileBasedSettingsSpecStore;
+import com.vmturbo.group.persistent.EnumBasedSettingSpecStore;
 import com.vmturbo.group.persistent.SettingPolicyValidator;
+import com.vmturbo.group.persistent.SettingSpecStore;
 import com.vmturbo.group.persistent.SettingStore;
 import com.vmturbo.group.service.SettingPolicyRpcService;
 import com.vmturbo.group.service.SettingRpcService;
@@ -32,9 +39,6 @@ public class SettingConfig {
     @Autowired
     private ArangoDBConfig arangoDBConfig;
 
-    @Value("${settingSpecJsonFile:setting/setting-spec.json}")
-    private String settingSpecJsonFile;
-
     @Value("${createDefaultSettingPolicyRetryIntervalSec}")
     private long createDefaultSettingPolicyRetryIntervalSec;
 
@@ -42,8 +46,8 @@ public class SettingConfig {
     private long realtimeTopologyContextId;
 
     @Bean
-    public FileBasedSettingsSpecStore settingSpecsStore() {
-        return new FileBasedSettingsSpecStore(settingSpecJsonFile);
+    public SettingSpecStore settingSpecsStore() {
+        return new EnumBasedSettingSpecStore();
     }
 
     @Bean
@@ -54,8 +58,28 @@ public class SettingConfig {
     @Bean
     public SettingStore settingStore() {
         return new SettingStore(settingSpecsStore(), databaseConfig.dsl(),
-                identityProviderConfig.identityProvider(), settingPolicyValidator(),
-                createDefaultSettingPolicyRetryIntervalSec, TimeUnit.SECONDS);
+                identityProviderConfig.identityProvider(), settingPolicyValidator());
+    }
+
+    @Bean
+    public DefaultSettingPolicyCreator defaultSettingPoliciesCreator() {
+        final DefaultSettingPolicyCreator creator =
+                new DefaultSettingPolicyCreator(settingSpecsStore(), settingStore(),
+                        TimeUnit.SECONDS.toMillis(createDefaultSettingPolicyRetryIntervalSec));
+        /*
+         * Asynchronously create the default setting policies.
+         * This is asynchronous so that DB availability doesn't prevent the group component from
+         * starting up.
+         */
+        settingsCreatorThreadPool().execute(creator);
+        return creator;
+    }
+
+    @Bean(destroyMethod = "shutdownNow")
+    protected ExecutorService settingsCreatorThreadPool() {
+        final ThreadFactory tf =
+                new ThreadFactoryBuilder().setNameFormat("default-settings-creator-%d").build();
+        return Executors.newCachedThreadPool(tf);
     }
 
     @Bean

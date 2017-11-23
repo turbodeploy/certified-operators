@@ -129,6 +129,10 @@ message EntitySettingScope {
 message BooleanSettingValueType {
     // The default value for this setting.
     optional bool default = 1;
+
+    // Entity type -specific defaults to overrride the global default for this setting.
+    // They are only used if there should be different default values for different entity types
+    map<int32, bool> entityDefaults = 4;
 }
 
 // NumericSettingValueType is used to indicate that a setting is carrying a numeric
@@ -145,6 +149,10 @@ message NumericSettingValueType {
 
     // The default value for this setting.
     optional float default = 3;
+
+    // Entity type -specific defaults to overrride the global default for this setting.
+    // They are only used if there should be different default values for different entity types
+    map<int32, float> entityDefaults = 4;
 }
 
 // StringSettingValueType is used to indicate that a setting is carrying a String type of value.
@@ -155,6 +163,10 @@ message StringSettingValueType {
 
     // The default value for this setting.
     optional string default = 2;
+
+    // Entity type -specific defaults to overrride the global default for this setting.
+    // They are only used if there should be different default values for different entity types
+    map<int32, string> entityDefaults = 4;
 }
 
 // EnumSettingValueType is used to indicate that a setting is carrying an enumeration
@@ -169,6 +181,10 @@ message EnumSettingValueType {
     // The default value for this setting.
     // The value must be one of enum_values.
     optional string default = 2;
+
+    // Entity type -specific defaults to overrride the global default for this setting.
+    // They are only used if there should be different default values for different entity types
+    map<int32, string> entityDefaults = 4;
 }
 
 // Used to deserialize a collection of Specs from a single JSON file

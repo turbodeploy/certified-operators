@@ -21,7 +21,7 @@ public class SettingSpecsStoreTest {
 
     @Before
     public void init() {
-        specStore = new FileBasedSettingsSpecStore("setting/setting-spec.json");
+        specStore = new EnumBasedSettingSpecStore();
     }
 
     /**

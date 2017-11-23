@@ -1,39 +1,132 @@
 package com.vmturbo.group.api;
 
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.ListIterator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.AllEntityType;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.EntityTypeSet;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingSpec;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingCategoryPath;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingCategoryPath.SettingCategoryPathNode;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingTiebreaker;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+
 /**
- * Enumeration for all the settings, available in Group component.
+ * Enumeration for all the pre-built entity settings.
  */
 public enum SettingPolicySetting {
-    Move("move"),
-    Suspend("suspend"),
-    Provision("provision"),
-    Resize("resize"),
-    CpuUtilization("cpuUtilization"),
-    MemoryUtilization("memoryUtilization"),
-    IoThroughput("ioThroughput"),
-    NetThroughput("netThroughput"),
-    SwappingUtilization("swappingUtilization"),
-    ReadyQueueUtilization("readyQueueUtilization"),
-    StorageAmmountUtilization("storageAmountUtilization"),
-    IopsUtilization("iopsUtilization"),
-    LatencyUtilization("latencyUtilization"),
-    CpuOverprovisionedPercentage("cpuOverprovisionedPercentage"),
-    MemoryOverprovisionedPercentage("memoryOverprovisionedPercentage");
+    /**
+     * Move action automation mode.
+     */
+    Move("move", "Move", Collections.emptyList(), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionMode()),
+    /**
+     * Resize action automation mode.
+     */
+    Resize("resize", "Resize", Collections.emptyList(), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionMode()),
+    /**
+     * Suspend action automation mode.
+     */
+    Suspend("suspend", "Suspend", Collections.emptyList(), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE), actionExecutionMode()),
+    /**
+     * Provision action automation mode.
+     */
+    Provision("provision", "Provision", Collections.emptyList(), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE), actionExecutionMode()),
+    /**
+     * CPU utilization threshold.
+     */
+    CpuUtilization("cpuUtilization", "CPU Utilization", Collections.emptyList(),
+            SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.PHYSICAL_MACHINE, EntityType.STORAGE_CONTROLLER),
+            numeric(20f, 100f, 100f)),
+    /**
+     * Memoty utilization threshold.
+     */
+    MemoryUtilization("memoryUtilization", "Memory Utilization", Collections.emptyList(),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.PHYSICAL_MACHINE),
+            numeric(1f, 100f, 100f)),
+    /**
+     * IO throughput utilization threshold.
+     */
+    IoThroughput("ioThroughput", "IO Throughput", Collections.emptyList(),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.PHYSICAL_MACHINE),
+            numeric(10f, 100f, 50f)),
+    /**
+     * Network througput utilization threshold.
+     */
+    NetThroughput("netThroughput", "Net Throughput", Collections.emptyList(), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.PHYSICAL_MACHINE, EntityType.SWITCH),
+            new NumericSettingDataType(10f, 100f, 50f,
+                    Collections.singletonMap(EntityType.SWITCH, 70f))),
+    /**
+     * Swapping utilization threshold.
+     */
+    SwappingUtilization("swappingUtilization", "Swapping Utilization", Collections.emptyList(),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.PHYSICAL_MACHINE),
+            numeric(0f, 100f, 20f)),
+    /**
+     * Ready queu utilization threshold.
+     */
+    ReadyQueueUtilization("readyQueueUtilization", "Ready Queue Utilization",
+            Collections.emptyList(), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(0f, 100f, 50f)),
+    /**
+     * Storage utilization threshould.
+     */
+    StorageAmountUtilization("storageAmountUtilization", "Storage Amount Utilization",
+            Collections.emptyList(), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.STORAGE, EntityType.STORAGE_CONTROLLER), numeric(0f, 100f, 90f)),
+    /**
+     * IOPS utilization threshould.
+     */
+    IopsUtilization("iopsUtilization", "IOPS Utilization", Collections.emptyList(),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.STORAGE), numeric(0f, 100f, 100f)),
+    /**
+     * Storage latency utilization threshold.
+     */
+    LatencyUtilization("latencyUtilization", "Latency Utilization", Collections.emptyList(),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.STORAGE), numeric(0f, 100f, 100f)),
+    /**
+     * CPU overprovisioned in percents.
+     */
+    CpuOverprovisionedPercentage("cpuOverprovisionedPercentage", "CPU Overprovisioned Percentage",
+            Collections.emptyList(), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(0f, 1000000f, 1000f)),
+    /**
+     * Memory overprovisioned in percents.
+     */
+    MemoryOverprovisionedPercentage("memoryOverprovisionedPercentage",
+            "Memory Overprovisioned Percentage", Collections.emptyList(), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(0f, 1000000f, 1000f));
 
     /**
      * Setting name to setting enumeration value map for fast access.
      */
     private static final Map<String, SettingPolicySetting> SETTING_MAP;
 
-    private final String settingName;
+    private final String name;
+    private final String displayName;
+    private final SettingTiebreaker tieBreaker;
+    private final Set<EntityType> entityTypeScop;
+    private final SettingDataStructure<?> dataStructure;
+    private final List<String> categoryPath;
 
     static {
         final SettingPolicySetting[] settings = SettingPolicySetting.values();
@@ -44,8 +137,15 @@ public enum SettingPolicySetting {
         SETTING_MAP = Collections.unmodifiableMap(result);
     }
 
-    SettingPolicySetting(@Nonnull String settingName) {
-        this.settingName = Objects.requireNonNull(settingName);
+    SettingPolicySetting(@Nonnull String name, @Nonnull String displayName,
+            @Nonnull List<String> categoryPath, @Nonnull SettingTiebreaker tieBreaker,
+            @Nonnull Set<EntityType> entityTypeScop, @Nonnull SettingDataStructure dataStructure) {
+        this.name = Objects.requireNonNull(name);
+        this.displayName = Objects.requireNonNull(displayName);
+        this.categoryPath = Objects.requireNonNull(categoryPath);
+        this.tieBreaker = Objects.requireNonNull(tieBreaker);
+        this.entityTypeScop = Objects.requireNonNull(entityTypeScop);
+        this.dataStructure = Objects.requireNonNull(dataStructure);
     }
 
     /**
@@ -55,7 +155,7 @@ public enum SettingPolicySetting {
      */
     @Nonnull
     public String getSettingName() {
-        return settingName;
+        return name;
     }
 
     /**
@@ -70,4 +170,67 @@ public enum SettingPolicySetting {
         Objects.requireNonNull(settingName);
         return Optional.ofNullable(SETTING_MAP.get(settingName));
     }
+
+    /**
+     * Constructs Protobuf representation of setting specification.
+     *
+     * @return Protobuf representation
+     */
+    @Nonnull
+    public SettingSpec createSettingSpec() {
+        final EntitySettingScope.Builder scopeBuilder = EntitySettingScope.newBuilder();
+        if (entityTypeScop.isEmpty()) {
+            scopeBuilder.setAllEntityType(AllEntityType.getDefaultInstance());
+        } else {
+            scopeBuilder.setEntityTypeSet(EntityTypeSet.newBuilder()
+                    .addAllEntityType(entityTypeScop.stream()
+                            .map(EntityType::getNumber)
+                            .collect(Collectors.toSet())));
+        }
+        final SettingSpec.Builder builder = SettingSpec.newBuilder()
+                .setName(name)
+                .setDisplayName(displayName)
+                .setEntitySettingSpec(EntitySettingSpec.newBuilder()
+                        .setTiebreaker(tieBreaker)
+                        .setEntitySettingScope(scopeBuilder));
+        builder.setPath(createCategoryPath());
+        dataStructure.build(builder);
+        return builder.build();
+    }
+
+    /**
+     * Method constructs setting category path object from the {@link #categoryPath} variable.
+     *
+     * @return {@link SettingCategoryPath} object.
+     */
+    @Nonnull
+    private SettingCategoryPath createCategoryPath() {
+        final ListIterator<String> categoryIterator =
+                categoryPath.listIterator(categoryPath.size());
+        SettingCategoryPathNode childNode = null;
+        while (categoryIterator.hasPrevious()) {
+            final SettingCategoryPathNode.Builder nodeBuilder =
+                    SettingCategoryPathNode.newBuilder().setNodeName(categoryIterator.previous());
+            if (childNode != null) {
+                nodeBuilder.setChildNode(childNode);
+            }
+            childNode = nodeBuilder.build();
+        }
+        final SettingCategoryPath.Builder builder = SettingCategoryPath.newBuilder();
+        if (childNode != null) {
+            builder.setRootPathNode(childNode);
+        }
+        return builder.build();
+    }
+
+    @Nonnull
+    private static SettingDataStructure<?> actionExecutionMode() {
+        return new EnumSettingDataType<>(ActionMode.MANUAL);
+    }
+
+    @Nonnull
+    private static SettingDataStructure<?> numeric(float min, float max, float defaultValue) {
+        return new NumericSettingDataType(min, max, defaultValue);
+    }
+
 }
