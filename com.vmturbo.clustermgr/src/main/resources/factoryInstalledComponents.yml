@@ -15,6 +15,7 @@ action-orchestrator:
   grpcPingIntervalSeconds: 300
   websocket.pong.timeout: 30000
   mariadbHealthCheckIntervalSeconds: 60
+  kvStoreRetryIntervalMillis: 1000
 
 market:
   topologyProcessorHost: 'topology-processor'

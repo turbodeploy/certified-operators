@@ -26,6 +26,7 @@ import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionCountsMapper;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
+import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.dto.notification.LogEntryApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
@@ -114,11 +115,13 @@ public class ActionsService implements IActionsService {
 
     @Override
     public boolean executeAction(String uuid, boolean accept) throws Exception {
+
         if (accept) {
             // accept the action
             try {
                 log.info("Accepting action with id: {}", uuid);
-                AcceptActionResponse response = actionOrchestratorRpc.acceptAction(actionRequest(uuid));
+                AcceptActionResponse response = actionOrchestratorRpc
+                        .acceptAction(actionRequest(uuid));
                 if (response.hasError()) {
                     log.error("Error {}", response.getError());
                     throw new UnknownObjectException(response.getError());
@@ -273,4 +276,5 @@ public class ActionsService implements IActionsService {
         });
         return statSnapshotApiDTOS;
     }
+
 }

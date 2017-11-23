@@ -18,6 +18,7 @@ import org.springframework.context.annotation.Import;
 
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
+import io.grpc.ServerInterceptors;
 
 import com.vmturbo.action.orchestrator.api.ActionOrchestratorApiConfig;
 import com.vmturbo.action.orchestrator.api.ApiSecurityConfig;
@@ -27,6 +28,8 @@ import com.vmturbo.action.orchestrator.execution.notifications.NotificationsConf
 import com.vmturbo.action.orchestrator.market.MarketConfig;
 import com.vmturbo.action.orchestrator.rpc.RpcConfig;
 import com.vmturbo.action.orchestrator.store.ActionStoreConfig;
+import com.vmturbo.auth.api.SpringSecurityConfig;
+import com.vmturbo.auth.api.authorization.jwt.JwtServerInterceptor;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.SQLDBHealthMonitor;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
@@ -44,7 +47,8 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
         ActionStoreConfig.class,
         ApiSecurityConfig.class,
         ActionOrchestratorGlobalConfig.class,
-        SQLDatabaseConfig.class})
+        SQLDatabaseConfig.class,
+        SpringSecurityConfig.class})
 @EnableAutoConfiguration
 @EnableDiscoveryClient
 public class ActionOrchestratorComponent extends BaseVmtComponent {
@@ -59,6 +63,12 @@ public class ActionOrchestratorComponent extends BaseVmtComponent {
 
     @Autowired
     private SQLDatabaseConfig dbConfig;
+
+    /**
+     * JWT token verification and decoding.
+     */
+    @Autowired
+    private SpringSecurityConfig securityConfig;
 
     @Value("${spring.application.name}")
     private String componentName;
@@ -86,8 +96,10 @@ public class ActionOrchestratorComponent extends BaseVmtComponent {
     @Override
     @Nonnull
     protected Optional<Server> buildGrpcServer(@Nonnull final ServerBuilder builder) {
+        // gRPC JWT token interceptor
+        final JwtServerInterceptor jwtInterceptor = new JwtServerInterceptor(securityConfig.apiKVStore());
         builder
-            .addService(rpcConfig.actionRpcService())
+            .addService(ServerInterceptors.intercept(rpcConfig.actionRpcService(), jwtInterceptor))
             .addService(rpcConfig.entitySeverityRpcService());
         rpcConfig.actionsDebugRpcService().ifPresent(builder::addService);
 

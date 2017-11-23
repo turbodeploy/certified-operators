@@ -178,7 +178,11 @@
             <groupId>com.vmturbo</groupId>
             <artifactId>common-protobuf</artifactId>
         </dependency>
-
+        <!-- Verify and decode JWT token -->
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>auth-api</artifactId>
+        </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>sql-utils</artifactId>

@@ -15,6 +15,7 @@ import io.grpc.Channel;
 
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
+import com.vmturbo.auth.api.authorization.jwt.JwtClientInterceptor;
 import com.vmturbo.clustermgr.api.impl.ClusterMgrClient;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
@@ -127,7 +128,9 @@ public class CommunicationConfig {
 
     @Bean
     public ActionsServiceBlockingStub actionsRpcService() {
-        return ActionsServiceGrpc.newBlockingStub(aoClientConfig.actionOrchestratorChannel());
+        return ActionsServiceGrpc.newBlockingStub(aoClientConfig.actionOrchestratorChannel())
+                // Intercept client call and add JWT token to the metadata
+                .withInterceptors(new JwtClientInterceptor());
     }
 
     @Bean

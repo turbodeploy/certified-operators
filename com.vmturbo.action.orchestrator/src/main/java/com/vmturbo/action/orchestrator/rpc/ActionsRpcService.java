@@ -61,6 +61,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.TopologyContextInfoRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.TopologyContextResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.TypeCount;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceImplBase;
+import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 
 /**
  * Implements the RPC calls supported by the action orchestrator for retrieving and executing actions.
@@ -95,6 +96,8 @@ public class ActionsRpcService extends ActionsServiceImplBase {
     @Override
     public void acceptAction(SingleActionRequest request,
                              StreamObserver<AcceptActionResponse> responseObserver) {
+        String requestUserName = SecurityConstant.USER_ID_CTX_KEY.get();
+        logger.debug("Getting action request from: " + requestUserName);
         if (!request.hasTopologyContextId()) {
             responseObserver.onNext(acceptanceError("Missing required parameter TopologyContextId"));
             responseObserver.onCompleted();
@@ -123,9 +126,14 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                     store.getEntitySeverityCache()
                         .refresh(action.getRecommendation(), store);
                 }
-
+                // TODO replace it with audit message.
+                logger.info(requestUserName + " is trying to execute Action: " + action.getId()
+                        + " with mode: " + action.getMode()
+                        + " with recommendation: " + action.getRecommendation());
                 return attemptResponse;
             }).orElse(acceptanceError("Action " + request.getActionId() + " doesn't exist."));
+
+
 
         responseObserver.onNext(response);
         responseObserver.onCompleted();
@@ -369,7 +377,7 @@ public class ActionsRpcService extends ActionsServiceImplBase {
      * @return The result of attempting to accept and execute the action.
      */
     private AcceptActionResponse attemptAcceptAndExecute(@Nonnull final Action action,
-                                                                         final long userId) {
+                                                         final long userId) {
         long actionTargetId = -1;
         Optional<FailureEvent> failure = Optional.empty();
 
