@@ -120,6 +120,7 @@ function start_xl() {
 	start_xl_component mediation-hyperv "$JAVA_MSG"
 	start_xl_component mediation-vcenter "$JAVA_MSG"
 	start_xl_component mediation-netapp "$JAVA_MSG"
+	start_xl_component mediation-ucs "$JAVA_MSG"
     echo "Finalizing XL components startup" >/tmp/load_status
     # Make sure the initial_setup scripts are terminated and deleted.
     if [[ -d /root/initial_setup ]]; then

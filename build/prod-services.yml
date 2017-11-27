@@ -282,3 +282,16 @@ services:
     volumes:
       - mediation-netapp:/home/turbonomic/data
     restart: always
+
+  mediation-ucs-prod:
+    extends:
+      file: common-services.yml
+      service: prod-component
+    image: turbonomic/com.vmturbo.mediation.ucs.component
+    environment:
+      consul_host: consul
+      component_type: mediation-ucs
+      instance_id: mediation-ucs-1
+    volumes:
+      - mediation-ucs:/home/turbonomic/data
+    restart: always

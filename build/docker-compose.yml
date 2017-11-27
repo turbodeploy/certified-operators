@@ -42,6 +42,7 @@ volumes:
   mediation-hyperv: *localdriver
   mediation-delegatingprobe: *localdriver
   mediation-netapp: *localdriver
+  mediation-ucs: *localdriver
   kafka1-log: *localdriver
   zoo1-data: *localdriver
 #  mediation-aix: *localdriver
@@ -491,6 +492,23 @@ services:
     volumes:
       - mediation-netapp:/home/turbonomic/data
     mem_limit: ${MEDIATION_NETAPP_MEM_LIMIT_MB}M
+
+  mediation-ucs:
+    extends:
+      file: common-services.yml
+      service: dev-component
+    image: turbonomic/com.vmturbo.mediation.ucs.component
+    depends_on: *clustermgrdep
+    ports:
+      - "${MEDIATION_UCS_PORT}"
+      - "${MEDIATION_UCS_DEBUG_PORT}"
+    environment:
+      component_type: mediation-ucs
+      instance_id: mediation-ucs-1
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_UCS_XMX_MB}M ${MEDIATION_UCS_SYSTEM_PROPERTIES}"
+    volumes:
+      - mediation-ucs:/home/turbonomic/data
+    mem_limit: ${MEDIATION_UCS_MEM_LIMIT_MB}M
 
 #  mediation-aix:
 #    extends:

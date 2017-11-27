@@ -35,6 +35,7 @@ volumes:
   mediation-vcenter: *localdriver
   mediation-hyperv: *localdriver
   mediation-netapp: *localdriver
+  mediation-ucs: *localdriver
   kafka1-log: *localdriver
   zoo1-data: *localdriver
 
@@ -215,6 +216,15 @@ services:
     extends:
       file: prod-services.yml
       service: mediation-netapp-prod
+    environment:
+      JAVA_OPTS: "-Xmx768M"
+    mem_limit: 1024M
+    depends_on: *clustermgrdep
+
+  mediation-ucs:
+    extends:
+      file: prod-services.yml
+      service: mediation-ucs-prod
     environment:
       JAVA_OPTS: "-Xmx768M"
     mem_limit: 1024M
