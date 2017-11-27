@@ -77,18 +77,20 @@ public class FunctionalOperatorUtilTest {
         vm1.getSettings().setBalanceAccount(new BalanceAccount(200, 0, 0));
         Trader pm1 = TestUtils.createTrader(economy, TestUtils.PM_TYPE, Arrays.asList(0L),
                         Arrays.asList(TestUtils.COST_COMMODITY), new double[] {100}, true, false);
+        BalanceAccount ba = new BalanceAccount(200, 300, 1);
+        pm1.getSettings().setBalanceAccount(ba);
         TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.COST_COMMODITY), vm1,
                         new double[] {40}, new double[] {60}, pm1);
         ShoppingList sl3 = TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.COST_COMMODITY), vm1,
                         new double[] {30}, new double[] {50}, null);
 
         double[] res1 = FunctionalOperatorUtil.UPDATE_EXPENSES.operate(sl3, 0,
-                        pm1.getCommoditySold(TestUtils.COST_COMMODITY), null, economy, false);
+                        pm1.getCommoditySold(TestUtils.COST_COMMODITY), pm1, economy, false);
         Assert.assertEquals(210, res1[0], epsilon);
         Assert.assertEquals(0, res1[1], epsilon);
 
         double[] res2 = FunctionalOperatorUtil.UPDATE_EXPENSES.operate(sl3, 0,
-                        pm1.getCommoditySold(TestUtils.COST_COMMODITY), null, economy, true);
+                        pm1.getCommoditySold(TestUtils.COST_COMMODITY), pm1, economy, true);
 
         Assert.assertEquals(40, res2[0], epsilon);
         Assert.assertEquals(60, res2[1], epsilon);

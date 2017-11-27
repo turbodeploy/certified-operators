@@ -18,7 +18,7 @@ public class FunctionalOperatorUtil {
     public static FunctionalOperator UPDATE_EXPENSES = (buyer, boughtIndex, commSold, seller,
                         economy, take)
                     -> {
-        BalanceAccount ba = buyer.getBuyer().getSettings().getBalanceAccount();
+                        BalanceAccount ba = seller.getSettings().getBalanceAccount();
                         if (take) {
                             // updating the action spent when taking it
                             CommoditySold commSoldByCurrSeller = buyer.getSupplier() != null ? buyer.getSupplier()
