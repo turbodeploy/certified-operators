@@ -187,12 +187,13 @@ message ScenarioChange {
     }
 
     // A change to set the value of some setting to some particular value.
-    // Right now this is unscoped - it will override that setting for all entities
-    // to which the setting applies to (e.g. if you set "suspend" to disabled, it will
-    // disable suspend of VMs, hosts, etc).
     message SettingOverride {
         // The setting to override.
         optional .setting.Setting setting = 1;
+
+        // If present, the entity type to override the setting for.
+        // This is one of the ways to narrow down setting overrides.
+        optional int32 entity_type = 2;
     }
 }
 

@@ -28,10 +28,10 @@ import org.mockito.Captor;
 import org.mockito.MockitoAnnotations;
 
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
+import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
-import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.AllEntityType;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.EntityTypeSet;
@@ -56,6 +56,8 @@ public class SettingsServiceTest {
 
     private SettingsMapper settingsMapper = mock(SettingsMapper.class);
 
+    private SettingsManagerMapping settingsManagerMapping = mock(SettingsManagerMapping.class);
+
     private static final int ENTITY_TYPE = EntityType.VIRTUAL_MACHINE_VALUE;
     private static final String ENTITY_TYPE_STR = ServiceEntityMapper.toUIEntityType(ENTITY_TYPE);
 
@@ -79,7 +81,8 @@ public class SettingsServiceTest {
         MockitoAnnotations.initMocks(this);
         settingServiceStub = SettingServiceGrpc.newBlockingStub(grpcServer.getChannel());
 
-        settingsService = new SettingsService(settingServiceStub, settingsMapper);
+        settingsService = new SettingsService(settingServiceStub, settingsMapper,
+                settingsManagerMapping);
 
         when(settingRpcServiceSpy.searchSettingSpecs(any()))
                 .thenReturn(Collections.singletonList(vmSettingSpec));

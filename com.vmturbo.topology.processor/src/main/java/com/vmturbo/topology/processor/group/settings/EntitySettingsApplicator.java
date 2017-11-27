@@ -1,6 +1,5 @@
 package com.vmturbo.topology.processor.group.settings;
 
-import java.util.Collection;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -8,13 +7,11 @@ import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableMultimap;
-import com.google.common.collect.Multimap;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProviderOrBuilder;
-import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 import com.vmturbo.topology.processor.topology.TopologyGraph.Vertex;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline;
@@ -39,6 +36,9 @@ public class EntitySettingsApplicator {
     private static final Map<String, SingleSettingApplicator> APPLICATORS =
             ImmutableMap.<String, SingleSettingApplicator>builder()
                 .put("move", new MoveApplicator())
+                .put("suspend", new SuspendApplicator())
+                .put("provision", new ProvisionApplicator())
+                .put("resize", new ResizeApplicator())
                 .build();
 
     /**
@@ -98,19 +98,56 @@ public class EntitySettingsApplicator {
         @Override
         public void apply(@Nonnull final TopologyEntityDTO.Builder entity,
                           @Nonnull final Setting setting) {
-            if (setting.getSettingSpecName().equals("move") &&
-                    setting.getEnumSettingValue().getValue().equals("DISABLED")) {
-                entity.getCommoditiesBoughtFromProvidersBuilderList().stream()
-                    // Only disable moves for placed entities (i.e. those that have providers).
-                    // Doesn't make sense to disable them for unplaced ones.
-                    .filter(CommoditiesBoughtFromProviderOrBuilder::hasProviderId)
-                    .filter(CommoditiesBoughtFromProviderOrBuilder::hasProviderEntityType)
-                    // The "move" setting controls host moves. So we only want to set the group
-                    // of commodities bought from hosts (physical machines) to non-movable.
-                    .filter(commBought -> commBought.getProviderEntityType() ==
-                            EntityType.PHYSICAL_MACHINE.getValue())
-                    .forEach(commBought -> commBought.setMovable(false));
-            }
+            final boolean movable = !setting.getEnumSettingValue().getValue().equals("DISABLED");
+            entity.getCommoditiesBoughtFromProvidersBuilderList().stream()
+                // Only disable moves for placed entities (i.e. those that have providers).
+                // Doesn't make sense to disable them for unplaced ones.
+                .filter(CommoditiesBoughtFromProviderOrBuilder::hasProviderId)
+                .filter(CommoditiesBoughtFromProviderOrBuilder::hasProviderEntityType)
+                // The "move" setting controls host moves. So we only want to set the group
+                // of commodities bought from hosts (physical machines) to non-movable.
+                .filter(commBought -> commBought.getProviderEntityType() ==
+                        EntityType.PHYSICAL_MACHINE_VALUE)
+                .forEach(commBought -> commBought.setMovable(movable));
+        }
+    }
+
+    /**
+     * Applies the "suspend" setting to a {@link TopologyEntityDTO.Builder}.
+     */
+    static class SuspendApplicator extends SingleSettingApplicator {
+        @Override
+        public void apply(@Nonnull final TopologyEntityDTO.Builder entity,
+                          @Nonnull final Setting setting) {
+            entity.getAnalysisSettingsBuilder().setSuspendable(
+                    !setting.getEnumSettingValue().getValue().equals("DISABLED"));
+        }
+    }
+
+    /**
+     * Applies the "provision" setting to a {@link TopologyEntityDTO.Builder}.
+     */
+    static class ProvisionApplicator extends SingleSettingApplicator {
+        @Override
+        public void apply(@Nonnull final TopologyEntityDTO.Builder entity,
+                          @Nonnull final Setting setting) {
+            entity.getAnalysisSettingsBuilder().setCloneable(
+                    !setting.getEnumSettingValue().getValue().equals("DISABLED"));
+        }
+    }
+
+    /**
+     * Applies the "resize" setting to a {@link TopologyEntityDTO.Builder}.
+     */
+    static class ResizeApplicator extends SingleSettingApplicator {
+        @Override
+        public void apply(@Nonnull final TopologyEntityDTO.Builder entity,
+                          @Nonnull final Setting setting) {
+            final boolean resizeable =
+                    !setting.getEnumSettingValue().getValue().equals("DISABLED");
+            entity.getCommoditySoldListBuilderList().forEach(commSoldBuilder -> {
+                commSoldBuilder.setIsResizeable(resizeable);
+            });
         }
     }
 }

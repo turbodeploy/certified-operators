@@ -9,29 +9,30 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.springframework.util.CollectionUtils;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectWriter;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
+import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.scenario.AddObjectApiDTO;
 import com.vmturbo.api.dto.scenario.ConfigChangesApiDTO;
-import com.vmturbo.api.dto.scenario.MigrateObjectApiDTO;
 import com.vmturbo.api.dto.scenario.RemoveObjectApiDTO;
 import com.vmturbo.api.dto.scenario.ReplaceObjectApiDTO;
 import com.vmturbo.api.dto.scenario.ScenarioApiDTO;
@@ -47,15 +48,16 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyRemoval;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyReplace;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
-import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
-import com.vmturbo.common.protobuf.setting.SettingProto.Setting.ValueCase;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Maps scenarios between their API DTO representation and their protobuf representation.
  */
 public class ScenarioMapper {
+
+    private static final ObjectWriter OBJECT_WRITER = new ObjectMapper().writer();
+
     /**
      * The string constant expected by the UI for a custom scenario type.
      * Used as a fallback if a previously saved scenario doesn't have a set type for whatever
@@ -65,34 +67,22 @@ public class ScenarioMapper {
 
     private static final Logger logger = LogManager.getLogger();
 
-    /**
-     * Name for utilization value of DesiredState setting which API is using.
-     */
-    protected static final String TARGET_UTILIZATION = "utilTarget";
-    /**
-     * Name for band value of DesiredState setting which API is using.
-     */
-    protected static final String TARGET_BAND = "targetBand";
+    private final TemplatesUtils templatesUtils;
 
-    private static final Set<String> SETTINGS_NAMES = ImmutableSet.of(TARGET_UTILIZATION, TARGET_BAND);
+    private final RepositoryApi repositoryApi;
 
-    private RepositoryApi repositoryApi;
+    private final SettingsManagerMapping settingsManagerMapping;
 
-    private TemplatesUtils templatesUtils;
-
-    private static final Map<ValueCase, Function<Setting, String>> VALUES_OF_VALUE_CASES = ImmutableMap.of(
-            ValueCase.BOOLEAN_SETTING_VALUE, setting ->
-                    Boolean.toString(setting.getBooleanSettingValue().getValue()),
-            ValueCase.NUMERIC_SETTING_VALUE, setting ->
-                    Float.toString(setting.getNumericSettingValue().getValue()),
-            ValueCase.STRING_SETTING_VALUE, setting -> setting.getStringSettingValue().getValue(),
-            ValueCase.ENUM_SETTING_VALUE, setting -> setting.getEnumSettingValue().getValue()
-    );
+    private final SettingsMapper settingsMapper;
 
     public ScenarioMapper(@Nonnull final RepositoryApi repositoryApi,
-                          @Nonnull final TemplatesUtils templatesUtils) {
+                          @Nonnull final TemplatesUtils templatesUtils,
+                          @Nonnull final SettingsManagerMapping settingsManagerMapping,
+                          @Nonnull final SettingsMapper settingsMapper) {
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.templatesUtils = Objects.requireNonNull(templatesUtils);
+        this.settingsManagerMapping = Objects.requireNonNull(settingsManagerMapping);
+        this.settingsMapper = Objects.requireNonNull(settingsMapper);
     }
 
     /**
@@ -105,7 +95,7 @@ public class ScenarioMapper {
     @Nonnull
     public ScenarioInfo toScenarioInfo(final String name,
                                        @Nonnull final ScenarioApiDTO dto) {
-        ScenarioInfo.Builder infoBuilder = ScenarioInfo.newBuilder();
+        final ScenarioInfo.Builder infoBuilder = ScenarioInfo.newBuilder();
         if (name != null) {
             infoBuilder.setName(name);
         }
@@ -113,8 +103,10 @@ public class ScenarioMapper {
         // TODO: Right now, API send template id and entity id together for Topology Addition, and it
         // doesn't have a field to tell whether it is template id or entity id. Later on,
         // API should tell us if it is template id or not, please see (OM-26675).
-        final Set<Long> templatesId = getTemplatesIds(dto.getTopologyChanges());
-        addTopologyChanges(dto.getTopologyChanges(), infoBuilder, templatesId);
+        final Set<Long> templateIds = getTemplatesIds(dto.getTopologyChanges());
+
+        infoBuilder.addAllChanges(getTopologyChanges(dto.getTopologyChanges(), templateIds));
+        infoBuilder.addAllChanges(getConfigChanges(dto.getConfigChanges()));
         // TODO (gabriele, Oct 27 2017) We need to extend the Plan Orchestrator with support
         // for the other types of changes: time based topology, load and config
 
@@ -122,9 +114,6 @@ public class ScenarioMapper {
             infoBuilder.setType(dto.getType());
         }
 
-        if (dto.getConfigChanges() != null) {
-            addScenarioChanges(dto.getConfigChanges(), infoBuilder);
-        }
         return infoBuilder.build();
     }
 
@@ -148,133 +137,87 @@ public class ScenarioMapper {
         dto.setScope(buildApiScopeChanges());
         dto.setProjectionDays(buildApiProjChanges());
         dto.setTopologyChanges(buildApiTopologyChanges(scenario.getScenarioInfo().getChangesList()));
+        dto.setConfigChanges(buildApiConfigChanges(scenario.getScenarioInfo().getChangesList()));
         // TODO (gabriele, Oct 27 2017) We need to extend the Plan Orchestrator with support
         // for the other types of changes: time based topology, load and config
-
-        dto.setConfigChanges(getConfigChanges(scenario));
         return dto;
     }
 
     @Nonnull
-    private ConfigChangesApiDTO getConfigChanges(@Nonnull Scenario scenario) {
-        final ConfigChangesApiDTO configChanges = new ConfigChangesApiDTO();
-        final List<SettingApiDTO> automationSettings = getAutomationSettings(scenario);
-        configChanges.setAutomationSettingList(automationSettings);
-        return configChanges;
-    }
-
-    @Nonnull
-    private List<SettingApiDTO> getAutomationSettings(@Nonnull final Scenario scenario) {
-        ImmutableList.Builder<SettingApiDTO> listBuilder = ImmutableList.builder();
-        for (ScenarioChange change : scenario.getScenarioInfo().getChangesList()) {
-            if (change.hasSettingOverride()) {
-                listBuilder.add(getOverrideSetting(change.getSettingOverride()));
-            }
+    private List<ScenarioChange> getSettingChanges(@Nullable final List<SettingApiDTO> settingsList) {
+        if (CollectionUtils.isEmpty(settingsList)) {
+            return Collections.emptyList();
         }
-        return listBuilder.build();
-    }
 
-    @Nonnull
-    private SettingApiDTO getOverrideSetting(@Nonnull SettingOverride settingOverride) {
-        final Setting setting = settingOverride.getSetting();
-        final SettingApiDTO settingApiDTO = new SettingApiDTO();
-        settingApiDTO.setUuid(setting.getSettingSpecName());
-        final ValueCase valueCase = setting.getValueCase();
-        final String settingValue = VALUES_OF_VALUE_CASES.get(valueCase).apply(setting);
-        if (settingValue == null) {
-            throw new IllegalArgumentException("Cannot eject value from setting" + setting);
-        }
-        settingApiDTO.setValue(settingValue);
-        return settingApiDTO;
-    }
+        // First we convert them back to "real" settings.
+        final List<SettingApiDTO> convertedSettingOverrides =
+                settingsManagerMapping.convertFromPlanSetting(settingsList);
+        final Map<String, Setting> settingProtoOverrides =
+                settingsMapper.toProtoSettings(convertedSettingOverrides);
 
-    @Nonnull
-    public static SettingApiDTO createSettingApiDTO(int value, @Nonnull String uuid) {
-        final SettingApiDTO setting = new SettingApiDTO();
-        setting.setValue(Integer.toString(value));
-        setting.setUuid(uuid);
-        return setting;
-    }
-
-    private static void addTopologyChanges(final TopologyChangesApiDTO topoChanges,
-                                           @Nonnull final ScenarioInfo.Builder infoBuilder,
-                                           @Nonnull final Set<Long> templatesId) {
-        // build Topology changes
-        if (topoChanges != null) {
-            List<AddObjectApiDTO> addTopoChanges = topoChanges.getAddList();
-            List<RemoveObjectApiDTO> removeTopoChanges = topoChanges.getRemoveList();
-            List<ReplaceObjectApiDTO> replaceTopoChanges = topoChanges.getReplaceList();
-            List<MigrateObjectApiDTO> migrateTopoChanges = topoChanges.getMigrateList();
-
-            if (addTopoChanges != null) {
-                addTopoChanges.forEach(change -> {
-                    addTopologyAddition(change, infoBuilder, templatesId);
-                });
-            }
-
-            if (removeTopoChanges != null) {
-                removeTopoChanges.forEach(change -> {
-                    addTopologyRemoval(change, infoBuilder);
-                });
-            }
-
-            if (replaceTopoChanges != null) {
-                replaceTopoChanges.forEach(change -> {
-                    addTopologyReplace(change, infoBuilder);
-                });
-            }
-
-            if (migrateTopoChanges != null) {
-                migrateTopoChanges.forEach(change -> {
-                    logger.info("Skipping migration change of type Migrate: Not supported");
-                });
-            }
-        }
-    }
-
-    private void addScenarioChanges(@Nonnull ConfigChangesApiDTO configChanges,
-            @Nonnull ScenarioInfo.Builder infoBuilder) {
-        if (!CollectionUtils.isEmpty(configChanges.getAutomationSettingList())) {
-            addDesiredStateScenarioChange(configChanges.getAutomationSettingList(), infoBuilder);
-        }
-    }
-
-    private void addDesiredStateScenarioChange(@Nonnull List<SettingApiDTO> settings,
-            @Nonnull ScenarioInfo.Builder infoBuilder) {
-        final Map<String, Integer> desiredStateValues = getDesiredStateValues(settings);
-        if (!desiredStateValues.isEmpty()) {
-            SETTINGS_NAMES.forEach(settingName -> {
-                final Integer value = desiredStateValues.get(settingName);
-                if (value == null) {
-                    throw new IllegalArgumentException("Cannot resolve value for setting " + settingName);
+        final ImmutableList.Builder<ScenarioChange> retChanges = ImmutableList.builder();
+        convertedSettingOverrides.forEach(apiDto -> {
+            Setting protoSetting = settingProtoOverrides.get(apiDto.getUuid());
+            if (protoSetting == null) {
+                String dtoDescription;
+                try {
+                    dtoDescription = OBJECT_WRITER.writeValueAsString(apiDto);
+                } catch (JsonProcessingException e) {
+                    dtoDescription = apiDto.getUuid();
                 }
-                infoBuilder.addChanges(createScenarioChange(settingName,
-                        value));
-            });
-        }
+                logger.warn("Unable to map scenario change for setting: {}", dtoDescription);
+            } else {
+                final SettingOverride.Builder settingOverride = SettingOverride.newBuilder()
+                    .setSetting(protoSetting);
+                if (apiDto.getEntityType() != null) {
+                    settingOverride.setEntityType(
+                            ServiceEntityMapper.fromUIEntityType(apiDto.getEntityType()));
+                }
+                retChanges.add(ScenarioChange.newBuilder()
+                        .setSettingOverride(settingOverride)
+                        .build());
+            }
+        });
+        return retChanges.build();
     }
 
     @Nonnull
-    private ScenarioChange createScenarioChange(@Nonnull String settingName, int value) {
-        return ScenarioChange.newBuilder()
-                .setSettingOverride(SettingOverride.newBuilder()
-                    .setSetting(Setting.newBuilder()
-                        .setSettingSpecName(settingName)
-                        .setNumericSettingValue(
-                            NumericSettingValue.newBuilder().setValue(value)
-                            .build()))
-                        .build())
-                .build();
+    private List<ScenarioChange> getConfigChanges(@Nullable final ConfigChangesApiDTO configChanges) {
+        if (configChanges == null) {
+            return Collections.emptyList();
+        }
+
+        final ImmutableList.Builder<ScenarioChange> scenarioChanges = ImmutableList.builder();
+
+        scenarioChanges.addAll(getSettingChanges(configChanges.getAutomationSettingList()));
+
+        return scenarioChanges.build();
     }
 
-    private Map<String, Integer> getDesiredStateValues(@Nonnull List<SettingApiDTO> settings) {
-        final ImmutableMap.Builder<String, Integer> settingsValuesBuilder = ImmutableMap.builder();
-        for (SettingApiDTO setting : settings) {
-            if (SETTINGS_NAMES.contains(setting.getUuid())) {
-                settingsValuesBuilder.put(setting.getUuid(), Integer.parseInt(setting.getValue()));
-            }
+    @Nonnull
+    private static List<ScenarioChange> getTopologyChanges(final TopologyChangesApiDTO topoChanges,
+                                           @Nonnull final Set<Long> templateIds) {
+        if (topoChanges == null) {
+            return Collections.emptyList();
         }
-        return settingsValuesBuilder.build();
+
+        final ImmutableList.Builder<ScenarioChange> changes = ImmutableList.builder();
+
+        CollectionUtils.emptyIfNull(topoChanges.getAddList())
+            .forEach(change -> changes.add(mapTopologyAddition(change, templateIds)));
+
+        CollectionUtils.emptyIfNull(topoChanges.getRemoveList())
+            .forEach(change -> changes.add(mapTopologyRemoval(change)));
+
+        CollectionUtils.emptyIfNull(topoChanges.getReplaceList())
+            .forEach(change -> changes.add(mapTopologyReplace(change)));
+
+        if (!CollectionUtils.isEmpty(topoChanges.getMigrateList())) {
+            logger.warn("Skipping {} migration changes.",
+                    topoChanges.getMigrateList().size());
+        }
+
+        return changes.build();
     }
 
     /**
@@ -311,8 +254,7 @@ public class ScenarioMapper {
         return projDays == null ? Collections.emptyList() : projDays;
     }
 
-    private static void addTopologyAddition(@Nonnull final AddObjectApiDTO change,
-                                            @Nonnull final ScenarioInfo.Builder infoBuilder,
+    private static ScenarioChange mapTopologyAddition(@Nonnull final AddObjectApiDTO change,
                                             @Nonnull final Set<Long> templateIds) {
         Preconditions.checkArgument(change.getTarget() != null,
                 "Topology additions must contain a target");
@@ -331,37 +273,34 @@ public class ScenarioMapper {
             additionBuilder.setEntityId(uuid);
         }
 
-        ScenarioChange.Builder changeBuilder = ScenarioChange.newBuilder();
-        infoBuilder.addChanges(changeBuilder.setTopologyAddition(additionBuilder.build()));
+        return ScenarioChange.newBuilder()
+            .setTopologyAddition(additionBuilder)
+            .build();
     }
 
-    private static void addTopologyRemoval(@Nonnull final RemoveObjectApiDTO change,
-                                           @Nonnull final ScenarioInfo.Builder infoBuilder) {
+    private static ScenarioChange mapTopologyRemoval(@Nonnull final RemoveObjectApiDTO change) {
         Preconditions.checkArgument(change.getTarget() != null,
                 "Topology removals must contain a target");
 
-        ScenarioChange.Builder changeBuilder = ScenarioChange.newBuilder();
-        infoBuilder.addChanges(changeBuilder.setTopologyRemoval(
-            TopologyRemoval.newBuilder()
+        return ScenarioChange.newBuilder()
+            .setTopologyRemoval(TopologyRemoval.newBuilder()
                 .setChangeApplicationDay(projectionDay(change.getProjectionDay()))
-                .setEntityId(Long.parseLong(change.getTarget().getUuid()))
-                .build()));
+                .setEntityId(Long.parseLong(change.getTarget().getUuid())))
+            .build();
     }
 
-    private static void addTopologyReplace(@Nonnull final ReplaceObjectApiDTO change,
-                                           @Nonnull final ScenarioInfo.Builder infoBuilder) {
+    private static ScenarioChange mapTopologyReplace(@Nonnull final ReplaceObjectApiDTO change) {
         Preconditions.checkArgument(change.getTarget() != null,
                 "Topology replace must contain a target");
         Preconditions.checkArgument(change.getTemplate() != null,
                 "Topology replace must contain a template");
 
-        ScenarioChange.Builder changeBuilder = ScenarioChange.newBuilder();
-        infoBuilder.addChanges(changeBuilder.setTopologyReplace(
-            TopologyReplace.newBuilder()
+        return ScenarioChange.newBuilder()
+            .setTopologyReplace(TopologyReplace.newBuilder()
                 .setChangeApplicationDay(projectionDay(change.getProjectionDay()))
                 .setAddTemplateId(Long.parseLong(change.getTemplate().getUuid()))
-                .setRemoveEntityId(Long.parseLong(change.getTarget().getUuid()))
-                .build()));
+                .setRemoveEntityId(Long.parseLong(change.getTarget().getUuid())))
+            .build();
     }
 
     private List<BaseApiDTO> buildApiScopeChanges() {
@@ -390,10 +329,33 @@ public class ScenarioMapper {
     }
 
     @Nonnull
+    private ConfigChangesApiDTO buildApiConfigChanges(@Nonnull final List<ScenarioChange> changes) {
+        final List<SettingApiDTO> settingChanges = changes.stream()
+                .filter(ScenarioChange::hasSettingOverride)
+                .map(ScenarioChange::getSettingOverride)
+                .map(this::createApiSettingFromOverride)
+                .collect(Collectors.toList());
+
+        final ConfigChangesApiDTO outputChanges = new ConfigChangesApiDTO();
+        outputChanges.setAutomationSettingList(
+                settingsManagerMapping.convertToPlanSetting(settingChanges));
+        return outputChanges;
+    }
+
+    @Nonnull
+    private SettingApiDTO createApiSettingFromOverride(@Nonnull final SettingOverride settingOverride) {
+        final SettingApiDTO apiDTO =
+                SettingsMapper.toSettingApiDto(settingOverride.getSetting());
+        if (settingOverride.hasEntityType()) {
+            apiDTO.setEntityType(
+                    ServiceEntityMapper.toUIEntityType(settingOverride.getEntityType()));
+        }
+        return apiDTO;
+    }
+
+    @Nonnull
     private TopologyChangesApiDTO buildApiTopologyChanges(
             @Nonnull final List<ScenarioChange> changes) {
-        final TopologyChangesApiDTO outputChanges = new TopologyChangesApiDTO();
-
         // Get type information about entities involved in the scenario changes. We get it
         // in a single call to reduce the number of round-trips and total wait-time.
         //
@@ -414,6 +376,7 @@ public class ScenarioMapper {
         final Map<Long, TemplateApiDTO> templatesMap =
             templatesUtils.getTemplatesMapByIds(PlanDTOUtil.getInvolvedTemplates(changes));
 
+        final TopologyChangesApiDTO outputChanges = new TopologyChangesApiDTO();
         changes.forEach(change -> {
             switch (change.getDetailsCase()) {
                 case TOPOLOGY_ADDITION:
@@ -428,9 +391,6 @@ public class ScenarioMapper {
                     buildApiTopologyReplace(change.getTopologyReplace(),
                             outputChanges, serviceEntityMap, templatesMap);
                     break;
-                default:
-                    // Do nothing
-                    logger.info("Unknown change type: " + change.getDetailsCase());
             }
         });
 

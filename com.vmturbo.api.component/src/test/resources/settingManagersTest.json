@@ -4,8 +4,19 @@
       "displayName": "Action Mode Settings",
       "defaultCategory": "Automation",
       "settings": [
-        "moveVM"
-      ]
+        "move"
+      ],
+      "planSettingsInfo": {
+        "uiToXlValueConversion" : {
+          "true" : "AUTOMATIC",
+          "false" : "DISABLED"
+        },
+        "supportedSettingDefaults" : {
+          "VirtualMachine" : {
+            "move": "true"
+          }
+        }
+      }
     }
   }
 }

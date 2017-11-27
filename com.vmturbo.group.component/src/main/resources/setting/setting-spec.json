@@ -19,6 +19,24 @@
       }
     },
     {
+      "name": "resize",
+      "displayName" : "Resize",
+      "entitySettingSpec": {
+        "tiebreaker": "SMALLER",
+        "entitySettingScope": {
+          "entityTypeSet": {
+            "entityType": [
+              10 // Virtual Machine
+            ]
+          }
+        }
+      },
+      "enumSettingValueType": {
+        "enumValues" : [ "DISABLED", "RECOMMEND", "MANUAL", "AUTOMATIC" ],
+        "default" : "MANUAL"
+      }
+    },
+    {
       "name": "suspend",
       "displayName" : "Suspend",
       "entitySettingSpec": {
@@ -26,7 +44,26 @@
         "entitySettingScope": {
           "entityTypeSet": {
             "entityType": [
-              10, // Virtual Machine
+              2,  // Storage
+              14  // Physical Machine
+            ]
+          }
+        }
+      },
+      "enumSettingValueType": {
+        "enumValues" : [ "DISABLED", "RECOMMEND", "MANUAL", "AUTOMATIC" ],
+        "default" : "MANUAL"
+      }
+    },
+    {
+      "name": "provision",
+      "displayName" : "Provision",
+      "entitySettingSpec": {
+        "tiebreaker": "SMALLER",
+        "entitySettingScope": {
+          "entityTypeSet": {
+            "entityType": [
+              2,  // Storage
               14  // Physical Machine
             ]
           }

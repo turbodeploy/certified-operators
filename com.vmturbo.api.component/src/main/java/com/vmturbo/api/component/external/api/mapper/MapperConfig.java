@@ -1,5 +1,7 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import java.io.IOException;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -38,8 +40,20 @@ public class MapperConfig {
     }
 
     @Bean
+    public SettingsManagerMappingLoader settingManagerMappingLoader() {
+        try {
+            return new SettingsManagerMappingLoader(settingManagersFile);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to load setting managers file.", e);
+        }
+    }
+
+    @Bean
     public ScenarioMapper scenarioMapper() {
-        return new ScenarioMapper(communicationConfig.repositoryApi(), templatesUtils());
+        return new ScenarioMapper(communicationConfig.repositoryApi(),
+                templatesUtils(),
+                settingManagerMappingLoader().getMapping(),
+                settingsMapper());
     }
 
     @Bean
@@ -71,6 +85,7 @@ public class MapperConfig {
 
     @Bean
     public SettingsMapper settingsMapper() {
-        return new SettingsMapper(settingManagersFile, communicationConfig.groupChannel());
+        return new SettingsMapper(communicationConfig.groupChannel(),
+                settingManagerMappingLoader().getMapping());
     }
 }

@@ -176,7 +176,7 @@ public class StagesTest {
         stage.execute(topologyGraph);
 
         verify(entitySettingsResolver).resolveSettings(eq(groupResolver), eq(topologyGraph),
-                eq(Collections.emptyMap()));
+                any());
     }
 
     @Test

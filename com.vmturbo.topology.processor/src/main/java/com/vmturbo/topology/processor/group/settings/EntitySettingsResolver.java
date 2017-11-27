@@ -104,7 +104,7 @@ public class EntitySettingsResolver {
     public GraphWithSettings resolveSettings(
             @Nonnull final GroupResolver groupResolver,
             @Nonnull final TopologyGraph topologyGraph,
-            @Nonnull final Map<String, Setting> settingOverrides) {
+            @Nonnull final SettingOverrides settingOverrides) {
 
         final List<SettingPolicy> allSettingPolicies =
             getAllSettingPolicies(settingPolicyServiceClient);
@@ -322,14 +322,15 @@ public class EntitySettingsResolver {
      *  @param userSettings List of user Setting
      *  @param defaultSettingPoliciesByEntityType Mapping of entityType to SettingPolicyId
      *  @param settingOverrides The map of overrides, by setting name. See
-     *                   {@link EntitySettingsResolver#resolveSettings(GroupResolver, TopologyGraph, Map)}.
+           {@link EntitySettingsResolver#resolveSettings(GroupResolver,
+                   TopologyGraph, SettingOverrides)}.
      *  @return EntitySettings message
      *
      */
     private EntitySettings createEntitySettingsMessage(Vertex vertex,
                 @Nonnull final Collection<Setting> userSettings,
                 @Nonnull final Map<Integer, SettingPolicy> defaultSettingPoliciesByEntityType,
-                @Nonnull final Map<String, Setting> settingOverrides) {
+                @Nonnull final SettingOverrides settingOverrides) {
 
         final EntitySettings.Builder entitySettingsBuilder =
             EntitySettings.newBuilder()
@@ -338,7 +339,7 @@ public class EntitySettingsResolver {
             entitySettingsBuilder.putUserSettings(setting.getSettingSpecName(), setting));
 
         // Override user settings.
-        entitySettingsBuilder.putAllUserSettings(settingOverrides);
+        settingOverrides.overrideSettings(vertex.getTopologyEntityDtoBuilder(), entitySettingsBuilder);
 
         if (defaultSettingPoliciesByEntityType.containsKey(vertex.getEntityType())) {
             entitySettingsBuilder.setDefaultSettingPolicyId(

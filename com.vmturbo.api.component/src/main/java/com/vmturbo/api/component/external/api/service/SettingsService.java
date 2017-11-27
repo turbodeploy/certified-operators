@@ -2,7 +2,6 @@ package com.vmturbo.api.component.external.api.service;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -12,12 +11,12 @@ import javax.annotation.Nullable;
 import com.google.common.annotations.VisibleForTesting;
 
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
+import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
-import com.vmturbo.api.dto.setting.SettingApiInputDTO;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
+import com.vmturbo.api.dto.setting.SettingApiInputDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
-import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.serviceinterfaces.ISettingsService;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.SearchSettingSpecsRequest;
@@ -33,10 +32,14 @@ public class SettingsService implements ISettingsService {
 
     private final SettingsMapper settingsMapper;
 
+    private final SettingsManagerMapping settingsManagerMapping;
+
     SettingsService(@Nonnull final SettingServiceBlockingStub settingServiceBlockingStub,
-                    @Nonnull final SettingsMapper settingsMapper) {
+                    @Nonnull final SettingsMapper settingsMapper,
+                    @Nonnull final SettingsManagerMapping settingsManagerMapping) {
         this.settingServiceBlockingStub = settingServiceBlockingStub;
         this.settingsMapper = settingsMapper;
+        this.settingsManagerMapping = settingsManagerMapping;
     }
 
     @Override
@@ -98,7 +101,7 @@ public class SettingsService implements ISettingsService {
             });
         }
 
-        return retMgrs;
+        return isPlan ? settingsManagerMapping.convertToPlanSettingSpecs(retMgrs) : retMgrs;
     }
 
     @VisibleForTesting

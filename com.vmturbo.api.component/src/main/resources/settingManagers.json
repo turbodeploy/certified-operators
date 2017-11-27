@@ -3,6 +3,8 @@
 //
 // See the comments on SettingsMapper#SettingManagerMapping for more
 // information.
+//
+// TODO (roman, Nov 27 2018): It may be a good idea to move this into code. See: OM-27688
 {
   "managersByUuid": {
     "automationmanager": {
@@ -10,8 +12,32 @@
       "defaultCategory": "Automation",
       "settings": [
         "move",
-        "suspend"
-      ]
+        "suspend",
+        "resize",
+        "provision"
+      ],
+      // Automation settings are pretty specific in the API/UI,
+      // and the design is not finalized. So we put them in
+      // a different place :)
+      "planSettingInfo": {
+        "uiToXlValueConversion" : {
+          "true" : "AUTOMATIC",
+          "false" : "DISABLED"
+        },
+        "supportedSettingDefaults" : {
+          "VirtualMachine" : {
+            "resize": "true"
+          },
+          "PhysicalMachine" : {
+            "provision" : "true",
+            "suspend": "true"
+          },
+          "Storage" : {
+            "provision" : "true",
+            "suspend" : "false"
+          }
+        }
+      }
     },
     "marketsettingsmanager": {
       "displayName": "Operational Constraints",

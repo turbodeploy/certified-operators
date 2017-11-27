@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.service;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertEquals;
+import static org.mockito.Mockito.spy;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -55,6 +56,8 @@ import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.MarketMapper;
 import com.vmturbo.api.component.external.api.mapper.PolicyMapper;
 import com.vmturbo.api.component.external.api.mapper.ScenarioMapper;
+import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
+import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
 import com.vmturbo.api.component.external.api.websocket.UINotificationChannel;
@@ -89,6 +92,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceImplBase;
+import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
@@ -298,7 +302,8 @@ public class MarketsServiceTest {
 
         @Bean
         public ScenarioMapper scenarioMapper() {
-            return new ScenarioMapper(repositoryApi(), templatesUtils());
+            return new ScenarioMapper(repositoryApi(), templatesUtils(),
+                    Mockito.mock(SettingsManagerMapping.class), Mockito.mock(SettingsMapper.class));
         }
 
         @Bean
@@ -317,15 +322,20 @@ public class MarketsServiceTest {
         }
 
         @Bean
+        public SettingServiceMole settingServiceMole() {
+            return spy(new SettingServiceMole());
+        }
+
+        @Bean
         public GroupServiceMole groupService() {
-            return new GroupServiceMole();
+            return spy(new GroupServiceMole());
         }
 
         @Bean
         public GrpcTestServer grpcTestServer() {
             try {
                 final GrpcTestServer testServer = GrpcTestServer.newServer(planService(),
-                        groupService());
+                        groupService(), settingServiceMole());
                 testServer.start();
                 return testServer;
             } catch (IOException e) {

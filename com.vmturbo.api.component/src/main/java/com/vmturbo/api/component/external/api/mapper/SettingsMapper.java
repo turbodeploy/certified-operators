@@ -1,18 +1,15 @@
 package com.vmturbo.api.component.external.api.mapper;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -22,11 +19,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
 import io.grpc.Channel;
 
+import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerInfo;
+import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.setting.SettingOptionApiDTO;
@@ -46,8 +46,6 @@ import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
-import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.EntityTypeSet;
-import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.ScopeCase;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyRequest;
@@ -57,17 +55,17 @@ import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.Scope;
 import com.vmturbo.common.protobuf.setting.SettingProto.SearchSettingSpecsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting.ValueCase;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingCategoryPath.SettingCategoryPathNode;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec.SettingValueTypeCase;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
-import com.vmturbo.components.api.ComponentGsonFactory;
-import com.vmturbo.components.api.GsonPostProcessable;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -77,12 +75,40 @@ public class SettingsMapper {
 
     private static final Logger logger = LogManager.getLogger();
 
+    private static final Map<SettingValueTypeCase, SettingValueInjector> SETTING_VALUE_INJECTORS =
+        ImmutableMap.<SettingValueTypeCase, SettingValueInjector>builder()
+            .put(SettingValueTypeCase.BOOLEAN_SETTING_VALUE_TYPE,
+                (val, builder) -> builder.setBooleanSettingValue(BooleanSettingValue.newBuilder()
+                    .setValue(Boolean.valueOf(val))))
+            .put(SettingValueTypeCase.NUMERIC_SETTING_VALUE_TYPE,
+                (val, builder) -> builder.setNumericSettingValue(NumericSettingValue.newBuilder()
+                    .setValue(Float.valueOf(val))))
+            .put(SettingValueTypeCase.STRING_SETTING_VALUE_TYPE,
+                (val, builder) -> builder.setStringSettingValue(StringSettingValue.newBuilder()
+                .setValue(val)))
+            .put(SettingValueTypeCase.ENUM_SETTING_VALUE_TYPE,
+                (val, builder) -> builder.setEnumSettingValue(EnumSettingValue.newBuilder()
+                .setValue(val)))
+            .build();
+
+    private static final Map<ValueCase, SettingValueExtractor> SETTING_VALUE_EXTRACTORS =
+        ImmutableMap.<ValueCase, SettingValueExtractor>builder()
+            .put(ValueCase.BOOLEAN_SETTING_VALUE, setting ->
+                Boolean.toString(setting.getBooleanSettingValue().getValue()))
+            .put(ValueCase.NUMERIC_SETTING_VALUE, setting ->
+                Float.toString(setting.getNumericSettingValue().getValue()))
+            .put(ValueCase.STRING_SETTING_VALUE, setting ->
+                setting.getStringSettingValue().getValue())
+            .put(ValueCase.ENUM_SETTING_VALUE, setting ->
+                setting.getEnumSettingValue().getValue())
+            .build();
+
     /**
      * A constant indicating that a {@link SettingSpec} has no associated setting manager.
      */
     private static final String NO_MANAGER = "";
 
-    private final SettingManagerMapping managerMapping;
+    private final SettingsManagerMapping managerMapping;
 
     private final SettingSpecMapper settingSpecMapper;
 
@@ -94,9 +120,9 @@ public class SettingsMapper {
 
     private final SettingPolicyServiceBlockingStub settingPolicyService;
 
-    public SettingsMapper(@Nonnull final String specJsonFile,
-                          @Nonnull final Channel groupComponentChannel) {
-        this.managerMapping = loadManagerMappings(specJsonFile);
+    public SettingsMapper(@Nonnull final Channel groupComponentChannel,
+                          @Nonnull final SettingsManagerMapping settingsManagerMapping) {
+        this.managerMapping = settingsManagerMapping;
         this.settingSpecMapper = new DefaultSettingSpecMapper();
         this.settingPolicyMapper = new DefaultSettingPolicyMapper(this);
         this.groupService = GroupServiceGrpc.newBlockingStub(groupComponentChannel);
@@ -105,7 +131,7 @@ public class SettingsMapper {
     }
 
     @VisibleForTesting
-    SettingsMapper(@Nonnull final SettingManagerMapping managerMapping,
+    SettingsMapper(@Nonnull final SettingsManagerMapping managerMapping,
                    @Nonnull final SettingSpecMapper specMapper,
                    @Nonnull final SettingPolicyMapper policyMapper,
                    @Nonnull final Channel groupComponentChannel) {
@@ -115,21 +141,6 @@ public class SettingsMapper {
         this.groupService = GroupServiceGrpc.newBlockingStub(groupComponentChannel);
         this.settingService = SettingServiceGrpc.newBlockingStub(groupComponentChannel);
         this.settingPolicyService = SettingPolicyServiceGrpc.newBlockingStub(groupComponentChannel);
-    }
-
-    @Nonnull
-    private SettingManagerMapping loadManagerMappings(@Nonnull final String specJsonFile) {
-        logger.info("Loading Setting Manager Mappings from {}...", specJsonFile);
-        try (InputStream inputStream = Thread.currentThread()
-                .getContextClassLoader().getResourceAsStream(specJsonFile);
-            InputStreamReader reader = new InputStreamReader(inputStream)) {
-            final SettingManagerMapping mapping =
-                    ComponentGsonFactory.createGson().fromJson(reader, SettingManagerMapping.class);
-            logger.info("Successfully loaded Setting Manager Mappings.");
-            return mapping;
-        } catch (IOException e) {
-            throw new RuntimeException("Unable to load setting manager mapping.", e);
-        }
     }
 
     /**
@@ -209,7 +220,7 @@ public class SettingsMapper {
                 // Don't return the specs that don't have a Manager mapping
                 .filter(entry -> !entry.getKey().equals(NO_MANAGER))
                 .map(entry -> {
-                    final SettingManagerInfo info = managerMapping.getManagerInfo(entry.getKey())
+                    final SettingsManagerInfo info = managerMapping.getManagerInfo(entry.getKey())
                             .orElseThrow(() -> new IllegalStateException("Manager ID " +
                                     entry.getKey() + " not found despite being in the mappings earlier."));
                     return createMgrDto(entry.getKey(), info, entry.getValue());
@@ -231,7 +242,7 @@ public class SettingsMapper {
     public Optional<SettingsManagerApiDTO> toManagerDto(
             @Nonnull final Collection<SettingSpec> specs,
             @Nonnull final String desiredMgrId) {
-        final Optional<SettingManagerInfo> infoOpt = managerMapping.getManagerInfo(desiredMgrId);
+        final Optional<SettingsManagerInfo> infoOpt = managerMapping.getManagerInfo(desiredMgrId);
         return infoOpt.map(info -> createMgrDto(desiredMgrId, info, specs.stream()
                 .filter(spec -> managerMapping.getManagerUuid(spec.getName())
                     .map(name -> name.equals(desiredMgrId))
@@ -340,37 +351,16 @@ public class SettingsMapper {
             apiInputPolicy.getSettingsManagers().stream()
                 .flatMap(settingMgr -> settingMgr.getSettings().stream())
                 .map(settingApiDto -> {
-                    final Setting.Builder settingBuilder = Setting.newBuilder()
-                            .setSettingSpecName(settingApiDto.getUuid());
-                    final String value = settingApiDto.getValue();
                     // We expect the SettingSpec to be found.
                     final SettingSpec spec = specsByName.get(settingApiDto.getUuid());
                     if (spec == null) {
                         throw new IllegalArgumentException("Spec " + settingApiDto.getUuid() +
                                 " not found in the specs given to the mapper.");
                     }
-                    switch (spec.getSettingValueTypeCase()) {
-                        case BOOLEAN_SETTING_VALUE_TYPE:
-                            settingBuilder.setBooleanSettingValue(BooleanSettingValue.newBuilder()
-                                    .setValue(Boolean.valueOf(value)));
-                            break;
-                        case NUMERIC_SETTING_VALUE_TYPE:
-                            settingBuilder.setNumericSettingValue(NumericSettingValue.newBuilder()
-                                    .setValue(Float.valueOf(value)));
-                            break;
-                        case STRING_SETTING_VALUE_TYPE:
-                            settingBuilder.setStringSettingValue(StringSettingValue.newBuilder()
-                                    .setValue(value));
-                            break;
-                        case ENUM_SETTING_VALUE_TYPE:
-                            settingBuilder.setEnumSettingValue(EnumSettingValue.newBuilder()
-                                    .setValue(value));
-                            break;
-                    }
-                    return settingBuilder;
+                    return toProtoSetting(settingApiDto, spec);
                 }).forEach(setting -> infoBuilder.putSettings(
                         setting.getSettingSpecName(),
-                        setting.build()));
+                        setting));
         }
 
         return infoBuilder.build();
@@ -413,7 +403,7 @@ public class SettingsMapper {
     }
 
     @VisibleForTesting
-    SettingManagerMapping getManagerMapping() {
+    SettingsManagerMapping getManagerMapping() {
         return managerMapping;
     }
 
@@ -421,7 +411,7 @@ public class SettingsMapper {
     /**
      * Create a {@link SettingsManagerApiDTO} containing information about settings, but not their
      * values. This will be a "thicker" manager than the one created by
-     * {@link DefaultSettingPolicyMapper#createValMgrDto(String, SettingManagerInfo, Collection)},
+     * {@link DefaultSettingPolicyMapper#createValMgrDto(String, SettingsManagerInfo, Collection)},
      * but none of the settings will have values (since this is only a description of what the
      * settings are).
      *
@@ -433,12 +423,9 @@ public class SettingsMapper {
      */
     @Nonnull
     private SettingsManagerApiDTO createMgrDto(@Nonnull final String mgrId,
-                                        @Nonnull final SettingManagerInfo info,
+                                        @Nonnull final SettingsManagerInfo info,
                                         @Nonnull final Collection<SettingSpec> specs) {
-        final SettingsManagerApiDTO mgrApiDto = new SettingsManagerApiDTO();
-        mgrApiDto.setUuid(mgrId);
-        mgrApiDto.setDisplayName(info.getDisplayName());
-        mgrApiDto.setCategory(info.getDefaultCategory());
+        final SettingsManagerApiDTO mgrApiDto = info.newApiDTO(mgrId);
 
         mgrApiDto.setSettings(specs.stream()
                 .map(spec -> settingSpecMapper.settingSpecToApi(spec))
@@ -512,7 +499,7 @@ public class SettingsMapper {
                         .collect(Collectors.toList()));
             }
 
-            final SettingManagerMapping managerMapping = mapper.getManagerMapping();
+            final SettingsManagerMapping managerMapping = mapper.getManagerMapping();
 
             // Do the actual settings mapping.
             final Map<String, List<Setting>> settingsByMgr = info.getSettingsMap().values().stream()
@@ -532,7 +519,7 @@ public class SettingsMapper {
                     // Don't return the specs that don't have a Manager mapping
                     .filter(entry -> !entry.getKey().equals(NO_MANAGER))
                     .map(entry -> {
-                        final SettingManagerInfo mgrInfo = managerMapping.getManagerInfo(entry.getKey())
+                        final SettingsManagerInfo mgrInfo = managerMapping.getManagerInfo(entry.getKey())
                                 .orElseThrow(() -> new IllegalStateException("Manager ID " +
                                         entry.getKey() + " not found despite being in the mappings earlier."));
                         return createValMgrDto(entry.getKey(), mgrInfo, entry.getValue());
@@ -547,7 +534,7 @@ public class SettingsMapper {
          * This will be a "thinner" manager - all the settings will only have the UUIDs and values.
          *
          * @param mgrId The ID of the setting manager.
-         * @param mgrInfo The {@link SettingManagerInfo} for the manager.
+         * @param mgrInfo The {@link SettingsManagerInfo} for the manager.
          * @param settings The {@link Setting} objects containing setting values. All of these settings
          *                 should be "managed" by this manager, but this method does not check.
          * @return The {@link SettingsManagerApiDTO}.
@@ -555,39 +542,97 @@ public class SettingsMapper {
         @Nonnull
         @VisibleForTesting
         SettingsManagerApiDTO createValMgrDto(@Nonnull final String mgrId,
-                                              @Nonnull final SettingManagerInfo mgrInfo,
+                                              @Nonnull final SettingsManagerInfo mgrInfo,
                                               @Nonnull final Collection<Setting> settings) {
-            final SettingsManagerApiDTO mgrApiDto = new SettingsManagerApiDTO();
-            mgrApiDto.setUuid(mgrId);
-            mgrApiDto.setDisplayName(mgrInfo.getDisplayName());
-            mgrApiDto.setCategory(mgrInfo.getDefaultCategory());
+            final SettingsManagerApiDTO mgrApiDto = mgrInfo.newApiDTO(mgrId);
 
             mgrApiDto.setSettings(settings.stream()
-                    .map(setting -> {
-                        final SettingApiDTO apiDto = new SettingApiDTO();
-                        apiDto.setUuid(setting.getSettingSpecName());
-                        switch (setting.getValueCase()) {
-                            case BOOLEAN_SETTING_VALUE:
-                                apiDto.setValue(Boolean.toString(setting.getBooleanSettingValue().getValue()));
-                                break;
-                            case NUMERIC_SETTING_VALUE:
-                                apiDto.setValue(Float.toString(setting.getNumericSettingValue().getValue()));
-                                break;
-                            case STRING_SETTING_VALUE:
-                                apiDto.setValue(setting.getStringSettingValue().getValue());
-                                break;
-                            case ENUM_SETTING_VALUE:
-                                apiDto.setValue(setting.getEnumSettingValue().getValue());
-                                break;
-                            default:
-                                logger.error("No value for setting: {}", setting);
-                        }
-                        return apiDto;
-                    })
+                    .map(SettingsMapper::toSettingApiDto)
                     .collect(Collectors.toList()));
             return mgrApiDto;
         }
     }
+
+    /**
+     * Create a {@link SettingApiDTO} for the API from a {@link Setting} object.
+     *
+     * @param setting The {@link Setting} object representing the value of a particular setting.
+     * @return The {@link SettingApiDTO} representing the value of the setting.
+     */
+    public static SettingApiDTO toSettingApiDto(@Nonnull final Setting setting) {
+        final SettingApiDTO apiDto = new SettingApiDTO();
+        apiDto.setUuid(setting.getSettingSpecName());
+        apiDto.setValue(SETTING_VALUE_EXTRACTORS.get(setting.getValueCase())
+            .extractSettingValue(setting));
+        return apiDto;
+    }
+
+    /**
+     * Create a {@link Setting} object from a {@link SettingApiDTO}.
+     *
+     * @param apiDto The {@link SettingApiDTO} received from the API user.
+     * @param settingSpec  The spec for the setting. We need the spec to know how to interret the
+     *                     value.
+     * @return The {@link Setting}.
+     */
+    @Nonnull
+    private static Setting toProtoSetting(@Nonnull final SettingApiDTO apiDto,
+                                          @Nonnull final SettingSpec settingSpec) {
+        final Setting.Builder settingBuilder = Setting.newBuilder()
+                .setSettingSpecName(apiDto.getUuid());
+        SETTING_VALUE_INJECTORS.get(settingSpec.getSettingValueTypeCase())
+                .setBuilderValue(apiDto.getValue(), settingBuilder);
+        return settingBuilder.build();
+    }
+
+    /**
+     * Map a set of {@link SettingApiDTO}s to their associated {@link Setting} objects.
+     * The input DTO's should have values.
+     *
+     * @param apiDtos The collection of {@link SettingApiDTO}s to map.
+     * @return The {@link Setting} objects, arranged by setting name (UUID in API terms). Any
+     *         settings that could not be mapped will not be present.
+     */
+    @Nonnull
+    public Map<String, Setting> toProtoSettings(@Nonnull final List<SettingApiDTO> apiDtos) {
+        final Map<String, SettingApiDTO> settingOverrides = apiDtos.stream()
+                .collect(Collectors.toMap(SettingApiDTO::getUuid, Function.identity()));
+
+        final ImmutableMap.Builder<String, Setting> retChanges = ImmutableMap.builder();
+        // We need to look up the setting specs to know how to apply setting overrides.
+        settingService.searchSettingSpecs(SearchSettingSpecsRequest.newBuilder()
+                .addAllSettingSpecName(settingOverrides.keySet())
+                .build())
+                .forEachRemaining(settingSpec -> {
+                    // Since settings in XL are uniquely identified by name, the name of XL's "Setting"
+                    // object is the same as the UUID of the API's "SettingApiDTO" object.
+                    final SettingApiDTO dto = settingOverrides.get(settingSpec.getName());
+                    try {
+                        retChanges.put(settingSpec.getName(), toProtoSetting(dto, settingSpec));
+                    } catch (RuntimeException e) {
+                        // Catch and log any runtime exceptions to isolate the failure to that
+                        // particular misbehaving setting.
+                        logger.error("Unable to map setting " + settingSpec.getName() +
+                                " because of error.", e);
+                    }
+                });
+        return retChanges.build();
+    }
+
+    /**
+     * Injects a String value into a {@link Setting.Builder}. The injector is responsible for
+     * selecting the right type of value, and reinterpreting the string input as that type.
+     */
+    @FunctionalInterface
+    private interface SettingValueInjector {
+        void setBuilderValue(@Nonnull final String value, @Nonnull final Setting.Builder builder);
+    }
+
+    @FunctionalInterface
+    private interface SettingValueExtractor {
+        String extractSettingValue(@Nonnull final Setting setting);
+    }
+
 
     /**
      * The mapper from {@link SettingSpec} to {@link SettingApiDTO}, extracted as an interface
@@ -687,147 +732,4 @@ public class SettingsMapper {
             return Optional.of(apiDTO);
         }
     }
-
-    /**
-     * The Java POJO representing the mappings from Setting Manager UUIDs, to the information about
-     * that Setting Manager - most notably the settings it manages.
-     * <p>
-     * The UI/API has the concept of Setting Manager as an object that "manages" a group of settings.
-     * This is inherited from legacy, where these various managers are EMF objects.
-     * In XL we don't have setting managers. We just have {@link SettingSpec}s for all the available
-     * settings. Instead of introducing the manager concept to the data model in XL, we fake it
-     * at the API-component level. The reason we need to simulate it is because, at the time of
-     * this writing (Sept 13, 2017), the UI has hard-coded expectations based on the setting
-     * managers defined in the legacy OpsMgr. If that goes away, we could just have a single
-     * "fake" XL manager that owns all the settings.
-     * <p>
-     * There is a JSON file that gets loaded when constructing the SettingsMapper. That file
-     * should contain all the SettingManager -> Setting mappings, as well as auxiliary information
-     * about each manager. These will need to be hard-coded (and kept up to date) to match
-     * what's in the legacy OpsMgr.
-     */
-    @VisibleForTesting
-    static class SettingManagerMapping implements GsonPostProcessable {
-
-        /**
-         * (manager uuid) -> Information about that manager.
-         */
-        private final Map<String, SettingManagerInfo> managersByUuid;
-
-        /**
-         * A map to quickly look up the manager for a particular setting name.
-         * Explicitly marked as "transient" because it's not part of the GSON
-         * serialization, and is initialized as part
-         * of {@link SettingManagerMapping#postDeserialize()}.
-         */
-        private transient Map<String, String> settingToManager = new HashMap<>();
-
-        /**
-         * Default constructor intentionally private. GSON constructs via reflection.
-         */
-        private SettingManagerMapping() {
-            managersByUuid = new HashMap<>();
-        }
-
-        /**
-         * Get the name of the manager that "manages" a particular setting.
-         *
-         * @param specName The name of the setting.
-         * @return An optional containing the name of the manager that manages this setting.
-         *         An empty optional if there is no matching manager.
-         */
-        Optional<String> getManagerUuid(@Nonnull final String specName) {
-            return Optional.ofNullable(settingToManager.get(specName));
-        }
-
-        /**
-         * Get information about a manager by it's UUID.
-         *
-         * @param mgrUuid The UUID of the manager.
-         * @return An optional containing the {@link SettingManagerInfo} for the manager.
-         *         An empty optional if the UUID is not found.
-         */
-        Optional<SettingManagerInfo> getManagerInfo(@Nonnull final String mgrUuid) {
-            return Optional.of(managersByUuid.get(mgrUuid));
-        }
-
-        /**
-         * Initialize the index of (setting name) -> (mgr uuid) after GSON deserialization
-         * of the {@link SettingManagerMapping#managersByUuid} map.
-         */
-        @Override
-        public void postDeserialize() {
-            ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
-            managersByUuid.forEach((mgrName, mgrInfo) -> {
-                mgrInfo.getSettings().forEach((settingName) -> {
-                    // At the time of this writing (Sept 2017) settings names must be
-                    // globally unique.
-                    builder.put(settingName, mgrName);
-                });
-            });
-            settingToManager = builder.build();
-        }
-    }
-
-    /**
-     * The information about a specific Setting Manager. See {@link SettingManagerMapping}.
-     */
-    @VisibleForTesting
-    static class SettingManagerInfo {
-        /**
-         * The display name of the manager. It's not clear at the time of this writing that
-         * the display name is explicitly used anywhere.
-         */
-        private final String displayName;
-
-        /**
-         * This represents the default category for all settings managed by this manager.
-         * <p>
-         * At the time of this writing the UI assigns this category to any setting managed by this
-         * manager that does not have an explicit path
-         * (i.e. {@link SettingApiDTO#getCategories()} returns null/empty).
-         */
-        private final String defaultCategory;
-
-        /**
-         * The settings managed by this setting manager.
-         * This must exactly match the name of some {@link SettingSpec}
-         * ({@link SettingSpec#getName}).
-         */
-        private final Set<String> settings;
-
-        /**
-         * Default constructor intentionally private. GSON constructs via reflection.
-         */
-        private SettingManagerInfo() {
-            displayName = "";
-            defaultCategory = "";
-            settings = new HashSet<>();
-        }
-
-        /**
-         * Explicit constructor for testing only.
-         */
-        @VisibleForTesting
-        SettingManagerInfo(@Nonnull final String displayName,
-                @Nonnull final String defaultCategory,
-                @Nonnull final Set<String> settings) {
-           this.displayName = displayName;
-           this.defaultCategory = defaultCategory;
-           this.settings = settings;
-        }
-
-        String getDisplayName() {
-            return displayName;
-        }
-
-        String getDefaultCategory() {
-            return defaultCategory;
-        }
-
-        Set<String> getSettings() {
-            return Collections.unmodifiableSet(settings);
-        }
-    }
-
 }

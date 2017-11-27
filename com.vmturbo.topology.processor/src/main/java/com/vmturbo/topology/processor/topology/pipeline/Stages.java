@@ -15,9 +15,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.SettingOverride;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO;
-import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
@@ -30,8 +28,9 @@ import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsApplicator;
-import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
+import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
+import com.vmturbo.topology.processor.group.settings.SettingOverrides;
 import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileNotifier;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
@@ -205,21 +204,16 @@ public class Stages {
      * applying setting overrides from plan scenarios.
      */
     public static class SettingsResolutionStage extends Stage<TopologyGraph, GraphWithSettings> {
-
         private final Logger logger = LogManager.getLogger();
 
-        private final Map<String, Setting> settingOverrides;
+        private final SettingOverrides settingOverrides;
 
         private final EntitySettingsResolver entitySettingsResolver;
 
         private SettingsResolutionStage(@Nonnull final EntitySettingsResolver entitySettingsResolver,
                                         @Nonnull final List<ScenarioChange> scenarioChanges) {
             this.entitySettingsResolver = entitySettingsResolver;
-            this.settingOverrides = scenarioChanges.stream()
-                    .filter(ScenarioChange::hasSettingOverride)
-                    .map(ScenarioChange::getSettingOverride)
-                    .map(SettingOverride::getSetting)
-                    .collect(Collectors.toMap(Setting::getSettingSpecName, Function.identity()));
+            this.settingOverrides = new SettingOverrides(scenarioChanges);
         }
 
         public static SettingsResolutionStage live(@Nonnull final EntitySettingsResolver entitySettingsResolver) {

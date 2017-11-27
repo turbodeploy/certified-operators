@@ -1,8 +1,17 @@
 package com.vmturbo.api.component.external.api.service;
 
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.is;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -11,23 +20,19 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.mockito.Mockito;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-
 import io.grpc.Status;
-import io.grpc.stub.StreamObserver;
 
-import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ScenarioMapper;
-import com.vmturbo.api.component.external.api.util.TemplatesUtils;
 import com.vmturbo.api.dto.scenario.ScenarioApiDTO;
 import com.vmturbo.api.exceptions.UnknownObjectException;
-import com.vmturbo.common.protobuf.plan.PlanDTO;
+import com.vmturbo.common.protobuf.plan.PlanDTO.DeleteScenarioResponse;
 import com.vmturbo.common.protobuf.plan.PlanDTO.GetScenariosOptions;
 import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
 import com.vmturbo.common.protobuf.plan.PlanDTO.UpdateScenarioRequest;
-import com.vmturbo.common.protobuf.plan.ScenarioServiceGrpc.ScenarioServiceImplBase;
+import com.vmturbo.common.protobuf.plan.PlanDTO.UpdateScenarioResponse;
+import com.vmturbo.common.protobuf.plan.PlanDTOMoles.ScenarioServiceMole;
 import com.vmturbo.components.api.test.GrpcTestServer;
 
 /**
@@ -41,71 +46,54 @@ public class ScenariosServiceTest {
                 .setName("test"))
             .build();
 
-    /**
-     * Jackson mapper to serialize API DTO objects to JSON strings.
-     */
-    private final ObjectMapper objectMapper = new ObjectMapper();
-
-    /**
-     * The JSON-serialized version of the response API DTO.
-     */
-    private String apiDTOJson;
-
-    /**
-     * The backend the API forwards calls to (i.e. the part that's in the plan orchestrator).
-     */
-    private final TestScenarioRpcService scenarioServiceBackend =
-            Mockito.spy(new TestScenarioRpcService());
+    private final ScenarioServiceMole scenarioServiceMole =
+            Mockito.spy(new ScenarioServiceMole());
 
     private ScenariosService scenariosService;
 
-    private ScenarioMapper scenarioMapper;
+    private ScenarioMapper scenarioMapper = mock(ScenarioMapper.class);
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
     @Rule
-    public GrpcTestServer grpcServer = GrpcTestServer.newServer(scenarioServiceBackend);
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(scenarioServiceMole);
 
     @Before
     public void setup() throws IOException {
-
-        final RepositoryApi repositoryApi = Mockito.mock(RepositoryApi.class);
-        final TemplatesUtils templatesUtils = Mockito.mock(TemplatesUtils.class);
-        Mockito.when(repositoryApi.getServiceEntitiesById(Mockito.any()))
-               .thenReturn(Collections.emptyMap());
-        scenarioMapper = new ScenarioMapper(repositoryApi, templatesUtils);
-
         scenariosService = new ScenariosService(grpcServer.getChannel(), scenarioMapper);
-
-        apiDTOJson = objectMapper.writeValueAsString(scenarioMapper.toScenarioApiDTO(SCENARIO_RESPONSE));
     }
 
     @Test
     public void testGetScenarios() throws Exception {
-        List<ScenarioApiDTO> result = scenariosService.getScenarios(true);
-        Assert.assertEquals(1, result.size());
-        Assert.assertEquals(apiDTOJson, objectMapper.writeValueAsString(result.get(0)));
+        final ScenarioApiDTO apiDTO = new ScenarioApiDTO();
+        when(scenarioServiceMole.getScenarios(GetScenariosOptions.getDefaultInstance()))
+                .thenReturn(Collections.singletonList(SCENARIO_RESPONSE));
+        when(scenarioMapper.toScenarioApiDTO(SCENARIO_RESPONSE))
+                .thenReturn(apiDTO);
 
-        Mockito.verify(scenarioServiceBackend).getScenarios(
-                Mockito.eq(GetScenariosOptions.getDefaultInstance()),
-                Mockito.any());
+        final List<ScenarioApiDTO> result = scenariosService.getScenarios(true);
+        assertThat(result, containsInAnyOrder(apiDTO));
     }
 
     @Test
     public void testGetScenarioByName() throws Exception {
-        ScenarioApiDTO result = scenariosService.getScenario(SCENARIO_RESPONSE.getId());
-        Assert.assertEquals(apiDTOJson, objectMapper.writeValueAsString(result));
+        when(scenarioServiceMole.getScenario(ScenarioId.newBuilder()
+                        .setScenarioId(SCENARIO_RESPONSE.getId())
+                        .build()))
+            .thenReturn(SCENARIO_RESPONSE);
+        final ScenarioApiDTO apiDTO = new ScenarioApiDTO();
+        when(scenarioMapper.toScenarioApiDTO(SCENARIO_RESPONSE))
+                .thenReturn(apiDTO);
 
-        Mockito.verify(scenarioServiceBackend).getScenario(
-                Mockito.eq(ScenarioId.newBuilder()
-                    .setScenarioId(SCENARIO_RESPONSE.getId())
-                    .build()),
-                Mockito.any());
+        ScenarioApiDTO result = scenariosService.getScenario(SCENARIO_RESPONSE.getId());
+        assertThat(result, is(apiDTO));
     }
 
     @Test
     public void testGetScenarioByNameNotExists() throws Exception {
+        when(scenarioServiceMole.getScenarioError(any()))
+            .thenReturn(Optional.of(Status.NOT_FOUND.asException()));
         expectedException.expect(UnknownObjectException.class);
         scenariosService.getScenario(0L);
     }
@@ -114,32 +102,42 @@ public class ScenariosServiceTest {
     public void testCreateScenario() throws Exception {
         final ScenarioApiDTO scenarioApiDTO = new ScenarioApiDTO();
         scenarioApiDTO.setDisplayName(SCENARIO_RESPONSE.getScenarioInfo().getName());
-        ScenarioApiDTO result = scenariosService.createScenario(scenarioApiDTO);
-        Assert.assertEquals(apiDTOJson, objectMapper.writeValueAsString(result));
 
-        Mockito.verify(scenarioServiceBackend).createScenario(
-                Mockito.eq(SCENARIO_RESPONSE.getScenarioInfo()),
-                Mockito.any());
+        when(scenarioMapper.toScenarioInfo(scenarioApiDTO.getDisplayName(), scenarioApiDTO))
+                .thenReturn(ScenarioInfo.getDefaultInstance());
     }
 
     @Test
     public void testConfigureScenario() throws Exception {
+        when(scenarioServiceMole.updateScenario(UpdateScenarioRequest.newBuilder()
+                .setScenarioId(SCENARIO_RESPONSE.getId())
+                .setNewInfo(SCENARIO_RESPONSE.getScenarioInfo())
+                .build()))
+            .thenReturn(UpdateScenarioResponse.newBuilder()
+                    .setScenario(SCENARIO_RESPONSE)
+                    .build());
+
+        final ScenarioApiDTO apiDTO = new ScenarioApiDTO();
+        when(scenarioMapper.toScenarioInfo(SCENARIO_RESPONSE.getScenarioInfo().getName(), apiDTO))
+                .thenReturn(SCENARIO_RESPONSE.getScenarioInfo());
+
+        when(scenarioMapper.toScenarioApiDTO(SCENARIO_RESPONSE))
+                .thenReturn(apiDTO);
+
         ScenarioApiDTO result = scenariosService.configureScenario(
                 SCENARIO_RESPONSE.getId(), SCENARIO_RESPONSE.getScenarioInfo().getName(), null,
                 null, null, null, null, null, null, null, null, null, null, null,
-                new ScenarioApiDTO());
+                apiDTO);
 
-        Assert.assertEquals(apiDTOJson, objectMapper.writeValueAsString(result));
-        Mockito.verify(scenarioServiceBackend).updateScenario(
-                Mockito.eq(UpdateScenarioRequest.newBuilder()
-                        .setScenarioId(SCENARIO_RESPONSE.getId())
-                        .setNewInfo(SCENARIO_RESPONSE.getScenarioInfo())
-                        .build()),
-                Mockito.any());
+        assertThat(result, is(apiDTO));
     }
 
     @Test
     public void testConfigureScenarioNotExists() throws Exception {
+        when(scenarioServiceMole.updateScenarioError(any()))
+            .thenReturn(Optional.of(Status.NOT_FOUND.asException()));
+        when(scenarioMapper.toScenarioInfo(anyString(), any()))
+            .thenReturn(ScenarioInfo.getDefaultInstance());
         expectedException.expect(UnknownObjectException.class);
         scenariosService.configureScenario(
                 0L, "newName", null,
@@ -149,69 +147,21 @@ public class ScenariosServiceTest {
 
     @Test
     public void testDeleteScenario() throws Exception {
+        when(scenarioServiceMole.deleteScenario(ScenarioId.newBuilder()
+                .setScenarioId(SCENARIO_RESPONSE.getId())
+                .build()))
+            .thenReturn(DeleteScenarioResponse.newBuilder()
+                    .setScenario(SCENARIO_RESPONSE)
+                    .build());
+
         Assert.assertTrue(scenariosService.deleteScenario(SCENARIO_RESPONSE.getId()));
     }
 
     @Test
     public void testDeleteScenarioNotExisting() throws Exception {
+        when(scenarioServiceMole.deleteScenarioError(any()))
+                .thenReturn(Optional.of(Status.NOT_FOUND.asException()));
         expectedException.expect(UnknownObjectException.class);
         scenariosService.deleteScenario(0L);
-    }
-
-    /**
-     * A test implementation of scenario service that returns predictable responses.
-     */
-    private class TestScenarioRpcService extends ScenarioServiceImplBase {
-        public void createScenario(ScenarioInfo request,
-                                   StreamObserver<Scenario> responseObserver) {
-            responseObserver.onNext(Scenario.newBuilder()
-                    .setId(SCENARIO_RESPONSE.getId())
-                    .setScenarioInfo(request)
-                    .build());
-            responseObserver.onCompleted();
-        }
-
-        public void getScenario(PlanDTO.ScenarioId request,
-                                StreamObserver<PlanDTO.Scenario> responseObserver) {
-            if (request.getScenarioId() == SCENARIO_RESPONSE.getId()) {
-                responseObserver.onNext(SCENARIO_RESPONSE);
-                responseObserver.onCompleted();
-            } else {
-                responseObserver.onError(Status.NOT_FOUND.asException());
-            }
-        }
-
-        public void getScenarios(PlanDTO.GetScenariosOptions request,
-                                 StreamObserver<PlanDTO.Scenario> responseObserver) {
-            responseObserver.onNext(SCENARIO_RESPONSE);
-            responseObserver.onCompleted();
-        }
-
-        public void updateScenario(UpdateScenarioRequest request,
-                                   StreamObserver<PlanDTO.UpdateScenarioResponse> responseObserver) {
-            if (request.getScenarioId() == SCENARIO_RESPONSE.getId()) {
-                responseObserver.onNext(PlanDTO.UpdateScenarioResponse.newBuilder()
-                        .setScenario(PlanDTO.Scenario.newBuilder()
-                                .setId(request.getScenarioId())
-                                .setScenarioInfo(request.getNewInfo()))
-                        .build());
-                responseObserver.onCompleted();
-            } else {
-                responseObserver.onError(Status.NOT_FOUND.asException());
-            }
-        }
-
-        public void deleteScenario(PlanDTO.ScenarioId request,
-                                   StreamObserver<PlanDTO.DeleteScenarioResponse> responseObserver) {
-            if (request.getScenarioId() == SCENARIO_RESPONSE.getId()) {
-                responseObserver.onNext(PlanDTO.DeleteScenarioResponse.newBuilder()
-                        .setScenario(SCENARIO_RESPONSE)
-                        .build());
-                responseObserver.onCompleted();
-            } else {
-                responseObserver.onError(Status.NOT_FOUND.asException());
-            }
-        }
-
     }
 }

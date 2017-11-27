@@ -1,9 +1,14 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
@@ -17,14 +22,13 @@ import javax.annotation.Nonnull;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-import org.mockito.Mockito;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
+import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -38,7 +42,6 @@ import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.Builder;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.DetailsCase;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.SettingOverride;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyAddition;
@@ -49,6 +52,7 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
 
 public class ScenarioMapperTest {
     private static final String SCENARIO_NAME = "MyScenario";
@@ -60,17 +64,21 @@ public class ScenarioMapperTest {
 
     private ScenarioMapper scenarioMapper;
 
+    private SettingsManagerMapping settingsManagerMapping = mock(SettingsManagerMapping.class);
+
+    private SettingsMapper settingsMapper = mock(SettingsMapper.class);
+
     @Before
     public void setup() throws IOException {
-        repositoryApi = Mockito.mock(RepositoryApi.class);
-        templatesUtils = Mockito.mock(TemplatesUtils.class);
-
+        repositoryApi = mock(RepositoryApi.class);
+        templatesUtils = mock(TemplatesUtils.class);
 
         // Return empty by default to keep NPE's at bay.
         when(repositoryApi.getServiceEntitiesById(any()))
             .thenReturn(Collections.emptyMap());
 
-        scenarioMapper = new ScenarioMapper(repositoryApi, templatesUtils);
+        scenarioMapper = new ScenarioMapper(repositoryApi,
+                templatesUtils, settingsManagerMapping, settingsMapper);
     }
 
     @Test
@@ -198,34 +206,119 @@ public class ScenarioMapperTest {
         assertEquals(2, removal.getEntityId());
     }
 
-    /**
-     * Tests converting of DesiredState setting to ScenarioInfo.
-     */
     @Test
-    public void testToScenarioInfoWithDesiredState() {
-        final SettingApiDTO targetBand = ScenarioMapper
-                .createSettingApiDTO(10, ScenarioMapper.TARGET_BAND);
-        final SettingApiDTO utilTarget = ScenarioMapper
-                .createSettingApiDTO(20, ScenarioMapper.TARGET_UTILIZATION);
-        final List<SettingApiDTO> automationSettings = ImmutableList.of(targetBand, utilTarget);
-        final ScenarioInfo scenarioInfo = getScenarioInfo(automationSettings);
-        assertDesiredStateInScenarioChange(scenarioInfo.getChanges(0), 20.0f);
-        assertDesiredStateInScenarioChange(scenarioInfo.getChanges(1), 10.0f);
+    public void testSettingOverride() {
+        final SettingApiDTO setting = new SettingApiDTO();
+        setting.setUuid("foo");
+        setting.setValue("value");
+
+        when(settingsMapper.toProtoSettings(Collections.singletonList(setting)))
+            .thenReturn(ImmutableMap.of("foo", Setting.newBuilder()
+                    .setSettingSpecName("foo")
+                    .setStringSettingValue(StringSettingValue.newBuilder().setValue("value"))
+                    .build()));
+
+        // No plan setting mappings
+        when(settingsManagerMapping.convertFromPlanSetting(any()))
+            .thenAnswer(invocation -> invocation.getArguments()[0]);
+
+        final ScenarioInfo scenarioInfo = getScenarioInfo(Collections.singletonList(setting));
+        assertThat(scenarioInfo.getChangesCount(), is(1));
+        final ScenarioChange change = scenarioInfo.getChanges(0);
+        assertTrue(change.hasSettingOverride());
+        assertTrue(change.getSettingOverride().hasSetting());
+        final Setting overridenSetting = change.getSettingOverride().getSetting();
+        assertThat(overridenSetting.getSettingSpecName(), is("foo"));
+        assertTrue(overridenSetting.hasStringSettingValue());
+        assertThat(overridenSetting.getStringSettingValue().getValue(), is("value"));
     }
 
-    private void assertDesiredStateInScenarioChange(@Nonnull ScenarioChange scenarioChange,
-            float expectedValue) {
-        Assert.assertTrue(scenarioChange.hasSettingOverride());
-        Assert.assertTrue(scenarioChange.getSettingOverride().hasSetting());
-        Assert.assertEquals(expectedValue, scenarioChange.getSettingOverride()
-                .getSetting().getNumericSettingValue().getValue(), 0);
+    @Test
+    public void testSettingOverridePlanSettingMapping() {
+        final SettingApiDTO setting = new SettingApiDTO();
+        setting.setUuid("foo");
+        setting.setValue("value");
+
+        final SettingApiDTO convertedSetting = new SettingApiDTO();
+        convertedSetting.setUuid("foo");
+        convertedSetting.setValue("1.2f");
+
+        when(settingsMapper.toProtoSettings(Collections.singletonList(convertedSetting)))
+                .thenReturn(ImmutableMap.of("foo", Setting.newBuilder()
+                        .setSettingSpecName("foo")
+                        .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(1.2f))
+                        .build()));
+
+        // Convert the input setting into a numeric setting
+        when(settingsManagerMapping.convertFromPlanSetting(Collections.singletonList(setting)))
+                .thenReturn(Collections.singletonList(convertedSetting));
+
+        final ScenarioInfo scenarioInfo = getScenarioInfo(Collections.singletonList(setting));
+        assertThat(scenarioInfo.getChangesCount(), is(1));
+        final ScenarioChange change = scenarioInfo.getChanges(0);
+        assertTrue(change.hasSettingOverride());
+        assertTrue(change.getSettingOverride().hasSetting());
+        final Setting overridenSetting = change.getSettingOverride().getSetting();
+        assertThat(overridenSetting.getSettingSpecName(), is("foo"));
+        assertTrue(overridenSetting.hasNumericSettingValue());
+        assertThat(overridenSetting.getNumericSettingValue().getValue(), is(1.2f));
+    }
+
+    @Test
+    public void testSettingOverrideUnknownSetting() {
+        final SettingApiDTO setting = new SettingApiDTO();
+        setting.setUuid("unknown");
+        setting.setValue("value");
+        final ScenarioInfo scenarioInfo = getScenarioInfo(Collections.singletonList(setting));
+        assertThat(scenarioInfo.getChangesCount(), is(0));
+    }
+
+    /**
+     * Tests converting of scenario with desired state setting to ScenarioApiDto.
+     */
+    @Test
+    public void testSettingOverrideToApiDto() {
+        final Scenario scenario = buildScenario(buildNumericSettingOverride("foo", 1.2f));
+
+        // Pass-through plan settings conversion
+        when(settingsManagerMapping.convertToPlanSetting(any()))
+            .thenAnswer(invocation -> invocation.getArguments()[0]);
+
+        final ScenarioApiDTO scenarioApiDTO = scenarioMapper.toScenarioApiDTO(scenario);
+        final SettingApiDTO apiFoo = scenarioApiDTO.getConfigChanges().getAutomationSettingList().get(0);
+        assertSettingApiDTOHasSetting(apiFoo, "1.2", "foo");
+
+        verify(settingsManagerMapping).convertToPlanSetting(any());
+    }
+
+    @Test
+    public void testSettingOverrideToApiDtoWithPlanSetting() {
+        final Scenario scenario = buildScenario(buildNumericSettingOverride("foo", 1.2f));
+
+        final SettingApiDTO convertedSetting = new SettingApiDTO();
+
+        // Plan settings conversion substitutes the setting.
+        when(settingsManagerMapping.convertToPlanSetting(any()))
+                .thenAnswer(invocation -> Collections.singletonList(convertedSetting));
+
+        final ScenarioApiDTO scenarioApiDTO = scenarioMapper.toScenarioApiDTO(scenario);
+        final SettingApiDTO apiFoo = scenarioApiDTO.getConfigChanges().getAutomationSettingList().get(0);
+        assertThat(apiFoo, is(convertedSetting));
+
+        verify(settingsManagerMapping).convertToPlanSetting(any());
+    }
+
+    private void assertSettingApiDTOHasSetting(@Nonnull SettingApiDTO setting,
+                                               @Nonnull String value, @Nonnull String settingName) {
+        Assert.assertEquals(value, setting.getValue());
+        Assert.assertEquals(settingName, setting.getUuid());
     }
 
     /**
      * Tests converting of ScenarioApiDto without config changes to ScenarioInfo.
      */
     @Test
-    public void testToScenarioInfoWithoutDesiredState() {
+    public void testToScenarioInfoWithoutConfigChanges() {
         final ScenarioApiDTO dto = new ScenarioApiDTO();
         dto.setConfigChanges(null);
         final ScenarioInfo scenarioInfo = scenarioMapper.toScenarioInfo("name", dto);
@@ -375,29 +468,8 @@ public class ScenarioMapperTest {
         assertEquals(UIEntityType.UNKNOWN.getValue(), target.getDisplayName());
     }
 
-    /**
-     * Tests converting of scenario with desired state setting to ScenarioApiDto.
-     */
-    @Test
-    public void testToScenarioApiDtoWithDesiredState() {
-        final Scenario scenario = buildScenario(
-                buildScenarioChange(ScenarioMapper.TARGET_UTILIZATION, 20.0f),
-                buildScenarioChange(ScenarioMapper.TARGET_BAND, 10.0f)
-        );
-        final ScenarioApiDTO scenarioApiDTO = scenarioMapper.toScenarioApiDTO(scenario);
-        final SettingApiDTO utilTarget = scenarioApiDTO.getConfigChanges().getAutomationSettingList().get(0);
-        final SettingApiDTO targetBand = scenarioApiDTO.getConfigChanges().getAutomationSettingList().get(1);
-        assertSettingApiDTOHasSetting(utilTarget, "20.0", ScenarioMapper.TARGET_UTILIZATION);
-        assertSettingApiDTOHasSetting(targetBand, "10.0", ScenarioMapper.TARGET_BAND);
-    }
-
-    private void assertSettingApiDTOHasSetting(@Nonnull SettingApiDTO setting,
-            @Nonnull String value, @Nonnull String settingName) {
-        Assert.assertEquals(value, setting.getValue());
-        Assert.assertEquals(settingName, setting.getUuid());
-    }
-
-    private ScenarioChange buildScenarioChange(@Nonnull String name, float value) {
+    @Nonnull
+    private ScenarioChange buildNumericSettingOverride(@Nonnull String name, float value) {
         return ScenarioChange.newBuilder().setSettingOverride(
                 SettingOverride.newBuilder().setSetting(Setting.newBuilder()
                         .setSettingSpecName(name)
