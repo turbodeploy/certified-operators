@@ -163,7 +163,7 @@ public class Provision {
                         break;
                     }
                 }
-                if (mostProfitableTrader.isDebugEnabled()) {
+                if (mostProfitableTrader.isDebugEnabled() || provisionedTrader.isDebugEnabled()) {
                     logger.debug(mostProfitableTrader.getDebugInfoNeverUseInCode() + " triggered " +
                                     ((provisionAction instanceof Activate) ? "ACTIVATION of " : "PROVISION of ")
                                     + provisionedTrader.getDebugInfoNeverUseInCode());

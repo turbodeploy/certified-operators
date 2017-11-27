@@ -208,8 +208,8 @@ public class Ledger {
             if (commSoldUtil != 0) {
                 PriceFunction pf = commSold.getSettings().getPriceFunction();
                 double revFromComm = pf.unitPrice(commSoldUtil, seller, commSold, economy) * commSoldUtil;
-                int index = seller.getCommoditiesSold().indexOf(commSold);
                 if (seller.isDebugEnabled()) {
+                    int index = seller.getCommoditiesSold().indexOf(commSold);
                     logger.debug(seller.getBasketSold().get(index).getDebugInfoNeverUseInCode() + " - util:" +
                                 commSoldUtil + ", price:" + revFromComm + ", MinDP:" +
                                 pf.unitPrice(sellerMinDesUtil, seller, commSold, economy) + ", MaxDP:" +
