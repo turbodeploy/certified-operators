@@ -68,6 +68,7 @@ public class Suspension {
         // suspend entities that arent sellers in any market
         for (Trader seller : economy.getTraders()) {
             if (seller.getSettings().isSuspendable() && seller.getState().isActive() &&
+                            seller.getCustomers().isEmpty() &&
                             economy.getMarketsAsSeller(seller).isEmpty()) {
                 suspendTrader(economy, null, seller, allActions);
             }
