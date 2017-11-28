@@ -161,7 +161,6 @@ public class TopologyConverter {
     private BiMap<String, Long> accessesByKey = HashBiMap.create();
 
     private Set<CommodityDTOs.CommoditySoldTO> EMPTY_SET = Sets.newHashSet();
-    private Set<Long> EMPTY_LONG_SET = Sets.newHashSet();
 
     /**
      * A shop-together TopologyConverter.
@@ -547,12 +546,9 @@ public class TopologyConverter {
             .setQuoteFunction(QuoteFunctionDTO.newBuilder()
                 .setSumOfCommodity(SumOfCommodity.getDefaultInstance()))
             .build();
-        Set<Long> allCliques = shopTogether
-                        ? bicliquer.getBcIDs(String.valueOf(topologyDTO.getOid()))
-                        : EMPTY_LONG_SET;
-        if (allCliques == null) {
-            allCliques = EMPTY_LONG_SET;
-        }
+
+        // compute biclique IDs for this entity
+        Set<Long> allCliques = bicliquer.getBcIDs(String.valueOf(topologyDTO.getOid()));
 
         return EconomyDTOs.TraderTO.newBuilder()
             // Type and Oid are the same in the topology DTOs and economy DTOs

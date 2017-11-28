@@ -239,11 +239,8 @@ public class TopologyEntitiesHandlerTest {
         long bcBoughtNonShopTogether = countBoughtCommodities(traderDTOs, BC_PATTERN);
         assertTrue(bcBoughtNonShopTogether > 0);
 
-        // Clique counts are zero for all Trader DTOs
-        final Set<Integer> allCliqueCounts = traderDTOs.stream()
-            .map(TraderTO::getCliquesCount)
-            .collect(Collectors.toSet());
-        assertEquals(Sets.newHashSet(0), allCliqueCounts);
+        // check that bicliques are correct in the generated dtos
+        checkBicliques(traderDTOs);
 
         // ====== shop together ======
         List<CommonDTO.EntityDTO> shopTogetherProbeDTOs = messagesFromJsonFile("protobuf/messages/shopTogetherEntities.json",
@@ -273,27 +270,9 @@ public class TopologyEntitiesHandlerTest {
         // No BiClique commodities bought
         final long bcBoughtShopTogether = countBoughtCommodities(shopTogetherTraderDTOs, BC_PATTERN);
         assertEquals(0, bcBoughtShopTogether);
-        // Each storage is member of exactly one biclique (check using the 'cliques' property)
-        final Set<Integer> stCliqueCounts = shopTogetherTraderDTOs.stream()
-            .filter(trader -> trader.getDebugInfoNeverUseInCode().startsWith("STORAGE"))
-            .map(TraderTO::getCliquesCount)
-            .collect(Collectors.toSet());
-        assertEquals(Sets.newHashSet(1), stCliqueCounts);
 
-        // Each PM is member of one or more bicliques (check using the 'cliques' property)
-        final Set<Integer> pmCliqueCounts = shopTogetherTraderDTOs.stream()
-            .filter(trader -> trader.getDebugInfoNeverUseInCode().startsWith("PHYSICAL_MACHINE"))
-            .map(TraderTO::getCliquesCount)
-            .collect(Collectors.toSet());
-        assertFalse(pmCliqueCounts.contains(0));
-
-        // All other traders don't have bicliques (check using the 'cliques' property
-        final Set<Integer> otherCliqueCounts = shopTogetherTraderDTOs.stream()
-            .filter(trader -> !trader.getDebugInfoNeverUseInCode().startsWith("PHYSICAL_MACHINE")
-                && !trader.getDebugInfoNeverUseInCode().startsWith("STORAGE"))
-            .map(TraderTO::getCliquesCount)
-            .collect(Collectors.toSet());
-        assertEquals(Sets.newHashSet(0), otherCliqueCounts);
+        // check that bicliques are correct in the generated dtos
+        checkBicliques(shopTogetherTraderDTOs);
     }
 
     /**
@@ -397,5 +376,35 @@ public class TopologyEntitiesHandlerTest {
             }
         };
         return Files.readLines(file, Charset.defaultCharset(), callback);
+    }
+
+    /**
+     * Helper method to check that bicliques are created correctly on the {@link TraderTO}
+     *
+     * @param shopTogetherTraderDTOs {@link TraderTO} to check
+     */
+    private void checkBicliques(final Set<TraderTO> shopTogetherTraderDTOs) {
+
+        // Each storage is member of exactly one biclique (check using the 'cliques' property)
+        final Set<Integer> stCliqueCounts = shopTogetherTraderDTOs.stream()
+                .filter(trader -> trader.getDebugInfoNeverUseInCode().startsWith("STORAGE"))
+                .map(TraderTO::getCliquesCount)
+                .collect(Collectors.toSet());
+        assertEquals(Sets.newHashSet(1), stCliqueCounts);
+
+        // Each PM is member of one or more bicliques (check using the 'cliques' property)
+        final Set<Integer> pmCliqueCounts = shopTogetherTraderDTOs.stream()
+                .filter(trader -> trader.getDebugInfoNeverUseInCode().startsWith("PHYSICAL_MACHINE"))
+                .map(TraderTO::getCliquesCount)
+                .collect(Collectors.toSet());
+        assertFalse(pmCliqueCounts.contains(0));
+
+        // All other traders don't have bicliques (check using the 'cliques' property
+        final Set<Integer> otherCliqueCounts = shopTogetherTraderDTOs.stream()
+                .filter(trader -> !trader.getDebugInfoNeverUseInCode().startsWith("PHYSICAL_MACHINE")
+                        && !trader.getDebugInfoNeverUseInCode().startsWith("STORAGE"))
+                .map(TraderTO::getCliquesCount)
+                .collect(Collectors.toSet());
+        assertEquals(Sets.newHashSet(0), otherCliqueCounts);
     }
 }
