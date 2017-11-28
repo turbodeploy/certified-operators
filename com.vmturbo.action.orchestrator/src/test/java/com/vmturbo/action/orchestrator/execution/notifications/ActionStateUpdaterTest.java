@@ -2,6 +2,7 @@ package com.vmturbo.action.orchestrator.execution.notifications;
 
 import static com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils.makeActionModeSetting;
 import static org.junit.Assert.assertEquals;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -56,16 +57,17 @@ public class ActionStateUpdaterTest {
 
     private final EntitySettingsCache entitySettingsCache = mock(EntitySettingsCache.class);
 
-    private final Action testAction = new Action(recommendation, entitySettingsCache, 4);
+    private Action testAction;
 
     @Before
     public void setup() {
+        when(entitySettingsCache.getTypeForEntity(anyLong())).thenReturn(Optional.empty());
+        testAction = new Action(recommendation, entitySettingsCache, 4);
         when(actionStorehouse.getStore(eq(realtimeTopologyContextId))).thenReturn(Optional.of(actionStore));
         when(actionStore.getAction(eq(actionId))).thenReturn(Optional.of(testAction));
         when(actionStore.getAction(eq(notFoundId))).thenReturn(Optional.empty());
         when(entitySettingsCache.getSettingsForEntity(eq(3L)))
             .thenReturn(makeActionModeSetting(ActionMode.MANUAL));
-
         testAction.receive(new ManualAcceptanceEvent(99, 102));
         testAction.receive(new BeginExecutionEvent());
     }

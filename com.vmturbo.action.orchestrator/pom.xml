@@ -188,6 +188,17 @@
             <artifactId>sql-utils</artifactId>
         </dependency>
 
+        <!-- todo (Michelle 2017-12-1): get rid of com.vmturbo.api dependency in OM-27380  -->
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.api</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.group.api</artifactId>
+        </dependency>
+
         <!-- test dependencies -->
         <dependency>
             <groupId>com.vmturbo</groupId>

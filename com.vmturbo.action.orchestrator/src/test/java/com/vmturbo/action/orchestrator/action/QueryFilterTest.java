@@ -72,7 +72,7 @@ public class QueryFilterTest {
 
     @Test
     public void testExecutableDisabledNotVisible() throws Exception {
-        final ActionView actionView = notExecutableMoveAction(0L, 1l, 2L, 3L);
+        final ActionView actionView = notExecutableMoveAction(0L, 1L, 2L, 3L);
         when(actionView.getMode()).thenReturn(ActionMode.DISABLED);
 
         assertFalse(new QueryFilter(Optional.of(visibleFilter))
@@ -83,7 +83,7 @@ public class QueryFilterTest {
 
     @Test
     public void testManualNotExecutableNotVisible() throws Exception {
-        final ActionView actionView = notExecutableMoveAction(0L, 1l, 2L, 3L);
+        final ActionView actionView = notExecutableMoveAction(0L, 1L, 2L, 3L);
         when(actionView.getMode()).thenReturn(ActionMode.MANUAL);
 
         assertFalse(new QueryFilter(Optional.of(visibleFilter)).test(actionView, LiveActionStore.VISIBILITY_PREDICATE));
@@ -92,7 +92,7 @@ public class QueryFilterTest {
 
     @Test
     public void testManualReadyAndExecutableVisible() throws Exception {
-        final ActionView actionView = executableMoveAction(0L, 1l, 2L, 3L);
+        final ActionView actionView = executableMoveAction(0L, 1L, 2L, 3L);
         when(actionView.getMode()).thenReturn(ActionMode.MANUAL);
 
         assertTrue(new QueryFilter(Optional.of(visibleFilter))
@@ -103,7 +103,7 @@ public class QueryFilterTest {
 
     @Test
     public void testManualVisibleNotSetDoesNotFilter() throws Exception {
-        final ActionView actionView = notExecutableMoveAction(0L, 1l, 2L, 3L);
+        final ActionView actionView = notExecutableMoveAction(0L, 1L, 2L, 3L);
         when(actionView.getMode()).thenReturn(ActionMode.MANUAL);
 
         assertTrue(new QueryFilter(Optional.of(allFilter)).test(actionView, LiveActionStore.VISIBILITY_PREDICATE));
@@ -111,7 +111,7 @@ public class QueryFilterTest {
 
     @Test
     public void testRecommendVisible() throws Exception {
-        final ActionView actionView = notExecutableMoveAction(0L, 1l, 2L, 3L);
+        final ActionView actionView = notExecutableMoveAction(0L, 1L, 2L, 3L);
         when(actionView.getMode()).thenReturn(ActionMode.RECOMMEND);
 
         assertTrue(new QueryFilter(Optional.of(allFilter)).test(actionView, PlanActionStore.VISIBILITY_PREDICATE));
@@ -119,7 +119,7 @@ public class QueryFilterTest {
 
     @Test
     public void testStateMatch() throws Exception {
-        final ActionView actionView = notExecutableMoveAction(0L, 1l, 2L, 3L);
+        final ActionView actionView = notExecutableMoveAction(0L, 1L, 2L, 3L);
         when(actionView.getMode()).thenReturn(ActionMode.RECOMMEND);
         when(actionView.getState()).thenReturn(ActionState.SUCCEEDED);
 
@@ -129,7 +129,7 @@ public class QueryFilterTest {
 
     @Test
     public void testStateNoMatch() throws Exception {
-        final ActionView actionView = notExecutableMoveAction(0L, 1l, 2L, 3L);
+        final ActionView actionView = notExecutableMoveAction(0L, 1L, 2L, 3L);
         when(actionView.getMode()).thenReturn(ActionMode.RECOMMEND);
 
         assertFalse(new QueryFilter(Optional.of(succeededFilter))
@@ -138,7 +138,7 @@ public class QueryFilterTest {
 
     @Test
     public void testStateAndVisibleMatch() throws Exception {
-        final ActionView actionView = notExecutableMoveAction(0L, 1l, 2L, 3L);
+        final ActionView actionView = notExecutableMoveAction(0L, 1L, 2L, 3L);
         when(actionView.getMode()).thenReturn(ActionMode.MANUAL);
 
         // Using PlanActionStore's visibility predicate, so the
@@ -149,7 +149,7 @@ public class QueryFilterTest {
 
     @Test
     public void testStateAndVisibleNoMatch() throws Exception {
-        final ActionView actionView = notExecutableMoveAction(0L, 1l, 2L, 3L);
+        final ActionView actionView = notExecutableMoveAction(0L, 1L, 2L, 3L);
         when(actionView.getMode()).thenReturn(ActionMode.MANUAL);
 
         // Using LiveActionStore's visibility predicate, so the
@@ -229,7 +229,7 @@ public class QueryFilterTest {
     @Test
     public void testFilterActionViewsByEntityNoMatch() {
         final ActionView actionView1 = executableMoveAction(0L, 1L, 2L, 3L);
-        final List<Long> involvedEntities = Arrays.asList(6L);
+        final List<Long> involvedEntities = Collections.singletonList(6L);
 
         final Map<Long, ActionView> actionViews = ImmutableMap.of(
             actionView1.getId(), actionView1);

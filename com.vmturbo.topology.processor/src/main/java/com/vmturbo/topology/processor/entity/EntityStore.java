@@ -419,7 +419,7 @@ public class EntityStore {
     public void entitiesRestored(long targetId, long lastUpdatedTime, Map<Long, EntityDTO> restoredMap) {
         // If there are entities in the (global) entities map that have the same OIDs as entities
         // in the restored map, then first remove those entities from the entities map.
-        restoredMap.keySet().stream().forEach(entityMap::remove);
+        restoredMap.keySet().forEach(entityMap::remove);
         // Create a new per-target map with the restored entities
         final ImmutableSet.Builder<Long> newTargetEntitiesBuilder = new ImmutableSet.Builder<>();
         final ImmutableMap.Builder<String, Long> newEntitiesByLocalIdBuilder = new ImmutableMap.Builder<>();

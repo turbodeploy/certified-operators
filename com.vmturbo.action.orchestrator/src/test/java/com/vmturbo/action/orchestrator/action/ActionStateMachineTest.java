@@ -1,12 +1,12 @@
 package com.vmturbo.action.orchestrator.action;
 
-import java.util.List;
-import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
@@ -28,9 +28,9 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep.Status;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
-import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 
 import static junit.framework.TestCase.assertEquals;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -57,6 +57,11 @@ public class ActionStateMachineTest {
     private final long clearingPlanId = 6;
     private final long probeId = 7;
     private final long targetId = 8;
+
+    @Before
+    public void setup() {
+        when(entitySettingsCache.getTypeForEntity(anyLong())).thenReturn(Optional.empty());
+    }
 
     @Test
     public void testManuallyAccept() {

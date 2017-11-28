@@ -5,7 +5,6 @@ import java.io.ByteArrayOutputStream;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.zip.ZipInputStream;
@@ -41,7 +40,6 @@ import com.vmturbo.action.orchestrator.store.IActionFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreFactory;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
-import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.components.common.DiagnosticsWriter;
 
 import static org.mockito.Matchers.anyLong;
@@ -245,6 +243,7 @@ public class ActionOrchestratorDiagnosticsTest {
         final EntitySettingsCache settingsCache = mock(EntitySettingsCache.class);
         when(settingsCache.getSettingsForEntity(eq(rec.getInfo().getMove().getTargetId())))
                 .thenReturn(ActionOrchestratorTestUtils.makeActionModeSetting(ActionMode.MANUAL));
+        when(settingsCache.getTypeForEntity(anyLong())).thenReturn(Optional.empty());
         final Action action = actionFactory.newAction(rec, settingsCache, 0L);
         if (actionModifier != null) {
             actionModifier.accept(action);

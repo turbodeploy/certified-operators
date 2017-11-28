@@ -138,7 +138,7 @@ public class ActionOrchestratorTestUtils {
 
     public static List<Setting> makeActionModeSetting(ActionMode mode) {
         return Collections.singletonList(Setting.newBuilder()
-                .setSettingSpecName("moveVM")
+                .setSettingSpecName("move")
                 .setEnumSettingValue(EnumSettingValue.newBuilder()
                         .setValue(mode.toString()).build())
                 .build());

@@ -5,12 +5,15 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.UnaryOperator;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
+
+import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.action.orchestrator.action.ActionEvent.AcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.AuthorizedActionEvent;
@@ -25,11 +28,14 @@ import com.vmturbo.action.orchestrator.state.machine.Transition.TransitionResult
 import com.vmturbo.action.orchestrator.store.EntitySettingsCache;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.group.api.SettingPolicySetting;
+import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricGauge;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 
@@ -105,6 +111,25 @@ public class Action implements ActionView {
         .register();
 
     /**
+     * Map of action type to filter for relevant settings.
+     * TODO: Right now the Move entry gets overwritten in the constructor if there are
+     * entity settings available
+     */
+    private final ImmutableMap<ActionTypeCase, Predicate<Setting>> actionTypeSettingFilter;
+
+    /**
+     * Map of action type to target ID getter method
+     */
+    private static final ImmutableMap<ActionTypeCase, Function<ActionInfo, Long>>
+            ACTION_TYPE_TARGET_ID_GETTER =
+            ImmutableMap.<ActionTypeCase, Function<ActionInfo,Long>>builder()
+                    .put(ActionTypeCase.RESIZE, (info) -> info.getResize().getTargetId())
+                    .put(ActionTypeCase.ACTIVATE, (info) -> info.getActivate().getTargetId())
+                    .put(ActionTypeCase.DEACTIVATE, (info) -> info.getDeactivate().getTargetId())
+                    .put(ActionTypeCase.MOVE, (info) -> info.getMove().getTargetId())
+                    .build();
+
+    /**
      * Create an action from a state object that was used to serialize the state of the action.
      *
      * @param savedState A state object that was used to serialize the state of the action.
@@ -121,6 +146,7 @@ public class Action implements ActionView {
         this.stateMachine = ActionStateMachine.newInstance(this, savedState.currentState);
         this.actionTranslation = savedState.actionTranslation;
         this.entitySettings = null;
+        this.actionTypeSettingFilter = loadActionTypeMap(false);
     }
 
     public Action(@Nonnull final ActionDTO.Action recommendation,
@@ -134,6 +160,7 @@ public class Action implements ActionView {
         this.decision = new Decision();
         this.actionTranslation = new ActionTranslation(this.recommendation);
         this.entitySettings = null;
+        this.actionTypeSettingFilter = loadActionTypeMap(false);
     }
 
     public Action(@Nonnull final ActionDTO.Action recommendation,
@@ -148,6 +175,7 @@ public class Action implements ActionView {
         this.decision = new Decision();
         this.actionTranslation = new ActionTranslation(this.recommendation);
         this.entitySettings = Objects.requireNonNull(entitySettings);
+        this.actionTypeSettingFilter = loadActionTypeMap(true);
     }
 
     public Action(Action prototype, ActionDTO.Action.SupportLevel supportLevel) {
@@ -160,6 +188,7 @@ public class Action implements ActionView {
         this.recommendation = ActionDTO.Action.newBuilder(prototype.recommendation)
                 .setSupportingLevel(supportLevel).build();
         this.entitySettings = prototype.entitySettings;
+        this.actionTypeSettingFilter = loadActionTypeMap(this.entitySettings != null);
     }
 
     public Action(@Nonnull final ActionDTO.Action recommendation,
@@ -171,6 +200,39 @@ public class Action implements ActionView {
                   @Nonnull final EntitySettingsCache entitySettings,
                   final long actionPlanId) {
         this(recommendation, LocalDateTime.now(), entitySettings, actionPlanId);
+    }
+
+    /**
+     * Create an immutable map of action type to the predicate needed to filter relevant
+     * entity settings.
+     * @param hasEntitySettings whether the entitySettingsCache exists, in which case move
+     *                          actions' predicates may determine whether to filter move or
+     *                          storage move settings.
+     * @return ImmutableMap containing mappings for all supported action types
+     */
+    private ImmutableMap<ActionTypeCase, Predicate<Setting>>
+    loadActionTypeMap(boolean hasEntitySettings) {
+        ImmutableMap.Builder<ActionTypeCase, Predicate<Setting>> builder =
+                new ImmutableMap.Builder<>();
+        builder.put(ActionTypeCase.RESIZE, (s ->
+                s.getSettingSpecName().equals(SettingPolicySetting.Resize.getSettingName())))
+                .put(ActionTypeCase.ACTIVATE,
+                        (s -> s.getSettingSpecName()
+                                .equals(SettingPolicySetting.Activate.getSettingName())))
+                .put(ActionTypeCase.DEACTIVATE,
+                        (s -> s.getSettingSpecName()
+                                .equals(SettingPolicySetting.Suspend.getSettingName())));
+
+        if (hasEntitySettings) {
+            builder.put(ActionTypeCase.MOVE, determineMoveType());
+        } else {
+            // todo: currently if there are no entity settings, there is no way to determine
+            // if a move action is a move storage action.
+            builder.put(ActionTypeCase.MOVE,
+                    (s -> s.getSettingSpecName()
+                            .equals(SettingPolicySetting.Move.getSettingName())));
+        }
+        return builder.build();
     }
 
     /**
@@ -255,7 +317,7 @@ public class Action implements ActionView {
             case UNSUPPORTED:
                 return ActionMode.DISABLED;
             case SHOW_ONLY:
-                ActionMode mode = calculateActionMode();
+                final ActionMode mode = calculateActionMode();
                 return (mode.getNumber() > ActionMode.RECOMMEND_VALUE) ? ActionMode.RECOMMEND : mode;
             case SUPPORTED:
                 return calculateActionMode();
@@ -264,33 +326,23 @@ public class Action implements ActionView {
         }
     }
 
+    /**
+     * Based on the automation settings for the entities involved in an action,
+     * determine which ActionMode the action should have.
+     * @return the applicable ActionMode
+     */
     private ActionMode calculateActionMode() {
-        // TODO: (Michelle Neuburger, 2017-10-23). Support other action types besides Move.
         // TODO: Determine which settings apply when action involves more than one entity.
-        final long targetId;
-        final Predicate<Setting> targetSettingFilter;
-        switch (recommendation.getInfo().getActionTypeCase()) {
-            case MOVE:
-                targetId = recommendation.getInfo().getMove().getTargetId();
-                targetSettingFilter = s -> s.getSettingSpecName().toLowerCase().equals("move");
-                break;
-            case RESIZE:
-                targetId = recommendation.getInfo().getResize().getTargetId();
-                targetSettingFilter = s -> s.getSettingSpecName().toLowerCase().equals("resize");
-                break;
-            case ACTIVATE:
-                targetId = recommendation.getInfo().getActivate().getTargetId();
-                targetSettingFilter = s -> s.getSettingSpecName().toLowerCase().equals("activate");
-                break;
-            case DEACTIVATE:
-                targetId = recommendation.getInfo().getDeactivate().getTargetId();
-                targetSettingFilter = s -> s.getSettingSpecName().toLowerCase().equals("suspend");
-                break;
-            default:
-                return ActionMode.RECOMMEND;
+        final ActionTypeCase type = recommendation.getInfo().getActionTypeCase();
+        final Function<ActionInfo, Long> targetIdGetter = ACTION_TYPE_TARGET_ID_GETTER.get(type);
+        final Predicate<Setting> targetSettingFilter = actionTypeSettingFilter.get(type);
+        if (targetIdGetter == null || targetSettingFilter == null) {
+            // if the action is of a type not supported yet,
+            return ActionMode.RECOMMEND;
         }
 
-        List<Setting> targetSettings = entitySettings == null ?
+        final long targetId = targetIdGetter.apply(recommendation.getInfo());
+        final List<Setting> targetSettings = entitySettings == null ?
                 Collections.emptyList() : entitySettings.getSettingsForEntity(targetId);
         return targetSettings.stream()
                 .filter(targetSettingFilter.and(Setting::hasEnumSettingValue))
@@ -298,6 +350,26 @@ public class Action implements ActionView {
                 .min(Integer::compareTo)
                 .map(ActionMode::forNumber)
                 .orElse(ActionMode.MANUAL);
+    }
+
+    /**
+     * Determines if a move action refers to moving between physical machines or storages
+     * @return a predicate for filtering settings based on move type
+     */
+    @Nonnull
+    private Predicate<Setting> determineMoveType() {
+        if (entitySettings == null) { return s -> false; }
+        final Optional<EntityType> sourceType = entitySettings
+                .getTypeForEntity(recommendation.getInfo().getMove().getSourceId());
+        final Optional<EntityType> destType = entitySettings
+                .getTypeForEntity(recommendation.getInfo().getMove().getDestinationId());
+        if (sourceType.isPresent() && sourceType.get().equals(EntityType.STORAGE) &&
+                destType.isPresent() && destType.get().equals(EntityType.STORAGE)) {
+            return s ->
+                    s.getSettingSpecName().equals(SettingPolicySetting.StorageMove.getSettingName());
+        } else {
+            return s -> s.getSettingSpecName().equals(SettingPolicySetting.Move.getSettingName());
+        }
     }
 
     /**

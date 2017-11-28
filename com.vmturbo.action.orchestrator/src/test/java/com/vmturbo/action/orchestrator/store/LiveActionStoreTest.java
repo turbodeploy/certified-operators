@@ -6,6 +6,7 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyCollection;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -112,6 +113,7 @@ public class LiveActionStoreTest {
     public void setup() throws TargetResolutionException, UnsupportedActionException {
         actionStore = new LiveActionStore(spyActionFactory, TOPOLOGY_CONTEXT_ID, filter,
                 entitySettingsCache);
+        when(entitySettingsCache.getTypeForEntity(anyLong())).thenReturn(Optional.empty());
 
         when(filter.resolveActionsSupporting(anyCollection())).thenAnswer(invocationOnMock
                 -> invocationOnMock.getArguments()[0]);

@@ -16,6 +16,9 @@ action-orchestrator:
   websocket.pong.timeout: 30000
   mariadbHealthCheckIntervalSeconds: 60
   kvStoreRetryIntervalMillis: 1000
+  repositoryHost: 'repository'
+  entityTypeRetryIntervalMillis: 1000
+  entityTypeMaxRetries: 6
 
 market:
   topologyProcessorHost: 'topology-processor'

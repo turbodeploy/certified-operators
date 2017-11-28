@@ -3,9 +3,12 @@ package com.vmturbo.action.orchestrator.store;
 import java.util.concurrent.Executors;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.converter.xml.Jaxb2RootElementHttpMessageConverter;
+import org.springframework.web.client.RestTemplate;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorGlobalConfig;
 import com.vmturbo.action.orchestrator.execution.ActionExecutionConfig;
@@ -30,6 +33,19 @@ public class ActionStoreConfig {
     @Autowired
     private ActionExecutionConfig actionExecutionConfig;
 
+
+    @Value("${repositoryHost}")
+    private String repositoryHost;
+
+    @Value("${server.port}")
+    private int httpPort;
+
+    @Value("${entityTypeRetryIntervalMillis}")
+    private long entityTypeRetryIntervalMillis;
+
+    @Value("${entityTypeMaxRetries}")
+    private long entityTypeMaxRetries;
+
     @Bean
     public IActionFactory actionFactory() {
         return new ActionFactory();
@@ -42,7 +58,19 @@ public class ActionStoreConfig {
 
     @Bean
     public EntitySettingsCache entitySettingsCache() {
-        return new EntitySettingsCache(actionOrchestratorGlobalConfig.groupChannel());
+        return new EntitySettingsCache(actionOrchestratorGlobalConfig.groupChannel(),
+                serviceRestTemplate(), repositoryHost, httpPort, Executors.newSingleThreadExecutor(),
+                entityTypeMaxRetries, entityTypeRetryIntervalMillis);
+    }
+
+    @Bean
+    public RestTemplate serviceRestTemplate() {
+        RestTemplate restTemplate;
+        // for communication with repository component
+        restTemplate = new RestTemplate();
+        final Jaxb2RootElementHttpMessageConverter msgConverter = new Jaxb2RootElementHttpMessageConverter();
+        restTemplate.getMessageConverters().add(msgConverter);
+        return restTemplate;
     }
 
     @Bean

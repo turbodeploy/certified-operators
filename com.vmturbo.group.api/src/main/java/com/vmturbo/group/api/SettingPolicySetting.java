@@ -51,6 +51,16 @@ public enum SettingPolicySetting {
     Provision("provision", "Provision", Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE), actionExecutionMode()),
     /**
+     * Activate action automation mode.
+     */
+    Activate("activate", "Activate", Collections.emptyList(), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionMode()),
+    /**
+     * Storage Move action automation mode.
+     */
+    StorageMove("storageMove", "Storage Move", Collections.emptyList(), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionMode()),
+    /**
      * CPU utilization threshold.
      */
     CpuUtilization("cpuUtilization", "CPU Utilization",

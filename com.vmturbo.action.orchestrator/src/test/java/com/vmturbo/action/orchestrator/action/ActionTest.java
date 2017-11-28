@@ -3,6 +3,9 @@ package com.vmturbo.action.orchestrator.action;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.AdditionalMatchers.and;
+import static org.mockito.AdditionalMatchers.not;
+import static org.mockito.AdditionalMatchers.or;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
@@ -11,6 +14,7 @@ import static org.mockito.Mockito.when;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -33,6 +37,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 
 /**
  * Unit test for {@link Action}s.
@@ -48,23 +53,37 @@ public class ActionTest {
     private Action deactivateAction;
     private ActionDTO.Action activateRecommendation;
     private Action activateAction;
+    private ActionDTO.Action storageMoveRecommendation;
+    private Action storageMoveAction;
     private EntitySettingsCache entitySettingsCache = mock(EntitySettingsCache.class);
 
     @Before
     public void setup() {
         IdentityGenerator.initPrefix(0);
 
-        moveRecommendation = makeAction(makeMoveInfo( 11L, 22L, 33L), SupportLevel.SUPPORTED).build();
+        moveRecommendation =
+                makeAction(makeMoveInfo(11L, 22L, 33L), SupportLevel.SUPPORTED).build();
         resizeRecommendation = makeAction(makeResizeInfo(11L), SupportLevel.SUPPORTED).build();
-        deactivateRecommendation = makeAction(makeDeactivateInfo(11L), SupportLevel.SUPPORTED).build();
+        deactivateRecommendation =
+                makeAction(makeDeactivateInfo(11L), SupportLevel.SUPPORTED).build();
         activateRecommendation = makeAction(makeActivateInfo(11L), SupportLevel.SUPPORTED).build();
+        storageMoveRecommendation =
+                makeAction(makeMoveInfo(11L, 44L, 55L), SupportLevel.SUPPORTED).build();
 
         when(entitySettingsCache.getSettingsForEntity(anyLong()))
             .thenReturn(Collections.emptyList());
+        when(entitySettingsCache.getTypeForEntity(and(anyLong(), not(or(eq(44L), eq(55L))))))
+                .thenReturn(Optional.empty());
+        when(entitySettingsCache.getTypeForEntity(or(eq(44L), eq(55L))))
+                .thenReturn(Optional.of(EntityType.STORAGE));
+
+
         moveAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId);
         resizeAction = new Action(resizeRecommendation, entitySettingsCache, actionPlanId);
         deactivateAction = new Action(deactivateRecommendation, entitySettingsCache, actionPlanId);
         activateAction = new Action(activateRecommendation, entitySettingsCache, actionPlanId);
+        storageMoveAction =
+                new Action(storageMoveRecommendation, entitySettingsCache, actionPlanId);
     }
 
     @Test
@@ -139,28 +158,13 @@ public class ActionTest {
     }
 
     @Test
-    public void testGetModeSpecNameCaseInsensitive(){
-        //prefix for setting spec is case insensitive
-        List<Setting> settingsList = Arrays.asList(
-                makeSetting("MoVe", ActionMode.AUTOMATIC),
-                makeSetting("ReSiZe", ActionMode.AUTOMATIC),
-                makeSetting("SuSpEnD", ActionMode.AUTOMATIC),
-                makeSetting("AcTiVaTe", ActionMode.AUTOMATIC)
-        );
-        when(entitySettingsCache.getSettingsForEntity(eq(11L))).thenReturn(settingsList);
-
-        assertEquals(moveAction.getMode(), ActionMode.AUTOMATIC);
-        assertEquals(resizeAction.getMode(), ActionMode.AUTOMATIC);
-        assertEquals(deactivateAction.getMode(), ActionMode.AUTOMATIC);
-        assertEquals(activateAction.getMode(), ActionMode.AUTOMATIC);
-    }
-
-    @Test
     public void testGetModeChoosesStrictestValidSetting(){
-        //if an entity has multiple settings, the strictest applicable settings is the one that applies
+        //if an entity has multiple settings, the strictest applicable settings are chosen
         //THIS SHOULD NEVER HAPPEN
         //(but if it does, this is how we deal with it)
         List<Setting> settingsList = Arrays.asList(
+                makeSetting("storageMove", ActionMode.AUTOMATIC),
+                makeSetting("storageMove", ActionMode.RECOMMEND),
                 makeSetting("resize", ActionMode.RECOMMEND),
                 makeSetting("resize", ActionMode.DISABLED),
                 makeSetting("activate", ActionMode.MANUAL),
@@ -176,6 +180,7 @@ public class ActionTest {
         assertEquals(resizeAction.getMode(), ActionMode.DISABLED);
         assertEquals(deactivateAction.getMode(), ActionMode.DISABLED);
         assertEquals(activateAction.getMode(), ActionMode.MANUAL);
+        assertEquals(storageMoveAction.getMode(), ActionMode.RECOMMEND);
     }
 
     @Test
@@ -185,23 +190,33 @@ public class ActionTest {
         assertEquals(resizeAction.getMode(), ActionMode.MANUAL);
         assertEquals(activateAction.getMode(), ActionMode.MANUAL);
         assertEquals(deactivateAction.getMode(), ActionMode.MANUAL);
+        assertEquals(storageMoveAction.getMode(), ActionMode.MANUAL);
     }
 
     @Test
     public void testGetModeSupportLevelShowOnly(){
         //SHOW ONLY support level - no modes above RECOMMEND even though set to AUTOMATIC
-        moveRecommendation = makeAction(makeMoveInfo(11L, 22L, 33L), SupportLevel.SHOW_ONLY).build();
+        moveRecommendation =
+                makeAction(makeMoveInfo(11L, 22L, 33L), SupportLevel.SHOW_ONLY).build();
         moveAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId);
-        deactivateRecommendation = makeAction(makeMoveInfo(11L, 22L, 33L), SupportLevel.SHOW_ONLY).build();
+        deactivateRecommendation =
+                makeAction(makeMoveInfo(11L, 22L, 33L), SupportLevel.SHOW_ONLY).build();
         deactivateAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId);
-        activateRecommendation = makeAction(makeMoveInfo(11L, 22L, 33L), SupportLevel.SHOW_ONLY).build();
+        activateRecommendation =
+                makeAction(makeMoveInfo(11L, 22L, 33L), SupportLevel.SHOW_ONLY).build();
         activateAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId);
-        resizeRecommendation = makeAction(makeMoveInfo(11L, 22L, 33L), SupportLevel.SHOW_ONLY).build();
+        resizeRecommendation =
+                makeAction(makeMoveInfo(11L, 22L, 33L), SupportLevel.SHOW_ONLY).build();
         resizeAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId);
+        storageMoveRecommendation =
+                makeAction(makeMoveInfo(11L, 44L, 55L), SupportLevel.SHOW_ONLY).build();
+        storageMoveAction =
+                new Action(storageMoveRecommendation, entitySettingsCache, actionPlanId);
 
         List<Setting> settingsList = Arrays.asList(
                 makeSetting("resize", ActionMode.AUTOMATIC),
                 makeSetting("move", ActionMode.AUTOMATIC),
+                makeSetting("storageMove", ActionMode.AUTOMATIC),
                 makeSetting("activate", ActionMode.AUTOMATIC),
                 makeSetting("suspend", ActionMode.AUTOMATIC)
         );
@@ -212,23 +227,32 @@ public class ActionTest {
         assertEquals(resizeAction.getMode(), ActionMode.RECOMMEND);
         assertEquals(activateAction.getMode(), ActionMode.RECOMMEND);
         assertEquals(deactivateAction.getMode(), ActionMode.RECOMMEND);
+        assertEquals(storageMoveAction.getMode(), ActionMode.RECOMMEND);
     }
 
     @Test
     public void testGetModeSupportLevelUnsupported(){
         //UNSUPPORTED support level - no modes above DISABLED even though set to RECOMMEND
-        moveRecommendation = makeAction(makeMoveInfo(11L, 22L, 33L), SupportLevel.UNSUPPORTED).build();
+        moveRecommendation =
+                makeAction(makeMoveInfo(11L, 22L, 33L), SupportLevel.UNSUPPORTED).build();
         moveAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId);
-        deactivateRecommendation = makeAction(makeDeactivateInfo(11L), SupportLevel.UNSUPPORTED).build();
+        deactivateRecommendation =
+                makeAction(makeDeactivateInfo(11L), SupportLevel.UNSUPPORTED).build();
         deactivateAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId);
-        activateRecommendation = makeAction(makeActivateInfo(11L), SupportLevel.UNSUPPORTED).build();
+        activateRecommendation =
+                makeAction(makeActivateInfo(11L), SupportLevel.UNSUPPORTED).build();
         activateAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId);
         resizeRecommendation = makeAction(makeResizeInfo(11L), SupportLevel.UNSUPPORTED).build();
         resizeAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId);
+        storageMoveRecommendation =
+                makeAction(makeMoveInfo(11L, 44L, 55L), SupportLevel.UNSUPPORTED).build();
+        storageMoveAction =
+                new Action(storageMoveRecommendation, entitySettingsCache, actionPlanId);
 
         List<Setting> settingsList = Arrays.asList(
                 makeSetting("resize", ActionMode.RECOMMEND),
                 makeSetting("move", ActionMode.RECOMMEND),
+                makeSetting("storageMove", ActionMode.RECOMMEND),
                 makeSetting("activate", ActionMode.RECOMMEND),
                 makeSetting("suspend", ActionMode.RECOMMEND)
         );
@@ -239,6 +263,7 @@ public class ActionTest {
         assertEquals(resizeAction.getMode(), ActionMode.DISABLED);
         assertEquals(activateAction.getMode(), ActionMode.DISABLED);
         assertEquals(deactivateAction.getMode(), ActionMode.DISABLED);
+        assertEquals(storageMoveAction.getMode(), ActionMode.DISABLED);
     }
 
     @Test
@@ -248,6 +273,7 @@ public class ActionTest {
         List<Setting> settingsList = Arrays.asList(
             makeSetting("resize", ActionMode.AUTOMATIC),
             makeSetting("move", ActionMode.AUTOMATIC),
+            makeSetting("storageMove", ActionMode.AUTOMATIC),
             makeSetting("activate", ActionMode.AUTOMATIC),
             makeSetting("suspend", ActionMode.AUTOMATIC)
         );
@@ -259,6 +285,7 @@ public class ActionTest {
         assertEquals(activateAction.getMode(), ActionMode.AUTOMATIC);
         assertEquals(deactivateAction.getMode(), ActionMode.AUTOMATIC);
         assertEquals(moveAction.getMode(), ActionMode.AUTOMATIC);
+        assertEquals(storageMoveAction.getMode(), ActionMode.AUTOMATIC);
     }
 
     private ActionDTO.Action.Builder makeAction(ActionInfo.Builder infoBuilder,
