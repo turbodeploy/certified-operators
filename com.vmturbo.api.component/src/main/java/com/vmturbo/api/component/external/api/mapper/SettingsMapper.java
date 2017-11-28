@@ -19,7 +19,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
@@ -75,8 +74,8 @@ public class SettingsMapper {
 
     private static final Logger logger = LogManager.getLogger();
 
-    private static final Map<SettingValueTypeCase, SettingValueInjector> SETTING_VALUE_INJECTORS =
-        ImmutableMap.<SettingValueTypeCase, SettingValueInjector>builder()
+    private static final Map<SettingValueTypeCase, ProtoSettingValueInjector> PROTO_SETTING_VALUE_INJECTORS =
+        ImmutableMap.<SettingValueTypeCase, ProtoSettingValueInjector>builder()
             .put(SettingValueTypeCase.BOOLEAN_SETTING_VALUE_TYPE,
                 (val, builder) -> builder.setBooleanSettingValue(BooleanSettingValue.newBuilder()
                     .setValue(Boolean.valueOf(val))))
@@ -91,16 +90,24 @@ public class SettingsMapper {
                 .setValue(val)))
             .build();
 
-    private static final Map<ValueCase, SettingValueExtractor> SETTING_VALUE_EXTRACTORS =
-        ImmutableMap.<ValueCase, SettingValueExtractor>builder()
-            .put(ValueCase.BOOLEAN_SETTING_VALUE, setting ->
-                Boolean.toString(setting.getBooleanSettingValue().getValue()))
-            .put(ValueCase.NUMERIC_SETTING_VALUE, setting ->
-                Float.toString(setting.getNumericSettingValue().getValue()))
-            .put(ValueCase.STRING_SETTING_VALUE, setting ->
-                setting.getStringSettingValue().getValue())
-            .put(ValueCase.ENUM_SETTING_VALUE, setting ->
-                setting.getEnumSettingValue().getValue())
+    private static final Map<ValueCase, ApiSettingValueInjector> API_SETTING_VALUE_INJECTORS =
+        ImmutableMap.<ValueCase, ApiSettingValueInjector>builder()
+            .put(ValueCase.BOOLEAN_SETTING_VALUE, (setting, apiDTO) -> {
+                apiDTO.setValue(Boolean.toString(setting.getBooleanSettingValue().getValue()));
+                apiDTO.setValueType(InputValueType.BOOLEAN);
+            })
+            .put(ValueCase.NUMERIC_SETTING_VALUE, (setting, apiDTO) -> {
+                apiDTO.setValue(Float.toString(setting.getNumericSettingValue().getValue()));
+                apiDTO.setValueType(InputValueType.NUMERIC);
+            })
+            .put(ValueCase.STRING_SETTING_VALUE, (setting, apiDTO) -> {
+                apiDTO.setValue(setting.getStringSettingValue().getValue());
+                apiDTO.setValueType(InputValueType.STRING);
+            })
+            .put(ValueCase.ENUM_SETTING_VALUE, (setting, apiDTO) -> {
+                apiDTO.setValue(setting.getEnumSettingValue().getValue());
+                apiDTO.setValueType(InputValueType.STRING);
+            })
             .build();
 
     /**
@@ -562,8 +569,7 @@ public class SettingsMapper {
     public static SettingApiDTO toSettingApiDto(@Nonnull final Setting setting) {
         final SettingApiDTO apiDto = new SettingApiDTO();
         apiDto.setUuid(setting.getSettingSpecName());
-        apiDto.setValue(SETTING_VALUE_EXTRACTORS.get(setting.getValueCase())
-            .extractSettingValue(setting));
+        API_SETTING_VALUE_INJECTORS.get(setting.getValueCase()).setSettingValue(setting, apiDto);
         return apiDto;
     }
 
@@ -580,7 +586,7 @@ public class SettingsMapper {
                                           @Nonnull final SettingSpec settingSpec) {
         final Setting.Builder settingBuilder = Setting.newBuilder()
                 .setSettingSpecName(apiDto.getUuid());
-        SETTING_VALUE_INJECTORS.get(settingSpec.getSettingValueTypeCase())
+        PROTO_SETTING_VALUE_INJECTORS.get(settingSpec.getSettingValueTypeCase())
                 .setBuilderValue(apiDto.getValue(), settingBuilder);
         return settingBuilder.build();
     }
@@ -624,13 +630,18 @@ public class SettingsMapper {
      * selecting the right type of value, and reinterpreting the string input as that type.
      */
     @FunctionalInterface
-    private interface SettingValueInjector {
+    private interface ProtoSettingValueInjector {
         void setBuilderValue(@Nonnull final String value, @Nonnull final Setting.Builder builder);
     }
 
+    /**
+     * Injects a value from a {@link Setting} into an {@link SettingApiDTO}, formatted as a string,
+     * and sets the value type of the {@link SettingApiDTO} according to the value type of the
+     * setting.
+     */
     @FunctionalInterface
-    private interface SettingValueExtractor {
-        String extractSettingValue(@Nonnull final Setting setting);
+    private interface ApiSettingValueInjector {
+        void setSettingValue(@Nonnull final Setting setting, @Nonnull final SettingApiDTO apiDTO);
     }
 
 
