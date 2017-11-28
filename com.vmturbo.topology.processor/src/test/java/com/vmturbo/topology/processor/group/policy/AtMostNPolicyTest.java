@@ -30,7 +30,6 @@ import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 public class AtMostNPolicyTest {
-
     /**
      * The tests use the following topology
      *
@@ -99,9 +98,9 @@ public class AtMostNPolicyTest {
         assertThat(topologyGraph.getVertex(2L).get(),
             not(policyMatcher.hasProviderSegmentWithCapacity(POLICY_ID, 1.0f)));
         assertThat(topologyGraph.getVertex(1L).get(),
-            policyMatcher.hasProviderSegmentWithCapacity(POLICY_ID, Float.POSITIVE_INFINITY));
+            policyMatcher.hasProviderSegmentWithCapacity(POLICY_ID, PlacementPolicy.MAX_CAPACITY_VALUE));
         assertThat(topologyGraph.getVertex(2L).get(),
-            policyMatcher.hasProviderSegmentWithCapacity(POLICY_ID, Float.POSITIVE_INFINITY));
+            policyMatcher.hasProviderSegmentWithCapacity(POLICY_ID, PlacementPolicy.MAX_CAPACITY_VALUE));
     }
 
     @Test
@@ -114,9 +113,9 @@ public class AtMostNPolicyTest {
         new AtMostNPolicy(policy, consumerGroup, providerGroup)
                 .apply(groupResolver, topologyGraph);
         assertThat(topologyGraph.getVertex(1L).get(),
-            policyMatcher.hasProviderSegmentWithCapacity(POLICY_ID, Float.POSITIVE_INFINITY));
+            policyMatcher.hasProviderSegmentWithCapacity(POLICY_ID, PlacementPolicy.MAX_CAPACITY_VALUE));
         assertThat(topologyGraph.getVertex(2L).get(),
-            policyMatcher.hasProviderSegmentWithCapacity(POLICY_ID, Float.POSITIVE_INFINITY));
+            policyMatcher.hasProviderSegmentWithCapacity(POLICY_ID, PlacementPolicy.MAX_CAPACITY_VALUE));
         assertThat(topologyGraph.getVertex(4L).get(),
             policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE));
         assertThat(topologyGraph.getVertex(5L).get(),

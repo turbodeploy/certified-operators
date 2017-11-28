@@ -41,6 +41,10 @@ import com.vmturbo.topology.processor.topology.TopologyGraph.Vertex;
 public abstract class PlacementPolicy {
     private static final Logger logger = LogManager.getLogger();
 
+    // We can not set capacity to infinity, because database table can not store string "Infinity".
+    // The constant number is same as legacy, but we can change it later if we need.
+    public static final float MAX_CAPACITY_VALUE = 1e9f;
+
     /**
      * The policy definition describing the details of the policy to be applied.
      */
@@ -304,15 +308,15 @@ public abstract class PlacementPolicy {
 
     /**
      * Create a {@link CommoditySoldDTO} that all members of the consumer group of this policy should buy.
-     * The created commodity has POSITIVE_INFINITY capacity. No used value is provided because the used
-     * value is not relevant when the capacity is infinite.
+     * The created commodity has MAX_CAPACITY_VALUE capacity. No used value is provided because the used
+     * value is not relevant when the capacity is MAX_CAPACITY_VALUE.
      *
      * @return A {@link CommoditySoldDTO} that all members of the providers group of this policy should buy.
      */
     protected CommoditySoldDTO commoditySold() {
         return CommoditySoldDTO.newBuilder()
             .setCommodityType(commodityType())
-            .setCapacity(Float.POSITIVE_INFINITY)
+            .setCapacity(MAX_CAPACITY_VALUE)
             .build();
     }
 
