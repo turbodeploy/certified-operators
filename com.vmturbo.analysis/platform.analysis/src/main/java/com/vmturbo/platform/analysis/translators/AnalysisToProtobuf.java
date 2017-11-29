@@ -767,7 +767,7 @@ public final class AnalysisToProtobuf {
                                                         .getUtilizationUpperBound()*startQuantity)
                                                         , seller, commSold, economy);
 
-        return ((((quantityBought == 0) ? 0 : quantityBought * usedPrice) +
-                        excessQuantity > 0 ? excessQuantity * peakPrice : 0)) / effectiveCapacity;
+        return ((quantityBought == 0 ? 0 : quantityBought * usedPrice) +
+                        (excessQuantity > 0 ? excessQuantity * peakPrice : 0)) / effectiveCapacity;
     }
 } // end AnalysisToProtobuf class
