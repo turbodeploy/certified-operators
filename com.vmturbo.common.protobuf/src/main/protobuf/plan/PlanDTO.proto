@@ -34,6 +34,31 @@ message ScenarioInfo {
     // to preserve for the UI, we can add a "metadata" message (or map), where "type" would be
     // one of the fields.
     optional string type = 3;
+
+    // The plan scope
+    optional PlanScope scope = 4;
+}
+
+// The Plan Scope is a set of entity groups chosen as part of the plan. This scope is used to filter
+// the topology (according to the entities in scope) down to a "scoped topology", which is the minimal
+// subset of the economy needed to fully analyze the scoped plan.
+message PlanScope {
+    // A list of scope entries (groups) to include in scope.
+    repeated PlanScopeEntry scope_entries = 1;
+}
+
+// A reference to a group to be included in the plan scope. In the future, this entry may also have
+// some kind of operator representing whether the group should be included or excluded from scope,
+// but for now all entries are treated as being included in the scope.
+message PlanScopeEntry {
+    // a group id
+    optional int64 group_id = 1;
+
+    // class name of the scope entry type
+    optional string class_name = 3;
+
+    // display name of the group
+    optional string display_name = 4;
 }
 
 // A plan project is a container that acts as a context for a series of related (and/or interrelated)

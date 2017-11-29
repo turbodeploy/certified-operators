@@ -28,6 +28,7 @@ import com.google.common.collect.ImmutableList;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
+import com.vmturbo.api.component.external.api.service.GroupsService;
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -40,6 +41,8 @@ import com.vmturbo.api.dto.scenario.TopologyChangesApiDTO;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.common.protobuf.PlanDTOUtil;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScope;
 import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.SettingOverride;
@@ -107,6 +110,7 @@ public class ScenarioMapper {
 
         infoBuilder.addAllChanges(getTopologyChanges(dto.getTopologyChanges(), templateIds));
         infoBuilder.addAllChanges(getConfigChanges(dto.getConfigChanges()));
+        getScope(dto.getScope()).ifPresent(scope -> infoBuilder.setScope(scope));
         // TODO (gabriele, Oct 27 2017) We need to extend the Plan Orchestrator with support
         // for the other types of changes: time based topology, load and config
 
@@ -134,7 +138,7 @@ public class ScenarioMapper {
             dto.setType(CUSTOM_SCENARIO_TYPE);
         }
 
-        dto.setScope(buildApiScopeChanges());
+        dto.setScope(buildApiScopeObjects(scenario));
         dto.setProjectionDays(buildApiProjChanges());
         dto.setTopologyChanges(buildApiTopologyChanges(scenario.getScenarioInfo().getChangesList()));
         dto.setConfigChanges(buildApiConfigChanges(scenario.getScenarioInfo().getChangesList()));
@@ -303,19 +307,54 @@ public class ScenarioMapper {
             .build();
     }
 
-    private List<BaseApiDTO> buildApiScopeChanges() {
-        // --- START HAX --- Tracking Issue: OM-14951
-        // TODO (roman, Jan 20 2017): We need to extend the Plan Orchestrator with support
-        // for scope changes, and do the appropriate conversion.
-        // As part of the effort to get the plan UI functional, hard-coding the default
-        // scope changes used by the UI here.
-        BaseApiDTO scopeDto = new BaseApiDTO();
-        scopeDto.setUuid("Market");
-        scopeDto.setDisplayName("Global Environment");
-        scopeDto.setClassName("Market");
+    /**
+     * If there are any scope entries in the list of scopeDTO's, create a PlanScope object that
+     * represents the scope contents in XL DTO schema objects.
+     * @param scopeDTOs the list of "classic" scope DTO objects, which can be empty or null.
+     * @return the equivalent PlanScope, if any scope DTO's were found. Empty otherwise.
+     */
+    private Optional<PlanScope> getScope(@Nullable final List<BaseApiDTO> scopeDTOs) {
+        // convert scope info
+        if (scopeDTOs == null || scopeDTOs.size() == 0) {
+            return Optional.empty(); // no scope to convert
+        }
 
-        return Collections.singletonList(scopeDto);
-        // --- END HAX ---
+        PlanScope.Builder scopeBuilder = PlanScope.newBuilder();
+        // add all of the scope entries to the builder
+        for (BaseApiDTO scopeDTO : scopeDTOs) {
+            scopeBuilder.addScopeEntriesBuilder()
+                    .setGroupId(Long.parseLong(scopeDTO.getUuid()))
+                    .setClassName(scopeDTO.getClassName())
+                    .setDisplayName(scopeDTO.getDisplayName());
+
+        }
+        return Optional.of(scopeBuilder.build());
+    }
+
+    private List<BaseApiDTO> buildApiScopeObjects(@Nonnull final Scenario scenario) {
+        // if there are any scope elements defined on this plan, return them as a list of group
+        // references
+        if (scenario.hasScenarioInfo()) {
+            ScenarioInfo info = scenario.getScenarioInfo();
+            if (info.hasScope()) {
+                PlanScope planScope = info.getScope();
+                if (planScope.getScopeEntriesCount() > 0) {
+                    // create the list of scope objects
+                    List<BaseApiDTO> retVal = planScope.getScopeEntriesList().stream()
+                            .map(scopeEntry -> {
+                                BaseApiDTO scopeDTO = new BaseApiDTO();
+                                scopeDTO.setUuid(Long.toString(scopeEntry.getGroupId()));
+                                scopeDTO.setClassName(scopeEntry.getClassName());
+                                scopeDTO.setDisplayName(scopeEntry.getDisplayName());
+                                return scopeDTO;
+                            })
+                            .collect(Collectors.toList());
+                    return retVal;
+                }
+            }
+        }
+        // no scope to read -- return an empty list.
+        return Collections.emptyList();
     }
 
     private List<Integer> buildApiProjChanges() {
