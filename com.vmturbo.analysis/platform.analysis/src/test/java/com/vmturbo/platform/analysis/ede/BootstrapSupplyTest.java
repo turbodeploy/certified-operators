@@ -69,9 +69,9 @@ public class BootstrapSupplyTest {
     public void testShopTogetherBootstrapWithNewSupply() {
         Economy economy = new Economy();
         // create one pm with smaller capacity
-        Trader pm1 = TestUtils.createPM(economy, Arrays.asList(0l), 100, 100, false);
+        Trader pm1 = TestUtils.createPM(economy, Arrays.asList(0l), 100, 100, true);
         // create one storages with adequate capacity
-        Trader st1 = TestUtils.createStorage(economy, Arrays.asList(0l), 300, false);
+        Trader st1 = TestUtils.createStorage(economy, Arrays.asList(0l), 300, true);
         // create a vm that is requesting higher cpu than any seller in market
         Trader vm1 = TestUtils.createVM(economy);
         ShoppingList sl1 = TestUtils.createAndPlaceShoppingList(economy,

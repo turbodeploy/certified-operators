@@ -185,7 +185,11 @@ public class BootstrapSupply {
             for (int i = 0; i < movableSlByMarket.size(); i++) {
                 ShoppingList sl = movableSlByMarket.get(i).getKey();
                 shoppingLists.add(sl);
-                if (!sl.getSupplier().equals(minimizer.getBestSellers().get(i))) {
+                // in cases which the sl is not placed, or its supplier is not the same as
+                // best seller, we make areAllBestSellerSameAsSupplier false so that a move
+                // will be generated
+                if (sl.getSupplier() == null ||
+                                !sl.getSupplier().equals(minimizer.getBestSellers().get(i))) {
                     areAllBestSellerSameAsSupplier = false;
                 }
             }
@@ -241,15 +245,24 @@ public class BootstrapSupply {
                     slsThatNeedProvBySupply.put(sl, commonClique);
                 } else { // provision by demand
                     // TODO: maybe pick a better seller instead of the first one
-                    action = new ProvisionByDemand(economy, sl, sellers.get(0)).take();
-                    ((ActionImpl)action).setImportance(Double.POSITIVE_INFINITY);
-                    newSeller = ((ProvisionByDemand)action).getProvisionedSeller();
-                    // provisionByDemand does not place the provisioned trader. We try finding
-                    // best placement for it, if none exists, we create one supply for provisioned trader
-                    provisionedRelatedActions.addAll(shopTogetherBootstrapForIndividualBuyer(
-                                            economy, newSeller));
-                    provisionedRelatedActions.add(action);
-                    newSuppliers.put(sl, newSeller);
+                    List<Trader> clonableSellers = sellers.stream().filter(s ->
+                            s.getSettings().isCloneable()).collect(Collectors.toList());
+                    if (clonableSellers.isEmpty()) {
+                        logger.warn("No clonable trader can be found in market though buyer " +
+                                    sl.getBuyer().getDebugInfoNeverUseInCode()
+                                    + " has an infinity quote");
+                    } else {
+                        action = new ProvisionByDemand(economy, sl, clonableSellers.get(0)).take();
+                        ((ActionImpl)action).setImportance(Double.POSITIVE_INFINITY);
+                        newSeller = ((ProvisionByDemand)action).getProvisionedSeller();
+                        // provisionByDemand does not place the provisioned trader. We try finding
+                        // best placement for it, if none exists, we create one supply for provisioned trader
+                        provisionedRelatedActions
+                                        .addAll(shopTogetherBootstrapForIndividualBuyer(economy,
+                                                                                        newSeller));
+                        provisionedRelatedActions.add(action);
+                        newSuppliers.put(sl, newSeller);
+                    }
                 }
             }
         }
