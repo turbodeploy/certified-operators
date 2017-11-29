@@ -37,6 +37,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.DeletePlanProjectResponse;
 import com.vmturbo.common.protobuf.plan.PlanDTO.GetPlanProjectRequest;
 import com.vmturbo.common.protobuf.plan.PlanDTO.GetPlanProjectResponse;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectInfo;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectInfo.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.PlanDTO.Recurrence;
 import com.vmturbo.common.protobuf.plan.PlanDTO.Recurrence.Daily;
 import com.vmturbo.common.protobuf.plan.PlanDTO.Recurrence.Schedule;
@@ -204,11 +205,11 @@ public class PlanProjectRpcServiceTest {
                 .build();
         // For testing get
         PlanProject getPlanProject = new
-                PlanProject(GET_PLAN_PROJECT_ID, curTime, curTime, toCreate);
+                PlanProject(GET_PLAN_PROJECT_ID, curTime, curTime, toCreate, PlanProjectType.HEADROOM.name());
         dbConfig.dsl().newRecord(PLAN_PROJECT, getPlanProject).store();
         // For testing delete
         PlanProject deletePlanProject = new
-                PlanProject(DELETE_PLAN_PROJECT_ID, curTime, curTime, toCreate);
+                PlanProject(DELETE_PLAN_PROJECT_ID, curTime, curTime, toCreate, PlanProjectType.HEADROOM.name());
         dbConfig.dsl().newRecord(PLAN_PROJECT, deletePlanProject).store();
     }
 }

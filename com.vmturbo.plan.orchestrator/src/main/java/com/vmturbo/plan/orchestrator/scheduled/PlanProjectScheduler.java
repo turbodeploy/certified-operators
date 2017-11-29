@@ -1,5 +1,8 @@
 package com.vmturbo.plan.orchestrator.scheduled;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -10,6 +13,7 @@ import java.util.concurrent.ScheduledFuture;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 
+import com.google.protobuf.util.JsonFormat;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.scheduling.Trigger;
@@ -57,6 +61,7 @@ public class PlanProjectScheduler {
         this.schedulerExecutor = Objects.requireNonNull(scheduleExecutor);
         this.planProjectDao = planProjectDao;
         planProjectTasks = new HashMap<>();
+
         initializePlanProjectSchedule(scheduleExecutor);
     }
 
@@ -120,38 +125,26 @@ public class PlanProjectScheduler {
      */
     private void initializePlanProjectSchedule(final ThreadPoolTaskScheduler scheduleExecutor) {
         List<PlanDTO.PlanProject> planProjects = planProjectDao.getAllPlanProjects();
-        planProjects.forEach(this::scheduleProject);
+        planProjects.forEach(planProject -> {
+            try {
+                setPlanProjectSchedule(planProject.getPlanProjectId());
+            } catch (PlanProjectNotFoundException e) {
+                logger.error("Failed to create cron task for plan project:" +
+                        planProject.getPlanProjectInfo().getPlanProjectInfoName() +
+                        " due to: " + e.getMessage());
+            } catch (PlanProjectInfoNotFoundException e) {
+                logger.error("Failed to create cron task for plan project:" +
+                        planProject.getPlanProjectInfo().getPlanProjectInfoName() +
+                        " due to: " + e.getMessage());
+            } catch (RuntimeException e) {
+                // Catch all runtime exceptions to ensure exceptions will not prevent scheduling of subsequent tasks
+                logger.error("Failed to create cron task for plan project:" +
+                        planProject.getPlanProjectInfo().getPlanProjectInfoName() +
+                        " due to: " + e.getMessage());
+            }
+        });
         logger.info("Plan scheduler found " + planProjects.size()
-                + " recurring plans in plan_project table.");
-    }
-
-    /**
-     * PlanSchedule plan project:
-     * 1. create trigger {@link Trigger} base on recurrence defined in PlanProjectInfo.
-     * 2. schedule the plan project.
-     * 3. add plan project id and schedule to planProjectTasks map.
-     *
-     * @param planProject the plan project to be scheduled
-     */
-    private void scheduleProject(PlanDTO.PlanProject planProject) {
-        // adding try/catch block to ensure exception will not prevent scheduling subsequent tasks.
-        try {
-            Optional<Trigger> trigger = createCronTrigger(planProject.getPlanProjectInfo());
-            trigger.ifPresent(cronTrigger -> {
-                        final ScheduledFuture<?> scheduledTask = schedulerExecutor.schedule(
-                                () -> executePlan(planProject), cronTrigger);
-                        final PlanProjectSchedule schedule =
-                                new PlanProjectSchedule(scheduledTask, planProject.getPlanProjectId());
-                        planProjectTasks.put(planProject.getPlanProjectId(), schedule);
-                    }
-            );
-        } catch (RuntimeException e) {
-            logger.error("Failed to create cron task for plan project:" +
-                    planProject.getPlanProjectInfo().getPlanProjectInfoName() +
-                    " due to: " + e.getMessage());
-        }
-        logger.info("Plan scheduler successfully scheduled plan: " +
-                planProject.getPlanProjectInfo().getPlanProjectInfoName());
+                + " recurring plans in plan_project table during initialization.");
     }
 
     /**

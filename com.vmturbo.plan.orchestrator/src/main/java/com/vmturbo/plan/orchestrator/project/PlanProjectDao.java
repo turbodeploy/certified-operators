@@ -8,6 +8,7 @@ import javax.annotation.Nonnull;
 import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProject;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectInfo;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectInfo.PlanProjectType;
 
 /**
  * DAO for plan project.
@@ -32,6 +33,15 @@ public interface PlanProjectDao {
      */
     @Nonnull
     Optional<PlanDTO.PlanProject> getPlanProject(long id);
+
+    /**
+     * Return a list plan projects selected by project type.
+     *
+     * @param type Project type
+     * @return all plan projects of the specified type
+     */
+    @Nonnull
+    public List<PlanDTO.PlanProject> getPlanProjectsByType(@Nonnull PlanProjectType type);
 
     /**
      * Returns all the existing plan projects.

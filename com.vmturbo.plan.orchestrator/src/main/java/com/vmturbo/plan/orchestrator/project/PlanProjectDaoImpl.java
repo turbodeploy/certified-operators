@@ -17,6 +17,7 @@ import org.slf4j.LoggerFactory;
 
 import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectInfo;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectInfo.PlanProjectType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.plan.orchestrator.db.tables.pojos.PlanProject;
@@ -51,7 +52,8 @@ public class PlanProjectDaoImpl implements PlanProjectDao {
         LocalDateTime curTime = LocalDateTime.now();
 
         PlanProject planProject = new
-                PlanProject(IdentityGenerator.next(), curTime, curTime, info);
+                PlanProject(IdentityGenerator.next(), curTime, curTime, info,
+                info.getPlanProjectInfoType().name());
         dsl.newRecord(PLAN_PROJECT, planProject).store();
 
         return PlanDTO.PlanProject.newBuilder()
@@ -70,6 +72,19 @@ public class PlanProjectDaoImpl implements PlanProjectDao {
         return loadedPlanProject
                 .map(record -> toPlanProjectDTO(record.into(
                         PlanProject.class)));
+    }
+
+    @Nonnull
+    @Override
+    public List<PlanDTO.PlanProject> getPlanProjectsByType(PlanProjectType type) {
+        List<PlanProject> planProjects = dsl
+                .selectFrom(PLAN_PROJECT)
+                .where(PLAN_PROJECT.TYPE.eq(type.name()))
+                .fetch()
+                .into(PlanProject.class);
+
+        return planProjects.stream()
+                .map(this::toPlanProjectDTO).collect(Collectors.toList());
     }
 
     @Nonnull

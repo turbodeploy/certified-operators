@@ -1,0 +1,17 @@
+{
+  "planProjectInfo": [
+    {
+      "planProjectInfoName": "Headroom Plan Project",
+      "planProjectInfoRecurrence": {
+        "schedule": {
+          "daily": {
+          }
+        },
+        "timeOfRun": {
+          "hour": 5
+        }
+      },
+      "planProjectInfoType": "HEADROOM"
+    }
+  ]
+}

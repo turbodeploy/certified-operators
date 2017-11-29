@@ -48,6 +48,15 @@ message PlanProject {
 
 // Information describing the plan project.
 message PlanProjectInfo {
+    enum PlanProjectType {
+        // A custom plan project is created by the user
+        CUSTOM = 0;
+
+        // A headroom plan project is responsible for calculating
+        // per-cluster headroom (i.e. how many VMs can still fit into the cluster).
+        HEADROOM = 1;
+    }
+
     // The name of the plan project, it's for display purposes.
     optional string plan_project_info_name = 1;
 
@@ -56,6 +65,14 @@ message PlanProjectInfo {
 
     // The Recurrence of the execution
     optional Recurrence plan_project_info_recurrence = 3;
+
+    // The type of the plan project
+    optional PlanProjectType plan_project_info_type = 4 [default = CUSTOM];
+}
+
+// Used to deserialize a collection of SPlanProjectInfo from a single JSON file
+message PlanProjectInfoCollection {
+    repeated PlanProjectInfo plan_project_info = 1;
 }
 
 // The Recurrence of the execution
