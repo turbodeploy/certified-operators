@@ -11,6 +11,8 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
+import javax.annotation.Nonnull;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -214,12 +216,13 @@ public class BiCliquer {
      * @return an unmodifiable set of biclique numbers
      * @throws IllegalStateException when invoked before the biclqiues were computed
      */
+    @Nonnull
     public Set<Long> getBcIDs(String nid) {
         if (!computed) {
             throw new IllegalStateException("Bicliques not computed yet");
         }
         Set<Long> bcNumbers = nid2bcNumbers.get(nid);
-        return bcNumbers == null ? null : Collections.unmodifiableSet(bcNumbers);
+        return bcNumbers == null ? Collections.emptySet() : Collections.unmodifiableSet(bcNumbers);
     }
 
     /**
