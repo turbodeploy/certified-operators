@@ -57,6 +57,15 @@ public interface ProbeStore {
     Optional<ProbeInfo> getProbe(long probeId);
 
     /**
+     * Retrieve probe information by probe type name.
+     *
+     * @param probeTypeName Name of the probe to retrieve.
+     * @return The ID of the probe with the given type, or an empty Optional if no probe
+     *         with the given type is registered.
+     */
+    Optional<Long> getProbeIdForType(@Nonnull final String probeTypeName);
+
+    /**
      * Retrieves the information of all registered probes.
      *
      * @return The map of probeId -> {@link ProbeInfo} provided by the probe at registration.

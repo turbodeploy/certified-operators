@@ -15,11 +15,11 @@ public class TopologyStitchingEntityTest {
 
     private final TopologyStitchingEntity pm = new TopologyStitchingEntity(physicalMachine("pm")
         .selling(cpuMHz().capacity(100.0))
-        .build().toBuilder(), 1L, targetId);
+        .build().toBuilder(), 1L, targetId, 0);
 
     private final TopologyStitchingEntity vm = new TopologyStitchingEntity(virtualMachine("vm")
         .buying(cpuMHz().from("pm").used(50.0))
-        .build().toBuilder(), 2L, targetId);
+        .build().toBuilder(), 2L, targetId, 0);
 
     @Before
     public void setup() {

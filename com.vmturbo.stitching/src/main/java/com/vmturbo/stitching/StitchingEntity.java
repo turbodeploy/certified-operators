@@ -111,6 +111,19 @@ public interface StitchingEntity {
     long getTargetId();
 
     /**
+     * Get the time that the data for this entity was last updated.
+     * Important note: This is the time that TopologyProcessor received this data from the probe, not the actual
+     * time that the probe retrieved the information from the target.
+     *
+     * This field may be used as a heuristic for the recency of the data in the absence of better information.
+     * The time is in "computer time" and not necessarily UTC, however, times on {@link StitchingEntity}s
+     * are comparable. See {@link System#currentTimeMillis()} for further details.
+     *
+     * @return The time that the data for this entity was last updated.
+     */
+    long getLastUpdatedTime();
+
+    /**
      * The commodities sold by this entity.
      *
      * Currently no mutations are allowed to commodities sold.

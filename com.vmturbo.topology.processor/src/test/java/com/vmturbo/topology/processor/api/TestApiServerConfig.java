@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.api;
 
+import java.time.Clock;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -158,7 +159,7 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
 
     @Bean
     public EntityStore entityRepository() {
-        return new EntityStore(targetStore(), identityProvider(), entityValidator());
+        return new EntityStore(targetStore(), identityProvider(), entityValidator(), Clock.systemUTC());
     }
 
     @Bean

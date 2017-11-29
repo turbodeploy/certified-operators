@@ -53,6 +53,15 @@ public class RemoteProbeStoreTest {
     }
 
     @Test
+    public void testGetProbeByName() throws Exception {
+        when(idProvider.getProbeId(probeInfo)).thenReturn(1234L);
+        store.registerNewProbe(probeInfo, transport);
+
+        assertTrue(store.getProbeIdForType(probeInfo.getProbeType()).isPresent());
+        assertFalse(store.getProbeIdForType("non-existing-probe").isPresent());
+    }
+
+    @Test
     public void testRegisterNewProbeNotifiesListeners() throws Exception {
         ProbeStoreListener listener = Mockito.mock(ProbeStoreListener.class);
         store.addListener(listener);

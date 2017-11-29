@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.entity;
 
 import com.vmturbo.common.protobuf.topology.EntityInfoREST;
+import com.vmturbo.topology.processor.ClockConfig;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
@@ -14,7 +15,7 @@ import com.vmturbo.topology.processor.targets.TargetConfig;
  * Configuration for the entity repository.
  */
 @Configuration
-@Import({TargetConfig.class, IdentityProviderConfig.class})
+@Import({TargetConfig.class, IdentityProviderConfig.class, ClockConfig.class})
 public class EntityConfig {
 
     @Autowired
@@ -23,11 +24,15 @@ public class EntityConfig {
     @Autowired
     private IdentityProviderConfig identityProviderConfig;
 
+    @Autowired
+    private ClockConfig clockConfig;
+
     @Bean
     public EntityStore entityStore() {
         return new EntityStore(targetConfig.targetStore(),
                 identityProviderConfig.identityProvider(),
-                entityValidator());
+                entityValidator(),
+                clockConfig.clock());
     }
 
     @Bean

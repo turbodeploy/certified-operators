@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.entity;
 
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -75,11 +76,18 @@ public class EntityStore {
      */
     private final EntityValidator entityValidator;
 
+    /**
+     * The clock used to generate timestamps for when target information is updated.
+     */
+    private final Clock clock;
+
     public EntityStore(@Nonnull final TargetStore targetStore,
                        @Nonnull final IdentityProvider identityProvider,
-                       @Nonnull final EntityValidator entityValidator) {
+                       @Nonnull final EntityValidator entityValidator,
+                       @Nonnull final Clock clock) {
         this.identityProvider = Objects.requireNonNull(identityProvider);
-        this.entityValidator = entityValidator;
+        this.entityValidator = Objects.requireNonNull(entityValidator);
+        this.clock = Objects.requireNonNull(clock);
         targetStore.addListener(new TargetStoreListener() {
             @Override
             public void onTargetRemoved(@Nonnull final Target target) {
@@ -177,12 +185,12 @@ public class EntityStore {
             entityMap.entrySet().stream()
                 .forEach(entry -> {
                     final Long oid = entry.getKey();
-
                     entry.getValue().getPerTargetInfo().stream()
                         .map(targetInfoEntry -> new StitchingEntityData(
                             targetInfoEntry.getValue().getEntityInfo().toBuilder(),
                             targetInfoEntry.getKey(),
-                            oid))
+                            oid,
+                            targetEntities.get(targetInfoEntry.getKey()).getLastUpdatedTime()))
                         .forEach(stitchingDataMap::put);
                 });
         }
@@ -381,7 +389,7 @@ public class EntityStore {
             });
 
             final TargetEntityIdInfo targetIdInfo = new TargetEntityIdInfo(newTargetEntitiesBuilder.build(),
-                newEntitiesByLocalId);
+                newEntitiesByLocalId, clock.millis());
             targetEntities.put(targetId, targetIdInfo);
 
             // Fill in the hosted-by relationships.
@@ -408,7 +416,7 @@ public class EntityStore {
      * @param targetId the ID of the target with which the entities are associated
      * @param restoredMap a map from entity OID to entity
      */
-    public void entitiesRestored(long targetId, Map<Long, EntityDTO> restoredMap) {
+    public void entitiesRestored(long targetId, long lastUpdatedTime, Map<Long, EntityDTO> restoredMap) {
         // If there are entities in the (global) entities map that have the same OIDs as entities
         // in the restored map, then first remove those entities from the entities map.
         restoredMap.keySet().stream().forEach(entityMap::remove);
@@ -424,7 +432,9 @@ public class EntityStore {
             entity.addTargetInfo(targetId, dto);
             entityMap.put(oid, entity);
         }
-        TargetEntityIdInfo idInfo = new TargetEntityIdInfo(newTargetEntitiesBuilder.build(), newEntitiesByLocalIdBuilder.build());
+        TargetEntityIdInfo idInfo = new TargetEntityIdInfo(newTargetEntitiesBuilder.build(),
+            newEntitiesByLocalIdBuilder.build(),
+            lastUpdatedTime);
         // Get rid of the old per-target map and instead use the new one with the restored entities
         targetEntities.put(targetId, idInfo );
     }
@@ -448,11 +458,17 @@ public class EntityStore {
          */
         private Map<String, Long> localIdToEntityId;
 
+        /**
+         * The time in millis when this target's entities were last updated.
+         */
+        private final long lastUpdatedTime;
 
         TargetEntityIdInfo(@Nonnull final ImmutableSet<Long> entityIds,
-                           @Nonnull final Map<String, Long> localIdToEntityId) {
+                           @Nonnull final Map<String, Long> localIdToEntityId,
+                           final long lastUpdatedTime) {
             this.entityIds = entityIds;
             this.localIdToEntityId = Collections.unmodifiableMap(localIdToEntityId);
+            this.lastUpdatedTime = lastUpdatedTime;
         }
 
         Map<String, Long> getLocalIdToEntityId() {
@@ -465,6 +481,10 @@ public class EntityStore {
 
         public int getDiscoveredEntitiesCount() {
             return localIdToEntityId.size();
+        }
+
+        public long getLastUpdatedTime() {
+            return lastUpdatedTime;
         }
     }
 
@@ -489,6 +509,13 @@ public class EntityStore {
             }
         }
         return map;
+    }
+
+    public Optional<Long> getTargetLastUpdatedTime(long targetId) {
+        synchronized (topologyUpdateLock) {
+            return Optional.ofNullable(targetEntities.get(targetId))
+                .map(TargetEntityIdInfo::getLastUpdatedTime);
+        }
     }
 
     /**

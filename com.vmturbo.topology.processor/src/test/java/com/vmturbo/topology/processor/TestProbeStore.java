@@ -5,6 +5,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -71,6 +72,14 @@ public class TestProbeStore implements ProbeStore {
     @Override
     public Optional<ProbeInfo> getProbe(long probeId) {
         return Optional.ofNullable(probeInfos.get(probeId));
+    }
+
+    @Override
+    public Optional<Long> getProbeIdForType(@Nonnull final String probeTypeName) {
+        return probeInfos.entrySet().stream()
+            .filter(entry -> entry.getValue().getProbeType().equals(probeTypeName))
+            .map(Entry::getKey)
+            .findFirst();
     }
 
     @Override

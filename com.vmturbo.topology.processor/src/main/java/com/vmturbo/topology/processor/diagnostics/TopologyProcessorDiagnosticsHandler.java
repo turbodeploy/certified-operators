@@ -104,7 +104,10 @@ public class TopologyProcessorDiagnosticsHandler {
         // Entities (one file per target)
         for (Target target : targets) {
             // TODO(Shai): add tartgetId to the content of the file (not just part of the name)
-            diagnosticsWriter.writeZipEntry("Entities." + target.getId() + ".diags",
+            final Long lastUpdatedTime = entityStore.getTargetLastUpdatedTime(target.getId())
+                .orElse(0L);
+
+            diagnosticsWriter.writeZipEntry("Entities." + target.getId() + "-" + lastUpdatedTime + ".diags",
                 entityStore.discoveredByTarget(target.getId()).entrySet().stream()
                 .map(entry -> new IdentifiedEntityDTO(entry.getKey(), entry.getValue()))
                 .map(IdentifiedEntityDTO::toJson)
@@ -158,7 +161,7 @@ public class TopologyProcessorDiagnosticsHandler {
                 diagnosticZip);
     }
 
-    private static final Pattern ENTITIES_PATTERN = Pattern.compile("Entities\\.(\\d*)\\.diags");
+    private static final Pattern ENTITIES_PATTERN = Pattern.compile("Entities\\.(\\d*)-(\\d*)\\.diags");
 
     /**
      * Restore topology processor diagnostics from a {@link ZipInputStream}. Look for the targets file,
@@ -189,7 +192,8 @@ public class TopologyProcessorDiagnosticsHandler {
                 Matcher m = ENTITIES_PATTERN.matcher(diagsName);
                 if (m.matches()) {
                     long targetId = Long.valueOf(m.group(1));
-                    restoreEntities(targetId, diags.getLines());
+                    long lastUpdatedTime = Long.valueOf(m.group(2));
+                    restoreEntities(targetId, lastUpdatedTime, diags.getLines());
                 }
             }
         }
@@ -267,13 +271,13 @@ public class TopologyProcessorDiagnosticsHandler {
      * @throws IOException if there is a problem reading the file
      * @see {@link EntityStore#entitiesDiscovered(long, long, List)
      */
-    public void restoreEntities(long targetId, List<String> serializedEntities) throws IOException {
+    public void restoreEntities(long targetId, long lastUpdatedTime, List<String> serializedEntities) throws IOException {
         logger.info("Restoring " + serializedEntities.size() + " entities for target " + targetId);
         Map<Long, EntityDTO> entitiesMap = Maps.newHashMap();
         serializedEntities.stream()
             .map(IdentifiedEntityDTO::fromJson)
             .forEach(dto -> entitiesMap.put(Long.valueOf(dto.getOid()), dto.getEntity()));
-        entityStore.entitiesRestored(targetId, entitiesMap);
+        entityStore.entitiesRestored(targetId, lastUpdatedTime, entitiesMap);
         logger.info("Done Restoring entities for target " + targetId);
     }
 

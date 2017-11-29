@@ -149,7 +149,7 @@ public class StitchingManagerTest {
 
     private long curOid = 1L;
     private StitchingEntityData nextEntity(@Nonnull final EntityDTO.Builder entityDto, final long targetId) {
-        return new StitchingEntityData(entityDto, targetId, curOid++);
+        return new StitchingEntityData(entityDto, targetId, curOid++, 0);
     }
 
     public static class StitchVmsAlone implements  StitchingOperation<String, Void> {

@@ -34,6 +34,8 @@ public class TopologyStitchingEntity implements StitchingEntity {
 
     private final long targetId;
 
+    private final long lastUpdatedTime;
+
     private final Map<StitchingEntity, List<CommodityDTO>> commoditiesBoughtByProvider = new IdentityHashMap<>();
     private final Set<StitchingEntity> consumers = Sets.newIdentityHashSet();
     private final List<CommoditySold> commoditiesSold = new ArrayList<>();
@@ -41,15 +43,18 @@ public class TopologyStitchingEntity implements StitchingEntity {
     public TopologyStitchingEntity(@Nonnull final StitchingEntityData stitchingEntityData) {
         this(stitchingEntityData.getEntityDtoBuilder(),
             stitchingEntityData.getOid(),
-            stitchingEntityData.getTargetId());
+            stitchingEntityData.getTargetId(),
+            stitchingEntityData.getLastUpdatedTime());
     }
 
     public TopologyStitchingEntity(@Nonnull final EntityDTO.Builder entityBuilder,
                                    final long oid,
-                                   final long targetId) {
+                                   final long targetId,
+                                   final long lastUpdatedTime) {
         this.entityBuilder = Objects.requireNonNull(entityBuilder);
         this.oid = oid;
         this.targetId = targetId;
+        this.lastUpdatedTime = lastUpdatedTime;
     }
 
     @Nonnull
@@ -66,6 +71,11 @@ public class TopologyStitchingEntity implements StitchingEntity {
     @Override
     public long getTargetId() {
         return targetId;
+    }
+
+    @Override
+    public long getLastUpdatedTime() {
+        return lastUpdatedTime;
     }
 
     @Override

@@ -13,7 +13,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
-import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
@@ -33,13 +32,13 @@ import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.group.GroupConfig;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
 import com.vmturbo.topology.processor.operation.OperationConfig;
+import com.vmturbo.topology.processor.plan.PlanConfig;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
 import com.vmturbo.topology.processor.repository.RepositoryConfig;
 import com.vmturbo.topology.processor.rest.RESTConfig;
 import com.vmturbo.topology.processor.rpc.TopologyProcessorRpcConfig;
 import com.vmturbo.topology.processor.scheduling.SchedulerConfig;
 import com.vmturbo.topology.processor.targets.TargetConfig;
-import com.vmturbo.topology.processor.plan.PlanConfig;
 import com.vmturbo.topology.processor.template.TemplateConfig;
 import com.vmturbo.topology.processor.topology.TopologyConfig;
 
@@ -73,6 +72,7 @@ import com.vmturbo.topology.processor.topology.TopologyConfig;
     PlanConfig.class,
     GlobalConfig.class,
     KVConfig.class,
+    ClockConfig.class,
     TopologyConfig.class,
     SQLDatabaseConfig.class,
 })

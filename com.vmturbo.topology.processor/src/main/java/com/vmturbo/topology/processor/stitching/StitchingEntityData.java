@@ -19,13 +19,24 @@ public class StitchingEntityData {
     private final EntityDTO.Builder entityDtoBuilder;
     private final long targetId;
     private final long oid;
+    private final long lastUpdatedTime;
 
+    /**
+     * Create a new {@link StitchingEntityData} object for constructing a {@link TopologyStitchingEntity}.
+     *
+     * @param entityDtoBuilder The builder for the probe-discovered DTO.
+     * @param targetId The ID of the target that discovered the DTO.
+     * @param oid The OID (object ID) of the entity.
+     * @param lastUpdatedTime The time at which the DTO was received from the probe.
+     */
     public StitchingEntityData(@Nonnull final EntityDTO.Builder entityDtoBuilder,
                                final long targetId,
-                               final long oid) {
+                               final long oid,
+                               final long lastUpdatedTime) {
         this.entityDtoBuilder = entityDtoBuilder;
         this.targetId = targetId;
         this.oid = oid;
+        this.lastUpdatedTime = lastUpdatedTime;
     }
 
     public EntityDTO.Builder getEntityDtoBuilder() {
@@ -42,6 +53,10 @@ public class StitchingEntityData {
 
     public String getLocalId() {
         return entityDtoBuilder.getId();
+    }
+
+    public long getLastUpdatedTime() {
+        return lastUpdatedTime;
     }
 
     @Override

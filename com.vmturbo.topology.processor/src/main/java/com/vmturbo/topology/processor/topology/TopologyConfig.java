@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTOREST;
+import com.vmturbo.topology.processor.ClockConfig;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorApiConfig;
 import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.group.GroupConfig;
@@ -32,7 +33,8 @@ import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineFactory;
     StitchingConfig.class,
     PlanConfig.class,
     RepositoryConfig.class,
-    TemplateConfig.class
+    TemplateConfig.class,
+    ClockConfig.class
 })
 public class TopologyConfig {
 
@@ -60,6 +62,9 @@ public class TopologyConfig {
     @Autowired
     private TemplateConfig templateConfig;
 
+    @Autowired
+    private ClockConfig clockConfig;
+
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
 
@@ -69,7 +74,7 @@ public class TopologyConfig {
                 topologyPipelineFactory(),
                 identityProviderConfig.identityProvider(),
                 entityConfig.entityStore(),
-                Clock.systemUTC());
+                clockConfig.clock());
     }
 
     @Bean

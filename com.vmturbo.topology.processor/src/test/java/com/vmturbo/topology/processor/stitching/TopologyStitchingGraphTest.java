@@ -517,11 +517,11 @@ public class TopologyStitchingGraphTest {
         public StitchingDataAllowingTargetChange(@Nonnull final EntityDTO.Builder entityDtoBuilder,
                                                  final long targetId,
                                                  final long oid) {
-            super(entityDtoBuilder, targetId, oid);
+            super(entityDtoBuilder, targetId, oid, 0);
         }
 
         public StitchingEntityData forTarget(final long targetId) {
-            return new StitchingEntityData(getEntityDtoBuilder(), targetId, IdentityGenerator.next());
+            return new StitchingEntityData(getEntityDtoBuilder(), targetId, IdentityGenerator.next(), 0);
         }
     }
 }

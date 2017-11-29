@@ -22,9 +22,11 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Multimap;
 
 import com.vmturbo.communication.ITransport;
+import com.vmturbo.platform.common.dto.Discovery.AccountDefEntry.DefinitionCase;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
+import com.vmturbo.platform.sdk.common.PredefinedAccountDefinition;
 import com.vmturbo.sdk.server.common.ProbeInfoComparator;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.stitching.StitchingOperationStore;
@@ -158,6 +160,21 @@ public class RemoteProbeStore implements ProbeStore {
     public Optional<ProbeInfo> getProbe(long probeId) {
         synchronized (dataLock) {
             return Optional.ofNullable(probeInfos.get(probeId));
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public Optional<Long> getProbeIdForType(@Nonnull final String probeTypeName) {
+        Objects.requireNonNull(probeTypeName);
+
+        synchronized (dataLock) {
+            return probeInfos.entrySet().stream()
+                .filter(entry -> entry.getValue().getProbeType().equals(probeTypeName))
+                .map(Entry::getKey)
+                .findFirst();
         }
     }
 

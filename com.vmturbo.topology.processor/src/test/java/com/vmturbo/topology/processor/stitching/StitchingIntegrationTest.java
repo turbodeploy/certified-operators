@@ -8,6 +8,7 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.when;
 
 import java.net.URL;
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -66,7 +67,8 @@ public class StitchingIntegrationTest {
     private IdentityProvider identityProvider = Mockito.mock(IdentityProvider.class);
     private final TargetStore targetStore = Mockito.mock(TargetStore.class);
     private final EntityValidator entityValidator = Mockito.mock(EntityValidator.class);
-    private EntityStore entityStore = new EntityStore(targetStore, identityProvider, entityValidator);
+    private EntityStore entityStore = new EntityStore(targetStore, identityProvider,
+        entityValidator, Clock.systemUTC());
 
     @Test
     public void testVcAlone() throws Exception {

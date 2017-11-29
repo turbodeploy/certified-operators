@@ -9,12 +9,10 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Paths;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -31,8 +29,6 @@ import org.mockito.Mockito;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 import com.google.gson.Gson;
 
 import com.vmturbo.components.api.ComponentGsonFactory;
@@ -92,6 +88,7 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         Mockito.when(targetStore.getAll()).thenReturn(targets);
         Map<Long, EntityDTO> map = ImmutableMap.of(199L, nwDto);
         Mockito.when(entityStore.discoveredByTarget(100001)).thenReturn(map);
+        Mockito.when(entityStore.getTargetLastUpdatedTime(100001)).thenReturn(Optional.of(12345L));
     }
 
     private ZipInputStream dumpDiags() throws IOException {
@@ -140,6 +137,8 @@ public class TopologyProcessorDiagnosticsHandlerTest {
             throws InvalidTargetException, IOException {
         final long targetId = 1;
         final long probeId = 2;
+        Mockito.when(entityStore.getTargetLastUpdatedTime(targetId)).thenReturn(Optional.of(12345L));
+
         // A probe with a secret field.
         final ProbeInfo probeInfo = ProbeInfo.newBuilder()
                 .setProbeCategory("cat")
@@ -238,6 +237,7 @@ public class TopologyProcessorDiagnosticsHandlerTest {
             targets.add(mockTarget(targetIds[i], targetInfos[i], schedules[i]));
         }
 
+        Mockito.when(entityStore.getTargetLastUpdatedTime(200001)).thenReturn(Optional.of(23456L));
         final ZipInputStream zis = dumpDiags();
 
         ZipEntry ze = zis.getNextEntry();
@@ -254,7 +254,7 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         assertEquals(SCHEDULE_JSON, new String(bytes, 0, SCHEDULE_JSON.length()));
 
         ze = zis.getNextEntry();
-        assertEquals("Entities." + targetIds[0] + ".diags", ze.getName());
+        assertEquals("Entities." + targetIds[0] + "-12345.diags", ze.getName());
         bytes = new byte[100];
         zis.read(bytes);
         String json = new String(bytes, 0, IDENTIFIED_ENTITY.length());
@@ -265,7 +265,7 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         assertEquals(nwDto, dto.getEntity());
 
         ze = zis.getNextEntry();
-        assertEquals("Entities." + targetIds[1] + ".diags", ze.getName());
+        assertEquals("Entities." + targetIds[1] + "-23456.diags", ze.getName());
         bytes = new byte[100];
         zis.read(bytes);
         assertEquals(0, bytes[0]);
@@ -298,6 +298,7 @@ public class TopologyProcessorDiagnosticsHandlerTest {
                 .setDiscoverySchedule(target.getId(), 600000, TimeUnit.MILLISECONDS);
             Mockito.verify(entityStore).entitiesRestored(
                     Mockito.eq(target.getId()),
+                    Mockito.anyLong(),
                     Mockito.anyMapOf(Long.class, EntityDTO.class));
         }
         Mockito.verify(identityProvider).restoreDiags(any());

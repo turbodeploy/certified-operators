@@ -12,6 +12,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.junit.Assert.assertEquals;
 
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -56,7 +57,8 @@ public class EntityStoreTest {
 
     private EntityValidator entityValidator = Mockito.spy(new EntityValidator());
 
-    private EntityStore entityStore = new EntityStore(targetStore, identityProvider, entityValidator);
+    private EntityStore entityStore = new EntityStore(targetStore, identityProvider, entityValidator,
+        Clock.systemUTC());
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
@@ -250,12 +252,18 @@ public class EntityStoreTest {
             2L, physicalMachine("bar").build(),
             3L, storage("baz").build());
 
+        final Clock mockClock = Mockito.mock(Clock.class);
+        Mockito.when(mockClock.millis()).thenReturn(12345L);
+
+        entityStore = new EntityStore(targetStore, identityProvider, entityValidator,
+            mockClock);
         addEntities(entities);
         final TopologyStitchingGraph graph = entityStore
             .constructStitchingContext()
             .getStitchingGraph();
 
         final TopologyStitchingEntity foo = entityByLocalId(graph, "foo");
+        assertEquals(12345L, foo.getLastUpdatedTime());
         assertThat(entityByLocalId(graph, "bar")
             .getConsumers().stream()
             .map(StitchingEntity::getLocalId)
