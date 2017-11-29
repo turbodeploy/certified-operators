@@ -1,0 +1,1778 @@
+[
+  {
+    "entityType": 14,
+    "oid": "72207427031409",
+    "displayName": "Host #12",
+    "commoditySoldList": [
+      {
+        "commodityType": {
+          "type": 40,
+          "key": ""
+        },
+        "used": 3344,
+        "peak": 0,
+        "capacity": 60000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 0,
+          "key": "CLUSTER-1"
+        },
+        "used": 1,
+        "peak": 0,
+        "capacity": 1000000000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 47,
+          "key": ""
+        },
+        "used": 5,
+        "peak": 0,
+        "capacity": 5000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 21,
+          "key": ""
+        },
+        "used": 1103,
+        "peak": 0,
+        "capacity": 16384,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      }
+    ],
+    "commoditiesBoughtFromProviders": [
+      {
+        "providerId": "72207427031436",
+        "commodityBought": [
+          {
+            "commodityType": {
+              "type": 24,
+              "key": ""
+            },
+            "used": 1,
+            "peak": 0,
+            "active": true
+          },
+          {
+            "commodityType": {
+              "type": 18,
+              "key": ""
+            },
+            "used": 1,
+            "peak": 0,
+            "active": true
+          },
+          {
+            "commodityType": {
+              "type": 20,
+              "key": ""
+            },
+            "used": 1,
+            "peak": 0,
+            "active": true
+          }
+        ]
+      }
+    ],
+    "entityState": "POWERED_ON",
+    "entityPropertyMap": {
+      "common_dto.EntityDTO.PhysicalMachineData.numCpuCores": "12",
+      "common_dto.EntityDTO.PhysicalMachineRelatedData.processor": "[id: \"FirstProc/host-12\"\ndisplayName: \"FirstProc/Host #12\"\ncapacity: 120000.0\n, id: \"SecondProc/host-12\"\ndisplayName: \"SecondProc/Host #12\"\ncapacity: 120000.0\n]",
+      "common_dto.EntityDTO.PhysicalMachineData.pmState": "maintenance: false\n"
+    },
+    "analysisSettings": {
+      "isAvailableAsProvider": true,
+      "shopTogether": false
+    }
+  },
+  {
+    "entityType": 14,
+    "oid": "72207427031408",
+    "displayName": "Host #13",
+    "commoditySoldList": [
+      {
+        "commodityType": {
+          "type": 40,
+          "key": ""
+        },
+        "used": 95001,
+        "peak": 0,
+        "capacity": 120000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 0,
+          "key": "CLUSTER-0"
+        },
+        "used": 311781971,
+        "peak": 0,
+        "capacity": 1000000000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 47,
+          "key": ""
+        },
+        "used": 118,
+        "peak": 0,
+        "capacity": 5000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 21,
+          "key": ""
+        },
+        "used": 32741,
+        "peak": 0,
+        "capacity": 41960,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      }
+    ],
+    "commoditiesBoughtFromProviders": [
+      {
+        "providerId": "72207427031436",
+        "commodityBought": [
+          {
+            "commodityType": {
+              "type": 24,
+              "key": ""
+            },
+            "used": 1,
+            "peak": 0,
+            "active": true
+          },
+          {
+            "commodityType": {
+              "type": 18,
+              "key": ""
+            },
+            "used": 1,
+            "peak": 0,
+            "active": true
+          },
+          {
+            "commodityType": {
+              "type": 20,
+              "key": ""
+            },
+            "used": 1,
+            "peak": 0,
+            "active": true
+          }
+        ]
+      }
+    ],
+    "entityState": "POWERED_ON",
+    "entityPropertyMap": {
+      "common_dto.EntityDTO.PhysicalMachineData.numCpuCores": "12",
+      "common_dto.EntityDTO.PhysicalMachineRelatedData.processor": "[id: \"FirstProc/host-13\"\ndisplayName: \"FirstProc/Host #13\"\ncapacity: 240000.0\n, id: \"SecondProc/host-13\"\ndisplayName: \"SecondProc/Host #13\"\ncapacity: 240000.0\n]",
+      "common_dto.EntityDTO.PhysicalMachineData.pmState": "maintenance: false\n"
+    },
+    "analysisSettings": {
+      "isAvailableAsProvider": true,
+      "shopTogether": false
+    }
+  },
+  {
+    "entityType": 2,
+    "oid": "72207427031429",
+    "displayName": "Datastore #3",
+    "commoditySoldList": [
+      {
+        "commodityType": {
+          "type": 8,
+          "key": ""
+        },
+        "used": 8986,
+        "peak": 0,
+        "capacity": 100000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 59,
+          "key": "STORAGE-CLUSTER-0"
+        },
+        "used": 253081014,
+        "peak": 0,
+        "capacity": 1000000000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 64,
+          "key": ""
+        },
+        "used": 30580,
+        "peak": 0,
+        "capacity": 100000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 6,
+          "key": ""
+        },
+        "used": 92805,
+        "peak": 0,
+        "capacity": 2000000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 22,
+          "key": ""
+        },
+        "used": 438,
+        "peak": 0,
+        "capacity": 1000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      }
+    ],
+    "commoditiesBoughtFromProviders": [
+      {
+        "providerId": "72207427031440",
+        "commodityBought": [
+          {
+            "commodityType": {
+              "type": 60,
+              "key": "freeStorageController"
+            },
+            "used": 0,
+            "peak": 0,
+            "active": true
+          }
+        ]
+      }
+    ],
+    "entityState": "POWERED_ON",
+    "entityPropertyMap": {
+      "common_dto.EntityDTO.StorageData.lunUuid": "11111111"
+    },
+    "analysisSettings": {
+      "isAvailableAsProvider": true,
+      "shopTogether": false
+    }
+  },
+  {
+    "entityType": 2,
+    "oid": "72207427031428",
+    "displayName": "Datastore #2",
+    "commoditySoldList": [
+      {
+        "commodityType": {
+          "type": 8,
+          "key": ""
+        },
+        "used": 1987,
+        "peak": 0,
+        "capacity": 100000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 59,
+          "key": "STORAGE-CLUSTER-1"
+        },
+        "used": 147343784,
+        "peak": 0,
+        "capacity": 1000000000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 64,
+          "key": ""
+        },
+        "used": 36572,
+        "peak": 0,
+        "capacity": 100000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 6,
+          "key": ""
+        },
+        "used": 67588,
+        "peak": 0,
+        "capacity": 2000000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 22,
+          "key": ""
+        },
+        "used": 229,
+        "peak": 0,
+        "capacity": 1000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      }
+    ],
+    "commoditiesBoughtFromProviders": [
+      {
+        "providerId": "72207427031439",
+        "commodityBought": [
+          {
+            "commodityType": {
+              "type": 60,
+              "key": "freeStorageController"
+            },
+            "used": 0,
+            "peak": 0,
+            "active": true
+          }
+        ]
+      }
+    ],
+    "entityState": "POWERED_ON",
+    "entityPropertyMap": {
+      "common_dto.EntityDTO.StorageData.lunUuid": "11111111"
+    },
+    "analysisSettings": {
+      "isAvailableAsProvider": true,
+      "shopTogether": false
+    }
+  },
+  {
+    "entityType": 2,
+    "oid": "72207427031431",
+    "displayName": "Datastore #8",
+    "commoditySoldList": [
+      {
+        "commodityType": {
+          "type": 8,
+          "key": ""
+        },
+        "used": 91195,
+        "peak": 0,
+        "capacity": 100000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 59,
+          "key": "STORAGE-CLUSTER-1"
+        },
+        "used": 76572901,
+        "peak": 0,
+        "capacity": 1000000000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 64,
+          "key": ""
+        },
+        "used": 1438,
+        "peak": 0,
+        "capacity": 5000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 6,
+          "key": ""
+        },
+        "used": 156183,
+        "peak": 0,
+        "capacity": 2000000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 22,
+          "key": ""
+        },
+        "used": 431,
+        "peak": 0,
+        "capacity": 1000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      }
+    ],
+    "commoditiesBoughtFromProviders": [
+      {
+        "providerId": "72207427031445",
+        "commodityBought": [
+          {
+            "commodityType": {
+              "type": 60,
+              "key": "freeStorageController"
+            },
+            "used": 0,
+            "peak": 0,
+            "active": true
+          }
+        ]
+      }
+    ],
+    "entityState": "POWERED_ON",
+    "entityPropertyMap": {
+      "common_dto.EntityDTO.StorageData.lunUuid": "11111111"
+    },
+    "analysisSettings": {
+      "isAvailableAsProvider": true,
+      "shopTogether": false
+    }
+  },
+  {
+    "entityType": 2,
+    "oid": "72207427031430",
+    "displayName": "Datastore #1",
+    "commoditySoldList": [
+      {
+        "commodityType": {
+          "type": 8,
+          "key": ""
+        },
+        "used": 36353,
+        "peak": 0,
+        "capacity": 100000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 59,
+          "key": "STORAGE-CLUSTER-0"
+        },
+        "used": 207057791,
+        "peak": 0,
+        "capacity": 1000000000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 64,
+          "key": ""
+        },
+        "used": 10653,
+        "peak": 0,
+        "capacity": 20000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 6,
+          "key": ""
+        },
+        "used": 31623,
+        "peak": 0,
+        "capacity": 2000000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 22,
+          "key": ""
+        },
+        "used": 309,
+        "peak": 0,
+        "capacity": 1000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      }
+    ],
+    "commoditiesBoughtFromProviders": [
+      {
+        "providerId": "72207427031438",
+        "commodityBought": [
+          {
+            "commodityType": {
+              "type": 60,
+              "key": "freeStorageController"
+            },
+            "used": 0,
+            "peak": 0,
+            "active": true
+          }
+        ]
+      }
+    ],
+    "entityState": "POWERED_ON",
+    "entityPropertyMap": {
+      "common_dto.EntityDTO.StorageData.lunUuid": "11111111"
+    },
+    "analysisSettings": {
+      "isAvailableAsProvider": true,
+      "shopTogether": false
+    }
+  },
+  {
+    "entityType": 10,
+    "oid": "72207427031425",
+    "displayName": "VM #14",
+    "commoditySoldList": [
+      {
+        "commodityType": {
+          "type": 56,
+          "key": "VM-vm-14"
+        },
+        "used": 1,
+        "peak": 0,
+        "capacity": 100000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 53,
+          "key": ""
+        },
+        "used": 1291,
+        "peak": 0,
+        "capacity": 2048,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 65,
+          "key": ""
+        },
+        "used": 50,
+        "peak": 0,
+        "capacity": 2000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 26,
+          "key": ""
+        },
+        "used": 4059,
+        "peak": 0,
+        "capacity": 6000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      }
+    ],
+    "commoditiesBoughtFromProviders": [
+      {
+        "providerId": "72207427031409",
+        "commodityBought": [
+          {
+            "commodityType": {
+              "type": 40,
+              "key": ""
+            },
+            "used": 3344.82,
+            "peak": 0,
+            "active": true
+          },
+          {
+            "commodityType": {
+              "type": 47,
+              "key": ""
+            },
+            "used": 5,
+            "peak": 0,
+            "active": true
+          },
+          {
+            "commodityType": {
+              "type": 0,
+              "key": "CLUSTER-1"
+            },
+            "used": 1,
+            "peak": 0,
+            "active": true
+          },
+          {
+            "commodityType": {
+              "type": 21,
+              "key": ""
+            },
+            "used": 1103.46,
+            "peak": 0,
+            "active": true
+          }
+        ]
+      },
+      {
+        "providerId": "72207427031433",
+        "commodityBought": [
+          {
+            "commodityType": {
+              "type": 59,
+              "key": "STORAGE-CLUSTER-1"
+            },
+            "used": 1,
+            "peak": 0,
+            "active": true
+          },
+          {
+            "commodityType": {
+              "type": 8,
+              "key": ""
+            },
+            "used": 1348.32,
+            "peak": 0,
+            "active": true
+          },
+          {
+            "commodityType": {
+              "type": 64,
+              "key": ""
+            },
+            "used": 153.15,
+            "peak": 0,
+            "active": true
+          },
+          {
+            "commodityType": {
+              "type": 6,
+              "key": ""
+            },
+            "used": 2000,
+            "peak": 0,
+            "active": true
+          },
+          {
+            "commodityType": {
+              "type": 22,
+              "key": ""
+            },
+            "used": 19.86,
+            "peak": 0,
+            "active": true
+          }
+        ]
+      }
+    ],
+    "entityState": "POWERED_ON",
+    "entityPropertyMap": {
+      "common_dto.EntityDTO.VirtualMachineData.vmState": "",
+      "common_dto.EntityDTO.VirtualMachineRelatedData.processor": "[id: \"VMProc/vm-14\"\ndisplayName: \"VMProc/VM #14\"\ncapacity: 1024.0\n]",
+      "common_dto.EntityDTO.VirtualMachineData.ipAddress": "[0.0.0.0]"
+    },
+    "analysisSettings": {
+      "isAvailableAsProvider": true,
+      "shopTogether": false
+    }
+  },
+  {
+    "entityType": 14,
+    "oid": "72207427031424",
+    "displayName": "Host #11",
+    "commoditySoldList": [
+      {
+        "commodityType": {
+          "type": 40,
+          "key": ""
+        },
+        "used": 17001,
+        "peak": 0,
+        "capacity": 60000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 0,
+          "key": "CLUSTER-0"
+        },
+        "used": 5186258,
+        "peak": 0,
+        "capacity": 1000000000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 47,
+          "key": ""
+        },
+        "used": 803,
+        "peak": 0,
+        "capacity": 5000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 21,
+          "key": ""
+        },
+        "used": 5261,
+        "peak": 0,
+        "capacity": 8128,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      }
+    ],
+    "commoditiesBoughtFromProviders": [
+      {
+        "providerId": "72207427031436",
+        "commodityBought": [
+          {
+            "commodityType": {
+              "type": 24,
+              "key": ""
+            },
+            "used": 1,
+            "peak": 0,
+            "active": true
+          },
+          {
+            "commodityType": {
+              "type": 18,
+              "key": ""
+            },
+            "used": 1,
+            "peak": 0,
+            "active": true
+          },
+          {
+            "commodityType": {
+              "type": 20,
+              "key": ""
+            },
+            "used": 1,
+            "peak": 0,
+            "active": true
+          }
+        ]
+      }
+    ],
+    "entityState": "POWERED_ON",
+    "entityPropertyMap": {
+      "common_dto.EntityDTO.PhysicalMachineData.numCpuCores": "12",
+      "common_dto.EntityDTO.PhysicalMachineRelatedData.processor": "[id: \"FirstProc/host-11\"\ndisplayName: \"FirstProc/Host #11\"\ncapacity: 120000.0\n, id: \"SecondProc/host-11\"\ndisplayName: \"SecondProc/Host #11\"\ncapacity: 120000.0\n]",
+      "common_dto.EntityDTO.PhysicalMachineData.pmState": "maintenance: false\n"
+    },
+    "analysisSettings": {
+      "isAvailableAsProvider": true,
+      "shopTogether": false
+    }
+  },
+  {
+    "entityType": 2,
+    "oid": "72207427031427",
+    "displayName": "Datastore #5",
+    "commoditySoldList": [
+      {
+        "commodityType": {
+          "type": 8,
+          "key": ""
+        },
+        "used": 16013,
+        "peak": 0,
+        "capacity": 100000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 59,
+          "key": "STORAGE-CLUSTER-0"
+        },
+        "used": 633274331,
+        "peak": 0,
+        "capacity": 1000000000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 64,
+          "key": ""
+        },
+        "used": 16913,
+        "peak": 0,
+        "capacity": 20000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 6,
+          "key": ""
+        },
+        "used": 21551,
+        "peak": 0,
+        "capacity": 2000000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 22,
+          "key": ""
+        },
+        "used": 126,
+        "peak": 0,
+        "capacity": 1000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      }
+    ],
+    "commoditiesBoughtFromProviders": [
+      {
+        "providerId": "72207427031442",
+        "commodityBought": [
+          {
+            "commodityType": {
+              "type": 60,
+              "key": "freeStorageController"
+            },
+            "used": 0,
+            "peak": 0,
+            "active": true
+          }
+        ]
+      }
+    ],
+    "entityState": "POWERED_ON",
+    "entityPropertyMap": {
+      "common_dto.EntityDTO.StorageData.lunUuid": "11111111"
+    },
+    "analysisSettings": {
+      "isAvailableAsProvider": true,
+      "shopTogether": false
+    }
+  },
+  {
+    "entityType": 2,
+    "oid": "72207427031426",
+    "displayName": "Datastore #4",
+    "commoditySoldList": [
+      {
+        "commodityType": {
+          "type": 8,
+          "key": ""
+        },
+        "used": 8590,
+        "peak": 0,
+        "capacity": 20000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 59,
+          "key": "STORAGE-CLUSTER-1"
+        },
+        "used": 473735020,
+        "peak": 0,
+        "capacity": 1000000000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 64,
+          "key": ""
+        },
+        "used": 667,
+        "peak": 0,
+        "capacity": 5000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 6,
+          "key": ""
+        },
+        "used": 30279,
+        "peak": 0,
+        "capacity": 400000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 22,
+          "key": ""
+        },
+        "used": 766,
+        "peak": 0,
+        "capacity": 1000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      }
+    ],
+    "commoditiesBoughtFromProviders": [
+      {
+        "providerId": "72207427031441",
+        "commodityBought": [
+          {
+            "commodityType": {
+              "type": 60,
+              "key": "freeStorageController"
+            },
+            "used": 0,
+            "peak": 0,
+            "active": true
+          }
+        ]
+      }
+    ],
+    "entityState": "POWERED_ON",
+    "entityPropertyMap": {
+      "common_dto.EntityDTO.StorageData.lunUuid": "11111111"
+    },
+    "analysisSettings": {
+      "isAvailableAsProvider": true,
+      "shopTogether": false
+    }
+  },
+  {
+    "entityType": 33,
+    "oid": "72207427031437",
+    "displayName": "App #15",
+    "commoditiesBoughtFromProviders": [
+      {
+        "providerId": "72207427031425",
+        "commodityBought": [
+          {
+            "commodityType": {
+              "type": 56,
+              "key": "VM-vm-14"
+            },
+            "used": 1,
+            "peak": 0,
+            "active": true
+          },
+          {
+            "commodityType": {
+              "type": 53,
+              "key": ""
+            },
+            "used": 1291.01,
+            "peak": 0,
+            "active": true
+          },
+          {
+            "commodityType": {
+              "type": 26,
+              "key": ""
+            },
+            "used": 4059.53,
+            "peak": 0,
+            "active": true
+          }
+        ]
+      }
+    ],
+    "entityState": "POWERED_ON",
+    "analysisSettings": {
+      "isAvailableAsProvider": true,
+      "shopTogether": false
+    }
+  },
+  {
+    "entityType": 12,
+    "oid": "72207427031436",
+    "displayName": "Datacenter #0",
+    "commoditySoldList": [
+      {
+        "commodityType": {
+          "type": 24,
+          "key": ""
+        },
+        "used": 3,
+        "peak": 0,
+        "capacity": 1000000000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 18,
+          "key": ""
+        },
+        "used": 3,
+        "peak": 0,
+        "capacity": 1000000000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 20,
+          "key": ""
+        },
+        "used": 3,
+        "peak": 0,
+        "capacity": 1000000000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      }
+    ],
+    "entityState": "POWERED_ON",
+    "analysisSettings": {
+      "isAvailableAsProvider": true,
+      "shopTogether": false
+    }
+  },
+  {
+    "entityType": 11,
+    "oid": "72207427031439",
+    "displayName": "DiskArray #2",
+    "commoditySoldList": [
+      {
+        "commodityType": {
+          "type": 60,
+          "key": "freeStorageController"
+        },
+        "used": 1,
+        "peak": 0,
+        "capacity": 100000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      }
+    ],
+    "entityState": "POWERED_ON",
+    "analysisSettings": {
+      "isAvailableAsProvider": true,
+      "shopTogether": false
+    }
+  },
+  {
+    "entityType": 11,
+    "oid": "72207427031438",
+    "displayName": "DiskArray #1",
+    "commoditySoldList": [
+      {
+        "commodityType": {
+          "type": 60,
+          "key": "freeStorageController"
+        },
+        "used": 1,
+        "peak": 0,
+        "capacity": 100000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      }
+    ],
+    "entityState": "POWERED_ON",
+    "analysisSettings": {
+      "isAvailableAsProvider": true,
+      "shopTogether": false
+    }
+  },
+  {
+    "entityType": 2,
+    "oid": "72207427031433",
+    "displayName": "Datastore #6",
+    "commoditySoldList": [
+      {
+        "commodityType": {
+          "type": 8,
+          "key": ""
+        },
+        "used": 1348,
+        "peak": 0,
+        "capacity": 50000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 59,
+          "key": "STORAGE-CLUSTER-1"
+        },
+        "used": 1,
+        "peak": 0,
+        "capacity": 1000000000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 64,
+          "key": ""
+        },
+        "used": 153,
+        "peak": 0,
+        "capacity": 5000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 6,
+          "key": ""
+        },
+        "used": 2000,
+        "peak": 0,
+        "capacity": 1000000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 22,
+          "key": ""
+        },
+        "used": 19,
+        "peak": 0,
+        "capacity": 1000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      }
+    ],
+    "commoditiesBoughtFromProviders": [
+      {
+        "providerId": "72207427031443",
+        "commodityBought": [
+          {
+            "commodityType": {
+              "type": 60,
+              "key": "freeStorageController"
+            },
+            "used": 0,
+            "peak": 0,
+            "active": true
+          }
+        ]
+      }
+    ],
+    "entityState": "POWERED_ON",
+    "entityPropertyMap": {
+      "common_dto.EntityDTO.StorageData.lunUuid": "11111111"
+    },
+    "analysisSettings": {
+      "isAvailableAsProvider": true,
+      "shopTogether": false
+    }
+  },
+  {
+    "entityType": 2,
+    "oid": "72207427031432",
+    "displayName": "Datastore #9",
+    "commoditySoldList": [
+      {
+        "commodityType": {
+          "type": 8,
+          "key": ""
+        },
+        "used": 40938,
+        "peak": 0,
+        "capacity": 50000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 59,
+          "key": "STORAGE-CLUSTER-0"
+        },
+        "used": 48499993,
+        "peak": 0,
+        "capacity": 1000000000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 64,
+          "key": ""
+        },
+        "used": 3184,
+        "peak": 0,
+        "capacity": 5000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 6,
+          "key": ""
+        },
+        "used": 66318,
+        "peak": 0,
+        "capacity": 1000000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 22,
+          "key": ""
+        },
+        "used": 571,
+        "peak": 0,
+        "capacity": 1000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      }
+    ],
+    "commoditiesBoughtFromProviders": [
+      {
+        "providerId": "72207427031446",
+        "commodityBought": [
+          {
+            "commodityType": {
+              "type": 60,
+              "key": "freeStorageController"
+            },
+            "used": 0,
+            "peak": 0,
+            "active": true
+          }
+        ]
+      }
+    ],
+    "entityState": "POWERED_ON",
+    "entityPropertyMap": {
+      "common_dto.EntityDTO.StorageData.lunUuid": "11111111"
+    },
+    "analysisSettings": {
+      "isAvailableAsProvider": true,
+      "shopTogether": false
+    }
+  },
+  {
+    "entityType": 2,
+    "oid": "72207427031435",
+    "displayName": "Datastore #10",
+    "commoditySoldList": [
+      {
+        "commodityType": {
+          "type": 8,
+          "key": ""
+        },
+        "used": 43861,
+        "peak": 0,
+        "capacity": 50000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 59,
+          "key": "STORAGE-CLUSTER-1"
+        },
+        "used": 953472694,
+        "peak": 0,
+        "capacity": 1000000000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 64,
+          "key": ""
+        },
+        "used": 19050,
+        "peak": 0,
+        "capacity": 20000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 6,
+          "key": ""
+        },
+        "used": 16775,
+        "peak": 0,
+        "capacity": 1000000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 22,
+          "key": ""
+        },
+        "used": 691,
+        "peak": 0,
+        "capacity": 1000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      }
+    ],
+    "commoditiesBoughtFromProviders": [
+      {
+        "providerId": "72207427031447",
+        "commodityBought": [
+          {
+            "commodityType": {
+              "type": 60,
+              "key": "freeStorageController"
+            },
+            "used": 0,
+            "peak": 0,
+            "active": true
+          }
+        ]
+      }
+    ],
+    "entityState": "POWERED_ON",
+    "entityPropertyMap": {
+      "common_dto.EntityDTO.StorageData.lunUuid": "11111111"
+    },
+    "analysisSettings": {
+      "isAvailableAsProvider": true,
+      "shopTogether": false
+    }
+  },
+  {
+    "entityType": 2,
+    "oid": "72207427031434",
+    "displayName": "Datastore #7",
+    "commoditySoldList": [
+      {
+        "commodityType": {
+          "type": 8,
+          "key": ""
+        },
+        "used": 18695,
+        "peak": 0,
+        "capacity": 20000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 59,
+          "key": "STORAGE-CLUSTER-0"
+        },
+        "used": 823643988,
+        "peak": 0,
+        "capacity": 1000000000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 64,
+          "key": ""
+        },
+        "used": 1964,
+        "peak": 0,
+        "capacity": 5000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 6,
+          "key": ""
+        },
+        "used": 2448,
+        "peak": 0,
+        "capacity": 400000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      },
+      {
+        "commodityType": {
+          "type": 22,
+          "key": ""
+        },
+        "used": 33,
+        "peak": 0,
+        "capacity": 1000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      }
+    ],
+    "commoditiesBoughtFromProviders": [
+      {
+        "providerId": "72207427031444",
+        "commodityBought": [
+          {
+            "commodityType": {
+              "type": 60,
+              "key": "freeStorageController"
+            },
+            "used": 0,
+            "peak": 0,
+            "active": true
+          }
+        ]
+      }
+    ],
+    "entityState": "POWERED_ON",
+    "entityPropertyMap": {
+      "common_dto.EntityDTO.StorageData.lunUuid": "11111111"
+    },
+    "analysisSettings": {
+      "isAvailableAsProvider": true,
+      "shopTogether": false
+    }
+  },
+  {
+    "entityType": 11,
+    "oid": "72207427031445",
+    "displayName": "DiskArray #8",
+    "commoditySoldList": [
+      {
+        "commodityType": {
+          "type": 60,
+          "key": "freeStorageController"
+        },
+        "used": 1,
+        "peak": 0,
+        "capacity": 100000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      }
+    ],
+    "entityState": "POWERED_ON",
+    "analysisSettings": {
+      "isAvailableAsProvider": true,
+      "shopTogether": false
+    }
+  },
+  {
+    "entityType": 11,
+    "oid": "72207427031444",
+    "displayName": "DiskArray #7",
+    "commoditySoldList": [
+      {
+        "commodityType": {
+          "type": 60,
+          "key": "freeStorageController"
+        },
+        "used": 1,
+        "peak": 0,
+        "capacity": 100000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      }
+    ],
+    "entityState": "POWERED_ON",
+    "analysisSettings": {
+      "isAvailableAsProvider": true,
+      "shopTogether": false
+    }
+  },
+  {
+    "entityType": 11,
+    "oid": "72207427031447",
+    "displayName": "DiskArray #10",
+    "commoditySoldList": [
+      {
+        "commodityType": {
+          "type": 60,
+          "key": "freeStorageController"
+        },
+        "used": 1,
+        "peak": 0,
+        "capacity": 100000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      }
+    ],
+    "entityState": "POWERED_ON",
+    "analysisSettings": {
+      "isAvailableAsProvider": true,
+      "shopTogether": false
+    }
+  },
+  {
+    "entityType": 11,
+    "oid": "72207427031446",
+    "displayName": "DiskArray #9",
+    "commoditySoldList": [
+      {
+        "commodityType": {
+          "type": 60,
+          "key": "freeStorageController"
+        },
+        "used": 1,
+        "peak": 0,
+        "capacity": 100000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      }
+    ],
+    "entityState": "POWERED_ON",
+    "analysisSettings": {
+      "isAvailableAsProvider": true,
+      "shopTogether": false
+    }
+  },
+  {
+    "entityType": 11,
+    "oid": "72207427031441",
+    "displayName": "DiskArray #4",
+    "commoditySoldList": [
+      {
+        "commodityType": {
+          "type": 60,
+          "key": "freeStorageController"
+        },
+        "used": 1,
+        "peak": 0,
+        "capacity": 100000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      }
+    ],
+    "entityState": "POWERED_ON",
+    "analysisSettings": {
+      "isAvailableAsProvider": true,
+      "shopTogether": false
+    }
+  },
+  {
+    "entityType": 11,
+    "oid": "72207427031440",
+    "displayName": "DiskArray #3",
+    "commoditySoldList": [
+      {
+        "commodityType": {
+          "type": 60,
+          "key": "freeStorageController"
+        },
+        "used": 1,
+        "peak": 0,
+        "capacity": 100000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      }
+    ],
+    "entityState": "POWERED_ON",
+    "analysisSettings": {
+      "isAvailableAsProvider": true,
+      "shopTogether": false
+    }
+  },
+  {
+    "entityType": 11,
+    "oid": "72207427031443",
+    "displayName": "DiskArray #6",
+    "commoditySoldList": [
+      {
+        "commodityType": {
+          "type": 60,
+          "key": "freeStorageController"
+        },
+        "used": 1,
+        "peak": 0,
+        "capacity": 100000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      }
+    ],
+    "entityState": "POWERED_ON",
+    "analysisSettings": {
+      "isAvailableAsProvider": true,
+      "shopTogether": false
+    }
+  },
+  {
+    "entityType": 11,
+    "oid": "72207427031442",
+    "displayName": "DiskArray #5",
+    "commoditySoldList": [
+      {
+        "commodityType": {
+          "type": 60,
+          "key": "freeStorageController"
+        },
+        "used": 1,
+        "peak": 0,
+        "capacity": 100000,
+        "effectiveCapacityPercentage": 100,
+        "reservedCapacity": 0,
+        "isThin": true,
+        "active": true
+      }
+    ],
+    "entityState": "POWERED_ON",
+    "analysisSettings": {
+      "isAvailableAsProvider": true,
+      "shopTogether": false
+    }
+  }
+]

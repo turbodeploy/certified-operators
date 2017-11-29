@@ -5,16 +5,22 @@ import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -24,9 +30,14 @@ import com.vmturbo.commons.analysis.InvalidTopologyException;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.market.topology.TopologyEntitiesHandler;
 import com.vmturbo.market.topology.conversions.TopologyConverter;
+import com.vmturbo.platform.analysis.economy.Market;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
+import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
+import com.vmturbo.platform.analysis.topology.Topology;
+import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 
@@ -279,11 +290,11 @@ public class Analysis {
     /**
      * The state of an analysis run.
      *
-     * <p>An analysis run starts in the {@link INITIAL} state when it is created. If it then gets
-     * executed via the {@link MarketRunner} then it transitions to {@link QUEUED} when it is
+     * <p>An analysis run starts in the {@link #INITIAL} state when it is created. If it then gets
+     * executed via the {@link MarketRunner} then it transitions to {@link #QUEUED} when it is
      * placed in the queue for execution. When the {@link Analysis#execute} method is invoked it
-     * goes into {@link IN_PROGRESS}, and when the run completes it goes into {@link SUCCEEDED}
-     * if it completed successfully, or to {@link FAILED} if it completed with an exception.
+     * goes into {@link #IN_PROGRESS}, and when the run completes it goes into {@link #SUCCEEDED}
+     * if it completed successfully, or to {@link #FAILED} if it completed with an exception.
      */
     public enum AnalysisState {
         /**
@@ -305,6 +316,112 @@ public class Analysis {
         /**
          * Analysis completed with an exception.
          */
-        FAILED;
+        FAILED
+    }
+
+    /**
+     * Create a subset of the original topology representing the "scoped topology" given a topology
+     * and a "seed scope" set of SE's.
+     * <p>
+     * Starting with the "seed", follow the "buys-from" relationships "going up" and elements to
+     * the "scoped topology". Along the way construct a set of traders at the "top", i.e. that do
+     * not buy from any other trader. Then, from the "top" elements, follow relationships "going down"
+     * and add Traders that "may sell" to the given "top" elements based on the commodities each is
+     * shopping for. Recursively follow the "may sell" relationships down to the bottom, adding those
+     * elements to the "scoped topology" as well.
+     * <p>
+     * Setting up the initial market, specifically the populateMarketsWthSellers() call on T traders
+     * with M markets runs worst case O(M*T) - see the comments on that method for further details.
+     * <p>
+     * Once the market is set up, lookups for traders and markets are each in constant time,
+     * and each trader is examined at most once, adding at worst O(T).
+     *
+     * @param traderTOs the topology to be scoped
+     * @param seedOids the OIDs of the ServiceEntities that constitute the scope 'seed'
+     **/
+    @VisibleForTesting
+    Set<TraderTO> scopeTopology(@Nonnull Set<TraderTO> traderTOs, @Nonnull Set<Long> seedOids) {
+
+        // the resulting scoped topology - contains at least the seed OIDs
+        Set<Long> scopedTopologyOIDs = Sets.newHashSet(seedOids);
+
+        // create a Topology and associated Economy representing the source topology
+        final Topology topology = new Topology();
+        for (final TraderTO traderTO : traderTOs) {
+            if (seedOids.contains(traderTO.getOid())) {
+                scopedTopologyOIDs.add(traderTO.getOid());
+            }
+            ProtobufToAnalysis.addTrader(topology, traderTO);
+        }
+        // this call 'finalizes' the topology, calculating the inverted maps in the 'economy'
+        // and makes the following code run more efficiently
+        topology.populateMarketsWithSellers();
+
+        // a "work queue" of entities to expand; any given OID is only ever added once -
+        // if already in 'scopedTopologyOIDs' it has been considered and won't be re-expanded
+        Queue<Long> suppliersToExpand = Lists.newLinkedList(seedOids);
+        // the queue of entities to expand "downwards"
+        Queue<Long> buyersToSatisfy = Lists.newLinkedList();
+        // starting with the seed, expand "up"
+        while (suppliersToExpand.size() > 0) {
+            long traderOid = suppliersToExpand.remove();
+            if (logger.isTraceEnabled()) {
+                logger.trace("expand OID {}: {}", traderOid, topology.getTraderOids().inverse()
+                        .get(traderOid).getDebugInfoNeverUseInCode());
+            }
+            Trader thisTrader = topology.getTraderOids().inverse().get(traderOid);
+            // remember the trader for this OID in the scoped topology & continue expanding "up"
+            scopedTopologyOIDs.add(traderOid);
+            // add OIDs from which buy from this entity and which we have not already added
+            final List<Long> customerOids = thisTrader.getUniqueCustomers().stream()
+                    .map(trader -> topology.getTraderOids().get(trader))
+                    .filter(customerOid -> !scopedTopologyOIDs.contains(customerOid) &&
+                            !suppliersToExpand.contains(customerOid))
+                    .collect(Collectors.toList());
+            if (customerOids.size() == 0) {
+                // if no customers, then "start downwards" from here
+                buyersToSatisfy.add(traderOid);
+            } else {
+                // otherwise keep expanding upwards
+                suppliersToExpand.addAll(customerOids);
+                if (logger.isTraceEnabled()) {
+                    logger.trace("add supplier oids ");
+                    customerOids.forEach(oid -> logger.trace("{}: {}", oid, topology.getTraderOids()
+                            .inverse().get(oid).getDebugInfoNeverUseInCode()));
+                }
+            }
+        }
+        logger.trace("top OIDs: {}", buyersToSatisfy);
+        // record the 'providers' we've expanded on the way down so we don't re-expand unnecessarily
+        Queue<Long> providersExpanded = Lists.newLinkedList();
+        // starting with buyersToSatisfy, expand "downwards"
+        while (buyersToSatisfy.size() > 0) {
+            long traderOid = buyersToSatisfy.remove();
+            providersExpanded.add(traderOid);
+            Trader thisTrader = topology.getTraderOids().inverse().get(traderOid);
+            final Map<ShoppingList, Market> marketsAsBuyer =
+                    topology.getEconomy().getMarketsAsBuyer(thisTrader);
+            // build list of sellers of markets this Trader buys from; omit Traders already expanded
+            List<Long> buyerOids = marketsAsBuyer.values().stream()
+                    .flatMap(market -> market.getActiveSellers().stream())
+                    .map(trader -> topology.getTraderOids().get(trader))
+                    .filter(buyerOid -> !providersExpanded.contains(buyerOid))
+                    .collect(Collectors.toList());
+            scopedTopologyOIDs.addAll(buyerOids);
+            buyersToSatisfy.addAll(buyerOids);
+            if (logger.isTraceEnabled()) {
+                if (buyerOids.size() > 0) {
+                    logger.trace("add buyer oids: ");
+                    buyerOids.forEach(oid -> logger.trace("{}: {}", oid, topology.getTraderOids()
+                            .inverse().get(oid).getDebugInfoNeverUseInCode()));
+                }
+            }
+        }
+        // return the subset of the original TraderTOs that correspond to the scoped topology
+        // TODO: improve the speed of this operation by iterating over the scopedTopologyIds instead
+        // of the full topology - OM-27745
+        return traderTOs.stream()
+                .filter(traderTO -> scopedTopologyOIDs.contains(traderTO.getOid()))
+                .collect(Collectors.toSet());
     }
 }
