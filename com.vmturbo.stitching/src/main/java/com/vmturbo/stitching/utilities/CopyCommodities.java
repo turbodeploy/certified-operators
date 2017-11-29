@@ -7,6 +7,9 @@ import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.stitching.StitchingEntity;
 
@@ -14,6 +17,8 @@ import com.vmturbo.stitching.StitchingEntity;
  * A set of utilities that provides methods for performing common stitching updates.
  */
 public class CopyCommodities {
+
+    private static final Logger logger = LogManager.getLogger();
 
     /**
      * Prevent construction of this class because it only contains static utility methods.
@@ -92,7 +97,14 @@ public class CopyCommodities {
      */
     private static void copyCommoditiesBought(@Nonnull final StitchingEntity source,
                                               @Nonnull final StitchingEntity destination) {
-        final Map<StitchingEntity, List<CommodityDTO>> destinationBought = destination.getCommoditiesBoughtByProvider();
+        final Map<StitchingEntity, List<CommodityDTO.Builder>> destinationBought =
+            destination.getCommoditiesBoughtByProvider();
+
+        if (source.getCommoditiesBoughtByProvider().isEmpty()) {
+            logger.warn("Attempting to copy commodities from {} when it has no commodities to copy. " +
+                "Was this entity already removed from the topology?", source);
+        }
+
         source.getCommoditiesBoughtByProvider().forEach((provider, commoditiesBought) ->
             destinationBought.computeIfAbsent(provider, key -> new ArrayList<>())
                 .addAll(commoditiesBought));

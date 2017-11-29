@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.probes;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -10,6 +11,7 @@ import com.vmturbo.communication.ITransport;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 
 /**
  * Interface for registering probes and the transports used to talk to them.
@@ -57,13 +59,22 @@ public interface ProbeStore {
     Optional<ProbeInfo> getProbe(long probeId);
 
     /**
-     * Retrieve probe information by probe type name.
+     * Retrieve probe id by probe type name.
      *
      * @param probeTypeName Name of the probe to retrieve.
      * @return The ID of the probe with the given type, or an empty Optional if no probe
      *         with the given type is registered.
      */
     Optional<Long> getProbeIdForType(@Nonnull final String probeTypeName);
+
+    /**
+     * Retrieve probe ids for a probe category.
+     *
+     * @param probeCategory the category of the probe whose ids should be retrieved.
+     * @return The IDs of the registered probes belonging to the given category.
+     */
+    @Nonnull
+    List<Long> getProbeIdsForCategory(@Nonnull final ProbeCategory probeCategory);
 
     /**
      * Retrieves the information of all registered probes.

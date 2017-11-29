@@ -55,9 +55,11 @@ public interface IdentityProvider extends Diagnosable {
      *         an ID.
      * @throws IdentityUninitializedException If the initialization of the identity provider
      *      is not complete.
+     * @throws IdentityMetadataMissingException if asked to assign an ID to an {@link EntityDTO}
+     *         for which there is no identity metadata.
      */
     Map<Long, EntityDTO> getIdsForEntities(long probeId, @Nonnull List<EntityDTO> entityDTOs)
-            throws IdentityUninitializedException;
+            throws IdentityUninitializedException, IdentityMetadataMissingException;
 
     /**
      * Get an entity ID for a clone of an entity in the topology.

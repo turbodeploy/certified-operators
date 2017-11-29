@@ -6,9 +6,11 @@ import java.util.function.Consumer;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.stitching.StitchingEntity;
-import com.vmturbo.stitching.StitchingOperationResult;
-import com.vmturbo.stitching.StitchingOperationResult.Builder;
+import com.vmturbo.stitching.StitchingResult;
+import com.vmturbo.stitching.StitchingResult.Builder;
+import com.vmturbo.stitching.utilities.MergeEntities.MergeEntitiesDetails;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingChanges.RemoveEntityChange;
+import com.vmturbo.topology.processor.stitching.TopologyStitchingChanges.MergeEntitiesChange;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingChanges.UpdateEntityAloneChange;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingChanges.UpdateEntityRelationshipsChange;
 
@@ -16,9 +18,9 @@ import com.vmturbo.topology.processor.stitching.TopologyStitchingChanges.UpdateE
  * A builder for stitching results with concrete implementations to instantiate change
  * objects that can be used to mutate the topology during stitching.
  *
- * Provides implementations for the various methods to queue changes onto a {@link StitchingOperationResult}.
+ * Provides implementations for the various methods to queue changes onto a {@link StitchingResult}.
  */
-public class TopologyStitchingResultBuilder extends StitchingOperationResult.Builder {
+public class TopologyStitchingResultBuilder extends StitchingResult.Builder {
     private final StitchingContext stitchingContext;
 
     /**
@@ -33,13 +35,23 @@ public class TopologyStitchingResultBuilder extends StitchingOperationResult.Bui
     }
 
     @Override
-    public StitchingOperationResult build() {
+    public StitchingResult build() {
         return buildInternal();
     }
 
     @Override
     public Builder queueEntityRemoval(@Nonnull StitchingEntity entity) {
         changes.add(new RemoveEntityChange(stitchingContext, entity));
+
+        return this;
+    }
+
+    @Override
+    public Builder queueEntityMerger(@Nonnull MergeEntitiesDetails details) {
+        changes.add(new MergeEntitiesChange(stitchingContext,
+            details.getMergeFromEntity(),
+            details.getMergeOntoEntity(),
+            new CommoditySoldMerger(details.getMergeCommoditySoldStrategy())));
 
         return this;
     }

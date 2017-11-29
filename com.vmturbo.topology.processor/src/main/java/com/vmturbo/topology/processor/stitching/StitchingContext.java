@@ -3,7 +3,6 @@ package com.vmturbo.topology.processor.stitching;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -18,9 +17,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.topology.processor.conversions.Converter;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 
@@ -98,6 +97,10 @@ public class StitchingContext {
         return stitchingGraph.getEntity(entityBuilder);
     }
 
+    public boolean hasEntity(@Nonnull final StitchingEntity entity) {
+        return stitchingGraph.getEntity(entity.getEntityBuilder()).isPresent();
+    }
+
     /**
      * Get a stream of all entities of a given type discovered by a target (ie the "internal entities"
      * for a target of a given type).
@@ -105,11 +108,11 @@ public class StitchingContext {
      * @param entityType The entity type of the entities to retrieve.
      * @param targetId The target ID of the target that discovered the entities to retrieve.
      * @return a stream of all entities of a given type discovered by a target.
-     *         Returns {@link Optional#empty()} if the context does not know about the target.
+     *         Returns {@link Stream#empty()} if the context does not know about the target.
      */
     @Nonnull
     public Stream<TopologyStitchingEntity> internalEntities(@Nonnull final EntityType entityType,
-                                                      @Nonnull final Long targetId) {
+                                                            @Nonnull final Long targetId) {
         final Map<Long, List<TopologyStitchingEntity>> entitiesByTarget =
             entitiesByEntityTypeAndTarget.get(entityType);
 
@@ -119,6 +122,22 @@ public class StitchingContext {
             final List<TopologyStitchingEntity> entities = entitiesByTarget.get(targetId);
             return entities == null ? Stream.empty() : entities.stream();
         }
+    }
+
+    /**
+     * Get a stream of all entities discovered by a target.
+     *
+     * @param targetId The id of the target that discovered the entities to retrieve.
+     * @return a stream of all entities discovered by a single target.
+     *         Returns {@link Stream#empty()} if the context does not know about the target.
+     */
+    @Nonnull
+    public Stream<TopologyStitchingEntity> internalEntities(@Nonnull final Long targetId) {
+        return entitiesByEntityTypeAndTarget.values().stream()
+            .flatMap(entitiesByTarget -> {
+                final List<TopologyStitchingEntity> targetEntities = entitiesByTarget.get(targetId);
+                return targetEntities == null ? Stream.empty() : targetEntities.stream();
+            });
     }
 
     /**
@@ -143,15 +162,42 @@ public class StitchingContext {
         }
     }
 
+    /**
+     * Get a stream of all entities of a given type.
+     *
+     * @param entityType The type of the entity for which all entities should be retrieved.
+     * @return a stream of all entities of the given type.
+     */
+    @Nonnull
+    public Stream<TopologyStitchingEntity> getEntitiesOfType(@Nonnull final EntityType entityType) {
+        final Map<Long, List<TopologyStitchingEntity>> entitiesByTarget = entitiesByEntityTypeAndTarget.get(entityType);
+        if (entitiesByTarget == null) {
+            return Stream.empty();
+        } else {
+            return entitiesByTarget.entrySet().stream()
+                .flatMap(entry -> entry.getValue().stream());
+        }
+    }
+
+    /**
+     * Remove an entity from the stitching context and the {@link TopologyStitchingGraph} in the context.
+     *
+     * @param toRemove The entity to remove from the context and graph.
+     * @return True if the entity was contained by the context and removed, false otherwise.
+     */
     public boolean removeEntity(@Nonnull final TopologyStitchingEntity toRemove) {
         if (!stitchingGraph.removeEntity(toRemove).isEmpty()) {
             final Map<Long, List<TopologyStitchingEntity>> entitiesOfTypeByTarget =
                 entitiesByEntityTypeAndTarget.get(toRemove.getEntityType());
+            boolean removed = false;
+
             if (entitiesOfTypeByTarget != null) {
                 final List<TopologyStitchingEntity> stitchingBuilders =
                     entitiesOfTypeByTarget.get(toRemove.getTargetId());
-                stitchingBuilders.remove(toRemove);
-            } else {
+                removed = stitchingBuilders.remove(toRemove);
+            }
+
+            if (!removed) {
                 logger.error("Illegal state: an entity is in the stitching graph but not the stitching context");
                 throw new IllegalStateException("This should never happen!");
             }
@@ -175,19 +221,17 @@ public class StitchingContext {
          * If this line throws an exception, it indicates an error in stitching. If stitching is
          * successful it should merge down all entities with duplicate OIDs into a single entity.
          *
-         * TODO: Eliminate the collision resolution method after adding shared storage support.
+         * If multiple entities have the same OID, we log it as an error and pick one to use at random.
          */
-        final Map<Long, TopologyEntityDTO.Builder> entityMap = stitchingGraph.entities()
+        return stitchingGraph.entities()
             .collect(Collectors.toMap(
                 TopologyStitchingEntity::getOid,
                 Converter::newTopologyEntityDTO,
                 (oldValue, newValue) -> {
-                    logger.warn("Multiple entites with oid {}. Keeping the first.", oldValue.getOid());
+                    logger.error("Multiple entities with oid {}. Keeping the first.", oldValue.getOid());
                     return oldValue;
                 }
             ));
-
-        return entityMap;
     }
 
     /**

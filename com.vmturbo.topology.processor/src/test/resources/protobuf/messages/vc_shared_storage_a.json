@@ -1,0 +1,417 @@
+[
+  {
+    "entityType": "PHYSICAL_MACHINE",
+    "id": "Virtual_ESX_4238bb4b-04dc-8afd-ec49-222348b1aa8a",
+    "displayName": "hp-esx45.corp.vmturbo.com",
+    "entityProperties": [
+      {
+        "namespace": "DEFAULT",
+        "name": "LocalName",
+        "value": "host-29"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "cpuModel",
+        "value": "Intel(R) Xeon(R) CPU E5-2670 0 @ 2.60GHz"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "model",
+        "value": "VMware Virtual Platform"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "vendor",
+        "value": "VMware, Inc."
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "timezone",
+        "value": "UTC"
+      }
+    ],
+    "powerState": "POWERED_ON",
+    "providerPolicy": {
+      "availableForPlacement": true
+    },
+    "physicalMachineData": {
+      "pmState": {
+        "failover": false
+      },
+      "numCpuSockets": 1,
+      "numCpuCores": 4,
+      "numCpuThreads": 4,
+      "cpuCoreMhz": 2599
+    },
+    "physicalMachineRelatedData": {
+      "memory": {
+        "id": "Memory/host-29",
+        "displayName": "Memory/host-29",
+        "capacity": 1.6776692E7
+      },
+      "processor": [
+        {
+          "id": "PROC-0-host-29",
+          "displayName": "PROC-0-host-29",
+          "capacity": 2599.0
+        },
+        {
+          "id": "PROC-1-host-29",
+          "displayName": "PROC-1-host-29",
+          "capacity": 2599.0
+        },
+        {
+          "id": "PROC-2-host-29",
+          "displayName": "PROC-2-host-29",
+          "capacity": 2599.0
+        },
+        {
+          "id": "PROC-3-host-29",
+          "displayName": "PROC-3-host-29",
+          "capacity": 2599.0
+        }
+      ],
+      "io": [
+        {
+          "id": "NIC-key-vim.host.PhysicalNic-vmnic0",
+          "displayName": "vmnic0",
+          "speed": 128000.0,
+          "macAddress": "00-50-56-b8-00-72"
+        },
+        {
+          "id": "NIC-key-vim.host.PhysicalNic-vmnic1",
+          "displayName": "vmnic1",
+          "speed": 128000.0,
+          "macAddress": "00-50-56-b8-00-8e"
+        },
+        {
+          "id": "NIC-key-vim.host.PhysicalNic-vmnic2",
+          "displayName": "vmnic2",
+          "speed": 128000.0,
+          "macAddress": "00-50-56-b8-00-8f"
+        }
+      ]
+    }
+  },
+  {
+    "entityType": "PHYSICAL_MACHINE",
+    "id": "Virtual_ESX_423809bb-7090-7175-c1b4-8ec188d24641",
+    "displayName": "hp-esx46.corp.vmturbo.com",
+    "entityProperties": [
+      {
+        "namespace": "DEFAULT",
+        "name": "LocalName",
+        "value": "host-53"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "cpuModel",
+        "value": "Intel(R) Xeon(R) CPU E5-2670 0 @ 2.60GHz"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "model",
+        "value": "VMware Virtual Platform"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "vendor",
+        "value": "VMware, Inc."
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "timezone",
+        "value": "UTC"
+      }
+    ],
+    "powerState": "POWERED_ON",
+    "providerPolicy": {
+      "availableForPlacement": true
+    },
+    "physicalMachineData": {
+      "pmState": {
+        "failover": false
+      },
+      "numCpuSockets": 1,
+      "numCpuCores": 4,
+      "numCpuThreads": 4,
+      "cpuCoreMhz": 2600
+    },
+    "physicalMachineRelatedData": {
+      "memory": {
+        "id": "Memory/host-53",
+        "displayName": "Memory/host-53",
+        "capacity": 1.6776692E7
+      },
+      "processor": [
+        {
+          "id": "PROC-0-host-53",
+          "displayName": "PROC-0-host-53",
+          "capacity": 2600.0
+        },
+        {
+          "id": "PROC-1-host-53",
+          "displayName": "PROC-1-host-53",
+          "capacity": 2600.0
+        },
+        {
+          "id": "PROC-2-host-53",
+          "displayName": "PROC-2-host-53",
+          "capacity": 2600.0
+        },
+        {
+          "id": "PROC-3-host-53",
+          "displayName": "PROC-3-host-53",
+          "capacity": 2600.0
+        }
+      ],
+      "io": [
+        {
+          "id": "NIC-key-vim.host.PhysicalNic-vmnic0",
+          "displayName": "vmnic0",
+          "speed": 128000.0,
+          "macAddress": "00-50-56-b8-00-9c"
+        },
+        {
+          "id": "NIC-key-vim.host.PhysicalNic-vmnic1",
+          "displayName": "vmnic1",
+          "speed": 128000.0,
+          "macAddress": "00-50-56-b8-00-9d"
+        },
+        {
+          "id": "NIC-key-vim.host.PhysicalNic-vmnic2",
+          "displayName": "vmnic2",
+          "speed": 128000.0,
+          "macAddress": "00-50-56-b8-00-9f"
+        }
+      ]
+    }
+  },
+  {
+    "entityType": "PHYSICAL_MACHINE",
+    "id": "Virtual_ESX_4238042f-7465-e92a-5c28-a7a929307247",
+    "displayName": "hp-esx47.corp.vmturbo.com",
+    "entityProperties": [
+      {
+        "namespace": "DEFAULT",
+        "name": "LocalName",
+        "value": "host-63"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "cpuModel",
+        "value": "Intel(R) Xeon(R) CPU E5-2670 0 @ 2.60GHz"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "model",
+        "value": "VMware Virtual Platform"
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "vendor",
+        "value": "VMware, Inc."
+      },
+      {
+        "namespace": "DEFAULT",
+        "name": "timezone",
+        "value": "UTC"
+      }
+    ],
+    "powerState": "POWERSTATE_UNKNOWN",
+    "providerPolicy": {
+      "availableForPlacement": true
+    },
+    "physicalMachineData": {
+      "pmState": {
+        "failover": false
+      },
+      "numCpuSockets": 1,
+      "numCpuCores": 4,
+      "numCpuThreads": 4,
+      "cpuCoreMhz": 2600
+    },
+    "physicalMachineRelatedData": {
+      "memory": {
+        "id": "Memory/host-63",
+        "displayName": "Memory/host-63",
+        "capacity": 1.6776692E7
+      },
+      "processor": [
+        {
+          "id": "PROC-0-host-63",
+          "displayName": "PROC-0-host-63",
+          "capacity": 2600.0
+        },
+        {
+          "id": "PROC-1-host-63",
+          "displayName": "PROC-1-host-63",
+          "capacity": 2600.0
+        },
+        {
+          "id": "PROC-2-host-63",
+          "displayName": "PROC-2-host-63",
+          "capacity": 2600.0
+        },
+        {
+          "id": "PROC-3-host-63",
+          "displayName": "PROC-3-host-63",
+          "capacity": 2600.0
+        }
+      ],
+      "io": [
+        {
+          "id": "NIC-key-vim.host.PhysicalNic-vmnic0",
+          "displayName": "vmnic0",
+          "speed": 128000.0,
+          "macAddress": "00-50-56-b8-00-a0"
+        },
+        {
+          "id": "NIC-key-vim.host.PhysicalNic-vmnic1",
+          "displayName": "vmnic1",
+          "speed": 128000.0,
+          "macAddress": "00-50-56-b8-00-a1"
+        },
+        {
+          "id": "NIC-key-vim.host.PhysicalNic-vmnic2",
+          "displayName": "vmnic2",
+          "speed": 128000.0,
+          "macAddress": "00-50-56-b8-00-a6"
+        }
+      ]
+    }
+  },
+  {
+    "entityType": "DISK_ARRAY",
+    "id": "DiskArray-9bd4ee88-99c64661",
+    "displayName": "DiskArray-QS1:NFSShare",
+    "commoditiesSold": [
+      {
+        "commodityType": "EXTENT",
+        "key": "DiskArray-9bd4ee88-99c64661",
+        "used": 1.0,
+        "capacity": 1.0E9,
+        "active": true,
+        "resizable": false
+      }
+    ],
+    "entityProperties": [
+      {
+        "namespace": "DEFAULT",
+        "name": "LocalName",
+        "value": "datastore-41"
+      }
+    ],
+    "origin": "REPLACEABLE",
+    "powerState": "POWERED_ON",
+    "diskArrayData": {}
+  },
+  {
+    "entityType": "STORAGE",
+    "id": "9bd4ee88-99c64661",
+    "displayName": "QS1:NFSShare",
+    "commoditiesSold": [
+      {
+        "commodityType": "STORAGE_AMOUNT",
+        "used": 2462869.875,
+        "capacity": 2806225.125,
+        "active": true,
+        "resizable": true
+      },
+      {
+        "commodityType": "STORAGE_ACCESS",
+        "capacity": 5000.0,
+        "active": true,
+        "resizable": true,
+        "storageAccessData": {
+          "supportsStorageIOPS": false
+        }
+      },
+      {
+        "commodityType": "DSPM_ACCESS",
+        "key": "PhysicalMachine::Virtual_ESX_4238042f-7465-e92a-5c28-a7a929307247",
+        "used": 1.0,
+        "capacity": 1.0E9,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "DSPM_ACCESS",
+        "key": "PhysicalMachine::Virtual_ESX_4238bb4b-04dc-8afd-ec49-222348b1aa8a",
+        "used": 1.0,
+        "capacity": 1.0E9,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "STORAGE_CLUSTER",
+        "key": "StorageCluster::vsphere-dc7.eng.vmturbo.com-StoragePod-group-p129",
+        "used": 1.0,
+        "capacity": 1.0E9,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "STORAGE_LATENCY",
+        "capacity": 100.0,
+        "active": true,
+        "resizable": true,
+        "storageLatencyData": {
+          "supportsStorageLatency": false
+        }
+      },
+      {
+        "commodityType": "DSPM_ACCESS",
+        "key": "PhysicalMachine::Virtual_ESX_423809bb-7090-7175-c1b4-8ec188d24641",
+        "used": 1.0,
+        "capacity": 1.0E9,
+        "active": true,
+        "resizable": false
+      },
+      {
+        "commodityType": "STORAGE_PROVISIONED",
+        "used": 2462869.875,
+        "capacity": 2.806225125E7,
+        "active": true,
+        "resizable": true
+      }
+    ],
+    "commoditiesBought": [
+      {
+        "providerId": "DiskArray-9bd4ee88-99c64661",
+        "bought": [
+          {
+            "commodityType": "EXTENT",
+            "key": "DiskArray-9bd4ee88-99c64661",
+            "used": 1.0,
+            "active": true,
+            "resizable": false
+          }
+        ]
+      }
+    ],
+    "entityProperties": [
+      {
+        "namespace": "DEFAULT",
+        "name": "LocalName",
+        "value": "datastore-41"
+      }
+    ],
+    "powerState": "POWERED_ON",
+    "providerPolicy": {
+      "localSupported": false
+    },
+    "layeredOver": [
+      "Virtual_ESX_423809bb-7090-7175-c1b4-8ec188d24641",
+      "Virtual_ESX_4238042f-7465-e92a-5c28-a7a929307247",
+      "Virtual_ESX_4238bb4b-04dc-8afd-ec49-222348b1aa8a"
+    ],
+    "storageData": {
+      "storageType": "NFS",
+      "externalName": [
+        "nfs:10.10.100.101#/export/share/nfs",
+        "nfs:10.10.100.101#/export/share/nfs"
+      ]
+    }
+  }
+]

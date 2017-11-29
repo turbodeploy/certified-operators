@@ -72,6 +72,22 @@ public class StitchingContextTest {
     }
 
     @Test
+    public void testInternalEntitiesForTarget() {
+        assertThat(stitchingContext.internalEntities(1L)
+                .map(TopologyStitchingEntity::getEntityBuilder)
+                .collect(Collectors.toList()),
+            containsInAnyOrder(e1_1.getEntityDtoBuilder(), e2_1.getEntityDtoBuilder()));
+        assertThat(stitchingContext.internalEntities(2L)
+                .map(TopologyStitchingEntity::getEntityBuilder)
+                .collect(Collectors.toList()),
+            containsInAnyOrder(e3_2.getEntityDtoBuilder(), e4_2.getEntityDtoBuilder()));
+        assertThat(stitchingContext.internalEntities(3L)
+                .map(TopologyStitchingEntity::getEntityBuilder)
+                .collect(Collectors.toList()),
+            is(empty()));
+    }
+
+    @Test
     public void testExternalEntities() {
         assertThat(stitchingContext.externalEntities(EntityType.VIRTUAL_MACHINE, 1L)
                 .map(TopologyStitchingEntity::getEntityBuilder)
@@ -81,6 +97,19 @@ public class StitchingContextTest {
                 .map(TopologyStitchingEntity::getEntityBuilder)
                 .collect(Collectors.toList()),
             containsInAnyOrder(e1_1.getEntityDtoBuilder(), e2_1.getEntityDtoBuilder()));
+    }
+
+    @Test
+    public void testGetEntitiesOfType() {
+        assertThat(stitchingContext.getEntitiesOfType(EntityType.VIRTUAL_MACHINE)
+                .map(TopologyStitchingEntity::getEntityBuilder)
+                .collect(Collectors.toList()),
+            containsInAnyOrder(e1_1.getEntityDtoBuilder(), e2_1.getEntityDtoBuilder(),
+            e3_2.getEntityDtoBuilder(), e4_2.getEntityDtoBuilder()));
+        assertThat(stitchingContext.getEntitiesOfType(EntityType.PHYSICAL_MACHINE)
+                .map(TopologyStitchingEntity::getEntityBuilder)
+                .collect(Collectors.toList()),
+            is(empty()));
     }
 
     @Test

@@ -29,7 +29,7 @@ public class StitchingEntityData {
      * @param oid The OID (object ID) of the entity.
      * @param lastUpdatedTime The time at which the DTO was received from the probe.
      */
-    public StitchingEntityData(@Nonnull final EntityDTO.Builder entityDtoBuilder,
+    protected StitchingEntityData(@Nonnull final EntityDTO.Builder entityDtoBuilder,
                                final long targetId,
                                final long oid,
                                final long lastUpdatedTime) {
@@ -86,5 +86,60 @@ public class StitchingEntityData {
         return targetId == otherEntityData.targetId &&
             oid == otherEntityData.oid &&
             entityDtoBuilder == otherEntityData.entityDtoBuilder;
+    }
+
+    /**
+     * A builder for creating a {@link StitchingEntityData} object.
+     */
+    public static class Builder {
+        private final EntityDTO.Builder entityDtoBuilder;
+        private long targetId;
+        private long oid;
+        private long lastUpdatedTime;
+
+        private Builder(@Nonnull final EntityDTO.Builder builder) {
+            this.entityDtoBuilder = Objects.requireNonNull(builder);
+        }
+
+        /**
+         * Set the target Id.
+         *
+         * @param targetId The id of the target that discovered this entity.
+         * @return A reference to {@link this} to support method chaining.
+         */
+        public Builder targetId(final long targetId) {
+            this.targetId = targetId;
+            return this;
+        }
+
+        /**
+         * Set the oid.
+         *
+         * @param oid The Object Identifier (OID) for this entity.
+         * @return A reference to {@link this} to support method chaining.
+         */
+        public Builder oid(final long oid) {
+            this.oid = oid;
+            return this;
+        }
+
+        /**
+         * Set the last updated time.
+         *
+         * @param lastUpdatedTime The timestamp at which this entity was last updated.
+         * @return A reference to {@link this} to support method chaining.
+         */
+        public Builder lastUpdatedTime(final long lastUpdatedTime) {
+            this.lastUpdatedTime = lastUpdatedTime;
+            return this;
+        }
+
+        public StitchingEntityData build() {
+            return new StitchingEntityData(entityDtoBuilder, targetId, oid, lastUpdatedTime);
+        }
+    }
+
+    public static Builder newBuilder(@Nonnull final EntityDTO.Builder entityDtoBuilder) {
+        return new Builder(entityDtoBuilder);
     }
 }

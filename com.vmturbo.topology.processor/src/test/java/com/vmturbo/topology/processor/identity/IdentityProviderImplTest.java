@@ -144,15 +144,17 @@ public class IdentityProviderImplTest {
      * entity doesn't have any metadata for that probe type.
      */
     @Test
-    public void testGetEntityIdNoMetadata() throws IdentityUninitializedException {
+    public void testGetEntityIdNoMetadata() throws IdentityUninitializedException, IdentityMetadataMissingException {
         long probeId = identityProvider.getProbeId(baseProbeInfo);
 
         EntityDTO entity = EntityDTO.newBuilder()
                 .setEntityType(EntityType.VIRTUAL_MACHINE)
                 .setId("test")
                 .build();
+
+        exception.expect(IdentityMetadataMissingException.class);
         assertTrue(identityProvider.getIdsForEntities(probeId,
-                Collections.singletonList(entity)).isEmpty());
+            Collections.singletonList(entity)).isEmpty());
     }
 
     /**

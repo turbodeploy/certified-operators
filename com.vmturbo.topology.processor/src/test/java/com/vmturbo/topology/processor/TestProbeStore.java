@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -18,6 +19,7 @@ import com.vmturbo.communication.ITransport;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.probes.ProbeException;
 import com.vmturbo.topology.processor.probes.ProbeStore;
@@ -80,6 +82,15 @@ public class TestProbeStore implements ProbeStore {
             .filter(entry -> entry.getValue().getProbeType().equals(probeTypeName))
             .map(Entry::getKey)
             .findFirst();
+    }
+
+    @Override
+    @Nonnull
+    public List<Long> getProbeIdsForCategory(@Nonnull final ProbeCategory probeCategory) {
+        return probeInfos.entrySet().stream()
+            .filter(entry -> entry.getValue().getProbeCategory().equalsIgnoreCase(probeCategory.name()))
+            .map(Entry::getKey)
+            .collect(Collectors.toList());
     }
 
     @Override

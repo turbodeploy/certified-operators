@@ -44,6 +44,7 @@ import com.vmturbo.topology.processor.communication.RemoteMediation;
 import com.vmturbo.topology.processor.entity.EntitiesValidationException;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
+import com.vmturbo.topology.processor.identity.IdentityMetadataMissingException;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
 import com.vmturbo.topology.processor.operation.action.Action;
@@ -659,7 +660,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
             errListBuilder.addAll(validationException.errorDtos());
             errListBuilder.addAll(response.getErrorDTOList());
             operationComplete(discovery, false, errListBuilder.build());
-        } catch (IdentityUninitializedException e) {
+        } catch (IdentityUninitializedException | IdentityMetadataMissingException e) {
             operationComplete(discovery, false, Collections.singletonList(
                 ErrorDTO.newBuilder()
                     .setSeverity(ErrorSeverity.CRITICAL)

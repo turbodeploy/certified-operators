@@ -23,7 +23,7 @@ public class DeleteCommodities {
      */
     public static void deleteCommoditiesBoughtFromProvider(StitchingEntity provider,
                                                            StitchingEntity consumer) {
-        final Map<StitchingEntity, List<CommodityDTO>> consumerBought =
+        final Map<StitchingEntity, List<CommodityDTO.Builder>> consumerBought =
                 consumer.getCommoditiesBoughtByProvider();
         consumerBought.remove(provider);
 

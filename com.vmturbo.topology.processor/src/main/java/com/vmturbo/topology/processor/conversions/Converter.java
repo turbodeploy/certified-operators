@@ -48,7 +48,7 @@ public class Converter {
         return dto.getEntityType().getNumber();
     }
 
-    private static int type(CommonDTO.CommodityDTO dto) {
+    private static int type(CommonDTO.CommodityDTOOrBuilder dto) {
         return dto.getCommodityType().getNumber();
     }
 
@@ -300,7 +300,7 @@ public class Converter {
         }
     }
 
-    private static TopologyDTO.CommodityBoughtDTO newCommodityBoughtDTO(CommonDTO.CommodityDTO commDTO) {
+    private static TopologyDTO.CommodityBoughtDTO newCommodityBoughtDTO(CommonDTO.CommodityDTOOrBuilder commDTO) {
         return TopologyDTO.CommodityBoughtDTO.newBuilder()
             .setCommodityType(commodityType(commDTO))
             .setUsed(commDTO.getUsed())
@@ -310,7 +310,7 @@ public class Converter {
     }
 
     private static TopologyDTO.CommoditySoldDTO.Builder newCommoditySoldDTOBuilder(
-        @Nonnull final CommonDTO.CommodityDTO commDTO) {
+        @Nonnull final CommonDTO.CommodityDTOOrBuilder commDTO) {
         final TopologyDTO.CommoditySoldDTO.Builder retCommSoldBuilder =
             TopologyDTO.CommoditySoldDTO.newBuilder()
                 .setCommodityType(commodityType(commDTO))
@@ -347,14 +347,14 @@ public class Converter {
         return builder.build();
     }
 
-    private static CommodityType commodityType(CommonDTO.CommodityDTO commDTO) {
+    private static CommodityType commodityType(CommonDTO.CommodityDTOOrBuilder commDTO) {
         return CommodityType.newBuilder()
                 .setType(type(commDTO))
                 .setKey(commDTO.getKey())
                 .build();
     }
 
-    public static Optional<String> parseAccessKey(@Nonnull final CommonDTO.CommodityDTO commDTO) {
+    public static Optional<String> parseAccessKey(@Nonnull final CommonDTO.CommodityDTOOrBuilder commDTO) {
         if (DSPM_OR_DATASTORE.contains(commDTO.getCommodityType())) {
             return Optional.ofNullable(keyToUuid(commDTO.getKey()));
         }

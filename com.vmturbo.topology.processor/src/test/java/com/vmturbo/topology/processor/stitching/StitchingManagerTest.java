@@ -1,8 +1,11 @@
 package com.vmturbo.topology.processor.stitching;
 
+import static com.vmturbo.platform.common.builders.EntityBuilders.physicalMachine;
 import static com.vmturbo.platform.common.builders.EntityBuilders.virtualMachine;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
@@ -18,6 +21,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -31,11 +35,15 @@ import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.stitching.PreStitchingOperation;
+import com.vmturbo.stitching.PreStitchingOperationLibrary;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingOperation;
-import com.vmturbo.stitching.StitchingOperationResult;
+import com.vmturbo.stitching.StitchingResult;
 import com.vmturbo.stitching.StitchingPoint;
+import com.vmturbo.stitching.StitchingResult.Builder;
 import com.vmturbo.topology.processor.entity.EntityStore;
+import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.stitching.StitchingOperationStore.ProbeStitchingOperation;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
@@ -44,7 +52,9 @@ public class StitchingManagerTest {
 
     private final TargetStore targetStore = mock(TargetStore.class);
     private final EntityStore entityStore = mock(EntityStore.class);
+    private final ProbeStore probeStore = mock(ProbeStore.class);
     private final StitchingOperationStore stitchingOperationStore = mock(StitchingOperationStore.class);
+    private final PreStitchingOperationLibrary preStitchingOperationLibrary = mock(PreStitchingOperationLibrary.class);
     private final Target target = mock(Target.class);
 
     private final long probeId = 1234L;
@@ -67,11 +77,16 @@ public class StitchingManagerTest {
         .guestName("bar")
         .build().toBuilder();
 
+    private final EntityDTO.Builder pm = physicalMachine("pm")
+        .numCpuCores(3)
+        .build().toBuilder();
+
     private final Map<String, StitchingEntityData> entityData = ImmutableMap.of(
         vmFoo.getId(), nextEntity(vmFoo, firstTargetId),
         vmBar.getId(), nextEntity(vmBar, firstTargetId),
         otherFoo.getId(), nextEntity(otherFoo, secondTargetId),
-        otherBar.getId(), nextEntity(otherBar, secondTargetId)
+        otherBar.getId(), nextEntity(otherBar, secondTargetId),
+        pm.getId(), nextEntity(pm, firstTargetId)
     );
 
     @Captor
@@ -93,7 +108,7 @@ public class StitchingManagerTest {
 
         when(stitchingOperationStore.getAllOperations()).thenReturn(Collections.emptyList());
         final StitchingManager stitchingManager =
-                spy(new StitchingManager(stitchingOperationStore, targetStore));
+                spy(new StitchingManager(stitchingOperationStore, preStitchingOperationLibrary, probeStore, targetStore));
         final StitchingContext returnedContext = stitchingManager.stitch(entityStore);
 
         verify(stitchingManager).stitch(eq(stitchingContext));
@@ -112,7 +127,7 @@ public class StitchingManagerTest {
         when(stitchingOperationStore.getAllOperations())
             .thenReturn(Collections.singletonList(new ProbeStitchingOperation(probeId, stitchingOperation)));
         final StitchingManager stitchingManager =
-                new StitchingManager(stitchingOperationStore, targetStore);
+                new StitchingManager(stitchingOperationStore, preStitchingOperationLibrary, probeStore, targetStore);
 
         stitchingManager.stitch(stitchingContext);
         verify(stitchingContext).removeEntity(stitchingEntityCaptor.capture());
@@ -133,7 +148,7 @@ public class StitchingManagerTest {
         when(entityStore.constructStitchingContext()).thenReturn(stitchingContext);
 
         final StitchingManager stitchingManager =
-                new StitchingManager(stitchingOperationStore, targetStore);
+                new StitchingManager(stitchingOperationStore, preStitchingOperationLibrary, probeStore, targetStore);
 
         stitchingManager.stitch(stitchingContext);
         verify(stitchingContext, times(2)).removeEntity(stitchingEntityCaptor.capture());
@@ -147,9 +162,36 @@ public class StitchingManagerTest {
         assertEquals("updated-bar", vmBar.getDisplayName());
     }
 
+    @Test
+    public void testPreStitching() {
+        when(preStitchingOperationLibrary.getPreStitchingOperations()).thenReturn(
+            Collections.singletonList(new EntityScopePreStitchingOperation()));
+        final StitchingContext.Builder contextBuilder = StitchingContext.newBuilder(5);
+        entityData.values()
+            .forEach(entity -> contextBuilder.addEntity(entity, entityData));
+        final StitchingContext stitchingContext = contextBuilder.build();
+        when(entityStore.constructStitchingContext()).thenReturn(stitchingContext);
+
+        final StitchingManager stitchingManager =
+            new StitchingManager(stitchingOperationStore, preStitchingOperationLibrary, probeStore, targetStore);
+        stitchingManager.stitch(entityStore);
+
+        entityData.values().forEach(entity -> {
+            if (entity.getEntityDtoBuilder().getEntityType() == EntityType.VIRTUAL_MACHINE) {
+                assertThat(entity.getEntityDtoBuilder().getDisplayName(), startsWith("updated-"));
+            } else {
+                assertThat(entity.getEntityDtoBuilder().getDisplayName(), not(startsWith("updated-")));
+            }
+        });
+    }
+
     private long curOid = 1L;
     private StitchingEntityData nextEntity(@Nonnull final EntityDTO.Builder entityDto, final long targetId) {
-        return new StitchingEntityData(entityDto, targetId, curOid++, 0);
+        return StitchingEntityData.newBuilder(entityDto)
+            .targetId(targetId)
+            .oid(curOid++)
+            .lastUpdatedTime(0)
+            .build();
     }
 
     public static class StitchVmsAlone implements  StitchingOperation<String, Void> {
@@ -188,8 +230,8 @@ public class StitchingManagerTest {
 
         @Nonnull
         @Override
-        public StitchingOperationResult stitch(@Nonnull Collection<StitchingPoint> stitchingPoints,
-                                               @Nonnull StitchingOperationResult.Builder result) {
+        public StitchingResult stitch(@Nonnull Collection<StitchingPoint> stitchingPoints,
+                                               @Nonnull StitchingResult.Builder result) {
             for (StitchingPoint stitchingPoint : stitchingPoints) {
                 final StitchingEntity internalEntity = stitchingPoint.getInternalEntity();
 
@@ -228,8 +270,8 @@ public class StitchingManagerTest {
 
         @Nonnull
         @Override
-        public StitchingOperationResult stitch(@Nonnull final Collection<StitchingPoint> stitchingPoints,
-                                               @Nonnull StitchingOperationResult.Builder result) {
+        public StitchingResult stitch(@Nonnull final Collection<StitchingPoint> stitchingPoints,
+                                               @Nonnull StitchingResult.Builder result) {
             stitchingPoints.forEach(stitchingPoint -> {
                 stitchingPoint.getExternalMatches().forEach(result::queueEntityRemoval);
                 stitchingPoint.getInternalEntity().getEntityBuilder()
@@ -237,6 +279,26 @@ public class StitchingManagerTest {
             });
 
             return result.build();
+        }
+    }
+
+    private static class EntityScopePreStitchingOperation implements PreStitchingOperation {
+
+        @Nonnull
+        @Override
+        public CalculationScope getCalculationScope(@Nonnull CalculationScopeFactory calculationScopeFactory) {
+            return calculationScopeFactory.entityTypeScope(EntityType.VIRTUAL_MACHINE);
+        }
+
+        @Nonnull
+        @Override
+        public StitchingResult performOperation(@Nonnull Stream<StitchingEntity> entities,
+                                                @Nonnull Builder resultBuilder) {
+            entities.forEach(entity ->
+                resultBuilder.queueUpdateEntityAlone(entity,
+                    e -> e.getEntityBuilder().setDisplayName("updated-" + e.getLocalId())));
+
+            return resultBuilder.build();
         }
     }
 }

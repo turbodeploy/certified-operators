@@ -19,9 +19,10 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingIndex;
 import com.vmturbo.stitching.StitchingOperation;
-import com.vmturbo.stitching.StitchingOperationResult;
 import com.vmturbo.stitching.StitchingPoint;
+import com.vmturbo.stitching.StitchingResult;
 import com.vmturbo.stitching.utilities.CopyCommodities;
+import com.vmturbo.stitching.utilities.MergeEntities;
 
 /**
  * A stitching operation appropriate for use by storage targets.
@@ -75,16 +76,16 @@ public class StorageStitchingOperation implements StitchingOperation<List<String
 
     @Nonnull
     @Override
-    public StitchingOperationResult stitch(@Nonnull final Collection<StitchingPoint> stitchingPoints,
-                                           @Nonnull final StitchingOperationResult.Builder resultBuilder) {
+    public StitchingResult stitch(@Nonnull final Collection<StitchingPoint> stitchingPoints,
+                                           @Nonnull final StitchingResult.Builder resultBuilder) {
         stitchingPoints.forEach(stitchingPoint -> stitch(stitchingPoint, resultBuilder));
 
         return resultBuilder.build();
     }
 
     /**
-     * Remove the hypervisor-probe disk array
-     * Remove the storage-probe storage
+     * Merge the hypervisor-probe disk array onto the storage-probe disk array.
+     * Merge the storage-probe storage onto the hypervisor-probe disk array.
      * Connect the hypervisor-probe storage to the storage-probe disk array.
      *
      * @param stitchingPoint The point at which the storage graph should be stitched with
@@ -94,15 +95,16 @@ public class StorageStitchingOperation implements StitchingOperation<List<String
      *                      in these results.
      */
     private void stitch(@Nonnull final StitchingPoint stitchingPoint,
-                        @Nonnull final StitchingOperationResult.Builder resultBuilder) {
-        // The storage discovered by the storage probe
+                        @Nonnull final StitchingResult.Builder resultBuilder) {
+        // The storage and disk array discovered by the storage probe
         final StitchingEntity storageStorage = stitchingPoint.getInternalEntity();
+        final StitchingEntity storageDiskArray = storageStorage.getProviders().stream()
+            .filter(entity -> entity.getEntityType() == EntityType.DISK_ARRAY)
+            .findFirst()
+            .get();
 
-        // The storage discovered by the hypervisor probe
+        // The storage and disk array discovered by the hypervisor probe
         final StitchingEntity hypervisorStorage = stitchingPoint.getExternalMatches().iterator().next();
-
-        // Find the disk array discovered by the hypervisor probe by finding the provider
-        // of the hypervisor storage
         final StitchingEntity hypervisorDiskArray = hypervisorStorage.getProviders().stream()
             .filter(entity -> entity.getEntityType() == EntityType.DISK_ARRAY)
             .findFirst()
@@ -112,14 +114,15 @@ public class StorageStitchingOperation implements StitchingOperation<List<String
             storageStorage.getDisplayName(), hypervisorStorage.getDisplayName());
 
         resultBuilder
-            // Remove the storage-probe discovered storage
-            .queueEntityRemoval(storageStorage)
-            // Remove the hypervisor-probe discovered disk array
-            .queueEntityRemoval(hypervisorDiskArray)
-            // Update the commodities bought on the hypervisor storage to buy from the
-            // storage-probe discovered disk array
-            .queueChangeRelationships(hypervisorStorage,
-                toUpdate -> CopyCommodities.copyCommodities().from(storageStorage).to(toUpdate));
+            // All the commodities bought by the storage storage should now be bought by the hypervisor storage.
+            .queueChangeRelationships(hypervisorStorage, toUpdate -> {
+                toUpdate.removeProvider(hypervisorDiskArray);
+                CopyCommodities.copyCommodities().from(storageStorage).to(toUpdate);
+            })
+            // Merge the storage-probe discovered storage onto the hypervisor probe discovered storage.
+            .queueEntityMerger(MergeEntities.mergeEntity(storageStorage).onto(hypervisorStorage))
+            // Merge the hypervisor diskArray onto the storage DiskArray.
+            .queueEntityMerger(MergeEntities.mergeEntity(hypervisorDiskArray).onto(storageDiskArray));
     }
 
     @Nonnull
@@ -129,12 +132,12 @@ public class StorageStitchingOperation implements StitchingOperation<List<String
     }
 
     /**
-     * An index that permitting match identification for the external name lists of storages.
+     * An index that permits matching for the external name lists of storages.
      * The rule for identifying a storage match by external name is as follows:
      *
      * For two storages with lists of external names, treat those lists as sets and intersect
-     * them. If the intersection is empty, it is not a match. If the intersection is empty,
-     * it is not a match.
+     * them. If the intersection is empty, it is not a match. If the intersection is non-empty,
+     * it is a match.
      *
      * This index maintains a map of each external name to the entire list.
      */

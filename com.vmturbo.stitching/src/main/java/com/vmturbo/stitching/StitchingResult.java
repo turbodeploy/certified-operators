@@ -5,15 +5,19 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 
+import com.vmturbo.stitching.utilities.MergeEntities.MergeEntitiesDetails;
+
 /**
- * A {@link StitchingOperationResult} is returned for each call to
- * {@link StitchingOperation#stitch(Collection, Builder)}. It is used to represent
+ * A {@link StitchingResult} is returned for each call to
+ * {@link StitchingOperation#stitch(Collection, Builder)} or
+ * {@link PreStitchingOperation#performOperation(Stream, Builder)}. It is used to represent
  * all the changes to the topology (either relationship updates or entity removals) made by a particular
- * {@link StitchingOperation} at a particular stitching point.
+ * {@link StitchingOperation} or {@link PreStitchingOperation}.
  *
  * Note that changes added to the Result are NOT immediately applied at the time the changes are created.
  * Instead, changes are applied AFTER the operation's {@link StitchingOperation#stitch(Collection, Builder)}
@@ -31,22 +35,23 @@ import javax.annotation.concurrent.Immutable;
  * AFTER the stitching code has finished running and making some topology edits such as removals idempotent
  * (ie removing an entity from the topology twice has the same effect as removing it once), it becomes
  * easier to reason about the state of the topological graph as stitching operations make edits. Changes
- * in {@link StitchingOperationResult}s are applied in the order that they are added to the result.
+ * in {@link StitchingResult}s are applied in the order that they are added to the result.
  *
- * Changes should be added to a result via the appropriate {@link StitchingOperationResult.Builder}
+ * Changes should be added to a result via the appropriate {@link StitchingResult.Builder}
  * method.
  *
  * Note that changes to individual entities that do not affect relationships do not NEED to be
- * recorded in the results. So if I need to multiply the capacity of a commodity by 10, because
+ * recorded in the results. So if you need to multiply the capacity of a commodity by 10, because
  * this change does not impact relationships, the operation can make this change directly
  * rather than recording it on the results it returned. However, if the change affects relationships,
- * it MUST be recorded in the {@link StitchingOperationResult} so that those changes can be properly
+ * it MUST be recorded in the {@link StitchingResult} so that those changes can be properly
  * reflected in the graph. It is still recommended that edits to entities that do not affect relationships
- * still be made via {@link Builder#queueUpdateEntityAlone(StitchingEntity, Consumer)} because this will ensure
+ * be made via {@link Builder#queueUpdateEntityAlone(StitchingEntity, Consumer)} because this will ensure
  * that the change can be recorded for debugging purposes and because it will cause that change to be applied
  * lazily in the order the change was added to the result instead of immediately.
  *
- * {@link StitchingChange}s in the result are processed in the order that they are received.
+ * {@link StitchingChange}s in the result are processed in the order that they are added to
+ * the {@link StitchingResult}.
  *
  * Changes to entity relationships permitted during stitching:
  * 1. Removing an entity - Removing an entity from the graph propagates a change to all buyers of commodities
@@ -61,14 +66,14 @@ import javax.annotation.concurrent.Immutable;
  *                       If a use case for this arises, we may consider supporting it in the future.
  */
 @Immutable
-public class StitchingOperationResult {
+public class StitchingResult {
 
     /**
      * The ordered list of changes in the result.
      */
     private final List<StitchingChange> changes;
 
-    private StitchingOperationResult(@Nonnull final List<StitchingChange> changes) {
+    private StitchingResult(@Nonnull final List<StitchingChange> changes) {
         this.changes = Collections.unmodifiableList(changes);
     }
 
@@ -82,7 +87,7 @@ public class StitchingOperationResult {
     }
 
     /**
-     * A builder for a {@link StitchingOperationResult}.
+     * A builder for a {@link StitchingResult}.
      *
      * This builder will be subclassed to provide concrete implementations of the various methods
      * for queueing the appropriate changes in the TopologyProcessor component.
@@ -90,7 +95,7 @@ public class StitchingOperationResult {
     public static abstract class Builder {
         protected final List<StitchingChange> changes = new ArrayList<>();
 
-        public abstract StitchingOperationResult build();
+        public abstract StitchingResult build();
 
         /**
          * Get the list of all changes in the result.
@@ -110,6 +115,23 @@ public class StitchingOperationResult {
          * @return A reference to {@link this} to support method chaining.
          */
         public abstract Builder queueEntityRemoval(@Nonnull final StitchingEntity entity);
+
+        /**
+         * @see com.vmturbo.stitching.utilities.MergeEntities
+         * <p>
+         * Note that no changes are made to the commodities bought by the entities being merged.
+         * If you wish to make changes to these commodities, consider using the
+         * {@link #queueChangeRelationships(StitchingEntity, Consumer)} to have the
+         * merged entity buy new or different commodities before queueing the merge change.
+         * <p>
+         * TODO: (DavidBlinn 12/1/2017)
+         * TODO: Support for replacing an entity in discovered groups.
+         * TODO: Support for bookkeeping which targets discovered the entity.
+         *
+         * @param details An object describing the entities to be merged.
+         * @return A reference to {@link this} to support method chaining.
+         */
+        public abstract Builder queueEntityMerger(@Nonnull final MergeEntitiesDetails details);
 
         /**
          * Request the update of the relationships of an entity in the topology based on updates to
@@ -143,7 +165,7 @@ public class StitchingOperationResult {
          * <p>
          * Note that this change will be applied AFTER the call to
          * {@link StitchingOperation#stitch(Collection, Builder)} returns. The change will be applied in the same
-         * order it was added to the {@link StitchingOperationResult} relative to the other changes that were
+         * order it was added to the {@link StitchingResult} relative to the other changes that were
          * added to the result.
          *
          * @param entityToUpdate The entity to update.
@@ -154,15 +176,15 @@ public class StitchingOperationResult {
                                                        @Nonnull final Consumer<StitchingEntity> updateMethod);
 
         /**
-         * A method to complete the construction of the {@link StitchingOperationResult}.
-         * Called internally by a subclass of the {@link StitchingOperationResult.Builder}
+         * A method to complete the construction of the {@link StitchingResult}.
+         * Called internally by a subclass of the {@link StitchingResult.Builder}
          * to construct the result object.
          *
-         * @return A {@link StitchingOperationResult} containing the changes that were queued on this
-         * {@link StitchingOperationResult.Builder}.
+         * @return A {@link StitchingResult} containing the changes that were queued on this
+         * {@link StitchingResult.Builder}.
          */
-        protected StitchingOperationResult buildInternal() {
-            return new StitchingOperationResult(changes);
+        protected StitchingResult buildInternal() {
+            return new StitchingResult(changes);
         }
     }
 
@@ -173,7 +195,7 @@ public class StitchingOperationResult {
      * <p>
      * When mutating entities during stitching, those changes only need to be explicitly
      * recorded when those changes modify relationships to other entities. See the comments
-     * on {@link StitchingOperationResult} for further details.
+     * on {@link StitchingResult} for further details.
      */
     public interface StitchingChange {
         void applyChange();

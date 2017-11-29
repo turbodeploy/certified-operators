@@ -20,12 +20,16 @@ import com.google.common.annotations.VisibleForTesting;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
+import com.vmturbo.stitching.PreStitchingOperation;
+import com.vmturbo.stitching.PreStitchingOperationLibrary;
+import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingIndex;
 import com.vmturbo.stitching.StitchingOperation;
-import com.vmturbo.stitching.StitchingOperationResult;
-import com.vmturbo.stitching.StitchingOperationResult.StitchingChange;
 import com.vmturbo.stitching.StitchingPoint;
+import com.vmturbo.stitching.StitchingResult;
+import com.vmturbo.stitching.StitchingResult.StitchingChange;
 import com.vmturbo.topology.processor.entity.EntityStore;
+import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.targets.TargetStore;
 
 /**
@@ -58,6 +62,21 @@ import com.vmturbo.topology.processor.targets.TargetStore;
  * referred to as "Calculations" or "Derived Metrics". These sorts of operations may
  * take information discovered by multiple targets of the same probe and combine them or use
  * settings to modify discovered information without needing any information from external entities.
+ *
+ * Stitching occurs in several phases.
+ * 1. PreStitching: This phase happens prior to the regular stitching phase. During this phase, certain
+ *    calculations are run that may update certain metrics gathered from a target or unify multiple instances of
+ *    a single entity discovered by multiple targets into a single instance (as in the case of shared storage).
+ *    Settings are not available in this phase. {@link PreStitchingOperation}s are run
+ *    during this phase.
+ * 2. Stitching: This phase happens after PreStitching but before
+ *    {@link com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline} phases such as group resolution,
+ *    policy application, or setting calculations. Settings are not available in this phase.
+ *    {@link StitchingOperation}s are run during this phase.
+ * 3. PostStitching: This phase happens after the
+ *    {@link com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline} phases listed above.
+ *    Settings are available in this phase. TODO: Implement PostStitching.
+ *    {@link PreStitchingOperation}s are run during this phase.
  */
 public class StitchingManager {
     private static final Logger logger = LogManager.getLogger();
@@ -81,20 +100,42 @@ public class StitchingManager {
         .register();
 
     /**
-     * A store of the operations to be applied during stitching.
+     * A metric that tracks duration of execution for PreStitching.
+     */
+    private static final DataMetricSummary PRE_STITCHING_EXECUTION_DURATION_SUMMARY = DataMetricSummary.builder()
+        .withName("tp_pre_stitching_execution_duration_seconds")
+        .withHelp("Duration of execution of all pre-stitching operations.")
+        .build()
+        .register();
+
+    /**
+     * A store of the operations to be applied during the Stitching phase.
      */
     private final StitchingOperationStore stitchingOperationStore;
 
+    /**
+     * A store of the pre stitching operations to be applied during the PreStitching and PostStitching phases.
+     */
+    private final PreStitchingOperationLibrary preStitchingOperationLibrary;
+
+    private final ProbeStore probeStore;
     private final TargetStore targetStore;
 
     /**
      * Create a new {@link StitchingManager} instance.
      *
-     * @param stitchingOperationStore The store of the operations to be applied during stitching.
+     * @param stitchingOperationStore The store of the operations to be applied during Stitching.
+     * @param preStitchingOperationLibrary The store of pre stitching operations to be applied during PreStitching.
+     * @param probeStore The store of probes known to the topology processor.
+     * @param targetStore The store of available targets known to the topology processor.
      */
     public StitchingManager(@Nonnull final StitchingOperationStore stitchingOperationStore,
+                            @Nonnull final PreStitchingOperationLibrary preStitchingOperationLibrary,
+                            @Nonnull final ProbeStore probeStore,
                             @Nonnull final TargetStore targetStore) {
         this.stitchingOperationStore = Objects.requireNonNull(stitchingOperationStore);
+        this.preStitchingOperationLibrary = Objects.requireNonNull(preStitchingOperationLibrary);
+        this.probeStore = Objects.requireNonNull(probeStore);
         this.targetStore = Objects.requireNonNull(targetStore);
     }
 
@@ -115,11 +156,41 @@ public class StitchingManager {
         final StitchingContext stitchingContext = entityStore.constructStitchingContext();
         preparationTimer.observe();
 
-        return stitch(stitchingContext);
+        final PreStitchingOperationScopeFactory scopeFactory = new PreStitchingOperationScopeFactory(
+            stitchingContext, probeStore, targetStore);
+
+        preStitch(scopeFactory);
+        stitch(stitchingContext);
+
+        return stitchingContext;
     }
 
+    /**
+     * Apply PreStitching phase to the entities in the stitching context.
+     *
+     * @param scopeFactory A factory to be used for calculating the entities within a given scope of a
+     *                     {@link PreStitchingOperation}.
+     */
     @VisibleForTesting
-    StitchingContext stitch(@Nonnull final StitchingContext stitchingContext) {
+    void preStitch(@Nonnull final PreStitchingOperationScopeFactory scopeFactory) {
+        final DataMetricTimer executionTimer = PRE_STITCHING_EXECUTION_DURATION_SUMMARY.startTimer();
+        logger.info("Applying {} pre-stitching operations.",
+            preStitchingOperationLibrary.getPreStitchingOperations().size());
+
+        preStitchingOperationLibrary.getPreStitchingOperations().stream()
+            .forEach(preStitchingOperation -> applyPreStitchingOperation(preStitchingOperation, scopeFactory));
+
+        executionTimer.observe();
+    }
+
+    /**
+     * Apply the stitching phase to the entities in the stitching context.
+     *
+     * @param stitchingContext The context containing the entities to be stitched.
+     * @return The context that was stitched. This context is a mutated version of the input context.
+     */
+    @VisibleForTesting
+    void stitch(@Nonnull final StitchingContext stitchingContext) {
         logger.info("Applying {} stitching operations for {} probes.",
             stitchingOperationStore.operationCount(), stitchingOperationStore.probeCount());
 
@@ -131,10 +202,30 @@ public class StitchingManager {
                         stitchingContext,
                         target.getId())));
         executionTimer.observe();
+    }
 
-        // Return the stitching context which has had all the results of the stitching operations
-        // applied to it.
-        return stitchingContext;
+    /**
+     * Apply a specific {@link PreStitchingOperation}.
+     *
+     * @param preStitchingOperation The pre-stitching operation to be applied.
+     * @param scopeFactory The factory for use in generating the scopes to be used to create the scope
+     *                     of entities that the pre-stitching operation should operate on.
+     */
+    private void applyPreStitchingOperation(@Nonnull final PreStitchingOperation preStitchingOperation,
+                                            @Nonnull final PreStitchingOperationScopeFactory scopeFactory) {
+        try {
+            final Stream<StitchingEntity> entities =
+                preStitchingOperation.getCalculationScope(scopeFactory).entities();
+            final TopologyStitchingResultBuilder resultBuilder =
+                new TopologyStitchingResultBuilder(scopeFactory.getStitchingContext());
+
+            final StitchingResult results = preStitchingOperation.performOperation(
+                entities, resultBuilder);
+            results.getChanges().forEach(StitchingChange::applyChange);
+        } catch (RuntimeException e) {
+            logger.error("Unable to apply pre-stitching operation " + preStitchingOperation.getClass().getSimpleName() +
+                " due to exception: ", e);
+        }
     }
 
     /**
@@ -155,7 +246,7 @@ public class StitchingManager {
         try {
             Optional<EntityType> externalType = operation.getExternalEntityType();
 
-            final StitchingOperationResult results = externalType.isPresent() ?
+            final StitchingResult results = externalType.isPresent() ?
                 applyStitchWithExternalEntitiesOperation(operation, stitchingContext, targetId, externalType.get()) :
                 applyStitchAloneOperation(operation, stitchingContext, targetId);
 
@@ -178,7 +269,7 @@ public class StitchingManager {
      *         be applied to mutate the {@link StitchingContext} and its associated
      *         {@link TopologyStitchingGraph}.
      */
-    private StitchingOperationResult applyStitchAloneOperation(
+    private StitchingResult applyStitchAloneOperation(
         @Nonnull final StitchingOperation<?, ?> operation,
         @Nonnull final StitchingContext stitchingContext,
         final long targetId) {
@@ -209,7 +300,7 @@ public class StitchingManager {
      *         {@link TopologyStitchingGraph}.
      */
     private <INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGNATURE_TYPE>
-    StitchingOperationResult applyStitchWithExternalEntitiesOperation(
+    StitchingResult applyStitchWithExternalEntitiesOperation(
         @Nonnull final StitchingOperation<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGNATURE_TYPE> operation,
         @Nonnull final StitchingContext stitchingContext,
         final long targetId,

@@ -4,7 +4,7 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.StitchingEntity;
-import com.vmturbo.stitching.StitchingOperationResult;
+import com.vmturbo.stitching.StitchingResult;
 import com.vmturbo.stitching.StitchingPoint;
 import com.vmturbo.stitching.utilities.DeleteCommodities;
 
@@ -39,7 +39,7 @@ public class FabricChassisStitchingOperation extends FabricStitchingOperation{
      *                      in these results.
      */
     protected void stitch(@Nonnull final StitchingPoint stitchingPoint,
-                          @Nonnull final StitchingOperationResult.Builder resultBuilder) {
+                          @Nonnull final StitchingResult.Builder resultBuilder) {
         // The chassis discovered by the fabric probe
         final StitchingEntity fabricChassis = stitchingPoint.getInternalEntity();
 

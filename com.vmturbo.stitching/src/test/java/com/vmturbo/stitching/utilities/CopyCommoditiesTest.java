@@ -35,12 +35,12 @@ public class CopyCommoditiesTest {
 
     @Test
     public void testCopyWithExistingProvider() {
-        final List<CommodityDTO> sourceProviderList = new ArrayList<>();
-        sourceProviderList.add(vCpuMHz().build());
+        final List<CommodityDTO.Builder> sourceProviderList = new ArrayList<>();
+        sourceProviderList.add(vCpuMHz().build().toBuilder());
 
-        final List<CommodityDTO> destProviderList = new ArrayList<>();
-        destProviderList.add(vCpuMHz().build());
-        final Map<StitchingEntity, List<CommodityDTO>> destProviderMap = new HashMap<>();
+        final List<CommodityDTO.Builder> destProviderList = new ArrayList<>();
+        destProviderList.add(vCpuMHz().build().toBuilder());
+        final Map<StitchingEntity, List<CommodityDTO.Builder>> destProviderMap = new HashMap<>();
         destProviderMap.put(provider, destProviderList);
 
         when(sourceEntity.getCommoditiesBoughtByProvider()).thenReturn(ImmutableMap.of(provider, sourceProviderList));
@@ -53,10 +53,10 @@ public class CopyCommoditiesTest {
 
     @Test
     public void testCopyWithNewProvider() {
-        final List<CommodityDTO> sourceProviderList = new ArrayList<>();
-        sourceProviderList.add(vCpuMHz().build());
+        final List<CommodityDTO.Builder> sourceProviderList = new ArrayList<>();
+        sourceProviderList.add(vCpuMHz().build().toBuilder());
 
-        final Map<StitchingEntity, List<CommodityDTO>> destProviderMap = new HashMap<>();
+        final Map<StitchingEntity, List<CommodityDTO.Builder>> destProviderMap = new HashMap<>();
         when(sourceEntity.getCommoditiesBoughtByProvider()).thenReturn(ImmutableMap.of(provider, sourceProviderList));
         when(destinationEntity.getCommoditiesBoughtByProvider()).thenReturn(destProviderMap);
 

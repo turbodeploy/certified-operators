@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
@@ -27,6 +28,7 @@ import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.PredefinedAccountDefinition;
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.sdk.server.common.ProbeInfoComparator;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.stitching.StitchingOperationStore;
@@ -175,6 +177,22 @@ public class RemoteProbeStore implements ProbeStore {
                 .filter(entry -> entry.getValue().getProbeType().equals(probeTypeName))
                 .map(Entry::getKey)
                 .findFirst();
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @Nonnull
+    public List<Long> getProbeIdsForCategory(@Nonnull final ProbeCategory probeCategory) {
+        Objects.requireNonNull(probeCategory);
+
+        synchronized (dataLock) {
+            return probeInfos.entrySet().stream()
+                .filter(entry -> entry.getValue().getProbeCategory().equalsIgnoreCase(probeCategory.name()))
+                .map(Entry::getKey)
+                .collect(Collectors.toList());
         }
     }
 

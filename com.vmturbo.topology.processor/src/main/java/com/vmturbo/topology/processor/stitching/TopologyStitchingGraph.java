@@ -5,6 +5,7 @@ import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
@@ -140,19 +141,37 @@ public class TopologyStitchingGraph {
 
         for (CommodityBought commodityBought : entityData.getEntityDtoBuilder().getCommoditiesBoughtList()) {
             final String providerId = commodityBought.getProviderId();
-            final TopologyStitchingEntity provider = getOrCreateStitchingEntity(entityMap.get(providerId));
+            final StitchingEntityData providerData = entityMap.get(providerId);
+            if (providerData == null) {
+                // TODO (DavidBlinn 12/1/2017): Roll back all entities provided by the target that added
+                // this entity because its data is unreliable.
+                throw new IllegalArgumentException("Entity " + entityData.getEntityDtoBuilder() +
+                    " is buying from entity " + providerId + " which does not exist.");
+            }
+
+            final TopologyStitchingEntity provider = getOrCreateStitchingEntity(providerData);
             if (!provider.getLocalId().equals(providerId)) {
                 throw new IllegalArgumentException("Map key " + providerId +
                     " does not match provider localId value: " + provider.getLocalId());
             }
 
-            entity.putProviderCommodities(provider, commodityBought.getBoughtList());
+            entity.putProviderCommodities(provider, commodityBought.getBoughtList().stream()
+                .map(CommodityDTO::toBuilder)
+                .collect(Collectors.toList()));
             provider.addConsumer(entity);
         }
 
         for (CommodityDTO commoditySold : entityData.getEntityDtoBuilder().getCommoditiesSoldList()) {
             final TopologyStitchingEntity accessing = Converter.parseAccessKey(commoditySold).map(accessingLocalId -> {
-                final TopologyStitchingEntity accessEntity = getOrCreateStitchingEntity(entityMap.get(accessingLocalId));
+                final StitchingEntityData accessingData = entityMap.get(accessingLocalId);
+                if (accessingData == null) {
+                    // TODO (DavidBlinn 12/1/2017): Roll back all entities provided by the target that added
+                    // this entity because its data is unreliable.
+                    throw new IllegalArgumentException("Entity " + entityData.getEntityDtoBuilder() +
+                        " accesses entity " + accessingLocalId + " which does not exist.");
+                }
+
+                final TopologyStitchingEntity accessEntity = getOrCreateStitchingEntity(accessingData);
                 if (!accessEntity.getLocalId().equals(accessingLocalId)) {
                     throw new IllegalArgumentException("Map key " + accessingLocalId +
                         " does not match accessing localId value: " + accessEntity.getLocalId());
@@ -160,7 +179,7 @@ public class TopologyStitchingGraph {
 
                 return accessEntity;
             }).orElse(null);
-            entity.getTopologyCommoditiesSold().add(new CommoditySold(commoditySold, accessing));
+            entity.getTopologyCommoditiesSold().add(new CommoditySold(commoditySold.toBuilder(), accessing));
         }
 
         return entity;

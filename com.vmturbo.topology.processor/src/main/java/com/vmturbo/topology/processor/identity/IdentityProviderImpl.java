@@ -173,7 +173,7 @@ public class IdentityProviderImpl implements IdentityProvider {
     @Override
     public Map<Long, EntityDTO> getIdsForEntities(final long probeId,
                                                   @Nonnull final List<EntityDTO> entityDTOs)
-            throws IdentityUninitializedException {
+            throws IdentityUninitializedException, IdentityMetadataMissingException {
         Objects.requireNonNull(entityDTOs);
         /* We expect that the probe is already registered.
          * There is a small window in getProbeId() where concurrent calls could
@@ -185,29 +185,26 @@ public class IdentityProviderImpl implements IdentityProvider {
         final ServiceEntityIdentityMetadataStore probeMetadata =
                 Objects.requireNonNull(perProbeMetadata.get(probeId));
 
-        final List<EntryData> entryData = entityDTOs.stream()
-            .map(dto -> {
-                // Find the identity metadata the probe provided for this
-                // entity type.
-                ServiceEntityIdentityMetadata entityMetadata =
-                        probeMetadata.getMetadata(dto.getEntityType());
-                // There may not be identity metadata if the probe didn't
-                // provide any. That means every time we discover that entity
-                // we'll assign it a different OID.
-                if (entityMetadata != null) {
-                    final EntityDescriptor descriptor =
-                        IdentifyingPropertyExtractor.extractEntityDescriptor(dto, entityMetadata);
-                    return new EntryData(descriptor, entityMetadata, dto);
-                } else {
-                    // It's unclear whether we should just ignore these entities, or ignore the
-                    // whole topology. For now, only ignoring the provided entities.
-                    logger.warn("Probe {} sends entities of type {} but provides no related " +
-                        "identity metadata.", probeId, dto.getEntityType());
-                    return null;
-                }
-            })
-            .filter(Objects::nonNull)
-            .collect(Collectors.toList());
+        final List<EntryData> entryData = new ArrayList<>(entityDTOs.size());
+        for (EntityDTO dto : entityDTOs) {
+            // Find the identity metadata the probe provided for this
+            // entity type.
+            ServiceEntityIdentityMetadata entityMetadata =
+                probeMetadata.getMetadata(dto.getEntityType());
+            // There may not be identity metadata if the probe didn't
+            // provide any. That means every time we discover that entity
+            // we'll assign it a different OID.
+            if (entityMetadata != null) {
+                final EntityDescriptor descriptor =
+                    IdentifyingPropertyExtractor.extractEntityDescriptor(dto, entityMetadata);
+                entryData.add(new EntryData(descriptor, entityMetadata, dto));
+            } else {
+                // If we are unable to assign an OID for an entity, abandon the attempt.
+                // One missing entity OID spoils the entire batch because of how tangled the relationships
+                // between entities are.
+                throw new IdentityMetadataMissingException(probeId, dto.getEntityType());
+            }
+        }
 
         final List<Long> ids;
         synchronized (identityServiceLock) {

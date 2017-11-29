@@ -30,8 +30,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  *    The matches are then processed.
  * 2. Processing: During processing, the operation makes updates and removes entities in the topology.
  *    Updates to the properties and commodities of an entity may be made immediately, but updates to
- *    the relationship of an entity (as described in {@link StitchingOperationResult}) are applied only
- *    AFTER the {@link #stitch(Collection, StitchingOperationResult.Builder)} call returns.
+ *    the relationship of an entity (as described in {@link StitchingResult}) are applied only
+ *    AFTER the {@link #stitch(Collection, StitchingResult.Builder)} call returns.
  *
  * @param <INTERNAL_SIGNATURE_TYPE> The type of the signature by which internal entities will be matched
  *                                  with external entities.
@@ -117,14 +117,19 @@ public interface StitchingOperation<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGNATURE_
      * or any user or system settings until stitching occurs.
      *
      * Any updates to relationships in the entities in the {@link StitchingPoint}s must be noted in
-     * the returned {@link StitchingOperationResult} so that the graph and certain other acceleration structures
+     * the returned {@link StitchingResult} so that the graph and certain other acceleration structures
      * that track entities and relationships can be updated for further stitching.
      *
      * @param stitchingPoints The collection of {@link StitchingPoint}s that should be stitched.
-     * @return A {@link StitchingOperationResult} that describes the result of stitching.
+     * @param resultBuilder A builder for the result containing the changes this operation wants to make
+     *                      to the entities and their relationships. The operation should use this builder
+     *                      to create the result it returns.
+     * @return A {@link StitchingResult} that describes the result of stitching. The result should be built using
+     *         the {@link StitchingResult.Builder} provided as input.
      */
-    @Nonnull StitchingOperationResult stitch(@Nonnull final Collection<StitchingPoint> stitchingPoints,
-                                             @Nonnull final StitchingOperationResult.Builder resultBuilder);
+    @Nonnull
+    StitchingResult stitch(@Nonnull final Collection<StitchingPoint> stitchingPoints,
+                           @Nonnull final StitchingResult.Builder resultBuilder);
 
     /**
      * Create an index for use to accelerate match-finding for this {@link StitchingOperation}.

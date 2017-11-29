@@ -22,8 +22,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingIndex;
 import com.vmturbo.stitching.StitchingOperation;
-import com.vmturbo.stitching.StitchingOperationResult;
-import com.vmturbo.stitching.StitchingOperationResult.Builder;
+import com.vmturbo.stitching.StitchingResult;
+import com.vmturbo.stitching.StitchingResult.Builder;
 import com.vmturbo.stitching.StitchingPoint;
 
 /**
@@ -93,7 +93,7 @@ public abstract class FabricStitchingOperation implements StitchingOperation<Lis
 
     @Nonnull
     @Override
-    public StitchingOperationResult stitch(@Nonnull final Collection<StitchingPoint> stitchingPoints,
+    public StitchingResult stitch(@Nonnull final Collection<StitchingPoint> stitchingPoints,
                                            @Nonnull final Builder resultBuilder) {
         stitchingPoints.forEach(stitchingPoint -> stitch(stitchingPoint, resultBuilder));
 
@@ -111,7 +111,7 @@ public abstract class FabricStitchingOperation implements StitchingOperation<Lis
      *                      in these results.
      */
     protected abstract void stitch(@Nonnull final StitchingPoint stitchingPoint,
-                        @Nonnull final StitchingOperationResult.Builder resultBuilder);
+                        @Nonnull final StitchingResult.Builder resultBuilder);
 
     @Nonnull
     @Override

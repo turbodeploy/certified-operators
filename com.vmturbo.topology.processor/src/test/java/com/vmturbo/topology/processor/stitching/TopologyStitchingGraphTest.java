@@ -97,6 +97,17 @@ public class TopologyStitchingGraphTest {
     }
 
     @Test
+    public void testEntityBuyingFromEntityNotPresent() {
+        // Entity 1 buys from entity 2, but entity 2 is not present.
+        final Map<String,StitchingEntityData> topologyMap = ImmutableMap.of(
+            "1", stitchingData("1", Collections.singletonList("2"))
+        );
+
+        expectedException.expect(IllegalArgumentException.class);
+        newStitchingGraph(topologyMap);
+    }
+
+    @Test
     public void testEntitiesInReverseOrder() {
         final Map<String, StitchingEntityData> topologyMap = ImmutableMap.of(
             "5", entity5,
@@ -521,7 +532,11 @@ public class TopologyStitchingGraphTest {
         }
 
         public StitchingEntityData forTarget(final long targetId) {
-            return new StitchingEntityData(getEntityDtoBuilder(), targetId, IdentityGenerator.next(), 0);
+            return StitchingEntityData.newBuilder(getEntityDtoBuilder())
+                .targetId(targetId)
+                .oid(IdentityGenerator.next())
+                .lastUpdatedTime(0)
+                .build();
         }
     }
 }

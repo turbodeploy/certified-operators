@@ -16,7 +16,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * An entity capable of being stitched.
  *
  * Provides access to the source builder for an entity and its properties as provided by the probe that
- * discovered it and mutated by any previously run stitching operations. Note that the commodities
+ * discovered it and mutated by any previously run stitching calculations or operations. Note that the commodities
  * of the entity have been stripped off this builder. Access the commodities directly via the
  * {@link StitchingEntity} interface.
  *
@@ -26,14 +26,14 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * Access the consumers and providers of a {@link StitchingEntity} to traverse the graph from that entity.
  *
  * Mutations to stitching entities during stitching should be tracked via an appropriate
- * {@link com.vmturbo.stitching.StitchingOperationResult.StitchingChange} on a {@link StitchingOperationResult}
+ * {@link StitchingResult.StitchingChange} on a {@link StitchingResult}
  * object. Mutating a {@link StitchingEntity} directly may not propagate that change
- * to all objects that need to track the change. See {@link StitchingOperationResult} for additional details.
+ * to all objects that need to track the change. See {@link StitchingResult} for additional details.
  */
 public interface StitchingEntity {
     /**
      * Get the builder for the {@link EntityDTO} as discovered by the target that discovered by this probe
-     * and modified by earlier stitching operations.
+     * and modified by earlier stitching calculations or operations.
      *
      * @return The builder for the {@link EntityDTO} for this entity.
      */
@@ -95,9 +95,9 @@ public interface StitchingEntity {
      * Get the OID (Object ID) of the entity.
      *
      * Multiple {@link StitchingEntity}s in the topology may have the same OID during stitching,
-     * but they will always refer to the same real-world object. {@link StitchingOperation}s should
-     * resolve these multiple definitions of this single entity into a single definition by
-     * the completion of stitching.
+     * but they will always refer to the same real-world object. {@link PreStitchingOperation}s and
+     * {@link StitchingOperation}s should resolve these multiple definitions of this single entity
+     * into a single definition by the completion of stitching.
      *
      * @return The OID (Object ID) of the entity.
      */
@@ -127,11 +127,24 @@ public interface StitchingEntity {
      * The commodities sold by this entity.
      *
      * Currently no mutations are allowed to commodities sold.
-     * TODO: Appropriately support mutations to commodities sold when use cases are identified.
      *
      * @return The commodities sold by this entity.
      */
-    Stream<CommodityDTO> getCommoditiesSold();
+    Stream<CommodityDTO.Builder> getCommoditiesSold();
+
+    /**
+     * Have this {@link StitchingEntity} sell a new commodity.
+     * Note that adding a new commodity sold does NOT automatically make any other entity buy this new commodity.
+     * To have other entities buy this commodity, you must add buying relationships.
+     *
+     * @param commoditySold The commodity to be sold by this stitching entity.
+     * @param accesses Usually empty. For DSPM_ACCESS commodity this is the PhysicalMachine associated
+     *                 with the Storage that sells this commodity. For DATASTORE commodity this is the
+     *                 Storage associated with the PhysicalMachine that sells this commodity.
+     *                 Empty otherwise.
+     */
+    void addCommoditySold(@Nonnull final CommodityDTO.Builder commoditySold,
+                          @Nonnull final Optional<StitchingEntity> accesses);
 
     /**
      * Get the commodities bought by this entity, indexed by the provider
@@ -149,7 +162,7 @@ public interface StitchingEntity {
      *
      * @return the commodities bought by this entity, indexed by the provider of those commodities.
      */
-    Map<StitchingEntity, List<CommodityDTO>> getCommoditiesBoughtByProvider();
+    Map<StitchingEntity, List<CommodityDTO.Builder>> getCommoditiesBoughtByProvider();
 
     /**
      * Remove an entity as a provider to this entity. If the provider is successfully
@@ -164,7 +177,7 @@ public interface StitchingEntity {
      *         the list of commodities no longer being bought from the provider. If
      *         the entity was not a provider, returns {@link Optional#empty()}.
      */
-    Optional<List<CommodityDTO>> removeProvider(@Nonnull final StitchingEntity entity);
+    Optional<List<CommodityDTO.Builder>> removeProvider(@Nonnull final StitchingEntity entity);
 
     /**
      * Check if this entity is providing commodities to another {@link StitchingEntity}.

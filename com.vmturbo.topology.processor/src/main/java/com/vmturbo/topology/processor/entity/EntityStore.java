@@ -34,6 +34,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.entity.Entity.PerTargetInfo;
 import com.vmturbo.topology.processor.entity.EntityValidator.EntityValidationFailure;
+import com.vmturbo.topology.processor.identity.IdentityMetadataMissingException;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
@@ -186,11 +187,12 @@ public class EntityStore {
                 .forEach(entry -> {
                     final Long oid = entry.getKey();
                     entry.getValue().getPerTargetInfo().stream()
-                        .map(targetInfoEntry -> new StitchingEntityData(
-                            targetInfoEntry.getValue().getEntityInfo().toBuilder(),
-                            targetInfoEntry.getKey(),
-                            oid,
-                            targetEntities.get(targetInfoEntry.getKey()).getLastUpdatedTime()))
+                        .map(targetInfoEntry ->
+                            StitchingEntityData.newBuilder(targetInfoEntry.getValue().getEntityInfo().toBuilder())
+                                .oid(oid)
+                                .targetId(targetInfoEntry.getKey())
+                                .lastUpdatedTime(targetEntities.get(targetInfoEntry.getKey()).getLastUpdatedTime())
+                                .build())
                         .forEach(stitchingDataMap::put);
                 });
         }
@@ -252,7 +254,7 @@ public class EntityStore {
                 final long probeId,
                 final long targetId,
                 @Nonnull final List<EntityDTO> entityDTOList)
-            throws EntitiesValidationException, IdentityUninitializedException {
+            throws EntitiesValidationException, IdentityUninitializedException, IdentityMetadataMissingException {
         // There may be duplicate entries (though that's a bug in the probes),
         // and we should deal with that without throwing exceptions.
         final List<EntityValidationFailure> validationFailures = new ArrayList<>();
@@ -329,11 +331,13 @@ public class EntityStore {
      * @throws EntitiesValidationException If some entities are illegal for the topology.
      * @throws IdentityUninitializedException If the identity service is uninitialized, and we are
      *  unable to assign IDs to discovered entities.
+     * @throws IdentityMetadataMissingException if asked to assign an ID to an {@link EntityDTO}
+     *         for which there is no identity metadata.
      */
     public void entitiesDiscovered(final long probeId,
                                    final long targetId,
                                    @Nonnull final List<EntityDTO> entityDTOList)
-            throws EntitiesValidationException, IdentityUninitializedException {
+            throws EntitiesValidationException, IdentityUninitializedException, IdentityMetadataMissingException {
 
         final Map<Long, EntityDTO> entitiesById = validateAndAssignIds(probeId, targetId, entityDTOList);
 
