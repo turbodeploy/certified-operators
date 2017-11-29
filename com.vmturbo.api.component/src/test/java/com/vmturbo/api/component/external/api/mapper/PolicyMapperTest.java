@@ -23,6 +23,10 @@ import com.vmturbo.common.protobuf.group.PolicyDTO.InputPolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.MergeType;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 
+/**
+ * Tests for {@link PolicyMapper}.
+ *
+ */
 public class PolicyMapperTest {
 
     private Policy.Builder rawPolicyBuilder;
@@ -42,7 +46,7 @@ public class PolicyMapperTest {
     private static final long testProviderId = 1234567890L;
 
     @Before
-    public void setup(){
+    public void setup() {
         final Group consumerGroup = Group.newBuilder().setId(testConsumerId).build();
         final Group providerGroup = Group.newBuilder().setId(testProviderId).build();
 
@@ -50,8 +54,10 @@ public class PolicyMapperTest {
         policyGroupingMap.put(testConsumerId, consumerGroup);
 
         consumerDTO = new GroupApiDTO();
+        consumerDTO.setUuid(String.valueOf(testConsumerId));
         consumerDTO.setDisplayName("abcdef");
         providerDTO = new GroupApiDTO();
+        providerDTO.setUuid(String.valueOf(testProviderId));
         providerDTO.setDisplayName("ghijkl");
 
         rawPolicyBuilder = Policy.newBuilder()
@@ -73,7 +79,7 @@ public class PolicyMapperTest {
 
     @Test
     public void testPolicyToApiDtoAtMostN() {
-        //given
+        // given
         Policy policy = rawPolicyBuilder
                 .setAtMostN(Policy.AtMostNPolicy.newBuilder()
                         .setCapacity(10)
@@ -82,10 +88,10 @@ public class PolicyMapperTest {
                         .build())
                 .build();
 
-        //when
+        // when
         PolicyApiDTO result = policyMapper.policyToApiDto(policy, policyGroupingMap);
 
-        //then - general to any type of policy
+        // then - general to any type of policy
         assertEquals(result.getName(), result.getDisplayName());
         assertEquals(result.getName(), testPolicyName);
         assertEquals(result.getUuid(), Long.toString(testPolicyID));
@@ -93,16 +99,20 @@ public class PolicyMapperTest {
         assertEquals(result.getCommodityType(), testPolicyCommodityType);
         assertEquals(result.getType(), PolicyType.valueOf(policy.getPolicyDetailCase().name()));
 
-        //then - specifically this type of policy
+        // then - specifically this type of policy
         assertEquals(Integer.valueOf(10), result.getCapacity());
         assertEquals(result.getType(), PolicyType.AT_MOST_N);
         assertEquals(result.getConsumerGroup(), consumerDTO);
         assertEquals(result.getProviderGroup(), providerDTO);
+
+        // the reverse conversion
+        Policy reverse = policyMapper.policyApiDtoToProto(result);
+        assertEquals(policy, reverse);
     }
 
     @Test
     public void testPolicyToApiDtoAtMostNBound() {
-        //given
+        // given
         Policy policy = rawPolicyBuilder
                 .setAtMostNbound(Policy.AtMostNBoundPolicy.newBuilder()
                         .setCapacity(10)
@@ -111,10 +121,10 @@ public class PolicyMapperTest {
                         .build())
                 .build();
 
-        //when
+        // when
         PolicyApiDTO result = policyMapper.policyToApiDto(policy, policyGroupingMap);
 
-        //then - general
+        // then - general
         assertEquals(result.getName(), result.getDisplayName());
         assertEquals(result.getName(), testPolicyName);
         assertEquals(result.getUuid(), Long.toString(testPolicyID));
@@ -122,16 +132,20 @@ public class PolicyMapperTest {
         assertEquals(result.getCommodityType(), testPolicyCommodityType);
         assertEquals(result.getType(), PolicyType.valueOf(policy.getPolicyDetailCase().name()));
 
-        //then - specific
+        // then - specific
         assertEquals(Integer.valueOf(10), result.getCapacity());
         assertEquals(result.getType(), PolicyType.AT_MOST_NBOUND);
         assertEquals(result.getConsumerGroup(), consumerDTO);
         assertEquals(result.getProviderGroup(), providerDTO);
+
+        // the reverse conversion
+        Policy reverse = policyMapper.policyApiDtoToProto(result);
+        assertEquals(policy, reverse);
     }
 
     @Test
-    public void testPolicyToApiDtoBindToCompGroup(){
-        //given
+    public void testPolicyToApiDtoBindToCompGroup() {
+        // given
         Policy policy = rawPolicyBuilder
                 .setBindToComplementaryGroup(Policy.BindToComplementaryGroupPolicy.newBuilder()
                         .setConsumerGroupId(testConsumerId)
@@ -139,10 +153,10 @@ public class PolicyMapperTest {
                         .build())
                 .build();
 
-        //when
+        // when
         PolicyApiDTO result = policyMapper.policyToApiDto(policy, policyGroupingMap);
 
-        //then - general
+        // then - general
         assertEquals(result.getName(), result.getDisplayName());
         assertEquals(result.getName(), testPolicyName);
         assertEquals(result.getUuid(), Long.toString(testPolicyID));
@@ -150,14 +164,18 @@ public class PolicyMapperTest {
         assertEquals(result.getCommodityType(), testPolicyCommodityType);
         assertEquals(result.getType(), PolicyType.valueOf(policy.getPolicyDetailCase().name()));
 
-        //then - specific
+        // then - specific
         assertEquals(result.getType(), PolicyType.BIND_TO_COMPLEMENTARY_GROUP);
         assertEquals(result.getConsumerGroup(), consumerDTO);
         assertEquals(result.getProviderGroup(), providerDTO);
+
+        // the reverse conversion
+        Policy reverse = policyMapper.policyApiDtoToProto(result);
+        assertEquals(policy, reverse);
     }
 
     @Test
-    public void testPolicyToApiDtoBindToGroup(){
+    public void testPolicyToApiDtoBindToGroup() {
         Policy policy = rawPolicyBuilder
                 .setBindToGroup(Policy.BindToGroupPolicy.newBuilder()
                         .setConsumerGroupId(testConsumerId)
@@ -177,10 +195,14 @@ public class PolicyMapperTest {
         assertEquals(result.getType(), PolicyType.BIND_TO_GROUP);
         assertEquals(result.getConsumerGroup(), consumerDTO);
         assertEquals(result.getProviderGroup(), providerDTO);
+
+        // the reverse conversion
+        Policy reverse = policyMapper.policyApiDtoToProto(result);
+        assertEquals(policy, reverse);
     }
 
     @Test
-    public void testPolicyToApiDtoBindToGroupLicense(){
+    public void testPolicyToApiDtoBindToGroupLicense() {
         Policy policy = rawPolicyBuilder
                 .setBindToGroupAndLicense(Policy.BindToGroupAndLicencePolicy.newBuilder()
                         .setConsumerGroupId(testConsumerId)
@@ -188,7 +210,7 @@ public class PolicyMapperTest {
                         .build())
                 .build();
 
-        PolicyApiDTO result = policyMapper.policyToApiDto(policy,policyGroupingMap);
+        PolicyApiDTO result = policyMapper.policyToApiDto(policy, policyGroupingMap);
 
         assertEquals(result.getName(), result.getDisplayName());
         assertEquals(result.getName(), testPolicyName);
@@ -201,12 +223,13 @@ public class PolicyMapperTest {
         assertEquals(result.getConsumerGroup(), consumerDTO);
         assertEquals(result.getProviderGroup(), providerDTO);
 
-
-
+        // the reverse conversion
+        Policy reverse = policyMapper.policyApiDtoToProto(result);
+        assertEquals(policy, reverse);
     }
 
     @Test
-    public void testPolicyToApiDtoBindToGroupGeoRedundancy(){
+    public void testPolicyToApiDtoBindToGroupGeoRedundancy() {
         Policy policy = rawPolicyBuilder
             .setBindToGroupAndGeoRedundancy(Policy.BindToGroupAndGeoRedundancyPolicy.newBuilder()
                         .setConsumerGroupId(testConsumerId)
@@ -226,10 +249,14 @@ public class PolicyMapperTest {
         assertEquals(result.getType(), PolicyType.BIND_TO_GROUP_AND_GEO_REDUNDANCY);
         assertEquals(result.getConsumerGroup(), consumerDTO);
         assertEquals(result.getProviderGroup(), providerDTO);
+
+        // the reverse conversion
+        Policy reverse = policyMapper.policyApiDtoToProto(result);
+        assertEquals(policy, reverse);
     }
 
     @Test
-    public void testPolicyToApiDtoMergeCluster(){
+    public void testPolicyToApiDtoMergeCluster() {
 
         Policy policy = rawPolicyBuilder
                 .setMerge(rawMergeBuilder
@@ -251,10 +278,13 @@ public class PolicyMapperTest {
         assertTrue(Arrays.asList(consumerDTO, providerDTO).containsAll(result.getMergeGroups()));
         assertEquals(result.getMergeType(), MergePolicyType.Cluster);
 
+        // the reverse conversion
+        Policy reverse = policyMapper.policyApiDtoToProto(result);
+        assertEquals(policy, reverse);
     }
 
     @Test
-    public void testPolicyToApiDtoMergeStorageCluster(){
+    public void testPolicyToApiDtoMergeStorageCluster() {
 
         Policy policy = rawPolicyBuilder
                 .setMerge(rawMergeBuilder
@@ -275,10 +305,14 @@ public class PolicyMapperTest {
         assertTrue(result.getMergeGroups().containsAll(Arrays.asList(consumerDTO, providerDTO)));
         assertTrue(Arrays.asList(consumerDTO, providerDTO).containsAll(result.getMergeGroups()));
         assertEquals(result.getMergeType(), MergePolicyType.StorageCluster);
+
+        // the reverse conversion
+        Policy reverse = policyMapper.policyApiDtoToProto(result);
+        assertEquals(policy, reverse);
     }
 
     @Test
-    public void testPolicyToApiDtoMergeDataCenter(){
+    public void testPolicyToApiDtoMergeDataCenter() {
 
         Policy policy = rawPolicyBuilder
                 .setMerge(rawMergeBuilder
@@ -300,11 +334,13 @@ public class PolicyMapperTest {
         assertTrue(Arrays.asList(consumerDTO, providerDTO).containsAll(result.getMergeGroups()));
         assertEquals(result.getMergeType(), MergePolicyType.DataCenter);
 
+        // the reverse conversion
+        Policy reverse = policyMapper.policyApiDtoToProto(result);
+        assertEquals(policy, reverse);
     }
 
     @Test
-    public void testPolicyToApiDtoMustRunTogether(){
-
+    public void testPolicyToApiDtoMustRunTogether() {
         Policy policy = rawPolicyBuilder
                 .setMustRunTogether(Policy.MustRunTogetherPolicy.newBuilder()
                         .setConsumerGroupId(testConsumerId)
@@ -324,17 +360,21 @@ public class PolicyMapperTest {
         assertEquals(result.getType(), PolicyType.MUST_RUN_TOGETHER);
         assertEquals(result.getConsumerGroup(), consumerDTO);
         assertEquals(result.getProviderGroup(), providerDTO);
+
+        // the reverse conversion
+        Policy reverse = policyMapper.policyApiDtoToProto(result);
+        assertEquals(policy, reverse);
     }
 
 
     @Test
-    public void testPolicyApiInputDtoToProtoBindGroup(){
+    public void testPolicyApiInputDtoToProtoBindGroup() {
         PolicyApiInputDTO inputDTO = makeTestPolicyApiInputDTO();
         inputDTO.setType(PolicyType.BIND_TO_GROUP);
 
         InputPolicy result = policyMapper.policyApiInputDtoToProto(inputDTO);
 
-        assertEquals(result.getName(),testPolicyName);
+        assertEquals(result.getName(), testPolicyName);
         assertFalse(result.getEnabled());
 
         assertTrue(result.hasBindToGroup());
@@ -343,17 +383,16 @@ public class PolicyMapperTest {
 
         assertEquals(policy.getConsumerGroup(), testConsumerId);
         assertEquals(policy.getProviderGroup(), testProviderId);
-
     }
 
     @Test
-    public void testPolicyApiInputDtoToProtoBindCompGroup(){
+    public void testPolicyApiInputDtoToProtoBindCompGroup() {
         PolicyApiInputDTO inputDTO = makeTestPolicyApiInputDTO();
         inputDTO.setType(PolicyType.BIND_TO_COMPLEMENTARY_GROUP);
 
         InputPolicy result = policyMapper.policyApiInputDtoToProto(inputDTO);
 
-        assertEquals(result.getName(),testPolicyName);
+        assertEquals(result.getName(), testPolicyName);
         assertFalse(result.getEnabled());
 
         assertTrue(result.hasBindToComplementaryGroup());
@@ -364,13 +403,13 @@ public class PolicyMapperTest {
     }
 
     @Test
-    public void testPolicyApiInputDtoToProtoBindGroupLicense(){
+    public void testPolicyApiInputDtoToProtoBindGroupLicense() {
         PolicyApiInputDTO inputDTO = makeTestPolicyApiInputDTO();
         inputDTO.setType(PolicyType.BIND_TO_GROUP_AND_LICENSE);
 
         InputPolicy result = policyMapper.policyApiInputDtoToProto(inputDTO);
 
-        assertEquals(result.getName(),testPolicyName);
+        assertEquals(result.getName(), testPolicyName);
         assertFalse(result.getEnabled());
 
         assertTrue(result.hasBindToGroupAndLicense());
@@ -381,7 +420,7 @@ public class PolicyMapperTest {
     }
 
     @Test
-    public void testPolicyApiInputDtoToProtoMergeCluster(){
+    public void testPolicyApiInputDtoToProtoMergeCluster() {
         PolicyApiInputDTO inputDTO = makeTestPolicyApiInputDTO();
         inputDTO.setType(PolicyType.MERGE);
         inputDTO.setSellerUuid(null);
@@ -394,17 +433,18 @@ public class PolicyMapperTest {
 
         InputPolicy result = policyMapper.policyApiInputDtoToProto(inputDTO);
 
-        assertEquals(result.getName(),testPolicyName);
+        assertEquals(result.getName(), testPolicyName);
         assertFalse(result.getEnabled());
 
         assertTrue(result.hasMerge());
         InputPolicy.MergePolicy policy = result.getMerge();
 
-        assertEquals(policy.getMergeGroupsList(), Arrays.asList(testConsumerId,testProviderId));
+        assertEquals(policy.getMergeGroupsList(), Arrays.asList(testConsumerId, testProviderId));
         assertEquals(policy.getMergeType(), MergeType.CLUSTER);
     }
+
     @Test
-    public void testPolicyApiInputDtoToProtoMergeStorageCluster(){
+    public void testPolicyApiInputDtoToProtoMergeStorageCluster() {
         PolicyApiInputDTO inputDTO = makeTestPolicyApiInputDTO();
         inputDTO.setType(PolicyType.MERGE);
         inputDTO.setSellerUuid(null);
@@ -417,16 +457,17 @@ public class PolicyMapperTest {
 
         InputPolicy result = policyMapper.policyApiInputDtoToProto(inputDTO);
 
-        assertEquals(result.getName(),testPolicyName);
+        assertEquals(result.getName(), testPolicyName);
         assertFalse(result.getEnabled());
         assertTrue(result.hasMerge());
         InputPolicy.MergePolicy policy = result.getMerge();
 
-        assertEquals(policy.getMergeGroupsList(), Arrays.asList(testConsumerId,testProviderId));
+        assertEquals(policy.getMergeGroupsList(), Arrays.asList(testConsumerId, testProviderId));
         assertEquals(policy.getMergeType(), MergeType.STORAGE_CLUSTER);
     }
+
     @Test
-    public void testPolicyApiInputDtoToProtoMergeDataCenter(){
+    public void testPolicyApiInputDtoToProtoMergeDataCenter() {
         PolicyApiInputDTO inputDTO = makeTestPolicyApiInputDTO();
         inputDTO.setType(PolicyType.MERGE);
         inputDTO.setSellerUuid(null);
@@ -439,17 +480,17 @@ public class PolicyMapperTest {
 
         InputPolicy result = policyMapper.policyApiInputDtoToProto(inputDTO);
 
-        assertEquals(result.getName(),testPolicyName);
+        assertEquals(result.getName(), testPolicyName);
         assertFalse(result.getEnabled());
         assertTrue(result.hasMerge());
         InputPolicy.MergePolicy policy = result.getMerge();
 
-        assertEquals(policy.getMergeGroupsList(), Arrays.asList(testConsumerId,testProviderId));
+        assertEquals(policy.getMergeGroupsList(), Arrays.asList(testConsumerId, testProviderId));
         assertEquals(policy.getMergeType(), MergeType.DATACENTER);
     }
 
     @Test
-    public void testPolicyApiInputDtoToProtoAtMostN(){
+    public void testPolicyApiInputDtoToProtoAtMostN() {
 
         PolicyApiInputDTO inputDTO = makeTestPolicyApiInputDTO();
         inputDTO.setType(PolicyType.AT_MOST_N);
@@ -457,7 +498,7 @@ public class PolicyMapperTest {
 
         InputPolicy result = policyMapper.policyApiInputDtoToProto(inputDTO);
 
-        assertEquals(result.getName(),testPolicyName);
+        assertEquals(result.getName(), testPolicyName);
         assertFalse(result.getEnabled());
 
         assertTrue(result.hasAtMostN());
@@ -469,14 +510,14 @@ public class PolicyMapperTest {
     }
 
     @Test
-    public void testPolicyApiInputDtoToProtoAtMostNBound(){
+    public void testPolicyApiInputDtoToProtoAtMostNBound() {
         PolicyApiInputDTO inputDTO = makeTestPolicyApiInputDTO();
         inputDTO.setType(PolicyType.AT_MOST_NBOUND);
         inputDTO.setCapacity(10);
 
         InputPolicy result = policyMapper.policyApiInputDtoToProto(inputDTO);
 
-        assertEquals(result.getName(),testPolicyName);
+        assertEquals(result.getName(), testPolicyName);
         assertFalse(result.getEnabled());
 
         assertTrue(result.hasAtMostNbound());
@@ -487,13 +528,13 @@ public class PolicyMapperTest {
     }
 
     @Test
-    public void testPolicyApiInputDtoToProtoMustRunTogether(){
+    public void testPolicyApiInputDtoToProtoMustRunTogether() {
         PolicyApiInputDTO inputDTO = makeTestPolicyApiInputDTO();
         inputDTO.setType(PolicyType.MUST_RUN_TOGETHER);
 
         InputPolicy result = policyMapper.policyApiInputDtoToProto(inputDTO);
 
-        assertEquals(result.getName(),testPolicyName);
+        assertEquals(result.getName(), testPolicyName);
         assertFalse(result.getEnabled());
 
         assertTrue(result.hasMustRunTogether());
@@ -503,13 +544,13 @@ public class PolicyMapperTest {
     }
 
     @Test
-    public void testPolicyApiInputDtoToProtoBindGroupGeoRedundancy(){
+    public void testPolicyApiInputDtoToProtoBindGroupGeoRedundancy() {
         PolicyApiInputDTO inputDTO = makeTestPolicyApiInputDTO();
         inputDTO.setType(PolicyType.BIND_TO_GROUP_AND_GEO_REDUNDANCY);
 
         InputPolicy result = policyMapper.policyApiInputDtoToProto(inputDTO);
 
-        assertEquals(result.getName(),testPolicyName);
+        assertEquals(result.getName(), testPolicyName);
         assertFalse(result.getEnabled());
 
         assertTrue(result.hasBindToGroupAndGeoRedundancy());
@@ -519,7 +560,7 @@ public class PolicyMapperTest {
         assertEquals(policy.getProviderGroup(), testProviderId);
     }
 
-    private PolicyApiInputDTO makeTestPolicyApiInputDTO(){
+    private PolicyApiInputDTO makeTestPolicyApiInputDTO() {
         PolicyApiInputDTO inputDTO = new PolicyApiInputDTO();
         inputDTO.setPolicyName(testPolicyName);
         inputDTO.setEnabled(false);

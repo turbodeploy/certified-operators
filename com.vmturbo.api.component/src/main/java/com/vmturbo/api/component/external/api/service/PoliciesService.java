@@ -21,10 +21,10 @@ import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
 
 /**
- * Service implementation of Policies
+ * Service implementation of Policies.
  **/
 public class PoliciesService implements IPoliciesService {
-    private final static Logger LOG = LogManager.getLogger();
+    private static final Logger LOG = LogManager.getLogger();
 
     private final PolicyServiceBlockingStub policyService;
 
@@ -75,5 +75,16 @@ public class PoliciesService implements IPoliciesService {
     public void validateInput(Object o, Errors errors) {
         // TODO Will perform validation later.
         return;
+    }
+
+    /**
+     * Convert a {@link @link PolicyApiDTO} used by the API component to a
+     * {@link com.vmturbo.common.protobuf.group.PolicyDTO.Policy} used by the group component.
+     *
+     * @param dto The policy API DTO to convert.
+     * @return The converted policy.
+     */
+    public PolicyDTO.Policy toPolicy(PolicyApiDTO dto) {
+        return policyMapper.policyApiDtoToProto(dto);
     }
 }
