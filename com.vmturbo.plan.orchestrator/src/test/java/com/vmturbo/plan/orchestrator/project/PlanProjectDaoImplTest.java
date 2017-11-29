@@ -54,7 +54,7 @@ public class PlanProjectDaoImplTest {
 
     @Test
     public void testGetHeadroomPlanProjectList() throws Exception {
-        testGetPlanProjectList(PlanProjectType.HEADROOM);
+        testGetPlanProjectList(PlanProjectType.CLUSTER_HEADROOM);
     }
 
     @Test
@@ -75,9 +75,9 @@ public class PlanProjectDaoImplTest {
                 .setTimeOfRun(PlanDTO.Recurrence.TimeOfRun.newBuilder().setHour(5))
                 .build();
         PlanDTO.PlanProjectInfo planProjectInfo = PlanDTO.PlanProjectInfo.newBuilder()
-                .setPlanProjectInfoName("Plan Project")
-                .setPlanProjectInfoRecurrence(recurrence)
-                .setPlanProjectInfoType(planProjectType)
+                .setName("Plan Project")
+                .setRecurrence(recurrence)
+                .setType(planProjectType)
                 .build();
         planProjectDao.createPlanProject(planProjectInfo);
 

@@ -135,7 +135,7 @@ public class PlanProjectSchedulerTest {
     @Test
     public void testVerifyDefaultPlanProjectsCreated() {
         List<PlanDTO.PlanProject> projectList =
-                planProjectDao.getPlanProjectsByType(PlanProjectType.HEADROOM);
+                planProjectDao.getPlanProjectsByType(PlanProjectType.CLUSTER_HEADROOM);
         assertTrue(projectList.size() == 1);
         verifyScheduler(projectList.get(0).getPlanProjectId());
     }
@@ -178,7 +178,7 @@ public class PlanProjectSchedulerTest {
         long planProjectId = 10014L;
         LocalDateTime curTime = LocalDateTime.now();
         PlanProjectInfo toCreate = PlanProjectInfo.newBuilder()
-                .setPlanProjectInfoName("Plan Project Info")
+                .setName("Plan Project Info")
                 .build();
         PlanProject planProject = new
                 PlanProject(planProjectId, curTime, curTime, toCreate, PlanProjectType.CUSTOM.name());
@@ -234,8 +234,8 @@ public class PlanProjectSchedulerTest {
     private void populatePlanProjectTestData(Recurrence recurrence, long planProjecId) {
         LocalDateTime curTime = LocalDateTime.now();
         PlanProjectInfo toCreate = PlanProjectInfo.newBuilder()
-                .setPlanProjectInfoName("Plan Project Info")
-                .setPlanProjectInfoRecurrence(recurrence)
+                .setName("Plan Project Info")
+                .setRecurrence(recurrence)
                 .build();
 
         PlanProject planProject = new
@@ -252,8 +252,8 @@ public class PlanProjectSchedulerTest {
                 .setTimeOfRun(TimeOfRun.newBuilder().setHour(19))
                 .build();
         PlanProjectInfo toCreate = PlanProjectInfo.newBuilder()
-                .setPlanProjectInfoName("Plan Project")
-                .setPlanProjectInfoRecurrence(dailyRecurrence)
+                .setName("Plan Project")
+                .setRecurrence(dailyRecurrence)
                 .build();
         Optional<Trigger> trigger = createCronTrigger(toCreate);
         Trigger expectedTrigger = new CronTrigger("0 0 19 * * *");
@@ -272,8 +272,8 @@ public class PlanProjectSchedulerTest {
                 .setTimeOfRun(TimeOfRun.newBuilder().setHour(19))
                 .build();
         PlanProjectInfo toCreate = PlanProjectInfo.newBuilder()
-                .setPlanProjectInfoName("Plan Project")
-                .setPlanProjectInfoRecurrence(weeklyRecurrence)
+                .setName("Plan Project")
+                .setRecurrence(weeklyRecurrence)
                 .build();
         Optional<Trigger> trigger = createCronTrigger(toCreate);
         Trigger expectedTrigger = new CronTrigger("0 0 19 ? * 1");
@@ -292,8 +292,8 @@ public class PlanProjectSchedulerTest {
                 .setTimeOfRun(TimeOfRun.newBuilder().setHour(19))
                 .build();
         PlanProjectInfo toCreate = PlanProjectInfo.newBuilder()
-                .setPlanProjectInfoName("Plan Project")
-                .setPlanProjectInfoRecurrence(monthlyRecurrence)
+                .setName("Plan Project")
+                .setRecurrence(monthlyRecurrence)
                 .build();
         Optional<Trigger> trigger = createCronTrigger(toCreate);
         Trigger expectedTrigger = new CronTrigger("0 0 19 1 * ?");
@@ -309,8 +309,8 @@ public class PlanProjectSchedulerTest {
                 .setTimeOfRun(TimeOfRun.newBuilder().setHour(24))
                 .build();
         PlanProjectInfo toCreate = PlanProjectInfo.newBuilder()
-                .setPlanProjectInfoName("Plan Project")
-                .setPlanProjectInfoRecurrence(dailyRecurrence)
+                .setName("Plan Project")
+                .setRecurrence(dailyRecurrence)
                 .build();
         expectedException.expect(IllegalArgumentException.class);
         Optional<Trigger> trigger = createCronTrigger(toCreate);
@@ -325,8 +325,8 @@ public class PlanProjectSchedulerTest {
                 .setTimeOfRun(TimeOfRun.newBuilder().setHour(-1))
                 .build();
         PlanProjectInfo toCreate = PlanProjectInfo.newBuilder()
-                .setPlanProjectInfoName("Plan Project")
-                .setPlanProjectInfoRecurrence(weeklyRecurrence)
+                .setName("Plan Project")
+                .setRecurrence(weeklyRecurrence)
                 .build();
         expectedException.expect(IllegalArgumentException.class);
         Optional<Trigger> trigger = createCronTrigger(toCreate);
@@ -341,8 +341,8 @@ public class PlanProjectSchedulerTest {
                 .setTimeOfRun(TimeOfRun.newBuilder().setHour(Integer.MAX_VALUE))
                 .build();
         PlanProjectInfo toCreate = PlanProjectInfo.newBuilder()
-                .setPlanProjectInfoName("Plan Project")
-                .setPlanProjectInfoRecurrence(monthlyRecurrence)
+                .setName("Plan Project")
+                .setRecurrence(monthlyRecurrence)
                 .build();
         expectedException.expect(IllegalArgumentException.class);
         Optional<Trigger> trigger = createCronTrigger(toCreate);
@@ -357,8 +357,8 @@ public class PlanProjectSchedulerTest {
                 .setTimeOfRun(TimeOfRun.newBuilder().setHour(0))
                 .build();
         PlanProjectInfo toCreate = PlanProjectInfo.newBuilder()
-                .setPlanProjectInfoName("Plan Project")
-                .setPlanProjectInfoRecurrence(monthlyRecurrence)
+                .setName("Plan Project")
+                .setRecurrence(monthlyRecurrence)
                 .build();
         expectedException.expect(IllegalArgumentException.class);
         Optional<Trigger> trigger = createCronTrigger(toCreate);
@@ -373,8 +373,8 @@ public class PlanProjectSchedulerTest {
                 .setTimeOfRun(TimeOfRun.newBuilder().setHour(0))
                 .build();
         PlanProjectInfo toCreate = PlanProjectInfo.newBuilder()
-                .setPlanProjectInfoName("Plan Project")
-                .setPlanProjectInfoRecurrence(monthlyRecurrence)
+                .setName("Plan Project")
+                .setRecurrence(monthlyRecurrence)
                 .build();
         expectedException.expect(IllegalArgumentException.class);
         Optional<Trigger> trigger = createCronTrigger(toCreate);
@@ -387,8 +387,8 @@ public class PlanProjectSchedulerTest {
                 .setTimeOfRun(TimeOfRun.newBuilder().setHour(0))
                 .build();
         PlanProjectInfo toCreate = PlanProjectInfo.newBuilder()
-                .setPlanProjectInfoName("Plan Project")
-                .setPlanProjectInfoRecurrence(monthlyRecurrence)
+                .setName("Plan Project")
+                .setRecurrence(monthlyRecurrence)
                 .build();
         expectedException.expect(IllegalArgumentException.class);
         Optional<Trigger> trigger = createCronTrigger(toCreate);

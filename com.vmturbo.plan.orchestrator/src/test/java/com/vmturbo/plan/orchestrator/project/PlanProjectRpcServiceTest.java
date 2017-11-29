@@ -103,8 +103,8 @@ public class PlanProjectRpcServiceTest {
                 .setTimeOfRun(TimeOfRun.newBuilder().setHour(5))
                 .build();
         PlanProjectInfo toCreate = PlanProjectInfo.newBuilder()
-                .setPlanProjectInfoName("Plan Project")
-                .setPlanProjectInfoRecurrence(recurrence)
+                .setName("Plan Project")
+                .setRecurrence(recurrence)
                 .build();
 
         final StreamObserver<PlanDTO.PlanProject> mockObserver =
@@ -200,16 +200,18 @@ public class PlanProjectRpcServiceTest {
                 .setTimeOfRun(TimeOfRun.newBuilder().setHour(19))
                 .build();
         PlanProjectInfo toCreate = PlanProjectInfo.newBuilder()
-                .setPlanProjectInfoName("Plan Project")
-                .setPlanProjectInfoRecurrence(dailyRecurrence)
+                .setName("Plan Project")
+                .setRecurrence(dailyRecurrence)
                 .build();
         // For testing get
         PlanProject getPlanProject = new
-                PlanProject(GET_PLAN_PROJECT_ID, curTime, curTime, toCreate, PlanProjectType.HEADROOM.name());
+                PlanProject(GET_PLAN_PROJECT_ID, curTime, curTime, toCreate,
+                PlanProjectType.CLUSTER_HEADROOM.name());
         dbConfig.dsl().newRecord(PLAN_PROJECT, getPlanProject).store();
         // For testing delete
         PlanProject deletePlanProject = new
-                PlanProject(DELETE_PLAN_PROJECT_ID, curTime, curTime, toCreate, PlanProjectType.HEADROOM.name());
+                PlanProject(DELETE_PLAN_PROJECT_ID, curTime, curTime, toCreate,
+                PlanProjectType.CLUSTER_HEADROOM.name());
         dbConfig.dsl().newRecord(PLAN_PROJECT, deletePlanProject).store();
     }
 }

@@ -130,16 +130,16 @@ public class PlanProjectScheduler {
                 setPlanProjectSchedule(planProject.getPlanProjectId());
             } catch (PlanProjectNotFoundException e) {
                 logger.error("Failed to create cron task for plan project:" +
-                        planProject.getPlanProjectInfo().getPlanProjectInfoName() +
+                        planProject.getPlanProjectInfo().getName() +
                         " due to: " + e.getMessage());
             } catch (PlanProjectInfoNotFoundException e) {
                 logger.error("Failed to create cron task for plan project:" +
-                        planProject.getPlanProjectInfo().getPlanProjectInfoName() +
+                        planProject.getPlanProjectInfo().getName() +
                         " due to: " + e.getMessage());
             } catch (RuntimeException e) {
                 // Catch all runtime exceptions to ensure exceptions will not prevent scheduling of subsequent tasks
                 logger.error("Failed to create cron task for plan project:" +
-                        planProject.getPlanProjectInfo().getPlanProjectInfoName() +
+                        planProject.getPlanProjectInfo().getName() +
                         " due to: " + e.getMessage());
             }
         });
@@ -160,9 +160,9 @@ public class PlanProjectScheduler {
      */
     @Nonnull
     public static Optional<Trigger> createCronTrigger(@Nonnull final PlanProjectInfo planProjectInfo) {
-        if (planProjectInfo.hasPlanProjectInfoRecurrence()) {
-            Recurrence.Schedule schedule = planProjectInfo.getPlanProjectInfoRecurrence().getSchedule();
-            TimeOfRun timeOfRun = planProjectInfo.getPlanProjectInfoRecurrence().getTimeOfRun();
+        if (planProjectInfo.hasRecurrence()) {
+            Recurrence.Schedule schedule = planProjectInfo.getRecurrence().getSchedule();
+            TimeOfRun timeOfRun = planProjectInfo.getRecurrence().getTimeOfRun();
             // build hour, e.g.  "0 0 19"
             StringBuilder cronString = new StringBuilder("0 0 " + timeOfRun.getHour() + " ");
 

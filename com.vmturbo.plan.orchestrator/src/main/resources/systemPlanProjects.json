@@ -1,8 +1,8 @@
 {
   "planProjectInfo": [
     {
-      "planProjectInfoName": "Headroom Plan Project",
-      "planProjectInfoRecurrence": {
+      "name": "Headroom Plan Project",
+      "recurrence": {
         "schedule": {
           "daily": {
           }
@@ -11,7 +11,7 @@
           "hour": 5
         }
       },
-      "planProjectInfoType": "HEADROOM"
+      "type": "CLUSTER_HEADROOM"
     }
   ]
 }

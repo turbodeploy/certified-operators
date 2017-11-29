@@ -53,7 +53,7 @@ public class PlanProjectDaoImpl implements PlanProjectDao {
 
         PlanProject planProject = new
                 PlanProject(IdentityGenerator.next(), curTime, curTime, info,
-                info.getPlanProjectInfoType().name());
+                info.getType().name());
         dsl.newRecord(PLAN_PROJECT, planProject).store();
 
         return PlanDTO.PlanProject.newBuilder()

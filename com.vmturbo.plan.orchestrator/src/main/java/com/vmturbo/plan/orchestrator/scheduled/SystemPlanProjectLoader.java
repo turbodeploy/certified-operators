@@ -92,27 +92,27 @@ public class SystemPlanProjectLoader {
         List<PlanDTO.PlanProjectInfo> planProjectInfos = getDefaultSystemPlanProjectInfo();
 
         for (PlanDTO.PlanProjectInfo planProjectInfo : planProjectInfos) {
-            PlanDTO.PlanProjectInfo.PlanProjectType projectType = planProjectInfo.getPlanProjectInfoType();
+            PlanDTO.PlanProjectInfo.PlanProjectType projectType = planProjectInfo.getType();
             List<PlanDTO.PlanProject> planProjects = planProjectDao.getPlanProjectsByType(projectType);
             // Only create the plan project if it does not already exist.
             if (planProjects.isEmpty()) {
-                logger.info("Creating plan project {}.", planProjectInfo.getPlanProjectInfoName());
+                logger.info("Creating plan project {}.", planProjectInfo.getName());
                 // create the project
                 try {
                     PlanDTO.PlanProject planProject = planProjectDao.createPlanProject(planProjectInfo);
                     planProjectScheduler.setPlanProjectSchedule(planProject.getPlanProjectId());
                     logger.info("Plan scheduler successfully scheduled plan: {}",
-                            planProjectInfo.getPlanProjectInfoName());
+                            planProjectInfo.getName());
                 } catch (DataAccessException e) {
                     logger.error("Failed to create system plan project {}: {}",
-                            planProjectInfo.getPlanProjectInfoName(), e.getMessage());
+                            planProjectInfo.getName(), e.getMessage());
                 } catch (PlanProjectNotFoundException e) {
                     logger.error("Failed to schedule plan project {}: {}",
-                            planProjectInfo.getPlanProjectInfoName(),
+                            planProjectInfo.getName(),
                             e.getMessage());
                 } catch (PlanProjectInfoNotFoundException e) {
                     logger.error("Failed to schedule plan project {}: {}",
-                            planProjectInfo.getPlanProjectInfoName(),
+                            planProjectInfo.getName(),
                             e.getMessage());
                 }
             }
@@ -127,7 +127,7 @@ public class SystemPlanProjectLoader {
     private void waitTillDatabaseComeUp() throws InterruptedException {
         for (int i = 0; i < MAX_NUM_OF_DB_CONNEDTION_TESTS; i++) {
             try {
-                planProjectDao.getPlanProjectsByType(PlanDTO.PlanProjectInfo.PlanProjectType.HEADROOM);
+                planProjectDao.getPlanProjectsByType(PlanDTO.PlanProjectInfo.PlanProjectType.CLUSTER_HEADROOM);
                 break;
             } catch (DataAccessResourceFailureException e) {
                 // the select query failed. Database connection failed.

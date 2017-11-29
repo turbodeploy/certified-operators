@@ -50,24 +50,68 @@ message PlanProject {
 message PlanProjectInfo {
     enum PlanProjectType {
         // A custom plan project is created by the user
+        // and has no special behaviour/server-side code.
         CUSTOM = 0;
 
         // A headroom plan project is responsible for calculating
         // per-cluster headroom (i.e. how many VMs can still fit into the cluster).
-        HEADROOM = 1;
-    }
+        // There is always exactly one headroom plan project in the system.
+        CLUSTER_HEADROOM = 1;
+     }
 
-    // The name of the plan project, it's for display purposes.
-    optional string plan_project_info_name = 1;
+    // The name of the plan project. Names should be unique.
+    // This field should always be present.
+    optional string name = 1;
 
-    // The list of scenarios
-    repeated Scenario plan_project_info_scenarios = 2;
-
-    // The Recurrence of the execution
-    optional Recurrence plan_project_info_recurrence = 3;
+    // How often to run the plan project.
+    // Running the plan project involves running all the different plans required
+    // to get the project's results.
+    //
+    // If this is not set, run this plan project on demand only.
+    optional Recurrence recurrence = 3;
 
     // The type of the plan project
-    optional PlanProjectType plan_project_info_type = 4 [default = CUSTOM];
+    optional PlanProjectType type = 4 [default = CUSTOM];
+
+    // Create one plan for each cluster in the system.
+    //
+    // IMPORTANT:
+    // If set, there should be no scenario in "scenarios" with "scope" set.
+    //
+    // When set:
+    //    For each planProjScenario in "scenarios"
+    //       For each cluster in the system
+    //            Create a PlanProjectScenario with scope = cluster.id and
+    //            scenario = planProjScenario.scenario
+    //
+    // Then run each of the created scenarios.
+    optional bool per_cluster_scope = 10 [default = false];
+
+    // The scenarios involved in this plan project.
+    // Each scenario will run independently of the other.
+    repeated PlanProjectScenario scenarios = 11;
+
+    // A wrapper around a "regular" scenario to allow separate scopes
+    // (and other properties) for the different scenarios that are part of
+    // a plan project.
+    message PlanProjectScenario {
+        // Static scope to apply this scenario to.
+        // If set, apply the changes in the scenario to whatever entities the scope
+        // resolves to (which will be some subset of the topology).
+        // If not set, apply the changes in the scenario to the entire topology.
+        optional StaticScope scope = 1;
+
+        // The scenario changes to apply. This captures the topology and settings-related changes
+        // that need to be made to the entities in the selected scope.
+        repeated ScenarioChange changes = 2;
+    }
+
+    // A statically configured scope.
+    // The scope can be resolved to a specific subset of a topology.
+    message StaticScope {
+        // The oids of groups in the scope.
+        repeated int64 id = 1;
+    }
 }
 
 // Used to deserialize a collection of SPlanProjectInfo from a single JSON file
