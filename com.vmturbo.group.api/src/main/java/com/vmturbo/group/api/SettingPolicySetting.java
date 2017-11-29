@@ -122,6 +122,14 @@ public enum SettingPolicySetting {
             EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(0f, 1000000f, 1000f)),
 
     /**
+     * Storage amount overprovisioned factor in percents.
+     */
+    StorageOverprovisionedPercentage("storageOverprovisionedPercentage",
+            "Storage Overprovisioned Percentage",
+            Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.STORAGE, EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL),
+            numeric(1f, 1000f, 200f)),
+    /**
      * Desired utilization target.
      */
     UtilTarget("utilTarget", "Center",

@@ -57,6 +57,13 @@
         "utilTarget",
         "targetBand"
       ]
+    },
+    "storagesettingsmanager": {
+      "displayName": "Storage Settings",
+      "defaultCategory": "Analysis",
+      "settings": [
+        "storageOverprovisionedPercentage"
+      ]
     }
   }
 }
