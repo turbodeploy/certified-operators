@@ -20,6 +20,9 @@ message StartAnalysisRequest {
     // For example, requests to add a clone of a non-existing entity
     // will be ignored.
     repeated plan.ScenarioChange scenario_change = 3;
+
+    // The scope of the plan, if one was specified.
+    optional plan.PlanScope plan_scope = 4;
 }
 
 message StartAnalysisResponse {

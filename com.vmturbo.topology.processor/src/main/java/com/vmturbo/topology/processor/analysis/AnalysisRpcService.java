@@ -67,6 +67,10 @@ public class AnalysisRpcService extends AnalysisServiceImplBase {
                 .setTopologyType(TopologyType.PLAN)
                 .build();
 
+        if (request.hasPlanScope()) {
+            // TODO: do something with the plan scope
+        }
+
         try {
             final TopologyBroadcastInfo broadcastInfo;
             if (request.hasTopologyId()) {

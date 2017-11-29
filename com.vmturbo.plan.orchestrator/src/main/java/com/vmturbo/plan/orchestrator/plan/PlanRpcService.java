@@ -20,6 +20,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScenario;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceImplBase;
 import com.vmturbo.common.protobuf.topology.AnalysisDTO.StartAnalysisRequest;
 import com.vmturbo.common.protobuf.topology.AnalysisDTO.StartAnalysisResponse;
@@ -138,10 +139,12 @@ public class PlanRpcService extends PlanServiceImplBase {
                 builder.setTopologyId(queuedInstance.getTopologyId());
             }
             if (queuedInstance.hasScenario()) {
-                builder.addAllScenarioChange(
-                        queuedInstance.getScenario().getScenarioInfo().getChangesList());
+                ScenarioInfo scenarioInfo = queuedInstance.getScenario().getScenarioInfo();
+                builder.addAllScenarioChange(scenarioInfo.getChangesList());
+                if (scenarioInfo.hasScope()) {
+                    builder.setPlanScope(scenarioInfo.getScope());
+                }
             }
-
             startAnalysis(builder.build());
 
             responseObserver.onNext(queuedInstance);
