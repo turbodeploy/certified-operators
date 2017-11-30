@@ -11,11 +11,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.market.MarketNotificationSender;
+import com.vmturbo.market.runner.Analysis.AnalysisFactory;
 import com.vmturbo.market.runner.Analysis.AnalysisState;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
 import com.vmturbo.proactivesupport.DataMetricHistogram;
@@ -29,6 +31,7 @@ public class MarketRunner {
     private final Logger logger = LogManager.getLogger();
     private final ExecutorService runnerThreadPool;
     private final MarketNotificationSender serverApi;
+    private final AnalysisFactory analysisFactory;
 
     private final Map<Long, Analysis> analysisMap = Maps.newConcurrentMap();
 
@@ -40,12 +43,22 @@ public class MarketRunner {
             .register();
 
     public MarketRunner(
-            ExecutorService runnerThreadPool,
-            MarketNotificationSender serverApi) {
+            @Nonnull ExecutorService runnerThreadPool,
+            @Nonnull MarketNotificationSender serverApi,
+            @Nonnull AnalysisFactory analysisFactory) {
         this.runnerThreadPool = runnerThreadPool;
         this.serverApi = serverApi;
+        this.analysisFactory = analysisFactory;
     }
 
+    /**
+     * Schedule a call to the Analysis methods on the given topology scoped to the given SE OIDs.
+     *
+     * @param topologyInfo describes this topology, including contextId, id, etc
+     * @param topologyDTOs the TopologyEntityDTOs in this topology
+     * @param includeVDC should VDC's be included in the analysis
+     * @return the resulting Analysis object capturing the results
+     */
     @Nonnull
     public Analysis scheduleAnalysis(@Nonnull final TopologyDTO.TopologyInfo topologyInfo,
                                      @Nonnull final Set<TopologyEntityDTO> topologyDTOs,
@@ -54,23 +67,30 @@ public class MarketRunner {
         final Analysis analysis;
         final long topologyContextId = topologyInfo.getTopologyContextId();
         final long topologyId = topologyInfo.getTopologyId();
+        final Set<Long> scopeSeedEntityOIDs = Sets.newHashSet(topologyInfo.getScopeSeedOidsList());
+
         synchronized (analysisMap) {
             if (analysisMap.containsKey(topologyContextId)) {
-                logger.info("Analysis " + topologyContextId + " is already running with topology " + topologyId
-                        + ". Discarding.");
+                logger.info("Analysis {} is already running with topology {}. Discarding.",
+                        topologyContextId, topologyId);
                 return analysisMap.get(topologyContextId);
             }
-
-            logger.info("Received analysis " + topologyContextId + ": topology " + topologyId + " with " + topologyDTOs.size()
-                + " topology DTOs from TopologyProcessor");
-            analysis = new Analysis(topologyInfo, topologyDTOs, includeVDC);
+            logger.info("Received analysis {}: topology {}" +
+                    " with {} topology DTOs from TopologyProcessor",
+                    topologyContextId, topologyId, topologyDTOs.size());
+            analysis = analysisFactory.newAnalysisBuilder()
+                    .setTopologyInfo(topologyInfo)
+                    .setTopologyDTOs(topologyDTOs)
+                    .setIncludeVDC(includeVDC)
+                    .setScope(scopeSeedEntityOIDs)
+                    .build();
             analysisMap.put(topologyContextId, analysis);
         }
-        if (logger.isDebugEnabled()) {
-            logger.debug(topologyDTOs.size() + " Topology DTOs");
-            topologyDTOs.stream().map(dto -> "Topology DTO: " + dto).forEach(logger::debug);
+        if (logger.isTraceEnabled()) {
+            logger.trace("{} Topology DTOs", topologyDTOs.size());
+            topologyDTOs.stream().map(dto -> "Topology DTO: " + dto).forEach(logger::trace);
         }
-        logger.info("Queueing analysis " + topologyContextId + " for execution");
+        logger.info("Queueing analysis {} for execution", topologyContextId);
         analysis.queued();
         runnerThreadPool.execute(() -> runAnalysis(analysis));
         return analysis;

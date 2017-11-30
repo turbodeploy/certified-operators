@@ -12,6 +12,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.market.api.MarketApiConfig;
+import com.vmturbo.market.runner.Analysis.AnalysisFactory;
 
 /**
  * Configuration for market runner in the market component.
@@ -34,6 +35,12 @@ public class MarketRunnerConfig {
     public MarketRunner marketRunner() {
         return new MarketRunner(
                 marketRunnerThreadPool(),
-                apiConfig.marketApi());
+                apiConfig.marketApi(),
+                analysisFactory());
+    }
+
+    @Bean
+    public AnalysisFactory analysisFactory() {
+        return new AnalysisFactory();
     }
 }

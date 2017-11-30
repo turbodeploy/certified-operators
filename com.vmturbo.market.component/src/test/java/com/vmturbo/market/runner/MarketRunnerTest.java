@@ -28,6 +28,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.market.MarketNotificationSender;
+import com.vmturbo.market.runner.Analysis.AnalysisFactory;
 import com.vmturbo.market.runner.Analysis.AnalysisState;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
 
@@ -55,7 +56,8 @@ public class MarketRunnerTest {
     public void before() {
         IdentityGenerator.initPrefix(0);
         threadPool = Executors.newFixedThreadPool(2);
-        runner = new MarketRunner(threadPool, serverApi);
+        AnalysisFactory analysisFactory = new AnalysisFactory();
+        runner = new MarketRunner(threadPool, serverApi, analysisFactory);
         topologyContextId += 100;
     }
 
@@ -149,7 +151,7 @@ public class MarketRunnerTest {
      * @return a TopologyEntityDTO that represents a seller
      */
     private TopologyEntityDTO seller() {
-        TopologyEntityDTO seller = TopologyEntityDTO.newBuilder()
+        return TopologyEntityDTO.newBuilder()
                 .setEntityType(2000) // This must not be a VDC, which is ignored in M2
                 .setOid(entityCount++)
                 .addCommoditySoldList(CommoditySoldDTO.newBuilder()
@@ -157,7 +159,6 @@ public class MarketRunnerTest {
                         .setCapacity(1)
                         .build())
                 .build();
-        return seller;
     }
 
     /**
@@ -167,7 +168,7 @@ public class MarketRunnerTest {
      * @return a TopologyEntityDTO that represents a buyer
      */
     private TopologyEntityDTO buyer(long sellerOid, long used) {
-        TopologyEntityDTO buyer = TopologyEntityDTO.newBuilder()
+        return TopologyEntityDTO.newBuilder()
             .setEntityType(1000) // This must not be a VDC, which is ignored in M2
             .setOid(entityCount++)
             .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
@@ -175,7 +176,6 @@ public class MarketRunnerTest {
                 .addCommodityBought(CommodityBoughtDTO.newBuilder()
                     .setCommodityType(commType)
                     .setUsed(used)))
-            .build(); // buyer
-        return buyer;
+            .build();
     }
 }

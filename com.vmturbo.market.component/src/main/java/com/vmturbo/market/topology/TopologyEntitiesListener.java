@@ -27,6 +27,12 @@ public class TopologyEntitiesListener implements EntitiesListener {
 
     // TODO: we need to make sure that only a single instance of TopologyEntitiesListener
     // be created and used. Using public constructor here can not guarantee it!
+    @SuppressWarnings("unused")
+    private TopologyEntitiesListener() {
+        // private - do not call
+        throw new RuntimeException("private constructor called");
+    }
+
     public TopologyEntitiesListener(@Nonnull MarketRunner marketRunner) {
         this.marketRunner = Objects.requireNonNull(marketRunner);
     }
@@ -44,7 +50,6 @@ public class TopologyEntitiesListener implements EntitiesListener {
             while (entityIterator.hasNext()) {
                 entities.addAll(entityIterator.nextChunk());
             }
-            marketRunner.scheduleAnalysis(topologyInfo, entities, false);
         } catch (CommunicationException | TimeoutException e) {
             logger.error("Error occurred while receiving topology " + topologyId + " with for " +
                     "context " + topologyContextId, e);
@@ -52,5 +57,6 @@ public class TopologyEntitiesListener implements EntitiesListener {
             logger.info("Thread interrupted receiving topology " + topologyId + " with for " +
                     "context " + topologyContextId, e);
         }
+        marketRunner.scheduleAnalysis(topologyInfo, entities, false);
     }
 }

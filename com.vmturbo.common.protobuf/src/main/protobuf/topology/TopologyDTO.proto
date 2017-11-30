@@ -157,6 +157,9 @@ message TopologyInfo {
 
     // The type of topology
     optional TopologyType topology_type = 4 [default = REALTIME];
+
+    // If the topology is to be scoped, the OIDs specified here seed the scoping expansion.
+    repeated int64 scope_seed_oids = 5;
 }
 
 enum EntityState {

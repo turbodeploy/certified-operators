@@ -2,6 +2,10 @@ package com.vmturbo.market.runner;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.anyLong;
+import static org.mockito.Matchers.eq;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -11,9 +15,12 @@ import java.io.InputStreamReader;
 import java.net.URL;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import com.google.common.collect.Sets;
 import com.google.gson.Gson;
@@ -25,13 +32,17 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.commons.analysis.InvalidTopologyException;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.market.MarketNotificationSender;
 import com.vmturbo.market.topology.conversions.TopologyConverter;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
+import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs;
 
-public class ScopeTopologyTest {
+public class ScopedTopologyTest {
 
     public static final boolean INCLUDE_VDC = false;
     private static final long ID_GENERATOR_PREFIX = 1;
+    public static final int CLUSTER_1_EXPANDED_SE_COUNT = 19;
     @SuppressWarnings("FieldCanBeLocal")
     private static String SIMPLE_TOPOLOGY_JSON_FILE = "protobuf/messages/simple-topology.json";
     private static final long HOST_11_OID = 72207427031424L;
@@ -53,7 +64,10 @@ public class ScopeTopologyTest {
         topologyDTOs = readTopologyFromJsonFile();
         IdentityGenerator.initPrefix(ID_GENERATOR_PREFIX);
         TopologyDTO.TopologyInfo topoogyInfo = TopologyDTO.TopologyInfo.getDefaultInstance();
-        testAnalysis = new Analysis(topoogyInfo, Sets.newHashSet(), INCLUDE_VDC);
+        testAnalysis = (new Analysis.AnalysisFactory()).newAnalysisBuilder()
+                .setTopologyInfo(topoogyInfo)
+                .setIncludeVDC(INCLUDE_VDC)
+                .build();
     }
 
     /**
@@ -76,7 +90,7 @@ public class ScopeTopologyTest {
                 Sets.newHashSet(HOST_12_OID));
 
         // "Host #12", "VM #14", "App #15", "Datastore #2,4,6,8,10", "DiskArray #1-10", "Datacenter #0"
-        assertThat(scopedTraderTOs.size(), equalTo(19));
+        assertThat(scopedTraderTOs.size(), equalTo(CLUSTER_1_EXPANDED_SE_COUNT));
     }
 
     /**
@@ -98,7 +112,7 @@ public class ScopeTopologyTest {
     }
 
     /**
-     * In this test, we start with "Host #11" and "Host #13", neither of which has no applications.
+     * In this test, we start with "Host #11" and "Host #13", neither of which has any applications.
      * Therefore there are no "upwards" traders. The only other element in the Scoped Topology
      * is the "downwards" Datacenter.
      * @throws InvalidTopologyException if there is a problem converting the topology to TraderTO's
@@ -112,8 +126,76 @@ public class ScopeTopologyTest {
         Set<EconomyDTOs.TraderTO> scopedTraderTOs = testAnalysis.scopeTopology(traderTOs,
                 Sets.newHashSet(HOST_11_OID, HOST_13_OID));
 
-        // "Host #11", "Host #12", "Datacenter #0"
+        // "Host #11", "Host #13", "Datacenter #0"
         assertThat(scopedTraderTOs.size(), equalTo(3));
+    }
+
+    /**
+     * Test a scoped analysis run with the simple test topology.
+     *
+     * Scoped to testScopeTopologyCluster1, which consists of the host HOST_12_OID,
+     * there should be 10 SE's in the source and projected topology (see testScopeTopologyCluster1
+     * above).
+     *
+     * @throws InterruptedException since we use sleep(.)
+     * @throws CommunicationException should never occur
+     */
+    @Test
+    public void testScopedMarketRunner() throws InterruptedException, CommunicationException {
+
+        // Arrange
+        MarketNotificationSender serverApi = Mockito.mock(MarketNotificationSender.class);
+        ExecutorService threadPool = Executors.newFixedThreadPool(2);
+        Analysis.AnalysisFactory analysisFactory = new Analysis.AnalysisFactory();
+        MarketRunner runner = new MarketRunner(threadPool, serverApi, analysisFactory);
+
+        long topologyContextId = 1000;
+        long topologyId = 2000;
+        long creationTime = 3000;
+
+        TopologyDTO.TopologyInfo topologyInfo = TopologyDTO.TopologyInfo.newBuilder()
+                .setTopologyId(topologyId)
+                .setTopologyContextId(topologyContextId)
+                .setCreationTime(creationTime)
+                .setTopologyType(TopologyDTO.TopologyType.PLAN)
+                .addScopeSeedOids(HOST_12_OID)
+                .build();
+
+        // Act
+        Analysis analysis = runner.scheduleAnalysis(topologyInfo, topologyDTOs, true);
+        assertTrue(runner.getRuns().contains(analysis));
+        while (!analysis.isDone()) {
+            Thread.sleep(100);
+        }
+        assertSame("Plan completed with an error : " + analysis.getErrorMsg(),
+                Analysis.AnalysisState.SUCCEEDED, analysis.getState());
+
+        // Assert
+        Mockito.verify(serverApi, Mockito.times(1)).notifyActionsRecommended(analysis.getActionPlan().get());
+
+        // since the IDgenerator gives us a different projectedTopoID every time, we create a
+        // MockitoMatcher using anyLong to represent this parameter
+        Mockito.verify(serverApi, Mockito.times(1))
+                .notifyProjectedTopology(eq(topologyInfo), anyLong(),
+                        eq(analysis.getProjectedTopology().get()));
+        assertThat(analysis.getPriceIndexMessage().isPresent(), equalTo(true));
+        PriceIndexDTOs.PriceIndexMessage pim = PriceIndexDTOs.PriceIndexMessage
+                .newBuilder(analysis.getPriceIndexMessage().get())
+                .setTopologyContextId(analysis.getContextId())
+                .build();
+        Mockito.verify(serverApi).sendPriceIndex(eq(topologyInfo), eq(pim));
+
+        // check the original topology size
+        assertThat(analysis.getTopology().size(), equalTo(topologyDTOs.size()));
+
+        // check projected topology -  "Host #12", "VM #14", "App #15", "Datastore #2,4,6,8,10",
+        // "DiskArray #1-10", "Datacenter #0"
+        assertThat(analysis.getProjectedTopology().isPresent(), equalTo(true));
+        assertThat(analysis.getProjectedTopology().get().size(), equalTo(CLUSTER_1_EXPANDED_SE_COUNT));
+
+        // check the output 'priceIndex' info to make sure it has the correct size
+        assertThat(analysis.getPriceIndexMessage().get().getPayloadList().size(),
+                equalTo(CLUSTER_1_EXPANDED_SE_COUNT));
     }
 
 

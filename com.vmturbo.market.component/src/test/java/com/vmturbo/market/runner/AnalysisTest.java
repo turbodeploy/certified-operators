@@ -50,8 +50,10 @@ public class AnalysisTest {
      */
     @Test
     public void testConstructor() {
-        Analysis analysis =
-            new Analysis(topologyInfo, EMPTY, true);
+        Analysis analysis  = (new Analysis.AnalysisFactory()).newAnalysisBuilder()
+                .setTopologyInfo(topologyInfo)
+                .setIncludeVDC(true)
+                .build();
         assertEquals(topologyContextId, analysis.getContextId());
         assertEquals(topologyId, analysis.getTopologyId());
         assertEquals(EMPTY, analysis.getTopology());
@@ -64,8 +66,10 @@ public class AnalysisTest {
      */
     @Test
     public void testExecute() {
-        Analysis analysis =
-            new Analysis(topologyInfo, EMPTY, true);
+        Analysis analysis  = (new Analysis.AnalysisFactory()).newAnalysisBuilder()
+                .setTopologyInfo(topologyInfo)
+                .setIncludeVDC(true)
+                .build();
         analysis.execute();
         assertTrue(analysis.isDone());
         assertSame(analysis.getState(), AnalysisState.SUCCEEDED);
@@ -83,8 +87,10 @@ public class AnalysisTest {
     @Test
     public void testFailedAnalysis() {
         Set<TopologyEntityDTO> set = Sets.newHashSet(buyer()); // seller is missing
-        Analysis analysis =
-            new Analysis(topologyInfo, set, true);
+        Analysis analysis  = (new Analysis.AnalysisFactory()).newAnalysisBuilder()
+                .setIncludeVDC(true)
+                .setTopologyDTOs(set)
+                .build();
         analysis.execute();
         assertTrue(analysis.isDone());
         assertSame(AnalysisState.FAILED, analysis.getState());
@@ -116,8 +122,10 @@ public class AnalysisTest {
      */
     @Test
     public void testTwoExecutes() {
-        Analysis analysis =
-            new Analysis(topologyInfo, Sets.newHashSet(), true);
+        Analysis analysis  = (new Analysis.AnalysisFactory()).newAnalysisBuilder()
+                .setTopologyInfo(topologyInfo)
+                .setIncludeVDC(true)
+                .build();
         boolean first = analysis.execute();
         boolean second = analysis.execute();
         assertTrue(first);

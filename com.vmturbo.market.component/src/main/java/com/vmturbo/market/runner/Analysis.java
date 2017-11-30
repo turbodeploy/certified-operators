@@ -25,7 +25,6 @@ import com.google.common.collect.Sets;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.analysis.InvalidTopologyException;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.market.topology.TopologyEntitiesHandler;
@@ -55,6 +54,7 @@ public class Analysis {
     private LocalDateTime startTime = EPOCH;
     private LocalDateTime completionTime = EPOCH;
     private final Set<TopologyEntityDTO> topologyDTOs;
+    private final Set<Long> seedServiceEntityOIDs;
     private final String logPrefix;
 
     private Collection<TopologyEntityDTO> projectedEntities = null;
@@ -69,11 +69,27 @@ public class Analysis {
 
     private final TopologyInfo topologyInfo;
 
+    /**
+     * Create and execute a context for a Market Analysis given a topology, an optional 'scope' to
+     * apply, and a flag determining whether guaranteed buyers (VDC, VPod, DPod) are included
+     * in the market analysis or not.
+     *
+     * The scoping algorithm is described more completely below - {@link #scopeTopology}.
+     *
+     * @param topologyInfo descriptive info about the topology - id, type, etc
+     * @param topologyDTOs the Set of {@link TopologyEntityDTO}s that make up the topology
+     * @param seedServiceEntityOIDs a list of SE OIDs that determine the 'seed' for a scoped topology;
+     *                     if this list is empty, no scoping is performed and the analysis considers
+     *                     the full topology
+     * @param includeVDC specify whether guaranteed buyers (VDC, VPod, DPod) are included in the
+     *                     market analysis
+     */
     public Analysis(@Nonnull final TopologyInfo topologyInfo,
                     @Nonnull final Set<TopologyEntityDTO> topologyDTOs,
-                    final boolean includeVDC) {
+                    Set<Long> seedServiceEntityOIDs, final boolean includeVDC) {
         this.topologyInfo = topologyInfo;
         this.topologyDTOs = topologyDTOs;
+        this.seedServiceEntityOIDs = seedServiceEntityOIDs;
         this.includeVDC = includeVDC;
         this.state = AnalysisState.INITIAL;
         logPrefix = topologyInfo.getTopologyType() + " Analysis " +
@@ -110,8 +126,13 @@ public class Analysis {
         try {
             final TopologyConverter converter = new TopologyConverter(includeVDC,
                     topologyInfo.getTopologyType());
-            final Set<TraderTO> traderTOs = converter
+            Set<TraderTO> traderTOs = converter
                             .convertToMarket(Lists.newLinkedList(topologyDTOs));
+            // if a scope 'seed' entity OID list is specified, then scope the topology starting with
+            // the given 'seed' entities
+            if (!seedServiceEntityOIDs.isEmpty()) {
+                traderTOs = scopeTopology(traderTOs, seedServiceEntityOIDs);
+            }
             if (logger.isDebugEnabled()) {
                 logger.debug(traderTOs.size() + " Economy DTOs");
             }
@@ -228,20 +249,30 @@ public class Analysis {
     }
 
     /**
-     * The topology type: realtime or plan.
-     *
-     * @return the topology type
-     */
-    public TopologyType getTopologyType() {
-        return topologyInfo.getTopologyType();
-    }
-
-    /**
      * An unmodifiable view of the set of topology entity DTOs that this analysis run is executed on.
      * @return an unmodifiable view of the set of topology entity DTOs that this analysis run is executed on
      */
     public Set<TopologyEntityDTO> getTopology() {
         return Collections.unmodifiableSet(topologyDTOs);
+    }
+
+    /**
+     * An unmodifiable view of the set of topology entity OIDs that constitute the 'scope' for this
+     * market analysis. If no scope was set up, then return an empty set here.
+     *
+     * @return the current set of scope entity OIDs, if any, or the empty set if no scope specified
+     */
+    public Set<Long> getScope() {
+        return Collections.unmodifiableSet(seedServiceEntityOIDs);
+    }
+
+    /**
+     * Return the value of the "includeVDC" flag for this builder.
+     *
+     * @return the current value of the "includeVDC" flag for this builder
+     */
+    public boolean getIncludeVDC() {
+        return includeVDC;
     }
 
     /**
@@ -423,5 +454,88 @@ public class Analysis {
         return traderTOs.stream()
                 .filter(traderTO -> scopedTopologyOIDs.contains(traderTO.getOid()))
                 .collect(Collectors.toSet());
+    }
+
+    /**
+     * Helper for building an Analysis object. Useful since there are a number of
+     * parameters to pass to the market.
+     */
+    public static class AnalysisBuilder {
+        // basic information about this topology, including the IDs, type, timestamp, etc.
+        private TopologyInfo topologyInfo = TopologyInfo.getDefaultInstance();
+        // the Topology DTOs that make up the topology
+        private Set<TopologyEntityDTO> topologyDTOs = Collections.emptySet();
+        // the OIDs of the SE's that form the seed, if the topology is to be scoped
+        private Set<Long> scopeSeedServiceEntityOIDs = Collections.emptySet();
+        // specify whether the analysis should include guaranteed buyers in the market analysis
+        private boolean includeVDC = false;
+
+        /**
+         * Capture the {@link TopologyInfo} describing this Analysis, including the IDs, type,
+         * timestamp, etc.
+         *
+         * @param topologyInfo the {@link TopologyInfo} for this Analysys
+         * @return this Builder to support flow style
+         */
+        public AnalysisBuilder setTopologyInfo(TopologyInfo topologyInfo) {
+            this.topologyInfo = topologyInfo;
+            return this;
+        }
+
+        /**
+         * Capture the Set of TopologyEntityDTOs to be analyzed.
+         *
+         * @param topologyDTOs the Set of TopologyEntityDTOs to be analyzed
+         * @return this Builder to support flow style
+         */
+        public AnalysisBuilder setTopologyDTOs(Set<TopologyEntityDTO> topologyDTOs) {
+            this.topologyDTOs = topologyDTOs;
+            return this;
+        }
+
+        /**
+         * Capture the Set of SE OIDs that define how to scope this topology. If the scope set
+         * is empty, then no scoping is to be performed. See {@link Analysis#scopeTopology}
+         * for more details.
+         *
+         * @param scopeSeedOids the Set of OIDs that specify the seed from which the scoping calculation
+         *                  proceeds.
+         * @return this Builder to support flow style
+         */
+        public AnalysisBuilder setScope(Set<Long> scopeSeedOids) {
+            this.scopeSeedServiceEntityOIDs = scopeSeedOids;
+            return this;
+        }
+
+        /**
+         * Configure whether to include guaranteed buyers (VDC, VPod, DPod) in the analysis.
+         *
+         * @param includeVDC true if the guaranteed buyers (VDC, VPod, DPod) should be included
+         * @return this Builder to support flow style
+         */
+        public AnalysisBuilder setIncludeVDC(boolean includeVDC) {
+            this.includeVDC = includeVDC;
+            return this;
+        }
+
+        /**
+         * Request a new Analysis object be built using the values specified.
+         *
+         * @return the newly build Analysis object initialized from the Builder fields.
+         */
+        public Analysis build() {
+            return new Analysis(topologyInfo, topologyDTOs, scopeSeedServiceEntityOIDs, includeVDC);
+        }
+    }
+
+    /**
+     * Define a factory for creating new AnalysisBuilders. This will chiefly be used for testing,
+     * allowing a test to override the 'newAnalysisBuilder()' method and return an AnalysisBuilder
+     * that will build a Mock Analysis object.
+     */
+    public static class AnalysisFactory {
+        public AnalysisBuilder newAnalysisBuilder() {
+            return new AnalysisBuilder();
+        }
     }
 }
