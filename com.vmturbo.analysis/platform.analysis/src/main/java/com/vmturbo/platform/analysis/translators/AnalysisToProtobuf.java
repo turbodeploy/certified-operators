@@ -664,7 +664,7 @@ public final class AnalysisToProtobuf {
                     // if old supplier does not have the shopping list's requested commodity,
                     // move is due to compliance
                     if (oldCommSold == null) {
-                        complianceCommSet.add(commBought.getBaseType());
+                        complianceCommSet.add(commBought.getType());
                     } else {
                         CommoditySold newCommSold = newSupplier.getCommoditySold(commBought);
                         // if the comm utilization is less than min desired util, we dont consider
@@ -693,10 +693,10 @@ public final class AnalysisToProtobuf {
                             continue;
                         }
                         if (quoteDiffPerComm.containsKey(quoteDiff)) {
-                            quoteDiffPerComm.get(quoteDiff).add(commBought.getBaseType());
+                            quoteDiffPerComm.get(quoteDiff).add(commBought.getType());
                         } else {
                             List<Integer> list = new ArrayList<>();
-                            list.add(commBought.getBaseType());
+                            list.add(commBought.getType());
                             quoteDiffPerComm.put(newQuote - oldQuote, list);
                         }
                     }
