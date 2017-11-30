@@ -5,15 +5,16 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.junit.Assert;
+import org.junit.Test;
+
 import io.grpc.Channel;
 import io.grpc.Server;
 import io.grpc.inprocess.InProcessChannelBuilder;
 import io.grpc.inprocess.InProcessServerBuilder;
 
-import org.junit.Assert;
-import org.junit.Test;
-import org.mockito.Mockito;
-
+import com.vmturbo.api.component.external.api.mapper.SettingSpecStyleMappingLoader;
+import com.vmturbo.api.component.external.api.mapper.SettingSpecStyleMappingLoader.SettingSpecStyleMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
@@ -48,7 +49,10 @@ public class SettingsMapperIntegrationTest {
         final Channel channel = InProcessChannelBuilder.forName("test").build();
         final SettingsManagerMapping settingsManagerMapping =
                 new SettingsManagerMappingLoader("settingManagers.json").getMapping();
-        final SettingsMapper mapper = new SettingsMapper(channel, settingsManagerMapping);
+        final SettingSpecStyleMapping settingSpecStyleMapping =
+                new SettingSpecStyleMappingLoader("settingSpecStyleTest.json").getMapping();
+        final SettingsMapper mapper =
+                new SettingsMapper(channel, settingsManagerMapping, settingSpecStyleMapping);
         final SettingsService settingService =
                 new SettingsService(SettingServiceGrpc.newBlockingStub(channel), mapper,
                         settingsManagerMapping);

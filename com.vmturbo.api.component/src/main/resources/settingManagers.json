@@ -53,7 +53,9 @@
         "iopsUtilization",
         "latencyUtilization",
         "cpuOverprovisionedPercentage",
-        "memoryOverprovisionedPercentage"
+        "memoryOverprovisionedPercentage",
+        "utilTarget",
+        "targetBand"
       ]
     }
   }

@@ -1,7 +1,9 @@
 package com.vmturbo.market.topology.conversions;
 
+import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
@@ -559,8 +561,8 @@ public class TopologyConverterTest {
                 .setShopTogether(false)
                 .setCloneable(false)
                 .setSuspendable(false)
-                .setMinDesiredUtilization(0.1f)
-                .setMaxDesiredUtilization(0.9f))
+                .setDesiredUtilizationTarget(70.0f)
+                .setDesiredUtilizationRange(20.0f))
             .build();
         TraderTO trader = convert(Sets.newHashSet(entityDTO), TopologyType.REALTIME).iterator().next();
         assertFalse(trader.getShoppingLists(0).getMovable());
@@ -568,8 +570,8 @@ public class TopologyConverterTest {
         assertFalse(trader.getSettings().getIsShopTogether());
         assertFalse(trader.getSettings().getClonable());
         assertFalse(trader.getSettings().getSuspendable());
-        assertEquals(0.1f, trader.getSettings().getMinDesiredUtilization(), epsilon);
-        assertEquals(0.9f, trader.getSettings().getMaxDesiredUtilization(), epsilon);
+        assertThat(trader.getSettings().getMinDesiredUtilization(), is(70.0f - (20.0f / 2)));
+        assertThat(trader.getSettings().getMaxDesiredUtilization(), is(70.0f + (20.0f / 2)));
 
         final TopologyEntityDTO oppositeEntityDTO = TopologyEntityDTO.newBuilder()
             .setEntityType(1)

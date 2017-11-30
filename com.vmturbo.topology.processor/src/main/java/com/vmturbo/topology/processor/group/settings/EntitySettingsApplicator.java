@@ -11,10 +11,10 @@ import java.util.function.Function;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 
-import com.google.common.annotations.VisibleForTesting;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import com.google.common.annotations.VisibleForTesting;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -83,6 +83,10 @@ public class EntitySettingsApplicator {
                 new UtilizationThresholdApplicator(CommodityType.STORAGE_ACCESS));
         applicators.put(SettingPolicySetting.LatencyUtilization,
                 new UtilizationThresholdApplicator(CommodityType.STORAGE_LATENCY));
+
+        applicators.put(SettingPolicySetting.UtilTarget, new UtilTargetApplicator());
+        applicators.put(SettingPolicySetting.TargetBand, new TargetBandApplicator());
+
         APPLICATORS = Collections.unmodifiableMap(applicators);
     }
 
@@ -223,6 +227,32 @@ public class EntitySettingsApplicator {
                     .forEach(commodityBuilder -> {
                         commodityBuilder.setEffectiveCapacityPercentage(settingValue);
                     });
+        }
+    }
+
+    /**
+     *  Applies the "utilTarget" setting to an entity.
+     */
+    private static class UtilTargetApplicator implements SingleSettingApplicator {
+        @Override
+        public void apply(@Nonnull final TopologyEntityDTO.Builder entity,
+                          @Nonnull final Setting setting) {
+
+            entity.getAnalysisSettingsBuilder()
+                .setDesiredUtilizationTarget(setting.getNumericSettingValue().getValue());
+        }
+    }
+
+    /**
+     *  Applies the "targetBand" setting to an entity.
+     */
+    private static class TargetBandApplicator implements SingleSettingApplicator {
+        @Override
+        public void apply(@Nonnull final TopologyEntityDTO.Builder entity,
+                          @Nonnull final Setting setting) {
+
+            entity.getAnalysisSettingsBuilder()
+                .setDesiredUtilizationRange(setting.getNumericSettingValue().getValue());
         }
     }
 }

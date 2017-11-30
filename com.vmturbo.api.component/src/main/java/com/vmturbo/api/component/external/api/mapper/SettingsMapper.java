@@ -24,6 +24,7 @@ import com.google.common.collect.Sets;
 
 import io.grpc.Channel;
 
+import com.vmturbo.api.component.external.api.mapper.SettingSpecStyleMappingLoader.SettingSpecStyleMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerInfo;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.dto.group.GroupApiDTO;
@@ -117,6 +118,8 @@ public class SettingsMapper {
 
     private final SettingsManagerMapping managerMapping;
 
+    private final SettingSpecStyleMapping settingSpecStyleMapping;
+
     private final SettingSpecMapper settingSpecMapper;
 
     private final SettingPolicyMapper settingPolicyMapper;
@@ -128,8 +131,10 @@ public class SettingsMapper {
     private final SettingPolicyServiceBlockingStub settingPolicyService;
 
     public SettingsMapper(@Nonnull final Channel groupComponentChannel,
-                          @Nonnull final SettingsManagerMapping settingsManagerMapping) {
+                          @Nonnull final SettingsManagerMapping settingsManagerMapping,
+                          @Nonnull final SettingSpecStyleMapping settingSpecStyleMapping) {
         this.managerMapping = settingsManagerMapping;
+        this.settingSpecStyleMapping = settingSpecStyleMapping;
         this.settingSpecMapper = new DefaultSettingSpecMapper();
         this.settingPolicyMapper = new DefaultSettingPolicyMapper(this);
         this.groupService = GroupServiceGrpc.newBlockingStub(groupComponentChannel);
@@ -139,10 +144,12 @@ public class SettingsMapper {
 
     @VisibleForTesting
     SettingsMapper(@Nonnull final SettingsManagerMapping managerMapping,
+                   @Nonnull final SettingSpecStyleMapping settingSpecStyleMapping,
                    @Nonnull final SettingSpecMapper specMapper,
                    @Nonnull final SettingPolicyMapper policyMapper,
                    @Nonnull final Channel groupComponentChannel) {
         this.managerMapping = managerMapping;
+        this.settingSpecStyleMapping = settingSpecStyleMapping;
         this.settingSpecMapper = specMapper;
         this.settingPolicyMapper = policyMapper;
         this.groupService = GroupServiceGrpc.newBlockingStub(groupComponentChannel);
@@ -437,6 +444,15 @@ public class SettingsMapper {
                 .map(spec -> settingSpecMapper.settingSpecToApi(spec))
                 .filter(Optional::isPresent).map(Optional::get)
                 .collect(Collectors.toList()));
+
+        // configure UI presentation information
+        for (SettingApiDTO apiDto : mgrApiDto.getSettings()) {
+            String specName = apiDto.getUuid();
+            settingSpecStyleMapping.getStyleInfo(specName)
+                .ifPresent(styleInfo ->
+                                apiDto.setRange(styleInfo.getRange().getRangeApiDTO()));
+        }
+
         return mgrApiDto;
     }
 
@@ -744,3 +760,4 @@ public class SettingsMapper {
         }
     }
 }
+

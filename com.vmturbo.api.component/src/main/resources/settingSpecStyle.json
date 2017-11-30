@@ -1,0 +1,18 @@
+// Refer to the comments in SettingSpecStyleMappingLoader.java#SettingSpecStyleMapping
+// for more details on the purpose of this file
+{
+    "settingSpecStyleBySpecName": {
+        "utilTarget": {
+            "range":{
+                "step": 5,
+                "labels": ["Performance", "Efficiency"]
+            }
+        },
+        "targetBand": {
+            "range":{
+                "step": 5,
+                "labels": ["Narrow", "Wide"]
+            }
+        }
+    }
+}

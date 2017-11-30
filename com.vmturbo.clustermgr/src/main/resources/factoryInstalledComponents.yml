@@ -116,6 +116,7 @@ api:
   publicVersionString: 7-beta-9
   groupBuildUseCaseFile: 'groupBuilderUsecases.json'
   settingManagersFile: 'settingManagers.json'
+  settingStyleFile: 'settingSpecStyle.json'
 
 auth:
   kvStoreRetryIntervalMillis: 1000

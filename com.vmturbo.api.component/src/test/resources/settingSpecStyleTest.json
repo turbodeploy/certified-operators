@@ -1,0 +1,10 @@
+{
+    "settingSpecStyleBySpecName": {
+        "move": {
+            "range":{
+                "step": 5,
+                "labels": ["Performance", "Efficiency"]
+            }
+        }
+    }
+}

@@ -21,6 +21,9 @@ public class MapperConfig {
     @Value("${settingManagersFile}")
     private String settingManagersFile;
 
+    @Value("${settingStyleFile}")
+    private String settingStyleFile;
+
     @Autowired
     private CommunicationConfig communicationConfig;
 
@@ -45,6 +48,15 @@ public class MapperConfig {
             return new SettingsManagerMappingLoader(settingManagersFile);
         } catch (IOException e) {
             throw new RuntimeException("Failed to load setting managers file.", e);
+        }
+    }
+
+    @Bean
+    public SettingSpecStyleMappingLoader settingSpecStyleMappingLoader() {
+        try {
+            return new SettingSpecStyleMappingLoader(settingStyleFile);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to load setting style file.", e);
         }
     }
 
@@ -86,6 +98,7 @@ public class MapperConfig {
     @Bean
     public SettingsMapper settingsMapper() {
         return new SettingsMapper(communicationConfig.groupChannel(),
-                settingManagerMappingLoader().getMapping());
+                settingManagerMappingLoader().getMapping(),
+                settingSpecStyleMappingLoader().getMapping());
     }
 }

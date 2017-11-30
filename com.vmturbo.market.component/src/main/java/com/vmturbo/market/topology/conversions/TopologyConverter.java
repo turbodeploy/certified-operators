@@ -389,8 +389,10 @@ public class TopologyConverter {
                 .setShopTogether(traderSetting.getIsShopTogether())
                 .setCloneable(traderSetting.getClonable())
                 .setSuspendable(traderSetting.getSuspendable())
-                .setMinDesiredUtilization(traderSetting.getMinDesiredUtilization())
-                .setMaxDesiredUtilization(traderSetting.getMaxDesiredUtilization())
+                .setDesiredUtilizationTarget((traderSetting.getMaxDesiredUtilization()
+                       + traderSetting.getMinDesiredUtilization()) / 2)
+                .setDesiredUtilizationRange(traderSetting.getMaxDesiredUtilization()
+                       - traderSetting.getMinDesiredUtilization())
             .build();
 
         TopologyDTO.TopologyEntityDTO.Builder entityDTO =
@@ -531,14 +533,8 @@ public class TopologyConverter {
         final EconomyDTOs.TraderSettingsTO settings = EconomyDTOs.TraderSettingsTO.newBuilder()
             .setClonable(clonable)
             .setSuspendable(suspendable)
-            .setMinDesiredUtilization(
-                topologyDTO.getAnalysisSettings().hasMinDesiredUtilization()
-                    ? topologyDTO.getAnalysisSettings().getMinDesiredUtilization()
-                    : EntitySettings.NumericKey.DESIRED_UTILIZATION_MIN.value(topologyDTO))
-            .setMaxDesiredUtilization(
-                topologyDTO.getAnalysisSettings().hasMaxDesiredUtilization()
-                    ? topologyDTO.getAnalysisSettings().getMaxDesiredUtilization()
-                    : EntitySettings.NumericKey.DESIRED_UTILIZATION_MAX.value(topologyDTO))
+            .setMinDesiredUtilization(getMinDesiredUtilization(topologyDTO))
+            .setMaxDesiredUtilization(getMaxDesiredUtilization(topologyDTO))
             .setGuaranteedBuyer(isGuranteedBuyer)
             .setCanAcceptNewCustomers(topologyDTO.getAnalysisSettings().getIsAvailableAsProvider())
             .setIsShopTogether(shopTogether)
@@ -561,6 +557,34 @@ public class TopologyConverter {
             .addAllShoppingLists(createAllShoppingLists(topologyDTO))
             .addAllCliques(allCliques)
             .build();
+    }
+
+    private static float getMinDesiredUtilization(
+            @Nonnull final TopologyEntityDTO topologyDTO) {
+
+        final TopologyEntityDTO.AnalysisSettings analysisSettings = topologyDTO.getAnalysisSettings();
+        if (analysisSettings.hasDesiredUtilizationTarget() &&
+                analysisSettings.hasDesiredUtilizationRange()) {
+
+            return (analysisSettings.getDesiredUtilizationTarget()
+                    - (analysisSettings.getDesiredUtilizationRange() / 2));
+        } else {
+            return EntitySettings.NumericKey.DESIRED_UTILIZATION_MIN.value(topologyDTO);
+        }
+    }
+
+    private static float getMaxDesiredUtilization(
+            @Nonnull final TopologyEntityDTO topologyDTO) {
+
+        final TopologyEntityDTO.AnalysisSettings analysisSettings = topologyDTO.getAnalysisSettings();
+        if (analysisSettings.hasDesiredUtilizationTarget() &&
+                analysisSettings.hasDesiredUtilizationRange()) {
+
+            return (analysisSettings.getDesiredUtilizationTarget()
+                    + (analysisSettings.getDesiredUtilizationRange() / 2));
+        } else {
+            return EntitySettings.NumericKey.DESIRED_UTILIZATION_MAX.value(topologyDTO);
+        }
     }
 
     /**

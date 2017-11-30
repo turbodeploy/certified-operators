@@ -78,11 +78,13 @@ message TopologyEntityDTO {
         // the list of ENABLE_SUSPEND types in EntitySettings.
         optional bool suspendable = 4;
 
-        // Minimum desired utilization for this entity. This is the lower bound of the desired state.
-        optional float min_desired_utilization = 5 [default = 0.0];
+        // The desired utilization target value. Together with the
+        // desired_utilization_range below, they describe the min and max
+        // desired utilization values.
+        optional float desired_utilization_target = 5 ;
 
-        // Maximum desired utilization for this entity. This is the upper bound of the disired state.
-        optional float max_desired_utilization = 6 [default = 1.0];
+        // The desired utilization target range
+        optional float desired_utilization_range = 6 ;
     }
 }
 

@@ -1,9 +1,9 @@
 package com.vmturbo.group.api;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
@@ -29,6 +29,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * Enumeration for all the pre-built entity settings.
  */
 public enum SettingPolicySetting {
+
     /**
      * Move action automation mode.
      */
@@ -52,69 +53,91 @@ public enum SettingPolicySetting {
     /**
      * CPU utilization threshold.
      */
-    CpuUtilization("cpuUtilization", "CPU Utilization", Collections.emptyList(),
-            SettingTiebreaker.SMALLER,
+    CpuUtilization("cpuUtilization", "CPU Utilization",
+            Arrays.asList("utilizationThresholds"), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.PHYSICAL_MACHINE, EntityType.STORAGE_CONTROLLER),
             numeric(20f, 100f, 100f)),
     /**
      * Memoty utilization threshold.
      */
-    MemoryUtilization("memoryUtilization", "Memory Utilization", Collections.emptyList(),
-            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.PHYSICAL_MACHINE),
-            numeric(1f, 100f, 100f)),
+    MemoryUtilization("memoryUtilization", "Memory Utilization",
+            Arrays.asList("utilizationThresholds"), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(1f, 100f, 100f)),
     /**
      * IO throughput utilization threshold.
      */
-    IoThroughput("ioThroughput", "IO Throughput", Collections.emptyList(),
-            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.PHYSICAL_MACHINE),
-            numeric(10f, 100f, 50f)),
+    IoThroughput("ioThroughput", "IO Throughput",
+            Arrays.asList("utilizationThresholds"), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(10f, 100f, 50f)),
     /**
      * Network througput utilization threshold.
      */
-    NetThroughput("netThroughput", "Net Throughput", Collections.emptyList(), SettingTiebreaker.SMALLER,
+    NetThroughput("netThroughput", "Net Throughput",
+            Arrays.asList("utilizationThresholds"), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.PHYSICAL_MACHINE, EntityType.SWITCH),
             new NumericSettingDataType(10f, 100f, 50f,
                     Collections.singletonMap(EntityType.SWITCH, 70f))),
     /**
      * Swapping utilization threshold.
      */
-    SwappingUtilization("swappingUtilization", "Swapping Utilization", Collections.emptyList(),
-            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.PHYSICAL_MACHINE),
-            numeric(0f, 100f, 20f)),
+    SwappingUtilization("swappingUtilization", "Swapping Utilization",
+            Arrays.asList("utilizationThresholds"), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(0f, 100f, 20f)),
     /**
      * Ready queu utilization threshold.
      */
     ReadyQueueUtilization("readyQueueUtilization", "Ready Queue Utilization",
-            Collections.emptyList(), SettingTiebreaker.SMALLER,
+            Arrays.asList("utilizationThresholds"), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(0f, 100f, 50f)),
     /**
      * Storage utilization threshould.
      */
     StorageAmountUtilization("storageAmountUtilization", "Storage Amount Utilization",
-            Collections.emptyList(), SettingTiebreaker.SMALLER,
+            Arrays.asList("utilizationThresholds"), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.STORAGE_CONTROLLER), numeric(0f, 100f, 90f)),
     /**
      * IOPS utilization threshould.
      */
-    IopsUtilization("iopsUtilization", "IOPS Utilization", Collections.emptyList(),
-            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.STORAGE), numeric(0f, 100f, 100f)),
+    IopsUtilization("iopsUtilization", "IOPS Utilization",
+            Arrays.asList("utilizationThresholds"), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.STORAGE), numeric(0f, 100f, 100f)),
     /**
      * Storage latency utilization threshold.
      */
-    LatencyUtilization("latencyUtilization", "Latency Utilization", Collections.emptyList(),
-            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.STORAGE), numeric(0f, 100f, 100f)),
+    LatencyUtilization("latencyUtilization", "Latency Utilization",
+            Arrays.asList("utilizationThresholds"), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.STORAGE), numeric(0f, 100f, 100f)),
     /**
      * CPU overprovisioned in percents.
      */
     CpuOverprovisionedPercentage("cpuOverprovisionedPercentage", "CPU Overprovisioned Percentage",
-            Collections.emptyList(), SettingTiebreaker.SMALLER,
+            Arrays.asList("utilizationThresholds"), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(0f, 1000000f, 1000f)),
     /**
      * Memory overprovisioned in percents.
      */
     MemoryOverprovisionedPercentage("memoryOverprovisionedPercentage",
-            "Memory Overprovisioned Percentage", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(0f, 1000000f, 1000f));
+            "Memory Overprovisioned Percentage",
+            Arrays.asList("utilizationThresholds"), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(0f, 1000000f, 1000f)),
+
+    /**
+     * Desired utilization target.
+     */
+    UtilTarget("utilTarget", "Center",
+            //path is needed for the UI to display this setting in a separate category
+            Arrays.asList("advanced", "utilTarget"),
+            SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(0.0f/*min*/, 100.0f/*max*/, 70.0f/*default*/)),
+
+    /**
+     * Desired utilization range.
+     */
+    TargetBand("targetBand", "Diameter",
+            //path is needed for the UI to display this setting in a separate category
+            Arrays.asList("advanced", "utilTarget"),
+            SettingTiebreaker.BIGGER, /*this is related to the center setting. biggger diameter is more conservative*/
+            EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(0.0f/*min*/, 100.0f/*max*/, 10.0f/*default*/));
 
     /**
      * Setting name to setting enumeration value map for fast access.
@@ -193,7 +216,9 @@ public enum SettingPolicySetting {
                 .setEntitySettingSpec(EntitySettingSpec.newBuilder()
                         .setTiebreaker(tieBreaker)
                         .setEntitySettingScope(scopeBuilder));
-        builder.setPath(createCategoryPath());
+        if (!categoryPath.isEmpty()) {
+            builder.setPath(createCategoryPath());
+        }
         dataStructure.build(builder);
         return builder.build();
     }
