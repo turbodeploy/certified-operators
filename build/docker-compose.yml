@@ -39,6 +39,7 @@ volumes:
   plan-orchestrator: *localdriver
   mediation-vcenter: *localdriver
   mediation-stressprobe: *localdriver
+  mediation-storagestressprobe: *localdriver
   mediation-hyperv: *localdriver
   mediation-delegatingprobe: *localdriver
   mediation-netapp: *localdriver
@@ -441,6 +442,23 @@ services:
     volumes:
       - mediation-stressprobe:/home/turbonomic/data
     mem_limit: ${MEDIATION_STRESSPROBE_MEM_LIMIT_MB}M
+
+  mediation-storagestressprobe:
+    extends:
+      file: common-services.yml
+      service: dev-component
+    image: turbonomic/com.vmturbo.mediation.storagestressprobe.component
+    ports:
+      - "${MEDIATION_STORAGESTRESSPROBE_PORT}"
+      - "${MEDIATION_STORAGESTRESSPROBE_DEBUG_PORT}"
+    depends_on: *clustermgrdep
+    environment:
+      component_type: mediation-stressprobe
+      instance_id: mediation-storagestressprobe-1
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_STORAGESTRESSPROBE_XMX_MB}M ${MEDIATION_STORAGESTRESSPROBE_SYSTEM_PROPERTIES}"
+    volumes:
+      - mediation-storagestressprobe:/home/turbonomic/data
+    mem_limit: ${MEDIATION_STORAGESTRESSPROBE_MEM_LIMIT_MB}M
 
   mediation-delegatingprobe:
     extends:

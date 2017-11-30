@@ -241,6 +241,7 @@
                 <module>../com.vmturbo.mediation.compellent.component</module>
                 <module>../com.vmturbo.mediation.openstack.component</module>
                 <module>../com.vmturbo.mediation.stressprobe.component</module>
+                <module>../com.vmturbo.mediation.storagestressprobe.component</module>
                 <module>../com.vmturbo.mediation.delegatingprobe</module>
                 <module>../com.vmturbo.mediation.delegatingprobe.component</module>
             </modules>
@@ -315,6 +316,7 @@
             <id>mediation-stressprobe</id>
             <modules>
                 <module>../com.vmturbo.mediation.stressprobe.component</module>
+                <module>../com.vmturbo.mediation.storagestressprobe.component</module>
             </modules>
         </profile>
 
@@ -372,6 +374,7 @@
                 <module>../com.vmturbo.mediation.client</module>
                 <module>../com.vmturbo.mediation.vcenter.component</module>
                 <module>../com.vmturbo.mediation.stressprobe.component</module>
+                <module>../com.vmturbo.mediation.storagestressprobe.component</module>
                 <module>../com.vmturbo.mediation.delegatingprobe</module>
                 <module>../com.vmturbo.mediation.delegatingprobe.component</module>
 
@@ -462,6 +465,7 @@
                 <module>../com.vmturbo.mediation.netapp.component</module>
                 <module>../com.vmturbo.mediation.vmax.component</module>
                 <module>../com.vmturbo.mediation.stressprobe.component</module>
+                <module>../com.vmturbo.mediation.storagestressprobe.component</module>
                 <module>../com.vmturbo.mediation.delegatingprobe</module>
                 <module>../com.vmturbo.mediation.delegatingprobe.component</module>
 
