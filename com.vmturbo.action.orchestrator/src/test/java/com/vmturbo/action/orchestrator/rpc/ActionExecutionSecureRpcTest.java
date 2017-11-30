@@ -1,5 +1,6 @@
 package com.vmturbo.action.orchestrator.rpc;
 
+import static com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier.IP_ADDRESS_CLAIM;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -107,6 +108,7 @@ public class ActionExecutionSecureRpcTest {
     private final static long ACTION_ID = 9999;
     public static final String ADMIN = "admin";
     public static final String ADMINISTRATOR = "ADMINISTRATOR";
+    public static final String IP_ADDRESS = "10.10.10.1";
     private final IActionFactory actionFactory = new ActionFactory();
     private final IActionStoreFactory actionStoreFactory = mock(IActionStoreFactory.class);
     private final IActionStoreLoader actionStoreLoader = mock(IActionStoreLoader.class);
@@ -171,6 +173,7 @@ public class ActionExecutionSecureRpcTest {
         String compact = Jwts.builder()
                 .setSubject(ADMIN)
                 .claim(IAuthorizationVerifier.ROLE_CLAIM, ImmutableList.of(ADMINISTRATOR))
+                .claim(IP_ADDRESS_CLAIM, IP_ADDRESS) // add IP address
                 .setExpiration(getTestDate())
                 .signWith(SignatureAlgorithm.ES256, signingKey)
                 .compressWith(CompressionCodecs.GZIP)
@@ -189,7 +192,7 @@ public class ActionExecutionSecureRpcTest {
                 compact, new ArrayList<>());
         Authentication authentication = new UsernamePasswordAuthenticationToken(user, "***", grantedAuths);
 
-        // populate security context
+        // populate security context, so the client interceptor can get the JWT token.
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
         // mock providing public key to auth store
@@ -272,7 +275,7 @@ public class ActionExecutionSecureRpcTest {
         // verify log message includes admin user.
         // redirect System.out is not working when running in a test suite. Comment out for now.
         // verifyMessage(outputStream.toString(),
-        //        "admin is trying to execute Action: 9999 with mode: MANUAL with recommendation: id: 9999");
+        //        ADMIN + " from IP address: " + IP_ADDRESS +" is trying to execute Action: 9999");
     }
 
 
@@ -300,7 +303,7 @@ public class ActionExecutionSecureRpcTest {
         // verify log message include admin user
         // redirect System.out is not working when running in a test suite. Comment out for now.
         // verifyMessage(outputStream.toString(),
-        //        "admin is trying to execute Action: 9999 with mode: MANUAL with recommendation: id: 9999");
+        //        ADMIN + " from IP address: " + IP_ADDRESS +" is trying to execute Action: 9999");
     }
 
     /**

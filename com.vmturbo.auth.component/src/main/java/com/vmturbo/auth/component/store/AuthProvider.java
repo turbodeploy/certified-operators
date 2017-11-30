@@ -49,6 +49,8 @@ import com.vmturbo.kvstore.KeyValueStore;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+
+import static com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier.IP_ADDRESS_CLAIM;
 import static com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier.UUID_CLAIM;
 
 /**
@@ -182,6 +184,32 @@ public class AuthProvider {
                              .compressWith(CompressionCodecs.GZIP)
                              .signWith(SignatureAlgorithm.ES256, privateKey)
                              .compact();
+        return new JWTAuthorizationToken(compact);
+    }
+
+
+    /**
+     * Generates an AUTH token for the specified user with remote IP address.
+     *
+     * @param userName  The user name.
+     * @param uuid      The UUID.
+     * @param roles     The role names.
+     * @param ipAddress The remote IP address.
+     * @return The generated JWT token.
+     */
+    private @Nonnull JWTAuthorizationToken generateToken(final @Nonnull String userName,
+                                                         final @Nonnull String uuid,
+                                                         final @Nonnull List<String> roles,
+                                                         final @Nonnull String ipAddress) {
+        final PrivateKey privateKey = getEncryptionKeyForVMTurboInstance();
+        String compact = Jwts.builder()
+                .setSubject(userName)
+                .claim(IP_ADDRESS_CLAIM, ipAddress)
+                .claim(IAuthorizationVerifier.ROLE_CLAIM, roles)
+                .claim(UUID_CLAIM, uuid)
+                .compressWith(CompressionCodecs.GZIP)
+                .signWith(SignatureAlgorithm.ES256, privateKey)
+                .compact();
         return new JWTAuthorizationToken(compact);
     }
 
@@ -450,6 +478,57 @@ public class AuthProvider {
 
                     logger_.info("AUDIT::SUCCESS: Success authenticating user: " + userName);
                     return generateToken(info.userName, info.uuid, info.roles);
+                } else {
+                    return authenticateADUser(info, password);
+                }
+            } catch (AuthenticationException e) {
+                logger_.error("AUDIT::FAILURE:AUTH: Error authenticating user: " + userName);
+                throw e;
+            } catch (Exception e) {
+                logger_.error("AUDIT::FAILURE:AUTH: Error authenticating user: " + userName);
+                throw new SecurityException("Authentication failed", e);
+            }
+        }
+        return authenticateADGroup(userName, password);
+    }
+
+    /**
+     * Authenticates the user when IP address is available.
+     *
+     * @param userName The user name.
+     * @param password The password.
+     * @param ipAddress The user's IP address.
+     * @return The JWTAuthorizationToken if successful.
+     * @throws AuthenticationException In case of error authenticating the user. We can get
+     *                                 {@link SecurityException} in case of
+     * @throws SecurityException       In case of an internal error while authenticating an user.
+     */
+    public @Nonnull JWTAuthorizationToken authenticate(final @Nonnull String userName,
+                                                       final @Nonnull String password,
+                                                       final @Nonnull String ipAddress)
+            throws AuthenticationException, SecurityException {
+        // Try local users first.
+        Optional<String> json = getKVValue(composeUserInfoKey(AuthUserDTO.PROVIDER.LOCAL,
+                                                              userName));
+        if (!json.isPresent()) {
+            json = getKVValue(composeUserInfoKey(AuthUserDTO.PROVIDER.LDAP, userName));
+        }
+
+        if (json.isPresent()) {
+            try {
+                String jsonData = json.get();
+                UserInfo info = GSON.fromJson(jsonData, UserInfo.class);
+                // Check the authentication.
+                if (!info.unlocked) {
+                    throw new AuthenticationException("AUDIT::NEGATIVE: Account is locked");
+                }
+                if (AuthUserDTO.PROVIDER.LOCAL.equals(info.provider)) {
+                    if (!CryptoFacility.checkSecureHash(info.passwordHash, password)) {
+                        throw new AuthenticationException("AUDIT::NEGATIVE: Hash mismatch");
+                    }
+
+                    logger_.info("AUDIT::SUCCESS: Success authenticating user: " + userName);
+                    return generateToken(info.userName, info.uuid, info.roles, ipAddress);
                 } else {
                     return authenticateADUser(info, password);
                 }

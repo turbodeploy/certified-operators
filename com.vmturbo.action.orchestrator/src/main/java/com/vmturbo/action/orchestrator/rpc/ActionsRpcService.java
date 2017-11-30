@@ -97,6 +97,7 @@ public class ActionsRpcService extends ActionsServiceImplBase {
     public void acceptAction(SingleActionRequest request,
                              StreamObserver<AcceptActionResponse> responseObserver) {
         String requestUserName = SecurityConstant.USER_ID_CTX_KEY.get();
+        String reqeustUserIpAddress = SecurityConstant.USER_IP_ADDRESS_KEY.get();
         logger.debug("Getting action request from: " + requestUserName);
         if (!request.hasTopologyContextId()) {
             responseObserver.onNext(acceptanceError("Missing required parameter TopologyContextId"));
@@ -127,7 +128,8 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                         .refresh(action.getRecommendation(), store);
                 }
                 // TODO replace it with audit message.
-                logger.info(requestUserName + " is trying to execute Action: " + action.getId()
+                logger.info(requestUserName + " from IP address: " + reqeustUserIpAddress
+                        + " is trying to execute Action: " + action.getId()
                         + " with mode: " + action.getMode()
                         + " with recommendation: " + action.getRecommendation());
                 return attemptResponse;

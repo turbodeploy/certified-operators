@@ -100,17 +100,22 @@ public class RestAuthenticationProvider implements AuthenticationProvider {
 
     /**
      * Returns the authentication data.
+     * Note: changed the annotation of password parameter from @Nullable to @Nonnull. Since auth
+     * component has @Nonnull annotation to password parameter.
+     * See com.vmturbo.auth.component.store.AuthProvider#authenticate()
      *
      * @param userName The user name.
-     * @param password The optional password. {@code null} if not set.
-     * @return The authorization token.
+     * @param password The password.
+     * @param remoteIpAdress the user's IP address.
+     * @return The authorization token if the userName and password are valid.
      * @throws AuthenticationException In case authentication has failed.
      */
     private JWTAuthorizationToken getAuthData(final @Nonnull String userName,
-                                              final @Nullable String password)
+                                              final @Nonnull String password,
+                                              final @Nonnull String remoteIpAdress)
             throws AuthenticationException {
         final String authRequest = newUriBuilder()
-                .pathSegment(userName, password)
+                .pathSegment(userName, password, remoteIpAdress)
                 .build()
                 .toUriString();
         ResponseEntity<String> result;
@@ -143,6 +148,7 @@ public class RestAuthenticationProvider implements AuthenticationProvider {
             throws AuthenticationException {
         Object principal = authentication.getPrincipal();
         String password = authentication.getCredentials().toString();
+        String remoteIpAddress = authentication.getDetails().toString();
 
         String username;
         if (principal instanceof UserApiDTO) {
@@ -154,7 +160,7 @@ public class RestAuthenticationProvider implements AuthenticationProvider {
         // Initialize authorities
         final Set<GrantedAuthority> grantedAuths = new HashSet<>();
         //First try to authenticate AD users using Spring
-        JWTAuthorizationToken token = getAuthData(username, password);
+        JWTAuthorizationToken token = getAuthData(username, password, remoteIpAddress);
         AuthUserDTO dto;
         try {
             dto = verifier_.verify(token, Collections.emptyList());

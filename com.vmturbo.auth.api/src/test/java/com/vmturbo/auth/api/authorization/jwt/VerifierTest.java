@@ -1,7 +1,10 @@
 package com.vmturbo.auth.api.authorization.jwt;
 
+import static com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier.IP_ADDRESS_CLAIM;
+
 import java.security.KeyPair;
 import java.security.PrivateKey;
+import java.security.PublicKey;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collection;
@@ -15,6 +18,9 @@ import com.vmturbo.auth.api.authorization.AuthorizationException;
 import com.vmturbo.auth.api.authorization.IAuthorizationVerifier;
 import com.vmturbo.auth.api.authentication.ICredentials;
 import com.vmturbo.auth.api.authentication.credentials.CredentialsBuilder;
+import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
+
+import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.CompressionCodecs;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
@@ -27,6 +33,8 @@ import org.junit.Test;
  * Tests basic Verifier functions.
  */
 public class VerifierTest {
+    private static final String IP_ADDRESS = "10.10.10.1";
+
     /**
      * Test corrupted encoded public key.
      * We expect two parts separated by '|'.
@@ -123,6 +131,48 @@ public class VerifierTest {
         } catch (AuthorizationException e) {
             Assert.assertEquals(e.getCause().getClass(), SignatureException.class);
         }
+    }
+
+    /**
+     * Happy test with adding IP address to JWT token.
+     */
+    @Test
+    public void testBasicCredsWithIpAddress() throws Exception {
+        Date dt = new Date();
+        Calendar c = Calendar.getInstance();
+        c.setTime(dt);
+        c.add(Calendar.DATE, 1);
+        dt = c.getTime();
+
+        KeyPair keyPair = EllipticCurveProvider.generateKeyPair(SignatureAlgorithm.ES256);
+        String privateKeyEncoded = JWTKeyCodec.encodePrivateKey(keyPair);
+        PrivateKey signingKey = JWTKeyCodec.decodePrivateKey(privateKeyEncoded);
+        PublicKey publicKey = keyPair.getPublic();
+
+        String compact = Jwts.builder().setSubject("subject")
+                .setExpiration(dt)
+                .claim(IAuthorizationVerifier.ROLE_CLAIM, ImmutableList.of("USER", "ADMINISTRATOR"))
+                .claim(IP_ADDRESS_CLAIM, IP_ADDRESS) // add IP address
+                .compressWith(CompressionCodecs.GZIP)
+                .signWith(SignatureAlgorithm.ES256, signingKey)
+                .compact();
+
+        // Encode the public key.
+        String pubKeyStr = JWTKeyCodec.encodePublicKey(keyPair);
+        JWTAuthorizationToken token = new JWTAuthorizationToken(compact);
+        JWTAuthorizationVerifier verifier =
+                new JWTAuthorizationVerifier(JWTKeyCodec.decodePublicKey(pubKeyStr));
+        Collection<String> roles = new ArrayList<>();
+        roles.add("USER");
+        roles.add("ADMINISTRATOR");
+        AuthUserDTO authUserDTO = verifier.verify(token, new ArrayList<>(roles));
+
+        Claims claims = Jwts.parser()
+                .setAllowedClockSkewSeconds(60)
+                .setSigningKey(publicKey)
+                .parseClaimsJws(compact)
+                .getBody();
+        Assert.assertEquals(IP_ADDRESS, claims.get(IP_ADDRESS_CLAIM,String.class));
     }
 
     /**

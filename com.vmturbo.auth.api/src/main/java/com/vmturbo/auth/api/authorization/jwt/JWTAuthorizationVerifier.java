@@ -47,6 +47,11 @@ public class JWTAuthorizationVerifier implements IAuthorizationVerifier {
     public static final String UUID_CLAIM = "UUID";
 
     /**
+     * The JWT claim for an IP address field.
+     */
+    public static final String IP_ADDRESS_CLAIM = "IpAddress";
+
+    /**
      * The tokens cache.
      */
     @VisibleForTesting

@@ -6,6 +6,7 @@ import javax.servlet.http.HttpServletResponse;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
@@ -21,6 +22,7 @@ import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.api.component.communication.RestAuthenticationProvider;
 import com.vmturbo.api.component.external.api.mapper.LoginProviderMapper;
+import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.ErrorApiDTO;
 import com.vmturbo.api.dto.user.UserApiDTO;
@@ -41,6 +43,7 @@ import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
  **/
 
 public class AuthenticationService implements IAuthenticationService {
+    public static final String LOCALHOST = "localhost";
     /**
      * The auth service host.
      */
@@ -61,6 +64,12 @@ public class AuthenticationService implements IAuthenticationService {
      */
     @Autowired
     private final JWTAuthorizationVerifier verifier_;
+
+    /**
+     * The remote HTTP request.
+     */
+    @Autowired
+    private HttpServletRequest request;
 
     /**
      * Constructs the authentication service.
@@ -131,7 +140,14 @@ public class AuthenticationService implements IAuthenticationService {
                 verifier_);
         UserApiDTO user = new UserApiDTO();
         user.setUsername(username);
-        Authentication auth = new UsernamePasswordAuthenticationToken(user, password);
+
+        // Change to child interface AbstractAuthenticationToken to store IP address.
+        AbstractAuthenticationToken auth = new UsernamePasswordAuthenticationToken(user, password);
+        // If client IP is not available from the request, set the IP  to local IP address.
+        String remoteIpAddress = ApiUtils.getClientIp(request).orElse(ApiUtils.getLocalIpAddress());
+        //Pass IP address to authentication token details, so it can be retrieved later.
+        //{@link org.springframework.security.core.Authentication#getDetails}
+        auth.setDetails(remoteIpAddress);
 
         // authenticate
         try {

@@ -1,5 +1,7 @@
 package com.vmturbo.auth.api.authorization.jwt;
 
+import static com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier.IP_ADDRESS_CLAIM;
+
 import java.security.PublicKey;
 import java.util.Objects;
 
@@ -31,27 +33,31 @@ import com.vmturbo.auth.api.authorization.kvstore.IApiAuthStore;
  * </ul>
  */
 public class JwtServerInterceptor implements ServerInterceptor {
-    public static final int ALLOWED_CLOCK_SKEW_SECONDS = 60;
+    private static final int ALLOWED_CLOCK_SKEW_SECONDS = 60;
     private static final ServerCall.Listener NOOP_LISTENER = new ServerCall.Listener() {
     };
     private static final Logger logger = LogManager.getLogger();
-    private final PublicKey key;
+    private final IApiAuthStore apiAuthStore;
+    /**
+     * Locks for retrieving public key from Auth store.
+     */
+    private final Object storeLock = new Object();
+    private volatile PublicKey publicKey;
 
     /**
-     * Constructs the interceptor with public key.
+     * Constructs the interceptor with Auth Store.
      *
      * @param apiAuthStore the API Auth store
      */
     public JwtServerInterceptor(@Nonnull IApiAuthStore apiAuthStore) {
         Objects.requireNonNull(apiAuthStore);
-        key = JWTKeyCodec.decodePublicKey(apiAuthStore.retrievePublicKey());
+        this.apiAuthStore = apiAuthStore;
     }
 
     /**
      * Intercept and validate JWT token.
-     * If JWT token is valid, extract the caller subject and store it to context {@link Context}.
-     * Otherwise, close the server call with error code UNAUTHENTICATED.
-     *
+     * If JWT token is valid, extract the caller subject and IP address, and store it to
+     * context {@link Context}. Otherwise, close the server call with error code UNAUTHENTICATED.
      *
      * @param call object to receive response messages
      * @param next next processor in the interceptor chain
@@ -63,9 +69,16 @@ public class JwtServerInterceptor implements ServerInterceptor {
                                                                  @Nonnull ServerCallHandler<ReqT, RespT> next) {
         final String jwt = metadata.get(SecurityConstant.JWT_METADATA_KEY);
         if (jwt == null) {
-            // It should be uncommented when JWT token is always required.
+            // It should be uncommented when JWT token is always required. For system calls, we will use system JWT token.
             // serverCall.close(Status.UNAUTHENTICATED.withDescription("JWT Token is missing from Metadata"), metadata);
             logger.debug("gRPC request doesn't have JWT token.");
+            return NOOP_LISTENER;
+        }
+        PublicKey key = getPublicKey();
+        if (key == null) {
+            // It should be uncommented when public key is always required.
+            // serverCall.close(Status.UNAUTHENTICATED.withDescription("Public key is missing"), metadata);
+            logger.error("Unable to retrieve public key.");
             return NOOP_LISTENER;
         }
         Context ctx;
@@ -77,12 +90,39 @@ public class JwtServerInterceptor implements ServerInterceptor {
                     .setSigningKey(key)
                     .parseClaimsJws(jwt)
                     .getBody();
-            ctx = Context.current().withValue(SecurityConstant.USER_ID_CTX_KEY, claims.getSubject());
+            ctx = Context.current()
+                    .withValue(SecurityConstant.USER_ID_CTX_KEY, claims.getSubject())
+                    .withValue(SecurityConstant.USER_IP_ADDRESS_KEY, claims.get(IP_ADDRESS_CLAIM, String.class));
         } catch (RuntimeException e) {
+            // TODO it should be sent to audit log.
             logger.error("Verification failed - Unauthenticated! With error message: " + e.getMessage());
             call.close(Status.UNAUTHENTICATED.withDescription(e.getMessage()).withCause(e), metadata);
             return NOOP_LISTENER;
         }
         return Contexts.interceptCall(ctx, call, metadata, next);
     }
+
+    /**
+     * Get the public key for Auth store. We should NOT get the public key during component start up,
+     * since the public key is not available in the Auth store if system is NOT initialize.
+     *
+     * @return public key.
+     */
+    private PublicKey getPublicKey() {
+        if (publicKey == null) {
+            synchronized (storeLock) {
+                if (publicKey == null) {
+                    String encodedPublicKey = apiAuthStore.retrievePublicKey();
+                    if (encodedPublicKey != null) {
+                        publicKey = JWTKeyCodec.decodePublicKey(encodedPublicKey);
+                        if (publicKey == null) {
+                            logger.error("Uninitialized crypto environment");
+                        }
+                    }
+                }
+            }
+        }
+        return publicKey;
+    }
 }
+

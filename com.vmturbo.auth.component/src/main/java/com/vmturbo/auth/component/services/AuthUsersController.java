@@ -112,6 +112,36 @@ public class AuthUsersController {
     }
 
     /**
+     * Authenticates the user with IP address.
+     * Due to bug in Spring boot, we have to use "{ipaddress:.+}", instead of "{ipaddress}"
+     * {@see <a href="https://jira.springsource.org/browse/SPR-6164"/>}
+     *
+     * @param userName The user name.
+     * @param password The password.
+     * @param ipAddress The user IP address.
+     * @return The compact representation of the Authorization Token if successful.
+     * @throws Exception In case of an error adding user.
+     */
+    @ApiOperation(value = "Authenticate user")
+    @RequestMapping(value = "/authenticate/{userName}/{password}/{ipaddress:.+}",
+                    method = RequestMethod.GET,
+                    produces = {MediaType.APPLICATION_JSON_VALUE})
+    @ResponseBody
+    public @Nonnull String authenticate(
+            @ApiParam(value = "The user name", required = true)
+            @PathVariable("userName") String userName,
+            @ApiParam(value = "The user password",
+                      required = true)
+            @PathVariable("password") String password,
+            @ApiParam(value = "The user ip address",
+                    required = true)
+            @PathVariable("ipaddress") String ipAddress)
+            throws Exception {
+        return targetStore_.authenticate(userName, URLDecoder.decode(password, "UTF-8"), ipAddress)
+                           .getCompactRepresentation();
+    }
+
+    /**
      * Lists all defined users.
      *
      * @return The list of all users.

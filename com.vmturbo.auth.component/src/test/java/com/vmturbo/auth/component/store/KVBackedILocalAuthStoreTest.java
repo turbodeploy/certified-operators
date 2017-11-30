@@ -120,6 +120,29 @@ public class KVBackedILocalAuthStoreTest {
         Assert.assertNotNull(store.authenticate("user0", "password0"));
     }
 
+
+    @Test
+    public void testAuthenticateWithIpAddress() throws Exception {
+        KeyValueStore keyValueStore = new MapKeyValueStore();
+        AuthProvider store = new AuthProvider(keyValueStore);
+
+        boolean result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user1", "password0",
+                ImmutableList.of("ADMIN", "USER"));
+        Assert.assertTrue(result);
+
+        Optional<String> jsonData = keyValueStore.get(PREFIX + AuthUserDTO.PROVIDER.LOCAL.name()
+                + "/USER1");
+        Assert.assertTrue(jsonData.isPresent());
+
+        AuthProvider.UserInfo
+                info = GSON.fromJson(jsonData.get(), AuthProvider.UserInfo.class);
+
+        Assert.assertTrue(CryptoFacility.checkSecureHash(info.passwordHash, "password0"));
+        Assert.assertEquals(ImmutableList.of("ADMIN", "USER"), info.roles);
+
+        Assert.assertNotNull(store.authenticate("user1", "password0", "10.10.10.1"));
+    }
+
     @Test
     public void testModifyPassword() throws Exception {
         KeyValueStore keyValueStore = new MapKeyValueStore();
