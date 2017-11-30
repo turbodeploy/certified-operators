@@ -22,6 +22,16 @@ message RepositoryOperationResponse {
 message RetrieveTopologyRequest {
     // The id of the topology to retrieve
     required int64 topology_id = 1;
+
+    // A filter to restrict the entities that are returned.
+    // If not set, use the default instance (which should match all entities).
+    optional TopologyEntityFilter entity_filter = 2;
+}
+
+message TopologyEntityFilter {
+    // If set, return only entities that are unplaced. An entity is considered unplaced
+    // if it has any CommoditiesBoughtFromProvider where the provider is not set.
+    optional bool unplaced_only = 1 [default = false];
 }
 
 message RetrieveTopologyResponse {

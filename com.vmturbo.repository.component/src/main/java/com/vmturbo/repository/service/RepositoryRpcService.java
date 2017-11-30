@@ -3,6 +3,7 @@ package com.vmturbo.repository.service;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
@@ -18,8 +19,10 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.DeleteTopologyRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponseCode;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyEntityFilter;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceImplBase;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.repository.topology.TopologyID;
 import com.vmturbo.repository.topology.TopologyID.TopologyType;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
@@ -97,10 +100,13 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
                                  final StreamObserver<RepositoryDTO.RetrieveTopologyResponse> responseObserver) {
         final long topologyID = topologyRequest.getTopologyId();
         try {
-            logger.info("Retrieving topology for {}", topologyID);
+            logger.info("Retrieving topology for {} with filtere {}", topologyID,
+                    topologyRequest.getEntityFilter());
             final TopologyProtobufReader reader =
                     topologyProtobufsManager.createTopologyProtobufReader(
-                            topologyRequest.getTopologyId());
+                        topologyRequest.getTopologyId(),
+                        topologyRequest.hasEntityFilter() ?
+                                Optional.of(topologyRequest.getEntityFilter()) : Optional.empty());
             while (reader.hasNext()) {
                 List<TopologyEntityDTO> chunk = reader.nextChunk();
                 final RepositoryDTO.RetrieveTopologyResponse responseChunk =
@@ -121,4 +127,5 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
                                                    .asException());
         }
     }
+
 }

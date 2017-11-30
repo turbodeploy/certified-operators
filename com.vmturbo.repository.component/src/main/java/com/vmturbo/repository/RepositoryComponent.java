@@ -41,6 +41,7 @@ import javaslang.circuitbreaker.CircuitBreakerRegistry;
 import com.vmturbo.arangodb.ArangoHealthMonitor;
 import com.vmturbo.arangodb.tool.ArangoDump;
 import com.vmturbo.arangodb.tool.ArangoRestore;
+import com.vmturbo.common.protobuf.repository.RepositoryDTOREST.RepositoryServiceController;
 import com.vmturbo.common.protobuf.search.SearchREST.SearchServiceController;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.communication.CommunicationException;
@@ -308,6 +309,11 @@ public class RepositoryComponent extends BaseVmtComponent {
     @Bean
     public RepositoryRpcService repositoryRpcService() throws GraphDatabaseException {
         return new RepositoryRpcService(topologyManager(), topologyProtobufsManager());
+    }
+
+    @Bean
+    public RepositoryServiceController repositoryServiceController() throws GraphDatabaseException {
+        return new RepositoryServiceController(repositoryRpcService());
     }
 
     @Bean

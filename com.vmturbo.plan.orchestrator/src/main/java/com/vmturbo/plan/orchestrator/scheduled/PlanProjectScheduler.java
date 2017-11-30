@@ -186,6 +186,7 @@ public class PlanProjectScheduler {
         }
         return Optional.empty();
     }
+
     /**
      * A helper method that executes scheduled recurring plan.
      * Passed via lambda to the scheduleExecutor.
@@ -194,6 +195,5 @@ public class PlanProjectScheduler {
      * @param planProject The plan project to be executed.
      */
     private void executePlan(final PlanDTO.PlanProject planProject) {
-
     }
 }

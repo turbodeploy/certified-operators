@@ -8,7 +8,7 @@ import javax.annotation.Nonnull;
 import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProject;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectInfo;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectInfo.PlanProjectType;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
 
 /**
  * DAO for plan project.

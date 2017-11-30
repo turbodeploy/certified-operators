@@ -1,7 +1,10 @@
 package com.vmturbo.repository.topology.protobufs;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
+
+import javax.annotation.Nonnull;
 
 import com.arangodb.ArangoCollection;
 import com.arangodb.ArangoDatabase;
@@ -10,7 +13,10 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.gson.Gson;
 import com.google.gson.JsonParseException;
 
+import com.vmturbo.common.protobuf.RepositoryDTOUtil;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyEntityFilter;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.repository.graph.driver.ArangoDatabaseFactory;
 
@@ -20,13 +26,18 @@ import com.vmturbo.repository.graph.driver.ArangoDatabaseFactory;
  */
 public class TopologyProtobufReader extends TopologyProtobufHandler {
 
-    private final long count;
-
     private static final Gson GSON = ComponentGsonFactory.createGsonNoPrettyPrint();
 
-    protected TopologyProtobufReader(ArangoDatabaseFactory arangoDatabaseFactory, long topologyId) {
+    private final long count;
+
+    private final Optional<TopologyEntityFilter> entityFilter;
+
+    protected TopologyProtobufReader(@Nonnull final ArangoDatabaseFactory arangoDatabaseFactory,
+                                     final long topologyId,
+                                     @Nonnull final Optional<TopologyEntityFilter> entityFilter) {
         super(arangoDatabaseFactory, topologyId);
         count = topologyCollection.count().getCount();
+        this.entityFilter = entityFilter;
     }
 
     /**
@@ -47,8 +58,9 @@ public class TopologyProtobufReader extends TopologyProtobufHandler {
         BaseDocument doc = topologyCollection.getDocument(String.valueOf(sequenceNumber), BaseDocument.class);
         sequenceNumber++;
         return doc.getProperties().values().stream()
-                        .map(TopologyProtobufReader::parseJson)
-                        .collect(Collectors.toList());
+            .map(TopologyProtobufReader::parseJson)
+            .filter(this::entityMatchesFilter)
+            .collect(Collectors.toList());
     }
 
     private static TopologyDTO.TopologyEntityDTO EMPTY_DTO =
@@ -62,5 +74,10 @@ public class TopologyProtobufReader extends TopologyProtobufHandler {
             logger.error("Problem parsing DTO : " + json, e);
             return EMPTY_DTO;
         }
+    }
+
+    private boolean entityMatchesFilter(@Nonnull final TopologyEntityDTO entity) {
+        return entityFilter.map(filter -> RepositoryDTOUtil.entityMatchesFilter(entity, filter))
+                .orElse(false);
     }
 }

@@ -1,9 +1,15 @@
 package com.vmturbo.repository.service;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertThat;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import java.util.Collections;
+import java.util.Optional;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -20,8 +26,12 @@ import io.grpc.stub.StreamObserver;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.DeleteTopologyRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponseCode;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyRequest;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyResponse;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyEntityFilter;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.api.test.GrpcExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -71,8 +81,8 @@ public class RepositoryRpcServiceTest {
     @Test
     public void testDeleteTopology() throws TopologyDeletionException {
 
-        Mockito.when(topologyProtobufsManager.createTopologyProtobufReader(
-                    topologyId)).thenReturn(topologyProtobufReader);
+        when(topologyProtobufsManager.createTopologyProtobufReader(eq(topologyId), any()))
+            .thenReturn(topologyProtobufReader);
 
         RepositoryOperationResponse repoResponse =
             repoClient.deleteTopology(topologyId,
@@ -113,6 +123,54 @@ public class RepositoryRpcServiceTest {
                 ArgumentCaptor.forClass(StatusException.class);
         verify(responseObserver).onError(errCaptor.capture());
         assertThat(errCaptor.getValue(), GrpcExceptionMatcher.hasCode(Code.INTERNAL).anyDescription());
+    }
+
+    private static final TopologyEntityDTO ENTITY = TopologyEntityDTO.newBuilder()
+            .setEntityType(10)
+            .setOid(1L)
+            .build();
+
+    @Test
+    public void testRetrieveTopology() throws Exception {
+        final StreamObserver<RetrieveTopologyResponse> responseObserver =
+                (StreamObserver<RetrieveTopologyResponse>)mock(StreamObserver.class);
+
+        when(topologyProtobufsManager.createTopologyProtobufReader(topologyId, Optional.empty()))
+                .thenReturn(topologyProtobufReader);
+        when(topologyProtobufReader.hasNext()).thenReturn(true, false);
+        when(topologyProtobufReader.nextChunk()).thenReturn(Collections.singletonList(ENTITY));
+
+        repoRpcService.retrieveTopology(RetrieveTopologyRequest.newBuilder()
+                .setTopologyId(topologyId)
+                .build(), responseObserver);
+
+        ArgumentCaptor<RetrieveTopologyResponse> respCaptor =
+                ArgumentCaptor.forClass(RetrieveTopologyResponse.class);
+
+        verify(responseObserver).onNext(respCaptor.capture());
+        verify(responseObserver).onCompleted();
+
+        assertThat(respCaptor.getValue().getEntitiesList(), containsInAnyOrder(ENTITY));
+
+    }
+
+    @Test
+    public void testRetrieveTopologyWithFilter() throws Exception {
+        final TopologyEntityFilter topologyEntityFilter = TopologyEntityFilter.newBuilder()
+                .setUnplacedOnly(true)
+                .build();
+        final StreamObserver<RetrieveTopologyResponse> responseObserver =
+                (StreamObserver<RetrieveTopologyResponse>)mock(StreamObserver.class);
+        when(topologyProtobufsManager.createTopologyProtobufReader(topologyId,
+                Optional.of(topologyEntityFilter))).thenReturn(topologyProtobufReader);
+        when(topologyProtobufReader.hasNext()).thenReturn(false);
+
+        repoRpcService.retrieveTopology(RetrieveTopologyRequest.newBuilder()
+                .setTopologyId(topologyId)
+                .setEntityFilter(topologyEntityFilter)
+                .build(), responseObserver);
+
+        verify(responseObserver).onCompleted();
     }
 
     private DeleteTopologyRequest createDeleteTopologyRequest(long topologyId) {

@@ -1,11 +1,15 @@
 package com.vmturbo.repository.topology.protobufs;
 
 import java.util.NoSuchElementException;
+import java.util.Optional;
+
+import javax.annotation.Nonnull;
 
 import org.apache.http.HttpStatus;
 
 import com.arangodb.ArangoDBException;
 
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyEntityFilter;
 import com.vmturbo.repository.graph.driver.ArangoDatabaseFactory;
 
 /**
@@ -41,10 +45,11 @@ public class TopologyProtobufsManager {
      * @throws NoSuchElementException  If the database does not contain a
      * collection for the given topology ID
      */
-    public TopologyProtobufReader createTopologyProtobufReader(long topologyId)
-                    throws NoSuchElementException {
+    public TopologyProtobufReader createTopologyProtobufReader(final long topologyId,
+                   @Nonnull final Optional<TopologyEntityFilter> entityFilter)
+            throws NoSuchElementException {
         try {
-            return new TopologyProtobufReader(arangoDatabaseFactory, topologyId);
+            return new TopologyProtobufReader(arangoDatabaseFactory, topologyId, entityFilter);
         } catch (ArangoDBException e) {
             if (e.getResponseCode() == HttpStatus.SC_NOT_FOUND
                             && e.getErrorNum() == ERROR_ARANGO_COLLECTION_NOT_FOUND) {

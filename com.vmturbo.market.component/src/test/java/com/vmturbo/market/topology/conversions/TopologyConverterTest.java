@@ -30,14 +30,17 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.protobuf.util.JsonFormat;
 
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.analysis.InvalidTopologyException;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -61,6 +64,16 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * Unit tests for {@link TopologyConverter}.
  */
 public class TopologyConverterTest {
+
+    private static final TopologyInfo REALTIME_TOPOLOGY_INFO =  TopologyInfo.newBuilder()
+            .setTopologyType(TopologyType.REALTIME)
+            .build();
+
+    private static final TopologyInfo PLAN_TOPOLOGY_INFO = TopologyInfo.newBuilder()
+            .setTopologyType(TopologyType.PLAN)
+            .setPlanInfo(PlanTopologyInfo.newBuilder()
+                    .setPlanType(PlanProjectType.USER))
+            .build();
 
     private double epsilon = 1e-5; // used in assertEquals(double, double, epsilon)
 
@@ -102,7 +115,7 @@ public class TopologyConverterTest {
         TopologyDTO.TopologyEntityDTO vdcTopologyDTO =
                 messageFromJsonFile("protobuf/messages/vdc-1.dto.json");
         Set<TopologyDTO.TopologyEntityDTO> topologyDTOs = Sets.newHashSet(vdcTopologyDTO);
-        Set<TraderTO> traderTOs = convert(topologyDTOs, TopologyType.REALTIME);
+        Set<TraderTO> traderTOs = convert(topologyDTOs, REALTIME_TOPOLOGY_INFO);
         TraderTO vdcTraderTO = traderTOs.iterator().next();
         assertEquals(100, vdcTraderTO.getOid());
         assertEquals(EntityType.VIRTUAL_DATACENTER_VALUE, vdcTraderTO.getType());
@@ -170,7 +183,7 @@ public class TopologyConverterTest {
      */
     @Test
     public void testConvertDTOs() throws IOException, InvalidTopologyException {
-        Set<TraderTO> traderTOs = convert(TOPOLOGY_DTOS, TopologyType.REALTIME);
+        Set<TraderTO> traderTOs = convert(TOPOLOGY_DTOS, REALTIME_TOPOLOGY_INFO);
         assertEquals(TOPOLOGY_DTOS.size(), traderTOs.size());
 
         final TraderTO vmTraderTO = getVmTrader(traderTOs);
@@ -208,7 +221,7 @@ public class TopologyConverterTest {
      */
     @Test
     public void testZeroMoveCostInPlan() throws InvalidTopologyException {
-        Set<TraderTO> traderTOs = convert(TOPOLOGY_DTOS, TopologyType.PLAN);
+        Set<TraderTO> traderTOs = convert(TOPOLOGY_DTOS, PLAN_TOPOLOGY_INFO);
         final TraderTO vmTraderTO = getVmTrader(traderTOs);
         List<ShoppingListTO> shoppingLists = vmTraderTO.getShoppingListsList();
         // Get the shopping list that buys from DS
@@ -226,19 +239,19 @@ public class TopologyConverterTest {
     @Test
     public void testTraderState() throws InvalidTopologyException {
         TopologyEntityDTO vmOn = entity(EntityType.VIRTUAL_MACHINE_VALUE, EntityState.POWERED_ON);
-        TraderTO traderVmOn = convert(Sets.newHashSet(vmOn), TopologyType.PLAN).iterator().next();
+        TraderTO traderVmOn = convert(Sets.newHashSet(vmOn), PLAN_TOPOLOGY_INFO).iterator().next();
         assertEquals(TraderStateTO.ACTIVE, traderVmOn.getState());
 
         TopologyEntityDTO vmOff = entity(EntityType.VIRTUAL_MACHINE_VALUE, EntityState.POWERED_OFF);
-        TraderTO traderVmOff = convert(Sets.newHashSet(vmOff), TopologyType.PLAN).iterator().next();
+        TraderTO traderVmOff = convert(Sets.newHashSet(vmOff), PLAN_TOPOLOGY_INFO).iterator().next();
         assertEquals(TraderStateTO.IDLE, traderVmOff.getState());
 
         TopologyEntityDTO appOn = entity(EntityType.APPLICATION_VALUE, EntityState.POWERED_ON);
-        TraderTO traderAppOn = convert(Sets.newHashSet(appOn), TopologyType.PLAN).iterator().next();
+        TraderTO traderAppOn = convert(Sets.newHashSet(appOn), PLAN_TOPOLOGY_INFO).iterator().next();
         assertEquals(TraderStateTO.ACTIVE, traderAppOn.getState());
 
         TopologyEntityDTO appOff = entity(EntityType.APPLICATION_VALUE, EntityState.POWERED_OFF);
-        TraderTO traderAppOff = convert(Sets.newHashSet(appOff), TopologyType.PLAN).iterator().next();
+        TraderTO traderAppOff = convert(Sets.newHashSet(appOff), PLAN_TOPOLOGY_INFO).iterator().next();
         assertEquals(TraderStateTO.INACTIVE, traderAppOff.getState());
     }
 
@@ -274,8 +287,8 @@ public class TopologyConverterTest {
                             .addCommodityBought(CommodityBoughtDTO.newBuilder()
                                 .setCommodityType(commodityType)))
                         .build();
-        TraderTO planVm = convert(Sets.newHashSet(vm), TopologyType.PLAN).iterator().next();
-        TraderTO realtimeVm = convert(Sets.newHashSet(vm), TopologyType.REALTIME).iterator().next();
+        TraderTO planVm = convert(Sets.newHashSet(vm), PLAN_TOPOLOGY_INFO).iterator().next();
+        TraderTO realtimeVm = convert(Sets.newHashSet(vm), REALTIME_TOPOLOGY_INFO).iterator().next();
         assertFalse(planVm.getSettings().getSuspendable());
         assertTrue(realtimeVm.getSettings().getSuspendable());
         assertTrue(planVm.getSettings().getIsEligibleForResizeDown());
@@ -297,7 +310,7 @@ public class TopologyConverterTest {
         // are equal to what we hard-code in setup().
         // Since we create a new TopologyConverter here that's fine, as long
         // as the implementation of the ID allocator doesn't change.
-        final TopologyConverter converter = new TopologyConverter(true, TopologyType.REALTIME);
+        final TopologyConverter converter = new TopologyConverter(true, REALTIME_TOPOLOGY_INFO);
         converter.convertToMarket(Lists.newArrayList(entityDTO));
 
         assertEquals(topologyCommodity1,
@@ -321,10 +334,10 @@ public class TopologyConverterTest {
     }
 
     @Nonnull
-    private static Set<TraderTO> convert(
-            @Nonnull final Set<TopologyDTO.TopologyEntityDTO> topology, TopologyType topologyType)
-                            throws InvalidTopologyException {
-        return new TopologyConverter(true, topologyType).convertToMarket(topology);
+    private static Set<TraderTO> convert(@Nonnull final Set<TopologyDTO.TopologyEntityDTO> topology,
+                                         @Nonnull final TopologyInfo topologyInfo)
+            throws InvalidTopologyException {
+        return new TopologyConverter(true, topologyInfo).convertToMarket(topology);
     }
 
     @Test
@@ -339,7 +352,7 @@ public class TopologyConverterTest {
                         messageFromJsonFile("protobuf/messages/vdc-2.dto.json"),
                         messageFromJsonFile("protobuf/messages/pm-2.dto.json"),
                         messageFromJsonFile("protobuf/messages/vm-2.dto.json"));
-        Set<TraderTO> traderTOs = new TopologyConverter(false, TopologyType.REALTIME)
+        Set<TraderTO> traderTOs = new TopologyConverter(false, REALTIME_TOPOLOGY_INFO)
                         .convertToMarket(topologyDTOs.stream().collect(Collectors.toList()));
         assertEquals(2, traderTOs.size());
         for (TraderTO traderTO : traderTOs) {
@@ -364,7 +377,7 @@ public class TopologyConverterTest {
      */
     @Test
     public void testTraderWithBicliqueCommodityConversion() throws Exception {
-        TopologyConverter converter = Mockito.spy(new TopologyConverter(TopologyType.REALTIME));
+        TopologyConverter converter = Mockito.spy(new TopologyConverter(REALTIME_TOPOLOGY_INFO));
         final TopologyDTO.CommoditySoldDTO topologyDSPMSold =
                     TopologyDTO.CommoditySoldDTO.newBuilder()
                         .setCommodityType(CommodityType.newBuilder()
@@ -510,7 +523,7 @@ public class TopologyConverterTest {
                     .build())
                 .build());
         Set<TopologyDTO.TopologyEntityDTO> topologyDTOs = Sets.newHashSet(entityBuilder.build());
-        TraderTO traderTO = convert(topologyDTOs, TopologyType.REALTIME).iterator().next();
+        TraderTO traderTO = convert(topologyDTOs, REALTIME_TOPOLOGY_INFO).iterator().next();
         verifyPriceFunctions(traderTO, CONSTANT_PRICE_TYPES_S, PriceFunctionTO::hasConstant, CONSTANT);
         verifyPriceFunctions(traderTO, STEP_PRICE_TYPES_S, PriceFunctionTO::hasStep, STEP);
     }
@@ -536,7 +549,7 @@ public class TopologyConverterTest {
                         .setOid(1001L).setEntityType(26).build();
         TopologyDTO.TopologyEntityDTO actionManager = TopologyDTO.TopologyEntityDTO.newBuilder()
                         .setOid(1001L).setEntityType(22).build();
-        TopologyConverter converter = new TopologyConverter(TopologyType.REALTIME);
+        TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO);
         assertTrue(converter.convertToMarket(Arrays.asList(container, virtualApp, actionManager))
                         .isEmpty());
     }
@@ -564,7 +577,7 @@ public class TopologyConverterTest {
                 .setDesiredUtilizationTarget(70.0f)
                 .setDesiredUtilizationRange(20.0f))
             .build();
-        TraderTO trader = convert(Sets.newHashSet(entityDTO), TopologyType.REALTIME).iterator().next();
+        TraderTO trader = convert(Sets.newHashSet(entityDTO), REALTIME_TOPOLOGY_INFO).iterator().next();
         assertFalse(trader.getShoppingLists(0).getMovable());
         assertFalse(trader.getSettings().getCanAcceptNewCustomers());
         assertFalse(trader.getSettings().getIsShopTogether());
@@ -587,11 +600,12 @@ public class TopologyConverterTest {
                 .setCloneable(true)
                 .setSuspendable(true))
             .build();
-        TraderTO traderTwo = convert(Sets.newHashSet(oppositeEntityDTO), TopologyType.REALTIME).iterator().next();
+        TraderTO traderTwo = convert(Sets.newHashSet(oppositeEntityDTO), REALTIME_TOPOLOGY_INFO).iterator().next();
         assertTrue(traderTwo.getShoppingLists(0).getMovable());
         assertTrue(traderTwo.getSettings().getCanAcceptNewCustomers());
         assertTrue(traderTwo.getSettings().getIsShopTogether());
         assertTrue(traderTwo.getSettings().getClonable());
         assertTrue(traderTwo.getSettings().getSuspendable());
     }
+
 }

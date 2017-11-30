@@ -14,6 +14,7 @@ import io.grpc.stub.StreamObserver;
 import com.vmturbo.common.protobuf.topology.AnalysisDTO;
 import com.vmturbo.common.protobuf.topology.AnalysisDTO.StartAnalysisResponse;
 import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc.AnalysisServiceImplBase;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.topology.processor.entity.EntityStore;
@@ -65,6 +66,8 @@ public class AnalysisRpcService extends AnalysisServiceImplBase {
                 .setTopologyId(topologyId)
                 .setCreationTime(clock.millis())
                 .setTopologyType(TopologyType.PLAN)
+                .setPlanInfo(PlanTopologyInfo.newBuilder()
+                        .setPlanType(request.getPlanType()))
                 .build();
 
         if (request.hasPlanScope()) {

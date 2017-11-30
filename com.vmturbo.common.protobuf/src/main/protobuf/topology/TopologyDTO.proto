@@ -3,6 +3,8 @@ package topology;
 
 option java_package = "com.vmturbo.common.protobuf.topology";
 
+import "plan/PlanDTO.proto";
+
 message TopologyEntityDTO {
 
     // type of entity
@@ -160,6 +162,16 @@ message TopologyInfo {
 
     // If the topology is to be scoped, the OIDs specified here seed the scoping expansion.
     repeated int64 scope_seed_oids = 5;
+
+    // Plan-specific topology information.
+    // Present IFF TopologyType is PLAN.
+    optional PlanTopologyInfo plan_info = 6;
+}
+
+// Information specific to a topology generated for the purpose of a plan.
+message PlanTopologyInfo {
+    // The type of the plan project that initiated the topology broadcast.
+    optional plan.PlanProjectType plan_type = 1 [default = USER];
 }
 
 enum EntityState {

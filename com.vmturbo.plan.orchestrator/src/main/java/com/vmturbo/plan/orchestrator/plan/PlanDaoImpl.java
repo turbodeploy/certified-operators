@@ -5,6 +5,7 @@ import static com.vmturbo.plan.orchestrator.db.tables.Scenario.SCENARIO;
 
 import java.time.LocalDateTime;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -43,6 +44,7 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.plan.orchestrator.db.tables.pojos.PlanInstance;
 import com.vmturbo.plan.orchestrator.db.tables.records.PlanInstanceRecord;
+import com.vmturbo.plan.orchestrator.plan.PlanStatusListener.PlanStatusListenerException;
 import com.vmturbo.repository.api.RepositoryClient;
 
 /**
@@ -69,33 +71,40 @@ public class PlanDaoImpl implements PlanDao {
     @GuardedBy("setLock")
     private final Set<Long> planLocks = new HashSet<>();
 
-    private final PlanNotificationSender notificationSender;
-
     private final RepositoryClient repositoryClient;
 
     private final ActionsServiceBlockingStub actionOrchestratorClient;
 
     private final StatsHistoryServiceBlockingStub statsClient;
 
+    private final Object listenerLock = new Object();
+
+    @GuardedBy("listenerLock")
+    private final List<PlanStatusListener> planStatusListeners = new LinkedList<>();
+
     /**
      * Constructs plan DAO.
      *
      * @param dsl database access context
-     * @param notificationSender plan API backend to send notifications when plan status is changed
      * @param repositoryClient gRPC client for the repository component
      * @param actionOrchestratorClient gRPC client for action orchestrator
      * @param statsClient gRPC client for the stats/history component
      */
     public PlanDaoImpl(@Nonnull final DSLContext dsl,
-            @Nonnull final PlanNotificationSender notificationSender,
             @Nonnull final RepositoryClient repositoryClient,
             @Nonnull final ActionsServiceBlockingStub actionOrchestratorClient,
             @Nonnull final StatsHistoryServiceBlockingStub statsClient) {
         this.dsl = Objects.requireNonNull(dsl);
-        this.notificationSender = Objects.requireNonNull(notificationSender);
         this.repositoryClient = Objects.requireNonNull(repositoryClient);
         this.actionOrchestratorClient = Objects.requireNonNull(actionOrchestratorClient);
         this.statsClient = Objects.requireNonNull(statsClient);
+    }
+
+    @Override
+    public void addStatusListener(@Nonnull final PlanStatusListener listener) {
+        synchronized (listenerLock) {
+            planStatusListeners.add(Objects.requireNonNull(listener));
+        }
     }
 
     @Nonnull
@@ -274,12 +283,16 @@ public class PlanDaoImpl implements PlanDao {
                             "Plan with id " + planInstance.getPlanId() + " does not exist");
                 }
                 if (src.getStatus() != planInstance.getStatus()) {
-                    try {
-                        notificationSender.onPlanStatusChanged(planInstance);
-                    } catch (CommunicationException | InterruptedException e) {
-                        // TODO Maybe roll back transaction here?
-                        logger.error("Error sending plan update notification for plan " + planId,
-                                e);
+                    synchronized (listenerLock) {
+                        for (final PlanStatusListener listener : planStatusListeners) {
+                            try {
+                                listener.onPlanStatusChanged(planInstance);
+                            } catch (PlanStatusListenerException e) {
+                                // TODO Maybe roll back transaction here?
+                                logger.error("Error sending plan update notification for plan " +
+                                                planId, e);
+                            }
+                        }
                     }
                 }
                 return planInstance;

@@ -28,8 +28,12 @@ import com.google.gson.stream.JsonReader;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.analysis.InvalidTopologyException;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
@@ -39,6 +43,12 @@ import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs;
 
 public class ScopedTopologyTest {
+
+    private static final TopologyInfo PLAN_TOPOLOGY_INFO = TopologyInfo.newBuilder()
+            .setTopologyType(TopologyType.PLAN)
+            .setPlanInfo(PlanTopologyInfo.newBuilder()
+                    .setPlanType(PlanProjectType.USER))
+            .build();
 
     public static final boolean INCLUDE_VDC = false;
     private static final long ID_GENERATOR_PREFIX = 1;
@@ -82,7 +92,7 @@ public class ScopedTopologyTest {
     @Test
     public void testScopeTopologyCluster1() throws InvalidTopologyException {
 
-        final TopologyConverter converter = new TopologyConverter(TopologyDTO.TopologyType.PLAN);
+        final TopologyConverter converter = new TopologyConverter(PLAN_TOPOLOGY_INFO);
         final Set<EconomyDTOs.TraderTO> traderTOs = converter
                 .convertToMarket(topologyDTOs);
 
@@ -100,7 +110,7 @@ public class ScopedTopologyTest {
      */
     @Test
     public void testScopeTopologyOneHost() throws InvalidTopologyException {
-        final TopologyConverter converter = new TopologyConverter(TopologyDTO.TopologyType.PLAN);
+        final TopologyConverter converter = new TopologyConverter(PLAN_TOPOLOGY_INFO);
         final Set<EconomyDTOs.TraderTO> traderTOs = converter
                 .convertToMarket(topologyDTOs);
 
@@ -119,7 +129,7 @@ public class ScopedTopologyTest {
      */
     @Test
     public void testScopeTopologyTwoHosts() throws InvalidTopologyException {
-        final TopologyConverter converter = new TopologyConverter(TopologyDTO.TopologyType.PLAN);
+        final TopologyConverter converter = new TopologyConverter(PLAN_TOPOLOGY_INFO);
         final Set<EconomyDTOs.TraderTO> traderTOs = converter
                 .convertToMarket(topologyDTOs);
 

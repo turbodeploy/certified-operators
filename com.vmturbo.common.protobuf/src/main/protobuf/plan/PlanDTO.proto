@@ -71,18 +71,19 @@ message PlanProject {
     optional PlanProjectInfo plan_project_info = 2;
 }
 
+enum PlanProjectType {
+    // A custom plan project is created by the user
+    // and has no special behaviour/server-side code.
+    USER = 0;
+
+    // A headroom plan project is responsible for calculating
+    // per-cluster headroom (i.e. how many VMs can still fit into the cluster).
+    // There is always exactly one headroom plan project in the system.
+    CLUSTER_HEADROOM = 1;
+}
+
 // Information describing the plan project.
 message PlanProjectInfo {
-    enum PlanProjectType {
-        // A custom plan project is created by the user
-        // and has no special behaviour/server-side code.
-        CUSTOM = 0;
-
-        // A headroom plan project is responsible for calculating
-        // per-cluster headroom (i.e. how many VMs can still fit into the cluster).
-        // There is always exactly one headroom plan project in the system.
-        CLUSTER_HEADROOM = 1;
-     }
 
     // The name of the plan project. Names should be unique.
     // This field should always be present.
@@ -96,7 +97,7 @@ message PlanProjectInfo {
     optional Recurrence recurrence = 3;
 
     // The type of the plan project
-    optional PlanProjectType type = 4 [default = CUSTOM];
+    optional PlanProjectType type = 4 [default = USER];
 
     // Create one plan for each cluster in the system.
     //

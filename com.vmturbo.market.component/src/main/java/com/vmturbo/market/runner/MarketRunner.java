@@ -67,7 +67,6 @@ public class MarketRunner {
         final Analysis analysis;
         final long topologyContextId = topologyInfo.getTopologyContextId();
         final long topologyId = topologyInfo.getTopologyId();
-        final Set<Long> scopeSeedEntityOIDs = Sets.newHashSet(topologyInfo.getScopeSeedOidsList());
 
         synchronized (analysisMap) {
             if (analysisMap.containsKey(topologyContextId)) {
@@ -82,7 +81,6 @@ public class MarketRunner {
                     .setTopologyInfo(topologyInfo)
                     .setTopologyDTOs(topologyDTOs)
                     .setIncludeVDC(includeVDC)
-                    .setScope(scopeSeedEntityOIDs)
                     .build();
             analysisMap.put(topologyContextId, analysis);
         }

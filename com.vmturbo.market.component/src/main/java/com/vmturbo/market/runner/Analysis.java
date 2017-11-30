@@ -19,6 +19,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
@@ -54,7 +55,6 @@ public class Analysis {
     private LocalDateTime startTime = EPOCH;
     private LocalDateTime completionTime = EPOCH;
     private final Set<TopologyEntityDTO> topologyDTOs;
-    private final Set<Long> seedServiceEntityOIDs;
     private final String logPrefix;
 
     private Collection<TopologyEntityDTO> projectedEntities = null;
@@ -78,18 +78,14 @@ public class Analysis {
      *
      * @param topologyInfo descriptive info about the topology - id, type, etc
      * @param topologyDTOs the Set of {@link TopologyEntityDTO}s that make up the topology
-     * @param seedServiceEntityOIDs a list of SE OIDs that determine the 'seed' for a scoped topology;
-     *                     if this list is empty, no scoping is performed and the analysis considers
-     *                     the full topology
      * @param includeVDC specify whether guaranteed buyers (VDC, VPod, DPod) are included in the
      *                     market analysis
      */
     public Analysis(@Nonnull final TopologyInfo topologyInfo,
                     @Nonnull final Set<TopologyEntityDTO> topologyDTOs,
-                    Set<Long> seedServiceEntityOIDs, final boolean includeVDC) {
+                    final boolean includeVDC) {
         this.topologyInfo = topologyInfo;
         this.topologyDTOs = topologyDTOs;
-        this.seedServiceEntityOIDs = seedServiceEntityOIDs;
         this.includeVDC = includeVDC;
         this.state = AnalysisState.INITIAL;
         logPrefix = topologyInfo.getTopologyType() + " Analysis " +
@@ -124,14 +120,15 @@ public class Analysis {
         startTime = LocalDateTime.now();
         logger.info(logPrefix + "Started");
         try {
-            final TopologyConverter converter = new TopologyConverter(includeVDC,
-                    topologyInfo.getTopologyType());
-            Set<TraderTO> traderTOs = converter
-                            .convertToMarket(Lists.newLinkedList(topologyDTOs));
+            final TopologyConverter converter = new TopologyConverter(includeVDC, topologyInfo);
+
+            Set<TraderTO> traderTOs = converter.convertToMarket(
+                    Lists.newLinkedList(topologyDTOs));
             // if a scope 'seed' entity OID list is specified, then scope the topology starting with
             // the given 'seed' entities
-            if (!seedServiceEntityOIDs.isEmpty()) {
-                traderTOs = scopeTopology(traderTOs, seedServiceEntityOIDs);
+            if (!topologyInfo.getScopeSeedOidsList().isEmpty()) {
+                traderTOs = scopeTopology(traderTOs,
+                    ImmutableSet.copyOf(topologyInfo.getScopeSeedOidsList()));
             }
             if (logger.isDebugEnabled()) {
                 logger.debug(traderTOs.size() + " Economy DTOs");
@@ -254,16 +251,6 @@ public class Analysis {
      */
     public Set<TopologyEntityDTO> getTopology() {
         return Collections.unmodifiableSet(topologyDTOs);
-    }
-
-    /**
-     * An unmodifiable view of the set of topology entity OIDs that constitute the 'scope' for this
-     * market analysis. If no scope was set up, then return an empty set here.
-     *
-     * @return the current set of scope entity OIDs, if any, or the empty set if no scope specified
-     */
-    public Set<Long> getScope() {
-        return Collections.unmodifiableSet(seedServiceEntityOIDs);
     }
 
     /**
@@ -465,8 +452,6 @@ public class Analysis {
         private TopologyInfo topologyInfo = TopologyInfo.getDefaultInstance();
         // the Topology DTOs that make up the topology
         private Set<TopologyEntityDTO> topologyDTOs = Collections.emptySet();
-        // the OIDs of the SE's that form the seed, if the topology is to be scoped
-        private Set<Long> scopeSeedServiceEntityOIDs = Collections.emptySet();
         // specify whether the analysis should include guaranteed buyers in the market analysis
         private boolean includeVDC = false;
 
@@ -494,20 +479,6 @@ public class Analysis {
         }
 
         /**
-         * Capture the Set of SE OIDs that define how to scope this topology. If the scope set
-         * is empty, then no scoping is to be performed. See {@link Analysis#scopeTopology}
-         * for more details.
-         *
-         * @param scopeSeedOids the Set of OIDs that specify the seed from which the scoping calculation
-         *                  proceeds.
-         * @return this Builder to support flow style
-         */
-        public AnalysisBuilder setScope(Set<Long> scopeSeedOids) {
-            this.scopeSeedServiceEntityOIDs = scopeSeedOids;
-            return this;
-        }
-
-        /**
          * Configure whether to include guaranteed buyers (VDC, VPod, DPod) in the analysis.
          *
          * @param includeVDC true if the guaranteed buyers (VDC, VPod, DPod) should be included
@@ -524,7 +495,7 @@ public class Analysis {
          * @return the newly build Analysis object initialized from the Builder fields.
          */
         public Analysis build() {
-            return new Analysis(topologyInfo, topologyDTOs, scopeSeedServiceEntityOIDs, includeVDC);
+            return new Analysis(topologyInfo, topologyDTOs, includeVDC);
         }
     }
 

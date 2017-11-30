@@ -64,17 +64,6 @@ public class AnalysisBuilderTest {
     }
 
     @Test
-    public void testSetScope() {
-        // Arrange
-        Set<Long> testScope = Sets.newHashSet(OID1, OID2);
-        // Act
-        Analysis analysis = testBuilder.setScope(testScope)
-                .build();
-        // Assert
-        assertEquals(testScope, analysis.getScope());
-    }
-
-    @Test
     public void testSetIncludeVDCTrue() {
         // Act
         Analysis analysis = testBuilder.setIncludeVDC(true)

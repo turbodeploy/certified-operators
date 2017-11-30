@@ -9,6 +9,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.Optional;
+
 import org.assertj.core.util.Lists;
 import org.junit.Before;
 import org.junit.Test;
@@ -62,7 +64,8 @@ public class TopologyProtobufReaderTest {
         when(collection.getDocument(anyString(), any())).thenReturn(doc);
 
         TopologyProtobufsManager tpm = new TopologyProtobufsManager(factory);
-        final TopologyProtobufReader reader = tpm.createTopologyProtobufReader(1111);
+        final TopologyProtobufReader reader = tpm.createTopologyProtobufReader(1111,
+                Optional.empty());
         verify(db).createDatabase(Mockito.eq("topology-protobufs"));
         verify(database).collection(Mockito.eq("topology-dtos-1111"));
         // Reader does not create the collection

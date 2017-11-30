@@ -19,8 +19,10 @@ import org.mockito.MockitoAnnotations;
 
 import io.grpc.stub.StreamObserver;
 
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
 import com.vmturbo.common.protobuf.topology.AnalysisDTO.StartAnalysisRequest;
 import com.vmturbo.common.protobuf.topology.AnalysisDTO.StartAnalysisResponse;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.communication.CommunicationException;
@@ -61,6 +63,8 @@ public class AnalysisRpcServiceTest {
         .setTopologyId(topologyId)
         .setCreationTime(clockTime)
         .setTopologyType(TopologyType.PLAN)
+        .setPlanInfo(PlanTopologyInfo.newBuilder()
+            .setPlanType(PlanProjectType.USER))
         .build();
 
     private TopologyBroadcastInfo broadcastInfo = mock(TopologyBroadcastInfo.class);

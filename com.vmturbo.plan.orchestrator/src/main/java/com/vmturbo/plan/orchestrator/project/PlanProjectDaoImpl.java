@@ -17,7 +17,7 @@ import org.slf4j.LoggerFactory;
 
 import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectInfo;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectInfo.PlanProjectType;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.plan.orchestrator.db.tables.pojos.PlanProject;

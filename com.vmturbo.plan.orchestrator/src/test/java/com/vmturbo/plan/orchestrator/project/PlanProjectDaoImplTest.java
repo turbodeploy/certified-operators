@@ -1,10 +1,9 @@
 package com.vmturbo.plan.orchestrator.project;
 
-import com.vmturbo.common.protobuf.plan.PlanDTO;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectInfo.PlanProjectType;
-import com.vmturbo.commons.idgen.IdentityGenerator;
-import com.vmturbo.commons.idgen.IdentityInitializer;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
+import static org.junit.Assert.assertEquals;
+
+import java.util.List;
+
 import org.flywaydb.core.Flyway;
 import org.junit.After;
 import org.junit.Before;
@@ -16,10 +15,11 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
-import java.util.List;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import com.vmturbo.common.protobuf.plan.PlanDTO;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
+import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.commons.idgen.IdentityInitializer;
+import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
 /**
  * Unit test for {@link PlanProjectDaoImpl}
@@ -59,7 +59,7 @@ public class PlanProjectDaoImplTest {
 
     @Test
     public void testGetCustomPlanProjectList() throws Exception {
-        testGetPlanProjectList(PlanProjectType.CUSTOM);
+        testGetPlanProjectList(PlanProjectType.USER);
     }
 
     private void testGetPlanProjectList(PlanProjectType planProjectType) throws Exception {

@@ -19,6 +19,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.analysis.InvalidTopologyException;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -31,6 +32,10 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * and proper handling of guaranteed buyers.
  */
 public class TopologyConverterGuaranteedTest {
+
+    private static final TopologyInfo REALTIME_TOPOLOGY_INFO =  TopologyInfo.newBuilder()
+            .setTopologyType(TopologyType.REALTIME)
+            .build();
 
     private static final long VDC1_OID = 50001;
     private static final long VDC2_OID = 50002;
@@ -97,7 +102,7 @@ public class TopologyConverterGuaranteedTest {
     @Test
     public void testExcludeVDCs() throws InvalidTopologyException {
         // includeVDC is false
-        TopologyConverter converter = new TopologyConverter(TopologyType.REALTIME);
+        TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO);
         Set<TraderTO> traders = converter.convertToMarket(entities);
         // VDCs are skipped, VMs in maintenance and unknown state are skipped
         assertEquals(1, traders.size());
@@ -117,7 +122,7 @@ public class TopologyConverterGuaranteedTest {
      */
     @Test
     public void testIncludeVDCs() throws InvalidTopologyException {
-        TopologyConverter converter = new TopologyConverter(true, TopologyType.REALTIME);
+        TopologyConverter converter = new TopologyConverter(true, REALTIME_TOPOLOGY_INFO);
         Set<TraderTO> traders = converter.convertToMarket(entities);
         assertEquals(4, traders.size());
         List<Long> guaranteedBuyers = traders.stream()

@@ -77,4 +77,12 @@ public interface PlanDao {
      */
     PlanInstance updatePlanInstance(long planId, @Nonnull Consumer<Builder> updater)
             throws IntegrityException, NoSuchObjectException;
+
+    /**
+     * Add a {@link PlanStatusListener} to the {@link PlanDao}. The listener will receive
+     * updates any time any plan's status changes.
+     *
+     * @param listener The {@link PlanStatusListener}.
+     */
+    void addStatusListener(@Nonnull final PlanStatusListener listener);
 }

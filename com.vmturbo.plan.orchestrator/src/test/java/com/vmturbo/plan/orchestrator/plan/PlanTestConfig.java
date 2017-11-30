@@ -93,7 +93,9 @@ public class PlanTestConfig {
 
     @Bean
     public PlanNotificationSender planNotificationSender() {
-        return new PlanNotificationSender(messageChannel());
+        final PlanNotificationSender sender = new PlanNotificationSender(messageChannel());
+        planDao().addStatusListener(sender);
+        return sender;
     }
 
     @Bean
@@ -139,7 +141,7 @@ public class PlanTestConfig {
     @Bean
     public PlanDao planDao() {
         return Mockito.spy(
-                new PlanDaoImpl(dbConfig.dsl(), planNotificationSender(), repositoryClient(),
+                new PlanDaoImpl(dbConfig.dsl(), repositoryClient(),
                         actionServiceClient(), statsServiceClient()));
     }
 

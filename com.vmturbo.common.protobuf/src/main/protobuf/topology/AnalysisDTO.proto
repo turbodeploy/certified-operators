@@ -10,6 +10,13 @@ message StartAnalysisRequest {
     // should be associated with.
     required int64 plan_id = 1;
 
+    // The type of plan project that is requesting the analysis.
+    //
+    // At the time of this writing (Nov 28 2017), not all plans are formally associated
+    // with a plan project. In the future, every plan will be part of some
+    // plan project.
+    optional plan.PlanProjectType plan_type = 5 [default = USER];
+
     // The ID of the topology to run the analysis on.
     // If not set, run the analysis on the real-time
     // topology.

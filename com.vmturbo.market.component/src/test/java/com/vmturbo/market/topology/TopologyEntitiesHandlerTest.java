@@ -62,6 +62,10 @@ public class TopologyEntitiesHandlerTest {
     private static final String DSPM_OR_DATASTORE_PATTERN = "DSPM.*|DATASTORE.*";
     private static final String BC_PATTERN = "BICLIQUE.*";
 
+    private static final TopologyInfo REALTIME_TOPOLOGY_INFO =  TopologyInfo.newBuilder()
+            .setTopologyType(TopologyType.REALTIME)
+            .build();
+
     /**
      * Test loading a file that was generated using the hyper-v probe.
      * Move the DTOs through the whole pipe and verify we get actions.
@@ -129,7 +133,7 @@ public class TopologyEntitiesHandlerTest {
         IntStream.range(0, probeDTOs.size()).forEach(i -> map.put((long)i, probeDTOs.get(i)));
 
         List<TopologyEntityDTO.Builder> topoDTOs = Converter.convert(map);
-        TopologyConverter topoConverter = new TopologyConverter(true, TopologyType.REALTIME);
+        TopologyConverter topoConverter = new TopologyConverter(true, REALTIME_TOPOLOGY_INFO);
 
         Set<TraderTO> traderDTOs = topoConverter.convertToMarket(
             topoDTOs.stream().map(TopologyEntityDTO.Builder::build).collect(Collectors.toList()));
@@ -173,7 +177,7 @@ public class TopologyEntitiesHandlerTest {
 
         List<TopologyEntityDTO.Builder> topoDTOs = Converter.convert(map);
 
-        Set<TraderTO> traderDTOs = new TopologyConverter(TopologyType.REALTIME).convertToMarket(
+        Set<TraderTO> traderDTOs = new TopologyConverter(REALTIME_TOPOLOGY_INFO).convertToMarket(
             topoDTOs.stream().map(TopologyEntityDTO.Builder::build).collect(Collectors.toList()));
 
         for (TraderTO traderTO : traderDTOs) {
@@ -220,7 +224,7 @@ public class TopologyEntitiesHandlerTest {
             .map(TopologyEntityDTO.Builder::build)
             .collect(Collectors.toList());
 
-        TopologyConverter togetherConverter = new TopologyConverter(TopologyType.REALTIME);
+        TopologyConverter togetherConverter = new TopologyConverter(REALTIME_TOPOLOGY_INFO);
         final Set<TraderTO> traderDTOs = togetherConverter.convertToMarket(nonShopTogetherTopoDTOs);
 
         // No DSPMAccess and Datastore commodities sold
@@ -252,7 +256,7 @@ public class TopologyEntitiesHandlerTest {
             .map(TopologyEntityDTO.Builder::build)
             .collect(Collectors.toList());
 
-        TopologyConverter shopTogetherConverter = new TopologyConverter(TopologyType.REALTIME);
+        TopologyConverter shopTogetherConverter = new TopologyConverter(REALTIME_TOPOLOGY_INFO);
         final Set<TraderTO> shopTogetherTraderDTOs = shopTogetherConverter.convertToMarket(shopTogetherTopoDTOs);
 
         // No DSPMAccess and Datastore commodities sold
@@ -290,7 +294,7 @@ public class TopologyEntitiesHandlerTest {
         IntStream.range(0, probeDTOs.size()).forEach(i -> map.put((long)i, probeDTOs.get(i)));
 
         List<TopologyEntityDTO.Builder> topoDTOs = Converter.convert(map);
-        new TopologyConverter(TopologyType.REALTIME).convertToMarket(
+        new TopologyConverter(REALTIME_TOPOLOGY_INFO).convertToMarket(
             topoDTOs.stream().map(TopologyEntityDTO.Builder::build).collect(Collectors.toList()));
     }
 
@@ -311,7 +315,7 @@ public class TopologyEntitiesHandlerTest {
         List<TopologyEntityDTO> topoDTOs = Converter.convert(map).stream()
             .map(TopologyEntityDTO.Builder::build)
             .collect(Collectors.toList());
-        Set<TraderTO> economyDTOs = new TopologyConverter(true, TopologyType.REALTIME)
+        Set<TraderTO> economyDTOs = new TopologyConverter(true, REALTIME_TOPOLOGY_INFO)
                         .convertToMarket(topoDTOs);
         final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
                 .setTopologyContextId(7L)

@@ -255,7 +255,8 @@ public class TopologyLifecycleManager implements Diagnosable {
     public void deleteTopology(@Nonnull final TopologyID tid) throws TopologyDeletionException {
         final List<String> errors = new LinkedList<>();
         try {
-            topologyProtobufsManager.createTopologyProtobufReader(tid.getTopologyId()).delete();
+            topologyProtobufsManager.createTopologyProtobufReader(tid.getTopologyId(),
+                    Optional.empty()).delete();
         } catch (NoSuchElementException e) {
             // This is not considered an error, since the requested topology is "deleted" now :)
             LOGGER.warn("No topology protobufs to delete for topology {}", tid);

@@ -37,7 +37,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.DeletePlanProjectResponse;
 import com.vmturbo.common.protobuf.plan.PlanDTO.GetPlanProjectRequest;
 import com.vmturbo.common.protobuf.plan.PlanDTO.GetPlanProjectResponse;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectInfo;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectInfo.PlanProjectType;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.PlanDTO.Recurrence;
 import com.vmturbo.common.protobuf.plan.PlanDTO.Recurrence.Daily;
 import com.vmturbo.common.protobuf.plan.PlanDTO.Recurrence.Schedule;
@@ -45,10 +45,9 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.Recurrence.TimeOfRun;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.components.api.test.GrpcExceptionMatcher;
+import com.vmturbo.plan.orchestrator.db.tables.pojos.PlanProject;
 import com.vmturbo.plan.orchestrator.db.tables.records.PlanProjectRecord;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
-
-import com.vmturbo.plan.orchestrator.db.tables.pojos.PlanProject;
 
 /**
  * Unit test for {@link PlanProjectRpcService}

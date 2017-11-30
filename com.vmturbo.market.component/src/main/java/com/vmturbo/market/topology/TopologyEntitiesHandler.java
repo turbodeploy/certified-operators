@@ -10,6 +10,7 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.analysis.AnalysisUtil;
@@ -79,7 +80,14 @@ public class TopologyEntitiesHandler {
         final DataMetricTimer buildTimer = ECONOMY_BUILD.startTimer();
         final Topology topology = new Topology();
         for (final TraderTO traderTO : traderTOs) {
-            ProtobufToAnalysis.addTrader(topology, traderTO);
+            // If it's a trader that's added specifically for headroom calculation, don't add
+            // it to the topology along with the other traders. Add it to a separate list,
+            // and the market will use that list to help calculate headroom.
+            if (traderTO.getTemplateForHeadroom()) {
+                topology.addTradersForHeadroom(traderTO);
+            } else {
+                ProtobufToAnalysis.addTrader(topology, traderTO);
+            }
         }
         // The markets in the economy must be populated with their sellers after all traders have been
         // added. Map creation is not dependent on it, but for clarity it makes sense to add all
@@ -100,13 +108,29 @@ public class TopologyEntitiesHandler {
         buildTimer.observe();
 
         final boolean isRealtime = topologyInfo.getTopologyType() == TopologyType.REALTIME;
-        // Generate actions
-        final String marketId = topologyInfo.getTopologyType() + "-"
-                + Long.toString(topologyInfo.getTopologyContextId()) + "-"
-                + Long.toString(topologyInfo.getTopologyId());
         final DataMetricTimer runTimer = ANALYSIS_RUNTIME.startTimer();
-        final List<Action> actions = ede.generateActions(economy, true,
-            true, true, true, true, marketId, isRealtime);
+        final List<Action> actions;
+
+        // The current implementation of headroom plans in M2 requires a different method call
+        // to calculate headroom actions. When/if we switch to the FMO implementation (calculating
+        // headroom based on the projected topology output of a regular plan) we can get rid
+        // of this.
+        if (!economy.getTradersForHeadroom().isEmpty()) {
+            // Sanity check that the conditions we expect are correct.
+            if (isRealtime ||
+                    topologyInfo.getPlanInfo().getPlanType() != PlanProjectType.CLUSTER_HEADROOM) {
+                throw new IllegalStateException("Attempting to generate headroom actions for a " +
+                        "non-headroom analysis request! Topology info: " + topologyInfo);
+            }
+            actions = ede.generateHeadroomActions(economy, false, false, false, true);
+        } else {
+            // Generate actions
+            final String marketId = topologyInfo.getTopologyType() + "-"
+                    + Long.toString(topologyInfo.getTopologyContextId()) + "-"
+                    + Long.toString(topologyInfo.getTopologyId());
+            actions = ede.generateActions(economy, true,
+                    true, true, true, true, marketId, isRealtime);
+        }
         final long stop = System.nanoTime();
 
         AnalysisResults results = AnalysisToProtobuf.analysisResults(actions, topology.getTraderOids(),

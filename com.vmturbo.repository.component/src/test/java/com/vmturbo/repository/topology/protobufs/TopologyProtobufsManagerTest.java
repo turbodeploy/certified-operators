@@ -1,6 +1,7 @@
 package com.vmturbo.repository.topology.protobufs;
 
 import java.util.NoSuchElementException;
+import java.util.Optional;
 
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -23,7 +24,7 @@ public class TopologyProtobufsManagerTest {
         ArangoDatabaseFactory factory = Mockito.mock(ArangoDatabaseFactory.class);
         Mockito.when(factory.getArangoDriver()).thenThrow(exception);
         TopologyProtobufsManager tpm = new TopologyProtobufsManager(factory);
-        tpm.createTopologyProtobufReader(1111);
+        tpm.createTopologyProtobufReader(1111, Optional.empty());
     }
 
     @Test(expected = ArangoDBException.class)
@@ -34,7 +35,6 @@ public class TopologyProtobufsManagerTest {
         ArangoDatabaseFactory factory = Mockito.mock(ArangoDatabaseFactory.class);
         Mockito.when(factory.getArangoDriver()).thenThrow(exception);
         TopologyProtobufsManager tpm = new TopologyProtobufsManager(factory);
-        tpm.createTopologyProtobufReader(1111);
+        tpm.createTopologyProtobufReader(1111, Optional.empty());
     }
-
 }

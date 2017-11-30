@@ -18,8 +18,11 @@ import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.analysis.InvalidTopologyException;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -39,6 +42,10 @@ import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
  * Test various actions.
  */
 public class InterpretActionTest {
+
+    private static final TopologyInfo REALTIME_TOPOLOGY_INFO =  TopologyInfo.newBuilder()
+            .setTopologyType(TopologyType.REALTIME)
+            .build();
 
     private CommodityDTOs.CommoditySpecificationTO economyCommodity1;
     private CommodityType topologyCommodity1;
@@ -70,7 +77,7 @@ public class InterpretActionTest {
 
     @Test
     public void testExecutableFlag() {
-        final TopologyConverter converter = new TopologyConverter(true, TopologyType.REALTIME);
+        final TopologyConverter converter = new TopologyConverter(true, REALTIME_TOPOLOGY_INFO);
 
         final ActionTO executableActionTO = ActionTO.newBuilder()
                 .setImportance(0.)
@@ -93,7 +100,7 @@ public class InterpretActionTest {
 
     @Test
     public void testInterpretMoveAction() throws IOException, InvalidTopologyException {
-        TopologyConverter converter = new TopologyConverter(true, TopologyType.REALTIME);
+        TopologyConverter converter = new TopologyConverter(true, REALTIME_TOPOLOGY_INFO);
         TopologyDTO.TopologyEntityDTO entityDTO =
                 TopologyConverterTest.messageFromJsonFile("protobuf/messages/vm-1.dto.json");
 
@@ -123,7 +130,7 @@ public class InterpretActionTest {
 
     @Test
     public void testInterpretReconfigureAction() throws IOException, InvalidTopologyException {
-        TopologyConverter converter = new TopologyConverter(true, TopologyType.REALTIME);
+        TopologyConverter converter = new TopologyConverter(true, REALTIME_TOPOLOGY_INFO);
         TopologyDTO.TopologyEntityDTO topologyDTO =
                         TopologyConverterTest.messageFromJsonFile("protobuf/messages/vm-1.dto.json");
 
@@ -147,7 +154,7 @@ public class InterpretActionTest {
 
     @Test
     public void testInterpretProvisionBySupplyAction() throws Exception {
-        TopologyConverter converter = new TopologyConverter(true, TopologyType.REALTIME);
+        TopologyConverter converter = new TopologyConverter(true, REALTIME_TOPOLOGY_INFO);
 
         ActionInfo actionInfo = converter.interpretAction(
                 ActionTO.newBuilder()
@@ -166,7 +173,7 @@ public class InterpretActionTest {
 
     @Test
     public void testInterpretResizeAction() throws Exception {
-        final TopologyConverter converter = Mockito.spy(new TopologyConverter(true, TopologyType.REALTIME));
+        final TopologyConverter converter = Mockito.spy(new TopologyConverter(true, REALTIME_TOPOLOGY_INFO));
         Mockito.doReturn(Optional.of(topologyCommodity1))
                .when(converter).economyToTopologyCommodity(Mockito.eq(economyCommodity1));
 
@@ -193,7 +200,7 @@ public class InterpretActionTest {
 
     @Test
     public void testInterpretActivateAction() throws Exception {
-        final TopologyConverter converter = Mockito.spy(new TopologyConverter(true, TopologyType.REALTIME));
+        final TopologyConverter converter = Mockito.spy(new TopologyConverter(true, REALTIME_TOPOLOGY_INFO));
         Mockito.doReturn(Optional.of(topologyCommodity1))
                .when(converter).economyToTopologyCommodity(Mockito.eq(economyCommodity1));
         Mockito.doReturn(Optional.of(topologyCommodity2))
@@ -221,7 +228,7 @@ public class InterpretActionTest {
 
     @Test
     public void testInterpretDeactivateAction() throws Exception {
-        final TopologyConverter converter = Mockito.spy(new TopologyConverter(true, TopologyType.REALTIME));
+        final TopologyConverter converter = Mockito.spy(new TopologyConverter(true, REALTIME_TOPOLOGY_INFO));
         Mockito.doReturn(Optional.of(topologyCommodity1))
                 .when(converter).economyToTopologyCommodity(Mockito.eq(economyCommodity1));
         Mockito.doReturn(Optional.of(topologyCommodity2))

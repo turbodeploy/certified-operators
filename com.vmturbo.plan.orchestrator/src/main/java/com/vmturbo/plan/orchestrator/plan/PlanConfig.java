@@ -64,7 +64,7 @@ public class PlanConfig {
 
     @Bean
     public PlanDao planDao() {
-        return new PlanDaoImpl(dbConfig.dsl(), planNotificationSender(),
+        return new PlanDaoImpl(dbConfig.dsl(),
             repositoryClientConfig.repositoryClient(),
             actionsRpcService(),
             statsRpcService());
@@ -127,7 +127,9 @@ public class PlanConfig {
 
     @Bean
     public PlanNotificationSender planNotificationSender() {
-        return new PlanNotificationSender(notificationSender());
+        final PlanNotificationSender notificationSender = new PlanNotificationSender(notificationSender());
+        planDao().addStatusListener(notificationSender);
+        return notificationSender;
     }
 
     @Bean(destroyMethod = "shutdownNow")
