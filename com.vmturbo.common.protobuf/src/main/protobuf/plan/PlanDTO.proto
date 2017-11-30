@@ -47,17 +47,17 @@ message PlanScope {
     repeated PlanScopeEntry scope_entries = 1;
 }
 
-// A reference to a group to be included in the plan scope. In the future, this entry may also have
-// some kind of operator representing whether the group should be included or excluded from scope,
-// but for now all entries are treated as being included in the scope.
+// A reference to an entity or group id to be included in the plan scope. In the future, this entry
+// may also have some kind of operator representing whether the group should be included or excluded
+// from scope, but for now all entries are treated as being included in the scope.
 message PlanScopeEntry {
-    // a group id
-    optional int64 group_id = 1;
+    // the id of the object this scope entry refers to.
+    optional int64 scope_object_oid = 1;
 
-    // class name of the scope entry type
+    // class name of the scope entry type -- for UI compatibility and may be removed in the future
     optional string class_name = 3;
 
-    // display name of the group
+    // display name of the group -- for UI compatibility and may be removed in the future
     optional string display_name = 4;
 }
 

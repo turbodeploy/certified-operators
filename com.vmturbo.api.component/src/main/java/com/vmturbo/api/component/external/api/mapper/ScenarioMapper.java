@@ -28,7 +28,6 @@ import com.google.common.collect.ImmutableList;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
-import com.vmturbo.api.component.external.api.service.GroupsService;
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -41,7 +40,6 @@ import com.vmturbo.api.dto.scenario.TopologyChangesApiDTO;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.common.protobuf.PlanDTOUtil;
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScope;
 import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
@@ -67,6 +65,23 @@ public class ScenarioMapper {
      * reason.
      */
     private static final String CUSTOM_SCENARIO_TYPE = "CUSTOM";
+
+    /**
+     * The string constant the UI uses to identify a plan scoped to the global environment.
+     */
+    private static final String MARKET_PLAN_SCOPE_CLASSNAME = "Market";
+
+    /**
+     * A default market scope that we pass back to the UI when there is no explicit scope defined
+     * in a plan.
+     */
+    private static final BaseApiDTO MARKET_PLAN_SCOPE;
+    static {
+        MARKET_PLAN_SCOPE = new BaseApiDTO();
+        MARKET_PLAN_SCOPE.setUuid(MARKET_PLAN_SCOPE_CLASSNAME);
+        MARKET_PLAN_SCOPE.setDisplayName("Global Environment");
+        MARKET_PLAN_SCOPE.setClassName(MARKET_PLAN_SCOPE_CLASSNAME);
+    }
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -110,7 +125,7 @@ public class ScenarioMapper {
 
         infoBuilder.addAllChanges(getTopologyChanges(dto.getTopologyChanges(), templateIds));
         infoBuilder.addAllChanges(getConfigChanges(dto.getConfigChanges()));
-        getScope(dto.getScope()).ifPresent(scope -> infoBuilder.setScope(scope));
+        getScope(dto.getScope()).ifPresent(infoBuilder::setScope);
         // TODO (gabriele, Oct 27 2017) We need to extend the Plan Orchestrator with support
         // for the other types of changes: time based topology, load and config
 
@@ -263,7 +278,7 @@ public class ScenarioMapper {
         Preconditions.checkArgument(change.getTarget() != null,
                 "Topology additions must contain a target");
         // Default count to 1
-        int count = change.getCount() != null? change.getCount() : 1;
+        int count = change.getCount() != null ? change.getCount() : 1;
 
         final Long uuid = Long.parseLong(change.getTarget().getUuid());
 
@@ -272,8 +287,7 @@ public class ScenarioMapper {
             .setAdditionCount(count);
         if (templateIds.contains(uuid)) {
             additionBuilder.setTemplateId(uuid);
-        }
-        else {
+        } else {
             additionBuilder.setEntityId(uuid);
         }
 
@@ -310,11 +324,11 @@ public class ScenarioMapper {
     /**
      * If there are any scope entries in the list of scopeDTO's, create a PlanScope object that
      * represents the scope contents in XL DTO schema objects.
-     * @param scopeDTOs the list of "classic" scope DTO objects, which can be empty or null.
+     * @param scopeDTOs the list of scope DTO objects, which can be empty or null.
      * @return the equivalent PlanScope, if any scope DTO's were found. Empty otherwise.
      */
     private Optional<PlanScope> getScope(@Nullable final List<BaseApiDTO> scopeDTOs) {
-        // convert scope info
+        // convert scope info from BaseApiDTO's to PlanScopeEntry objects
         if (scopeDTOs == null || scopeDTOs.size() == 0) {
             return Optional.empty(); // no scope to convert
         }
@@ -322,12 +336,20 @@ public class ScenarioMapper {
         PlanScope.Builder scopeBuilder = PlanScope.newBuilder();
         // add all of the scope entries to the builder
         for (BaseApiDTO scopeDTO : scopeDTOs) {
+            // Since all scope entries are additive, if any scope is the Market scope, then this is
+            // effectively the same as an unscoped plan, so return the empty scope. In the future,
+            // if we support scope reduction entries, this may change.
+            if (scopeDTO.getClassName().equalsIgnoreCase(MARKET_PLAN_SCOPE_CLASSNAME)) {
+                return Optional.empty();
+            }
+
+            long objectId = Long.parseLong(scopeDTO.getUuid());
             scopeBuilder.addScopeEntriesBuilder()
-                    .setGroupId(Long.parseLong(scopeDTO.getUuid()))
+                    .setScopeObjectOid(objectId)
                     .setClassName(scopeDTO.getClassName())
                     .setDisplayName(scopeDTO.getDisplayName());
-
         }
+        // we have a customized scope -- return it
         return Optional.of(scopeBuilder.build());
     }
 
@@ -339,22 +361,21 @@ public class ScenarioMapper {
             if (info.hasScope()) {
                 PlanScope planScope = info.getScope();
                 if (planScope.getScopeEntriesCount() > 0) {
-                    // create the list of scope objects
-                    List<BaseApiDTO> retVal = planScope.getScopeEntriesList().stream()
+                    // return the list of scope objects
+                    return planScope.getScopeEntriesList().stream()
                             .map(scopeEntry -> {
                                 BaseApiDTO scopeDTO = new BaseApiDTO();
-                                scopeDTO.setUuid(Long.toString(scopeEntry.getGroupId()));
+                                scopeDTO.setUuid(Long.toString(scopeEntry.getScopeObjectOid()));
                                 scopeDTO.setClassName(scopeEntry.getClassName());
                                 scopeDTO.setDisplayName(scopeEntry.getDisplayName());
                                 return scopeDTO;
                             })
                             .collect(Collectors.toList());
-                    return retVal;
                 }
             }
         }
-        // no scope to read -- return an empty list.
-        return Collections.emptyList();
+        // no scope to read -- return a default global scope for the UI to use.
+        return Collections.singletonList(MARKET_PLAN_SCOPE);
     }
 
     private List<Integer> buildApiProjChanges() {
