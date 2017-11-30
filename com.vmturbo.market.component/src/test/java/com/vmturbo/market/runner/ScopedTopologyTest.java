@@ -32,8 +32,12 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+<<<<<<< Updated upstream
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+=======
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+>>>>>>> Stashed changes
 import com.vmturbo.commons.analysis.InvalidTopologyException;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
@@ -41,6 +45,7 @@ import com.vmturbo.market.MarketNotificationSender;
 import com.vmturbo.market.topology.conversions.TopologyConverter;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs;
+import com.vmturbo.platform.common.dto.CommonDTO;
 
 public class ScopedTopologyTest {
 
@@ -137,6 +142,35 @@ public class ScopedTopologyTest {
                 Sets.newHashSet(HOST_11_OID, HOST_13_OID));
 
         // "Host #11", "Host #13", "Datacenter #0"
+        assertThat(scopedTraderTOs.size(), equalTo(3));
+    }
+
+    /**
+     * In this test, we start with "Host #11", which has no applications. Therefore there are no
+     * "upwards" traders. The only other element in the Scoped Topology is the "downwards" Datacenter.
+     * We add a new, i.e. unplaced ServiceEntity (a VM), and check that is included in the output.
+     *
+     * @throws InvalidTopologyException if there is a problem converting the topology to TraderTO's
+     */
+    @Test
+    public void testScopeTopologyUplacedEnities() throws InvalidTopologyException {
+        final TopologyConverter converter = new TopologyConverter(TopologyDTO.TopologyType.PLAN);
+        // add an additional VM, which should be considered unplaced
+        topologyDTOs.add(TopologyEntityDTO.newBuilder()
+                .setDisplayName("VM-unplaced")
+                .setOid(999L)
+                .setEntityType(CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE_VALUE)
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(-1)
+                        .build())
+                .build());
+        final Set<EconomyDTOs.TraderTO> traderTOs = converter
+                .convertToMarket(topologyDTOs);
+
+        Set<EconomyDTOs.TraderTO> scopedTraderTOs = testAnalysis.scopeTopology(traderTOs,
+                Sets.newHashSet(HOST_11_OID));
+
+        // "Host #11", "Datacenter #0", "VM-unplaced"
         assertThat(scopedTraderTOs.size(), equalTo(3));
     }
 

@@ -341,6 +341,8 @@ public class Analysis {
      * Create a subset of the original topology representing the "scoped topology" given a topology
      * and a "seed scope" set of SE's.
      * <p>
+     * Any unplaced service entities are automatically included in the "scoped topology"
+     * <p>
      * Starting with the "seed", follow the "buys-from" relationships "going up" and elements to
      * the "scoped topology". Along the way construct a set of traders at the "top", i.e. that do
      * not buy from any other trader. Then, from the "top" elements, follow relationships "going down"
@@ -361,11 +363,19 @@ public class Analysis {
     Set<TraderTO> scopeTopology(@Nonnull Set<TraderTO> traderTOs, @Nonnull Set<Long> seedOids) {
 
         // the resulting scoped topology - contains at least the seed OIDs
-        Set<Long> scopedTopologyOIDs = Sets.newHashSet(seedOids);
+        final Set<Long> scopedTopologyOIDs = Sets.newHashSet(seedOids);
+
+        // holder for the scoped topology
+        final Set<TraderTO> traderTOsInScopedTopology = Sets.newHashSet();
 
         // create a Topology and associated Economy representing the source topology
         final Topology topology = new Topology();
         for (final TraderTO traderTO : traderTOs) {
+            // include all "uplaced" traders in the final scoped topology
+            if (traderIsUnplaced(traderTO)) {
+                traderTOsInScopedTopology.add(traderTO);
+            }
+            // include the OIDs for the 'seed' service entities in the scanned list
             if (seedOids.contains(traderTO.getOid())) {
                 scopedTopologyOIDs.add(traderTO.getOid());
             }
@@ -378,8 +388,10 @@ public class Analysis {
         // a "work queue" of entities to expand; any given OID is only ever added once -
         // if already in 'scopedTopologyOIDs' it has been considered and won't be re-expanded
         Queue<Long> suppliersToExpand = Lists.newLinkedList(seedOids);
+
         // the queue of entities to expand "downwards"
         Queue<Long> buyersToSatisfy = Lists.newLinkedList();
+
         // starting with the seed, expand "up"
         while (suppliersToExpand.size() > 0) {
             long traderOid = suppliersToExpand.remove();
@@ -438,9 +450,23 @@ public class Analysis {
         // return the subset of the original TraderTOs that correspond to the scoped topology
         // TODO: improve the speed of this operation by iterating over the scopedTopologyIds instead
         // of the full topology - OM-27745
-        return traderTOs.stream()
+        traderTOs.stream()
                 .filter(traderTO -> scopedTopologyOIDs.contains(traderTO.getOid()))
-                .collect(Collectors.toSet());
+                .forEach(traderTOsInScopedTopology::add);
+        return traderTOsInScopedTopology;
+    }
+
+    /**
+     * Determine if a TraderTO is unplaced. It is considered unplaced if any of the commodities
+     * bought do not have a supplier.
+     *
+     * @param traderTO the TraderTO to test for suppliers
+     * @return true iff any of the commodities bought have no supplier
+     */
+    private boolean traderIsUnplaced(@Nonnull final TraderTO traderTO) {
+        return traderTO.getShoppingListsList().stream()
+                .anyMatch(shoppingListTO -> !shoppingListTO.hasSupplier() ||
+                        shoppingListTO.getSupplier() <= 0);
     }
 
     /**
