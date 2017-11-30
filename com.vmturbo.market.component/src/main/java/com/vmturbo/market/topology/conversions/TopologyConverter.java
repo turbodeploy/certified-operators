@@ -567,12 +567,14 @@ public class TopologyConverter {
     private static float getMinDesiredUtilization(
             @Nonnull final TopologyEntityDTO topologyDTO) {
 
-        final TopologyEntityDTO.AnalysisSettings analysisSettings = topologyDTO.getAnalysisSettings();
+        final TopologyEntityDTO.AnalysisSettings analysisSettings =
+            topologyDTO.getAnalysisSettings();
+
         if (analysisSettings.hasDesiredUtilizationTarget() &&
                 analysisSettings.hasDesiredUtilizationRange()) {
 
-            return (analysisSettings.getDesiredUtilizationTarget()
-                    - (analysisSettings.getDesiredUtilizationRange() / 2));
+            return ((analysisSettings.getDesiredUtilizationTarget()
+                    - (analysisSettings.getDesiredUtilizationRange() / 2.0f)) / 100.0f);
         } else {
             return EntitySettings.NumericKey.DESIRED_UTILIZATION_MIN.value(topologyDTO);
         }
@@ -581,12 +583,14 @@ public class TopologyConverter {
     private static float getMaxDesiredUtilization(
             @Nonnull final TopologyEntityDTO topologyDTO) {
 
-        final TopologyEntityDTO.AnalysisSettings analysisSettings = topologyDTO.getAnalysisSettings();
+        final TopologyEntityDTO.AnalysisSettings analysisSettings =
+            topologyDTO.getAnalysisSettings();
+
         if (analysisSettings.hasDesiredUtilizationTarget() &&
                 analysisSettings.hasDesiredUtilizationRange()) {
 
-            return (analysisSettings.getDesiredUtilizationTarget()
-                    + (analysisSettings.getDesiredUtilizationRange() / 2));
+            return ((analysisSettings.getDesiredUtilizationTarget()
+                    + (analysisSettings.getDesiredUtilizationRange() / 2.0f)) / 100.0f);
         } else {
             return EntitySettings.NumericKey.DESIRED_UTILIZATION_MAX.value(topologyDTO);
         }

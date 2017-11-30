@@ -583,8 +583,10 @@ public class TopologyConverterTest {
         assertFalse(trader.getSettings().getIsShopTogether());
         assertFalse(trader.getSettings().getClonable());
         assertFalse(trader.getSettings().getSuspendable());
-        assertThat(trader.getSettings().getMinDesiredUtilization(), is(70.0f - (20.0f / 2)));
-        assertThat(trader.getSettings().getMaxDesiredUtilization(), is(70.0f + (20.0f / 2)));
+        assertThat(trader.getSettings().getMinDesiredUtilization(),
+            is(((70.0f - (20.0f / 2.0f)) / 100.0f)));
+        assertThat(trader.getSettings().getMaxDesiredUtilization(),
+            is(((70.0f + (20.0f / 2.0f)) / 100.0f)));
 
         final TopologyEntityDTO oppositeEntityDTO = TopologyEntityDTO.newBuilder()
             .setEntityType(1)
