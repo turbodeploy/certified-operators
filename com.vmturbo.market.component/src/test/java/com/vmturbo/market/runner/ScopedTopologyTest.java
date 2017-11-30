@@ -32,12 +32,9 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-<<<<<<< Updated upstream
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
-=======
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
->>>>>>> Stashed changes
 import com.vmturbo.commons.analysis.InvalidTopologyException;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
@@ -154,7 +151,7 @@ public class ScopedTopologyTest {
      */
     @Test
     public void testScopeTopologyUplacedEnities() throws InvalidTopologyException {
-        final TopologyConverter converter = new TopologyConverter(TopologyDTO.TopologyType.PLAN);
+        final TopologyConverter converter = new TopologyConverter(PLAN_TOPOLOGY_INFO);
         // add an additional VM, which should be considered unplaced
         topologyDTOs.add(TopologyEntityDTO.newBuilder()
                 .setDisplayName("VM-unplaced")
