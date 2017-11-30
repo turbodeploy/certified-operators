@@ -145,7 +145,52 @@ public enum SettingPolicySetting {
             //path is needed for the UI to display this setting in a separate category
             Arrays.asList("advanced", "utilTarget"),
             SettingTiebreaker.BIGGER, /*this is related to the center setting. biggger diameter is more conservative*/
-            EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(0.0f/*min*/, 100.0f/*max*/, 10.0f/*default*/));
+            EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(0.0f/*min*/, 100.0f/*max*/, 10.0f/*default*/)),
+    /**
+     * IOPS capacity to set on the entity.
+     */
+    IOPSCapacity("iopsCapacity", "IOPS Capacity",
+            Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.STORAGE, EntityType.DISK_ARRAY),
+            new NumericSettingDataType(20f, 1000000, 5000,
+                    Collections.singletonMap(EntityType.DISK_ARRAY, 10_000f))),
+    /**
+     * Storage latency capacity to set on the entity.
+     */
+    LatencyCapacity("latencyCapacity", "Storage latency capacity [ms]",
+            Collections.emptyList(), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.STORAGE), numeric(1f, 2000f, 100f)),
+    /**
+     * IOPS capacity to be set to disk arrays with SSD disks.
+     */
+    DiskCapacitySsd("diskCapacitySsd", "SSD Disk IOPS Capacity",
+            Collections.emptyList(), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.DISK_ARRAY), numeric(20f, 1_000_000f, 5000f)),
+    /**
+     * IOPS capacity to be set to disk arrays with 7.2 RPM disks.
+     */
+    DiskCapacity7200("diskCapacity7200", "7.2k RPM Disk IOPS Capacity",
+            Collections.emptyList(), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.DISK_ARRAY), numeric(20f, 100_000f, 800f)),
+    /**
+     * IOPS capacity to be set to disk arrays with 10k RPM disks.
+     */
+    DiskCapacity10k("diskCapacity10k", "10k RPM Disk IOPS Capacity",
+            Collections.emptyList(), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.DISK_ARRAY), numeric(20f, 100_000f, 1200f)),
+    /**
+     * IOPS capacity to be set to disk arrays with 15k RPM disks.
+     */
+    DiskCapacity15k("diskCapacity15k", "15k RPM Disk IOPS Capacity",
+            Collections.emptyList(), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.DISK_ARRAY), numeric(20f, 100_000f, 1600f)),
+    /**
+     * IOPS capacity to be set to VSeries LUN.
+     */
+    DiskCapacityVSeries("diskCapacityVSeries", "VSeries LUN IOPS Capacity",
+            Collections.emptyList(), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.DISK_ARRAY), numeric(20f, 1_000_000f, 5000f));
+
 
     /**
      * Setting name to setting enumeration value map for fast access.

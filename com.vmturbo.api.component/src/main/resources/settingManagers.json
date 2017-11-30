@@ -62,7 +62,14 @@
       "displayName": "Storage Settings",
       "defaultCategory": "Analysis",
       "settings": [
-        "storageOverprovisionedPercentage"
+        "storageOverprovisionedPercentage",
+        "latencyCapacity",
+        "iopsCapacity",
+        "diskCapacitySsd",
+        "diskCapacity7200",
+        "diskCapacity10k",
+        "diskCapacity15k",
+        "diskCapacityVSeries"
       ]
     }
   }
