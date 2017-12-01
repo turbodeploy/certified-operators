@@ -68,20 +68,21 @@ public class JwtServerInterceptor implements ServerInterceptor {
                                                                  @Nonnull Metadata metadata,
                                                                  @Nonnull ServerCallHandler<ReqT, RespT> next) {
         final String jwt = metadata.get(SecurityConstant.JWT_METADATA_KEY);
+        Context ctx;
         if (jwt == null) {
             // It should be uncommented when JWT token is always required. For system calls, we will use system JWT token.
             // serverCall.close(Status.UNAUTHENTICATED.withDescription("JWT Token is missing from Metadata"), metadata);
             logger.debug("gRPC request doesn't have JWT token.");
-            return NOOP_LISTENER;
+            return next.startCall(call, metadata); // will use NOOP_LISTENER when JWT token is required
         }
         PublicKey key = getPublicKey();
         if (key == null) {
             // It should be uncommented when public key is always required.
             // serverCall.close(Status.UNAUTHENTICATED.withDescription("Public key is missing"), metadata);
             logger.error("Unable to retrieve public key.");
-            return NOOP_LISTENER;
+            return next.startCall(call, metadata); // will use NOOP_LISTENER when JWT token is required
         }
-        Context ctx;
+
         try {
             logger.debug("Received JWT token: " + jwt);
             JWTAuthorizationToken token = new JWTAuthorizationToken(jwt);
