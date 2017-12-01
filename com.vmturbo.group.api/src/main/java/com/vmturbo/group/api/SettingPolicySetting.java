@@ -199,8 +199,13 @@ public enum SettingPolicySetting {
      */
     DiskCapacityVSeries("diskCapacityVSeries", "VSeries LUN IOPS Capacity",
             Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.DISK_ARRAY), numeric(20f, 1_000_000f, 5000f));
-
+            EnumSet.of(EntityType.DISK_ARRAY), numeric(20f, 1_000_000f, 5000f)),
+    /**
+     * Ignore High Availability(HA).
+     */
+    IgnoreHA("ignoreHa", "Ignore High Availability", Collections.emptyList(),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.PHYSICAL_MACHINE),
+            new BooleanSettingDataType(false));
 
     /**
      * Setting name to setting enumeration value map for fast access.

@@ -57,7 +57,8 @@
         "cpuOverprovisionedPercentage",
         "memoryOverprovisionedPercentage",
         "utilTarget",
-        "targetBand"
+        "targetBand",
+        "ignoreHa"
       ]
     },
     "storagesettingsmanager": {

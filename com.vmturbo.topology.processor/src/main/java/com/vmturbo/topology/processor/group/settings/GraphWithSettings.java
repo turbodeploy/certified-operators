@@ -39,6 +39,8 @@ public class GraphWithSettings {
      * We want to work with the same snapshot of default settings at all stages in the pipeline
      * to avoid inconsistencies.
      *
+     * Maps policy id -> policy
+     *
      * This is immutable.
      */
     private final Map<Long, SettingPolicy> defaultSettingPolicies;
@@ -46,6 +48,8 @@ public class GraphWithSettings {
     /**
      * The {@link EntitySettings} for each entity in the topology graph that has settings
      * defined on it.
+     *
+     * Maps entity id -> settings, applied to entity
      *
      * This is immutable.
      */

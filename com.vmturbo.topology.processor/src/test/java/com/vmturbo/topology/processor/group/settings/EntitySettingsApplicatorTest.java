@@ -2,20 +2,19 @@ package com.vmturbo.topology.processor.group.settings;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 import java.util.Collections;
-import java.util.function.Function;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableMap;
+
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 
+import com.vmturbo.common.protobuf.action.ActionDTOREST.ActionMode;
+import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
@@ -28,68 +27,55 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.group.api.SettingPolicySetting;
 import com.vmturbo.platform.common.dto.CommonDTOREST.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
-import com.vmturbo.topology.processor.group.settings.EntitySettingsApplicator.MoveApplicator;
-import com.vmturbo.topology.processor.group.settings.EntitySettingsApplicator.SingleSettingApplicator;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
-import com.vmturbo.topology.processor.topology.TopologyGraph.Vertex;
 
 /**
  * Unit test for {@link EntitySettingsApplicator}.
  */
 public class EntitySettingsApplicatorTest {
 
+    private static final long PARENT_ID = 23345;
+    private static final long DEFAULT_SETTING_ID = 23346;
+
     private static final Setting MOVE_DISABLED_SETTING = Setting.newBuilder()
             .setSettingSpecName(SettingPolicySetting.Move.getSettingName())
-            .setEnumSettingValue(EnumSettingValue.newBuilder().setValue("DISABLED"))
+            .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()))
             .build();
+    private static final TopologyEntityDTO PARENT_OBJECT =
+            TopologyEntityDTO.newBuilder().setOid(PARENT_ID).setEntityType(100001).build();
 
+    private EntitySettingsApplicator applicator;
+
+    @Before
+    public void init() {
+        applicator = new EntitySettingsApplicator();
+    }
+
+    /**
+     * Tests move setting application. The result topology entity has to be marked not movable.
+     */
     @Test
     public void testMoveApplicator() {
-        final MoveApplicator moveApplicator = new MoveApplicator();
         final TopologyEntityDTO.Builder entity = TopologyEntityDTO.newBuilder()
                 .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                        .setProviderId(1L)
+                        .setProviderId(PARENT_ID)
                         .setProviderEntityType(EntityType.PHYSICAL_MACHINE.getValue())
                         .setMovable(true));
-        moveApplicator.apply(entity, MOVE_DISABLED_SETTING);
+        applySettings(entity, MOVE_DISABLED_SETTING);
         assertThat(entity.getCommoditiesBoughtFromProviders(0).getMovable(), is(false));
     }
 
+    /**
+     * Tests move setting application without setting provider for the bought commodity.
+     * The result topology entity has to remain marked as movable.
+     */
     @Test
     public void testMoveApplicatorNoProvider() {
-        final MoveApplicator moveApplicator = new MoveApplicator();
         final TopologyEntityDTO.Builder entity = TopologyEntityDTO.newBuilder()
                 .addCommoditiesBoughtFromProviders(
                         CommoditiesBoughtFromProvider.newBuilder().setMovable(true));
-        moveApplicator.apply(entity, MOVE_DISABLED_SETTING);
+        applySettings(entity, MOVE_DISABLED_SETTING);
         assertThat(entity.getCommoditiesBoughtFromProviders(0).getMovable(), is(true));
-    }
-
-    @Test
-    public void testApplySettings() {
-        final Function<SettingPolicySetting, SingleSettingApplicator> applicatorProvider =
-                mock(Function.class);
-        final EntitySettingsApplicator applicator =
-                new EntitySettingsApplicator(applicatorProvider);
-
-        final GraphWithSettings graphWithSettings = mock(GraphWithSettings.class);
-        final TopologyGraph topologyGraph = mock(TopologyGraph.class);
-        final Vertex vertex = mock(Vertex.class);
-        TopologyEntityDTO.Builder entity =
-                TopologyEntityDTO.newBuilder().setOid(7L).setEntityType(10);
-        when(vertex.getTopologyEntityDtoBuilder()).thenReturn(entity);
-        when(topologyGraph.vertices()).thenReturn(Stream.of(vertex));
-        when(graphWithSettings.getTopologyGraph()).thenReturn(topologyGraph);
-
-        when(graphWithSettings.getSettingsForEntity(eq(7L))).thenReturn(
-                Collections.singleton(MOVE_DISABLED_SETTING));
-
-        final SingleSettingApplicator singleApplicator = mock(SingleSettingApplicator.class);
-        when(applicatorProvider.apply(eq(SettingPolicySetting.Move))).thenReturn(singleApplicator);
-
-        applicator.applySettings(graphWithSettings);
-
-        verify(singleApplicator).apply(entity, MOVE_DISABLED_SETTING);
     }
 
     /**
@@ -140,27 +126,28 @@ public class EntitySettingsApplicatorTest {
         return builder;
     }
 
+    private TopologyEntityDTO.Builder createEntityWithCommodity(@Nonnull EntityType entityType,
+            @Nonnull CommodityType commodityType) {
+        final TopologyEntityDTO.Builder builder =
+                TopologyEntityDTO.newBuilder().setEntityType(entityType.getValue()).setOid(1);
+
+        builder.addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                        .setType(commodityType.getValue())
+                        .build())
+                .setCapacity(1000));
+        return builder;
+    }
+
     private void testUtilizationSettings(EntityType entityType, CommodityType commodityType,
             SettingPolicySetting setting) {
-        final EntitySettingsApplicator applicator = new EntitySettingsApplicator();
-
         final TopologyEntityDTO.Builder builder =
                 createEntityWithCommodity(entityType, commodityType, 100f);
-        final TopologyGraph graph = new TopologyGraph(Collections.singletonMap(1L, builder));
-        final EntitySettings settings = EntitySettings.newBuilder()
-                .setEntityOid(1L)
-                .setDefaultSettingPolicyId(2L)
-                .addUserSettings(Setting.newBuilder()
-                        .setSettingSpecName(setting.getSettingName())
-                        .setNumericSettingValue(
-                                NumericSettingValue.newBuilder().setValue(57f).build())
-                        .build())
+        final Setting settingObj = Setting.newBuilder()
+                .setSettingSpecName(setting.getSettingName())
+                .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(57f).build())
                 .build();
-        final SettingPolicy policy = SettingPolicy.getDefaultInstance();
-        final GraphWithSettings withSettings =
-                new GraphWithSettings(graph, Collections.singletonMap(1L, settings),
-                        Collections.singletonMap(2L, policy));
-        applicator.applySettings(withSettings);
+        applySettings(builder, settingObj);
         Assert.assertEquals(57, builder.getCommoditySoldList(0).getEffectiveCapacityPercentage(),
                 0.00001f);
     }
@@ -170,15 +157,134 @@ public class EntitySettingsApplicatorTest {
      */
     @Test
     public void testNoSettings() {
-        final EntitySettingsApplicator applicator = new EntitySettingsApplicator();
         final TopologyEntityDTO.Builder builder =
                 createEntityWithCommodity(EntityType.PHYSICAL_MACHINE, CommodityType.CPU, 123f);
-        final TopologyGraph graph = new TopologyGraph(Collections.singletonMap(1L, builder));
-        final SettingPolicy policy = SettingPolicy.getDefaultInstance();
-        final GraphWithSettings withSettings = new GraphWithSettings(graph, Collections.emptyMap(),
-                Collections.singletonMap(2L, policy));
-        applicator.applySettings(withSettings);
+        applySettings(builder);
         Assert.assertEquals(123, builder.getCommoditySoldList(0).getEffectiveCapacityPercentage(),
                 0.00001f);
+    }
+
+    /**
+     * Tests effective capacity of the commodity when ignoring HA and Utilization Threshold setting.
+     * It is expected that value is sourced from setting.
+     */
+    @Test
+    public void testHaUtilOverrride() {
+        final TopologyEntityDTO.Builder builder =
+                createEntityWithCommodity(EntityType.PHYSICAL_MACHINE, CommodityType.CPU, 11f);
+        applySettings(builder, createSetting(SettingPolicySetting.CpuUtilization, 22f),
+                createSetting(SettingPolicySetting.IgnoreHA, true));
+        Assert.assertEquals(22f, builder.getCommoditySoldList(0).getEffectiveCapacityPercentage(),
+                0.0001);
+    }
+
+    /**
+     * Tests effective capacity of the commodity when not ignoring HA and having Utilization
+     * Threshold setting.
+     * It is expected that value is sourced from probe.
+     */
+    @Test
+    public void testNoHaNoUtilOverride() {
+        final TopologyEntityDTO.Builder entity =
+                createEntityWithCommodity(EntityType.PHYSICAL_MACHINE, CommodityType.CPU, 11f);
+        final Setting setting = createSetting(SettingPolicySetting.IgnoreHA, false);
+        applySettings(entity, setting);
+        Assert.assertEquals(11f, entity.getCommoditySoldList(0).getEffectiveCapacityPercentage(),
+                0.0001);
+    }
+
+    /**
+     * Tests effective capacity of the commodity when ignoring HA and no Utilization Threshold
+     * setting present.
+     * It is expected that value is sourced from oribe.
+     */
+    @Test
+    public void testHaNoUtilOverride() {
+        final TopologyEntityDTO.Builder builder =
+                createEntityWithCommodity(EntityType.PHYSICAL_MACHINE, CommodityType.CPU, 11f);
+        applySettings(builder, createSetting(SettingPolicySetting.IgnoreHA, true));
+        Assert.assertFalse(builder.getCommoditySoldList(0).hasEffectiveCapacityPercentage());
+    }
+
+    /**
+     * Tests effective capacity of the commodity when not ignoring HA and having Utilization
+     * Threshold setting.
+     * It is expected that value is sourced from setting.
+     */
+    @Test
+    public void testNoHaUtilOverride() {
+        final TopologyEntityDTO.Builder builder =
+                createEntityWithCommodity(EntityType.PHYSICAL_MACHINE, CommodityType.CPU, 11f);
+        applySettings(builder, createSetting(SettingPolicySetting.CpuUtilization, 22f),
+                createSetting(SettingPolicySetting.IgnoreHA, false));
+        Assert.assertEquals(22f, builder.getCommoditySoldList(0).getEffectiveCapacityPercentage(),
+                0.0001);
+    }
+
+    /**
+     * Tests setting of effective capacity when it was not set by probe.
+     * It is expected that value is sourced from setting.
+     */
+    @Test
+    public void testNoHaUtilOverrideNoInitial() {
+        final TopologyEntityDTO.Builder builder =
+                createEntityWithCommodity(EntityType.PHYSICAL_MACHINE, CommodityType.CPU);
+        applySettings(builder, createSetting(SettingPolicySetting.CpuUtilization, 22f),
+                createSetting(SettingPolicySetting.IgnoreHA, false));
+        Assert.assertEquals(22f, builder.getCommoditySoldList(0).getEffectiveCapacityPercentage(),
+                0.0001);
+    }
+
+    /**
+     * Creates float value setting.
+     *
+     * @param setting setting ID to create a setting with.
+     * @param value value of the setting
+     * @return setting object
+     */
+    private Setting createSetting(SettingPolicySetting setting, float value) {
+        return Setting.newBuilder()
+                .setSettingSpecName(setting.getSettingName())
+                .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(value).build())
+                .build();
+    }
+
+    /**
+     * Creates boolean value setting.
+     *
+     * @param setting setting ID to create a setting with
+     * @param value value of the setting
+     * @return setting object
+     */
+    private Setting createSetting(SettingPolicySetting setting, boolean value) {
+        return Setting.newBuilder()
+                .setSettingSpecName(setting.getSettingName())
+                .setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(value).build())
+                .build();
+    }
+
+    /**
+     * Applies the specified settings to the specified topology builder. Internally it constructs
+     * topology graph with one additional parent entity to be able to buy from it.
+     *
+     * @param entity entity to apply settings to
+     * @param settings settings to be applied
+     */
+    private void applySettings(@Nonnull TopologyEntityDTO.Builder entity,
+            @Nonnull Setting... settings) {
+        final long entityId = entity.getOid();
+        final TopologyGraph graph = new TopologyGraph(ImmutableMap.of(entityId, entity, PARENT_ID,
+                TopologyEntityDTO.newBuilder(PARENT_OBJECT)));
+        final EntitySettings.Builder settingsBuilder = EntitySettings.newBuilder()
+                .setEntityOid(entityId)
+                .setDefaultSettingPolicyId(DEFAULT_SETTING_ID);
+        for (Setting setting : settings) {
+            settingsBuilder.addUserSettings(setting);
+        }
+        final SettingPolicy policy = SettingPolicy.newBuilder().setId(DEFAULT_SETTING_ID).build();
+        final GraphWithSettings graphWithSettings = new GraphWithSettings(graph,
+                Collections.singletonMap(entityId, settingsBuilder.build()),
+                Collections.singletonMap(DEFAULT_SETTING_ID, policy));
+        applicator.applySettings(graphWithSettings);
     }
 }

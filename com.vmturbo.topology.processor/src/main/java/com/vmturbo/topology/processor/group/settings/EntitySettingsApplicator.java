@@ -1,22 +1,25 @@
 package com.vmturbo.topology.processor.group.settings;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.EnumMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
+
+import com.google.common.collect.ImmutableList;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.annotations.VisibleForTesting;
-
+import com.vmturbo.common.protobuf.action.ActionDTOREST.ActionMode;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProviderOrBuilder;
@@ -42,63 +45,28 @@ import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline;
 public class EntitySettingsApplicator {
 
     /**
-     * All of the applicators for settings that modify the topology.
+     * List of the applicators that modify the topology.
      */
-    private static final Map<SettingPolicySetting, SingleSettingApplicator> APPLICATORS;
-
-    /**
-     * Function that provides the applicator for a particular setting, if any.
-     * Each setting will have at most one applicator.
-     *
-     * If the applicator lookup returns null, the setting will have no effect on the
-     * topology (i.e. skip application).
-     */
-    private final Function<SettingPolicySetting, SingleSettingApplicator> applicatorLookup;
+    private static final List<SettingApplicator> APPLICATORS =
+            ImmutableList.of(new MoveApplicator(), new SuspendApplicator(),
+                    new ProvisionApplicator(), new ResizeApplicator(),
+                    new UtilizationThresholdApplicator(SettingPolicySetting.IoThroughput,
+                            CommodityType.IO_THROUGHPUT),
+                    new UtilizationThresholdApplicator(SettingPolicySetting.NetThroughput,
+                            CommodityType.NET_THROUGHPUT),
+                    new UtilizationThresholdApplicator(SettingPolicySetting.SwappingUtilization,
+                            CommodityType.SWAPPING),
+                    new UtilizationThresholdApplicator(SettingPolicySetting.ReadyQueueUtilization,
+                            CommodityType.QN_VCPU), new UtilizationThresholdApplicator(
+                            SettingPolicySetting.StorageAmountUtilization,
+                            CommodityType.STORAGE_AMOUNT),
+                    new UtilizationThresholdApplicator(SettingPolicySetting.IopsUtilization,
+                            CommodityType.STORAGE_ACCESS),
+                    new UtilizationThresholdApplicator(SettingPolicySetting.LatencyUtilization,
+                            CommodityType.STORAGE_LATENCY), new UtilTargetApplicator(),
+                    new TargetBandApplicator(), new HaDependentUtilizationApplicator());
 
     private final Logger logger = LogManager.getLogger(getClass());
-
-    static {
-        final Map<SettingPolicySetting, SingleSettingApplicator> applicators =
-                new EnumMap<>(SettingPolicySetting.class);
-        applicators.put(SettingPolicySetting.Move, new MoveApplicator());
-        applicators.put(SettingPolicySetting.Suspend, new SuspendApplicator());
-        applicators.put(SettingPolicySetting.Provision, new ProvisionApplicator());
-        applicators.put(SettingPolicySetting.Resize, new ResizeApplicator());
-
-        applicators.put(SettingPolicySetting.CpuUtilization,
-                new UtilizationThresholdApplicator(CommodityType.CPU));
-        applicators.put(SettingPolicySetting.MemoryUtilization,
-                new UtilizationThresholdApplicator(CommodityType.MEM));
-        applicators.put(SettingPolicySetting.IoThroughput,
-                new UtilizationThresholdApplicator(CommodityType.IO_THROUGHPUT));
-        applicators.put(SettingPolicySetting.NetThroughput,
-                new UtilizationThresholdApplicator(CommodityType.NET_THROUGHPUT));
-        applicators.put(SettingPolicySetting.SwappingUtilization,
-                new UtilizationThresholdApplicator(CommodityType.SWAPPING));
-        applicators.put(SettingPolicySetting.ReadyQueueUtilization,
-                new UtilizationThresholdApplicator(CommodityType.QN_VCPU));
-        applicators.put(SettingPolicySetting.StorageAmountUtilization,
-                new UtilizationThresholdApplicator(CommodityType.STORAGE_AMOUNT));
-        applicators.put(SettingPolicySetting.IopsUtilization,
-                new UtilizationThresholdApplicator(CommodityType.STORAGE_ACCESS));
-        applicators.put(SettingPolicySetting.LatencyUtilization,
-                new UtilizationThresholdApplicator(CommodityType.STORAGE_LATENCY));
-
-        applicators.put(SettingPolicySetting.UtilTarget, new UtilTargetApplicator());
-        applicators.put(SettingPolicySetting.TargetBand, new TargetBandApplicator());
-
-        APPLICATORS = Collections.unmodifiableMap(applicators);
-    }
-
-    public EntitySettingsApplicator() {
-        applicatorLookup = APPLICATORS::get;
-    }
-
-    @VisibleForTesting
-    EntitySettingsApplicator(
-            @Nonnull final Function<SettingPolicySetting, SingleSettingApplicator> applicatorLookup) {
-        this.applicatorLookup = applicatorLookup;
-    }
 
     /**
      * Applies the settings contained in a {@link GraphWithSettings} to the topology graph
@@ -110,46 +78,112 @@ public class EntitySettingsApplicator {
         graphWithSettings.getTopologyGraph().vertices()
             .map(Vertex::getTopologyEntityDtoBuilder)
             .forEach(entity -> {
-                final Collection<Setting> settingsForEntity =
-                        graphWithSettings.getSettingsForEntity(entity.getOid());
-                settingsForEntity.forEach((setting) -> processSetting(entity, setting));
+                final Map<SettingPolicySetting, Setting> settingsForEntity =
+                        new EnumMap<>(SettingPolicySetting.class);
+                for (final Setting setting : graphWithSettings.getSettingsForEntity(
+                        entity.getOid())) {
+                    final Optional<SettingPolicySetting> policySetting =
+                            SettingPolicySetting.getSettingByName(setting.getSettingSpecName());
+                    if (policySetting.isPresent()) {
+                        settingsForEntity.put(policySetting.get(), setting);
+                    } else {
+                        logger.warn("Unknown setting {} for entity {}",
+                                setting.getSettingSpecName(), entity.getOid());
+                        return;
+                    }
+                }
+                processSettings(entity, settingsForEntity);
             });
     }
 
-    private void processSetting(@Nonnull TopologyEntityDTO.Builder entity,
-            @Nonnull Setting setting) {
-        final Optional<SettingPolicySetting> groupSetting =
-                SettingPolicySetting.getSettingByName(setting.getSettingSpecName());
-        if (groupSetting.isPresent()) {
-            final SingleSettingApplicator applicator = applicatorLookup.apply(groupSetting.get());
-            if (applicator != null) {
-                applicator.apply(entity, setting);
+    private static void processSettings(@Nonnull TopologyEntityDTO.Builder entity,
+            @Nonnull Map<SettingPolicySetting, Setting> settingsMap) {
+        for (SettingApplicator applicator: APPLICATORS) {
+            applicator.apply(entity, settingsMap);
+        }
+    }
+
+    private static Collection<CommoditySoldDTO.Builder> getCommoditySoldBuilders(
+            TopologyEntityDTO.Builder entity, CommodityType commodityType) {
+        return entity.getCommoditySoldListBuilderList()
+                .stream()
+                .filter(commodity -> commodity.getCommodityType().getType() ==
+                        commodityType.getNumber())
+                .collect(Collectors.toList());
+    }
+
+    private static void applyUtilizationChanges(@Nonnull TopologyEntityDTO.Builder entity,
+            @Nonnull CommodityType commodityType, @Nullable Setting setting, boolean ignoreHa) {
+        for (CommoditySoldDTO.Builder commodity : getCommoditySoldBuilders(entity, commodityType)) {
+            if (ignoreHa) {
+                if (setting != null) {
+                    commodity.setEffectiveCapacityPercentage(
+                            setting.getNumericSettingValue().getValue());
+                } else {
+                    commodity.clearEffectiveCapacityPercentage();
+                }
+            } else {
+                if (setting != null) {
+                    commodity.setEffectiveCapacityPercentage(
+                            setting.getNumericSettingValue().getValue());
+                }
             }
-        } else {
-            logger.warn("Unknown setting {} for entity {}", setting.getSettingSpecName(),
-                    entity.getOid());
-            return;
         }
     }
 
     /**
      * The applicator of a single {@link Setting} to a single {@link TopologyEntityDTO.Builder}.
      */
-    @VisibleForTesting
-    interface SingleSettingApplicator {
-        void apply(@Nonnull final TopologyEntityDTO.Builder entity, @Nonnull final Setting setting);
+    private static abstract class SingleSettingApplicator implements SettingApplicator {
+
+        private final SettingPolicySetting setting;
+
+        private SingleSettingApplicator(@Nonnull SettingPolicySetting setting) {
+            this.setting = Objects.requireNonNull(setting);
+        }
+
+        protected abstract void apply(@Nonnull final TopologyEntityDTO.Builder entity,
+                @Nonnull final Setting setting);
+
+        @Override
+        public void apply(@Nonnull Builder entity,
+                @Nonnull Map<SettingPolicySetting, Setting> settings) {
+            final Setting settingObject = settings.get(setting);
+            if (settingObject != null) {
+                apply(entity, settingObject);
+            }
+        }
+    }
+
+    /**
+     * Settings applicator, that requires multiple settings to be processed.
+     */
+    private interface SettingApplicator {
+        /**
+         * Applies settings to the specified entity.
+         *
+         * @param entity entity to apply settings to
+         * @param settings settings to apply
+         */
+        void apply(@Nonnull final TopologyEntityDTO.Builder entity,
+                @Nonnull final Map<SettingPolicySetting, Setting> settings);
     }
 
     /**
      * Applies the "move" setting to a {@link TopologyEntityDTO.Builder}. In particular,
      * if the "move" is disabled, set the commodities purchased from a host to non-movable.
      */
-    @VisibleForTesting
-    static class MoveApplicator implements SingleSettingApplicator {
+    private static class MoveApplicator extends SingleSettingApplicator {
+
+        private MoveApplicator() {
+            super(SettingPolicySetting.Move);
+        }
+
         @Override
-        public void apply(@Nonnull final TopologyEntityDTO.Builder entity,
+        protected void apply(@Nonnull final TopologyEntityDTO.Builder entity,
                           @Nonnull final Setting setting) {
-            final boolean movable = !setting.getEnumSettingValue().getValue().equals("DISABLED");
+            final boolean movable =
+                    !setting.getEnumSettingValue().getValue().equals(ActionMode.DISABLED.name());
             entity.getCommoditiesBoughtFromProvidersBuilderList().stream()
                 // Only disable moves for placed entities (i.e. those that have providers).
                 // Doesn't make sense to disable them for unplaced ones.
@@ -166,9 +200,14 @@ public class EntitySettingsApplicator {
     /**
      * Applies the "suspend" setting to a {@link TopologyEntityDTO.Builder}.
      */
-    static class SuspendApplicator implements SingleSettingApplicator {
+    private static class SuspendApplicator extends SingleSettingApplicator {
+
+        private SuspendApplicator() {
+            super(SettingPolicySetting.Suspend);
+        }
+
         @Override
-        public void apply(@Nonnull final TopologyEntityDTO.Builder entity,
+        protected void apply(@Nonnull final TopologyEntityDTO.Builder entity,
                           @Nonnull final Setting setting) {
             entity.getAnalysisSettingsBuilder().setSuspendable(
                     !setting.getEnumSettingValue().getValue().equals("DISABLED"));
@@ -178,7 +217,12 @@ public class EntitySettingsApplicator {
     /**
      * Applies the "provision" setting to a {@link TopologyEntityDTO.Builder}.
      */
-    static class ProvisionApplicator implements SingleSettingApplicator {
+    private static class ProvisionApplicator extends SingleSettingApplicator {
+
+        private ProvisionApplicator() {
+            super(SettingPolicySetting.Provision);
+        }
+
         @Override
         public void apply(@Nonnull final TopologyEntityDTO.Builder entity,
                           @Nonnull final Setting setting) {
@@ -190,15 +234,19 @@ public class EntitySettingsApplicator {
     /**
      * Applies the "resize" setting to a {@link TopologyEntityDTO.Builder}.
      */
-    static class ResizeApplicator implements SingleSettingApplicator {
+    private static class ResizeApplicator extends SingleSettingApplicator {
+
+        private ResizeApplicator() {
+            super(SettingPolicySetting.Resize);
+        }
+
         @Override
         public void apply(@Nonnull final TopologyEntityDTO.Builder entity,
                           @Nonnull final Setting setting) {
             final boolean resizeable =
                     !setting.getEnumSettingValue().getValue().equals("DISABLED");
-            entity.getCommoditySoldListBuilderList().forEach(commSoldBuilder -> {
-                commSoldBuilder.setIsResizeable(resizeable);
-            });
+            entity.getCommoditySoldListBuilderList()
+                    .forEach(commSoldBuilder -> commSoldBuilder.setIsResizeable(resizeable));
         }
     }
 
@@ -209,31 +257,55 @@ public class EntitySettingsApplicator {
      * The effective capacity is later used to calculate resources price.
      */
     @ThreadSafe
-    private static class UtilizationThresholdApplicator implements SingleSettingApplicator {
+    private static class UtilizationThresholdApplicator extends SingleSettingApplicator {
 
         private final CommodityType commodityType;
 
-        private UtilizationThresholdApplicator(@Nonnull final CommodityType commodityType) {
+        private UtilizationThresholdApplicator(@Nonnull SettingPolicySetting setting,
+                @Nonnull final CommodityType commodityType) {
+            super(setting);
             this.commodityType = Objects.requireNonNull(commodityType);
         }
 
         @Override
         public void apply(@Nonnull Builder entity, @Nonnull Setting setting) {
             final float settingValue = setting.getNumericSettingValue().getValue();
-            entity.getCommoditySoldListBuilderList()
-                    .stream()
-                    .filter(commodity -> commodity.getCommodityType().getType() ==
-                            commodityType.getNumber())
-                    .forEach(commodityBuilder -> {
-                        commodityBuilder.setEffectiveCapacityPercentage(settingValue);
-                    });
+            for (CommoditySoldDTO.Builder commodity : getCommoditySoldBuilders(entity, commodityType)) {
+                commodity.setEffectiveCapacityPercentage(settingValue);
+            }
+        }
+    }
+
+    /**
+     * HA related commodities applicator. This applicator will process ignoreHA setting and cpu/mem
+     * utilization threshold. Both of the commodities are calculated on top of appropriate settings
+     * and HA ignorance configuration.
+     */
+    @ThreadSafe
+    private static class HaDependentUtilizationApplicator implements SettingApplicator {
+
+        @Override
+        public void apply(@Nonnull final TopologyEntityDTO.Builder entity,
+                @Nonnull final Map<SettingPolicySetting, Setting> settings) {
+            final Setting ignoreHaSetting = settings.get(SettingPolicySetting.IgnoreHA);
+            final boolean ignoreHa =
+                    ignoreHaSetting != null && ignoreHaSetting.getBooleanSettingValue().getValue();
+            final Setting cpuUtilSetting = settings.get(SettingPolicySetting.CpuUtilization);
+            final Setting memUtilSetting = settings.get(SettingPolicySetting.MemoryUtilization);
+            applyUtilizationChanges(entity, CommodityType.CPU, cpuUtilSetting, ignoreHa);
+            applyUtilizationChanges(entity, CommodityType.MEM, memUtilSetting, ignoreHa);
         }
     }
 
     /**
      *  Applies the "utilTarget" setting to an entity.
      */
-    private static class UtilTargetApplicator implements SingleSettingApplicator {
+    private static class UtilTargetApplicator extends SingleSettingApplicator {
+
+        private UtilTargetApplicator() {
+            super(SettingPolicySetting.UtilTarget);
+        }
+
         @Override
         public void apply(@Nonnull final TopologyEntityDTO.Builder entity,
                           @Nonnull final Setting setting) {
@@ -246,7 +318,12 @@ public class EntitySettingsApplicator {
     /**
      *  Applies the "targetBand" setting to an entity.
      */
-    private static class TargetBandApplicator implements SingleSettingApplicator {
+    private static class TargetBandApplicator extends SingleSettingApplicator {
+
+        private TargetBandApplicator() {
+            super(SettingPolicySetting.TargetBand);
+        }
+
         @Override
         public void apply(@Nonnull final TopologyEntityDTO.Builder entity,
                           @Nonnull final Setting setting) {
