@@ -162,7 +162,10 @@ public class PolicyMapper {
             policyBuilder.setId(Long.valueOf(uuid));
         }
         policyBuilder.setEnabled(policyApiDTO.isEnabled());
-        policyBuilder.setCommodityType(policyApiDTO.getCommodityType());
+        String commodityType = policyApiDTO.getCommodityType();
+        if (commodityType != null) {
+            policyBuilder.setCommodityType(commodityType);
+        }
 
         if (policyApiDTO.getType() != null) {
             switch (policyApiDTO.getType()) {

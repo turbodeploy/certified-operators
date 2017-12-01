@@ -53,22 +53,31 @@ public class PoliciesService implements IPoliciesService {
                     .build();
 
             final PolicyDTO.Policy policy = policyService.getPolicy(request).getPolicy();
-
-            final Set<Long> groupingIDS = GroupProtoUtil.getPolicyGroupIds(policy);
-            final Map<Long, Group> involvedGroups = new HashMap<>(groupingIDS.size());
-            if (!groupingIDS.isEmpty()) {
-                groupService.getGroups(GetGroupsRequest.newBuilder()
-                        .addAllId(groupingIDS)
-                        .build())
-                        .forEachRemaining(group -> involvedGroups.put(group.getId(), group));
-            }
-
-            return policyMapper.policyToApiDto(policy, involvedGroups);
+            return toPolicyApiDTO(policy);
         } catch (RuntimeException e) {
             LOG.error("Cannot get policy with id " + uuid, e);
             // rethrow
             throw  e;
         }
+    }
+
+    /**
+     * Convert a {@link PolicyDTO.Policy} to a {@link PolicyApiDTO}.
+     *
+     * @param policy a server representation of a policy.
+     * @return the UI representation of the policy.
+     */
+    public PolicyApiDTO toPolicyApiDTO(PolicyDTO.Policy policy) {
+        final Set<Long> groupingIDS = GroupProtoUtil.getPolicyGroupIds(policy);
+        final Map<Long, Group> involvedGroups = new HashMap<>(groupingIDS.size());
+        if (!groupingIDS.isEmpty()) {
+            groupService.getGroups(GetGroupsRequest.newBuilder()
+                    .addAllId(groupingIDS)
+                    .build())
+                    .forEachRemaining(group -> involvedGroups.put(group.getId(), group));
+        }
+
+        return policyMapper.policyToApiDto(policy, involvedGroups);
     }
 
     @Override

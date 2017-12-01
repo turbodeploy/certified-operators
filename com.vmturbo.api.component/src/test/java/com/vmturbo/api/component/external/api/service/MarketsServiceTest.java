@@ -66,7 +66,6 @@ import com.vmturbo.api.dto.market.MarketApiDTO;
 import com.vmturbo.api.handler.GlobalExceptionHandler;
 import com.vmturbo.api.serviceinterfaces.IBusinessUnitsService;
 import com.vmturbo.api.serviceinterfaces.IGroupsService;
-import com.vmturbo.api.serviceinterfaces.IPoliciesService;
 import com.vmturbo.api.serviceinterfaces.ISettingsPoliciesService;
 import com.vmturbo.api.serviceinterfaces.IStatsService;
 import com.vmturbo.api.serviceinterfaces.ISupplyChainsService;
@@ -303,7 +302,9 @@ public class MarketsServiceTest {
         @Bean
         public ScenarioMapper scenarioMapper() {
             return new ScenarioMapper(repositoryApi(), templatesUtils(),
-                    Mockito.mock(SettingsManagerMapping.class), Mockito.mock(SettingsMapper.class));
+                    Mockito.mock(SettingsManagerMapping.class),
+                    Mockito.mock(SettingsMapper.class),
+                    policiesService());
         }
 
         @Bean
@@ -384,8 +385,8 @@ public class MarketsServiceTest {
         }
 
         @Bean
-        public IPoliciesService policiesService() {
-            return Mockito.mock(IPoliciesService.class);
+        public PoliciesService policiesService() {
+            return Mockito.mock(PoliciesService.class);
         }
 
         @Bean

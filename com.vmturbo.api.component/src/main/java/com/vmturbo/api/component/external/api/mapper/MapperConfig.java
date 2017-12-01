@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.api.component.communication.CommunicationConfig;
+import com.vmturbo.api.component.external.api.service.ServiceConfig;
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
 
 @Configuration
@@ -26,6 +27,14 @@ public class MapperConfig {
 
     @Autowired
     private CommunicationConfig communicationConfig;
+
+    /*
+     * ServiceConfig is autowired because we need to access the PoliciesService from
+     * ScenarioMapper. We don't Import it to avoid circular references between the
+     * service and the mapper itself.
+     */
+    @Autowired
+    private ServiceConfig serviceConfig;
 
     @Bean
     public ActionSpecMapper actionSpecMapper() {
@@ -65,7 +74,8 @@ public class MapperConfig {
         return new ScenarioMapper(communicationConfig.repositoryApi(),
                 templatesUtils(),
                 settingManagerMappingLoader().getMapping(),
-                settingsMapper());
+                settingsMapper(),
+                serviceConfig.policiesService());
     }
 
     @Bean

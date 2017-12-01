@@ -4,6 +4,7 @@ package plan;
 option java_package = "com.vmturbo.common.protobuf.plan";
 
 import "setting/Setting.proto";
+import "group/PolicyDTO.proto";
 
 // A scenario specifies the changes to the topology, and changes to configuration
 // to be used when running a plan.
@@ -220,6 +221,7 @@ message ScenarioChange {
         TopologyReplace topology_replace = 17;
 
         SettingOverride setting_override = 21;
+        PolicyChange policy_change = 22;
     };
 
     // A change to supply or demand made by cloning an entity in the topology
@@ -281,6 +283,15 @@ message ScenarioChange {
         // If present, the entity type to override the setting for.
         // This is one of the ways to narrow down setting overrides.
         optional int32 entity_type = 2;
+    }
+
+    // A change to a placement policy or a new policy altogether.
+    message PolicyChange {
+        optional bool enabled = 1 [default = true];
+        oneof policy {
+            int64 policy_id = 2;
+            .group.Policy plan_only_policy = 3;
+        }
     }
 }
 

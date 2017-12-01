@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.mapper;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -24,13 +25,16 @@ import com.fasterxml.jackson.databind.ObjectWriter;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
+import com.vmturbo.api.component.external.api.service.PoliciesService;
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.api.dto.policy.PolicyApiDTO;
 import com.vmturbo.api.dto.scenario.AddObjectApiDTO;
 import com.vmturbo.api.dto.scenario.ConfigChangesApiDTO;
 import com.vmturbo.api.dto.scenario.RemoveObjectApiDTO;
@@ -43,6 +47,8 @@ import com.vmturbo.common.protobuf.PlanDTOUtil;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScope;
 import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.DetailsCase;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PolicyChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.SettingOverride;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyAddition;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyRemoval;
@@ -76,6 +82,7 @@ public class ScenarioMapper {
      * in a plan.
      */
     private static final BaseApiDTO MARKET_PLAN_SCOPE;
+
     static {
         MARKET_PLAN_SCOPE = new BaseApiDTO();
         MARKET_PLAN_SCOPE.setUuid(MARKET_PLAN_SCOPE_CLASSNAME);
@@ -93,11 +100,16 @@ public class ScenarioMapper {
 
     private final SettingsMapper settingsMapper;
 
+    private PoliciesService policiesService;
+
     public ScenarioMapper(@Nonnull final RepositoryApi repositoryApi,
                           @Nonnull final TemplatesUtils templatesUtils,
                           @Nonnull final SettingsManagerMapping settingsManagerMapping,
-                          @Nonnull final SettingsMapper settingsMapper) {
+                          @Nonnull final SettingsMapper settingsMapper,
+                          @Nonnull final PoliciesService policiesService) {
+
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
+        this.policiesService = Objects.requireNonNull(policiesService);
         this.templatesUtils = Objects.requireNonNull(templatesUtils);
         this.settingsManagerMapping = Objects.requireNonNull(settingsManagerMapping);
         this.settingsMapper = Objects.requireNonNull(settingsMapper);
@@ -125,6 +137,7 @@ public class ScenarioMapper {
 
         infoBuilder.addAllChanges(getTopologyChanges(dto.getTopologyChanges(), templateIds));
         infoBuilder.addAllChanges(getConfigChanges(dto.getConfigChanges()));
+        infoBuilder.addAllChanges(getPolicyChanges(dto.getConfigChanges()));
         getScope(dto.getScope()).ifPresent(infoBuilder::setScope);
         // TODO (gabriele, Oct 27 2017) We need to extend the Plan Orchestrator with support
         // for the other types of changes: time based topology, load and config
@@ -134,6 +147,71 @@ public class ScenarioMapper {
         }
 
         return infoBuilder.build();
+    }
+
+    /**
+     * Extract all the policy changes, both in the enable list and in the disable list,
+     * from a {@link ConfigChangesApiDTO}, and convert them to a list of {@link
+     * ScenarioChange}s, each carrying one {@link PolicyChange}.
+     *
+     * @param configChanges configuration changes received from the UI
+     * @return the policy changes
+     */
+    private Iterable<ScenarioChange> getPolicyChanges(ConfigChangesApiDTO configChanges) {
+        Set<ScenarioChange> changes = new HashSet<>();
+        if (configChanges != null) {
+            List<PolicyApiDTO> enabledList = configChanges.getAddPolicyList();
+            if (enabledList != null) {
+                changes.addAll(getPolicyChanges(enabledList));
+            }
+            List<PolicyApiDTO> disabledList = configChanges.getRemovePolicyList();
+            if (disabledList != null) {
+                changes.addAll(getPolicyChanges(disabledList));
+            }
+        }
+        return changes;
+    }
+
+    /**
+     * Map a list of {@link PolicyApiDTO}s to a collection of {@link ScenarioChange}s,
+     * each carrying one {@link PolicyChange}.
+     *
+     * @param policyDTOs list of policies received from the API
+     * @return collection of scenario changes to be used by the server
+     */
+    private Collection<ScenarioChange> getPolicyChanges(List<PolicyApiDTO> policyDTOs) {
+        return policyDTOs.stream()
+                    .map(this::mapPolicyChange)
+                    .collect(Collectors.toList());
+    }
+
+    /**
+     * Map a policy in the UI representation ({@link PolicyApiDTO}) to a policy in the
+     * server representation (one {@link PolicyChange} within a {@link ScenarioChange}).
+     *
+     * <p>The Plan UI passes either a reference (by uuid) to an existing server policy, or
+     * a full policy definition (with references to server groups) that exists only in
+     * the context of that specific plan. The latter will have a null uuid.
+     *
+     * @param dto a UI representation of a policy
+     * @return a scenario change with one policy change
+     */
+    private ScenarioChange mapPolicyChange(PolicyApiDTO dto) {
+        return dto.getUuid() != null
+                    // this is a reference to a server policy
+                    ? ScenarioChange.newBuilder()
+                        .setPolicyChange(PolicyChange.newBuilder()
+                            .setEnabled(dto.isEnabled())
+                            .setPolicyId(Long.valueOf(dto.getUuid()))
+                            .build())
+                        .build()
+                    // this is a full policy definition
+                    : ScenarioChange.newBuilder()
+                        .setPolicyChange(PolicyChange.newBuilder()
+                            .setEnabled(true)
+                            .setPlanOnlyPolicy(policiesService.toPolicy(dto))
+                            .build())
+                        .build();
     }
 
     /**
@@ -197,6 +275,7 @@ public class ScenarioMapper {
                         .build());
             }
         });
+
         return retChanges.build();
     }
 
@@ -389,20 +468,6 @@ public class ScenarioMapper {
     }
 
     @Nonnull
-    private ConfigChangesApiDTO buildApiConfigChanges(@Nonnull final List<ScenarioChange> changes) {
-        final List<SettingApiDTO> settingChanges = changes.stream()
-                .filter(ScenarioChange::hasSettingOverride)
-                .map(ScenarioChange::getSettingOverride)
-                .map(this::createApiSettingFromOverride)
-                .collect(Collectors.toList());
-
-        final ConfigChangesApiDTO outputChanges = new ConfigChangesApiDTO();
-        outputChanges.setAutomationSettingList(
-                settingsManagerMapping.convertToPlanSetting(settingChanges));
-        return outputChanges;
-    }
-
-    @Nonnull
     private SettingApiDTO createApiSettingFromOverride(@Nonnull final SettingOverride settingOverride) {
         final SettingApiDTO apiDTO =
                 SettingsMapper.toSettingApiDto(settingOverride.getSetting());
@@ -451,6 +516,7 @@ public class ScenarioMapper {
                     buildApiTopologyReplace(change.getTopologyReplace(),
                             outputChanges, serviceEntityMap, templatesMap);
                     break;
+                default:
             }
         });
 
@@ -461,14 +527,14 @@ public class ScenarioMapper {
                                                  @Nonnull final TopologyChangesApiDTO outputChanges,
                                                  @Nonnull final Map<Long, ServiceEntityApiDTO> serviceEntityMap,
                                                  @Nonnull final Map<Long, TemplateApiDTO> templateMap) {
-        List<AddObjectApiDTO> changeApiDTOs = MoreObjects.firstNonNull(outputChanges.getAddList(),
-                new ArrayList<>());
         AddObjectApiDTO changeApiDTO = new AddObjectApiDTO();
         changeApiDTO.setCount(addition.getAdditionCount());
         final long uuid = addition.hasTemplateId() ? addition.getTemplateId() : addition.getEntityId();
         changeApiDTO.setTarget(dtoForId(uuid, serviceEntityMap, templateMap));
         changeApiDTO.setProjectionDays(addition.getChangeApplicationDaysList());
 
+        List<AddObjectApiDTO> changeApiDTOs = MoreObjects.firstNonNull(outputChanges.getAddList(),
+            new ArrayList<>());
         changeApiDTOs.add(changeApiDTO);
         outputChanges.setAddList(changeApiDTOs);
     }
@@ -491,15 +557,56 @@ public class ScenarioMapper {
                                                 @Nonnull final TopologyChangesApiDTO outputChanges,
                                                 @Nonnull final Map<Long, ServiceEntityApiDTO> serviceEntityMap,
                                                 @Nonnull final Map<Long, TemplateApiDTO> templateMap) {
-        List<ReplaceObjectApiDTO> changeApiDTOs = MoreObjects.firstNonNull(outputChanges.getReplaceList(),
-                new ArrayList<>());
         ReplaceObjectApiDTO changeApiDTO = new ReplaceObjectApiDTO();
         changeApiDTO.setTarget(dtoForId(replace.getRemoveEntityId(), serviceEntityMap, templateMap));
         changeApiDTO.setTemplate(dtoForId(replace.getAddTemplateId(), serviceEntityMap, templateMap));
         changeApiDTO.setProjectionDay(replace.getChangeApplicationDay());
 
+        List<ReplaceObjectApiDTO> changeApiDTOs = MoreObjects.firstNonNull(outputChanges.getReplaceList(),
+            new ArrayList<>());
         changeApiDTOs.add(changeApiDTO);
         outputChanges.setReplaceList(changeApiDTOs);
+    }
+
+    @Nonnull
+    private ConfigChangesApiDTO buildApiConfigChanges(@Nonnull final List<ScenarioChange> changes) {
+        final List<SettingApiDTO> settingsChanges = changes.stream()
+                .filter(ScenarioChange::hasSettingOverride)
+                .map(ScenarioChange::getSettingOverride)
+                .map(this::createApiSettingFromOverride)
+                .collect(Collectors.toList());
+
+        final ConfigChangesApiDTO configChanges = new ConfigChangesApiDTO();
+        configChanges.setAutomationSettingList(
+                settingsManagerMapping.convertToPlanSetting(settingsChanges));
+
+        configChanges.setAddPolicyList(Lists.newArrayList());
+        configChanges.setRemovePolicyList(Lists.newArrayList());
+        changes.stream()
+            .filter(change -> change.getDetailsCase() ==  DetailsCase.POLICY_CHANGE)
+            .forEach(change -> buildApiPolicyChange(
+                change.getPolicyChange(), configChanges, policiesService));
+        return configChanges;
+    }
+
+    private void buildApiPolicyChange(PolicyChange policyChange,
+                    ConfigChangesApiDTO outputChanges, PoliciesService policiesService) {
+        try {
+            PolicyApiDTO policy = policyChange.hasPolicyId()
+                    // A policy with a policy ID is a server policy
+                    ? policiesService.getPolicyByUuid(String.valueOf(policyChange.getPolicyId()))
+                    // A policy without a policy ID is one that was defined only for the plan
+                    // where it was defined
+                    : policiesService.toPolicyApiDTO(policyChange.getPlanOnlyPolicy());
+            if (policyChange.getEnabled()) {
+                outputChanges.getAddPolicyList().add(policy);
+            } else {
+                outputChanges.getRemovePolicyList().add(policy);
+            }
+        } catch (Exception e) {
+            logger.error("Error handling policy change");
+            logger.error(policyChange, e);
+        }
     }
 
     /**

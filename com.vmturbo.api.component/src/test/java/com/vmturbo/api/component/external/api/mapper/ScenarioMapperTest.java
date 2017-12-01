@@ -22,6 +22,7 @@ import javax.annotation.Nonnull;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
@@ -29,6 +30,7 @@ import com.google.common.collect.Sets;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
+import com.vmturbo.api.component.external.api.service.PoliciesService;
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -62,6 +64,8 @@ public class ScenarioMapperTest {
 
     private TemplatesUtils templatesUtils;
 
+    private PoliciesService policiesService;
+
     private ScenarioMapper scenarioMapper;
 
     private SettingsManagerMapping settingsManagerMapping = mock(SettingsManagerMapping.class);
@@ -70,15 +74,16 @@ public class ScenarioMapperTest {
 
     @Before
     public void setup() throws IOException {
-        repositoryApi = mock(RepositoryApi.class);
-        templatesUtils = mock(TemplatesUtils.class);
+        repositoryApi = Mockito.mock(RepositoryApi.class);
+        templatesUtils = Mockito.mock(TemplatesUtils.class);
+        policiesService = Mockito.mock(PoliciesService.class);
 
         // Return empty by default to keep NPE's at bay.
         when(repositoryApi.getServiceEntitiesById(any()))
             .thenReturn(Collections.emptyMap());
 
         scenarioMapper = new ScenarioMapper(repositoryApi,
-                templatesUtils, settingsManagerMapping, settingsMapper);
+                templatesUtils, settingsManagerMapping, settingsMapper, policiesService);
     }
 
     @Test
