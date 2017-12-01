@@ -221,8 +221,29 @@ message ScenarioChange {
         TopologyReplace topology_replace = 17;
 
         SettingOverride setting_override = 21;
-        PolicyChange policy_change = 22;
+        PlanChanges plan_changes = 22;
     };
+
+    message PlanChanges {
+        repeated IgnoreConstraint ignore_constraints = 1;
+        optional PolicyChange policy_change = 2;
+
+        message IgnoreConstraint {
+            // It's the same as comodity_type in PolicyDTO.InputPolicy. It comes from the UI
+            // as "constraintType"
+            required string commodity_type = 1;
+            required int64 group_uuid = 2;
+        }
+
+        // A change to a placement policy or a new policy altogether.
+        message PolicyChange {
+            optional bool enabled = 1 [default = true];
+            oneof policy {
+                int64 policy_id = 2;
+                .group.Policy plan_only_policy = 3;
+            }
+        }
+    }
 
     // A change to supply or demand made by cloning an entity in the topology
     message TopologyAddition {
@@ -283,15 +304,6 @@ message ScenarioChange {
         // If present, the entity type to override the setting for.
         // This is one of the ways to narrow down setting overrides.
         optional int32 entity_type = 2;
-    }
-
-    // A change to a placement policy or a new policy altogether.
-    message PolicyChange {
-        optional bool enabled = 1 [default = true];
-        oneof policy {
-            int64 policy_id = 2;
-            .group.Policy plan_only_policy = 3;
-        }
     }
 }
 

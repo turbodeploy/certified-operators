@@ -24,6 +24,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
@@ -36,15 +37,18 @@ import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.scenario.AddObjectApiDTO;
 import com.vmturbo.api.dto.scenario.ConfigChangesApiDTO;
+import com.vmturbo.api.dto.scenario.RemoveConstraintApiDTO;
 import com.vmturbo.api.dto.scenario.RemoveObjectApiDTO;
 import com.vmturbo.api.dto.scenario.ReplaceObjectApiDTO;
 import com.vmturbo.api.dto.scenario.ScenarioApiDTO;
 import com.vmturbo.api.dto.scenario.TopologyChangesApiDTO;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
+import com.vmturbo.api.enums.ConstraintType;
 import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.DetailsCase;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.IgnoreConstraint;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.SettingOverride;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyAddition;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyRemoval;
@@ -336,7 +340,7 @@ public class ScenarioMapperTest {
     @Test
     public void testToScenarioInfoWithEmptyConfigChanges() {
         final ScenarioInfo scenarioInfo = getScenarioInfo(null);
-        Assert.assertTrue(scenarioInfo.getChangesList().isEmpty());
+        Assert.assertTrue(scenarioInfo.getChangesList().stream().noneMatch(ScenarioChange::hasSettingOverride));
     }
 
     /**
@@ -345,7 +349,7 @@ public class ScenarioMapperTest {
     @Test
     public void testToScenarioInfoWithEmptyAutomationSettingsList() {
         final ScenarioInfo scenarioInfo = getScenarioInfo(Collections.emptyList());
-        Assert.assertTrue(scenarioInfo.getChangesList().isEmpty());
+        Assert.assertTrue(scenarioInfo.getChangesList().stream().noneMatch(ScenarioChange::hasSettingOverride));
     }
 
     private ScenarioInfo getScenarioInfo(@Nonnull List<SettingApiDTO> automationSettings) {
@@ -490,6 +494,46 @@ public class ScenarioMapperTest {
         final Scenario scenario = buildScenario(ScenarioChange.newBuilder().build());
         final ScenarioApiDTO scenarioApiDTO = scenarioMapper.toScenarioApiDTO(scenario);
         Assert.assertTrue(scenarioApiDTO.getConfigChanges().getAutomationSettingList().isEmpty());
+    }
+
+    /**
+     * Tests converting of ScenarioApiDto to ScenarioInfo when Ignore Constraint setting is provided
+     * by scenarioApiDto
+     */
+    @Test
+    public void testToScenarioInfoWithIgnoreConstraintSetting() {
+        final ScenarioApiDTO dto = new ScenarioApiDTO();
+        final ConfigChangesApiDTO configChanges = new ConfigChangesApiDTO();
+        List<RemoveConstraintApiDTO> removeConstraints = ImmutableList.of(
+                createRemoveConstraintApiDto("1", ConstraintType.ClusterCommodity),
+                createRemoveConstraintApiDto("2", ConstraintType.DataCenterCommodity)
+        );
+        configChanges.setRemoveConstraintList(removeConstraints);
+        dto.setConfigChanges(configChanges);
+        final ScenarioInfo scenarioInfo = scenarioMapper.toScenarioInfo("name", dto);
+        final ScenarioChange scenarioChange = scenarioInfo.getChangesList().get(0);
+        Assert.assertTrue(scenarioChange.hasPlanChanges());
+        final IgnoreConstraint ignoreClusterCommodity =
+                scenarioChange.getPlanChanges().getIgnoreConstraints(0);
+        final IgnoreConstraint ignoreDataCenterCommodity =
+                scenarioChange.getPlanChanges().getIgnoreConstraints(1);
+        Assert.assertEquals(ConstraintType.ClusterCommodity.name(),
+                ignoreClusterCommodity.getCommodityType());
+        Assert.assertEquals(ConstraintType.DataCenterCommodity.name(),
+                ignoreDataCenterCommodity.getCommodityType());
+        Assert.assertEquals(1l, ignoreClusterCommodity.getGroupUuid());
+        Assert.assertEquals(2l, ignoreDataCenterCommodity.getGroupUuid());
+    }
+
+    @Nonnull
+    private RemoveConstraintApiDTO createRemoveConstraintApiDto(@Nonnull String targetUuid,
+            @Nonnull ConstraintType constraintType) {
+        final RemoveConstraintApiDTO removeConstraint = new RemoveConstraintApiDTO();
+        final BaseApiDTO target = new BaseApiDTO();
+        target.setUuid(targetUuid);
+        removeConstraint.setTarget(target);
+        removeConstraint.setConstraintType(constraintType);
+        return removeConstraint;
     }
 
     private Scenario buildScenario(ScenarioChange... changes) {

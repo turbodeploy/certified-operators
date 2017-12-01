@@ -11,6 +11,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -37,18 +38,22 @@ import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.policy.PolicyApiDTO;
 import com.vmturbo.api.dto.scenario.AddObjectApiDTO;
 import com.vmturbo.api.dto.scenario.ConfigChangesApiDTO;
+import com.vmturbo.api.dto.scenario.RemoveConstraintApiDTO;
 import com.vmturbo.api.dto.scenario.RemoveObjectApiDTO;
 import com.vmturbo.api.dto.scenario.ReplaceObjectApiDTO;
 import com.vmturbo.api.dto.scenario.ScenarioApiDTO;
 import com.vmturbo.api.dto.scenario.TopologyChangesApiDTO;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
+import com.vmturbo.api.enums.ConstraintType;
 import com.vmturbo.common.protobuf.PlanDTOUtil;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScope;
 import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.DetailsCase;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PolicyChange;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.PolicyChange;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.IgnoreConstraint;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.SettingOverride;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyAddition;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyRemoval;
@@ -200,18 +205,18 @@ public class ScenarioMapper {
         return dto.getUuid() != null
                     // this is a reference to a server policy
                     ? ScenarioChange.newBuilder()
-                        .setPolicyChange(PolicyChange.newBuilder()
-                            .setEnabled(dto.isEnabled())
-                            .setPolicyId(Long.valueOf(dto.getUuid()))
-                            .build())
+                        .setPlanChanges(PlanChanges.newBuilder().setPolicyChange(PolicyChange.newBuilder()
+                                .setEnabled(dto.isEnabled())
+                                .setPolicyId(Long.valueOf(dto.getUuid()))
+                                .build()).build())
                         .build()
                     // this is a full policy definition
                     : ScenarioChange.newBuilder()
-                        .setPolicyChange(PolicyChange.newBuilder()
-                            .setEnabled(true)
-                            .setPlanOnlyPolicy(policiesService.toPolicy(dto))
-                            .build())
-                        .build();
+                        .setPlanChanges(PlanChanges.newBuilder().setPolicyChange(PolicyChange.newBuilder()
+                        .setEnabled(true)
+                        .setPlanOnlyPolicy(policiesService.toPolicy(dto))
+                        .build()).build())
+                    .build();
     }
 
     /**
@@ -241,7 +246,7 @@ public class ScenarioMapper {
     }
 
     @Nonnull
-    private List<ScenarioChange> getSettingChanges(@Nullable final List<SettingApiDTO> settingsList) {
+    private List<ScenarioChange> buildSettingChanges(@Nullable final List<SettingApiDTO> settingsList) {
         if (CollectionUtils.isEmpty(settingsList)) {
             return Collections.emptyList();
         }
@@ -287,9 +292,40 @@ public class ScenarioMapper {
 
         final ImmutableList.Builder<ScenarioChange> scenarioChanges = ImmutableList.builder();
 
-        scenarioChanges.addAll(getSettingChanges(configChanges.getAutomationSettingList()));
+        scenarioChanges.addAll(buildSettingChanges(configChanges.getAutomationSettingList()));
+        if (!CollectionUtils.isEmpty(configChanges.getRemoveConstraintList())) {
+            scenarioChanges.add(buildPlanChanges(configChanges));
+        }
 
         return scenarioChanges.build();
+    }
+
+    @Nonnull
+    private ScenarioChange buildPlanChanges(@Nonnull ConfigChangesApiDTO configChanges) {
+        final PlanChanges.Builder planChangesBuilder = PlanChanges.newBuilder();
+        final List<RemoveConstraintApiDTO> constraintsToRemove = configChanges.getRemoveConstraintList();
+        if (!CollectionUtils.isEmpty(constraintsToRemove)) {
+            planChangesBuilder.addAllIgnoreConstraints(getIgnoreConstraintsPlanSetting(constraintsToRemove));
+        }
+        return ScenarioChange.newBuilder().setPlanChanges(planChangesBuilder.build()).build();
+    }
+
+    @Nonnull
+    private List<IgnoreConstraint> getIgnoreConstraintsPlanSetting(
+            @Nonnull List<RemoveConstraintApiDTO> constraintsToIgnore) {
+        final ImmutableList.Builder<IgnoreConstraint> ignoreConstraintsBuilder = ImmutableList.builder();
+        for (RemoveConstraintApiDTO constraint : constraintsToIgnore) {
+            final IgnoreConstraint ignoreConstraint = toIgnoreConstraint(constraint);
+            ignoreConstraintsBuilder.add(ignoreConstraint);
+        }
+        return ignoreConstraintsBuilder.build();
+    }
+
+    @Nonnull
+    private IgnoreConstraint toIgnoreConstraint(@Nonnull RemoveConstraintApiDTO constraint) {
+        return IgnoreConstraint.newBuilder()
+                .setCommodityType(constraint.getConstraintType().name())
+                .setGroupUuid(Long.parseLong(constraint.getTarget().getUuid())).build();
     }
 
     @Nonnull
@@ -468,6 +504,59 @@ public class ScenarioMapper {
     }
 
     @Nonnull
+    private ConfigChangesApiDTO buildApiConfigChanges(@Nonnull final List<ScenarioChange> changes) {
+        final List<SettingApiDTO> settingChanges = changes.stream()
+                .filter(ScenarioChange::hasSettingOverride)
+                .map(ScenarioChange::getSettingOverride)
+                .map(this::createApiSettingFromOverride)
+                .collect(Collectors.toList());
+
+        final List<PlanChanges> allPlanChanges = changes.stream()
+                .filter(ScenarioChange::hasPlanChanges).map(ScenarioChange::getPlanChanges)
+                .collect(Collectors.toList());
+
+        final List<RemoveConstraintApiDTO> removeConstraintApiDTOS = getRemoveConstraintsDtos(allPlanChanges);
+
+        final ConfigChangesApiDTO outputChanges = new ConfigChangesApiDTO();
+
+        outputChanges.setRemoveConstraintList(removeConstraintApiDTOS);
+        outputChanges.setAutomationSettingList(settingsManagerMapping
+                .convertToPlanSetting(settingChanges));
+        outputChanges.setAddPolicyList(Lists.newArrayList());
+        outputChanges.setRemovePolicyList(Lists.newArrayList());
+        changes.stream()
+                .filter(change -> change.getDetailsCase() ==  DetailsCase.PLAN_CHANGES
+                        && change.getPlanChanges().hasPolicyChange())
+                .forEach(change -> buildApiPolicyChange(
+                        change.getPlanChanges().getPolicyChange(), outputChanges, policiesService));
+        return outputChanges;
+    }
+
+    /**
+     * Returns remove constraint plan changes if plan changes have it
+     *
+     * @param allPlanChanges
+     * @return remove constraint changes
+     */
+    private List<RemoveConstraintApiDTO> getRemoveConstraintsDtos(final List<PlanChanges> allPlanChanges) {
+        return allPlanChanges.stream().filter(planChanges ->
+                !CollectionUtils.isEmpty(planChanges.getIgnoreConstraintsList()))
+                .map(PlanChanges::getIgnoreConstraintsList).flatMap(List::stream)
+                .map(this::toRemoveConstraintApiDTO).collect(Collectors.toList());
+    }
+
+    @Nonnull
+    private RemoveConstraintApiDTO toRemoveConstraintApiDTO(@Nonnull IgnoreConstraint constraint) {
+        final RemoveConstraintApiDTO constraintApiDTO = new RemoveConstraintApiDTO();
+        constraintApiDTO.setConstraintType(
+                ConstraintType.valueOf(constraint.getCommodityType()));
+        final BaseApiDTO targetGroup = new BaseApiDTO();
+        targetGroup.setUuid(Long.toString(constraint.getGroupUuid()));
+        constraintApiDTO.setTarget(targetGroup);
+        return constraintApiDTO;
+    }
+
+    @Nonnull
     private SettingApiDTO createApiSettingFromOverride(@Nonnull final SettingOverride settingOverride) {
         final SettingApiDTO apiDTO =
                 SettingsMapper.toSettingApiDto(settingOverride.getSetting());
@@ -566,27 +655,6 @@ public class ScenarioMapper {
             new ArrayList<>());
         changeApiDTOs.add(changeApiDTO);
         outputChanges.setReplaceList(changeApiDTOs);
-    }
-
-    @Nonnull
-    private ConfigChangesApiDTO buildApiConfigChanges(@Nonnull final List<ScenarioChange> changes) {
-        final List<SettingApiDTO> settingsChanges = changes.stream()
-                .filter(ScenarioChange::hasSettingOverride)
-                .map(ScenarioChange::getSettingOverride)
-                .map(this::createApiSettingFromOverride)
-                .collect(Collectors.toList());
-
-        final ConfigChangesApiDTO configChanges = new ConfigChangesApiDTO();
-        configChanges.setAutomationSettingList(
-                settingsManagerMapping.convertToPlanSetting(settingsChanges));
-
-        configChanges.setAddPolicyList(Lists.newArrayList());
-        configChanges.setRemovePolicyList(Lists.newArrayList());
-        changes.stream()
-            .filter(change -> change.getDetailsCase() ==  DetailsCase.POLICY_CHANGE)
-            .forEach(change -> buildApiPolicyChange(
-                change.getPolicyChange(), configChanges, policiesService));
-        return configChanges;
     }
 
     private void buildApiPolicyChange(PolicyChange policyChange,
