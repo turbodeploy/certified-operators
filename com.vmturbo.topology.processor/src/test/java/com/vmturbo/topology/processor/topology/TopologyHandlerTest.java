@@ -2,6 +2,7 @@ package com.vmturbo.topology.processor.topology;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -60,8 +61,7 @@ public class TopologyHandlerTest {
                 (TopologyPipeline<EntityStore, TopologyBroadcastInfo>)mock(TopologyPipeline.class);
         TopologyBroadcastInfo broadcastInfo = mock(TopologyBroadcastInfo.class);
         when(pipeline.run(eq(entityStore))).thenReturn(broadcastInfo);
-        when(pipelineFactory.liveTopology(eq(realtimeTopologyInfo)))
-                .thenReturn(pipeline);
+        when(pipelineFactory.liveTopology(eq(realtimeTopologyInfo))).thenReturn(pipeline);
 
         assertThat(topologyHandler.broadcastLatestTopology(), is(broadcastInfo));
     }

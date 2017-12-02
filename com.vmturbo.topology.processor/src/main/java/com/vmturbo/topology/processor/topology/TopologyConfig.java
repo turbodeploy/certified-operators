@@ -94,7 +94,8 @@ public class TopologyConfig {
                 groupConfig.entitySettingsApplicator(),
                 topologyEditor(),
                 repositoryConfig.repository(),
-                groupConfig.topologyFilterFactory());
+                groupConfig.topologyFilterFactory(),
+                groupConfig.groupServiceClient());
     }
 
     @Bean

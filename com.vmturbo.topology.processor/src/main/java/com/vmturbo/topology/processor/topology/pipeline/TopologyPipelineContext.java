@@ -1,11 +1,14 @@
 package com.vmturbo.topology.processor.topology.pipeline;
 
 import java.util.Objects;
+import java.util.function.Consumer;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo.Builder;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfoOrBuilder;
 import com.vmturbo.topology.processor.group.GroupResolver;
 
 /**
@@ -21,12 +24,12 @@ import com.vmturbo.topology.processor.group.GroupResolver;
 public class TopologyPipelineContext {
     private final GroupResolver groupResolver;
 
-    private final TopologyInfo topologyInfo;
+    private final TopologyInfo.Builder topologyInfoBuilder;
 
     public TopologyPipelineContext(@Nonnull final GroupResolver groupResolver,
                                    @Nonnull final TopologyInfo topologyInfo) {
         this.groupResolver = Objects.requireNonNull(groupResolver);
-        this.topologyInfo = Objects.requireNonNull(topologyInfo);
+        this.topologyInfoBuilder = Objects.requireNonNull(TopologyInfo.newBuilder(topologyInfo));
     }
 
     @Nonnull
@@ -36,10 +39,15 @@ public class TopologyPipelineContext {
 
     @Nonnull
     public TopologyInfo getTopologyInfo() {
-        return topologyInfo;
+        return topologyInfoBuilder.buildPartial();
+    }
+
+    @Nonnull
+    public void editTopologyInfo(Consumer<Builder> editFunction) {
+        editFunction.accept(topologyInfoBuilder);
     }
 
     public String getTopologyTypeName() {
-        return topologyInfo.getTopologyType().name();
+        return topologyInfoBuilder.getTopologyType().name();
     }
 }

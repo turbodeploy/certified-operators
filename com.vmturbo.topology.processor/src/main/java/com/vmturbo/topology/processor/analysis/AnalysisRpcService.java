@@ -70,18 +70,14 @@ public class AnalysisRpcService extends AnalysisServiceImplBase {
                         .setPlanType(request.getPlanType()))
                 .build();
 
-        if (request.hasPlanScope()) {
-            // TODO: do something with the plan scope
-        }
-
         try {
             final TopologyBroadcastInfo broadcastInfo;
             if (request.hasTopologyId()) {
                 broadcastInfo = topologyPipelineFactory.planOverOldTopology(topologyInfo,
-                        request.getScenarioChangeList()).run(request.getTopologyId());
+                        request.getScenarioChangeList(), request.getPlanScope()).run(request.getTopologyId());
             } else {
                 broadcastInfo = topologyPipelineFactory.planOverLiveTopology(topologyInfo,
-                        request.getScenarioChangeList()).run(entityStore);
+                        request.getScenarioChangeList(), request.getPlanScope()).run(entityStore);
             }
             responseObserver.onNext(StartAnalysisResponse.newBuilder()
                     .setEntitiesBroadcast(broadcastInfo.getEntityCount())

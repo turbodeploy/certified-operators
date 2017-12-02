@@ -4,7 +4,10 @@ import java.util.List;
 import java.util.Objects;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScope;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.repository.api.RepositoryClient;
@@ -24,6 +27,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.BroadcastStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.GraphCreationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PolicyStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ExtractTopologyGraphStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.ScopeResolutionStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.SettingsApplicationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.SettingsResolutionStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.SettingsUploadStage;
@@ -62,6 +66,8 @@ public class TopologyPipelineFactory {
 
     private final TopologyFilterFactory topologyFilterFactory;
 
+    private final GroupServiceBlockingStub groupServiceClient;
+
     public TopologyPipelineFactory(@Nonnull final TopoBroadcastManager topoBroadcastManager,
                @Nonnull final PolicyManager policyManager,
                @Nonnull final StitchingManager stitchingManager,
@@ -71,7 +77,8 @@ public class TopologyPipelineFactory {
                @Nonnull final EntitySettingsApplicator settingsApplicator,
                @Nonnull final TopologyEditor topologyEditor,
                @Nonnull final RepositoryClient repositoryClient,
-               @Nonnull final TopologyFilterFactory topologyFilterFactory) {
+               @Nonnull final TopologyFilterFactory topologyFilterFactory,
+               @Nonnull final GroupServiceBlockingStub groupServiceClient) {
         this.topoBroadcastManager = topoBroadcastManager;
         this.policyManager = policyManager;
         this.stitchingManager = stitchingManager;
@@ -82,12 +89,14 @@ public class TopologyPipelineFactory {
         this.topologyEditor = Objects.requireNonNull(topologyEditor);
         this.repositoryClient = Objects.requireNonNull(repositoryClient);
         this.topologyFilterFactory = Objects.requireNonNull(topologyFilterFactory);
+        this.groupServiceClient = Objects.requireNonNull(groupServiceClient);
     }
 
     /**
      * Create a pipeline that constructs and broadcasts the most up-to-date live topology.
      *
-     * @param topologyInfo Information about the topology.
+     * @param topologyInfo The source topology info values. This will be cloned and potentially
+     *                     edited during pipeline execution.
      * @return The {@link TopologyPipeline}. This pipeline will accept an {@link EntityStore}
      *         and return the {@link TopologyBroadcastInfo} of the successful broadcast.
      */
@@ -114,14 +123,16 @@ public class TopologyPipelineFactory {
      * Create a pipeline that constructs and broadcasts the most up-to-date live topology AND
      * applies a set of changes to it.
      *
-     * @param topologyInfo Information about the topology.
+     * @param topologyInfo The source topology info values. This will be cloned and potentially
+     *                     edited during pipeline execution.
      * @param changes The list of changes to apply.
      * @return The {@link TopologyPipeline}. This pipeline will accept an {@link EntityStore}
      *         and return the {@link TopologyBroadcastInfo} of the successful broadcast.
      */
     public TopologyPipeline<EntityStore, TopologyBroadcastInfo> planOverLiveTopology(
             @Nonnull final TopologyInfo topologyInfo,
-            @Nonnull final List<ScenarioChange> changes) {
+            @Nonnull final List<ScenarioChange> changes,
+            @Nullable final PlanScope scope) {
         final TopologyFilterFactory topologyFilterFactory = new TopologyFilterFactory();
         final GroupResolver groupResolver = new GroupResolver(topologyFilterFactory);
         final TopologyPipelineContext context =
@@ -131,6 +142,7 @@ public class TopologyPipelineFactory {
                 .addStage(new TopologyEditStage(topologyEditor, changes))
                 .addStage(new GraphCreationStage())
                 .addStage(new PolicyStage(policyManager))
+                .addStage(new ScopeResolutionStage(groupServiceClient, scope))
                 .addStage(SettingsResolutionStage.plan(entitySettingsResolver, changes))
                 .addStage(new SettingsApplicationStage(settingsApplicator))
                 .addStage(new ExtractTopologyGraphStage())
@@ -142,14 +154,16 @@ public class TopologyPipelineFactory {
      * Create a pipeline that acquires a previously-broadcast topology and applies a set of changes
      * to it. The main purpose of this is plan-over-plan.
      *
-     * @param topologyInfo Information about the topology.
+     * @param topologyInfo The source topology info values. This will be cloned and potentially
+     *                     edited during pipeline execution.
      * @param changes The list of changes to apply.
      * @return The {@link TopologyPipeline}. This pipeline will accept a long (the ID of the old
      *         topology) and return the {@link TopologyBroadcastInfo} of the successful broadcast.
      */
     public TopologyPipeline<Long, TopologyBroadcastInfo> planOverOldTopology(
             @Nonnull final TopologyInfo topologyInfo,
-            @Nonnull final List<ScenarioChange> changes) {
+            @Nonnull final List<ScenarioChange> changes,
+            @Nullable final PlanScope scope) {
         final TopologyFilterFactory topologyFilterFactory = new TopologyFilterFactory();
         final GroupResolver groupResolver = new GroupResolver(topologyFilterFactory);
         final TopologyPipelineContext context =
@@ -158,6 +172,7 @@ public class TopologyPipelineFactory {
                 .addStage(new TopologyAcquisitionStage(repositoryClient))
                 .addStage(new TopologyEditStage(topologyEditor, changes))
                 .addStage(new GraphCreationStage())
+                .addStage(new ScopeResolutionStage(groupServiceClient, scope))
                 // TODO (roman, Nov 2017): We need to do policy and setting application for
                 // plan-over-plan as well. However, the topology we get from the repository
                 // already has some policies and settings applied to it. In order to run those

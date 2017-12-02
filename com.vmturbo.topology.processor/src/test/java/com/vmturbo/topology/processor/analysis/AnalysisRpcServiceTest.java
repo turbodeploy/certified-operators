@@ -90,7 +90,7 @@ public class AnalysisRpcServiceTest {
                 (TopologyPipeline<Long, TopologyBroadcastInfo>)mock(TopologyPipeline.class);
         when(planOverPlanPipeline.run(eq(topologyId)))
                 .thenReturn(broadcastInfo);
-        when(pipelineFactory.planOverOldTopology(eq(topologyInfo), eq(Collections.emptyList())))
+        when(pipelineFactory.planOverOldTopology(eq(topologyInfo), eq(Collections.emptyList()), any()))
                 .thenReturn(planOverPlanPipeline);
 
         // act
@@ -125,7 +125,7 @@ public class AnalysisRpcServiceTest {
         when(identityProvider.generateTopologyId()).thenReturn(topologyId);
         when(planPipeline.run(eq(entityStore)))
                 .thenReturn(broadcastInfo);
-        when(pipelineFactory.planOverLiveTopology(eq(topologyInfo), eq(Collections.emptyList())))
+        when(pipelineFactory.planOverLiveTopology(eq(topologyInfo), eq(Collections.emptyList()), any()))
                 .thenReturn(planPipeline);
 
         // act
@@ -136,7 +136,7 @@ public class AnalysisRpcServiceTest {
                 // Don't set topology ID.
                 .build(), responseObserver);
 
-        verify(pipelineFactory).planOverLiveTopology(eq(topologyInfo), eq(Collections.emptyList()));
+        verify(pipelineFactory).planOverLiveTopology(eq(topologyInfo), eq(Collections.emptyList()), any());
 
         final ArgumentCaptor<StartAnalysisResponse> responseCaptor =
                 ArgumentCaptor.forClass(StartAnalysisResponse.class);

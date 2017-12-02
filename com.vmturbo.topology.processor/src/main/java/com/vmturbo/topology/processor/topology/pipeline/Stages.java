@@ -2,19 +2,28 @@ package com.vmturbo.topology.processor.topology.pipeline;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.collect.Sets;
+
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScope;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScopeEntry;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -26,6 +35,7 @@ import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
 import com.vmturbo.topology.processor.api.server.TopologyBroadcast;
 import com.vmturbo.topology.processor.entity.EntityStore;
+import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsApplicator;
@@ -165,6 +175,87 @@ public class Stages {
             return true;
         }
 
+    }
+
+    /**
+     * The ScopeResolutionStage will translate a list of scope entries (specified in the PlanScope)
+     * into a list of "seed" entity oid's representing the focus on the topology to be analyzed.
+     * These "seed entities" will be written into to the TopologyInfo for inclusion in the
+     * broadcast.
+     *
+     * Each scope entry will refer either to a specific entity, or to a group. Scope entry id's for
+     * specific entities will be directly to the seed entity list. Scope entry id's for "Group"
+     * types will be resolved to a list of group member entities, and each of those will be added
+     * to the "seed entities" list.
+     */
+    public static class ScopeResolutionStage extends PassthroughStage<TopologyGraph> {
+        private static final Logger logger = LogManager.getLogger();
+
+        private static final String GROUP_TYPE = "Group";
+        private static final String CLUSTER_TYPE = "Cluster";
+        private static final Set<String> GROUP_TYPES = Sets.newHashSet(GROUP_TYPE,CLUSTER_TYPE);
+        private final PlanScope planScope;
+
+        private final GroupServiceBlockingStub groupServiceClient;
+
+        public ScopeResolutionStage(@Nonnull GroupServiceBlockingStub groupServiceClient,
+                                    @Nullable final PlanScope planScope) {
+            this.groupServiceClient = groupServiceClient;
+            this.planScope = planScope;
+        }
+
+        @Override
+        public void passthrough(final TopologyGraph input) throws PipelineStageException {
+            // if no scope to apply, this function does nothing.
+            if (planScope.getScopeEntriesCount() == 0) {
+                return;
+            }
+            // translate the set of groups and entities in the plan scope into a list of "seed"
+            // entities for the market to focus on. The list of "seeds" should include all seeds
+            // already in the list, all entities individually specified in the scope, as well as all
+            // entities belonging to groups that are in scope.
+
+            // initialize the set with any existing seed oids
+            Set<Long> seedEntities = new HashSet(getContext().getTopologyInfo().getScopeSeedOidsList());
+            Set<Long> groupsToResolve = new HashSet();
+            for (PlanScopeEntry scopeEntry : planScope.getScopeEntriesList()) {
+                // if it's an entity, add it right to the seed entity list. Otherwise queue it for
+                // group resolution.
+                if (GROUP_TYPES.contains(scopeEntry.getClassName())) {
+                    groupsToResolve.add(scopeEntry.getScopeObjectOid());
+                } else {
+                    // this is an entity -- add it right to the seedEntities
+                    seedEntities.add(scopeEntry.getScopeObjectOid());
+                }
+            }
+
+            // Now resolve the groups by adding all the group members to the seedEntities
+            if (groupsToResolve.size() > 0) {
+                // fetch the group definitions from the group service
+                GetGroupsRequest request = GetGroupsRequest.newBuilder()
+                        .addAllId(groupsToResolve)
+                        .build();
+                groupServiceClient.getGroups(request)
+                    .forEachRemaining(
+                        group -> {
+                            try {
+                                // add each group's members to the set of additional seed entities
+                                Set<Long> groupMemberOids = getContext().getGroupResolver().resolve(group, input);
+                                seedEntities.addAll(groupMemberOids);
+                            } catch (GroupResolutionException gre) {
+                                // log a warning
+                                logger.warn("Couldn't resolve members for group {} while defining scope", group);
+                            }
+                        }
+                    );
+            }
+
+            // now add the new seed entities to the list
+            getContext().editTopologyInfo(topologyInfoBuilder -> {
+                topologyInfoBuilder.clearScopeSeedOids();
+                topologyInfoBuilder.addAllScopeSeedOids(seedEntities);
+            });
+        }
     }
 
     /**

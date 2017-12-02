@@ -395,6 +395,15 @@ public class Analysis {
         // starting with the seed, expand "up"
         while (suppliersToExpand.size() > 0) {
             long traderOid = suppliersToExpand.remove();
+
+            if (!topology.getTraderOids().containsValue(traderOid)) {
+                // not all entities are guaranteed to be in the traders set -- the
+                // market will exclude entities based on factors such as entitystate, for example.
+                // If we encounter an entity that is not in the market, don't expand it any further.
+                logger.debug("Skipping OID {}, as it is not in the market.", traderOid);
+                continue;
+            }
+
             if (logger.isTraceEnabled()) {
                 logger.trace("expand OID {}: {}", traderOid, topology.getTraderOids().inverse()
                         .get(traderOid).getDebugInfoNeverUseInCode());
