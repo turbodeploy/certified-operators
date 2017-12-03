@@ -138,4 +138,7 @@ message TraderTO {
     // This field specifies whether we will print debug info for a trader
     optional bool debugEnabled = 12 [default = false];
 
+    // This field specifies if this is a templateProvider
+    optional bool templateProvider = 13 [default = false];
+
 }

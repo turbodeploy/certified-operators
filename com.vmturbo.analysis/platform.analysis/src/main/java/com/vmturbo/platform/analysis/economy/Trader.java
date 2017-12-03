@@ -56,6 +56,8 @@ public abstract class Trader implements Serializable {
     private final @NonNull List<@NonNull ShoppingList> unmodifiableCustomers_ = Collections.unmodifiableList(customers_);
     // This field specifies whether we want to print debug info for the trader
     private boolean debugEnabled = false;
+    // This field specifies whether this trader represents a template
+    private boolean templateProvider_ = false;
 
     // Constructors
     /**
@@ -413,5 +415,19 @@ public abstract class Trader implements Serializable {
      */
     public void setDebugEnabled(boolean debugEnabled) {
         this.debugEnabled = debugEnabled;
+    }
+
+    /**
+     * @return true if the trader is a templateProvider
+     */
+    public boolean isTemplateProvider() {
+        return templateProvider_;
+    }
+
+    /**
+     * set the templateProvider_ flag to true or false
+     */
+    public void setTemplateProvider(boolean templateProvider) {
+        templateProvider_ = templateProvider;
     }
 } // end interface Trader

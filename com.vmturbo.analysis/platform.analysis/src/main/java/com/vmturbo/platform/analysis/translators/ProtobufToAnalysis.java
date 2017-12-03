@@ -366,6 +366,7 @@ public final class ProtobufToAnalysis {
         if (input.getSettings().getIsShopTogether()) {
             topology.addShopTogetherTraders(output);
         }
+        output.setTemplateProvider(input.getTemplateProvider());
 
         return output;
     }

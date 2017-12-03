@@ -317,7 +317,7 @@ public class Resizer {
                 if (boughtIndex < 0) {
                     continue;
                 }
-                CommoditySold commSoldBySeller = supplier.getCommoditySold(basketBought
+                CommoditySold commSoldBySupplier = supplier.getCommoditySold(basketBought
                                 .get(boughtIndex));
                 double changeInCapacity = newCapacity - commoditySold.getCapacity();
                 if (changeInCapacity < 0) {
@@ -327,12 +327,14 @@ public class Resizer {
                     double oldQuantityBought = shoppingList.getQuantities()[boughtIndex];
                     double decrementedQuantity = decrementFunction.applyAsDouble(
                                                 oldQuantityBought, newCapacity, 0);
-                    double newQuantityBought = commSoldBySeller.getQuantity() -
+                    double newQuantityBought = commSoldBySupplier.getQuantity() -
                                                         (oldQuantityBought - decrementedQuantity);
-                    checkArgument(newQuantityBought >= 0, "Expected new quantity bought %s to >= 0",
-                                  newQuantityBought);
+                    if (!supplier.isTemplateProvider()) {
+                        checkArgument(newQuantityBought >= 0, "Expected new quantity bought %s to >= 0",
+                                      newQuantityBought);
+                        commSoldBySupplier.setQuantity(newQuantityBought);
+                    }
                     shoppingList.getQuantities()[boughtIndex] = decrementedQuantity;
-                    commSoldBySeller.setQuantity(newQuantityBought);
                 } else {
                     // resize up
                     DoubleTernaryOperator incrementFunction =
@@ -341,7 +343,7 @@ public class Resizer {
                     double incrementedQuantity = incrementFunction.applyAsDouble(
                                                            oldQuantityBought, changeInCapacity, 0);
                     shoppingList.getQuantities()[boughtIndex] = incrementedQuantity;
-                    commSoldBySeller.setQuantity(commSoldBySeller.getQuantity() +
+                    commSoldBySupplier.setQuantity(commSoldBySupplier.getQuantity() +
                                                  (incrementedQuantity - oldQuantityBought));
                 }
             }
