@@ -1,6 +1,5 @@
 package com.vmturbo.topology.processor.topology.pipeline;
 
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -278,14 +277,20 @@ public class Stages {
     public static class PolicyStage extends PassthroughStage<TopologyGraph> {
 
         private final PolicyManager policyManager;
+        private final List<ScenarioChange> changes;
 
         public PolicyStage(@Nonnull final PolicyManager policyManager) {
+            this(policyManager, Collections.emptyList());
+        }
+
+        public PolicyStage(@Nonnull final PolicyManager policyManager, List<ScenarioChange> changes) {
             this.policyManager = policyManager;
+            this.changes = Objects.requireNonNull(changes);
         }
 
         @Override
         public void passthrough(@Nonnull final TopologyGraph input) {
-            policyManager.applyPolicies(input, getContext().getGroupResolver());
+            policyManager.applyPolicies(input, getContext().getGroupResolver(), changes);
         }
     }
 

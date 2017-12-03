@@ -152,7 +152,7 @@ public class StagesTest {
 
         policyStage.execute(topologyGraph);
 
-        verify(policyManager).applyPolicies(eq(topologyGraph), eq(groupResolver));
+        verify(policyManager).applyPolicies(eq(topologyGraph), eq(groupResolver), eq(Collections.emptyList()));
     }
 
     @Test

@@ -141,7 +141,7 @@ public class TopologyPipelineFactory {
                 .addStage(new StitchingStage(stitchingManager))
                 .addStage(new TopologyEditStage(topologyEditor, changes))
                 .addStage(new GraphCreationStage())
-                .addStage(new PolicyStage(policyManager))
+                .addStage(new PolicyStage(policyManager, changes))
                 .addStage(new ScopeResolutionStage(groupServiceClient, scope))
                 .addStage(SettingsResolutionStage.plan(entitySettingsResolver, changes))
                 .addStage(new SettingsApplicationStage(settingsApplicator))
