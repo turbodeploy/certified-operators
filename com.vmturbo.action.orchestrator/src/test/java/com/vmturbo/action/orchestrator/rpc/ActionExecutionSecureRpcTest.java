@@ -39,7 +39,6 @@ import io.grpc.ManagedChannel;
 import io.grpc.Server;
 import io.grpc.ServerInterceptors;
 import io.grpc.Status.Code;
-import io.grpc.StatusRuntimeException;
 import io.grpc.inprocess.InProcessChannelBuilder;
 import io.grpc.inprocess.InProcessServerBuilder;
 import io.jsonwebtoken.CompressionCodecs;
@@ -125,6 +124,7 @@ public class ActionExecutionSecureRpcTest {
     private final ActionSupportResolver filter = mock
             (ActionSupportResolver.class);
     private final IApiAuthStore apiAuthStore = mock(ApiKVAuthStore.class);
+
     private final EntitySettingsCache entitySettingsCache = mock(EntitySettingsCache.class);
     private final ActionsRpcService actionsRpcService =
             new ActionsRpcService(actionStorehouse, actionExecutor, actionTranslator);
@@ -342,6 +342,44 @@ public class ActionExecutionSecureRpcTest {
 
         actionStorehouse.storeActions(plan);
         AcceptActionResponse response = actionOrchestratorServiceClient
+                .acceptAction(acceptActionRequest); // don't pass JWT token
+
+        assertFalse(response.hasError());
+        assertTrue(response.hasActionSpec());
+        assertEquals(ACTION_ID, response.getActionSpec().getRecommendation().getId());
+        assertEquals(ActionState.IN_PROGRESS, response.getActionSpec().getActionState());
+    }
+
+    // we want to ensure gRPC service can still be functional even the public key is NOT available
+    @Test
+    public void testAcceptActionWithoutPublicKey() throws Exception {
+        // setup gRPC service with null public key server interceptor
+        final IApiAuthStore emptyApiAuthStore = mock(ApiKVAuthStore.class);
+        when(emptyApiAuthStore.retrievePublicKey()).thenReturn(null); // Setting the public key to null
+
+        // setup JWT ServerInterceptor with empty public key.
+        JwtServerInterceptor jwtInterceptorWithoutPublicKey = new JwtServerInterceptor(emptyApiAuthStore);
+
+        // start secure gRPC
+        final String serviceName = "grpc-security-JWT-testWithoutPublicKey";
+        final InProcessServerBuilder inProcessServerBuilder = InProcessServerBuilder.forName(serviceName);
+        inProcessServerBuilder.addService(ServerInterceptors.intercept(actionsRpcService, jwtInterceptorWithoutPublicKey));
+        Server secureGrpcServerWithNullPublicKeyInInterceptor = inProcessServerBuilder.build();
+        secureGrpcServerWithNullPublicKeyInInterceptor.start();
+        ManagedChannel managedChannel = InProcessChannelBuilder.forName(serviceName).build();
+
+        // setup gPRC client
+        ActionsServiceBlockingStub actionOrchestratorServiceTestClient = ActionsServiceGrpc.newBlockingStub(managedChannel);
+
+        // perform actual action execution test
+        final ActionPlan plan = actionPlan(ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID));
+        final SingleActionRequest acceptActionRequest = SingleActionRequest.newBuilder()
+                .setActionId(ACTION_ID)
+                .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
+                .build();
+
+        actionStorehouse.storeActions(plan);
+        AcceptActionResponse response = actionOrchestratorServiceTestClient
                 .withCallCredentials(new JwtCallCredential(token.getCompactRepresentation()))
                 .acceptAction(acceptActionRequest);
 
@@ -349,5 +387,10 @@ public class ActionExecutionSecureRpcTest {
         assertTrue(response.hasActionSpec());
         assertEquals(ACTION_ID, response.getActionSpec().getRecommendation().getId());
         assertEquals(ActionState.IN_PROGRESS, response.getActionSpec().getActionState());
+
+        // clean up
+        managedChannel.shutdown();
+        secureGrpcServerWithNullPublicKeyInInterceptor.shutdown();
+
     }
 }
