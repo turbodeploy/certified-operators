@@ -129,6 +129,32 @@ public class PlanDaoImpl implements PlanDao {
         return plan;
     }
 
+
+    /**
+     * Create a plan instance from a scenario object and save the record in database.
+     * Note that the scenario does not have to be in the scenario table.
+     *
+     * @param scenario
+     * @return the Plan Instance object
+     * @throws IntegrityException
+     */
+    @Override
+    public PlanDTO.PlanInstance createPlanInstance(@Nonnull Scenario scenario)
+            throws IntegrityException {
+        final PlanDTO.PlanInstance planInstance = PlanDTO.PlanInstance.newBuilder()
+                .setScenario(scenario)
+                .setPlanId(IdentityGenerator.next())
+                .setStatus(PlanStatus.READY)
+                .build();
+        checkPlanConsistency(planInstance);
+
+        final LocalDateTime curTime = LocalDateTime.now();
+        final PlanInstance dbRecord =
+                new PlanInstance(planInstance.getPlanId(), curTime, curTime, planInstance);
+        dsl.newRecord(PLAN_INSTANCE, dbRecord).store();
+        return planInstance;
+    }
+
     /**
      * Method perform checks on referential integrity of the plan instance.
      *

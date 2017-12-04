@@ -1,8 +1,5 @@
 package com.vmturbo.plan.orchestrator.scheduled;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -13,18 +10,20 @@ import java.util.concurrent.ScheduledFuture;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 
-import com.google.protobuf.util.JsonFormat;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.scheduling.Trigger;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.scheduling.support.CronTrigger;
 
-import com.vmturbo.common.protobuf.plan.PlanDTO;
+import com.google.common.annotations.VisibleForTesting;
+
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProject;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectInfo;
 import com.vmturbo.common.protobuf.plan.PlanDTO.Recurrence;
-import com.vmturbo.common.protobuf.plan.PlanDTO.Recurrence.TimeOfRun;
+import com.vmturbo.plan.orchestrator.plan.PlanDao;
 import com.vmturbo.plan.orchestrator.project.PlanProjectDao;
+import com.vmturbo.plan.orchestrator.project.PlanProjectExecutor;
 import com.vmturbo.plan.orchestrator.project.PlanProjectInfoNotFoundException;
 import com.vmturbo.plan.orchestrator.project.PlanProjectNotFoundException;
 
@@ -49,18 +48,22 @@ public class PlanProjectScheduler {
     private final ThreadPoolTaskScheduler schedulerExecutor;
     private final Map<Long, PlanProjectSchedule> planProjectTasks;
     private final PlanProjectDao planProjectDao;
+    private final PlanProjectExecutor planProjectExecutor;
 
     /**
      * Create a {@link PlanProjectScheduler} for scheduling plan project.
      *
      * @param planProjectDao plan project dao
      * @param scheduleExecutor The executor to be used for scheduling tasks.
+     * @param planProjectExecutor The executor for running plan projects
      */
     public PlanProjectScheduler(@Nonnull final PlanProjectDao planProjectDao,
-                                @Nonnull final ThreadPoolTaskScheduler scheduleExecutor) {
+                                @Nonnull final ThreadPoolTaskScheduler scheduleExecutor,
+                                @Nonnull final PlanProjectExecutor planProjectExecutor) {
         this.schedulerExecutor = Objects.requireNonNull(scheduleExecutor);
         this.planProjectDao = planProjectDao;
         planProjectTasks = new HashMap<>();
+        this.planProjectExecutor = planProjectExecutor;
 
         initializePlanProjectSchedule(scheduleExecutor);
     }
@@ -77,7 +80,7 @@ public class PlanProjectScheduler {
     public synchronized PlanProjectSchedule setPlanProjectSchedule(final long planProjectId) throws
             PlanProjectNotFoundException, PlanProjectInfoNotFoundException {
         if (!planProjectTasks.containsKey(planProjectId)) {
-            PlanDTO.PlanProject project = planProjectDao.getPlanProject(planProjectId).orElseThrow(
+            PlanProject project = planProjectDao.getPlanProject(planProjectId).orElseThrow(
                     () -> new PlanProjectNotFoundException(planProjectId));
             Trigger trigger = createCronTrigger(project.getPlanProjectInfo()).orElseThrow(
                     () -> new PlanProjectInfoNotFoundException(planProjectId));
@@ -124,7 +127,7 @@ public class PlanProjectScheduler {
      * @param scheduleExecutor Thread Pool TaskScheduler
      */
     private void initializePlanProjectSchedule(final ThreadPoolTaskScheduler scheduleExecutor) {
-        List<PlanDTO.PlanProject> planProjects = planProjectDao.getAllPlanProjects();
+        List<PlanProject> planProjects = planProjectDao.getAllPlanProjects();
         planProjects.forEach(planProject -> {
             try {
                 setPlanProjectSchedule(planProject.getPlanProjectId());
@@ -162,7 +165,7 @@ public class PlanProjectScheduler {
     public static Optional<Trigger> createCronTrigger(@Nonnull final PlanProjectInfo planProjectInfo) {
         if (planProjectInfo.hasRecurrence()) {
             Recurrence.Schedule schedule = planProjectInfo.getRecurrence().getSchedule();
-            TimeOfRun timeOfRun = planProjectInfo.getRecurrence().getTimeOfRun();
+            Recurrence.TimeOfRun timeOfRun = planProjectInfo.getRecurrence().getTimeOfRun();
             // build hour, e.g.  "0 0 19"
             StringBuilder cronString = new StringBuilder("0 0 " + timeOfRun.getHour() + " ");
 
@@ -188,12 +191,14 @@ public class PlanProjectScheduler {
     }
 
     /**
-     * A helper method that executes scheduled recurring plan.
+     * This method executes a scheduled recurring plan.
      * Passed via lambda to the scheduleExecutor.
-     * TODO: Will be implemented with OM-26167.
      *
      * @param planProject The plan project to be executed.
      */
-    private void executePlan(final PlanDTO.PlanProject planProject) {
+    @VisibleForTesting
+    void executePlan(final PlanProject planProject) {
+        planProjectExecutor.executePlan(planProject);
     }
+
 }

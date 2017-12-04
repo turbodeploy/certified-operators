@@ -9,6 +9,7 @@ import javax.annotation.Nonnull;
 import com.vmturbo.common.protobuf.plan.PlanDTO.CreatePlanRequest;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.Builder;
+import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
 
 /**
  * DAO for plan instance.
@@ -24,6 +25,15 @@ public interface PlanDao {
      */
     @Nonnull
     PlanInstance createPlanInstance(@Nonnull CreatePlanRequest planRequest) throws IntegrityException;
+
+    /**
+     * Creates a plan instance from a scenario object.
+     *
+     * @param scenario
+     * @return plan instance, if created
+     */
+    @Nonnull
+    PlanInstance createPlanInstance(@Nonnull Scenario scenario) throws IntegrityException;
 
     /**
      * Returns all the exising registered plan instances.

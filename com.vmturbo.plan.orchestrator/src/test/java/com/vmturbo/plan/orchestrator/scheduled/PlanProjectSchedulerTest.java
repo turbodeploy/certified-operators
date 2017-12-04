@@ -6,6 +6,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.spy;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -17,6 +18,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.Trigger;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
@@ -42,6 +44,7 @@ import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.plan.orchestrator.db.tables.pojos.PlanProject;
 import com.vmturbo.plan.orchestrator.project.PlanProjectDao;
 import com.vmturbo.plan.orchestrator.project.PlanProjectDaoImpl;
+import com.vmturbo.plan.orchestrator.project.PlanProjectExecutor;
 import com.vmturbo.plan.orchestrator.project.PlanProjectInfoNotFoundException;
 import com.vmturbo.plan.orchestrator.project.PlanProjectNotFoundException;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
@@ -62,8 +65,10 @@ public class PlanProjectSchedulerTest {
     private static final long MONTHLY_PLAN_PROJECT_ID = 1002L;
     private static final long INVALID_MONTHLY_PLAN_PROJECT_ID = 1003L;
     private static final long NOT_EXIST_PLAN_PROJECT_ID = 9999L;
+
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
+
     @Autowired
     private TestSQLDatabaseConfig dbConfig;
     private ThreadPoolTaskScheduler threadPoolTaskScheduler;
@@ -86,7 +91,11 @@ public class PlanProjectSchedulerTest {
         threadPoolTaskScheduler.setWaitForTasksToCompleteOnShutdown(true);
         threadPoolTaskScheduler.initialize();
         prepareDatabase();
-        planProjectScheduler = new PlanProjectScheduler(planProjectDao, threadPoolTaskScheduler);
+
+        PlanProjectExecutor planProjectExecutor = Mockito.mock(PlanProjectExecutor.class);
+        planProjectScheduler = spy(new PlanProjectScheduler(planProjectDao, threadPoolTaskScheduler,
+                planProjectExecutor));
+
         systemPlanProjectLoader = new SystemPlanProjectLoader(planProjectDao,
                 planProjectScheduler,
                 defaultHeadroomPlanProjectJsonFile);
@@ -393,5 +402,4 @@ public class PlanProjectSchedulerTest {
         expectedException.expect(IllegalArgumentException.class);
         Optional<Trigger> trigger = createCronTrigger(toCreate);
     }
-
 }

@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.plan.orchestrator.plan.PlanConfig;
 import com.vmturbo.plan.orchestrator.project.PlanProjectConfig;
 
 /**
@@ -26,12 +27,7 @@ public class PlanProjectSchedulerConfig {
     @Bean
     public PlanProjectScheduler scheduler() {
         return new PlanProjectScheduler(planProjectConfig.planProjectDao(),
-                clusterRollupSchedulerConfig.taskScheduler());
-    }
-
-    @Bean
-    public SystemPlanProjectLoader systemPlanProjectLoader() throws InterruptedException {
-        return new SystemPlanProjectLoader(planProjectConfig.planProjectDao(), scheduler(),
-                                defaultHeadroomPlanProjectJsonFile);
+                clusterRollupSchedulerConfig.taskScheduler(),
+                planProjectConfig.planProjectExecutor());
     }
 }
