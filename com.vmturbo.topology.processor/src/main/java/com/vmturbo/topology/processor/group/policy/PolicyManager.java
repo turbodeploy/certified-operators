@@ -27,7 +27,7 @@ import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyRequest;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PolicyChange;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.PolicyChange;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
@@ -156,8 +156,9 @@ public class PolicyManager {
                     ) {
         // Map from policy ID to whether it is enabled or disabled in the plan
         Map<Long, Boolean> policyOverrides = changes.stream()
-                .filter(ScenarioChange::hasPolicyChange)
-                .map(ScenarioChange::getPolicyChange)
+                .filter(ScenarioChange::hasPlanChanges)
+                .filter(change -> change.getPlanChanges().hasPolicyChange())
+                .map(change -> change.getPlanChanges().getPolicyChange())
                 .filter(PolicyChange::hasPolicyId)
                 .collect(Collectors.toMap(
                         PolicyChange::getPolicyId, PolicyChange::getEnabled));
@@ -188,8 +189,9 @@ public class PolicyManager {
                     @Nonnull Map<Long, Group> groupsById,
                     @Nonnull Map<PolicyDetailCase, Integer> policyTypeCounts) {
         List<Policy> planOnlyPolicies = changes.stream()
-                        .filter(ScenarioChange::hasPolicyChange)
-                        .map(ScenarioChange::getPolicyChange)
+                        .filter(ScenarioChange::hasPlanChanges)
+                        .filter(change -> change.getPlanChanges().hasPolicyChange())
+                        .map(change -> change.getPlanChanges().getPolicyChange())
                         .filter(PolicyChange::hasPlanOnlyPolicy)
                         .map(PolicyChange::getPlanOnlyPolicy)
                         .collect(Collectors.toList());
