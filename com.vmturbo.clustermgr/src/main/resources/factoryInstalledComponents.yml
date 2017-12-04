@@ -196,6 +196,7 @@ plan-orchestrator:
   identityGeneratorPrefix: 3
   websocket.pong.timeout: 30000
   templateSpecFile: "defaultTemplateSpec.json"
+  defaultTemplatesFile: "defaultTemplates.json"
 
 history:
   topologyProcessorHost: 'topology-processor'

@@ -98,7 +98,7 @@ public class TemplatesRpcTest {
     }
 
     @Test
-    public void testEditTemplate() throws NoSuchObjectException {
+    public void testEditTemplate() throws NoSuchObjectException, IllegalTemplateOperationException {
         TemplateInfo templateInstance = TemplateInfo.newBuilder().setName("test").build();
         TemplateInfo newTemplateInstance = TemplateInfo.newBuilder().setName("new").build();
         final EditTemplateRequest request = EditTemplateRequest.newBuilder()
@@ -115,7 +115,7 @@ public class TemplatesRpcTest {
     }
 
     @Test
-    public void testDeleteTemplate() throws NoSuchObjectException {
+    public void testDeleteTemplate() throws NoSuchObjectException, IllegalTemplateOperationException {
         final DeleteTemplateRequest request = DeleteTemplateRequest.newBuilder()
             .setTemplateId(123)
             .build();

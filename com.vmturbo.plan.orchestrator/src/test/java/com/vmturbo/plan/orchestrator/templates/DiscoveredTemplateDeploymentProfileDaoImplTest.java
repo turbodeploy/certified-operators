@@ -56,11 +56,12 @@ public class DiscoveredTemplateDeploymentProfileDaoImplTest {
     private void prepareDatabase() throws Exception {
         flyway = dbConfig.flyway();
         final DSLContext dsl = dbConfig.dsl();
-        discoveredTemplateDeploymentProfileDao = new DiscoveredTemplateDeploymentProfileDaoImpl(dsl);
-        templatesDao = new TemplatesDaoImpl(dsl);
         deploymentProfileDao = new DeploymentProfileDaoImpl(dsl);
         flyway.clean();
         flyway.migrate();
+
+        discoveredTemplateDeploymentProfileDao = new DiscoveredTemplateDeploymentProfileDaoImpl(dsl);
+        templatesDao = new TemplatesDaoImpl(dsl, "emptyDefaultTemplates.json");
     }
 
     @After

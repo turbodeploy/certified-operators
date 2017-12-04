@@ -20,6 +20,7 @@ import org.jooq.DSLContext;
 import org.jooq.impl.DSL;
 
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfileInfo;
+import com.vmturbo.common.protobuf.plan.TemplateDTO;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.plan.orchestrator.db.tables.records.DeploymentProfileRecord;
@@ -143,7 +144,7 @@ public class DiscoveredTemplateDeploymentProfileDaoImpl {
                 TemplateInfo templateInfo = recordsToUpdateByProbeIdMap.get(template.getProbeTemplateId());
                 template.setTemplateInfo(templateInfo);
                 template.setName(templateInfo.getName());
-                template.setTemplateType(templateInfo.getEntityType());
+                template.setEntityType(templateInfo.getEntityType());
                 return template;
             })
             .collect(Collectors.toList());
@@ -161,7 +162,8 @@ public class DiscoveredTemplateDeploymentProfileDaoImpl {
                     template.getName(),
                     template.getEntityType(),
                     template,
-                    template.getProbeTemplateId())))
+                    template.getProbeTemplateId(),
+                    TemplateDTO.Template.Type.DISCOVERED.name())))
             .collect(Collectors.toList());
         addTemplateRecordToIdMap(templateInfoIdMap, recordsToAdd);
         transactionDsl.batchInsert(recordsToAdd).execute();

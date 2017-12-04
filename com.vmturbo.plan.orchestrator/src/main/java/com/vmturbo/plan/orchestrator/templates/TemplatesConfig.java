@@ -14,8 +14,12 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
 @Configuration
 @Import(SQLDatabaseConfig.class)
 public class TemplatesConfig {
+
     @Value("${templateSpecFile}")
     private String templateSpecFile;
+
+    @Value("${defaultTemplatesFile}")
+    private String defaultTemplatesFile;
 
     @Autowired
     private SQLDatabaseConfig databaseConfig;
@@ -27,7 +31,7 @@ public class TemplatesConfig {
 
     @Bean
     public TemplatesDao templatesDao() {
-        return new TemplatesDaoImpl(databaseConfig.dsl());
+        return new TemplatesDaoImpl(databaseConfig.dsl(), defaultTemplatesFile);
     }
 
     @Bean

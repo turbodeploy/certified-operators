@@ -14,6 +14,20 @@ import "topology/TopologyDTO.proto";
 // description, valueType... etc. For TemplateInfo, it contains name, vendor, model and value for
 // each field, such as value of numOfCpu, value of cpuSpeed...etc.
 message Template {
+    enum Type {
+        // A template created by the user.
+        USER = 1;
+
+        // A template created and maintained by the system.
+        // System-created templates cannot be modified or deleted by the user.
+        // No two system templates will have the same name.
+        SYSTEM = 2;
+
+        // A template discovered in the user's environment.
+        // Discovered templates can be modified by the user.
+        DISCOVERED = 3;
+    }
+
     // OID of the Template
     required int64 id = 1;
 
@@ -22,6 +36,10 @@ message Template {
 
     // Template information which cotains actual information about template
     required TemplateInfo template_info = 3;
+
+    // The type of the template. The type is determined at template creation,
+    // and cannot be changed.
+    optional Type type = 4 [default = USER];
 }
 
 // Template information - contains data for created template no matter whether it is user-created or discovered..

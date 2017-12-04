@@ -138,6 +138,10 @@ public class TemplatesRpcService extends TemplateServiceImplBase {
             responseObserver.onError(Status.INTERNAL
                 .withDescription("Failed to update template " + request.getTemplateId() + ".")
                 .asException());
+        } catch (IllegalTemplateOperationException e) {
+            responseObserver.onError(Status.INVALID_ARGUMENT
+                .withDescription(e.getLocalizedMessage())
+                .asException());
         }
     }
 
@@ -162,6 +166,10 @@ public class TemplatesRpcService extends TemplateServiceImplBase {
             responseObserver.onError(Status.INTERNAL
                 .withDescription("Failed to delete template " + request.getTemplateId() + ".")
                 .asException());
+        } catch (IllegalTemplateOperationException e) {
+            responseObserver.onError(Status.INVALID_ARGUMENT
+                .withDescription(e.getLocalizedMessage())
+                .asException());
         }
     }
 
@@ -175,7 +183,7 @@ public class TemplatesRpcService extends TemplateServiceImplBase {
             return;
         }
         try {
-            for (Template template : templatesDao.getTemplatesByType(request.getEntityType())) {
+            for (Template template : templatesDao.getTemplatesByEntityType(request.getEntityType())) {
                 responseObserver.onNext(template);
             }
             responseObserver.onCompleted();

@@ -29,7 +29,17 @@ public interface TemplatesDao {
      * @return Optional template, if not found, it will be Optional.empty().
      */
     @Nonnull
-    Optional<Template> getTemplate(long id);
+    Optional<Template> getTemplate(final long id);
+
+    /**
+     * Get the templates that have a particular name.
+     * TODO (roman, Nov 1 2017): Should template names be unique?
+     *
+     * @param name The name to look for.
+     * @return The list of templates with that name. An empty list if there are none.
+     */
+    @Nonnull
+    List<Template> getTemplatesByName(@Nonnull final String name);
 
     /**
      * Create a new template to database and its template instance should be same as paramater
@@ -39,7 +49,7 @@ public interface TemplatesDao {
      * @return new created Template object
      */
     @Nonnull
-    Template createTemplate(@Nonnull TemplateInfo templateInstance);
+    Template createTemplate(@Nonnull final TemplateInfo templateInstance);
 
     /**
      * Update the existing template with a new template instance.
@@ -48,9 +58,11 @@ public interface TemplatesDao {
      * @param templateInstance the new template instance need to store
      * @return new updated Template object
      * @throws NoSuchObjectException if can not find existing template
+     * @throws IllegalTemplateOperationException If the operation is not allowed on this template.
      */
     @Nonnull
-    Template editTemplate(long id, @Nonnull TemplateInfo templateInstance) throws NoSuchObjectException;
+    Template editTemplate(final long id, @Nonnull final TemplateInfo templateInstance)
+            throws NoSuchObjectException, IllegalTemplateOperationException;
 
     /**
      * Delete the existing template which template's ID equal to parameter id.
@@ -58,9 +70,11 @@ public interface TemplatesDao {
      * @param id of existing template
      * @return deleted Template object
      * @throws NoSuchObjectException if can not find existing template
+     * @throws IllegalTemplateOperationException If the operation is not allowed on this template.
      */
     @Nonnull
-    Template deleteTemplateById(long id) throws NoSuchObjectException;
+    Template deleteTemplateById(final long id)
+            throws NoSuchObjectException, IllegalTemplateOperationException;
 
     /**
      * Delete all discovered templates which belongs to parameter target id.
@@ -68,7 +82,8 @@ public interface TemplatesDao {
      * @param targetId id of target
      * @return all deleted Template object
      */
-    List<Template> deleteTemplateByTargetId(long targetId);
+    @Nonnull
+    List<Template> deleteTemplateByTargetId(final long targetId);
 
     /**
      * Get all templates which entity types equal to parameter type
@@ -76,7 +91,8 @@ public interface TemplatesDao {
      * @param type entity type of template
      * @return all selected Template object
      */
-    Set<Template> getTemplatesByType(int type);
+    @Nonnull
+    Set<Template> getTemplatesByEntityType(final int type);
 
     /**
      * Get a set of templates which id is in parameter list.
@@ -84,5 +100,5 @@ public interface TemplatesDao {
      * @return set of Template objects.
      */
     @Nonnull
-    Set<Template> getTemplates(@Nonnull Set<Long> ids);
+    Set<Template> getTemplates(@Nonnull final Set<Long> ids);
 }

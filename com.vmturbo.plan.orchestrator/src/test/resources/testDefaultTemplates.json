@@ -1,0 +1,59 @@
+[
+  {
+    "name" : "testVM",
+    "entityType" : 10,
+    "templateSpecId" : 1,
+    "resources" :
+    [
+      {
+        "category": {
+          "name": "Compute"
+        },
+        "fields":
+        [
+          {
+            "name": "memorySize",
+            "value": "2048.0"
+          },
+          {
+            "name": "memoryConsumedFactor",
+            "value": "0.7"
+          },
+          {
+            "name": "numOfCpu",
+            "value": "2.0"
+          },
+          {
+            "name": "cpuSpeed",
+            "value": "1024.0"
+          },
+          {
+            "name": "cpuConsumedFactor",
+            "value": "0.7"
+          }
+        ]
+      },
+      {
+        "category": {
+          "name": "Storage",
+          "type": "disk"
+        },
+        "fields":
+        [
+          {
+            "name": "diskIops",
+            "value": "50.0"
+          },
+          {
+            "name": "diskSize",
+            "value": "5120.0"
+          },
+          {
+            "name": "diskConsumedFactor",
+            "value": "0.7"
+          }
+        ]
+      }
+    ]
+  }
+]
