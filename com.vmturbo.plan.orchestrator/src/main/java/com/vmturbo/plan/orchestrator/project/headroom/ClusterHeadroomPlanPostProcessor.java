@@ -1,6 +1,7 @@
 package com.vmturbo.plan.orchestrator.project.headroom;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.StreamSupport;
@@ -15,6 +16,7 @@ import com.google.common.annotations.VisibleForTesting;
 
 import io.grpc.Channel;
 
+import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
@@ -25,6 +27,12 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyResp
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyEntityFilter;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.stats.Stats.SaveClusterHeadroomRequest;
+import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
+import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
+import com.vmturbo.plan.orchestrator.plan.IntegrityException;
+import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
+import com.vmturbo.plan.orchestrator.plan.PlanDao;
 import com.vmturbo.plan.orchestrator.project.ProjectPlanPostProcessor;
 
 /**
@@ -40,7 +48,7 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
     /**
      * The cluster for which we're trying to calculate headroom.
      */
-    private final long clusterId;
+    private final Group cluster;
 
     /**
      * The number of clones added to the cluster in the plan.
@@ -48,6 +56,10 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
     private final long addedClones;
 
     private final RepositoryServiceBlockingStub repositoryService;
+
+    private final StatsHistoryServiceBlockingStub statsHistoryService;
+
+    private PlanDao planDao;
 
     private Consumer<ProjectPlanPostProcessor> onCompleteHandler;
 
@@ -58,13 +70,19 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
     private final AtomicBoolean calculationStarted = new AtomicBoolean(false);
 
     public ClusterHeadroomPlanPostProcessor(final long planId,
-                                            final long clusterId,
+                                            @Nonnull final Group cluster,
                                             @Nonnull final Channel repositoryChannel,
-                                            final long addedClones) {
+                                            @Nonnull final Channel historyChannel,
+                                            final long addedClones,
+                                            @Nonnull final PlanDao planDao) {
         this.planId = planId;
-        this.clusterId = clusterId;
-        this.repositoryService = RepositoryServiceGrpc.newBlockingStub(repositoryChannel);
+        this.cluster = Objects.requireNonNull(cluster);
+        this.repositoryService =
+                RepositoryServiceGrpc.newBlockingStub(Objects.requireNonNull(repositoryChannel));
+        this.statsHistoryService =
+                StatsHistoryServiceGrpc.newBlockingStub(Objects.requireNonNull(historyChannel));
         this.addedClones = addedClones;
+        this.planDao = Objects.requireNonNull(planDao);
     }
 
     @Override
@@ -93,18 +111,42 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
                         .mapToLong(List::size)
                         .sum();
                 final long headroom = addedClones - unplacedClones;
-                storeHeadroom(headroom);
+
+                // Save the headroom in the history component.
+                statsHistoryService.saveClusterHeadroom(SaveClusterHeadroomRequest.newBuilder()
+                        .setClusterId(cluster.getId())
+                        .setHeadroom(headroom)
+                        .build());
+            }
+        }
+
+        // Wait until the plan completes - that is, until all pieces are finished processing -
+        // to delete it, so that everything gets deleted properly.
+        // In the future, we should be able to issue a delete to an in-progress plan and
+        // have no orphaned data.
+        if (plan.getStatus() == PlanStatus.SUCCEEDED || plan.getStatus() == PlanStatus.FAILED) {
+            if (plan.getStatus() == PlanStatus.FAILED) {
+                logger.error("Cluster headroom plan for cluster ID {} failed! Error: {}",
+                        cluster.getCluster().getName(), plan.getStatusMessage());
+            } else {
+                logger.info("Cluster headroom plan for cluster ID {} completed!",
+                        cluster.getCluster().getName());
+            }
+
+            try {
+                planDao.deletePlan(plan.getPlanId());
+            } catch (NoSuchObjectException e) {
+                // This shouldn't happen because the plan must have existed in order to
+                // have succeeded.
+            } finally {
                 if (onCompleteHandler != null) {
                     onCompleteHandler.accept(this);
                 }
             }
-        } else if (plan.getStatus() == PlanStatus.FAILED) {
-            logger.error("Cluster headroom plan for cluster ID {} failed! Error: {}",
-                    clusterId, plan.getStatusMessage());
         } else {
             // Do nothing.
             logger.info("Cluster headroom plan for cluster ID {} has new status: {}",
-                    clusterId, plan.getStatus());
+                    cluster.getCluster().getName(), plan.getStatus());
         }
     }
 
@@ -115,7 +157,13 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
      */
     @VisibleForTesting
     void storeHeadroom(final long headroom) {
-        logger.info("Cluster headroom for cluster {} is {}", clusterId, headroom);
+        if (headroom == addedClones) {
+            logger.info("Cluster headroom for cluster {} is over {}",
+                    cluster.getCluster().getName(), headroom);
+        } else {
+            logger.info("Cluster headroom for cluster {} is {}",
+                    cluster.getCluster().getName(), headroom);
+        }
         // TODO (roman, Nov 28 2017): Store the headroom wherever it needs to be stored.
     }
 

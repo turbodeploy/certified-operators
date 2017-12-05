@@ -18,6 +18,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.plan.orchestrator.project.PlanProjectDao;
 import com.vmturbo.plan.orchestrator.project.PlanProjectInfoNotFoundException;
 import com.vmturbo.plan.orchestrator.project.PlanProjectNotFoundException;
+import com.vmturbo.plan.orchestrator.scheduled.PlanProjectScheduler;
 
 /**
  * This class creates default system plan projects, which are specified in a JSON file.

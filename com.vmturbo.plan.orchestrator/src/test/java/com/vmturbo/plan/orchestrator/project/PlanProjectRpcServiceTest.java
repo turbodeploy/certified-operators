@@ -72,12 +72,14 @@ public class PlanProjectRpcServiceTest {
 
     private PlanProjectDao planProjectDao;
 
+    private PlanProjectExecutor planProjectExecutor = mock(PlanProjectExecutor.class);
+
     @Before
     public void setup() throws Exception {
         IdentityGenerator.initPrefix(0);
         planProjectDao = new PlanProjectDaoImpl(dbConfig.dsl(),new IdentityInitializer(0));
         prepareDatabase();
-        planProjectRpcService = new PlanProjectRpcService(planProjectDao);
+        planProjectRpcService = new PlanProjectRpcService(planProjectDao, planProjectExecutor);
     }
 
     private void prepareDatabase() throws Exception {

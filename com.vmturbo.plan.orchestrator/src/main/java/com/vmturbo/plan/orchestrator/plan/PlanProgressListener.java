@@ -59,10 +59,11 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
                 projectedTopologyId, topologyContextId);
         if (topologyContextId != realtimeTopologyContextId) {
             try {
+                logger.info("Plan {} is assigned projected topology id {}. Updating plan instance...",
+                        topologyContextId, projectedTopologyId);
                 planDao.updatePlanInstance(topologyContextId, plan ->
                         processProjectedTopology(plan, projectedTopologyId));
-                logger.info("Plan {} is assigned projected topology id {}", topologyContextId,
-                        projectedTopologyId);
+                logger.info("Finished updating plan instance for plan {}", topologyContextId);
             } catch (IntegrityException e) {
                 logger.error("Could not change plan's " + topologyContextId + " state according to  " +
                         "available projected topology {}" + projectedTopologyId, e);

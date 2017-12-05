@@ -11,7 +11,39 @@
           "hour": 5
         }
       },
-      "type": "CLUSTER_HEADROOM"
+      "type": "CLUSTER_HEADROOM",
+      "perClusterScope": true,
+      "scenarios":
+      [
+        {
+          "changes" : [
+            {
+              "settingOverride" : {
+                "setting" : {
+                  "settingSpecName" : "move",
+                  "enumSettingValue" : { "value" : "DISABLED" }
+                }
+              }
+            },
+            {
+              "settingOverride" : {
+                "setting" : {
+                  "settingSpecName" : "provision",
+                  "enumSettingValue" : { "value" : "DISABLED" }
+                }
+              }
+            },
+            {
+              "settingOverride" : {
+                "setting" : {
+                  "settingSpecName" : "suspend",
+                  "enumSettingValue" : { "value" : "DISABLED" }
+                }
+              }
+            }
+          ]
+        }
+      ]
     }
   ]
 }

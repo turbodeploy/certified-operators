@@ -13,8 +13,10 @@ import io.grpc.Channel;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanDTOREST.PlanProjectServiceController;
 import com.vmturbo.grpc.extensions.PingingChannelBuilder;
+import com.vmturbo.history.component.api.impl.HistoryClientConfig;
 import com.vmturbo.plan.orchestrator.GlobalConfig;
 import com.vmturbo.plan.orchestrator.plan.PlanConfig;
+import com.vmturbo.plan.orchestrator.templates.TemplatesConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
@@ -22,7 +24,9 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
 @Import({SQLDatabaseConfig.class,
         GlobalConfig.class,
         RepositoryClientConfig.class,
-        PlanConfig.class})
+        HistoryClientConfig.class,
+        PlanConfig.class,
+        TemplatesConfig.class})
 public class PlanProjectConfig {
     @Autowired
     private SQLDatabaseConfig databaseConfig;
@@ -34,7 +38,13 @@ public class PlanProjectConfig {
     private RepositoryClientConfig repositoryClientConfig;
 
     @Autowired
+    private HistoryClientConfig historyClientConfig;
+
+    @Autowired
     private PlanConfig planConfig;
+
+    @Autowired
+    private TemplatesConfig templatesConfig;
 
     @Value("${groupHost}")
     private String groupHost;
@@ -45,9 +55,12 @@ public class PlanProjectConfig {
     @Value("${grpcPingIntervalSeconds}")
     private long grpcPingIntervalSeconds;
 
+    @Value("${defaultHeadroomPlanProjectJsonFile:systemPlanProjects.json}")
+    private String defaultHeadroomPlanProjectJsonFile;
+
     @Bean
     public PlanProjectRpcService planProjectService() {
-        return new PlanProjectRpcService(planProjectDao());
+        return new PlanProjectRpcService(planProjectDao(), planProjectExecutor());
     }
 
     @Bean
@@ -71,9 +84,10 @@ public class PlanProjectConfig {
     public PlanProjectExecutor planProjectExecutor() {
         return new PlanProjectExecutor(planConfig.planDao(), groupRpcService(),
                 planConfig.planService(), planProjectRuntime(),
-                repositoryClientConfig.repositoryChannel());
+                repositoryClientConfig.repositoryChannel(),
+                templatesConfig.templatesDao(),
+                historyClientConfig.historyComponentChannel());
     }
-
     @Bean
     public GroupServiceGrpc.GroupServiceBlockingStub groupRpcService() {
         return GroupServiceGrpc.newBlockingStub(groupChannel());

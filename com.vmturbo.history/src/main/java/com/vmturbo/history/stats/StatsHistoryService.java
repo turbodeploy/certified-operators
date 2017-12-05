@@ -289,6 +289,17 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
     }
 
     /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void saveClusterHeadroom(Stats.SaveClusterHeadroomRequest request,
+                                    StreamObserver<Stats.SaveClusterHeadroomResponse> responseObserver) {
+        logger.info("Got request to save cluster info: {}", request);
+        responseObserver.onNext(Stats.SaveClusterHeadroomResponse.getDefaultInstance());
+        responseObserver.onCompleted();
+    }
+
+    /**
      * Gather stats from the PLAN topology history for the given topologyContextID. There will be
      * only one.
      * Package the stats up in a StatSnapshot response protobuf and pass it back via the chunking

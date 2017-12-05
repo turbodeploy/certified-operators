@@ -149,6 +149,17 @@ message DeletePlanStatsRequest{
 message DeletePlanStatsResponse{
 }
 
+message SaveClusterHeadroomRequest {
+    // The ID of the cluster
+    optional int64 cluster_id = 1;
+
+    // The headroom for the cluster at the time of this request.
+    optional int64 headroom = 2;
+}
+
+message SaveClusterHeadroomResponse {
+}
+
 // the gRPC API entry points for the Stats service
 service StatsHistoryService {
 
@@ -174,6 +185,13 @@ service StatsHistoryService {
     // Trigger a cluster-rollup computation for the given clusters.
     // Will return no significant data.
     rpc ComputeClusterRollup(ClusterRollupRequest) returns (ClusterRollupResponse);
+
+    // Save computed cluster headroom to the relevant location, where it can
+    // be retrieved alongside other stats.
+    //
+    // This is an internal call, in the sense that user and external API request should never
+    // trigger this method.
+    rpc SaveClusterHeadroom(SaveClusterHeadroomRequest) returns (SaveClusterHeadroomResponse);
 
     rpc DeletePlanStats(DeletePlanStatsRequest) returns (DeletePlanStatsResponse);
 }

@@ -2,11 +2,13 @@ package com.vmturbo.plan.orchestrator.scheduled;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import org.junit.Before;
@@ -25,33 +27,52 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectInfo;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.Template.Type;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
 import com.vmturbo.plan.orchestrator.plan.PlanRpcService;
 import com.vmturbo.plan.orchestrator.project.PlanProjectExecutor;
 import com.vmturbo.plan.orchestrator.project.ProjectPlanPostProcessorRegistry;
+import com.vmturbo.plan.orchestrator.templates.TemplatesDao;
 
 /**
  * Tests for the {@link com.vmturbo.plan.orchestrator.project.PlanProjectExecutor} class.
  */
 public class PlanProjectExecutorTest {
-    private PlanDao planDao = Mockito.mock(PlanDao.class);
+
+    private PlanDao planDao = mock(PlanDao.class);
+
     private GroupServiceGrpc.GroupServiceBlockingStub groupRpcService;
+
     private PlanProjectExecutor planProjectExecutor;
+
     private GroupDTOMoles.GroupServiceMole groupServiceMole = spy(new GroupDTOMoles.GroupServiceMole());
+
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(groupServiceMole);
+
+    private TemplatesDao templatesDao = mock(TemplatesDao.class);
 
     @Before
     public void setup() throws Exception {
         IdentityGenerator.initPrefix(0);
-        ProjectPlanPostProcessorRegistry registry = Mockito.mock(ProjectPlanPostProcessorRegistry.class);
-        PlanRpcService planRpcService = Mockito.mock(PlanRpcService.class);
-        Channel repositoryChannel = Mockito.mock(Channel.class);
+        ProjectPlanPostProcessorRegistry registry = mock(ProjectPlanPostProcessorRegistry.class);
+        PlanRpcService planRpcService = mock(PlanRpcService.class);
+        Channel repositoryChannel = mock(Channel.class);
+        Channel historyChannel = mock(Channel.class);
         groupRpcService = GroupServiceGrpc.newBlockingStub(grpcServer.getChannel());
         planProjectExecutor = new PlanProjectExecutor(planDao, groupRpcService,
-                planRpcService, registry, repositoryChannel);
+                planRpcService, registry, repositoryChannel, templatesDao, historyChannel);
+        when(templatesDao.getTemplatesByName("headroomVM"))
+            .thenReturn(Collections.singletonList(Template.newBuilder()
+                    .setId(7L)
+                    .setType(Type.SYSTEM)
+                    .setTemplateInfo(TemplateInfo.newBuilder()
+                        .setName("headroomVM"))
+                    .build()));
     }
 
     @Test
@@ -62,9 +83,11 @@ public class PlanProjectExecutorTest {
         List<Group> groupList = new ArrayList<>();
         groupList.add(GroupDTO.Group.newBuilder()
                 .setId(100)
+                .setType(Group.Type.CLUSTER)
                 .build());
         groupList.add(GroupDTO.Group.newBuilder()
                 .setId(101)
+                .setType(Group.Type.CLUSTER)
                 .build());
 
         when(groupServiceMole.getGroups(eq(GroupDTO.GetGroupsRequest.newBuilder()
@@ -72,7 +95,7 @@ public class PlanProjectExecutorTest {
                 .build())))
                 .thenReturn(groupList);
 
-        when(planDao.createPlanInstance(any(Scenario.class)))
+        when(planDao.createPlanInstance(any(Scenario.class), eq(PlanProjectType.CLUSTER_HEADROOM)))
                 .thenReturn(PlanDTO.PlanInstance.newBuilder()
                         .setPlanId(IdentityGenerator.next())
                         .setStatus(PlanStatus.READY)
@@ -82,7 +105,7 @@ public class PlanProjectExecutorTest {
 
         // 2 clusters, with 2 scenarios each.  So there are 4 plan instances created.
         verify(planDao, Mockito.times(4)).
-                createPlanInstance(any(Scenario.class));
+                createPlanInstance(any(Scenario.class), eq(PlanProjectType.CLUSTER_HEADROOM));
     }
 
     /**

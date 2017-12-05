@@ -19,6 +19,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScenario;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceImplBase;
@@ -109,12 +110,6 @@ public class PlanRpcService extends PlanServiceImplBase {
             logger.warn("Plan not found while requested to be removed: " + request, e);
             responseObserver.onError(
                     Status.NOT_FOUND.withDescription(e.getMessage()).asException());
-        } catch (IntegrityException e) {
-            logger.warn(
-                    "Referential integrity violated while requesting to remove a plan " + request,
-                    e);
-            responseObserver.onError(
-                    Status.FAILED_PRECONDITION.withDescription(e.getMessage()).asException());
         }
     }
 
@@ -145,6 +140,9 @@ public class PlanRpcService extends PlanServiceImplBase {
                     builder.setPlanScope(scenarioInfo.getScope());
                 }
             }
+
+            builder.setPlanType(queuedInstance.getProjectType());
+
             startAnalysis(builder.build());
 
             responseObserver.onNext(queuedInstance);
@@ -214,9 +212,10 @@ public class PlanRpcService extends PlanServiceImplBase {
     @Override
     public void getAllPlans(GetPlansOptions request, StreamObserver<PlanInstance> responseObserver) {
         logger.debug("Retrieving all the existing plans...");
-        for (PlanInstance plan : planDao.getAllPlanInstances()) {
-            responseObserver.onNext(plan);
-        }
+        planDao.getAllPlanInstances().stream()
+            // When listing plans, return only USER-created plans.
+            .filter(planInstance -> planInstance.getProjectType() == PlanProjectType.USER)
+            .forEach(responseObserver::onNext);
         responseObserver.onCompleted();
     }
 

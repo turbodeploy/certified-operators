@@ -4,6 +4,7 @@ import static com.vmturbo.plan.orchestrator.db.tables.PlanInstance.PLAN_INSTANCE
 import static com.vmturbo.plan.orchestrator.db.tables.Scenario.SCENARIO;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -15,7 +16,9 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.Immutable;
 
+import org.apache.commons.lang3.StringUtils;
 import org.jooq.DSLContext;
 import org.jooq.Record1;
 import org.jooq.exception.DataAccessException;
@@ -27,21 +30,19 @@ import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.DeleteActionsRequest;
-import com.vmturbo.common.protobuf.action.ActionDTO.DeleteActionsResponse;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.CreatePlanRequest;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.Builder;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponseCode;
 import com.vmturbo.common.protobuf.stats.Stats.DeletePlanStatsRequest;
-import com.vmturbo.common.protobuf.stats.Stats.DeletePlanStatsResponse;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.commons.idgen.IdentityGenerator;
-import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.plan.orchestrator.db.tables.pojos.PlanInstance;
 import com.vmturbo.plan.orchestrator.db.tables.records.PlanInstanceRecord;
 import com.vmturbo.plan.orchestrator.plan.PlanStatusListener.PlanStatusListenerException;
@@ -120,6 +121,7 @@ public class PlanDaoImpl implements PlanDao {
         }
         builder.setPlanId(IdentityGenerator.next());
         builder.setStatus(PlanStatus.READY);
+        builder.setProjectType(PlanProjectType.USER);
         final PlanDTO.PlanInstance plan = builder.build();
         checkPlanConsistency(plan);
 
@@ -131,20 +133,18 @@ public class PlanDaoImpl implements PlanDao {
 
 
     /**
-     * Create a plan instance from a scenario object and save the record in database.
-     * Note that the scenario does not have to be in the scenario table.
-     *
-     * @param scenario
-     * @return the Plan Instance object
-     * @throws IntegrityException
+     * {@inheritDoc}
      */
     @Override
-    public PlanDTO.PlanInstance createPlanInstance(@Nonnull Scenario scenario)
+    @Nonnull
+    public PlanDTO.PlanInstance createPlanInstance(@Nonnull final Scenario scenario,
+                                                   @Nonnull final PlanProjectType planProjectType)
             throws IntegrityException {
         final PlanDTO.PlanInstance planInstance = PlanDTO.PlanInstance.newBuilder()
                 .setScenario(scenario)
                 .setPlanId(IdentityGenerator.next())
                 .setStatus(PlanStatus.READY)
+                .setProjectType(planProjectType)
                 .build();
         checkPlanConsistency(planInstance);
 
@@ -175,7 +175,9 @@ public class PlanDaoImpl implements PlanDao {
             final DSLContext context = DSL.using(configuration);
             return dsl.selectFrom(PLAN_INSTANCE).fetch().into(PlanInstance.class);
         });
-        return records.stream().map(PlanInstance::getPlanInstance).collect(Collectors.toSet());
+        return records.stream()
+            .map(PlanInstance::getPlanInstance)
+            .collect(Collectors.toSet());
     }
 
     @Nonnull
@@ -196,18 +198,19 @@ public class PlanDaoImpl implements PlanDao {
     }
 
     @Override
-    public PlanDTO.PlanInstance deletePlan(final long id) throws IntegrityException, NoSuchObjectException {
+    public PlanDTO.PlanInstance deletePlan(final long id) throws NoSuchObjectException {
         // For now delete each piece of the plan independently.
         // TODO: implement atomic deletion with rollback. If any piece deletion fails then rollback everything.
         // Delete projected topology from PlanOrchestrator, ActionOrchestrator,
         // Repository and History/Stats
         PlanDTO.PlanInstance plan = getPlanInstance(id).orElseThrow(() -> noSuchObjectException(id));
-        deleteRelatedObjects(plan);
         if (dsl.deleteFrom(PLAN_INSTANCE)
                 .where(PLAN_INSTANCE.ID.eq(id))
                 .execute() != 1) {
             throw noSuchObjectException(id);
         }
+        // Delete related objects, on a best-effort basis, after the plan is deleted.
+        deleteRelatedObjects(plan);
         return plan;
     }
 
@@ -219,8 +222,7 @@ public class PlanDaoImpl implements PlanDao {
                 oldPlanInstance.setScenario(newScenario));
     }
 
-    private void deleteRelatedObjects(@Nonnull PlanDTO.PlanInstance plan)
-        throws IntegrityException, NoSuchObjectException {
+    private void deleteRelatedObjects(@Nonnull PlanDTO.PlanInstance plan) {
 
         // TODO - karthikt * Do deletes in parallel
         // TODO - karthikt * Handle failure and retry
@@ -228,53 +230,80 @@ public class PlanDaoImpl implements PlanDao {
         // TODO - karthikt * For the background delete, we would have to add a delete job(in
         // TODO - karthikt    a queue in a db/local file)
         //
-        if (!plan.hasProjectedTopologyId()) {
-            logger.info("Skipping projected topology deletion... no topology to delete.");
-            return;
-        }
-
-        final long projectedTopologyId = plan.getProjectedTopologyId();
+        final List<String> errors = new ArrayList<>();
         final long topologyContextId = plan.getPlanId();
-        logger.info("Deleting projected topology with id:{} and contextId:{} ",
-                projectedTopologyId, topologyContextId);
-
-        // Delete topology from Repository
-        RepositoryOperationResponse repoResponse =
-            repositoryClient.deleteTopology(projectedTopologyId, topologyContextId);
-
-        if (repoResponse.getResponseCode() == RepositoryOperationResponseCode.OK) {
-            logger.info("Successfully deleted projected topology with id:{} and"
-                    + " contextId:{} from repository",
+        if (plan.hasProjectedTopologyId()) {
+            final long projectedTopologyId = plan.getProjectedTopologyId();
+            logger.info("Deleting projected topology with id:{} and contextId:{} ",
                     projectedTopologyId, topologyContextId);
+
+            // Delete topology from Repository
+            try {
+                final RepositoryOperationResponse repoResponse =
+                        repositoryClient.deleteTopology(projectedTopologyId, topologyContextId);
+                if (repoResponse.getResponseCode() == RepositoryOperationResponseCode.OK) {
+                    logger.info("Successfully deleted projected topology with id:{} and"
+                                    + " contextId:{} from repository",
+                            projectedTopologyId, topologyContextId);
+                } else {
+                    errors.add("Error trying to delete projected topology with id "
+                            + projectedTopologyId + " : "
+                            + repoResponse.getError());
+                }
+            } catch (StatusRuntimeException e) {
+                errors.add("Failed to delete projected topology " + projectedTopologyId +
+                        " due to error: " + e.getLocalizedMessage());
+            }
         } else {
-            throw new IntegrityException("Error trying to delete projected topology with id "
-                    + projectedTopologyId + " : "
-                    + repoResponse.getError());
+            logger.info("Skipping projected topology deletion for plan {}... no topology to delete.",
+                    topologyContextId);
         }
 
         // Delete actions associated with the plan in the ActionsOrchestraor
-        try {
-            DeleteActionsRequest actionRequest = DeleteActionsRequest.newBuilder()
-                .setTopologyContextId(topologyContextId)
-                .build();
-            DeleteActionsResponse actionResponse = actionOrchestratorClient.deleteActions(actionRequest);
-        } catch (StatusRuntimeException sre) {
-            if (sre.getStatus().getCode() == Status.Code.NOT_FOUND) {
-                // If object doesn't exist, just ignore
-                logger.info("Actions for planId:{} not found", topologyContextId);
-            } else {
-                // TODO : karthikt - better error handling. for now just bubble up the exception
-                throw sre;
+        if (plan.hasActionPlanId()) {
+            final DeleteActionsRequest actionRequest = DeleteActionsRequest.newBuilder()
+                    .setTopologyContextId(topologyContextId)
+                    .build();
+            try {
+                actionOrchestratorClient.deleteActions(actionRequest);
+            } catch (StatusRuntimeException e) {
+                if (e.getStatus().getCode() == Status.Code.NOT_FOUND) {
+                    // If object doesn't exist, just ignore
+                    logger.info("Actions for planId:{} not found", topologyContextId);
+                } else {
+                    errors.add("Failed to delete actions associated with plan " + topologyContextId +
+                            " due to error: " + e.getLocalizedMessage());
+                }
             }
+        } else {
+            logger.info("Skipping action plan deletion for plan {}. No action plan to delete.",
+                    topologyContextId);
         }
 
-        // Delete plan stats in history component
-        DeletePlanStatsRequest statsRequest = DeletePlanStatsRequest.newBuilder()
-            .setTopologyContextId(topologyContextId)
-            .build();
+        if (plan.hasStatsAvailable()) {
+            // Delete plan stats in history component
+            final DeletePlanStatsRequest statsRequest = DeletePlanStatsRequest.newBuilder()
+                    .setTopologyContextId(topologyContextId)
+                    .build();
 
-        // If the plan doesn't exist, stats will not throw any exception.
-        DeletePlanStatsResponse statsResponse = statsClient.deletePlanStats(statsRequest);
+            try {
+                // If the plan doesn't exist, stats will not throw any exception.
+                statsClient.deletePlanStats(statsRequest);
+            } catch (StatusRuntimeException e) {
+                errors.add("Failed to delete stats associated with plan " + topologyContextId +
+                        " due to error: " + e.getLocalizedMessage());
+            }
+        } else {
+            logger.info("Skipping stats deletion for plan {}. No stats available to delete.",
+                    topologyContextId);
+        }
+
+        if (!errors.isEmpty()) {
+            logger.error("Encountered errors trying to delete plan {}. Errors:\n", plan.getPlanId(),
+                    StringUtils.join(errors, "\n"));
+        } else {
+            logger.info("Successfully deleted all known related objects for plan {}", topologyContextId);
+        }
     }
 
     private static NoSuchObjectException noSuchObjectException(long id) {
@@ -286,9 +315,10 @@ public class PlanDaoImpl implements PlanDao {
             @Nonnull final Consumer<Builder> updater)
             throws IntegrityException, NoSuchObjectException {
         Objects.requireNonNull(updater);
+        final PlanUpdateResult updateResult;
         lock(planId);
         try {
-            return dsl.transactionResult(configuration -> {
+            updateResult = dsl.transactionResult(configuration -> {
                 final DSLContext context = DSL.using(configuration);
                 final PlanDTO.PlanInstance src = getPlanInstance(context, planId).orElseThrow(
                         () -> new NoSuchObjectException(
@@ -308,20 +338,7 @@ public class PlanDaoImpl implements PlanDao {
                     throw new NoSuchObjectException(
                             "Plan with id " + planInstance.getPlanId() + " does not exist");
                 }
-                if (src.getStatus() != planInstance.getStatus()) {
-                    synchronized (listenerLock) {
-                        for (final PlanStatusListener listener : planStatusListeners) {
-                            try {
-                                listener.onPlanStatusChanged(planInstance);
-                            } catch (PlanStatusListenerException e) {
-                                // TODO Maybe roll back transaction here?
-                                logger.error("Error sending plan update notification for plan " +
-                                                planId, e);
-                            }
-                        }
-                    }
-                }
-                return planInstance;
+                return new PlanUpdateResult(src, planInstance);
             });
         } catch (DataAccessException e) {
             if (e.getCause() instanceof NoSuchObjectException) {
@@ -333,6 +350,37 @@ public class PlanDaoImpl implements PlanDao {
             }
         } finally {
             unlock(planId);
+        }
+
+        if (updateResult.oldPlan.getStatus() != updateResult.newPlan.getStatus()) {
+            synchronized (listenerLock) {
+                for (final PlanStatusListener listener : planStatusListeners) {
+                    try {
+                        listener.onPlanStatusChanged(updateResult.newPlan);
+                    } catch (PlanStatusListenerException e) {
+                        logger.error("Error sending plan update notification for plan " +
+                                planId, e);
+                    }
+                }
+            }
+        }
+
+        return updateResult.newPlan;
+    }
+
+    /**
+     * The result of updating a plan instance. This is a wrapper class to return
+     * two values from a {@link org.jooq.TransactionalCallable}.
+     */
+    @Immutable
+    private static class PlanUpdateResult {
+        private final PlanDTO.PlanInstance oldPlan;
+        private final PlanDTO.PlanInstance newPlan;
+
+        private PlanUpdateResult(@Nonnull final PlanDTO.PlanInstance oldPlan,
+                         @Nonnull final PlanDTO.PlanInstance newPlan) {
+            this.oldPlan = oldPlan;
+            this.newPlan = newPlan;
         }
     }
 

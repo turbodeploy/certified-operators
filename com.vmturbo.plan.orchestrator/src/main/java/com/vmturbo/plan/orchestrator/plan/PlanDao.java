@@ -9,6 +9,7 @@ import javax.annotation.Nonnull;
 import com.vmturbo.common.protobuf.plan.PlanDTO.CreatePlanRequest;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.Builder;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
 
 /**
@@ -30,10 +31,13 @@ public interface PlanDao {
      * Creates a plan instance from a scenario object.
      *
      * @param scenario
+     * @param planProjectType The type of plan project.
      * @return plan instance, if created
      */
     @Nonnull
-    PlanInstance createPlanInstance(@Nonnull Scenario scenario) throws IntegrityException;
+    PlanInstance createPlanInstance(@Nonnull final Scenario scenario,
+                                    @Nonnull final PlanProjectType planProjectType)
+            throws IntegrityException;
 
     /**
      * Returns all the exising registered plan instances.
@@ -57,10 +61,9 @@ public interface PlanDao {
      *
      * @param id id of the plan instance to delete.
      * @return The plan instance representing the plan before deletion.
-     * @throws IntegrityException if some integrity constraints violated
      * @throws NoSuchObjectException if plan with the id specified does not exist
      */
-    PlanInstance deletePlan(long id) throws IntegrityException, NoSuchObjectException;
+    PlanInstance deletePlan(long id) throws NoSuchObjectException;
 
     /**
      * Update the scenario step of an existing plan. This is used for implementing

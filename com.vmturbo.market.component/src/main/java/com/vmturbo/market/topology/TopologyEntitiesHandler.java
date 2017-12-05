@@ -1,8 +1,10 @@
 package com.vmturbo.market.topology;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -75,7 +77,8 @@ public class TopologyEntitiesHandler {
      */
     public static AnalysisResults performAnalysis(Set<TraderTO> traderTOs,
                     @Nonnull final TopologyDTO.TopologyInfo topologyInfo) {
-        logger.info("Received TOs from marketComponent. Starting economy creation.");
+        logger.info("Received TOs from marketComponent. Starting economy creation on {} traders",
+                traderTOs.size());
         final long start = System.nanoTime();
         final DataMetricTimer buildTimer = ECONOMY_BUILD.startTimer();
         final Topology topology = new Topology();
@@ -138,6 +141,8 @@ public class TopologyEntitiesHandler {
                 topology, startPriceStatement);
         runTimer.observe();
 
+        logger.info("Completed analysis, with {} actions, and a projected topology of {} traders",
+                results.getActionsCount(), results.getProjectedTopoEntityTOCount());
         return results;
     }
 

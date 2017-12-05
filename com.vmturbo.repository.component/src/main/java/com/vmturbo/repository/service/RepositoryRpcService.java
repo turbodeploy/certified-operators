@@ -100,7 +100,7 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
                                  final StreamObserver<RepositoryDTO.RetrieveTopologyResponse> responseObserver) {
         final long topologyID = topologyRequest.getTopologyId();
         try {
-            logger.info("Retrieving topology for {} with filtere {}", topologyID,
+            logger.info("Retrieving topology for {} with filter {}", topologyID,
                     topologyRequest.getEntityFilter());
             final TopologyProtobufReader reader =
                     topologyProtobufsManager.createTopologyProtobufReader(

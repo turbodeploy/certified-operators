@@ -355,6 +355,9 @@ message PlanInstance {
     // Must not be filled when status is SUCCEEDED
     optional string status_message = 10;
 
+    // The type of the plan project that this plan belongs to.
+    optional PlanProjectType project_type = 12 [default = USER];
+
     enum PlanStatus {
         // Plan is ready to be executed, but has not been
         // triggered.
@@ -497,6 +500,21 @@ service ScenarioService {
     rpc DeleteScenario(ScenarioId) returns (DeleteScenarioResponse);
 }
 
+message GetAllPlanProjectsRequest {
+}
+
+message GetAllPlanProjectsResponse {
+    // The list of all plan projects.
+    repeated PlanProject projects = 1;
+}
+
+message RunPlanProjectRequest {
+    optional int64 id = 1;
+}
+
+message RunPlanProjectResponse {
+}
+
 // A service responsible for CRUD operations for plan project.
 // A plan project contains:
 // * An ID
@@ -505,6 +523,13 @@ service ScenarioService {
 // * Recurrence information - when and how often the plan project will be executed
 // Plan project will be persisted to the Plan database.
 service PlanProjectService {
+
+    // Attemp to run a specific plan project.
+    //
+    // This is currently (Dec 4 2017) for testing/demonstration purposes.
+    // If/when we make this part of the API, we'll need to implement and document
+    // the relationship between this call and the recurrence in the plan project.
+    rpc RunPlanProject(RunPlanProjectRequest) returns (RunPlanProjectResponse);
 
     // Create a project given the information about a project.
     // The newly created Project will be persisted to the Plan database.
@@ -518,6 +543,9 @@ service PlanProjectService {
     // @parameter GetPlanProjectRequest indicates the ID of the plan project to search for.
     // @returns the Project with the given ID; if not found, the PlanProject will not be set
     rpc GetPlanProject(GetPlanProjectRequest) returns (GetPlanProjectResponse);
+
+    // Get all the existing plan projects.
+    rpc GetAllPlanProjects(GetAllPlanProjectsRequest) returns (GetAllPlanProjectsResponse);
 
     // Delete an existing plan project from the Plan database.
     //
