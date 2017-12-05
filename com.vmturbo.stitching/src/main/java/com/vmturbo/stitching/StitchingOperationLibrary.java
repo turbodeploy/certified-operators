@@ -1,11 +1,14 @@
 package com.vmturbo.stitching;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
 import javax.annotation.Nonnull;
 
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.stitching.fabric.FabricChassisStitchingOperation;
+import com.vmturbo.stitching.fabric.FabricPMStitchingOperation;
 import com.vmturbo.stitching.storage.StorageStitchingOperation;
 
 /**
@@ -29,10 +32,12 @@ public class StitchingOperationLibrary {
         switch (probeCategory) {
             case STORAGE:
                 return Collections.singletonList(new StorageStitchingOperation());
+            case FABRIC:                        // Fall through
+                return Arrays.asList(new FabricChassisStitchingOperation(),
+                        new FabricPMStitchingOperation());
             case HYPERVISOR:                    // Fall through
             case CLOUD_MANAGEMENT:              // Fall through
             case LOAD_BALANCER:                 // Fall through
-            case FABRIC:                        // Fall through
             case NETWORK:                       // Fall through
             case OPERATION_MANAGER_APPLIANCE:   // Fall through
             case APPLICATION_SERVER:            // Fall through
