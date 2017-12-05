@@ -4,7 +4,10 @@ import java.util.EnumSet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.TimeUnit;
+
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
+import io.grpc.Channel;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -14,12 +17,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.converter.json.GsonHttpMessageConverter;
 import org.springframework.web.socket.server.standard.ServerEndpointExporter;
 
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
-import io.grpc.Channel;
-
 import com.vmturbo.components.api.ComponentGsonFactory;
-import com.vmturbo.grpc.extensions.PingingChannelBuilder;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig.Subscription;
@@ -31,14 +29,6 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig.Sub
 @Configuration
 @Import({TopologyProcessorClientConfig.class})
 public class ActionOrchestratorGlobalConfig {
-    @Value("${groupHost}")
-    private String groupHost;
-
-    @Value("${server.grpcPort}")
-    private int grpcPort;
-
-    @Value("${grpcPingIntervalSeconds}")
-    private long grpcPingIntervalSeconds;
 
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
@@ -90,12 +80,5 @@ public class ActionOrchestratorGlobalConfig {
     public Channel topologyProcessorChannel() {
         return tpClientConfig.topologyProcessorChannel();
     }
-
-    @Bean
-    public Channel groupChannel() {
-        return PingingChannelBuilder.forAddress(groupHost, grpcPort)
-                .setPingInterval(grpcPingIntervalSeconds, TimeUnit.SECONDS)
-                .usePlaintext(true)
-                .build();
-    }
 }
+

@@ -3,6 +3,8 @@ package com.vmturbo.api.component.communication;
 import java.net.URISyntaxException;
 import java.util.concurrent.TimeUnit;
 
+import io.grpc.Channel;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -10,8 +12,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.converter.xml.Jaxb2RootElementHttpMessageConverter;
 import org.springframework.web.client.RestTemplate;
-
-import io.grpc.Channel;
 
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
@@ -40,6 +40,7 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
+import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.grpc.extensions.PingingChannelBuilder;
 import com.vmturbo.plan.orchestrator.api.PlanOrchestrator;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
@@ -52,7 +53,8 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
  */
 @Configuration
 @Import({ApiWebsocketConfig.class, TopologyProcessorClientConfig.class,
-        ActionOrchestratorClientConfig.class, PlanOrchestratorClientConfig.class})
+        ActionOrchestratorClientConfig.class, PlanOrchestratorClientConfig.class,
+        GroupClientConfig.class})
 public class CommunicationConfig {
 
     @Autowired
@@ -61,6 +63,9 @@ public class CommunicationConfig {
     private ActionOrchestratorClientConfig aoClientConfig;
     @Autowired
     private PlanOrchestratorClientConfig planClientConfig;
+    @Autowired
+    private GroupClientConfig groupClientConfig;
+
     @Value("${clusterMgrHost}")
     private String clusterMgrHost;
 
@@ -72,9 +77,6 @@ public class CommunicationConfig {
 
     @Value("${authHost}")
     public String authHost;
-
-    @Value("${groupHost}")
-    private String groupHost;
 
     @Value("${historyHost}")
     private String historyHost;
@@ -139,6 +141,11 @@ public class CommunicationConfig {
     }
 
     @Bean
+    public Channel groupChannel() {
+        return groupClientConfig.groupChannel();
+    }
+
+    @Bean
     public PlanServiceBlockingStub planRpcService() {
         return PlanServiceGrpc.newBlockingStub(planClientConfig.planOrchestratorChannel());
     }
@@ -185,21 +192,13 @@ public class CommunicationConfig {
     }
 
     @Bean
-    public Channel groupChannel() {
-        return PingingChannelBuilder.forAddress(groupHost, grpcPort)
-            .setPingInterval(grpcPingIntervalSeconds, TimeUnit.SECONDS)
-            .usePlaintext(true)
-            .build();
-    }
-
-    @Bean
     public GroupServiceBlockingStub groupRpcService() {
-        return GroupServiceGrpc.newBlockingStub(groupChannel());
+        return GroupServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
     }
 
     @Bean
     public SettingServiceBlockingStub settingRpcService() {
-        return SettingServiceGrpc.newBlockingStub(groupChannel());
+        return SettingServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
     }
 
     @Bean

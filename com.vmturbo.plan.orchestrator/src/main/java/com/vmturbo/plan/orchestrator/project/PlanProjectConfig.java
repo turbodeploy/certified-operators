@@ -1,18 +1,14 @@
 package com.vmturbo.plan.orchestrator.project;
 
-import java.util.concurrent.TimeUnit;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import io.grpc.Channel;
-
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanDTOREST.PlanProjectServiceController;
-import com.vmturbo.grpc.extensions.PingingChannelBuilder;
+import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
 import com.vmturbo.plan.orchestrator.GlobalConfig;
 import com.vmturbo.plan.orchestrator.plan.PlanConfig;
@@ -25,6 +21,7 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
         GlobalConfig.class,
         RepositoryClientConfig.class,
         HistoryClientConfig.class,
+        GroupClientConfig.class,
         PlanConfig.class,
         TemplatesConfig.class})
 public class PlanProjectConfig {
@@ -44,16 +41,10 @@ public class PlanProjectConfig {
     private PlanConfig planConfig;
 
     @Autowired
+    private GroupClientConfig groupClientConfig;
+
+    @Autowired
     private TemplatesConfig templatesConfig;
-
-    @Value("${groupHost}")
-    private String groupHost;
-
-    @Value("${server.grpcPort}")
-    private int grpcPort;
-
-    @Value("${grpcPingIntervalSeconds}")
-    private long grpcPingIntervalSeconds;
 
     @Value("${defaultHeadroomPlanProjectJsonFile:systemPlanProjects.json}")
     private String defaultHeadroomPlanProjectJsonFile;
@@ -90,14 +81,6 @@ public class PlanProjectConfig {
     }
     @Bean
     public GroupServiceGrpc.GroupServiceBlockingStub groupRpcService() {
-        return GroupServiceGrpc.newBlockingStub(groupChannel());
-    }
-
-    @Bean
-    public Channel groupChannel() {
-        return PingingChannelBuilder.forAddress(groupHost, grpcPort)
-                .setPingInterval(grpcPingIntervalSeconds, TimeUnit.SECONDS)
-                .usePlaintext(true)
-                .build();
+        return GroupServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
     }
 }

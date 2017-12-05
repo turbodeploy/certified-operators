@@ -14,6 +14,7 @@ import com.vmturbo.action.orchestrator.ActionOrchestratorGlobalConfig;
 import com.vmturbo.action.orchestrator.execution.ActionExecutionConfig;
 import com.vmturbo.action.orchestrator.execution.ActionTranslator;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
+import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 /**
@@ -21,7 +22,7 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
  */
 @Configuration
 @Import({SQLDatabaseConfig.class, ActionOrchestratorGlobalConfig.class,
-        ActionExecutionConfig.class})
+        ActionExecutionConfig.class, GroupClientConfig.class})
 public class ActionStoreConfig {
 
     @Autowired
@@ -33,6 +34,8 @@ public class ActionStoreConfig {
     @Autowired
     private ActionExecutionConfig actionExecutionConfig;
 
+    @Autowired
+    private GroupClientConfig groupClientConfig;
 
     @Value("${repositoryHost}")
     private String repositoryHost;
@@ -58,7 +61,7 @@ public class ActionStoreConfig {
 
     @Bean
     public EntitySettingsCache entitySettingsCache() {
-        return new EntitySettingsCache(actionOrchestratorGlobalConfig.groupChannel(),
+        return new EntitySettingsCache(groupClientConfig.groupChannel(),
                 serviceRestTemplate(), repositoryHost, httpPort, Executors.newSingleThreadExecutor(),
                 entityTypeMaxRetries, entityTypeRetryIntervalMillis);
     }

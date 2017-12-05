@@ -1,14 +1,10 @@
 package com.vmturbo.topology.processor.group;
 
-import java.util.concurrent.TimeUnit;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
-
-import io.grpc.Channel;
 
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
@@ -18,8 +14,7 @@ import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
-import com.vmturbo.grpc.extensions.PingingChannelBuilder;
-import com.vmturbo.topology.processor.GlobalConfig;
+import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.group.filter.TopologyFilterFactory;
@@ -32,50 +27,37 @@ import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
  * The configuration for dealing with groups.
  */
 @Configuration
-@Import({GlobalConfig.class, EntityConfig.class})
+@Import({EntityConfig.class, GroupClientConfig.class})
 public class GroupConfig {
-
-    @Autowired
-    private GlobalConfig globalConfig;
 
     @Autowired
     private EntityConfig entityConfig;
 
-    @Value("${groupHost}")
-    private String groupHost;
+    @Autowired
+    private GroupClientConfig groupClientConfig;
 
-    @Value("${grpcPingIntervalSeconds}")
-    private long grpcPingIntervalSeconds;
 
     @Value("${discoveredGroupUploadIntervalSeconds}")
     private long discoveredGroupUploadIntervalSeconds;
 
     @Bean
-    public Channel groupChannel() {
-        return PingingChannelBuilder.forAddress(groupHost, globalConfig.grpcPort())
-            .setPingInterval(grpcPingIntervalSeconds, TimeUnit.SECONDS)
-            .usePlaintext(true)
-            .build();
-    }
-
-    @Bean
     public PolicyServiceBlockingStub policyRpcService() {
-        return PolicyServiceGrpc.newBlockingStub(groupChannel());
+        return PolicyServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
     }
 
     @Bean
     public SettingPolicyServiceBlockingStub settingPolicyServiceClient() {
-        return SettingPolicyServiceGrpc.newBlockingStub(groupChannel());
+        return SettingPolicyServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
     }
 
     @Bean
     public GroupServiceBlockingStub groupServiceClient() {
-        return GroupServiceGrpc.newBlockingStub(groupChannel());
+        return GroupServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
     }
 
     @Bean
     public SettingServiceBlockingStub settingServiceClient() {
-        return SettingServiceGrpc.newBlockingStub(groupChannel());
+        return SettingServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
     }
 
     @Bean
@@ -102,6 +84,7 @@ public class GroupConfig {
 
     @Bean
     public DiscoveredGroupUploader discoveredGroupUploader() {
-        return new DiscoveredGroupUploader(groupChannel(), entityConfig.entityStore());
+        return new DiscoveredGroupUploader(groupClientConfig.groupChannel(),
+                entityConfig.entityStore());
     }
 }

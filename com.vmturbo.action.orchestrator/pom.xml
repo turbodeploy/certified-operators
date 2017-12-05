@@ -167,6 +167,10 @@
             <artifactId>market-component-api</artifactId>
         </dependency>
         <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.group.api</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.springframework</groupId>
             <artifactId>spring-websocket</artifactId>
         </dependency>

@@ -3,22 +3,25 @@ package com.vmturbo.plan.orchestrator.scheduled;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
+import io.grpc.Channel;
+
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.scheduling.support.CronTrigger;
 
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
-import io.grpc.Channel;
-
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
+import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.grpc.extensions.PingingChannelBuilder;
 
 /**
@@ -29,7 +32,11 @@ import com.vmturbo.grpc.extensions.PingingChannelBuilder;
  **/
 @Configuration
 @EnableScheduling
+@Import({GroupClientConfig.class})
 public class ClusterRollupSchedulerConfig {
+
+    @Autowired
+    private GroupClientConfig groupClientConfig;
 
     /**
      * Perform Cluster Rollup based on a cron schedule specified in the
@@ -49,9 +56,6 @@ public class ClusterRollupSchedulerConfig {
 
     @Value("${historyHost}")
     private String historyHost;
-
-    @Value("${groupHost}")
-    private String groupHost;
 
     @Value("${server.grpcPort}")
     private int grpcPort;
@@ -80,15 +84,7 @@ public class ClusterRollupSchedulerConfig {
 
     @Bean
     public GroupServiceBlockingStub groupRpcService() {
-        return GroupServiceGrpc.newBlockingStub(groupChannel());
-    }
-
-    @Bean
-    public Channel groupChannel() {
-        return PingingChannelBuilder.forAddress(groupHost, grpcPort)
-                .setPingInterval(grpcPingIntervalSeconds, TimeUnit.SECONDS)
-                .usePlaintext(true)
-                .build();
+        return GroupServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
     }
 
     /**
