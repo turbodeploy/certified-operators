@@ -8,14 +8,21 @@ import java.util.Map;
 import java.util.Map.Entry;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
+
+import com.vmturbo.platform.analysis.economy.BalanceAccount;
+import com.vmturbo.platform.analysis.economy.Basket;
+import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
+import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO;
-import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ResourceBundleCostDTO;
-import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ResourceBundleCostDTO.ResourceCost;
-import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ResourceBundleCostDTO.ResourceDependency;
-import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ResourceBundleCostDTO.ResourceLimitation;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeResourceBundleCostDTO;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageResourceBundleCostDTO;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageResourceBundleCostDTO.ResourceCost;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageResourceBundleCostDTO.ResourceDependency;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageResourceBundleCostDTO.ResourceLimitation;
 import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
 
 /**
@@ -114,7 +121,7 @@ public class CostFunctionFactory {
      * @return a map for CommoditySpecification to capacity constraint
      */
     public static Map<CommoditySpecification, CapacityLimitation>
-                    translateResourceCapacityLimitation(ResourceBundleCostDTO costDTO) {
+                    translateResourceCapacityLimitation(StorageResourceBundleCostDTO costDTO) {
         Map<CommoditySpecification, CapacityLimitation> commCapacity = new HashMap<>();
         for (ResourceLimitation resourceLimit : costDTO.getResourceLimitationList()) {
             if (!commCapacity.containsKey(resourceLimit.getResourceType())) {
@@ -144,7 +151,7 @@ public class CostFunctionFactory {
         for (ResourceCost cost : resourceCost) {
             if (!priceDataMap.containsKey(cost.getResourceType())) {
                 List<CostFunctionFactory.PriceData> priceDataList = new ArrayList<>();
-                for (ResourceBundleCostDTO.PriceData priceData : cost.getPriceDataList()) {
+                for (CostDTOs.CostDTO.StorageResourceBundleCostDTO.PriceData priceData : cost.getPriceDataList()) {
                     CostFunctionFactory.PriceData newEntry = new PriceData(
                                     priceData.getUpperBound(), priceData.getPrice(),
                                     priceData.getIsUnitPrice(), priceData.getIsAccumulativeCost());
@@ -225,6 +232,48 @@ public class CostFunctionFactory {
     }
 
     /**
+     * Validate if the shoppingList can fit in the seller
+     *
+     * @param sl the shopping list
+     * @param seller the templateProvider that supplies the resources
+     * @return true if validation passes, otherwise false
+     */
+    private static boolean validateRequestedAmountWithinSellerCapacity(ShoppingList sl,
+                    Trader seller) {
+        // check if the commodities bought comply with capacity limitation on seller
+        int boughtIndex = 0;
+        Basket basket = sl.getBasket();
+        final double[] quantities = sl.getQuantities();
+        final double[] peakQuantities = sl.getPeakQuantities();
+        List<CommoditySold> commsSold = seller.getCommoditiesSold();
+        for (int soldIndex = 0; boughtIndex < basket.size();
+                        boughtIndex++, soldIndex++) {
+            CommoditySpecification basketCommSpec = basket.get(boughtIndex);
+            // Find corresponding commodity sold. Commodities sold are ordered the same way as the
+            // basket commodities, so iterate once (O(N)) as opposed to searching each time (O(NLog(N))
+            while (!basketCommSpec.isSatisfiedBy(seller.getBasketSold().get(soldIndex))) {
+                soldIndex++;
+            }
+
+            if (quantities[boughtIndex] > commsSold.get(soldIndex).getEffectiveCapacity() ||
+                            peakQuantities[boughtIndex] > commsSold.get(soldIndex).getEffectiveCapacity()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public static double calculateComputeCost(Trader seller, ShoppingList buyer) {
+        double currentCost = (buyer.getSupplier() == null || buyer.getSupplier().getSettings().getCostFunction() == null) ? 0 :
+                                    buyer.getSupplier().getSettings().getCostFunction().calculateCost(null, null);
+        double newCost = seller.getSettings().getCostFunction().calculateCost(null, null);
+        PriceFunction pf = PriceFunction.Cache.createStandardWeightedPriceFunction(1);
+        BalanceAccount ba = seller.getSettings().getBalanceAccount();
+        double util = (ba.getSpent() - currentCost + newCost) / ba.getBudget();
+        return pf.unitPrice(util, seller, null, null);
+    }
+
+    /**
      * Calculates the total cost of all resources requested by a shopping list on a seller.
      *
      * @param commodityPriceDataMap the map containing commodity and its pricing information
@@ -232,7 +281,7 @@ public class CostFunctionFactory {
      * @param sl the shopping list requests resources
      * @return the cost given by {@link CostFunction}
      */
-    public static double calculateCost(
+    public static double calculateStorageCost(
                     @NonNull Map<CommoditySpecification, List<PriceData>> commodityPriceDataMap,
                     @NonNull ShoppingList sl) {
         double cost = 0;
@@ -277,20 +326,22 @@ public class CostFunctionFactory {
      */
     public static @NonNull CostFunction createCostFunction(CostDTO costDTO) {
         switch (costDTO.getCostTypeCase()) {
-            case RESOURCE_BUNDLE_COST:
-                return createResourceBundleCostFunction(costDTO.getResourceBundleCost());
+            case DS_RESOURCE_BUNDLE_COST:
+                return createResourceBundleCostFunctionForStorage(costDTO.getDsResourceBundleCost());
+            case PM_RESOURCE_BUNDLE_COST:
+                return createResourceBundleCostFunctionForCompute(costDTO.getPmResourceBundleCost());
             default:
                 throw new IllegalArgumentException("input = " + costDTO);
         }
     }
 
     /**
-     * Create {@link CostFunction} by extracting data from {@link ResourceBundleCostDTO}
+     * Create {@link CostFunction} by extracting data from {@link StorageResourceBundleCostDTO}
      *
      * @param costDTO the DTO carries the data used to construct cost function
      * @return CostFunction
      */
-    public static @NonNull CostFunction createResourceBundleCostFunction(ResourceBundleCostDTO costDTO) {
+    public static @NonNull CostFunction createResourceBundleCostFunctionForStorage(StorageResourceBundleCostDTO costDTO) {
         // the map to keep commodity to its min max capacity limitation
         Map<CommoditySpecification, CapacityLimitation> commCapacity =
                         translateResourceCapacityLimitation(costDTO);
@@ -312,7 +363,30 @@ public class CostFunctionFactory {
                             if (!validateDependentCommodityAmount(buyer, seller, dependencyList)) {
                                 return Double.POSITIVE_INFINITY;
                             }
-                            return calculateCost(priceDataMap, buyer);
+                            return calculateStorageCost(priceDataMap, buyer);
+                        };
+        return costFunction;
+    }
+
+    /**
+     * Create {@link CostFunction} by extracting data from {@link ComputeResourceBundleCostDTO}
+     *
+     * @param costDTO the DTO carries the data used to construct cost function
+     * @return CostFunction
+     */
+    public static @NonNull CostFunction createResourceBundleCostFunctionForCompute(ComputeResourceBundleCostDTO costDTO) {
+        double templatePrice = costDTO.getPrice();
+        CostFunction costFunction = (buyer, seller)
+                        -> {
+                            Trader currentSupplier = buyer.getSupplier();
+                            if (currentSupplier == seller) {
+                                // seller is the currentSupplier. Just return cost
+                                return templatePrice;
+                            }
+                            if (!validateRequestedAmountWithinSellerCapacity(buyer, seller)) {
+                                return Double.POSITIVE_INFINITY;
+                            }
+                            return templatePrice;
                         };
         return costFunction;
     }

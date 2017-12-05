@@ -7,10 +7,11 @@ import "CommodityDTOs.proto";
 message CostDTO {
     // the type of cost DTO that will be used to create cost function
     oneof cost_type {
-       ResourceBundleCostDTO resource_bundle_cost = 1;
+       StorageResourceBundleCostDTO ds_resource_bundle_cost = 1;
+       ComputeResourceBundleCostDTO pm_resource_bundle_cost = 2;
     }
     // the DTOs specifically define cost for cloud storages
-    message ResourceBundleCostDTO {
+    message StorageResourceBundleCostDTO {
         // the commodity specification to min and max capacity limitation mapping
         message ResourceLimitation {
             optional CommoditySpecificationTO resource_type = 1;
@@ -40,4 +41,10 @@ message CostDTO {
         repeated ResourceLimitation resource_limitation = 2;// a list of commodity's capacity limitation
         repeated ResourceDependency resource_dependency = 3; // a list of dependency information
     }
+
+    // the DTOs specifically define cost for cloud storages
+    message ComputeResourceBundleCostDTO {
+        required double price = 1;
+    }
+
 }

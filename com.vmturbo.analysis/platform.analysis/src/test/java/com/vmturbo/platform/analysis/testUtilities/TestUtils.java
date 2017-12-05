@@ -12,22 +12,22 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommodityResizeSpecification;
+import com.vmturbo.platform.analysis.economy.CommoditySoldSettings;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
+import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO;
-import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ResourceBundleCostDTO;
-import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ResourceBundleCostDTO.PriceData;
-import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ResourceBundleCostDTO.ResourceCost;
-import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ResourceBundleCostDTO.ResourceDependency;
-import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ResourceBundleCostDTO.ResourceLimitation;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageResourceBundleCostDTO;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageResourceBundleCostDTO.PriceData;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageResourceBundleCostDTO.ResourceCost;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageResourceBundleCostDTO.ResourceDependency;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageResourceBundleCostDTO.ResourceLimitation;
 import com.vmturbo.platform.analysis.utilities.CostFunction;
 import com.vmturbo.platform.analysis.utilities.CostFunctionFactory;
-import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
-import com.vmturbo.platform.analysis.economy.CommoditySoldSettings;
 import com.vmturbo.platform.analysis.utilities.M2Utils;
 
 /**
@@ -240,7 +240,7 @@ public class TestUtils {
         ResourceCost stAmtCostDTO = ResourceCost.newBuilder().setResourceType(stAmtTO)
                         .addPriceData(stAmtPriceDTO).build();
         CostDTO costDTO = CostDTO.newBuilder()
-                        .setResourceBundleCost(ResourceBundleCostDTO.newBuilder()
+                        .setDsResourceBundleCost(StorageResourceBundleCostDTO.newBuilder()
                                                .addResourceCost(stAmtCostDTO)
                                                .addResourceLimitation(ResourceLimitation.newBuilder()
                                                .setResourceType(stAmtTO).setMaxCapacity(16 * 1024)
@@ -267,7 +267,7 @@ public class TestUtils {
         ResourceCost iopsCostDTO = ResourceCost.newBuilder().setResourceType(iopsTO)
                         .addPriceData(iopsPriceDTO).build();
         CostDTO costDTO = CostDTO.newBuilder()
-                        .setResourceBundleCost(ResourceBundleCostDTO.newBuilder()
+                        .setDsResourceBundleCost(StorageResourceBundleCostDTO.newBuilder()
                                                .addResourceCost(stAmtCostDTO)
                                                .addResourceCost(iopsCostDTO)
                                                .addResourceLimitation(ResourceLimitation.newBuilder()
@@ -290,7 +290,7 @@ public class TestUtils {
         ResourceCost stAmtDTO = ResourceCost.newBuilder().setResourceType(stAmtTO)
                         .addPriceData(stAmt32GBPriceDTO).addPriceData(stAmt64GBPriceDTO).build();
         CostDTO costDTO = CostDTO.newBuilder()
-                        .setResourceBundleCost(ResourceBundleCostDTO.newBuilder()
+                        .setDsResourceBundleCost(StorageResourceBundleCostDTO.newBuilder()
                                                .addResourceCost(stAmtDTO)
                                                .addResourceLimitation(ResourceLimitation.newBuilder()
                                                .setResourceType(stAmtTO).setMaxCapacity(4 * 1024)
@@ -309,7 +309,7 @@ public class TestUtils {
                         .addPriceData(stAmtLRS1TBPriceDTO).addPriceData(stAmtLRS50TBPriceDTO)
                         .build();
         CostDTO costDTO = CostDTO.newBuilder()
-                        .setResourceBundleCost(ResourceBundleCostDTO.newBuilder()
+                        .setDsResourceBundleCost(StorageResourceBundleCostDTO.newBuilder()
                                                .addResourceCost(resourceCostDTO)
                                                .addResourceLimitation(ResourceLimitation.newBuilder()
                                                .setResourceType(stAmtTO).setMaxCapacity(4 * 1024)

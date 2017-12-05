@@ -67,15 +67,15 @@ public class QuoteFunctionFactory {
             double[] quote = {0.0, 0.0, 0.0};
             double costOnNewSeller = computeCost(buyer, seller);
             double costOnCurrentSupplier = computeCost(buyer, buyer.getSupplier());
-            BalanceAccount ba = buyer.getBuyer().getSettings().getBalanceAccount();
+            BalanceAccount ba = seller.getSettings().getBalanceAccount();
             // TODO: if the buyer is on the wrong supplier, costOnSupplier may be infinity
             // now I added this to workaround such a case
             if (Double.isInfinite(costOnCurrentSupplier)) {
                 costOnCurrentSupplier = 0;
             }
-			double spent = (ba == null ? 0 : ba.getSpent());
-			double budget = (ba == null ? 1 : ba.getBudget());
-			double budgetUtil = (spent - costOnCurrentSupplier + costOnNewSeller) / budget;
+            double spent = (ba == null ? 0 : ba.getSpent());
+            double budget = (ba == null ? 1 : ba.getBudget());
+            double budgetUtil = (spent - costOnCurrentSupplier + costOnNewSeller) / budget;
             quote[0] = (budgetUtil >= 1) ? Double.POSITIVE_INFINITY :
                     1 / ((1 - budgetUtil) * (1 - budgetUtil));
             return quote;

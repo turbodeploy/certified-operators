@@ -287,9 +287,9 @@ public final class ProtobufToAnalysis {
         destination.setIsEligibleForResizeDown(source.getIsEligibleForResizeDown());
         destination.setIsShopTogether(source.getIsShopTogether());
         destination.setQuoteFunction(populateQuoteFunction(destination, source.getQuoteFunction()));
-        if (source.hasCost()) {
+        if (source.getQuoteFunction().hasRiskBased() && source.getQuoteFunction().getRiskBased().hasCloudCost()) {
             destination.setCostFunction(
-                            CostFunctionFactory.createCostFunction(source.getCost()));
+                            CostFunctionFactory.createCostFunction(source.getQuoteFunction().getRiskBased().getCloudCost()));
         }
         if (source.hasBalanceAccount()) {
             populateCloudSpent(topology, source, destination);

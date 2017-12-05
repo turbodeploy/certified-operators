@@ -82,11 +82,8 @@ message TraderSettingsTO {
 	// This field specifies which function to use for computing quote
     optional QuoteFunctionDTO quote_function = 9;
 
-    // This field contains data needed for building cost function
-    optional CostDTO cost = 10;
-
     // This field refers to the balance account that the trader associated with
-    optional BalanceAccountDTO balance_account = 11;
+    optional BalanceAccountDTO balance_account = 10;
 }
 
 // The different states a trader can be in. The intention is to make this a boolean once we confirm
