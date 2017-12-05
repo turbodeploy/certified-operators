@@ -15,6 +15,7 @@ import com.vmturbo.action.orchestrator.execution.ActionExecutionConfig;
 import com.vmturbo.action.orchestrator.execution.ActionTranslator;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
 import com.vmturbo.group.api.GroupClientConfig;
+import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 /**
@@ -22,7 +23,7 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
  */
 @Configuration
 @Import({SQLDatabaseConfig.class, ActionOrchestratorGlobalConfig.class,
-        ActionExecutionConfig.class, GroupClientConfig.class})
+        ActionExecutionConfig.class, GroupClientConfig.class, RepositoryClientConfig.class})
 public class ActionStoreConfig {
 
     @Autowired
@@ -32,13 +33,13 @@ public class ActionStoreConfig {
     private ActionOrchestratorGlobalConfig actionOrchestratorGlobalConfig;
 
     @Autowired
-    private ActionExecutionConfig actionExecutionConfig;
+    private RepositoryClientConfig repositoryClientConfig;
 
     @Autowired
     private GroupClientConfig groupClientConfig;
 
-    @Value("${repositoryHost}")
-    private String repositoryHost;
+    @Autowired
+    private ActionExecutionConfig actionExecutionConfig;
 
     @Value("${server.port}")
     private int httpPort;
@@ -62,8 +63,9 @@ public class ActionStoreConfig {
     @Bean
     public EntitySettingsCache entitySettingsCache() {
         return new EntitySettingsCache(groupClientConfig.groupChannel(),
-                serviceRestTemplate(), repositoryHost, httpPort, Executors.newSingleThreadExecutor(),
-                entityTypeMaxRetries, entityTypeRetryIntervalMillis);
+                serviceRestTemplate(), repositoryClientConfig.getRepositoryHost(), httpPort,
+                Executors.newSingleThreadExecutor(), entityTypeMaxRetries,
+                entityTypeRetryIntervalMillis);
     }
 
     @Bean

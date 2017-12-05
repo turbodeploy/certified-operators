@@ -1,7 +1,6 @@
 package com.vmturbo.api.component.communication;
 
 import java.net.URISyntaxException;
-import java.util.concurrent.TimeUnit;
 
 import io.grpc.Channel;
 
@@ -41,10 +40,10 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistorySer
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.group.api.GroupClientConfig;
-import com.vmturbo.grpc.extensions.PingingChannelBuilder;
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
 import com.vmturbo.plan.orchestrator.api.PlanOrchestrator;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
+import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 
@@ -55,7 +54,7 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 @Configuration
 @Import({ApiWebsocketConfig.class, TopologyProcessorClientConfig.class,
         ActionOrchestratorClientConfig.class, PlanOrchestratorClientConfig.class,
-        GroupClientConfig.class, HistoryClientConfig.class})
+        GroupClientConfig.class, HistoryClientConfig.class, RepositoryClientConfig.class})
 public class CommunicationConfig {
 
     @Autowired
@@ -68,15 +67,13 @@ public class CommunicationConfig {
     private GroupClientConfig groupClientConfig;
     @Autowired
     private HistoryClientConfig historyClientConfig;
-
+    @Autowired
+    private RepositoryClientConfig repositoryClientConfig;
     @Value("${clusterMgrHost}")
     private String clusterMgrHost;
 
     @Value("${server.port}")
     private int httpPort;
-
-    @Value("${repositoryHost}")
-    private String repositoryHost;
 
     @Value("${authHost}")
     public String authHost;
@@ -84,14 +81,8 @@ public class CommunicationConfig {
     @Value("${realtimeTopologyContextId}")
     private Long realtimeTopologyContextId;
 
-    @Value("${grpcPingIntervalSeconds}")
-    private long grpcPingIntervalSeconds;
-
     @Value("${websocket.pong.timeout}")
     private long websocketPongTimeout;
-
-    @Value("${server.grpcPort}")
-    private int grpcPort;
 
     @Autowired
     private ApiWebsocketConfig websocketConfig;
@@ -158,8 +149,8 @@ public class CommunicationConfig {
 
     @Bean
     public RepositoryApi repositoryApi() {
-        return new RepositoryApi(repositoryHost, httpPort, serviceRestTemplate(),
-                entitySeverityService(), getRealtimeTopologyContextId());
+        return new RepositoryApi(repositoryClientConfig.getRepositoryHost(), httpPort,
+                serviceRestTemplate(), entitySeverityService(), getRealtimeTopologyContextId());
     }
 
 
@@ -213,10 +204,7 @@ public class CommunicationConfig {
 
     @Bean
     public Channel repositoryChannel() {
-        return PingingChannelBuilder.forAddress(repositoryHost, grpcPort)
-                .setPingInterval(grpcPingIntervalSeconds, TimeUnit.SECONDS)
-                .usePlaintext(true)
-                .build();
+        return repositoryClientConfig.repositoryChannel();
     }
 
     @Bean

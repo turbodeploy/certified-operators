@@ -72,4 +72,8 @@ public class RepositoryClientConfig {
     public RepositoryClient repositoryClient() {
         return new RepositoryClient(repositoryChannel());
     }
+
+    public String getRepositoryHost() {
+        return repositoryHost;
+    }
 }

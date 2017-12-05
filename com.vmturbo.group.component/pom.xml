@@ -45,6 +45,10 @@
         </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.repository.api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
             <artifactId>common-protobuf</artifactId>
         </dependency>
         <dependency>
