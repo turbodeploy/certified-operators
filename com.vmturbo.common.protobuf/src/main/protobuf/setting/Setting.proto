@@ -82,6 +82,10 @@ message EntitySettingSpec {
 
     // scope of this setting, which entities can have it
     optional EntitySettingScope entity_setting_scope = 2;
+
+    // Whether the setting should be automatically created for default setting policy for this
+    // endity types.
+    optional bool allow_global_default = 3 [default = true];
 }
 
 // SettingTiebreaker defines the strategy used to resolve conflicts when an entity has more than one

@@ -151,9 +151,9 @@ public class DefaultSettingPolicyCreator implements Runnable {
                 // For now we will ignore settings with "AllEntityType", because it's not clear if we
                 // will have those settings in the MVP, and if we do have them we will need to come up with
                 // a list of possible entity types - we almost certainly can't use ALL EntityType values!
-                .filter(spec -> spec.getEntitySettingSpec()
-                        .getEntitySettingScope()
-                        .hasEntityTypeSet())
+                .filter(spec ->
+                        spec.getEntitySettingSpec().getEntitySettingScope().hasEntityTypeSet() &&
+                                spec.getEntitySettingSpec().getAllowGlobalDefault())
                 .forEach(spec -> spec.getEntitySettingSpec()
                         .getEntitySettingScope()
                         .getEntityTypeSet()

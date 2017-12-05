@@ -705,7 +705,11 @@ public class SettingsMapper {
                     //
                     // In the API, something that has both LOCAL and GLOBAL scope has a "null"
                     // scope at the time of this writing (Oct 10 2017) :)
-                    apiDTO.setScope(null);
+                    if (settingSpec.getEntitySettingSpec().getAllowGlobalDefault()) {
+                        apiDTO.setScope(null);
+                    } else {
+                        apiDTO.setScope(SettingScope.LOCAL);
+                    }
 
                     // (Nov 2017) In XL, Setting Specs can support multiple entity types.
                     // The SettingApiDTO only supports one type. Therefore, we set the entity type

@@ -331,6 +331,21 @@ public class DefaultSettingPolicyCreatorTest {
         getPolicyInfo(defaultSetting, spec2);
     }
 
+    /**
+     * Tests default setting creation for setting, declared not to create a default policy setting
+     * for it.
+     *
+     * @throws Exception if exception occurs
+     */
+    @Test
+    public void testSettingNotCreatingDefaultPolicy() throws Exception {
+        final SettingSpec spec = SettingSpec.newBuilder(defaultSetting)
+                .setEntitySettingSpec(EntitySettingSpec.newBuilder(entitySettingSpec(2))
+                        .setAllowGlobalDefault(false))
+                .build();
+        getPolicyInfo(0, spec);
+    }
+
     private List<SettingPolicyInfo> getPolicyInfo(int expectedCount, SettingSpec... specs)
             throws Exception {
         Mockito.when(settingSpecStore.getAllSettingSpec()).thenReturn(Arrays.asList(specs));

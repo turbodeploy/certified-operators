@@ -34,51 +34,53 @@ public enum SettingPolicySetting {
      * Move action automation mode.
      */
     Move("move", "Move", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionMode()),
+            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionMode(), true),
     /**
      * Resize action automation mode.
      */
     Resize("resize", "Resize", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionMode()),
+            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionMode(), true),
     /**
      * Suspend action automation mode.
      */
     Suspend("suspend", "Suspend", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE), actionExecutionMode()),
+            EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE), actionExecutionMode(),
+            true),
     /**
      * Provision action automation mode.
      */
     Provision("provision", "Provision", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE), actionExecutionMode()),
+            EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE), actionExecutionMode(),
+            true),
     /**
      * Activate action automation mode.
      */
     Activate("activate", "Activate", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionMode()),
+            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionMode(), true),
     /**
      * Storage Move action automation mode.
      */
     StorageMove("storageMove", "Storage Move", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionMode()),
+            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionMode(), true),
     /**
      * CPU utilization threshold.
      */
     CpuUtilization("cpuUtilization", "CPU Utilization",
             Arrays.asList("utilizationThresholds"), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.PHYSICAL_MACHINE, EntityType.STORAGE_CONTROLLER),
-            numeric(20f, 100f, 100f)),
+            numeric(20f, 100f, 100f), false),
     /**
      * Memoty utilization threshold.
      */
     MemoryUtilization("memoryUtilization", "Memory Utilization",
             Arrays.asList("utilizationThresholds"), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(1f, 100f, 100f)),
+            EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(1f, 100f, 100f), false),
     /**
      * IO throughput utilization threshold.
      */
     IoThroughput("ioThroughput", "IO Throughput",
             Arrays.asList("utilizationThresholds"), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(10f, 100f, 50f)),
+            EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(10f, 100f, 50f), true),
     /**
      * Network througput utilization threshold.
      */
@@ -86,50 +88,51 @@ public enum SettingPolicySetting {
             Arrays.asList("utilizationThresholds"), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.PHYSICAL_MACHINE, EntityType.SWITCH),
             new NumericSettingDataType(10f, 100f, 50f,
-                    Collections.singletonMap(EntityType.SWITCH, 70f))),
+                    Collections.singletonMap(EntityType.SWITCH, 70f)), true),
     /**
      * Swapping utilization threshold.
      */
     SwappingUtilization("swappingUtilization", "Swapping Utilization",
             Arrays.asList("utilizationThresholds"), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(0f, 100f, 20f)),
+            EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(0f, 100f, 20f), true),
     /**
      * Ready queu utilization threshold.
      */
     ReadyQueueUtilization("readyQueueUtilization", "Ready Queue Utilization",
             Arrays.asList("utilizationThresholds"), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(0f, 100f, 50f)),
+            EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(0f, 100f, 50f), true),
     /**
      * Storage utilization threshould.
      */
     StorageAmountUtilization("storageAmountUtilization", "Storage Amount Utilization",
             Arrays.asList("utilizationThresholds"), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.STORAGE, EntityType.STORAGE_CONTROLLER), numeric(0f, 100f, 90f)),
+            EnumSet.of(EntityType.STORAGE, EntityType.STORAGE_CONTROLLER), numeric(0f, 100f, 90f),
+            true),
     /**
      * IOPS utilization threshould.
      */
     IopsUtilization("iopsUtilization", "IOPS Utilization",
             Arrays.asList("utilizationThresholds"), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.STORAGE), numeric(0f, 100f, 100f)),
+            EnumSet.of(EntityType.STORAGE), numeric(0f, 100f, 100f), true),
     /**
      * Storage latency utilization threshold.
      */
     LatencyUtilization("latencyUtilization", "Latency Utilization",
             Arrays.asList("utilizationThresholds"), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.STORAGE), numeric(0f, 100f, 100f)),
+            EnumSet.of(EntityType.STORAGE), numeric(0f, 100f, 100f), true),
     /**
      * CPU overprovisioned in percents.
      */
     CpuOverprovisionedPercentage("cpuOverprovisionedPercentage", "CPU Overprovisioned Percentage",
             Arrays.asList("utilizationThresholds"), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(0f, 1000000f, 1000f)),
+            EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(0f, 1000000f, 1000f), true),
     /**
      * Memory overprovisioned in percents.
      */
     MemoryOverprovisionedPercentage("memoryOverprovisionedPercentage",
             "Memory Overprovisioned Percentage",
             Arrays.asList("utilizationThresholds"), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(0f, 1000000f, 1000f)),
+            EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(0f, 1000000f, 1000f), true),
 
     /**
      * Storage amount overprovisioned factor in percents.
@@ -138,15 +141,15 @@ public enum SettingPolicySetting {
             "Storage Overprovisioned Percentage",
             Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL),
-            numeric(1f, 1000f, 200f)),
+            numeric(1f, 1000f, 200f), true),
     /**
      * Desired utilization target.
      */
     UtilTarget("utilTarget", "Center",
             //path is needed for the UI to display this setting in a separate category
-            Arrays.asList("advanced", "utilTarget"),
-            SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(0.0f/*min*/, 100.0f/*max*/, 70.0f/*default*/)),
+            Arrays.asList("advanced", "utilTarget"), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.PHYSICAL_MACHINE),
+            numeric(0.0f/*min*/, 100.0f/*max*/, 70.0f/*default*/), true),
 
     /**
      * Desired utilization range.
@@ -155,7 +158,7 @@ public enum SettingPolicySetting {
             //path is needed for the UI to display this setting in a separate category
             Arrays.asList("advanced", "utilTarget"),
             SettingTiebreaker.BIGGER, /*this is related to the center setting. biggger diameter is more conservative*/
-            EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(0.0f/*min*/, 100.0f/*max*/, 10.0f/*default*/)),
+            EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(0.0f/*min*/, 100.0f/*max*/, 10.0f/*default*/), true),
     /**
      * IOPS capacity to set on the entity.
      */
@@ -163,49 +166,49 @@ public enum SettingPolicySetting {
             Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.DISK_ARRAY),
             new NumericSettingDataType(20f, 1000000, 5000,
-                    Collections.singletonMap(EntityType.DISK_ARRAY, 10_000f))),
+                    Collections.singletonMap(EntityType.DISK_ARRAY, 10_000f)), true),
     /**
      * Storage latency capacity to set on the entity.
      */
-    LatencyCapacity("latencyCapacity", "Storage latency capacity [ms]",
-            Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.STORAGE), numeric(1f, 2000f, 100f)),
+    LatencyCapacity("latencyCapacity", "Storage latency capacity [ms]", Collections.emptyList(),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.STORAGE), numeric(1f, 2000f, 100f),
+            true),
     /**
      * IOPS capacity to be set to disk arrays with SSD disks.
      */
-    DiskCapacitySsd("diskCapacitySsd", "SSD Disk IOPS Capacity",
-            Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.DISK_ARRAY), numeric(20f, 1_000_000f, 5000f)),
+    DiskCapacitySsd("diskCapacitySsd", "SSD Disk IOPS Capacity", Collections.emptyList(),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.DISK_ARRAY),
+            numeric(20f, 1_000_000f, 5000f), true),
     /**
      * IOPS capacity to be set to disk arrays with 7.2 RPM disks.
      */
-    DiskCapacity7200("diskCapacity7200", "7.2k RPM Disk IOPS Capacity",
-            Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.DISK_ARRAY), numeric(20f, 100_000f, 800f)),
+    DiskCapacity7200("diskCapacity7200", "7.2k RPM Disk IOPS Capacity", Collections.emptyList(),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.DISK_ARRAY),
+            numeric(20f, 100_000f, 800f), true),
     /**
      * IOPS capacity to be set to disk arrays with 10k RPM disks.
      */
-    DiskCapacity10k("diskCapacity10k", "10k RPM Disk IOPS Capacity",
-            Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.DISK_ARRAY), numeric(20f, 100_000f, 1200f)),
+    DiskCapacity10k("diskCapacity10k", "10k RPM Disk IOPS Capacity", Collections.emptyList(),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.DISK_ARRAY),
+            numeric(20f, 100_000f, 1200f), true),
     /**
      * IOPS capacity to be set to disk arrays with 15k RPM disks.
      */
-    DiskCapacity15k("diskCapacity15k", "15k RPM Disk IOPS Capacity",
-            Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.DISK_ARRAY), numeric(20f, 100_000f, 1600f)),
+    DiskCapacity15k("diskCapacity15k", "15k RPM Disk IOPS Capacity", Collections.emptyList(),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.DISK_ARRAY),
+            numeric(20f, 100_000f, 1600f), true),
     /**
      * IOPS capacity to be set to VSeries LUN.
      */
-    DiskCapacityVSeries("diskCapacityVSeries", "VSeries LUN IOPS Capacity",
-            Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.DISK_ARRAY), numeric(20f, 1_000_000f, 5000f)),
+    DiskCapacityVSeries("diskCapacityVSeries", "VSeries LUN IOPS Capacity", Collections.emptyList(),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.DISK_ARRAY),
+            numeric(20f, 1_000_000f, 5000f), true),
     /**
      * Ignore High Availability(HA).
      */
     IgnoreHA("ignoreHa", "Ignore High Availability", Collections.emptyList(),
             SettingTiebreaker.SMALLER, EnumSet.of(EntityType.PHYSICAL_MACHINE),
-            new BooleanSettingDataType(false));
+            new BooleanSettingDataType(false), true);
 
     /**
      * Setting name to setting enumeration value map for fast access.
@@ -218,6 +221,7 @@ public enum SettingPolicySetting {
     private final Set<EntityType> entityTypeScop;
     private final SettingDataStructure<?> dataStructure;
     private final List<String> categoryPath;
+    private final boolean allowGlobalDefault;
 
     static {
         final SettingPolicySetting[] settings = SettingPolicySetting.values();
@@ -230,13 +234,15 @@ public enum SettingPolicySetting {
 
     SettingPolicySetting(@Nonnull String name, @Nonnull String displayName,
             @Nonnull List<String> categoryPath, @Nonnull SettingTiebreaker tieBreaker,
-            @Nonnull Set<EntityType> entityTypeScop, @Nonnull SettingDataStructure dataStructure) {
+            @Nonnull Set<EntityType> entityTypeScop, @Nonnull SettingDataStructure dataStructure,
+            boolean allowGlobalDefault) {
         this.name = Objects.requireNonNull(name);
         this.displayName = Objects.requireNonNull(displayName);
         this.categoryPath = Objects.requireNonNull(categoryPath);
         this.tieBreaker = Objects.requireNonNull(tieBreaker);
         this.entityTypeScop = Objects.requireNonNull(entityTypeScop);
         this.dataStructure = Objects.requireNonNull(dataStructure);
+        this.allowGlobalDefault = allowGlobalDefault;
     }
 
     /**
@@ -283,7 +289,8 @@ public enum SettingPolicySetting {
                 .setDisplayName(displayName)
                 .setEntitySettingSpec(EntitySettingSpec.newBuilder()
                         .setTiebreaker(tieBreaker)
-                        .setEntitySettingScope(scopeBuilder));
+                        .setEntitySettingScope(scopeBuilder)
+                .setAllowGlobalDefault(allowGlobalDefault));
         if (!categoryPath.isEmpty()) {
             builder.setPath(createCategoryPath());
         }
