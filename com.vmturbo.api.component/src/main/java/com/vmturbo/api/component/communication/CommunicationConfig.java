@@ -42,6 +42,7 @@ import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.grpc.extensions.PingingChannelBuilder;
+import com.vmturbo.history.component.api.impl.HistoryClientConfig;
 import com.vmturbo.plan.orchestrator.api.PlanOrchestrator;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
@@ -54,7 +55,7 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 @Configuration
 @Import({ApiWebsocketConfig.class, TopologyProcessorClientConfig.class,
         ActionOrchestratorClientConfig.class, PlanOrchestratorClientConfig.class,
-        GroupClientConfig.class})
+        GroupClientConfig.class, HistoryClientConfig.class})
 public class CommunicationConfig {
 
     @Autowired
@@ -65,6 +66,8 @@ public class CommunicationConfig {
     private PlanOrchestratorClientConfig planClientConfig;
     @Autowired
     private GroupClientConfig groupClientConfig;
+    @Autowired
+    private HistoryClientConfig historyClientConfig;
 
     @Value("${clusterMgrHost}")
     private String clusterMgrHost;
@@ -77,9 +80,6 @@ public class CommunicationConfig {
 
     @Value("${authHost}")
     public String authHost;
-
-    @Value("${historyHost}")
-    private String historyHost;
 
     @Value("${realtimeTopologyContextId}")
     private Long realtimeTopologyContextId;
@@ -203,10 +203,7 @@ public class CommunicationConfig {
 
     @Bean
     public Channel historyChannel() {
-        return PingingChannelBuilder.forAddress(historyHost, grpcPort)
-                .setPingInterval(grpcPingIntervalSeconds, TimeUnit.SECONDS)
-                .usePlaintext(true)
-                .build();
+        return historyClientConfig.historyChannel();
     }
 
     @Bean

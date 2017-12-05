@@ -59,7 +59,7 @@ public class HistoryClientConfig {
     }
 
     @Bean
-    public Channel historyComponentChannel() {
+    public Channel historyChannel() {
         return PingingChannelBuilder.forAddress(historyHost, grpcPort).usePlaintext(true).build();
     }
 }

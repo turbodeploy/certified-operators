@@ -77,7 +77,7 @@ public class PlanProjectConfig {
                 planConfig.planService(), planProjectRuntime(),
                 repositoryClientConfig.repositoryChannel(),
                 templatesConfig.templatesDao(),
-                historyClientConfig.historyComponentChannel());
+                historyClientConfig.historyChannel());
     }
     @Bean
     public GroupServiceGrpc.GroupServiceBlockingStub groupRpcService() {

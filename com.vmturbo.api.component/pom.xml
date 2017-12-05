@@ -161,6 +161,10 @@
             <groupId>com.vmturbo</groupId>
             <artifactId>com.vmturbo.group.api</artifactId>
         </dependency>
+         <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>history-component-api</artifactId>
+        </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>com.vmturbo.communication</artifactId>

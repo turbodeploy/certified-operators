@@ -23,6 +23,7 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.grpc.extensions.PingingChannelBuilder;
+import com.vmturbo.history.component.api.impl.HistoryClientConfig;
 
 /**
  * Spring Configuration for the Plan Orchestrator scheduled tasks.
@@ -32,11 +33,14 @@ import com.vmturbo.grpc.extensions.PingingChannelBuilder;
  **/
 @Configuration
 @EnableScheduling
-@Import({GroupClientConfig.class})
+@Import({GroupClientConfig.class, HistoryClientConfig.class})
 public class ClusterRollupSchedulerConfig {
 
     @Autowired
     private GroupClientConfig groupClientConfig;
+
+    @Autowired
+    private HistoryClientConfig historyClientConfig;
 
     /**
      * Perform Cluster Rollup based on a cron schedule specified in the
@@ -54,14 +58,6 @@ public class ClusterRollupSchedulerConfig {
     @Value("${clusterRollupSchedule}")
     private String clusterRollupSchedule;
 
-    @Value("${historyHost}")
-    private String historyHost;
-
-    @Value("${server.grpcPort}")
-    private int grpcPort;
-
-    @Value("${grpcPingIntervalSeconds}")
-    private long grpcPingIntervalSeconds;
 
     @Bean
     public ClusterRollupTask clusterRollupTask() {
@@ -71,15 +67,7 @@ public class ClusterRollupSchedulerConfig {
 
     @Bean
     public StatsHistoryServiceBlockingStub statsRpcService() {
-        return StatsHistoryServiceGrpc.newBlockingStub(historyChannel());
-    }
-
-    @Bean
-    public Channel historyChannel() {
-        return PingingChannelBuilder.forAddress(historyHost, grpcPort)
-                .setPingInterval(grpcPingIntervalSeconds, TimeUnit.SECONDS)
-                .usePlaintext(true)
-                .build();
+        return StatsHistoryServiceGrpc.newBlockingStub(historyClientConfig.historyChannel());
     }
 
     @Bean
