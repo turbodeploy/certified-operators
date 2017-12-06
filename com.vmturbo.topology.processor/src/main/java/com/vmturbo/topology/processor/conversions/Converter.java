@@ -39,9 +39,6 @@ public class Converter {
 
     private static final Logger logger = LogManager.getLogger();
 
-    // This is a temporary hard-coded value. TODO: Obtain from probe DTOs or settings.
-    private static final double TEMP_DEFAULT_EFFECTIVE_CAPACITY = 100;
-
     public static Set<CommodityDTO.CommodityType> DSPM_OR_DATASTORE =
                     Sets.newHashSet(CommodityDTO.CommodityType.DSPM_ACCESS, CommodityDTO.CommodityType.DATASTORE);
 
@@ -314,15 +311,21 @@ public class Converter {
 
     private static TopologyDTO.CommoditySoldDTO.Builder newCommoditySoldDTOBuilder(
         @Nonnull final CommonDTO.CommodityDTO commDTO) {
-        return TopologyDTO.CommoditySoldDTO.newBuilder()
-            .setCommodityType(commodityType(commDTO))
-            .setUsed(commDTO.getUsed())
-            .setPeak(commDTO.getPeak())
-            .setCapacity(commDTO.getCapacity())
-            .setEffectiveCapacityPercentage(TEMP_DEFAULT_EFFECTIVE_CAPACITY)
-            .setReservedCapacity(commDTO.getReservation())
-            .setIsThin(commDTO.getThin())
-            .setActive(commDTO.getActive());
+        final TopologyDTO.CommoditySoldDTO.Builder retCommSoldBuilder =
+            TopologyDTO.CommoditySoldDTO.newBuilder()
+                .setCommodityType(commodityType(commDTO))
+                .setUsed(commDTO.getUsed())
+                .setPeak(commDTO.getPeak())
+                .setCapacity(commDTO.getCapacity())
+                .setReservedCapacity(commDTO.getReservation())
+                .setIsThin(commDTO.getThin())
+                .setActive(commDTO.getActive());
+
+        if (commDTO.hasUtilizationThresholdPct()) {
+            retCommSoldBuilder.setEffectiveCapacityPercentage(commDTO.getUtilizationThresholdPct());
+        }
+
+        return retCommSoldBuilder;
     }
 
     private static TopologyDTO.CommoditySoldDTO newCommoditySoldDTO(
