@@ -35,6 +35,7 @@ import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
 import com.vmturbo.topology.processor.api.server.TopologyBroadcast;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
+import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsApplicator;
@@ -43,6 +44,7 @@ import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.group.settings.SettingOverrides;
 import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileNotifier;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
+import com.vmturbo.topology.processor.topology.ConstraintsEditor;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyEditor;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
@@ -266,6 +268,33 @@ public class Stages {
         @Override
         public TopologyGraph execute(@Nonnull final Map<Long, TopologyEntityDTO.Builder> input) {
             return new TopologyGraph(input);
+        }
+    }
+
+    /**
+     * Stage to apply some constraint-specific changes like disabling of ignored commodities.
+     */
+    public static class IgnoreConstraintsStage extends PassthroughStage<TopologyGraph> {
+
+        private final GroupResolver groupResolver;
+
+        private final GroupServiceBlockingStub groupService;
+
+        private final ConstraintsEditor constraintsEditor;
+
+        private final List<ScenarioChange> changes;
+
+        public IgnoreConstraintsStage(@Nonnull GroupResolver groupResolver,
+                @Nonnull GroupServiceBlockingStub groupService, @Nonnull List<ScenarioChange> changes) {
+            this.groupResolver = Objects.requireNonNull(groupResolver);
+            this.groupService = Objects.requireNonNull(groupService);
+            this.changes = Objects.requireNonNull(changes);
+            constraintsEditor = new ConstraintsEditor(groupResolver, groupService);
+        }
+
+        @Override
+        public void passthrough(TopologyGraph input) throws PipelineStageException {
+            constraintsEditor.editConstraints(input, changes);
         }
     }
 

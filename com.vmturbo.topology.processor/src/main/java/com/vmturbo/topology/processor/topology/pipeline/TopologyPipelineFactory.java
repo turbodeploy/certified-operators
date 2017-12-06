@@ -25,6 +25,7 @@ import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyEditor;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.BroadcastStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.GraphCreationStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.IgnoreConstraintsStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PolicyStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ExtractTopologyGraphStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ScopeResolutionStage;
@@ -141,6 +142,8 @@ public class TopologyPipelineFactory {
                 .addStage(new StitchingStage(stitchingManager))
                 .addStage(new TopologyEditStage(topologyEditor, changes))
                 .addStage(new GraphCreationStage())
+                .addStage(new IgnoreConstraintsStage(context.getGroupResolver(),
+                        groupServiceClient, changes))
                 .addStage(new PolicyStage(policyManager, changes))
                 .addStage(new ScopeResolutionStage(groupServiceClient, scope))
                 .addStage(SettingsResolutionStage.plan(entitySettingsResolver, changes))
