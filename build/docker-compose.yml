@@ -359,6 +359,7 @@ services:
       realtimeTopologyContextId: 777777
       logging.level.com.vmturbo.group: info # change to debug to enable more debugging output
       JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${GROUP_XMX_MB}M ${GROUP_SYSTEM_PROPERTIES}"
+      kafkaServers: ${KAFKA_SERVERS}
     mem_limit: ${GROUP_MEM_LIMIT_MB}M
 
   history:
