@@ -150,7 +150,7 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
      * <ul>
      * <li>a single-element list containing the distinguished ID for the Real-Time Topology = "Market"
      * <li>a single-element list containing the OID of a plan topology - a numeric (long)
-     * <li>a list of one or more {@link com.vmturbo.api.dto.ServiceEntityApiDTO} OIDs - these are
+     * <li>a list of one or more {@link .ServiceEntityApiDTO} OIDs - these are
      * numeric (longs)
      * </ul>
      *
@@ -423,7 +423,6 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
                     Record dbFirstStatRecord = dbStatRecordList.iterator().next();
                     final String propertyType = dbFirstStatRecord.getValue(PROPERTY_TYPE, String.class);
                     String propertySubtype = dbFirstStatRecord.getValue(PROPERTY_SUBTYPE, String.class);
-                    Float capacity = dbFirstStatRecord.getValue(CAPACITY, Float.class);
 
                     // In the full-market requests the "relation" column (in market_stats_* tables)
                     // is an integer that gets mapped to a value.
@@ -450,51 +449,41 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
                     if (StringUtils.isNotEmpty(producerIdString)) {
                         producerId = Long.valueOf(producerIdString);
                     }
-                    Float avgValue;
-                    Float minValue;
-                    Float maxValue;
-                    Float totalValue = 0.0f;
+                    float avgTotal = 0.0f;
+                    float minTotal = 0.0f;
+                    float maxTotal = 0.0f;
+                    float capacityTotal = 0.0f;
 
-                    final int numStatRecords = dbStatRecordList.size();
-                    if (numStatRecords > 1) {
-                        // need to average the value over the stats records
-                        float avgTotal = 0.0f;
-                        float minTotal = 0.0f;
-                        float maxTotal = 0.0f;
-                        // calculate averages
-                        for (Record dbStatRecord : dbStatRecordList) {
-                            Float oneAvgValue = dbStatRecord.getValue(AVG_VALUE, Float.class);
-                            if (oneAvgValue != null) {
-                                avgTotal += oneAvgValue;
-                            }
-                            Float oneMinValue = dbStatRecord.getValue(MIN_VALUE, Float.class);
-                            if (oneMinValue != null) {
-                                minTotal += oneMinValue;
-                            }
-                            Float oneMaxValue = dbStatRecord.getValue(MAX_VALUE, Float.class);
-                            if (oneMaxValue != null) {
-                                maxTotal += oneMaxValue;
-                            }
-                            if (oneAvgValue != null) {
-                                totalValue += oneAvgValue;
-                            }
+                    // calculate totals
+                    for (Record dbStatRecord : dbStatRecordList) {
+                        Float oneAvgValue = dbStatRecord.getValue(AVG_VALUE, Float.class);
+                        if (oneAvgValue != null) {
+                            avgTotal += oneAvgValue;
                         }
-                        avgValue = avgTotal / numStatRecords;
-                        minValue = minTotal / numStatRecords;
-                        maxValue = maxTotal / numStatRecords;
-                    } else {
-                        // single value - no need to average
-                        avgValue = dbFirstStatRecord.getValue(AVG_VALUE, Float.class);
-                        minValue = dbFirstStatRecord.getValue(MIN_VALUE, Float.class);
-                        maxValue = dbFirstStatRecord.getValue(MAX_VALUE, Float.class);
-                        if (avgValue != null) {
-                            totalValue = maxValue;
+                        Float oneMinValue = dbStatRecord.getValue(MIN_VALUE, Float.class);
+                        if (oneMinValue != null) {
+                            minTotal += oneMinValue;
+                        }
+                        Float oneMaxValue = dbStatRecord.getValue(MAX_VALUE, Float.class);
+                        if (oneMaxValue != null) {
+                            maxTotal += oneMaxValue;
+                        }
+                        Float oneCapacityValue = dbStatRecord.getValue(CAPACITY, Float.class);
+                        if (oneCapacityValue != null) {
+                            capacityTotal += oneCapacityValue;
                         }
                     }
 
+                    // calculate the averages
+                    final int numStatRecords = dbStatRecordList.size();
+                    float avgValueAvg = avgTotal / numStatRecords;
+                    float minValueAvg = minTotal / numStatRecords;
+                    float maxValueAvg = maxTotal / numStatRecords;
+
                     // build the record for this stat (commodity type)
-                    final StatRecord statRecord = buildStatRecord(propertyType, propertySubtype, capacity,
-                            producerId, avgValue, minValue, maxValue, commodityKey, totalValue, relation);
+                    final StatRecord statRecord = buildStatRecord(propertyType, propertySubtype,
+                            capacityTotal, producerId, avgValueAvg, minValueAvg, maxValueAvg,
+                            commodityKey, avgValueAvg, relation);
 
                     // return add this record to the snapshot for this timestamp
                     statSnapshotBuilder.addStatRecords(statRecord);

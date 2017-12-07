@@ -24,6 +24,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import org.assertj.core.util.Sets;
 import org.jooq.Record;
@@ -60,13 +61,13 @@ import com.vmturbo.reports.db.abstraction.tables.records.ScenariosRecord;
  */
 public class StatsHistoryServiceTest {
 
-    private static final long PLAN_UUID = 7654321;
-    private static final long ENTITY_UUID = 123456;
+    private static final long PLAN_UUID = 1L;
+    private static final long ENTITY_UUID = 2L;
     private static final long PLAN_OID = PLAN_UUID;
-    private static final Timestamp SNAPSHOT_TIME = new Timestamp(123);
-    private static final long REALTIME_CONTEXT_ID = 7;
+    private static final Timestamp SNAPSHOT_TIME = new Timestamp(123L);
+    private static final long REALTIME_CONTEXT_ID = 7L;
     private StatsHistoryService statsHistoryService;
-    private final long topologyContextId = 1111;
+    private final long topologyContextId = 8L;
 
     @Mock
     private LiveStatsReader mockLivestatsreader;
@@ -122,7 +123,8 @@ public class StatsHistoryServiceTest {
         final float c1Value2 = 456;
         addStatsRecord(statsRecordsList, SNAPSHOT_TIME, c1Value2, propType, USED);
         final float c1Avg = (c1Value1 + c1Value2) / 2;
-        final float c2Value = 456;
+        // only one value for "c2"
+        final float c2Value = 789;
         final String propType2 = "c2";
         addStatsRecord(statsRecordsList, SNAPSHOT_TIME, c2Value, propType2, USED);
         // This one (utilization) should be dropped while processing the stats.
@@ -150,29 +152,32 @@ public class StatsHistoryServiceTest {
 
         if (propType.equals(statRecord.getName())) {
             // statRecord is for c1 and statRecord2 is for c2
-            assertThat(statRecord.getName(), is(propType));
-            assertThat(statRecord.getValues().getAvg(), is(c1Avg));
-            assertThat(statRecord.getValues().getMin(), is(c1Avg / 2));
-            assertThat(statRecord.getValues().getMax(), is(c1Avg * 2));
-
-            assertThat(statRecord2.getName(), is(propType2));
-            assertThat(statRecord2.getValues().getAvg(), is(c1Value2));
-            verify(mockStatSnapshotStreamObserver).onCompleted();
-            verifyNoMoreInteractions(mockStatSnapshotStreamObserver);
+            checkStatRecord(propType, c1Avg, statRecord);
+            checkStatRecord(propType2, c2Value, statRecord2);
         } else if (propType.equals(statRecord2.getName())) {
             // statRecord is for c2 and statRecord2 is for c1
-            assertThat(statRecord2.getName(), is(propType));
-            assertThat(statRecord2.getValues().getAvg(), is(c1Avg));
-            assertThat(statRecord2.getValues().getMin(), is(c1Avg / 2));
-            assertThat(statRecord2.getValues().getMax(), is(c1Avg * 2));
-
-            assertThat(statRecord.getName(), is(propType2));
-            assertThat(statRecord.getValues().getAvg(), is(c1Value2));
-            verify(mockStatSnapshotStreamObserver).onCompleted();
-            verifyNoMoreInteractions(mockStatSnapshotStreamObserver);
+            checkStatRecord(propType2, c2Value, statRecord);
+            checkStatRecord(propType, c1Avg, statRecord2);
         } else {
             fail("Wrong stat records: " + snapshotObserved.getStatRecordsList());
         }
+        verify(mockStatSnapshotStreamObserver).onCompleted();
+        verifyNoMoreInteractions(mockStatSnapshotStreamObserver);
+    }
+
+    /**
+     * Check the values for a stat record - property type, avg, min, and max.
+     *
+     * @param propType the property type string
+     * @param c1Value the value to test
+     * @param statRecord the record to check
+     */
+    private void checkStatRecord(String propType, float c1Value,
+                                 StatRecord statRecord) {
+        assertThat(statRecord.getName(), is(propType));
+        assertThat(statRecord.getValues().getAvg(), is(c1Value));
+        assertThat(statRecord.getValues().getMin(), is(c1Value / 2));
+        assertThat(statRecord.getValues().getMax(), is(c1Value * 2));
     }
 
     /**
@@ -297,6 +302,71 @@ public class StatsHistoryServiceTest {
     }
 
     /**
+     * Test the min, max, avg, capacity calculations over a number of DB Stats Rows.
+     * The test data has 3 rows for the same stat type/subtype, with value 1, 2, 3 respectively.
+     *
+     * @throws Exception if there's a DB exception - should not happen
+     */
+    @Test
+    public void testAveragedStats() throws Exception {
+        // arrange
+        when(historyDbio.entityIdIsPlan(ENTITY_UUID)).thenReturn(false);
+        ScenariosRecord scenariosRecord = new ScenariosRecord();
+        when(historyDbio.getScenariosRecord(PLAN_OID)).thenReturn(Optional.of(scenariosRecord));
+        when(historyDbio.getMostRecentTimestamp()).thenReturn(Optional.of(new Timestamp(123L)));
+
+        long startDate = System.currentTimeMillis();
+        long endDate = startDate + Duration.ofSeconds(1).toMillis();
+        final List<Long> queryEntityUuids = Lists.newArrayList(ENTITY_UUID);
+        final List<String> queryEntityUuidsStr = queryEntityUuids.stream()
+                .map(oid -> Long.toString(oid))
+                .collect(Collectors.toList());
+
+        StatsFilter.Builder reqStatsBuilder = StatsFilter.newBuilder()
+                .setStartDate(startDate)
+                .setEndDate(endDate);
+        List<String> commodityNames = Lists.newArrayList("c1");
+        reqStatsBuilder.addAllCommodityName(commodityNames);
+        Stats.EntityStatsRequest testStatsRequest = Stats.EntityStatsRequest.newBuilder()
+                .addAllEntities(queryEntityUuids)
+                .setFilter(reqStatsBuilder)
+                .build();
+
+        // three rows for 'c1', values 1, 2, 3 respectively
+        List<Record> statsRecordsList = new ArrayList<>();
+        addStatsRecord(statsRecordsList, SNAPSHOT_TIME, 1d, "c1", "c1-subtype");
+        addStatsRecord(statsRecordsList, SNAPSHOT_TIME, 2d, "c1", "c1-subtype");
+        addStatsRecord(statsRecordsList, SNAPSHOT_TIME, 3d, "c1", "c1-subtype");
+
+        when(mockLivestatsreader.getStatsRecords(eq(queryEntityUuidsStr), eq(startDate), eq(endDate),
+                eq(commodityNames))).thenReturn(statsRecordsList);
+
+        // act
+        statsHistoryService.getAveragedEntityStats(testStatsRequest, mockStatSnapshotStreamObserver);
+
+        // assert
+        ArgumentCaptor<StatSnapshot> statSnapshotCaptor = ArgumentCaptor.forClass(StatSnapshot.class);
+        verify(mockStatSnapshotStreamObserver).onNext(statSnapshotCaptor.capture());
+        assertThat(statSnapshotCaptor.getAllValues().size(), equalTo(1));
+        StatSnapshot statSnapshot = statSnapshotCaptor.getValue();
+        List<StatRecord> snapshotRecords = statSnapshot.getStatRecordsList();
+        verify(mockStatSnapshotStreamObserver).onCompleted();
+        assertThat(snapshotRecords.size(), equalTo(1));
+        final StatRecord statRecord = snapshotRecords.get(0);
+        // values are 1, 2, 3;
+        //      avgValue = 2.0;
+        assertThat(statRecord.getValues().getAvg(), equalTo(2f));
+        //      max = 2 x value = 2, 4, 6; avgMax = 4;
+        assertThat(statRecord.getValues().getMax(), equalTo(4f));
+        //      min = 0.5 x value = 0.5, 1.0, 1.5; avgMin = 1.0;
+        assertThat(statRecord.getValues().getMin(), equalTo(1f));
+        // in this case current := avgMax since subtype != type
+        assertThat(statRecord.getCurrentValue(), equalTo(4f));
+        //      capacity = sum(3 x value) = 3, 6, 9; total 18
+        assertThat(statRecord.getCapacity(), equalTo(18f));
+    }
+
+    /**
      * Create a Record to use in a response list. Use a PmStatsLatestRecord just as an example -
      * the type of the Record is not important. All of the different _stats_latest records have the
      * same schema.
@@ -319,6 +389,7 @@ public class StatsHistoryServiceTest {
         statsRecord.setAvgValue(testValue);
         statsRecord.setMinValue(testValue / 2);
         statsRecord.setMaxValue(testValue * 2);
+        statsRecord.setCapacity(testValue * 3);
         statsRecordsList.add(statsRecord);
     }
 
