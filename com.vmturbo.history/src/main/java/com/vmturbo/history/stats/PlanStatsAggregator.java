@@ -96,7 +96,7 @@ public class PlanStatsAggregator {
      */
     private void countTypes(Collection<TopologyEntityDTO> chunk) {
         chunk.stream()
-            .filter(dto -> dto.getEntityState() != EntityState.SUSPENDED)
+            .filter(dto -> dto.getEntityState() == EntityState.POWERED_ON)
             .map(TopologyEntityDTO::getEntityType)
             .forEach(this::increment);
     }
