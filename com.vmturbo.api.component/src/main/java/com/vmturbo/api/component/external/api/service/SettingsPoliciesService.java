@@ -31,8 +31,6 @@ import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolic
 import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.DeleteSettingPolicyRequest;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyRequest;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
@@ -51,14 +49,14 @@ public class SettingsPoliciesService implements ISettingsPoliciesService {
 
     private final Logger logger = LogManager.getLogger();
 
-    private final SettingPolicyServiceBlockingStub spService;
+    private final SettingPolicyServiceBlockingStub settingPolicyService;
 
     private final SettingsMapper settingsMapper;
 
     public SettingsPoliciesService(@Nonnull final SettingsMapper settingsMapper,
                                    @Nonnull final Channel groupChannel) {
         this.settingsMapper = Objects.requireNonNull(settingsMapper);
-        this.spService = SettingPolicyServiceGrpc.newBlockingStub(groupChannel);
+        this.settingPolicyService = SettingPolicyServiceGrpc.newBlockingStub(groupChannel);
     }
 
     /**
@@ -86,7 +84,7 @@ public class SettingsPoliciesService implements ISettingsPoliciesService {
         }
 
         final List<SettingPolicy> settingPolicies = new LinkedList<>();
-        spService.listSettingPolicies(reqBuilder.build())
+        settingPolicyService.listSettingPolicies(reqBuilder.build())
             .forEachRemaining(policy -> {
                 // We use an empty acceptable set to indicate everything is accepted.
                 if (acceptableEntityTypes.isEmpty() ||
@@ -110,7 +108,7 @@ public class SettingsPoliciesService implements ISettingsPoliciesService {
 
         final CreateSettingPolicyResponse response;
         try {
-            response = spService.createSettingPolicy(
+            response = settingPolicyService.createSettingPolicy(
                     CreateSettingPolicyRequest.newBuilder()
                             .setSettingPolicyInfo(policyInfo)
                             .build());
@@ -137,7 +135,8 @@ public class SettingsPoliciesService implements ISettingsPoliciesService {
 
         final UpdateSettingPolicyResponse response;
         try {
-            response = spService.updateSettingPolicy(UpdateSettingPolicyRequest.newBuilder()
+            response = settingPolicyService.updateSettingPolicy(
+                UpdateSettingPolicyRequest.newBuilder()
                     .setId(id)
                     .setNewInfo(policyInfo)
                     .build());
@@ -160,7 +159,8 @@ public class SettingsPoliciesService implements ISettingsPoliciesService {
     public boolean deleteSettingsPolicy(String uuid) throws Exception {
         final long id = Long.valueOf(uuid);
         try {
-            spService.deleteSettingPolicy(DeleteSettingPolicyRequest.newBuilder()
+            settingPolicyService.deleteSettingPolicy(
+                DeleteSettingPolicyRequest.newBuilder()
                     .setId(id)
                     .build());
         } catch (StatusRuntimeException e) {

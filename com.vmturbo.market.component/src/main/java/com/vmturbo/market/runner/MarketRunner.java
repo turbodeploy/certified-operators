@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.Maps;
 
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -32,6 +33,7 @@ public class MarketRunner {
     private final ExecutorService runnerThreadPool;
     private final MarketNotificationSender serverApi;
     private final AnalysisFactory analysisFactory;
+    private final SettingServiceBlockingStub settingServiceClient;
 
     private final Map<Long, Analysis> analysisMap = Maps.newConcurrentMap();
 
@@ -45,10 +47,12 @@ public class MarketRunner {
     public MarketRunner(
             @Nonnull ExecutorService runnerThreadPool,
             @Nonnull MarketNotificationSender serverApi,
-            @Nonnull AnalysisFactory analysisFactory) {
+            @Nonnull AnalysisFactory analysisFactory,
+            @Nonnull SettingServiceBlockingStub settingServiceClient) {
         this.runnerThreadPool = runnerThreadPool;
         this.serverApi = serverApi;
         this.analysisFactory = analysisFactory;
+        this.settingServiceClient = settingServiceClient;
     }
 
     /**
@@ -57,12 +61,15 @@ public class MarketRunner {
      * @param topologyInfo describes this topology, including contextId, id, etc
      * @param topologyDTOs the TopologyEntityDTOs in this topology
      * @param includeVDC should VDC's be included in the analysis
+     * @param settingServiceClient Client for getting the Settings from Setting Service
      * @return the resulting Analysis object capturing the results
      */
     @Nonnull
     public Analysis scheduleAnalysis(@Nonnull final TopologyDTO.TopologyInfo topologyInfo,
                                      @Nonnull final Set<TopologyEntityDTO> topologyDTOs,
-                                     final boolean includeVDC) {
+                                     final boolean includeVDC,
+                                     @Nonnull SettingServiceBlockingStub settingServiceClient) {
+
         INPUT_TOPOLOGY.observe((double)topologyDTOs.size());
         final Analysis analysis;
         final long topologyContextId = topologyInfo.getTopologyContextId();
@@ -81,6 +88,7 @@ public class MarketRunner {
                     .setTopologyInfo(topologyInfo)
                     .setTopologyDTOs(topologyDTOs)
                     .setIncludeVDC(includeVDC)
+                    .setSettingsServiceClient(settingServiceClient)
                     .build();
             analysisMap.put(topologyContextId, analysis);
         }

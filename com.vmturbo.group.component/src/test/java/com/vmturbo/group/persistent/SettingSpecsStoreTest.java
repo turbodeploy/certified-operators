@@ -10,6 +10,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
+import com.vmturbo.group.api.GlobalSettingSpecs;
 import com.vmturbo.group.api.SettingPolicySetting;
 
 /**
@@ -44,7 +45,9 @@ public class SettingSpecsStoreTest {
         final Set<String> enumSettingNames = Stream.of(SettingPolicySetting.values())
                 .map(SettingPolicySetting::getSettingName)
                 .collect(Collectors.toSet());
-        final Set<String> jsonSettingNames = specStore.getAllSettingSpec()
+        // RATE of Resize has to be added too due to API constraint
+        enumSettingNames.add(GlobalSettingSpecs.RateOfResize.getSettingName());
+        final Set<String> jsonSettingNames = specStore.getAllSettingSpecs()
                 .stream()
                 .map(SettingSpec::getName)
                 .collect(Collectors.toSet());
@@ -65,7 +68,7 @@ public class SettingSpecsStoreTest {
     @Test
     public void testUniqueSettingNames() {
         final Set<String> settingNames = new HashSet<>();
-        for (SettingSpec spec : specStore.getAllSettingSpec()) {
+        for (SettingSpec spec : specStore.getAllSettingSpecs()) {
             final String specName = spec.getName();
             Assert.assertTrue("Setting " + specName + " duplicated", settingNames.add(specName));
         }

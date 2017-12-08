@@ -140,7 +140,7 @@ public class DefaultSettingPolicyCreatorTest {
                         .setEntitySettingScope(EntitySettingScope.newBuilder()
                                 .setAllEntityType(AllEntityType.getDefaultInstance())))
                 .build();
-        Mockito.when(settingSpecStore.getAllSettingSpec())
+        Mockito.when(settingSpecStore.getAllSettingSpecs())
                 .thenReturn(Arrays.asList(globalSpec, allEntityTypeSpec));
         settingPolicyCreator = new DefaultSettingPolicyCreator(settingSpecStore, settingStore, 10);
         settingPolicyCreator.run();
@@ -348,7 +348,7 @@ public class DefaultSettingPolicyCreatorTest {
 
     private List<SettingPolicyInfo> getPolicyInfo(int expectedCount, SettingSpec... specs)
             throws Exception {
-        Mockito.when(settingSpecStore.getAllSettingSpec()).thenReturn(Arrays.asList(specs));
+        Mockito.when(settingSpecStore.getAllSettingSpecs()).thenReturn(Arrays.asList(specs));
         for (SettingSpec spec : specs) {
             Mockito.when(settingSpecStore.getSettingSpec(spec.getName()))
                     .thenReturn(Optional.of(spec));

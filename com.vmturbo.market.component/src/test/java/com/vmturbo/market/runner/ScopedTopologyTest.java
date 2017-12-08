@@ -6,6 +6,7 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.spy;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -19,6 +20,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -28,7 +30,12 @@ import com.google.gson.stream.JsonReader;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 
+import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
+import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
+import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -38,6 +45,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.analysis.InvalidTopologyException;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.market.MarketNotificationSender;
 import com.vmturbo.market.topology.conversions.TopologyConverter;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
@@ -63,7 +71,17 @@ public class ScopedTopologyTest {
 
     private static final Gson GSON = new Gson();
     private Set<TopologyEntityDTO> topologyDTOs;
+    private final GroupServiceMole testGroupService = spy(new GroupServiceMole());
+    private final SettingPolicyServiceMole testSettingPolicyService =
+            spy(new SettingPolicyServiceMole());
+    private final SettingServiceMole testSettingService =
+                 spy(new SettingServiceMole());
+    private SettingServiceBlockingStub settingServiceClient;
     Analysis testAnalysis;
+
+    @Rule
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(testGroupService,
+                     testSettingPolicyService, testSettingService);
 
     /**
      * Read the test topology from a resource file (.json).
@@ -80,6 +98,7 @@ public class ScopedTopologyTest {
                 .setTopologyInfo(topoogyInfo)
                 .setIncludeVDC(INCLUDE_VDC)
                 .build();
+        settingServiceClient = SettingServiceGrpc.newBlockingStub(grpcServer.getChannel());
     }
 
     /**
@@ -188,7 +207,8 @@ public class ScopedTopologyTest {
         MarketNotificationSender serverApi = Mockito.mock(MarketNotificationSender.class);
         ExecutorService threadPool = Executors.newFixedThreadPool(2);
         Analysis.AnalysisFactory analysisFactory = new Analysis.AnalysisFactory();
-        MarketRunner runner = new MarketRunner(threadPool, serverApi, analysisFactory);
+        MarketRunner runner =
+            new MarketRunner(threadPool, serverApi, analysisFactory, settingServiceClient);
 
         long topologyContextId = 1000;
         long topologyId = 2000;
@@ -203,7 +223,8 @@ public class ScopedTopologyTest {
                 .build();
 
         // Act
-        Analysis analysis = runner.scheduleAnalysis(topologyInfo, topologyDTOs, true);
+        Analysis analysis =
+            runner.scheduleAnalysis(topologyInfo, topologyDTOs, true, settingServiceClient);
         assertTrue(runner.getRuns().contains(analysis));
         while (!analysis.isDone()) {
             Thread.sleep(1000);

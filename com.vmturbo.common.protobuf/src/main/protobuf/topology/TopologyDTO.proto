@@ -233,6 +233,9 @@ message CommoditySoldDTO {
 
     // Whether the commodity is active or not
     optional bool active = 10 [default = true];
+
+    // related to resize increment
+    optional float capacity_increment = 11 [default = 1.0];
 }
 
 // A request to assemble the current topology and broadcast it to all listeners for the topology.

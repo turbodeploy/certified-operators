@@ -9,10 +9,6 @@ import static org.mockito.Mockito.verify;
 
 import java.util.Optional;
 
-import com.google.common.collect.ImmutableSet;
-
-import io.grpc.stub.StreamObserver;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.Before;
@@ -23,10 +19,14 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
 
+import com.google.common.collect.ImmutableSet;
+import io.grpc.stub.StreamObserver;
+
 import com.vmturbo.common.protobuf.setting.SettingProto.SearchSettingSpecsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.SingleSettingSpecRequest;
 import com.vmturbo.group.persistent.SettingSpecStore;
+import com.vmturbo.group.persistent.SettingStore;
 
 @RunWith(MockitoJUnitRunner.class)
 public class SettingRpcServiceTest {
@@ -34,7 +34,10 @@ public class SettingRpcServiceTest {
     private final Logger logger = LogManager.getLogger();
 
     @Mock
-    private SettingSpecStore settingStore;
+    private SettingSpecStore settingSpecStore;
+
+    @Mock
+    private SettingStore settingStore;
 
     private SettingRpcService settingRpcService;
 
@@ -43,12 +46,13 @@ public class SettingRpcServiceTest {
 
     @Before
     public void setup() {
-        settingRpcService = new SettingRpcService(settingStore);
+        settingRpcService =
+            new SettingRpcService(settingSpecStore, settingStore);
 
-        injectSettingSpecIntoStore(settingStore);
+        injectSettingSpecIntoStore(settingSpecStore);
     }
 
-    private void injectSettingSpecIntoStore(final SettingSpecStore settingStore) {
+    private void injectSettingSpecIntoStore(final SettingSpecStore settingSpecStore) {
 
         // create spec1
         SettingSpec injectedSettingSpec1 = SettingSpec.newBuilder()
@@ -61,15 +65,15 @@ public class SettingRpcServiceTest {
                 .build();
 
         // inject them
-        given(settingStore.getSettingSpec(specName1)).willReturn(Optional.of(injectedSettingSpec1));
-        given(settingStore.getSettingSpec(specName2)).willReturn(Optional.of(injectedSettingSpec2));
+        given(settingSpecStore.getSettingSpec(specName1)).willReturn(Optional.of(injectedSettingSpec1));
+        given(settingSpecStore.getSettingSpec(specName2)).willReturn(Optional.of(injectedSettingSpec2));
 
         ImmutableSet<SettingSpec> specSet = ImmutableSet.of(
                 injectedSettingSpec1,
                 injectedSettingSpec2
                 );
 
-        given(settingStore.getAllSettingSpec()).willReturn(specSet);
+        given(settingSpecStore.getAllSettingSpecs()).willReturn(specSet);
 
     }
 

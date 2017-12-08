@@ -76,6 +76,8 @@ import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -486,7 +488,10 @@ public class SettingsMapperTest {
     public void testMapPolicyInfoToApiDto() {
         final SettingsManagerMapping mapping = mock(SettingsManagerMapping.class);
         final SettingsMapper mapper = mock(SettingsMapper.class);
-        final DefaultSettingPolicyMapper policyMapper = new DefaultSettingPolicyMapper(mapper);
+        final SettingServiceBlockingStub settingServiceClient =
+             SettingServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        final DefaultSettingPolicyMapper policyMapper =
+                new DefaultSettingPolicyMapper(mapper, settingServiceClient);
 
         final long groupId = 7;
         final String groupName = "goat";
@@ -533,7 +538,10 @@ public class SettingsMapperTest {
     @Test
     public void testValMgrDtoEnum() {
         final SettingsMapper mapper = mock(SettingsMapper.class);
-        final DefaultSettingPolicyMapper policyMapper = new DefaultSettingPolicyMapper(mapper);
+        final SettingServiceBlockingStub settingServiceClient =
+             SettingServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        final DefaultSettingPolicyMapper policyMapper =
+                new DefaultSettingPolicyMapper(mapper, settingServiceClient);
 
         final SettingsManagerApiDTO mgr =
             policyMapper.createValMgrDto(mgrId1, mgr1Info, Collections.singletonList(
@@ -554,7 +562,10 @@ public class SettingsMapperTest {
     @Test
     public void testValMgrDtoBool() {
         final SettingsMapper mapper = mock(SettingsMapper.class);
-        final DefaultSettingPolicyMapper policyMapper = new DefaultSettingPolicyMapper(mapper);
+        final SettingServiceBlockingStub settingServiceClient =
+             SettingServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        final DefaultSettingPolicyMapper policyMapper =
+                new DefaultSettingPolicyMapper(mapper, settingServiceClient);
 
         final SettingsManagerApiDTO mgr =
             policyMapper.createValMgrDto(mgrId1, mgr1Info, Collections.singletonList(
@@ -575,7 +586,10 @@ public class SettingsMapperTest {
     @Test
     public void testValMgrDtoNum() {
         final SettingsMapper mapper = mock(SettingsMapper.class);
-        final DefaultSettingPolicyMapper policyMapper = new DefaultSettingPolicyMapper(mapper);
+        final SettingServiceBlockingStub settingServiceClient =
+             SettingServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        final DefaultSettingPolicyMapper policyMapper =
+                new DefaultSettingPolicyMapper(mapper, settingServiceClient);
 
         final SettingsManagerApiDTO mgr =
             policyMapper.createValMgrDto(mgrId1, mgr1Info, Collections.singletonList(
@@ -596,7 +610,10 @@ public class SettingsMapperTest {
     @Test
     public void testValMgrDtoStr() {
         final SettingsMapper mapper = mock(SettingsMapper.class);
-        final DefaultSettingPolicyMapper policyMapper = new DefaultSettingPolicyMapper(mapper);
+        final SettingServiceBlockingStub settingServiceClient =
+             SettingServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        final DefaultSettingPolicyMapper policyMapper =
+                new DefaultSettingPolicyMapper(mapper, settingServiceClient);
 
         final SettingsManagerApiDTO mgr =
             policyMapper.createValMgrDto(mgrId1, mgr1Info, Collections.singletonList(

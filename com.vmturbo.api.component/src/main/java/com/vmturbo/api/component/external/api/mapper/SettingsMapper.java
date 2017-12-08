@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -21,7 +22,6 @@ import org.apache.logging.log4j.Logger;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
-
 import io.grpc.Channel;
 
 import com.vmturbo.api.component.external.api.mapper.SettingSpecStyleMappingLoader.SettingSpecStyleMapping;
@@ -50,6 +50,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyResponse;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.Scope;
@@ -64,8 +65,11 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec.SettingValueTypeCase;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValueType;
+import com.vmturbo.common.protobuf.setting.SettingProto.UpdateGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
+import com.vmturbo.group.api.GlobalSettingSpecs;
+import com.vmturbo.group.api.SettingPolicySetting;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -136,10 +140,10 @@ public class SettingsMapper {
         this.managerMapping = settingsManagerMapping;
         this.settingSpecStyleMapping = settingSpecStyleMapping;
         this.settingSpecMapper = new DefaultSettingSpecMapper();
-        this.settingPolicyMapper = new DefaultSettingPolicyMapper(this);
         this.groupService = GroupServiceGrpc.newBlockingStub(groupComponentChannel);
         this.settingService = SettingServiceGrpc.newBlockingStub(groupComponentChannel);
         this.settingPolicyService = SettingPolicyServiceGrpc.newBlockingStub(groupComponentChannel);
+        this.settingPolicyMapper = new DefaultSettingPolicyMapper(this, settingService);
     }
 
     @VisibleForTesting
@@ -294,6 +298,7 @@ public class SettingsMapper {
     public SettingPolicyInfo convertEditedInputPolicy(final long existingPolicyId,
                                                       @Nonnull final SettingsPolicyApiDTO newPolicy)
             throws InvalidOperationException, UnknownObjectException {
+
         final GetSettingPolicyResponse getResponse =
                 settingPolicyService.getSettingPolicy(GetSettingPolicyRequest.newBuilder()
                         .setId(existingPolicyId)
@@ -323,25 +328,45 @@ public class SettingsMapper {
                                          final int entityType)
             throws InvalidOperationException {
         final Map<String, SettingSpec> specsByName = new HashMap<>();
+        Map<String, SettingApiDTO> involvedSettings = new HashMap<>();
         if (apiInputPolicy.getSettingsManagers() != null) {
-            final Set<String> involvedSettings = apiInputPolicy.getSettingsManagers().stream()
+                involvedSettings = apiInputPolicy.getSettingsManagers().stream()
                     .filter(settingMgr -> settingMgr.getSettings() != null)
                     .flatMap(settingMgr -> settingMgr.getSettings().stream())
-                    .map(SettingApiDTO::getUuid)
-                    .collect(Collectors.toSet());
+                    .collect(Collectors.toMap(SettingApiDTO::getUuid, Function.identity()));
+
+            // **HAAACK** for RATE_OF_RESIZE
+            // If the RATE_OF_RESIZE setting has been updated as part of the Default
+            // VM Setting, remove it from the SettingPolicy and update the
+            // setting.
+            String rateOfResizeSettingName = GlobalSettingSpecs.RateOfResize.getSettingName();
+            // Api is not setting the default flag. So we can only check if it is a VM
+            // type.
+            if (isVmEntityType(entityType) &&
+                    involvedSettings.containsKey(rateOfResizeSettingName)) {
+                SettingApiDTO settingApiDto = involvedSettings.remove(rateOfResizeSettingName);
+                settingService.updateGlobalSetting(
+                    UpdateGlobalSettingRequest.newBuilder()
+                        .setSettingSpecName(rateOfResizeSettingName)
+                        .setNumericSettingValue(
+                            SettingDTOUtil.createNumericSettingValue(
+                                Float.valueOf(settingApiDto.getValue())))
+                        .build());
+            }
 
             if (!involvedSettings.isEmpty()) {
                 settingService.searchSettingSpecs(SearchSettingSpecsRequest.newBuilder()
-                        .addAllSettingSpecName(involvedSettings)
+                        .addAllSettingSpecName(involvedSettings.keySet())
                         .build())
                         .forEachRemaining(spec -> specsByName.put(spec.getName(), spec));
             }
 
             // Technically this shouldn't happen because we only return settings we support
             // from the SettingsService.
-            if (!specsByName.keySet().equals(involvedSettings)) {
+            if (!specsByName.keySet().equals(involvedSettings.keySet())) {
                 throw new InvalidOperationException("Attempted to create a settings policy with " +
-                        "invalid specs: " + Sets.difference(involvedSettings, specsByName.keySet()));
+                        "invalid specs: " + Sets.difference(
+                            involvedSettings.keySet(), specsByName.keySet()));
             }
         }
 
@@ -361,20 +386,18 @@ public class SettingsMapper {
 
         infoBuilder.setEnabled(apiInputPolicy.getDisabled() == null || !apiInputPolicy.getDisabled());
 
-        if (apiInputPolicy.getSettingsManagers() != null) {
-            apiInputPolicy.getSettingsManagers().stream()
-                .flatMap(settingMgr -> settingMgr.getSettings().stream())
-                .map(settingApiDto -> {
-                    // We expect the SettingSpec to be found.
-                    final SettingSpec spec = specsByName.get(settingApiDto.getUuid());
-                    if (spec == null) {
-                        throw new IllegalArgumentException("Spec " + settingApiDto.getUuid() +
-                                " not found in the specs given to the mapper.");
-                    }
-                    return toProtoSetting(settingApiDto, spec);
-                }).forEach(setting -> infoBuilder.addSettings(
+        involvedSettings.values()
+            .stream()
+            .map(settingApiDto -> {
+                // We expect the SettingSpec to be found.
+                final SettingSpec spec = specsByName.get(settingApiDto.getUuid());
+                if (spec == null) {
+                    throw new IllegalArgumentException("Spec " + settingApiDto.getUuid() +
+                            " not found in the specs given to the mapper.");
+                }
+                return toProtoSetting(settingApiDto, spec);
+            }).forEach(setting -> infoBuilder.addSettings(
                         setting));
-        }
 
         return infoBuilder.build();
     }
@@ -484,9 +507,13 @@ public class SettingsMapper {
     static class DefaultSettingPolicyMapper implements SettingPolicyMapper {
 
         private final SettingsMapper mapper;
+        private final SettingServiceBlockingStub settingServiceClient;
 
-        DefaultSettingPolicyMapper(@Nonnull final SettingsMapper mapper) {
+        DefaultSettingPolicyMapper(@Nonnull final SettingsMapper mapper,
+                                   @Nonnull final SettingServiceBlockingStub settingServiceClient) {
+
             this.mapper = mapper;
+            this.settingServiceClient = settingServiceClient;
         }
 
         @Override
@@ -529,6 +556,20 @@ public class SettingsMapper {
                     .collect(Collectors.groupingBy(setting ->
                             managerMapping.getManagerUuid(setting.getSettingSpecName())
                                     .orElse(NO_MANAGER)));
+
+            // *HAAACK*. Add RATE_OF_RESIZE hack here. Even thought it is a global setting
+            // in the UI, it is displayed along with VM default policy. So fetch the global
+            // setting and inject it here.
+            if (isVmDefaultPolicy(settingPolicy)) {
+                String rateOfResizeSettingName = GlobalSettingSpecs.RateOfResize.getSettingName();
+                Setting rateOfResizeSetting = settingServiceClient.getGlobalSetting(
+                    GetSingleGlobalSettingRequest.newBuilder()
+                        .setSettingSpecName(rateOfResizeSettingName).build());
+                settingsByMgr.computeIfAbsent(
+                            managerMapping.getManagerUuid(rateOfResizeSettingName).orElse(NO_MANAGER),
+                                k -> new ArrayList<Setting>())
+                               .add(rateOfResizeSetting);
+            }
 
             final List<Setting> unhandledSettings = settingsByMgr.get(NO_MANAGER);
             if (unhandledSettings != null && !unhandledSettings.isEmpty()) {
@@ -583,8 +624,19 @@ public class SettingsMapper {
      * @return The {@link SettingApiDTO} representing the value of the setting.
      */
     public static SettingApiDTO toSettingApiDto(@Nonnull final Setting setting) {
-        final SettingApiDTO apiDto = new SettingApiDTO();
+        SettingApiDTO apiDto = new SettingApiDTO();
         apiDto.setUuid(setting.getSettingSpecName());
+        Optional<SettingSpec> spec = getSettingSpec(setting.getSettingSpecName());
+        Optional<SettingApiDTO> dto;
+
+        // UI needs both the setting and its setting spec to be set.
+        if (spec.isPresent()) {
+            dto = (new DefaultSettingSpecMapper()).settingSpecToApi(spec.get());
+            if (dto.isPresent()) {
+                apiDto = dto.get();
+            }
+        }
+
         API_SETTING_VALUE_INJECTORS.get(setting.getValueCase()).setSettingValue(setting, apiDto);
         return apiDto;
     }
@@ -762,6 +814,33 @@ public class SettingsMapper {
 
             return Optional.of(apiDTO);
         }
+    }
+
+    private static boolean isVmDefaultPolicy(@Nonnull SettingPolicy policy) {
+
+        return (policy.getSettingPolicyType().equals(Type.DEFAULT) &&
+                    isVmEntityType(policy.getInfo().getEntityType()));
+    }
+
+    private static boolean isVmEntityType(int entityType) {
+        return (EntityType.VIRTUAL_MACHINE.getNumber() == entityType);
+    }
+
+    private static Optional<SettingSpec> getSettingSpec(@Nonnull String settingSpecName) {
+        Optional<SettingPolicySetting> entitySpec =
+            SettingPolicySetting.getSettingByName(settingSpecName);
+        if (entitySpec.isPresent()) {
+            return Optional.of(entitySpec.get().createSettingSpec());
+        }
+
+        Optional<GlobalSettingSpecs> globalSpec =
+            GlobalSettingSpecs.getSettingByName(settingSpecName);
+
+        if (globalSpec.isPresent()) {
+            return Optional.of(globalSpec.get().createSettingSpec());
+        }
+
+        return Optional.empty();
     }
 }
 

@@ -13,7 +13,7 @@ public class ServiceEntityMapper {
     /**
      * The entity types used in UI.
      */
-    enum UIEntityType {
+    public enum UIEntityType {
         VIRTUAL_MACHINE("VirtualMachine"),
         PHYSICAL_MACHINE("PhysicalMachine"),
         STORAGE("Storage"),

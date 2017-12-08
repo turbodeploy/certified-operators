@@ -7,6 +7,7 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.spy;
 
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -14,11 +15,17 @@ import java.util.concurrent.Executors;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
 import com.google.common.collect.Sets;
 
+import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
+import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
+import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -27,6 +34,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.market.MarketNotificationSender;
 import com.vmturbo.market.runner.Analysis.AnalysisFactory;
 import com.vmturbo.market.runner.Analysis.AnalysisState;
@@ -44,6 +52,16 @@ public class MarketRunnerTest {
     private long topologyContextId = 1000;
     private long topologyId = 2000;
     private long creationTime = 3000;
+    private final GroupServiceMole testGroupService = spy(new GroupServiceMole());
+    private final SettingPolicyServiceMole testSettingPolicyService =
+            spy(new SettingPolicyServiceMole());
+    private final SettingServiceMole testSettingService =
+                 spy(new SettingServiceMole());
+    private SettingServiceBlockingStub settingServiceClient;
+
+    @Rule
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(testGroupService,
+                     testSettingPolicyService, testSettingService);
 
     private TopologyInfo topologyInfo = TopologyInfo.newBuilder()
             .setTopologyId(topologyId)
@@ -57,7 +75,11 @@ public class MarketRunnerTest {
         IdentityGenerator.initPrefix(0);
         threadPool = Executors.newFixedThreadPool(2);
         AnalysisFactory analysisFactory = new AnalysisFactory();
-        runner = new MarketRunner(threadPool, serverApi, analysisFactory);
+        settingServiceClient =
+            SettingServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        runner = new MarketRunner(threadPool, serverApi, analysisFactory,
+                    settingServiceClient);
+
         topologyContextId += 100;
     }
 
@@ -73,7 +95,7 @@ public class MarketRunnerTest {
     @Test
     public void testGetRuns() throws Exception {
         Analysis analysis =
-                runner.scheduleAnalysis(topologyInfo, dtos(true), true);
+                runner.scheduleAnalysis(topologyInfo, dtos(true), true, settingServiceClient);
         assertTrue(runner.getRuns().contains(analysis));
         while (!analysis.isDone()) {
             Thread.sleep(100);
@@ -99,11 +121,13 @@ public class MarketRunnerTest {
     @Test
     public void testContextIDs() {
         Set<TopologyEntityDTO> dtos = dtos(true);
-        Analysis analysis1 = runner.scheduleAnalysis(topologyInfo, dtos, true);
-        Analysis analysis2 = runner.scheduleAnalysis(topologyInfo, dtos, true);
+        Analysis analysis1 =
+            runner.scheduleAnalysis(topologyInfo, dtos, true, settingServiceClient);
+        Analysis analysis2 =
+            runner.scheduleAnalysis(topologyInfo, dtos, true, settingServiceClient);
         Analysis analysis3 = runner.scheduleAnalysis(topologyInfo.toBuilder()
                         .setTopologyContextId(topologyInfo.getTopologyContextId() + 1)
-                        .build(), dtos, true);
+                        .build(), dtos, true, settingServiceClient);
         assertSame(analysis1, analysis2);
         assertNotSame(analysis1, analysis3);
     }
@@ -116,7 +140,8 @@ public class MarketRunnerTest {
     @Test
     public void testBadPlan() throws InterruptedException {
         Set<TopologyEntityDTO> badDtos = dtos(false);
-        Analysis analysis = runner.scheduleAnalysis(topologyInfo, badDtos, true);
+        Analysis analysis =
+            runner.scheduleAnalysis(topologyInfo, badDtos, true, settingServiceClient);
         while (!analysis.isDone()) {
             Thread.sleep(100);
         }

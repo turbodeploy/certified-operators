@@ -918,7 +918,7 @@ public class TopologyConverter {
         final CommodityDTOs.CommoditySoldSettingsTO economyCommSoldSettings =
                         CommodityDTOs.CommoditySoldSettingsTO.newBuilder()
                         .setResizable(topologyCommSold.getIsResizeable())
-                        .setCapacityIncrement(capacity / 5) // TODO: use the probe DTO's UsedIncrement
+                        .setCapacityIncrement(topologyCommSold.getCapacityIncrement())
                         .setCapacityUpperBound(capacity)
                         .setUtilizationUpperBound(
                             (float)(topologyCommSold.getEffectiveCapacityPercentage() / 100.0))
@@ -997,6 +997,8 @@ public class TopologyConverter {
                         commSoldTO.getSettings().getUtilizationUpperBound() * 100)
                     .setCommodityType(commType)
                     .setIsThin(commSoldTO.getThin())
+                    .setCapacityIncrement(
+                        commSoldTO.getSettings().getCapacityIncrement())
                     .build());
     }
 

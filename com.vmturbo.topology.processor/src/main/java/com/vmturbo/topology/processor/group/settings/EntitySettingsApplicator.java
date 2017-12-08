@@ -44,12 +44,17 @@ import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline;
  */
 public class EntitySettingsApplicator {
 
+    private final Logger logger = LogManager.getLogger(getClass());
+
     /**
      * List of the applicators that modify the topology.
      */
     private static final List<SettingApplicator> APPLICATORS =
-            ImmutableList.of(new MoveApplicator(), new SuspendApplicator(),
-                    new ProvisionApplicator(), new ResizeApplicator(),
+            ImmutableList.of(
+                    new MoveApplicator(),
+                    new SuspendApplicator(),
+                    new ProvisionApplicator(),
+                    new ResizeApplicator(),
                     new UtilizationThresholdApplicator(SettingPolicySetting.IoThroughput,
                             CommodityType.IO_THROUGHPUT),
                     new UtilizationThresholdApplicator(SettingPolicySetting.NetThroughput,
@@ -57,16 +62,22 @@ public class EntitySettingsApplicator {
                     new UtilizationThresholdApplicator(SettingPolicySetting.SwappingUtilization,
                             CommodityType.SWAPPING),
                     new UtilizationThresholdApplicator(SettingPolicySetting.ReadyQueueUtilization,
-                            CommodityType.QN_VCPU), new UtilizationThresholdApplicator(
-                            SettingPolicySetting.StorageAmountUtilization,
+                            CommodityType.QN_VCPU),
+                    new UtilizationThresholdApplicator(SettingPolicySetting.StorageAmountUtilization,
                             CommodityType.STORAGE_AMOUNT),
                     new UtilizationThresholdApplicator(SettingPolicySetting.IopsUtilization,
                             CommodityType.STORAGE_ACCESS),
                     new UtilizationThresholdApplicator(SettingPolicySetting.LatencyUtilization,
-                            CommodityType.STORAGE_LATENCY), new UtilTargetApplicator(),
-                    new TargetBandApplicator(), new HaDependentUtilizationApplicator());
-
-    private final Logger logger = LogManager.getLogger(getClass());
+                            CommodityType.STORAGE_LATENCY),
+                    new UtilTargetApplicator(),
+                    new TargetBandApplicator(),
+                    new HaDependentUtilizationApplicator(),
+                    new ResizeIncrementApplicator(SettingPolicySetting.VcpuIncrement,
+                            CommodityType.VCPU),
+                    new ResizeIncrementApplicator(SettingPolicySetting.VmemIncrement,
+                            CommodityType.VMEM),
+                    new ResizeIncrementApplicator(SettingPolicySetting.VstorageIncrement,
+                            CommodityType.VSTORAGE));
 
     /**
      * Applies the settings contained in a {@link GraphWithSettings} to the topology graph
@@ -298,7 +309,7 @@ public class EntitySettingsApplicator {
     }
 
     /**
-     *  Applies the "utilTarget" setting to an entity.
+     *  Applies the "utilTarget" setting to a PM entity.
      */
     private static class UtilTargetApplicator extends SingleSettingApplicator {
 
@@ -310,13 +321,15 @@ public class EntitySettingsApplicator {
         public void apply(@Nonnull final TopologyEntityDTO.Builder entity,
                           @Nonnull final Setting setting) {
 
-            entity.getAnalysisSettingsBuilder()
-                .setDesiredUtilizationTarget(setting.getNumericSettingValue().getValue());
+            if (entity.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE) {
+                entity.getAnalysisSettingsBuilder()
+                    .setDesiredUtilizationTarget(setting.getNumericSettingValue().getValue());
+            }
         }
     }
 
     /**
-     *  Applies the "targetBand" setting to an entity.
+     *  Applies the "targetBand" setting to a PM entity.
      */
     private static class TargetBandApplicator extends SingleSettingApplicator {
 
@@ -328,8 +341,42 @@ public class EntitySettingsApplicator {
         public void apply(@Nonnull final TopologyEntityDTO.Builder entity,
                           @Nonnull final Setting setting) {
 
-            entity.getAnalysisSettingsBuilder()
-                .setDesiredUtilizationRange(setting.getNumericSettingValue().getValue());
+            if (entity.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE) {
+                entity.getAnalysisSettingsBuilder()
+                    .setDesiredUtilizationRange(setting.getNumericSettingValue().getValue());
+            }
+        }
+    }
+
+    /**
+     * Applicator for capacity resize increment settings.
+     * This sets the capacity_increment in the {@link TopologyDTO.CommoditySoldDTO}
+     * for Virtual Machine entities.
+     *
+     */
+    @ThreadSafe
+    private static class ResizeIncrementApplicator extends SingleSettingApplicator {
+
+        private final CommodityType commodityType;
+
+        private ResizeIncrementApplicator(@Nonnull SettingPolicySetting setting,
+                @Nonnull final CommodityType commodityType) {
+            super(setting);
+            this.commodityType = Objects.requireNonNull(commodityType);
+        }
+
+        @Override
+        public void apply(@Nonnull Builder entity, @Nonnull Setting setting) {
+            if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
+                final float settingValue = setting.getNumericSettingValue().getValue();
+                entity.getCommoditySoldListBuilderList()
+                        .stream()
+                        .filter(commodity -> commodity.getCommodityType().getType() ==
+                                commodityType.getNumber())
+                        .forEach(commodityBuilder -> {
+                            commodityBuilder.setCapacityIncrement(settingValue);
+                        });
+            }
         }
     }
 }

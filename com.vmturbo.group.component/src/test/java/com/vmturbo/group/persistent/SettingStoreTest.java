@@ -8,21 +8,13 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
-import com.google.protobuf.ProtocolStringList;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -32,15 +24,15 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
+import com.google.protobuf.ProtocolStringList;
+
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
-import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.EntityTypeSet;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.ScopeCase;
@@ -58,7 +50,6 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec.SettingValue
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingTiebreaker;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
-
 
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(
@@ -381,7 +372,7 @@ public class SettingStoreTest {
         // this test is depending on the JSON file that the store is parsing, so altering it
         // might make this test to fail
 
-        Collection<SettingSpec> retrievedSettingSpecs = settingSpecStore.getAllSettingSpec();
+        Collection<SettingSpec> retrievedSettingSpecs = settingSpecStore.getAllSettingSpecs();
         assertEquals(retrievedSettingSpecs.size(), 4);
     }
 }

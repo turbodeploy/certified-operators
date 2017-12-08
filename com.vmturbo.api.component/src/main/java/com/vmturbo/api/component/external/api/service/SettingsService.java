@@ -22,6 +22,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.SearchSettingSpecsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
+import com.vmturbo.group.api.GlobalSettingSpecs;
 
 /**
  * Service implementation of Settings
@@ -73,6 +74,13 @@ public class SettingsService implements ISettingsService {
                 .filter(spec -> settingMatchEntityType(spec, entityType))
                 .collect(Collectors.toList());
         final List<SettingsManagerApiDTO> retMgrs;
+
+        // HACK for supporting RATE_OF_RESIZE in UI under Default VM Setting
+        if ((entityType != null) &&
+                (entityType.equals(ServiceEntityMapper.UIEntityType.VIRTUAL_MACHINE.getValue()))) {
+            specs.add(GlobalSettingSpecs.RateOfResize.createSettingSpec());
+        }
+
         if (managerUuid != null) {
             retMgrs = settingsMapper.toManagerDto(specs, managerUuid)
                     .map(Collections::singletonList)

@@ -8,14 +8,13 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-
 import javax.annotation.Nonnull;
-
-import com.google.common.collect.ImmutableMap;
-import com.google.protobuf.util.JsonFormat;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import com.google.common.collect.ImmutableMap;
+import com.google.protobuf.util.JsonFormat;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpecCollection;
@@ -78,9 +77,23 @@ public class FileBasedSettingsSpecStore implements SettingSpecStore {
      */
     @Nonnull
     @Override
-    public Collection<SettingSpec> getAllSettingSpec() {
+    public Collection<SettingSpec> getAllSettingSpecs() {
         return settingSpecMap.values();
     }
 
 
+    /**
+     * Gets all the Global SettingSpecs.
+     *
+     * @return a collection of {@link SettingSpec}
+     */
+    @Nonnull
+    @Override
+    public Collection<SettingSpec> getAllGlobalSettingSpecs() {
+        return settingSpecMap
+                .values()
+                .stream()
+                .filter(SettingSpec::hasGlobalSettingSpec)
+                .collect(Collectors.toList());
+    }
 }

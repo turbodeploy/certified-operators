@@ -1,51 +1,43 @@
 package com.vmturbo.group.persistent;
 
+import static com.vmturbo.group.db.Tables.GLOBAL_SETTINGS;
 import static com.vmturbo.group.db.Tables.SETTING_POLICY;
 
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedList;
+import java.sql.SQLException;
+import java.sql.SQLTransientException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.annotations.VisibleForTesting;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.BatchBindStep;
 import org.jooq.DSLContext;
 import org.jooq.Record1;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Retryable;
+
+import com.google.protobuf.InvalidProtocolBufferException;
 
 import com.vmturbo.common.protobuf.setting.SettingProto;
-import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
-import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValueType;
-import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
-import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
-import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
-import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
-import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
-import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValueType;
 import com.vmturbo.group.db.enums.SettingPolicyPolicyType;
 import com.vmturbo.group.db.tables.pojos.SettingPolicy;
 import com.vmturbo.group.db.tables.records.SettingPolicyRecord;
 import com.vmturbo.group.identity.IdentityProvider;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * The {@link SettingStore} class is used to store settings-related objects, and retrieve them
@@ -58,7 +50,7 @@ public class SettingStore {
     /**
      * A DSLContext with which to interact with an underlying persistent datastore.
      */
-    private final DSLContext dsl;
+    private final DSLContext dslContext;
 
     private final IdentityProvider identityProvider;
 
@@ -68,13 +60,13 @@ public class SettingStore {
      * Create a new SettingStore.
      *
      * @param settingSpecStore The source, providing the {@link SettingSpec} definitions.
-     * @param dsl A context with which to interact with the underlying datastore.
+     * @param dslContext A context with which to interact with the underlying datastore.
      * @param identityProvider The identity provider used to assign OIDs.
      */
     public SettingStore(@Nonnull final SettingSpecStore settingSpecStore,
-            @Nonnull final DSLContext dsl, @Nonnull final IdentityProvider identityProvider,
+            @Nonnull final DSLContext dslContext, @Nonnull final IdentityProvider identityProvider,
             @Nonnull final SettingPolicyValidator settingPolicyValidator) {
-        this.dsl = Objects.requireNonNull(dsl);
+        this.dslContext = Objects.requireNonNull(dslContext);
         this.identityProvider = Objects.requireNonNull(identityProvider);
 
         // read the json config file, and create setting spec instances in memory
@@ -102,7 +94,7 @@ public class SettingStore {
         settingPolicyValidator.validateSettingPolicy(settingPolicyInfo, type);
 
         try {
-            return dsl.transactionResult(configuration -> {
+            return dslContext.transactionResult(configuration -> {
                 final DSLContext context = DSL.using(configuration);
                 // Explicitly search for an existing policy with the same name, so that we
                 // know when to throw a DuplicateNameException as opposed to a generic
@@ -183,7 +175,7 @@ public class SettingStore {
             throws SettingPolicyNotFoundException, InvalidSettingPolicyException,
             DuplicateNameException, DataAccessException {
         try {
-            return dsl.transactionResult(configuration -> {
+            return dslContext.transactionResult(configuration -> {
                 final DSLContext context = DSL.using(configuration);
 
                 final SettingPolicyRecord record =
@@ -266,7 +258,7 @@ public class SettingStore {
     public SettingProto.SettingPolicy deleteSettingPolicy(final long id)
             throws SettingPolicyNotFoundException, InvalidSettingPolicyException {
         try {
-            return dsl.transactionResult(configuration -> {
+            return dslContext.transactionResult(configuration -> {
                 final DSLContext context = DSL.using(configuration);
 
                 final SettingPolicyRecord record =
@@ -311,7 +303,7 @@ public class SettingStore {
      */
     public Stream<SettingProto.SettingPolicy> getSettingPolicies(
             @Nonnull final SettingPolicyFilter filter) throws DataAccessException {
-        return dsl.selectFrom(SETTING_POLICY)
+        return dslContext.selectFrom(SETTING_POLICY)
                 .where(filter.getConditions())
                 .fetch()
                 .into(SettingPolicy.class)
@@ -327,6 +319,143 @@ public class SettingStore {
      */
     public Optional<SettingProto.SettingPolicy> getSettingPolicy(final long oid) {
         return getSettingPolicies(SettingPolicyFilter.newBuilder().withId(oid).build()).findFirst();
+    }
+
+    /**
+     * Insert the settings into the Global Settings table in a single batch.
+     * If key already exists, it is skipper. Only new records are persisted in
+     * the DB.
+     *
+     * @param settings List of settings to be inserted into the database
+     * @throws DataAccessException
+     * @throws InvalidProtocolBufferException
+     * @throws SQLTransientException
+     *
+     */
+    @Retryable(value = {SQLTransientException.class},
+        maxAttempts = 3, backoff = @Backoff(delay = 2000))
+    private void insertGlobalSettingsInternal(@Nonnull final List<Setting> settings)
+            throws SQLTransientException, DataAccessException, InvalidProtocolBufferException {
+
+        if (settings.isEmpty()) {
+            return;
+        }
+
+        try {
+            // insert only those settings which don't exist in the database
+            Map<String, Setting> inputSettings =
+                settings
+                    .stream()
+                    .collect(Collectors.toMap(Setting::getSettingSpecName, Function.identity()));
+            Map<String, Setting> existingSettings =
+                getAllGlobalSettings()
+                    .stream()
+                    .collect(Collectors.toMap(Setting::getSettingSpecName, Function.identity()));
+
+            List<Setting> newSettings = new ArrayList<>();
+            for (Setting s : inputSettings.values()) {
+                if (!existingSettings.containsKey(s.getSettingSpecName())) {
+                    newSettings.add(s);
+                }
+            }
+
+            if (newSettings.isEmpty()) {
+                logger.info("No new global settings to add to the database");
+                return;
+            }
+            BatchBindStep batch = dslContext.batch(
+                //have to provide dummy values for jooq
+                dslContext.insertInto(GLOBAL_SETTINGS, GLOBAL_SETTINGS.NAME, GLOBAL_SETTINGS.SETTING_DATA)
+                                .values(newSettings.get(0).getSettingSpecName(), newSettings.get(0).toByteArray()));
+            for (Setting setting : newSettings) {
+                batch.bind(setting.getSettingSpecName(), setting.toByteArray());
+            }
+            batch.execute();
+        } catch (DataAccessException e) {
+            if ((e.getCause() instanceof SQLException) &&
+                    (((SQLException)e.getCause()).getCause() instanceof  SQLTransientException)) {
+                // throw SQLTransientException so that it can be retried
+                throw new SQLTransientException(((SQLException)e.getCause()).getCause());
+            } else {
+                throw e;
+            }
+        }
+    }
+
+    public void insertGlobalSettings(@Nonnull final List<Setting> settings)
+        throws DataAccessException, InvalidProtocolBufferException {
+
+        try {
+            insertGlobalSettingsInternal(settings);
+        } catch (SQLTransientException e) {
+            throw new DataAccessException("Failed to insert settings into DB", e.getCause());
+        }
+    }
+
+    public void insertGlobalSetting(@Nonnull final Setting setting)
+        throws DataAccessException, InvalidProtocolBufferException {
+
+        insertGlobalSettings(Arrays.asList(setting));
+    }
+
+    @Retryable(value = {SQLTransientException.class},
+        maxAttempts = 3, backoff = @Backoff(delay = 2000))
+    private void updateGlobalSettingInternal(@Nonnull final Setting setting)
+            throws SQLTransientException, DataAccessException {
+
+        try {
+            dslContext.update(GLOBAL_SETTINGS)
+                        .set(GLOBAL_SETTINGS.SETTING_DATA, setting.toByteArray())
+                        .where(GLOBAL_SETTINGS.NAME.eq(setting.getSettingSpecName()))
+                        .execute();
+        } catch (DataAccessException e) {
+            if ((e.getCause() instanceof SQLException) &&
+                    (((SQLException)e.getCause()).getCause() instanceof  SQLTransientException)) {
+                // throw SQLTransientException so that it can be retried
+                throw new SQLTransientException(((SQLException)e.getCause()).getCause());
+            } else {
+                throw e;
+            }
+        }
+    }
+
+    public void updateGlobalSetting(@Nonnull final Setting setting)
+        throws DataAccessException {
+
+        try {
+            updateGlobalSettingInternal(setting);
+        } catch (SQLTransientException e) {
+            throw new DataAccessException("Failed to update setting: "
+                + setting.getSettingSpecName(), e.getCause());
+        }
+    }
+
+    public Optional<Setting> getGlobalSetting(@Nonnull final String settingName)
+        throws DataAccessException, InvalidProtocolBufferException {
+
+            Record1<byte[]> result = dslContext.select(GLOBAL_SETTINGS.SETTING_DATA)
+                            .from(GLOBAL_SETTINGS)
+                            .where(GLOBAL_SETTINGS.NAME.eq(settingName)).fetchOne();
+
+        if (result != null) {
+            return Optional.of(Setting.parseFrom(result.value1()));
+        }
+
+        return Optional.empty();
+    }
+
+    public List<Setting> getAllGlobalSettings()
+        throws DataAccessException, InvalidProtocolBufferException {
+
+        List<byte[]> result =  dslContext.select().from(GLOBAL_SETTINGS)
+                                    .fetch().getValues(GLOBAL_SETTINGS.SETTING_DATA);
+        List<Setting> settings = new ArrayList<>();
+
+        for (byte[] settingBytes : result) {
+                settings.add(Setting.parseFrom(settingBytes));
+        }
+
+        return settings;
     }
 
     /**

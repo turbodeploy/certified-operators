@@ -208,7 +208,34 @@ public enum SettingPolicySetting {
      */
     IgnoreHA("ignoreHa", "Ignore High Availability", Collections.emptyList(),
             SettingTiebreaker.SMALLER, EnumSet.of(EntityType.PHYSICAL_MACHINE),
-            new BooleanSettingDataType(false), true);
+            new BooleanSettingDataType(false), true),
+
+    /**
+     * Virtual CPU Increment.
+     */
+    VcpuIncrement("usedIncrement_VCPU", "Increment constant for VCPU [MHz]",
+            Arrays.asList("resizeRecommendationsConstants"),
+            SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.VIRTUAL_MACHINE), 
+            numeric(0.0f/*min*/, 1000000.0f/*max*/, 1800.0f/*default*/), true),
+
+    /**
+     * Virtual Memory Increment.
+     */
+    VmemIncrement("usedIncrement_VMEM", "Increment constant for VMem [MB]",
+            Arrays.asList("resizeRecommendationsConstants"),
+            SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.VIRTUAL_MACHINE),
+            numeric(0.0f/*min*/, 1000000.0f/*max*/, 1024.0f/*default*/), true),
+
+    /**
+     * Virtual Storage Increment.
+     */
+    VstorageIncrement("usedIncrement_VStorage", "Increment constant for VStorage [GB]",
+            Arrays.asList("resizeRecommendationsConstants"),
+            SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.VIRTUAL_MACHINE),
+            numeric(0.0f/*min*/, 999999.0f/*max*/, 999999.0f/*default*/), true);
 
     /**
      * Setting name to setting enumeration value map for fast access.

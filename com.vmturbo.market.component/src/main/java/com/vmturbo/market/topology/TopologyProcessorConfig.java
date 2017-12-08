@@ -27,7 +27,8 @@ public class TopologyProcessorConfig {
 
     @Bean
     public TopologyEntitiesListener topologyEntitiesListener() {
-        return new TopologyEntitiesListener(marketRunnerConfig.marketRunner());
+        return new TopologyEntitiesListener(marketRunnerConfig.marketRunner(),
+            marketRunnerConfig.settingServiceClient());
     }
 
     @Bean

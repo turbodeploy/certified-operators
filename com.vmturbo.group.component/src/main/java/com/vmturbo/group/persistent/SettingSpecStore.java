@@ -26,5 +26,13 @@ public interface SettingSpecStore {
      * @return settings specifications collection
      */
     @Nonnull
-    Collection<SettingSpec> getAllSettingSpec();
+    Collection<SettingSpec> getAllSettingSpecs();
+
+    /**
+     * Returns all the existing global setting specifications.
+     *
+     * @return global settings specifications collection
+     */
+    @Nonnull
+    Collection<SettingSpec> getAllGlobalSettingSpecs();
 }

@@ -98,6 +98,10 @@
             <artifactId>components-api-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.group.api</artifactId>
+        </dependency>
     </dependencies>
 
 </project>

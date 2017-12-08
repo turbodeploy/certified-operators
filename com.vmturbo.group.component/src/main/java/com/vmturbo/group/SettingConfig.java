@@ -5,16 +5,17 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
 import com.vmturbo.common.protobuf.setting.SettingProtoREST.SettingPolicyServiceController;
 import com.vmturbo.common.protobuf.setting.SettingProtoREST.SettingServiceController;
+import com.vmturbo.group.persistent.DefaultGlobalSettingsCreator;
 import com.vmturbo.group.persistent.DefaultSettingPolicyCreator;
 import com.vmturbo.group.persistent.DefaultSettingPolicyValidator;
 import com.vmturbo.group.persistent.EntitySettingStore;
@@ -83,13 +84,26 @@ public class SettingConfig {
     }
 
     @Bean
+    public DefaultGlobalSettingsCreator defaultGlobalSettingsCreator() {
+        // Use the same retry interval as the one used for entity settings.
+        final DefaultGlobalSettingsCreator creator =
+                new DefaultGlobalSettingsCreator(settingSpecsStore(), settingStore(),
+                        TimeUnit.SECONDS.toMillis(createDefaultSettingPolicyRetryIntervalSec));
+
+        Thread t = new Thread(creator);
+        t.setName("default-global-settings-creator");
+        t.start();
+        return creator;
+    }
+
+    @Bean
     public EntitySettingStore entitySettingStore() {
         return new EntitySettingStore(realtimeTopologyContextId, settingStore());
     }
 
     @Bean
     public SettingRpcService settingService() {
-        return new SettingRpcService(settingSpecsStore());
+        return new SettingRpcService(settingSpecsStore(), settingStore());
     }
 
     @Bean

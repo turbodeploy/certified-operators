@@ -58,7 +58,11 @@
         "memoryOverprovisionedPercentage",
         "utilTarget",
         "targetBand",
-        "ignoreHa"
+        "ignoreHa",
+        "usedIncrement_VCPU",
+        "usedIncrement_VMEM",
+        "usedIncrement_VStorage",
+        "RATE_OF_RESIZE"
       ]
     },
     "storagesettingsmanager": {

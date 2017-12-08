@@ -10,4 +10,8 @@ public class DuplicateNameException extends Exception {
     public DuplicateNameException(final long existingId, @Nonnull final String name) {
         super("A setting policy " + existingId + " already has name " + name + "!");
     }
+
+    public DuplicateNameException(@Nonnull final String name) {
+        super("A setting with name: '" + name + "' already exists");
+    }
 }

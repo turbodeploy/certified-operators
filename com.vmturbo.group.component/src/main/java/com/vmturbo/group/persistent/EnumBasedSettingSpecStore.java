@@ -2,20 +2,22 @@ package com.vmturbo.group.persistent;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
+import com.vmturbo.group.api.GlobalSettingSpecs;
 import com.vmturbo.group.api.SettingPolicySetting;
 
 /**
- * Setting spec store, based on enum ({@link SettingPolicySetting}).
+ * Setting spec store, based on enum ({@link SettingPolicySetting}) and
+ * ({@link GlobalSettingSpecs}).
  */
 @Immutable
 public class EnumBasedSettingSpecStore implements SettingSpecStore {
@@ -23,9 +25,16 @@ public class EnumBasedSettingSpecStore implements SettingSpecStore {
     private final Map<String, SettingSpec> settingSpecMap;
 
     public EnumBasedSettingSpecStore() {
-        settingSpecMap = Collections.unmodifiableMap(Stream.of(SettingPolicySetting.values())
-                .collect(Collectors.toMap(SettingPolicySetting::getSettingName,
-                        SettingPolicySetting::createSettingSpec)));
+
+        Map<String, SettingSpec> specs = new HashMap<>();
+        for (SettingPolicySetting setting : SettingPolicySetting.values()) {
+            specs.put(setting.getSettingName(), setting.createSettingSpec());
+        }
+        for (GlobalSettingSpecs setting : GlobalSettingSpecs.values()) {
+            specs.put(setting.getSettingName(), setting.createSettingSpec());
+        }
+
+        settingSpecMap = Collections.unmodifiableMap(specs);
     }
 
     @Nonnull
@@ -37,7 +46,17 @@ public class EnumBasedSettingSpecStore implements SettingSpecStore {
 
     @Nonnull
     @Override
-    public Collection<SettingSpec> getAllSettingSpec() {
+    public Collection<SettingSpec> getAllSettingSpecs() {
         return settingSpecMap.values();
+    }
+
+    @Nonnull
+    @Override
+    public Collection<SettingSpec> getAllGlobalSettingSpecs() {
+        return settingSpecMap
+                .values()
+                .stream()
+                .filter(SettingSpec::hasGlobalSettingSpec)
+                .collect(Collectors.toList());
     }
 }

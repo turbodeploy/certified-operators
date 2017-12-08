@@ -10,6 +10,7 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.CommunicationException;
@@ -25,6 +26,8 @@ public class TopologyEntitiesListener implements EntitiesListener {
 
     private final MarketRunner marketRunner;
 
+    private final SettingServiceBlockingStub settingServiceClient;
+
     // TODO: we need to make sure that only a single instance of TopologyEntitiesListener
     // be created and used. Using public constructor here can not guarantee it!
     @SuppressWarnings("unused")
@@ -33,8 +36,10 @@ public class TopologyEntitiesListener implements EntitiesListener {
         throw new RuntimeException("private constructor called");
     }
 
-    public TopologyEntitiesListener(@Nonnull MarketRunner marketRunner) {
+    public TopologyEntitiesListener(@Nonnull MarketRunner marketRunner,
+                                    @Nonnull SettingServiceBlockingStub settingServiceClient) {
         this.marketRunner = Objects.requireNonNull(marketRunner);
+        this.settingServiceClient = Objects.requireNonNull(settingServiceClient);
     }
 
     /**
@@ -57,6 +62,7 @@ public class TopologyEntitiesListener implements EntitiesListener {
             logger.info("Thread interrupted receiving topology " + topologyId + " with for " +
                     "context " + topologyContextId, e);
         }
-        marketRunner.scheduleAnalysis(topologyInfo, entities, false);
+        marketRunner.scheduleAnalysis(topologyInfo, entities, false,
+            settingServiceClient);
     }
 }

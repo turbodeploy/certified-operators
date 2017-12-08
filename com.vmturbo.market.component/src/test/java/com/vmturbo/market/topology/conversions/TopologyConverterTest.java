@@ -135,7 +135,7 @@ public class TopologyConverterTest {
         CommoditySoldSettingsTO commSoldSettings = commSold.getSettings();
         assertTrue(commSoldSettings.getResizable());
         assertEquals(100000.0, commSoldSettings.getCapacityUpperBound(), epsilon);
-        assertEquals(20000.0, commSoldSettings.getCapacityIncrement(), epsilon); // currently hard-coded as capacity / 5
+        assertThat(commSoldSettings.getCapacityIncrement(), is(20.0f));
         assertEquals(0.8, commSoldSettings.getUtilizationUpperBound(), epsilon);
         assertEquals(1.0, commSoldSettings.getPriceFunction().getStandardWeighted().getWeight(), epsilon);
         TraderSettingsTO vdcSettings = vdcTraderTO.getSettings();

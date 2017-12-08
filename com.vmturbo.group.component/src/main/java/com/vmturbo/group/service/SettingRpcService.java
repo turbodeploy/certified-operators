@@ -1,24 +1,32 @@
 package com.vmturbo.group.service;
 
+import java.util.HashSet;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.Sets;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.jooq.exception.DataAccessException;
 
+import com.google.common.collect.Sets;
+import com.google.protobuf.InvalidProtocolBufferException;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
+import com.vmturbo.common.protobuf.setting.SettingProto.GetMultipleGlobalSettingsRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.SearchSettingSpecsRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.SingleSettingSpecRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.UpdateGlobalSettingRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.UpdateGlobalSettingResponse;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceImplBase;
 import com.vmturbo.group.persistent.SettingSpecStore;
+import com.vmturbo.group.persistent.SettingStore;
 
 public class SettingRpcService extends SettingServiceImplBase {
 
@@ -26,8 +34,12 @@ public class SettingRpcService extends SettingServiceImplBase {
 
     private final SettingSpecStore settingSpecStore;
 
-    public SettingRpcService(final @Nonnull SettingSpecStore settingSpecStore) {
+    private final SettingStore settingStore;
+
+    public SettingRpcService(@Nonnull final SettingSpecStore settingSpecStore,
+                             @Nonnull final SettingStore settingStore) {
         this.settingSpecStore = Objects.requireNonNull(settingSpecStore);
+        this.settingStore = Objects.requireNonNull(settingStore);
     }
 
     /**
@@ -80,7 +92,7 @@ public class SettingRpcService extends SettingServiceImplBase {
         Optional<Set<String>> requestedNames = request.getSettingSpecNameCount() > 0 ?
                 Optional.of(Sets.newHashSet(request.getSettingSpecNameList())) : Optional.empty();
 
-        settingSpecStore.getAllSettingSpec().stream()
+        settingSpecStore.getAllSettingSpecs().stream()
                 // If specific names are requested, filter out anything that doesn't match.
                 .filter(spec -> requestedNames
                     .map(names -> names.contains(spec.getName()))
@@ -88,5 +100,113 @@ public class SettingRpcService extends SettingServiceImplBase {
                 .forEach(responseObserver::onNext);
 
         responseObserver.onCompleted();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void getGlobalSetting(GetSingleGlobalSettingRequest request,
+                                  StreamObserver<Setting> responseObserver) {
+
+        if (!request.hasSettingSpecName()) {
+            responseObserver.onCompleted();
+            return;
+        }
+
+        try {
+            Optional<Setting> setting = settingStore.getGlobalSetting(
+                    request.getSettingSpecName());
+
+            if (setting.isPresent()) {
+                responseObserver.onNext(setting.get());
+            }
+            responseObserver.onCompleted();
+        } catch (InvalidProtocolBufferException e) {
+            responseObserver.onError(
+                Status.INTERNAL.withDescription(e.getMessage()).asException());
+        }
+
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void getMultipleGlobalSettings(GetMultipleGlobalSettingsRequest request,
+                                  StreamObserver<Setting> responseObserver) {
+
+        Set<String> requestedSettings = new HashSet<>();
+
+        if (request.getSettingSpecNameCount() > 0 ) {
+            requestedSettings.addAll(request.getSettingSpecNameList());
+        }
+
+        try {
+            settingStore.getAllGlobalSettings()
+                .stream()
+                // If specific names are requested, filter out anything that doesn't match.
+                .filter(setting ->
+                            (requestedSettings.isEmpty() ||
+                                requestedSettings.contains(setting.getSettingSpecName())))
+                .forEach(responseObserver::onNext);
+
+            responseObserver.onCompleted();
+        } catch (DataAccessException | InvalidProtocolBufferException e) {
+            responseObserver.onError(
+                Status.INTERNAL.withDescription(e.getMessage()).asException());
+        }
+    }
+
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void updateGlobalSetting(UpdateGlobalSettingRequest request,
+                                    StreamObserver<UpdateGlobalSettingResponse> responseObserver) {
+
+        if (!request.hasSettingSpecName()) {
+            responseObserver.onError(Status.INVALID_ARGUMENT
+                .withDescription("Setting name is missing")
+                .asException());
+            responseObserver.onCompleted();
+            return;
+        }
+
+        try {
+            settingStore.updateGlobalSetting(createSettingFromRequest(request));
+            responseObserver.onNext(UpdateGlobalSettingResponse.newBuilder().build());
+        } catch (DataAccessException e) {
+            responseObserver.onError(
+                Status.INTERNAL.withDescription(e.getMessage()).asException());
+        }
+
+        responseObserver.onCompleted();
+    }
+
+    private Setting createSettingFromRequest(UpdateGlobalSettingRequest request) {
+
+        Setting.Builder settingBuilder = Setting.newBuilder();
+        settingBuilder.setSettingSpecName(request.getSettingSpecName());
+
+        switch (request.getValueCase()) {
+            case BOOLEAN_SETTING_VALUE:
+                settingBuilder.setBooleanSettingValue(request.getBooleanSettingValue());
+                break;
+            case NUMERIC_SETTING_VALUE:
+                settingBuilder.setNumericSettingValue(request.getNumericSettingValue());
+                break;
+            case STRING_SETTING_VALUE:
+                settingBuilder.setStringSettingValue(request.getStringSettingValue());
+                break;
+            case ENUM_SETTING_VALUE:
+                settingBuilder.setEnumSettingValue(request.getEnumSettingValue());
+                break;
+            default:
+                throw new IllegalArgumentException("Unknown value type " + request.getValueCase());
+        }
+
+        return settingBuilder.build();
     }
 }

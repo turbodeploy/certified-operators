@@ -5,16 +5,27 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
 import java.util.Set;
 
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
+import com.vmturbo.common.protobuf.SettingDTOUtil;
+import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
+import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -22,6 +33,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.group.api.GlobalSettingSpecs;
 import com.vmturbo.market.runner.Analysis.AnalysisState;
 
 /**
@@ -40,9 +53,30 @@ public class AnalysisTest {
             .setTopologyType(topologyType)
             .build();
 
+    private final GroupServiceMole testGroupService = spy(new GroupServiceMole());
+    private final SettingPolicyServiceMole testSettingPolicyService =
+            spy(new SettingPolicyServiceMole());
+    private final SettingServiceMole testSettingService =
+                 spy(new SettingServiceMole());
+    private SettingServiceBlockingStub settingServiceClient;
+
+    @Rule
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(testGroupService,
+                     testSettingPolicyService, testSettingService);
+
     @Before
     public void before() {
         IdentityGenerator.initPrefix(0L);
+        settingServiceClient =
+            SettingServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        when(testSettingService.getGlobalSetting(any()))
+            .thenReturn(
+                Setting.newBuilder()
+                    .setSettingSpecName(
+                        GlobalSettingSpecs.RateOfResize.getSettingName())
+                    .setNumericSettingValue(
+                        SettingDTOUtil.createNumericSettingValue(10.0f))
+                    .build());
     }
 
     /**
@@ -53,6 +87,7 @@ public class AnalysisTest {
         Analysis analysis  = (new Analysis.AnalysisFactory()).newAnalysisBuilder()
                 .setTopologyInfo(topologyInfo)
                 .setIncludeVDC(true)
+                .setSettingsServiceClient(settingServiceClient)
                 .build();
         assertEquals(topologyContextId, analysis.getContextId());
         assertEquals(topologyId, analysis.getTopologyId());
@@ -69,6 +104,7 @@ public class AnalysisTest {
         Analysis analysis  = (new Analysis.AnalysisFactory()).newAnalysisBuilder()
                 .setTopologyInfo(topologyInfo)
                 .setIncludeVDC(true)
+                .setSettingsServiceClient(settingServiceClient)
                 .build();
         analysis.execute();
         assertTrue(analysis.isDone());
@@ -90,6 +126,7 @@ public class AnalysisTest {
         Analysis analysis  = (new Analysis.AnalysisFactory()).newAnalysisBuilder()
                 .setIncludeVDC(true)
                 .setTopologyDTOs(set)
+                .setSettingsServiceClient(settingServiceClient)
                 .build();
         analysis.execute();
         assertTrue(analysis.isDone());
@@ -125,6 +162,7 @@ public class AnalysisTest {
         Analysis analysis  = (new Analysis.AnalysisFactory()).newAnalysisBuilder()
                 .setTopologyInfo(topologyInfo)
                 .setIncludeVDC(true)
+                .setSettingsServiceClient(settingServiceClient)
                 .build();
         boolean first = analysis.execute();
         boolean second = analysis.execute();

@@ -13,16 +13,19 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.commons.analysis.CommodityResizeDependencyMap;
 import com.vmturbo.commons.analysis.RawMaterialsMap;
 import com.vmturbo.commons.analysis.UpdateFunction;
+import com.vmturbo.group.api.GlobalSettingSpecs;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.economy.CommodityResizeSpecification;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.EconomySettings;
 import com.vmturbo.platform.analysis.ede.Ede;
 import com.vmturbo.platform.analysis.ledger.PriceStatement;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults;
@@ -76,7 +79,8 @@ public class TopologyEntitiesHandler {
      * @return The list of actions for the TOs.
      */
     public static AnalysisResults performAnalysis(Set<TraderTO> traderTOs,
-                    @Nonnull final TopologyDTO.TopologyInfo topologyInfo) {
+                    @Nonnull final TopologyDTO.TopologyInfo topologyInfo,
+                    @Nonnull final Map<String, Setting> settingsMap) {
         logger.info("Received TOs from marketComponent. Starting economy creation on {} traders",
                 traderTOs.size());
         final long start = System.nanoTime();
@@ -103,7 +107,7 @@ public class TopologyEntitiesHandler {
 
         final Economy economy = (Economy)topology.getEconomy();
         // enable estimates
-        economy.getSettings().setEstimatesEnabled(true);
+        setEconomySettings(economy.getSettings(), settingsMap);
         // compute startPriceIndex
         final PriceStatement startPriceStatement = new PriceStatement();
         startPriceStatement.computePriceIndex(economy);
@@ -205,5 +209,18 @@ public class TopologyEntitiesHandler {
         AnalysisUtil.COMM_TYPES_TO_ALLOW_OVERHEAD.stream()
             .map(CommoditySpecification::new)
             .forEach(topology::addCommsToAdjustOverhead);
+    }
+
+    private static void setEconomySettings(@Nonnull EconomySettings economySettings,
+                                           @Nonnull final Map<String, Setting> settingsMap) {
+
+        economySettings.setEstimatesEnabled(true);
+
+        String rateOfResize = GlobalSettingSpecs.RateOfResize.getSettingName();
+        if (settingsMap.containsKey(rateOfResize) &&
+                settingsMap.get(rateOfResize).hasNumericSettingValue()) {
+            economySettings.setRateOfResize(
+                settingsMap.get(rateOfResize).getNumericSettingValue().getValue());
+        }
     }
 }

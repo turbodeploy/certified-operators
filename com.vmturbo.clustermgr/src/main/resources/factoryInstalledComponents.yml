@@ -25,6 +25,7 @@ market:
   grpcPingIntervalSeconds: 300
   identityGeneratorPrefix: 2
   websocket.pong.timeout: 30000
+  groupHost: 'group'
 
 topology-processor:
   # START - database-related properties.

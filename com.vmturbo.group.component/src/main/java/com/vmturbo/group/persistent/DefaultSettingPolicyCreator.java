@@ -50,7 +50,7 @@ public class DefaultSettingPolicyCreator implements Runnable {
     public DefaultSettingPolicyCreator(@Nonnull final SettingSpecStore specStore,
             @Nonnull final SettingStore settingStore, final long timeBetweenIterationsMs) {
         Objects.requireNonNull(specStore);
-        this.policies = defaultSettingPoliciesFromSpecs(specStore.getAllSettingSpec());
+        this.policies = defaultSettingPoliciesFromSpecs(specStore.getAllSettingSpecs());
         this.settingStore = Objects.requireNonNull(settingStore);
         this.timeBetweenIterationsMs = timeBetweenIterationsMs;
     }

@@ -5,6 +5,7 @@ import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -24,10 +25,14 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.analysis.InvalidTopologyException;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.group.api.GlobalSettingSpecs;
 import com.vmturbo.market.topology.TopologyEntitiesHandler;
 import com.vmturbo.market.topology.conversions.TopologyConverter;
 import com.vmturbo.platform.analysis.economy.Market;
@@ -70,6 +75,8 @@ public class Analysis {
 
     private final TopologyInfo topologyInfo;
 
+    private SettingServiceBlockingStub settingsServiceClient;
+
     /**
      * Create and execute a context for a Market Analysis given a topology, an optional 'scope' to
      * apply, and a flag determining whether guaranteed buyers (VDC, VPod, DPod) are included
@@ -84,7 +91,8 @@ public class Analysis {
      */
     public Analysis(@Nonnull final TopologyInfo topologyInfo,
                     @Nonnull final Set<TopologyEntityDTO> topologyDTOs,
-                    final boolean includeVDC) {
+                    final boolean includeVDC,
+                    final SettingServiceBlockingStub settingsServiceClient) {
         this.topologyInfo = topologyInfo;
         this.topologyDTOs = topologyDTOs;
         this.includeVDC = includeVDC;
@@ -93,6 +101,7 @@ public class Analysis {
             topologyInfo.getTopologyContextId() + " with topology " +
             topologyInfo.getTopologyId() + " : ";
         this.projectedTopologyId = IdentityGenerator.next();
+        this.settingsServiceClient = settingsServiceClient;
     }
 
     private static final DataMetricSummary RESULT_PROCESSING = DataMetricSummary.builder()
@@ -139,8 +148,11 @@ public class Analysis {
             if (logger.isTraceEnabled()) {
                 traderTOs.stream().map(dto -> "Economy DTO: " + dto).forEach(logger::trace);
             }
+
+            Map<String, Setting> settingsMap = getSettingsMap();
+
             final AnalysisResults results =
-                    TopologyEntitiesHandler.performAnalysis(traderTOs, topologyInfo);
+                    TopologyEntitiesHandler.performAnalysis(traderTOs, topologyInfo, settingsMap);
             final DataMetricTimer processResultTime = RESULT_PROCESSING.startTimer();
             // add shoppinglist from newly provisioned trader to shoppingListOidToInfos
             converter.updateShoppingListMap(results.getNewShoppingListToBuyerEntryList());
@@ -384,6 +396,7 @@ public class Analysis {
      *
      * @param traderTOs the topology to be scoped
      * @param seedOids the OIDs of the ServiceEntities that constitute the scope 'seed'
+     * @return Set of {@link TraderTO} objects
      **/
     @VisibleForTesting
     Set<TraderTO> scopeTopology(@Nonnull Set<TraderTO> traderTOs, @Nonnull Set<Long> seedOids) {
@@ -516,6 +529,8 @@ public class Analysis {
         // specify whether the analysis should include guaranteed buyers in the market analysis
         private boolean includeVDC = false;
 
+        private SettingServiceBlockingStub settingsServiceClient = null;
+
         /**
          * Capture the {@link TopologyInfo} describing this Analysis, including the IDs, type,
          * timestamp, etc.
@@ -551,12 +566,23 @@ public class Analysis {
         }
 
         /**
+         * Configure the Group client to get the Settings.
+         *
+         * @param serviceClient Settings Service client
+         * @return this Builder to support flow style
+         */
+        public AnalysisBuilder setSettingsServiceClient(SettingServiceBlockingStub serviceClient) {
+            this.settingsServiceClient  = serviceClient;
+            return this;
+        }
+
+        /**
          * Request a new Analysis object be built using the values specified.
          *
          * @return the newly build Analysis object initialized from the Builder fields.
          */
         public Analysis build() {
-            return new Analysis(topologyInfo, topologyDTOs, includeVDC);
+            return new Analysis(topologyInfo, topologyDTOs, includeVDC, settingsServiceClient);
         }
     }
 
@@ -569,5 +595,20 @@ public class Analysis {
         public AnalysisBuilder newAnalysisBuilder() {
             return new AnalysisBuilder();
         }
+    }
+
+    private Map<String, Setting> getSettingsMap() {
+
+        Map<String, Setting> settingsMap = new HashMap<>();
+
+        // for now only interested in one global settings: RateOfResize
+        GetSingleGlobalSettingRequest settingRequest =
+            GetSingleGlobalSettingRequest.newBuilder()
+                .setSettingSpecName(GlobalSettingSpecs.RateOfResize.getSettingName())
+                .build();
+
+        Setting rateOfResizeSetting = settingsServiceClient.getGlobalSetting(settingRequest);
+        settingsMap.put(rateOfResizeSetting.getSettingSpecName(), rateOfResizeSetting);
+        return settingsMap;
     }
 }

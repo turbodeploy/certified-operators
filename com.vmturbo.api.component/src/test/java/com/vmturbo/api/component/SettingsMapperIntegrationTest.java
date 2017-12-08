@@ -7,6 +7,7 @@ import java.util.stream.Stream;
 
 import org.junit.Assert;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import io.grpc.Channel;
 import io.grpc.Server;
@@ -22,9 +23,11 @@ import com.vmturbo.api.component.external.api.service.SettingsService;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
+import com.vmturbo.group.api.GlobalSettingSpecs;
 import com.vmturbo.group.api.SettingPolicySetting;
 import com.vmturbo.group.persistent.EnumBasedSettingSpecStore;
 import com.vmturbo.group.persistent.SettingSpecStore;
+import com.vmturbo.group.persistent.SettingStore;
 import com.vmturbo.group.service.SettingRpcService;
 
 /**
@@ -41,7 +44,9 @@ public class SettingsMapperIntegrationTest {
     @Test
     public void testSettingsMapping() throws Exception {
         final SettingSpecStore specStore = new EnumBasedSettingSpecStore();
-        final SettingRpcService settingRpcService = new SettingRpcService(specStore);
+        final SettingStore settingStore = Mockito.mock(SettingStore.class);
+        final SettingRpcService settingRpcService =
+            new SettingRpcService(specStore, settingStore);
         final Server server =
                 InProcessServerBuilder.forName("test").addService(settingRpcService).build();
         server.start();
@@ -67,6 +72,8 @@ public class SettingsMapperIntegrationTest {
         final Set<String> enumSettingsNames = Stream.of(SettingPolicySetting.values())
                 .map(SettingPolicySetting::getSettingName)
                 .collect(Collectors.toSet());
+        // RATE of Resize has to be added too due to API constraint
+        enumSettingsNames.add(GlobalSettingSpecs.RateOfResize.getSettingName());
         Assert.assertEquals(enumSettingsNames, visibleSettings);
 
         server.shutdownNow();

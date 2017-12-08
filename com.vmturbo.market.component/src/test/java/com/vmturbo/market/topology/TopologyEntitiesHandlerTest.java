@@ -8,6 +8,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URL;
 import java.nio.charset.Charset;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -324,7 +325,8 @@ public class TopologyEntitiesHandlerTest {
                 .build();
 
         AnalysisResults results =
-            TopologyEntitiesHandler.performAnalysis(economyDTOs, topologyInfo);
+            TopologyEntitiesHandler.performAnalysis(
+                economyDTOs, topologyInfo, Collections.emptyMap());
         return results.getActionsList();
     }
 
@@ -383,7 +385,7 @@ public class TopologyEntitiesHandlerTest {
     }
 
     /**
-     * Helper method to check that bicliques are created correctly on the {@link TraderTO}
+     * Helper method to check that bicliques are created correctly on the {@link TraderTO}.
      *
      * @param shopTogetherTraderDTOs {@link TraderTO} to check
      */

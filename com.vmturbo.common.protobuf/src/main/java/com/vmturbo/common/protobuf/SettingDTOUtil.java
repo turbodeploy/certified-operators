@@ -14,13 +14,16 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.setting.SettingProto;
+import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.EntityTypeSet;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
+import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
+import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
 
 /**
  * Utilities for dealing with messages defined in {@link SettingProto} (Setting.proto).
@@ -145,5 +148,29 @@ public final class SettingDTOUtil {
                                                EnumSettingValueType type) {
         return (type.getEnumValuesList().indexOf(value1.getValue())
                 - type.getEnumValuesList().indexOf(value2.getValue()));
+    }
+
+    public static NumericSettingValue createNumericSettingValue(float value) {
+        return NumericSettingValue.newBuilder()
+            .setValue(value)
+            .build();
+    }
+
+    public static BooleanSettingValue createBooleanSettingValue(boolean value) {
+        return BooleanSettingValue.newBuilder()
+            .setValue(value)
+            .build();
+    }
+
+    public static StringSettingValue createStringSettingValue(String value) {
+        return StringSettingValue.newBuilder()
+            .setValue(value)
+            .build();
+    }
+
+    public static EnumSettingValue createEnumSettingValue(String value) {
+        return EnumSettingValue.newBuilder()
+            .setValue(value)
+            .build();
     }
 }
