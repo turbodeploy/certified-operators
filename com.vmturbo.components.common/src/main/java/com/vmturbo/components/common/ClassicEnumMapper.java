@@ -1,4 +1,4 @@
-package com.vmturbo.components.test.utilities.topology.conversion;
+package com.vmturbo.components.common;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;

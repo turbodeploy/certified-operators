@@ -44,7 +44,8 @@ import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRespons
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse.SettingsForEntity;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.TopologySelection;
-import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
+import com.vmturbo.components.common.ClassicEnumMapper;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * The {@link EntitySettingsCache} stores the list of settings for each entity involved
@@ -267,7 +268,7 @@ public class EntitySettingsCache {
                 response.getBody().forEach(dto -> {
                     long id = Long.valueOf(dto.getUuid());
                     foundEntities.add(id);
-                    result.put(id, EntityType.valueOf(dto.getClassName()));
+                    result.put(id, ClassicEnumMapper.entityType(dto.getClassName()));
                 });
 
                 if (!foundEntities.containsAll(entities)) {

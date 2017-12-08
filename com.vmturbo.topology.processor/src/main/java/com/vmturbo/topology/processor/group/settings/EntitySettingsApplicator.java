@@ -93,6 +93,7 @@ public class EntitySettingsApplicator {
                 new SuspendApplicator(),
                 new ProvisionApplicator(),
                 new ResizeApplicator(),
+                new StorageMoveApplicator(),
                 new UtilizationThresholdApplicator(SettingPolicySetting.IoThroughput,
                         CommodityType.IO_THROUGHPUT),
                 new UtilizationThresholdApplicator(SettingPolicySetting.NetThroughput,
@@ -191,6 +192,28 @@ public class EntitySettingsApplicator {
                 .filter(commBought -> commBought.getProviderEntityType() ==
                         EntityType.PHYSICAL_MACHINE_VALUE)
                 .forEach(commBought -> commBought.setMovable(movable));
+        }
+    }
+
+    /**
+     * Applies the "storage move" setting to a {@link TopologyEntityDTO.Builder}. In particular,
+     * if the "move" is disabled, set the commodities purchased from a storage to non-movable.
+     */
+    static class StorageMoveApplicator extends SingleSettingApplicator {
+
+        private StorageMoveApplicator() {
+            super(SettingPolicySetting.StorageMove);
+        }
+        @Override
+        public void apply(@Nonnull final TopologyEntityDTO.Builder entity,
+                          @Nonnull final Setting setting) {
+            final boolean movable = !setting.getEnumSettingValue().getValue().equals("DISABLED");
+            entity.getCommoditiesBoughtFromProvidersBuilderList().stream()
+                    .filter(CommoditiesBoughtFromProviderOrBuilder::hasProviderId)
+                    .filter(CommoditiesBoughtFromProviderOrBuilder::hasProviderEntityType)
+                    .filter(commBought -> commBought.getProviderEntityType() ==
+                            EntityType.STORAGE_VALUE)
+                    .forEach(commBought -> commBought.setMovable(movable));
         }
     }
 

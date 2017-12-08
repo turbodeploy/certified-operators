@@ -45,6 +45,12 @@ public class EntitySettingsApplicatorTest {
             .setSettingSpecName(SettingPolicySetting.Move.getSettingName())
             .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()))
             .build();
+
+    private static final Setting STORAGE_MOVE_DISABLED_SETTING = Setting.newBuilder()
+            .setSettingSpecName(SettingPolicySetting.StorageMove.getSettingName())
+            .setEnumSettingValue(EnumSettingValue.newBuilder().setValue("DISABLED"))
+            .build();
+
     private static final TopologyEntityDTO PARENT_OBJECT =
             TopologyEntityDTO.newBuilder().setOid(PARENT_ID).setEntityType(100001).build();
 
@@ -87,6 +93,26 @@ public class EntitySettingsApplicatorTest {
                 .addCommoditiesBoughtFromProviders(
                         CommoditiesBoughtFromProvider.newBuilder().setMovable(true));
         applySettings(TOPOLOGY_INFO, entity, MOVE_DISABLED_SETTING);
+        assertThat(entity.getCommoditiesBoughtFromProviders(0).getMovable(), is(true));
+    }
+
+    @Test
+    public void testStorageMoveApplicator() {
+        final TopologyEntityDTO.Builder entity = TopologyEntityDTO.newBuilder()
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(PARENT_ID)
+                        .setProviderEntityType(EntityType.STORAGE.getValue())
+                        .setMovable(true));
+        applySettings(entity, STORAGE_MOVE_DISABLED_SETTING);
+        assertThat(entity.getCommoditiesBoughtFromProviders(0).getMovable(), is(false));
+    }
+
+    @Test
+    public void testStorageMoveApplicatorNoProvider() {
+        final TopologyEntityDTO.Builder entity = TopologyEntityDTO.newBuilder()
+                .addCommoditiesBoughtFromProviders(
+                        CommoditiesBoughtFromProvider.newBuilder().setMovable(true));
+        applySettings(entity, STORAGE_MOVE_DISABLED_SETTING);
         assertThat(entity.getCommoditiesBoughtFromProviders(0).getMovable(), is(true));
     }
 

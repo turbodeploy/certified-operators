@@ -40,13 +40,14 @@ import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.TopologySelection;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class EntitySettingsCacheTest {
     private static final long TOPOLOGY_ID = 7L;
     private static final long TOPOLOGY_CONTEXT_ID = 77L;
     private static final long ENTITY_ID = 1L;
-    private static final EntityType ENTITY_TYPE = EntityType.VIRTUAL_MACHINE;
+    private static final EntityType VM_ENTITY_TYPE = EntityType.VIRTUAL_MACHINE;
+    private static final String VM_CLASSIC_ENTITY_TYPE = "VirtualMachine";
 
     private final HttpEntity<Set> httpEntity = new HttpEntity<>(Collections.singleton(ENTITY_ID));
     private final ParameterizedTypeReference<List<ServiceEntityApiDTO>> type =
@@ -80,7 +81,7 @@ public class EntitySettingsCacheTest {
 
         final ServiceEntityApiDTO entityDto = new ServiceEntityApiDTO();
         entityDto.setUuid(Long.toString(ENTITY_ID));
-        entityDto.setClassName(ENTITY_TYPE.name());
+        entityDto.setClassName(VM_CLASSIC_ENTITY_TYPE);
 
         when(spServiceSpy.getEntitySettings(GetEntitySettingsRequest.newBuilder()
                 .setTopologySelection(TopologySelection.newBuilder()
@@ -105,7 +106,7 @@ public class EntitySettingsCacheTest {
         final Optional<EntityType> newType = entitySettingsCache.getTypeForEntity(ENTITY_ID);
         assertThat(newSettings, containsInAnyOrder(setting));
         assertTrue(newType.isPresent());
-        assertEquals(newType.get(), ENTITY_TYPE);
+        assertEquals(newType.get(), VM_ENTITY_TYPE);
     }
 
     @Test
