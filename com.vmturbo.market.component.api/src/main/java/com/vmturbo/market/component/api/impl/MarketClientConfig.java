@@ -17,6 +17,7 @@ import org.springframework.context.annotation.Lazy;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.components.api.client.BaseKafkaConsumerConfig;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.market.component.api.MarketComponent;
@@ -56,6 +57,13 @@ public class MarketClientConfig {
                 PriceIndexMessage::parseFrom);
     }
 
+    @Bean
+    protected IMessageReceiver<Topology> planAnalysisTopologyReceiver() {
+        return baseKafkaConfig.kafkaConsumer().messageReceiver(
+                MarketComponentNotificationReceiver.PLAN_ANALYSIS_TOPOLOGIES_TOPIC,
+                Topology::parseFrom);
+    }
+
     @Bean(destroyMethod = "shutdownNow")
     protected ExecutorService marketClientThreadPool() {
         final ThreadFactory threadFactory =
@@ -69,13 +77,17 @@ public class MarketClientConfig {
         final IMessageReceiver<ProjectedTopology> projectedTopologyReceiver =
                 subscriptions.contains(Subscription.ProjectedTopologies) ?
                         projectedTopologyReceiver() : null;
-        final IMessageReceiver<PriceIndexMessage> priceIndexReeiver =
+        final IMessageReceiver<PriceIndexMessage> priceIndexReceiver =
                 subscriptions.contains(Subscription.PriceIndexes) ? priceIndexReceiver() : null;
+        final IMessageReceiver<Topology> planAnalysisTopologyReceiver =
+                subscriptions.contains(Subscription.PlanAnalysisTopologies) ?
+                        planAnalysisTopologyReceiver() : null;
         return new MarketComponentNotificationReceiver(projectedTopologyReceiver,
-                actionPlansReceiver, priceIndexReeiver, marketClientThreadPool());
+                actionPlansReceiver, priceIndexReceiver, planAnalysisTopologyReceiver,
+                marketClientThreadPool());
     }
 
     public enum Subscription {
-        ActionPlans, ProjectedTopologies, PriceIndexes;
+        ActionPlans, ProjectedTopologies, PriceIndexes, PlanAnalysisTopologies;
     }
 }

@@ -17,8 +17,10 @@ import com.vmturbo.history.HistoryComponent;
 import com.vmturbo.history.api.HistoryApiConfig;
 import com.vmturbo.history.stats.PriceIndexWriter;
 import com.vmturbo.history.stats.StatsConfig;
+import com.vmturbo.history.topology.PlanTopologyEntitiesListener;
 import com.vmturbo.history.topology.TopologyListenerConfig;
 import com.vmturbo.market.component.api.MarketComponent;
+import com.vmturbo.market.component.api.PlanAnalysisTopologyListener;
 import com.vmturbo.market.component.api.impl.MarketClientConfig;
 import com.vmturbo.market.component.api.impl.MarketClientConfig.Subscription;
 
@@ -70,15 +72,28 @@ public class MarketListenerConfig {
     }
 
     /**
-     * Register the listener for Projected Market Topologies
-     * @return
+     * Create a listener for plan analysis topologies.
+     * @return the plan analysis topology listener
+     */
+    @Bean
+    public PlanAnalysisTopologyListener planAnalysisTopologyListener() {
+        return new PlanTopologyEntitiesListener(
+                statsConfig.planStatsWriter(),
+                apiConfig.statsAvailabilityTracker());
+    }
+
+    /**
+     * Create a market component listener instance.
+     * @return A configured market component listener.
      */
     @Bean
     public MarketComponent marketComponent() {
         final MarketComponent market = marketClientConfig.marketComponent(
-                EnumSet.of(Subscription.ProjectedTopologies, Subscription.PriceIndexes));
+                EnumSet.of(Subscription.ProjectedTopologies, Subscription.PriceIndexes,
+                        Subscription.PlanAnalysisTopologies));
         market.addProjectedTopologyListener(marketListener());
         market.addPriceIndexListener(marketListener());
+        market.addPlanAnalysisTopologyListener(planAnalysisTopologyListener());
         return market;
     }
 

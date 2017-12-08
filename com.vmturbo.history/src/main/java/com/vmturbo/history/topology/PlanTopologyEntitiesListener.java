@@ -18,13 +18,13 @@ import com.vmturbo.history.api.StatsAvailabilityTracker.TopologyContextType;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.stats.PlanStatsWriter;
 import com.vmturbo.history.utils.TopologyOrganizer;
+import com.vmturbo.market.component.api.PlanAnalysisTopologyListener;
 import com.vmturbo.reports.db.VmtDbException;
-import com.vmturbo.topology.processor.api.EntitiesListener;
 
 /**
  * Listen for updates to the plan topology; record them to the DB.
  **/
-public class PlanTopologyEntitiesListener implements EntitiesListener {
+public class PlanTopologyEntitiesListener implements PlanAnalysisTopologyListener {
 
     private final Logger logger = LogManager.getLogger();
 
@@ -41,29 +41,31 @@ public class PlanTopologyEntitiesListener implements EntitiesListener {
     }
 
     /**
-     * Receive a new Topology and call the {@link HistorydbIO} to persist the elements of the topology.
-     * The Topology is received in chunks, using {@link RemoteIterator}, to reduce maximum memory footprint required.
-     * An instance of {@link TopologySnapshotRegistry} is used to coordinate the async receipt of the Topology and
-     * PriceIndex information.
+     * Receive a new Plan Analysis Topology and call the {@link HistorydbIO} to persist the elements
+     * of the topology. The Topology is received in chunks, using {@link RemoteIterator}, to reduce
+     * maximum memory footprint required. An instance of {@link TopologySnapshotRegistry} is used to
+     * coordinate the async receipt of the plan analysis Topology and PriceIndex information.
+     *
      * The entire collection of ServiceEntities is required for two reasons:
      * <ol>
-     *     <li>the utilization calculation for commodities bought requires the seller entity to look up the capacity
-     *     <li>persisting the price index requires the EntityType of the SE; we should save just the types
-     *     to satisfy this one, but (1) requires the commodities too
+     *     <li>the utilization calculation for commodities bought requires the seller entity to look
+     *     up the capacity
+     *     <li>persisting the price index requires the EntityType of the SE; we should save just the
+     *     types to satisfy this one, but (1) requires the commodities too
      * </ol>
      *
      */
     @Override
-    public void onTopologyNotification(TopologyInfo topologyInfo,
-            RemoteIterator<TopologyEntityDTO> topologyDTOs) {
+    public void onPlanAnalysisTopology(final TopologyInfo topologyInfo,
+                                       @Nonnull final RemoteIterator<TopologyEntityDTO> topologyDTOs) {
         SharedMetrics.UPDATE_TOPOLOGY_DURATION_SUMMARY.labels(
                 SharedMetrics.SOURCE_TOPOLOGY_TYPE_LABEL, SharedMetrics.PLAN_CONTEXT_TYPE_LABEL)
                 .time(() -> {
-                    handlePlanTopology(topologyInfo, topologyDTOs);
+                    handleScopedTopology(topologyInfo, topologyDTOs);
                 });
     }
 
-    private void handlePlanTopology(TopologyInfo topologyInfo,
+    private void handleScopedTopology(TopologyInfo topologyInfo,
             RemoteIterator<TopologyEntityDTO> dtosIterator) {
         final long topologyContextId = topologyInfo.getTopologyContextId();
         final long topologyId = topologyInfo.getTopologyId();

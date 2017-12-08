@@ -296,7 +296,7 @@ public class TopologyConverter {
      * @return Map whose key is the traderOid and the value is the original
      * {@link TopologyDTO.TopologyEntityDTO}
      */
-    private static Map<Long, TopologyDTO.TopologyEntityDTO> getEntityMap(
+    public static Map<Long, TopologyDTO.TopologyEntityDTO> getEntityMap(
                    @Nonnull final Set<TopologyDTO.TopologyEntityDTO> topologyDTOs) {
 
         return topologyDTOs.stream()

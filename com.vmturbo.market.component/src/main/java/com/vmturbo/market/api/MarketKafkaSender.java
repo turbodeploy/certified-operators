@@ -22,7 +22,9 @@ public class MarketKafkaSender {
     public static MarketNotificationSender createMarketSender(
             @Nonnull KafkaMessageProducer kafkaMessageProducer) {
         return new MarketNotificationSender(kafkaMessageProducer.messageSender(
-                MarketComponentNotificationReceiver.PROJECTED_TOPOLOGIES_TOPIC),
+                        MarketComponentNotificationReceiver.PROJECTED_TOPOLOGIES_TOPIC),
+                kafkaMessageProducer.messageSender(
+                        MarketComponentNotificationReceiver.PLAN_ANALYSIS_TOPOLOGIES_TOPIC),
                 kafkaMessageProducer.messageSender(
                         MarketComponentNotificationReceiver.ACTION_PLANS_TOPIC),
                 kafkaMessageProducer.messageSender(

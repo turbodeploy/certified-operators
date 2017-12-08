@@ -11,9 +11,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.market.MarketNotificationSender;
@@ -103,6 +103,13 @@ public class MarketRunner {
         analysisMap.remove(analysis.getContextId());
         if (analysis.getState() == AnalysisState.SUCCEEDED) {
             try {
+                // if this was a plan topology, broadcast the plan analysis topology
+                if (analysis.getTopologyInfo().hasPlanInfo()) {
+                    Set<TopologyEntityDTO> planAnalysisTopology = analysis.getScopedTopology().isEmpty()
+                            ? analysis.getTopology()
+                            : analysis.getScopedTopology();
+                    serverApi.notifyPlanAnalysisTopology(analysis.getTopologyInfo(), planAnalysisTopology);
+                }
                 // Send projected topology before recommended actions, because some recommended
                 // actions will have OIDs that are only present in the projected topology, and we
                 // want to minimize the risk of the projected topology being unavailable.

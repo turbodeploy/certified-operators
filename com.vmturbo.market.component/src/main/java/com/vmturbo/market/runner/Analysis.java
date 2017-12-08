@@ -57,6 +57,7 @@ public class Analysis {
     private final Set<TopologyEntityDTO> topologyDTOs;
     private final String logPrefix;
 
+    private Set<TopologyEntityDTO> scopeEntities = Collections.emptySet();
     private Collection<TopologyEntityDTO> projectedEntities = null;
     private final long projectedTopologyId;
     private ActionPlan actionPlan = null;
@@ -129,6 +130,8 @@ public class Analysis {
             if (!topologyInfo.getScopeSeedOidsList().isEmpty()) {
                 traderTOs = scopeTopology(traderTOs,
                     ImmutableSet.copyOf(topologyInfo.getScopeSeedOidsList()));
+                // save the scoped topology for later broadcast
+                captureScopedTopology(traderTOs);
             }
             if (logger.isDebugEnabled()) {
                 logger.debug(traderTOs.size() + " Economy DTOs");
@@ -170,6 +173,19 @@ public class Analysis {
                 + startTime.until(completionTime, ChronoUnit.SECONDS) + " seconds");
         completed = true;
         return true;
+    }
+
+    /**
+     * Remember the scoped topology entities for later broadcast.
+     *
+     * @param traderTOs The set of trader TO's that represent the scoped topology.
+     */
+    private void captureScopedTopology(Set<TraderTO> traderTOs) {
+        // get the subset of topology DTO's in the scoped economy
+        Map<Long, TopologyEntityDTO> entityMap = TopologyConverter.getEntityMap(topologyDTOs);
+        scopeEntities = traderTOs.stream()
+                .map(traderTO -> entityMap.get(traderTO.getOid()))
+                .collect(Collectors.toSet());
     }
 
     /**
@@ -251,6 +267,16 @@ public class Analysis {
      */
     public Set<TopologyEntityDTO> getTopology() {
         return Collections.unmodifiableSet(topologyDTOs);
+    }
+
+    /**
+     * If a scope was set on the topology, then this returns an unmodifiable set of the entities
+     * included in the scoped version of the topology. This will contain all entities buying from
+     * or possibly selling to any of the entities in the set of plan scope entries.
+     * @return The unmodifiable set of scope entities, or an empty set if there was no scope set.
+     */
+    public Set<TopologyEntityDTO> getScopedTopology() {
+        return Collections.unmodifiableSet(scopeEntities);
     }
 
     /**

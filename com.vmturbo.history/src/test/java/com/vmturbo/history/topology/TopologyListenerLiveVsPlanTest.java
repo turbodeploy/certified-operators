@@ -83,7 +83,7 @@ public class TopologyListenerLiveVsPlanTest {
         // Arrange
 
         // Act
-        serviceUndertest.onTopologyNotification(
+        serviceUndertest.onPlanAnalysisTopology(
                 TopologyInfo.newBuilder()
                         .setTopologyContextId(OTHER_THAN_REALTIME_TOPOLOGY_ID)
                         .setTopologyId(TEST_TOPOLOGY_ID)

@@ -11,6 +11,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.Data;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.End;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.Start;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.CommunicationException;
@@ -28,14 +29,17 @@ public class MarketNotificationSender extends
         ComponentNotificationSender<ActionPlan> {
 
     private final IMessageSender<ProjectedTopology> projectedTopologySender;
+    private final IMessageSender<Topology> planAnalysisTopologySender;
     private final IMessageSender<ActionPlan> actionPlanSender;
     private final IMessageSender<PriceIndexMessage> priceIndexSender;
 
     public MarketNotificationSender(
             @Nonnull IMessageSender<ProjectedTopology> projectedTopologySender,
+            @Nonnull IMessageSender<Topology> planAnalysisTopologySender,
             @Nonnull IMessageSender<ActionPlan> actionPlanSender,
             @Nonnull IMessageSender<PriceIndexMessage> priceIndexSender) {
         this.projectedTopologySender = Objects.requireNonNull(projectedTopologySender);
+        this.planAnalysisTopologySender = Objects.requireNonNull(planAnalysisTopologySender);
         this.actionPlanSender = Objects.requireNonNull(actionPlanSender);
         this.priceIndexSender = Objects.requireNonNull(priceIndexSender);
     }
@@ -53,6 +57,46 @@ public class MarketNotificationSender extends
     }
 
     /**
+     * Send a plan analysis topology to any interested consumers.
+     *
+     * @param sourceTopologyInfo The topology info from the plan source topology
+     * @param topologyDTOs The entities that are being analyzed in the Plan
+     * @throws CommunicationException if persistent communication error occurred
+     * @throws InterruptedException if thread has been interrupted
+     */
+    public void notifyPlanAnalysisTopology(@Nonnull final TopologyInfo sourceTopologyInfo,
+                                           @Nonnull final Collection<TopologyEntityDTO> topologyDTOs)
+            throws CommunicationException, InterruptedException {
+        sendPlanAnalysisTopologySegment(Topology.newBuilder()
+                .setStart(Topology.Start.newBuilder()
+                        .setTopologyInfo(sourceTopologyInfo)
+                        .build())
+                .setTopologyId(sourceTopologyInfo.getTopologyId())
+                .build());
+        final Iterable<Collection<TopologyEntityDTO>> chunks = MessageChunker.chunk(topologyDTOs);
+        long totalCount = 0;
+        for (Collection<TopologyEntityDTO> chunk : chunks) {
+            totalCount += chunk.size();
+            final Topology topology = Topology.newBuilder()
+                    .setData(Topology.Data.newBuilder().addAllEntities(chunk).build())
+                    .setTopologyId(sourceTopologyInfo.getTopologyId())
+                    .build();
+            sendPlanAnalysisTopologySegment(topology);
+        }
+        sendPlanAnalysisTopologySegment(Topology.newBuilder()
+                .setTopologyId(sourceTopologyInfo.getTopologyId())
+                .setEnd(Topology.End.newBuilder().setTotalCount(totalCount).build())
+                .build());
+    }
+
+    private void sendPlanAnalysisTopologySegment(@Nonnull final Topology segment)
+            throws CommunicationException, InterruptedException {
+        getLogger().debug("Sending plan analysis topology {} segment {}", segment::getTopologyId,
+                segment::getSegmentCase);
+        planAnalysisTopologySender.sendMessage(segment);
+    }
+
+    /**
      * Send projected topology notification synchronously.
      *
      * @param originalTopologyInfo The {@link TopologyInfo} describing the original topology.
@@ -65,9 +109,10 @@ public class MarketNotificationSender extends
                                     final long projectedTopologyId,
                                         @Nonnull final Collection<TopologyEntityDTO> projectedTopo)
             throws CommunicationException, InterruptedException {
-        sendTopologySegment(ProjectedTopology.newBuilder()
+        sendProjectedTopologySegment(ProjectedTopology.newBuilder()
                 .setStart(Start.newBuilder()
-                        .setSourceTopologyInfo(originalTopologyInfo))
+                        .setSourceTopologyInfo(originalTopologyInfo)
+                        .build())
                 .setTopologyId(projectedTopologyId)
                 .build());
         final Iterable<Collection<TopologyEntityDTO>> chunks = MessageChunker.chunk(projectedTopo);
@@ -75,18 +120,18 @@ public class MarketNotificationSender extends
         for (Collection<TopologyEntityDTO> chunk : chunks) {
             totalCount += chunk.size();
             final ProjectedTopology topology = ProjectedTopology.newBuilder()
-                    .setData(Data.newBuilder().addAllEntities(chunk))
+                    .setData(Data.newBuilder().addAllEntities(chunk).build())
                     .setTopologyId(projectedTopologyId)
                     .build();
-            sendTopologySegment(topology);
+            sendProjectedTopologySegment(topology);
         }
-        sendTopologySegment(ProjectedTopology.newBuilder()
+        sendProjectedTopologySegment(ProjectedTopology.newBuilder()
                 .setTopologyId(projectedTopologyId)
-                .setEnd(End.newBuilder().setTotalCount(totalCount))
+                .setEnd(End.newBuilder().setTotalCount(totalCount).build())
                 .build());
     }
 
-    private void sendTopologySegment(@Nonnull final ProjectedTopology segment)
+    private void sendProjectedTopologySegment(@Nonnull final ProjectedTopology segment)
             throws CommunicationException, InterruptedException {
         getLogger().debug("Sending topology {} segment {}", segment::getTopologyId,
                 segment::getSegmentCase);
@@ -99,7 +144,7 @@ public class MarketNotificationSender extends
      * @param topologyInfo The {@link TopologyInfo} of the topology the price index describes.
      * @param priceIndexMessage The message to send.
      * @throws InterruptedException if thread has been interrupted
-     * @throws CommunicationException if perfistent communication error occurred
+     * @throws CommunicationException if persistent communication error occurred
      */
     public void sendPriceIndex(@Nonnull final TopologyInfo topologyInfo,
             final PriceIndexMessage priceIndexMessage)

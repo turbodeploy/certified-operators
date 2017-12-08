@@ -77,7 +77,7 @@ public class MarketPerformanceTest {
                 ProjectedTopology::parseFrom);
         marketComponent =
                 new MarketComponentNotificationReceiver(projectedTopologyReceiver, actionsReceiver,
-                        null, threadPool);
+                        null, null, threadPool);
         kafkaMessageConsumer.start();
     }
 

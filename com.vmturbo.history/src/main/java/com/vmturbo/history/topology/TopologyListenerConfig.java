@@ -37,18 +37,10 @@ public class TopologyListenerConfig {
     }
 
     @Bean
-    public PlanTopologyEntitiesListener planTopologyEntitiesListener() {
-        return new PlanTopologyEntitiesListener(
-                statsConfig.planStatsWriter(),
-                historyApiConfig.statsAvailabilityTracker());
-    }
-
-    @Bean
     public TopologyProcessor topologyProcessor() {
         final TopologyProcessor topologyProcessor = topologyClientConfig.topologyProcessor(
-                EnumSet.of(Subscription.LiveTopologies, Subscription.PlanTopologies));
+                EnumSet.of(Subscription.LiveTopologies));
         topologyProcessor.addLiveTopologyListener(liveTopologyEntitiesListener());
-        topologyProcessor.addPlanTopologyListener(planTopologyEntitiesListener());
         return topologyProcessor;
     }
 }
