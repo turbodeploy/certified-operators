@@ -206,12 +206,15 @@ public class ScopedTopologyTest {
         Analysis analysis = runner.scheduleAnalysis(topologyInfo, topologyDTOs, true);
         assertTrue(runner.getRuns().contains(analysis));
         while (!analysis.isDone()) {
-            Thread.sleep(100);
+            Thread.sleep(1000);
         }
         assertSame("Plan completed with an error : " + analysis.getErrorMsg(),
                 Analysis.AnalysisState.SUCCEEDED, analysis.getState());
 
         // Assert
+        // wait for the action broadcast to complete
+        Thread.sleep(1000);
+        assertTrue(analysis.getActionPlan().isPresent());
         Mockito.verify(serverApi, Mockito.times(1)).notifyActionsRecommended(analysis.getActionPlan().get());
 
         // since the IDgenerator gives us a different projectedTopoID every time, we create a
