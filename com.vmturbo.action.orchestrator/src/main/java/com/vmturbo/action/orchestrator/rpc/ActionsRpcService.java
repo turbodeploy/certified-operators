@@ -36,6 +36,10 @@ import com.vmturbo.action.orchestrator.execution.TargetResolutionException;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse.StoreDeletionException;
+import com.vmturbo.auth.api.auditing.AuditAction;
+import com.vmturbo.auth.api.auditing.AuditLogEntry;
+import com.vmturbo.auth.api.auditing.AuditLogUtils;
+import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 import com.vmturbo.common.protobuf.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.AcceptActionResponse;
@@ -61,7 +65,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.TopologyContextInfoRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.TopologyContextResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.TypeCount;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceImplBase;
-import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 
 /**
  * Implements the RPC calls supported by the action orchestrator for retrieving and executing actions.
@@ -127,11 +130,10 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                     store.getEntitySeverityCache()
                         .refresh(action.getRecommendation(), store);
                 }
-                // TODO replace it with audit message.
-                logger.info(requestUserName + " from IP address: " + reqeustUserIpAddress
-                        + " is trying to execute Action: " + action.getId()
-                        + " with mode: " + action.getMode()
-                        + " with recommendation: " + action.getRecommendation());
+                AuditLogEntry entry = new AuditLogEntry.Builder(AuditAction.EXECUTE_ACTION, action.toString(), true)
+                        .targetName(String.valueOf(action.getId()))
+                        .build();
+                AuditLogUtils.audit(entry);
                 return attemptResponse;
             }).orElse(acceptanceError("Action " + request.getActionId() + " doesn't exist."));
 

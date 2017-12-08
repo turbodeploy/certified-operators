@@ -19,6 +19,7 @@ volumes:
     driver: local
   syslogdata: *localdriver
   syslogdata_rotate: *localdriver
+  auditlogdata: *localdriver
   mysqldata: *localdriver
   mysql_var: *localdriver
   mysql_log: *localdriver
@@ -60,6 +61,7 @@ services:
     volumes:
       - syslogdata:/home/vmtsyslog
       - syslogdata_rotate:/var/lib/logrotate
+      - auditlogdata:/var/log/turbonomic
     restart: always
 
   consul:

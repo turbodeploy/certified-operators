@@ -7,7 +7,9 @@ addgroup --gid 1000 vmtsyslog && adduser --uid 1000 --system --disabled-password
 mkdir -p /home/vmtsyslog/rsyslog && \
 chown -R vmtsyslog:vmtsyslog /home/vmtsyslog && \
 mkdir -p /var/lib/logrotate && \
-chmod a+w /var/lib/logrotate
+chmod a+w /var/lib/logrotate && \
+mkdir -p /var/log/turbonomic && \
+chown -R vmtsyslog:vmtsyslog /var/log/turbonomic
 
 COPY entrypoint.sh /
 ADD rsyslog.conf /etc
@@ -21,6 +23,6 @@ EXPOSE 2514
 
 USER vmtsyslog
 
-VOLUME ["/home/vmtsyslog", "/var/lib/logrotate"]
+VOLUME ["/home/vmtsyslog", "/var/lib/logrotate", "/var/log/turbonomic"]
 ENTRYPOINT ["/entrypoint.sh"]
 

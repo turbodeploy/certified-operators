@@ -1,20 +1,21 @@
 #!/bin/bash
 LOG_FILE=/home/vmtsyslog/rsyslog/log.txt
+AUDIT_FILE=/var/log/turbonomic/audit.log
 # The max size is 100MB
 MAXSIZE=104857600
 MAXFILES=100
 function rotate() {
     # Obtain the log size
-    SIZE=$(stat -c %s "${LOG_FILE}")
+    SIZE=$(stat -c %s "$1")
     if [ ${SIZE} -gt ${MAXSIZE} ]; then
-        LOG_FILE_ARCH=${LOG_FILE}_$(date +"%Y%m%d_%H%M%S")
-        cp ${LOG_FILE} ${LOG_FILE_ARCH}
-        truncate -s 0 ${LOG_FILE}
+        LOG_FILE_ARCH=$1_$(date +"%Y%m%d_%H%M%S")
+        cp $1 ${LOG_FILE_ARCH}
+        truncate -s 0 $1
         xz ${LOG_FILE_ARCH}
         # Clean the old ones
-        AMOUNT=$(ls ${LOG_FILE}* | wc -l)
+        AMOUNT=$(ls $1* | wc -l)
         if [ ${AMOUNT} -gt ${MAXFILES} ]; then
-            ls -rt1 ${LOG_FILE}* | while read -r line || [[ -n "$line" ]]
+            ls -rt1 $1* | while read -r line || [[ -n "$line" ]]
             do
                 if [ ${AMOUNT} -le ${MAXFILES} ]; then
                     break
@@ -28,6 +29,7 @@ function rotate() {
 # Check hourly for the log rotation.
 while true
 do
-    rotate
+    rotate ${LOG_FILE}
+    rotate ${AUDIT_FILE}
     sleep 3600
 done

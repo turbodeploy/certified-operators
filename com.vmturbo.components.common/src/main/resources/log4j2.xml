@@ -6,11 +6,32 @@
                 <Pattern>%d %5p [%t] [%c{1}]\t: %m%n%throwable</Pattern>
             </PatternLayout>
         </Console>
+        <!--
+        format: RFC5424 does not truncate records since the receiver must accept records of up to
+                2048 bytes and may accept records that are longer.
+        host/port: rsyslog server host and port.
+        protocol: TCP only to guarantee delivery.
+        appName: The value to use as the APP-NAME in the RFC5424 syslog record (not used).
+        mdcId: The id to use for the MDC Structured Data Element (not used).
+        includeMDC: Indicates whether data from the ThreadContextMap will be included in the
+                    RFC5424 Syslog record.
+        facility: authpriv is non-system authorization messages.
+        enterpriseNumber: The IANA enterprise number (not used).
+        messageId: The default value to be used in the MSGID field of RFC5424 syslog records.
+        id: The default structured data id to use when formatting according to RFC5424 (not used).
+        -->
+        <Syslog name="RFC5424" format="RFC5424" host="rsyslog"
+                port="2514" protocol="TCP" appName="" mdcId="mdc" includeMDC="true"
+                facility="authpriv" enterpriseNumber="18060" newLine="true" messageId="Audit" id=""/>
     </Appenders>
 
     <Loggers>
         <Logger name="com.vmturbo" level="info" />
         <Logger name="org.springframework" level="warn" />
+        <!-- the audit log messages  will not be propagated to parent loggers -->
+        <Logger name="com.vmturbo.platform.audit" level="INFO" additivity="false">
+            <AppenderRef ref="RFC5424"/>
+        </Logger>
         <Root level="info">
             <AppenderRef ref="stdout"/>
         </Root>
