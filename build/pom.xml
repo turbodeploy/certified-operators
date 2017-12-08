@@ -75,6 +75,7 @@
         <jooq.version>3.8.5</jooq.version>
         <ojdbc.version>11.2.0.4.0</ojdbc.version>
         <flyway.version>4.0.3</flyway.version>
+        <flyway-plugin.version>4.2.0</flyway-plugin.version>
         <google.findbugs.version>2.0.3</google.findbugs.version>
         <tomcat.version>8.5.15</tomcat.version>
         <start-class/>
@@ -492,6 +493,11 @@
 
         <pluginManagement>
             <plugins>
+                <plugin>
+                    <groupId>org.flywaydb</groupId>
+                    <artifactId>flyway-maven-plugin</artifactId>
+                    <version>${flyway-plugin.version}</version>
+                </plugin>
                 <plugin>
                     <groupId>org.jacoco</groupId>
                     <artifactId>jacoco-maven-plugin</artifactId>
