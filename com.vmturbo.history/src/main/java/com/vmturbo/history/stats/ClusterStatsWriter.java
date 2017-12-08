@@ -46,6 +46,9 @@ class ClusterStatsWriter {
     private static final String SUM_OF_CAPACITY = "sum_cap";
     private static final String SUM_OF_AVERAGE = "sum_avg";
 
+    private static final String CLUSTER_STAT_TYPE_CLUSTER = "Capacity";
+    private static final String CLUSTER_STAT_SUBTYPE_HEADROOM = "headroomVMs";
+
 
     private final HistorydbIO historydbIO;
 
@@ -163,6 +166,31 @@ class ClusterStatsWriter {
                         ";  continuing", e);
             }
         });
+    }
+
+    /**
+     * Save headroom data in cluster_stat_by_day table. If a record already exists,
+     * the record will be updated with the new values. It can happen if the method is
+     * called more than once in a day.
+     *
+     * @param clusterOID cluster OID
+     * @param headroom headroom
+     */
+    public void saveClusterHeadroom(final long clusterOID, final long headroom)
+            throws VmtDbException {
+        LocalDate today = LocalDate.now(Clock.systemUTC());
+        Date dbToday = Date.valueOf(today);
+
+        // create insert statement persist it to the CLUSTER_STATS table
+        InsertSetMoreStep<?> insertStmt = getBaseClusterStatInsert(dbToday, clusterOID);
+        insertStmt
+                .set(CLUSTER_STATS_BY_DAY.PROPERTY_TYPE, CLUSTER_STAT_TYPE_CLUSTER)
+                .set(CLUSTER_STATS_BY_DAY.PROPERTY_SUBTYPE, CLUSTER_STAT_SUBTYPE_HEADROOM)
+                .set(CLUSTER_STATS_BY_DAY.VALUE, BigDecimal.valueOf(headroom))
+                .onDuplicateKeyUpdate()
+                .set(CLUSTER_STATS_BY_DAY.VALUE, BigDecimal.valueOf(headroom));
+
+        historydbIO.execute(BasedbIO.Style.FORCED, insertStmt);
     }
 
     /**
@@ -284,9 +312,6 @@ class ClusterStatsWriter {
                     .set(CLUSTER_STATS_BY_DAY.VALUE, numHostsDbValue)
                     .onDuplicateKeyUpdate()
                     .set(CLUSTER_STATS_BY_DAY.VALUE, numHostsDbValue);
-
-
         }
     }
-
 }

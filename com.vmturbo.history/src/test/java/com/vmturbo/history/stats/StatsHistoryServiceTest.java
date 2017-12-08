@@ -47,6 +47,8 @@ import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsResponse;
+import com.vmturbo.common.protobuf.stats.Stats.SaveClusterHeadroomRequest;
+import com.vmturbo.common.protobuf.stats.Stats.SaveClusterHeadroomResponse;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
@@ -92,6 +94,9 @@ public class StatsHistoryServiceTest {
 
     @Mock
     private StreamObserver<EntityStats> mockEntityStatsStreamObserver;
+
+    @Mock
+    private StreamObserver<SaveClusterHeadroomResponse> mockSaveClusterHeadroomStreamObserver;
 
     @Mock
     private StreamObserver<DeletePlanStatsResponse> mockDeletePlanStatsStreamObserver;
@@ -538,5 +543,26 @@ public class StatsHistoryServiceTest {
     private DeletePlanStatsRequest createDeletePlanStatsRequest() {
         return DeletePlanStatsRequest.newBuilder()
             .build();
+    }
+
+    /**
+     * Test the invocation of saveClusterHeadroom api of the statsHistoryService.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void saveClusterHeadroom() throws Exception {
+        long clusterId = 1L;
+        long headroom = 20L;
+        SaveClusterHeadroomRequest request = SaveClusterHeadroomRequest.newBuilder()
+                .setClusterId(clusterId)
+                .setHeadroom(headroom)
+                .build();
+
+        statsHistoryService.saveClusterHeadroom(request, mockSaveClusterHeadroomStreamObserver);
+
+        verify(mockClusterStatsWriter).saveClusterHeadroom(clusterId, headroom);
+        verify(mockSaveClusterHeadroomStreamObserver).onNext(anyObject());
+        verify(mockSaveClusterHeadroomStreamObserver).onCompleted();
     }
 }

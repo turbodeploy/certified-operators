@@ -289,14 +289,29 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
     }
 
     /**
-     * {@inheritDoc}
+     * Save computed cluster headroom to cluster_stat_by_day table.
+     * This is an internal call, in the sense that user and external API request should never
+     * trigger this method.
+     *
+     * @param request request with cluster id and headroom value
+     * @param responseObserver response observer
      */
     @Override
-    public void saveClusterHeadroom(Stats.SaveClusterHeadroomRequest request,
-                                    StreamObserver<Stats.SaveClusterHeadroomResponse> responseObserver) {
-        logger.info("Got request to save cluster info: {}", request);
-        responseObserver.onNext(Stats.SaveClusterHeadroomResponse.getDefaultInstance());
-        responseObserver.onCompleted();
+    public void saveClusterHeadroom(@Nonnull Stats.SaveClusterHeadroomRequest request,
+                                    @Nonnull StreamObserver<Stats.SaveClusterHeadroomResponse> responseObserver) {
+        logger.info("Got request to save cluster headroom: {}", request);
+        try {
+            clusterStatsWriter.saveClusterHeadroom(request.getClusterId(), request.getHeadroom());
+            responseObserver.onNext(Stats.SaveClusterHeadroomResponse.getDefaultInstance());
+            responseObserver.onCompleted();
+        } catch (VmtDbException e) {
+            logger.error("Failed to save cluster headroom data in database for cluster {}: {}",
+                    request.getClusterId(), e);
+            responseObserver.onError(Status.INTERNAL.withDescription(
+                    "Failed to save cluster headroom data in database.")
+                    .withCause(e)
+                    .asException());
+        }
     }
 
     /**

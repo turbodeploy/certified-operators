@@ -15,13 +15,11 @@ import org.apache.logging.log4j.Logger;
 import com.google.common.annotations.VisibleForTesting;
 
 import io.grpc.Channel;
+import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyAddition;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyEntityFilter;
@@ -30,7 +28,6 @@ import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositorySe
 import com.vmturbo.common.protobuf.stats.Stats.SaveClusterHeadroomRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
-import com.vmturbo.plan.orchestrator.plan.IntegrityException;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
 import com.vmturbo.plan.orchestrator.project.ProjectPlanPostProcessor;
@@ -112,11 +109,7 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
                         .sum();
                 final long headroom = addedClones - unplacedClones;
 
-                // Save the headroom in the history component.
-                statsHistoryService.saveClusterHeadroom(SaveClusterHeadroomRequest.newBuilder()
-                        .setClusterId(cluster.getId())
-                        .setHeadroom(headroom)
-                        .build());
+                storeHeadroom(headroom);
             }
         }
 
@@ -151,7 +144,7 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
     }
 
     /**
-     * This method only exists as a placeholder.
+     * Save the headroom value.
      *
      * @param headroom The calculated headroom.
      */
@@ -164,7 +157,16 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
             logger.info("Cluster headroom for cluster {} is {}",
                     cluster.getCluster().getName(), headroom);
         }
-        // TODO (roman, Nov 28 2017): Store the headroom wherever it needs to be stored.
+
+        // Save the headroom in the history component.
+        try {
+            statsHistoryService.saveClusterHeadroom(SaveClusterHeadroomRequest.newBuilder()
+                    .setClusterId(cluster.getId())
+                    .setHeadroom(headroom)
+                    .build());
+        } catch (StatusRuntimeException e) {
+            logger.error("Failed to save cluster headroom: {}", e.getMessage());
+        }
     }
 
     @Override
