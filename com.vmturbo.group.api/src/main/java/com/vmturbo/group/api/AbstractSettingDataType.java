@@ -56,10 +56,10 @@ public abstract class AbstractSettingDataType<T> implements SettingDataStructure
      * Returns map of EntityType -> type specific defaults, where entity type is represented by its
      * ordinal number (integer).
      *
-     * @return maping from entity type (integer) to type-specific default.
+     * @return mapping from entity type (integer) to type-specific default.
      */
     @Nonnull
-    protected Map<Integer, T> getEntityDefaultsNum() {
+    protected Map<Integer, T> getEntityDefaults() {
         return entityDefaults.entrySet()
                 .stream()
                 .collect(Collectors.toMap(entry -> entry.getKey().ordinal(), Entry::getValue));

@@ -42,7 +42,7 @@ public class StringSettingDataType extends AbstractSettingDataType<String> {
         builder.setStringSettingValueType(StringSettingValueType.newBuilder()
                 .setDefault(getDefault())
                 .setValidationRegex(regexp)
-                .putAllEntityDefaults(getEntityDefaultsNum())
+                .putAllEntityDefaults(getEntityDefaults())
                 .build());
     }
 }

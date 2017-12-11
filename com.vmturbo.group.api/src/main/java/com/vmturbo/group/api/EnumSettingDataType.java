@@ -34,7 +34,7 @@ public class EnumSettingDataType<T extends Enum<T>> extends AbstractSettingDataT
         final List<String> values = Stream.of(getDefault().getDeclaringClass().getEnumConstants())
                 .map(Enum::name)
                 .collect(Collectors.toList());
-        final Map<Integer, String> entityDefaults = getEntityDefaultsNum().entrySet()
+        final Map<Integer, String> entityDefaults = getEntityDefaults().entrySet()
                 .stream()
                 .collect(Collectors.toMap(Entry::getKey, entry -> entry.getValue().name()));
         builder.setEnumSettingValueType(EnumSettingValueType.newBuilder()

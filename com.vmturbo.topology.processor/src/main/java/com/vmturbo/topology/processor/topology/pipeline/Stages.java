@@ -372,7 +372,7 @@ public class Stages {
 
         @Override
         public void passthrough(final GraphWithSettings input) throws PipelineStageException {
-            settingsApplicator.applySettings(input);
+            settingsApplicator.applySettings(getContext().getTopologyInfo(), input);
         }
     }
 

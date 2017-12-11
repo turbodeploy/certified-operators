@@ -24,7 +24,6 @@ public interface SettingDataStructure<T> {
     T getDefault(@Nonnull EntityType entityType);
 
     /**
-     * /**
      * Adds Protobuf representation into the protobuf setting specification builder.
      *
      * @param builder builder to append setting data structure to.

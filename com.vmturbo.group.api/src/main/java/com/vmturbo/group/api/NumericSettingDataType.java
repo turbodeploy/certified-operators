@@ -69,7 +69,7 @@ public class NumericSettingDataType extends AbstractSettingDataType<Float> {
                 .setMin(min)
                 .setMax(max)
                 .setDefault(getDefault())
-                .putAllEntityDefaults(getEntityDefaultsNum())
+                .putAllEntityDefaults(getEntityDefaults())
                 .build());
     }
 }

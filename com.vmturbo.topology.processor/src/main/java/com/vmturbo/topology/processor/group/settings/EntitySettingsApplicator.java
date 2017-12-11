@@ -12,17 +12,20 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.action.ActionDTOREST.ActionMode;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProviderOrBuilder;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.group.api.SettingPolicySetting;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -44,40 +47,7 @@ import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline;
  */
 public class EntitySettingsApplicator {
 
-    private final Logger logger = LogManager.getLogger(getClass());
-
-    /**
-     * List of the applicators that modify the topology.
-     */
-    private static final List<SettingApplicator> APPLICATORS =
-            ImmutableList.of(
-                    new MoveApplicator(),
-                    new SuspendApplicator(),
-                    new ProvisionApplicator(),
-                    new ResizeApplicator(),
-                    new UtilizationThresholdApplicator(SettingPolicySetting.IoThroughput,
-                            CommodityType.IO_THROUGHPUT),
-                    new UtilizationThresholdApplicator(SettingPolicySetting.NetThroughput,
-                            CommodityType.NET_THROUGHPUT),
-                    new UtilizationThresholdApplicator(SettingPolicySetting.SwappingUtilization,
-                            CommodityType.SWAPPING),
-                    new UtilizationThresholdApplicator(SettingPolicySetting.ReadyQueueUtilization,
-                            CommodityType.QN_VCPU),
-                    new UtilizationThresholdApplicator(SettingPolicySetting.StorageAmountUtilization,
-                            CommodityType.STORAGE_AMOUNT),
-                    new UtilizationThresholdApplicator(SettingPolicySetting.IopsUtilization,
-                            CommodityType.STORAGE_ACCESS),
-                    new UtilizationThresholdApplicator(SettingPolicySetting.LatencyUtilization,
-                            CommodityType.STORAGE_LATENCY),
-                    new UtilTargetApplicator(),
-                    new TargetBandApplicator(),
-                    new HaDependentUtilizationApplicator(),
-                    new ResizeIncrementApplicator(SettingPolicySetting.VcpuIncrement,
-                            CommodityType.VCPU),
-                    new ResizeIncrementApplicator(SettingPolicySetting.VmemIncrement,
-                            CommodityType.VMEM),
-                    new ResizeIncrementApplicator(SettingPolicySetting.VstorageIncrement,
-                            CommodityType.VSTORAGE));
+    private static final Logger logger = LogManager.getLogger();
 
     /**
      * Applies the settings contained in a {@link GraphWithSettings} to the topology graph
@@ -85,7 +55,8 @@ public class EntitySettingsApplicator {
      *
      * @param graphWithSettings A {@link TopologyGraph} and the settings that apply to it.
      */
-    public void applySettings(@Nonnull final GraphWithSettings graphWithSettings) {
+    public void applySettings(@Nonnull final TopologyInfo topologyInfo,
+                              @Nonnull final GraphWithSettings graphWithSettings) {
         graphWithSettings.getTopologyGraph().vertices()
             .map(Vertex::getTopologyEntityDtoBuilder)
             .forEach(entity -> {
@@ -103,15 +74,49 @@ public class EntitySettingsApplicator {
                         return;
                     }
                 }
-                processSettings(entity, settingsForEntity);
+
+                for (SettingApplicator applicator: buildApplicators(topologyInfo)) {
+                    applicator.apply(entity, settingsForEntity);
+                }
             });
     }
 
-    private static void processSettings(@Nonnull TopologyEntityDTO.Builder entity,
-            @Nonnull Map<SettingPolicySetting, Setting> settingsMap) {
-        for (SettingApplicator applicator: APPLICATORS) {
-            applicator.apply(entity, settingsMap);
-        }
+    /**
+     * Get the list of applicators for a particular {@link TopologyInfo}.
+     *
+     * @param topologyInfo The {@link TopologyInfo} of an in-progress topology broadcast.
+     *
+     * @return A list of {@link SettingApplicator}s for settings that apply to this topology.
+     */
+    private static List<SettingApplicator> buildApplicators(@Nonnull final TopologyInfo topologyInfo) {
+        return ImmutableList.of(new MoveApplicator(),
+                new SuspendApplicator(),
+                new ProvisionApplicator(),
+                new ResizeApplicator(),
+                new UtilizationThresholdApplicator(SettingPolicySetting.IoThroughput,
+                        CommodityType.IO_THROUGHPUT),
+                new UtilizationThresholdApplicator(SettingPolicySetting.NetThroughput,
+                        CommodityType.NET_THROUGHPUT),
+                new UtilizationThresholdApplicator(SettingPolicySetting.SwappingUtilization,
+                        CommodityType.SWAPPING),
+                new UtilizationThresholdApplicator(SettingPolicySetting.ReadyQueueUtilization,
+                        CommodityType.QN_VCPU),
+                new UtilizationThresholdApplicator(
+                        SettingPolicySetting.StorageAmountUtilization,
+                        CommodityType.STORAGE_AMOUNT),
+                new UtilizationThresholdApplicator(SettingPolicySetting.IopsUtilization,
+                        CommodityType.STORAGE_ACCESS),
+                new UtilizationThresholdApplicator(SettingPolicySetting.LatencyUtilization,
+                        CommodityType.STORAGE_LATENCY),
+                new UtilTargetApplicator(),
+                new TargetBandApplicator(),
+                new HaDependentUtilizationApplicator(topologyInfo),
+                new ResizeIncrementApplicator(SettingPolicySetting.VcpuIncrement,
+                    CommodityType.VCPU),
+                new ResizeIncrementApplicator(SettingPolicySetting.VmemIncrement,
+                        CommodityType.VMEM),
+                new ResizeIncrementApplicator(SettingPolicySetting.VstorageIncrement,
+                        CommodityType.VSTORAGE));
     }
 
     private static Collection<CommoditySoldDTO.Builder> getCommoditySoldBuilders(
@@ -121,25 +126,6 @@ public class EntitySettingsApplicator {
                 .filter(commodity -> commodity.getCommodityType().getType() ==
                         commodityType.getNumber())
                 .collect(Collectors.toList());
-    }
-
-    private static void applyUtilizationChanges(@Nonnull TopologyEntityDTO.Builder entity,
-            @Nonnull CommodityType commodityType, @Nullable Setting setting, boolean ignoreHa) {
-        for (CommoditySoldDTO.Builder commodity : getCommoditySoldBuilders(entity, commodityType)) {
-            if (ignoreHa) {
-                if (setting != null) {
-                    commodity.setEffectiveCapacityPercentage(
-                            setting.getNumericSettingValue().getValue());
-                } else {
-                    commodity.clearEffectiveCapacityPercentage();
-                }
-            } else {
-                if (setting != null) {
-                    commodity.setEffectiveCapacityPercentage(
-                            setting.getNumericSettingValue().getValue());
-                }
-            }
-        }
     }
 
     /**
@@ -295,16 +281,79 @@ public class EntitySettingsApplicator {
     @ThreadSafe
     private static class HaDependentUtilizationApplicator implements SettingApplicator {
 
+        private final TopologyInfo topologyInfo;
+
+        private HaDependentUtilizationApplicator(@Nonnull final TopologyInfo topologyInfo) {
+            this.topologyInfo = Objects.requireNonNull(topologyInfo);
+        }
+
         @Override
         public void apply(@Nonnull final TopologyEntityDTO.Builder entity,
                 @Nonnull final Map<SettingPolicySetting, Setting> settings) {
-            final Setting ignoreHaSetting = settings.get(SettingPolicySetting.IgnoreHA);
-            final boolean ignoreHa =
-                    ignoreHaSetting != null && ignoreHaSetting.getBooleanSettingValue().getValue();
-            final Setting cpuUtilSetting = settings.get(SettingPolicySetting.CpuUtilization);
-            final Setting memUtilSetting = settings.get(SettingPolicySetting.MemoryUtilization);
-            applyUtilizationChanges(entity, CommodityType.CPU, cpuUtilSetting, ignoreHa);
-            applyUtilizationChanges(entity, CommodityType.MEM, memUtilSetting, ignoreHa);
+            if (topologyInfo.getPlanInfo().getPlanType() == PlanProjectType.CLUSTER_HEADROOM) {
+                // For cluster headroom calculation, we ignore the normal settings that affect
+                // effective capacity.
+                final Setting targetBand = settings.get(SettingPolicySetting.TargetBand);
+                final Setting utilTarget = settings.get(SettingPolicySetting.UtilTarget);
+                if (targetBand != null && utilTarget != null) {
+                    // Calculate maximum desired utilization for the desired state of this entity.
+                    final float maxDesiredUtilization = utilTarget.getNumericSettingValue().getValue() +
+                            targetBand.getNumericSettingValue().getValue() / 2.0f ;
+                    applyMaxUtilizationToCapacity(entity, CommodityType.CPU, maxDesiredUtilization);
+                    applyMaxUtilizationToCapacity(entity, CommodityType.MEM, maxDesiredUtilization);
+                }
+            } else {
+                final Setting ignoreHaSetting = settings.get(SettingPolicySetting.IgnoreHA);
+                final boolean ignoreHa =
+                        ignoreHaSetting != null && ignoreHaSetting.getBooleanSettingValue().getValue();
+                final Setting cpuUtilSetting = settings.get(SettingPolicySetting.CpuUtilization);
+                final Setting memUtilSetting = settings.get(SettingPolicySetting.MemoryUtilization);
+                applyUtilizationChanges(entity, CommodityType.CPU, cpuUtilSetting, ignoreHa);
+                applyUtilizationChanges(entity, CommodityType.MEM, memUtilSetting, ignoreHa);
+            }
+        }
+
+        private void applyMaxUtilizationToCapacity(@Nonnull final TopologyEntityDTO.Builder entity,
+                                                   @Nonnull final CommodityType commodityType,
+                                                   final float maxDesiredUtilization) {
+            // We only want to do this for cluster headroom calculations.
+            Preconditions.checkArgument(topologyInfo.getPlanInfo().getPlanType() ==
+                    PlanProjectType.CLUSTER_HEADROOM);
+            for (CommoditySoldDTO.Builder commodity : getCommoditySoldBuilders(entity, commodityType)) {
+                // We want to factor the max desired utilization into the effective capacity
+                // of the sold commodity. For cluster headroom calculations, the desired state has
+                // no effect because provisions/moves are disabled in the market analysis. However,
+                // we want the headroom numbers to reflect the desired state, so we take the
+                // desired state into account when calculating the effective capacity of commodities.
+                //
+                // For example, suppose we have a host with 10GB of memory, HA is 80%, and max desired
+                // utilization is 75%. Suppose each VM requires 1GB of memory, and there are currently
+                // no VMs on the host. If we set effective capacity to the level of HA, we'd say
+                // headroom is 8 VMs (80% of 10GB). However, if the customer actually adds 8 VMs the
+                // market would recommend moving some of them off the host because of the desired
+                // state setting. The "real" headroom is 80% * 75% = 60% -> 6 VMs.
+                final double newCapacity = (commodity.getEffectiveCapacityPercentage() * maxDesiredUtilization) / 100.0f;
+                commodity.setEffectiveCapacityPercentage(newCapacity);
+            }
+        }
+
+        private void applyUtilizationChanges(@Nonnull TopologyEntityDTO.Builder entity,
+                                             @Nonnull CommodityType commodityType,
+                                             @Nullable Setting setting,
+                                             boolean ignoreHa) {
+            for (CommoditySoldDTO.Builder commodity : getCommoditySoldBuilders(entity, commodityType)) {
+                if (setting != null) {
+                    commodity.setEffectiveCapacityPercentage(
+                            setting.getNumericSettingValue().getValue());
+                } else if (ignoreHa) {
+                    // The ignore HA setting does NOT override explicitly set capacity percentage,
+                    // but it does override the values sent over from the probe.
+                    // Unfortunately, at the time of this writing the probe rolls capacity and HA
+                    // into one property, so there's no way to only ignore HA without ignoring
+                    // other things that may have affected capacity percentage.
+                    commodity.clearEffectiveCapacityPercentage();
+                }
+            }
         }
     }
 

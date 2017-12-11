@@ -25,7 +25,7 @@ public class BooleanSettingDataType extends AbstractSettingDataType<Boolean> {
     public void build(@Nonnull Builder builder) {
         builder.setBooleanSettingValueType(BooleanSettingValueType.newBuilder()
                 .setDefault(getDefault())
-                .putAllEntityDefaults(getEntityDefaultsNum())
+                .putAllEntityDefaults(getEntityDefaults())
                 .build());
     }
 }
