@@ -38,11 +38,13 @@ import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.policy.PolicyApiDTO;
 import com.vmturbo.api.dto.scenario.AddObjectApiDTO;
 import com.vmturbo.api.dto.scenario.ConfigChangesApiDTO;
+import com.vmturbo.api.dto.scenario.LoadChangesApiDTO;
 import com.vmturbo.api.dto.scenario.RemoveConstraintApiDTO;
 import com.vmturbo.api.dto.scenario.RemoveObjectApiDTO;
 import com.vmturbo.api.dto.scenario.ReplaceObjectApiDTO;
 import com.vmturbo.api.dto.scenario.ScenarioApiDTO;
 import com.vmturbo.api.dto.scenario.TopologyChangesApiDTO;
+import com.vmturbo.api.dto.scenario.UtilizationApiDTO;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.api.enums.ConstraintType;
@@ -54,6 +56,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.DetailsCase;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.PolicyChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.IgnoreConstraint;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.UtilizationLevel;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.SettingOverride;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyAddition;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyRemoval;
@@ -62,6 +65,8 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+
+import jdk.nashorn.internal.ir.annotations.Immutable;
 
 /**
  * Maps scenarios between their API DTO representation and their protobuf representation.
@@ -143,6 +148,7 @@ public class ScenarioMapper {
         infoBuilder.addAllChanges(getTopologyChanges(dto.getTopologyChanges(), templateIds));
         infoBuilder.addAllChanges(getConfigChanges(dto.getConfigChanges()));
         infoBuilder.addAllChanges(getPolicyChanges(dto.getConfigChanges()));
+        infoBuilder.addAllChanges(getLoadChanges(dto.getLoadChanges()));
         getScope(dto.getScope()).ifPresent(infoBuilder::setScope);
         // TODO (gabriele, Oct 27 2017) We need to extend the Plan Orchestrator with support
         // for the other types of changes: time based topology, load and config
@@ -152,6 +158,25 @@ public class ScenarioMapper {
         }
 
         return infoBuilder.build();
+    }
+
+    @Nonnull
+    private Iterable<ScenarioChange> getLoadChanges(@Nonnull LoadChangesApiDTO loadChangesApiDTO) {
+        if (loadChangesApiDTO == null) {
+            return Collections.emptyList();
+        }
+        ImmutableList.Builder<ScenarioChange> scenariChanges = ImmutableList.builder();
+        final List<UtilizationApiDTO> utilizationList = loadChangesApiDTO.getUtilizationList();
+        if (!CollectionUtils.isEmpty(utilizationList)) {
+            final List<UtilizationLevel> utilizationLevels = utilizationList.stream().map(util ->
+                    UtilizationLevel.newBuilder().setPercentage(util.getPercentage()).build())
+                    .collect(Collectors.toList());
+            final ScenarioChange change = ScenarioChange.newBuilder().setPlanChanges(
+                    PlanChanges.newBuilder().addAllUtilizationLevel(utilizationLevels).build()
+            ).build();
+            scenariChanges.add(change);
+        }
+        return scenariChanges.build();
     }
 
     /**
@@ -240,9 +265,40 @@ public class ScenarioMapper {
         dto.setProjectionDays(buildApiProjChanges());
         dto.setTopologyChanges(buildApiTopologyChanges(scenario.getScenarioInfo().getChangesList()));
         dto.setConfigChanges(buildApiConfigChanges(scenario.getScenarioInfo().getChangesList()));
+        dto.setLoadChanges(buildLoadChangesApiDTO(scenario.getScenarioInfo().getChangesList()));
         // TODO (gabriele, Oct 27 2017) We need to extend the Plan Orchestrator with support
         // for the other types of changes: time based topology, load and config
         return dto;
+    }
+
+    @Nonnull
+    private LoadChangesApiDTO buildLoadChangesApiDTO(@Nonnull List<ScenarioChange> changes) {
+        final LoadChangesApiDTO loadChanges = new LoadChangesApiDTO();
+        if (CollectionUtils.isEmpty(changes)) {
+            return loadChanges;
+        }
+        final Stream<UtilizationLevel> utilizationLevels = changes.stream()
+                .filter(this::scenarioChangeHasUtilizationLevel)
+                .map(ScenarioChange::getPlanChanges)
+                .map(PlanChanges::getUtilizationLevelList)
+                .flatMap(List::stream);
+
+        final List<UtilizationApiDTO> utilizationApiDTOS = utilizationLevels
+                .map(this::createUtilizationApiDto).collect(Collectors.toList());
+        loadChanges.setUtilizationList(utilizationApiDTOS);
+        return loadChanges;
+    }
+
+    @Nonnull
+    private UtilizationApiDTO createUtilizationApiDto(@Nonnull UtilizationLevel utilizationLevel) {
+        final UtilizationApiDTO utilizationDTO = new UtilizationApiDTO();
+        utilizationDTO.setPercentage(utilizationLevel.getPercentage());
+        return utilizationDTO;
+    }
+
+    private boolean scenarioChangeHasUtilizationLevel(@Nonnull ScenarioChange change) {
+        return change.hasPlanChanges() &&
+                !CollectionUtils.isEmpty(change.getPlanChanges().getUtilizationLevelList());
     }
 
     @Nonnull

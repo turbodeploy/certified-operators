@@ -227,10 +227,9 @@ message ScenarioChange {
     message PlanChanges {
         repeated IgnoreConstraint ignore_constraints = 1;
         optional PolicyChange policy_change = 2;
+        repeated UtilizationLevel utilization_level = 3;
 
         message IgnoreConstraint {
-            // It's the same as comodity_type in PolicyDTO.InputPolicy. It comes from the UI
-            // as "constraintType"
             required string commodity_type = 1;
             required int64 group_uuid = 2;
         }
@@ -242,6 +241,13 @@ message ScenarioChange {
                 int64 policy_id = 2;
                 .group.Policy plan_only_policy = 3;
             }
+        }
+
+        // Represents UtilizationLevel plan setting. When this setting comes from UI it has only
+        // percentage and display name which is always "Virtual machine".
+        // Since we apply this setting only for VMs we need only percentage field.
+        message UtilizationLevel {
+            required int32 percentage = 2;
         }
     }
 
