@@ -101,9 +101,9 @@ public class EntitySettingsApplicatorTest {
         final TopologyEntityDTO.Builder entity = TopologyEntityDTO.newBuilder()
                 .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
                         .setProviderId(PARENT_ID)
-                        .setProviderEntityType(EntityType.STORAGE.getValue())
+                        .setProviderEntityType(EntityType.STORAGE.getNumber())
                         .setMovable(true));
-        applySettings(entity, STORAGE_MOVE_DISABLED_SETTING);
+        applySettings(TOPOLOGY_INFO, entity, STORAGE_MOVE_DISABLED_SETTING);
         assertThat(entity.getCommoditiesBoughtFromProviders(0).getMovable(), is(false));
     }
 
@@ -112,7 +112,7 @@ public class EntitySettingsApplicatorTest {
         final TopologyEntityDTO.Builder entity = TopologyEntityDTO.newBuilder()
                 .addCommoditiesBoughtFromProviders(
                         CommoditiesBoughtFromProvider.newBuilder().setMovable(true));
-        applySettings(entity, STORAGE_MOVE_DISABLED_SETTING);
+        applySettings(TOPOLOGY_INFO, entity, STORAGE_MOVE_DISABLED_SETTING);
         assertThat(entity.getCommoditiesBoughtFromProviders(0).getMovable(), is(true));
     }
 
