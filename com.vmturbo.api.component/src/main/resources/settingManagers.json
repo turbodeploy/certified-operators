@@ -16,6 +16,7 @@
         "resize",
         "provision",
         "activate",
+        "reconfigure",
         "storageMove"
       ],
       // Automation settings are pretty specific in the API/UI,

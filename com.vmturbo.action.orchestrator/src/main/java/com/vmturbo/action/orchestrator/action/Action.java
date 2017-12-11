@@ -112,10 +112,17 @@ public class Action implements ActionView {
 
     /**
      * Map of action type to filter for relevant settings.
-     * TODO: Right now the Move entry gets overwritten in the constructor if there are
-     * entity settings available
+     * Set in the constructor depending on whether entity settings are available
+     * to distinguish Move from Storage Move.
      */
     private final ImmutableMap<ActionTypeCase, Predicate<Setting>> actionTypeSettingFilter;
+
+    /**
+     * Map of action type to setting default.
+     * Set in the constructor depending on whether entity settings are available
+     * to distinguish Move from Storage Move.
+     */
+    private final ImmutableMap<ActionTypeCase, ActionMode> actionTypeSettingDefault;
 
     /**
      * Map of action type to target ID getter method
@@ -127,6 +134,7 @@ public class Action implements ActionView {
                     .put(ActionTypeCase.ACTIVATE, (info) -> info.getActivate().getTargetId())
                     .put(ActionTypeCase.DEACTIVATE, (info) -> info.getDeactivate().getTargetId())
                     .put(ActionTypeCase.MOVE, (info) -> info.getMove().getTargetId())
+                    .put(ActionTypeCase.RECONFIGURE, (info) -> info.getReconfigure().getTargetId())
                     .build();
 
     /**
@@ -146,7 +154,8 @@ public class Action implements ActionView {
         this.stateMachine = ActionStateMachine.newInstance(this, savedState.currentState);
         this.actionTranslation = savedState.actionTranslation;
         this.entitySettings = null;
-        this.actionTypeSettingFilter = loadActionTypeMap(false);
+        this.actionTypeSettingFilter = loadSettingFilterMap(false);
+        this.actionTypeSettingDefault = loadSettingDefaultMap(false);
     }
 
     public Action(@Nonnull final ActionDTO.Action recommendation,
@@ -160,7 +169,8 @@ public class Action implements ActionView {
         this.decision = new Decision();
         this.actionTranslation = new ActionTranslation(this.recommendation);
         this.entitySettings = null;
-        this.actionTypeSettingFilter = loadActionTypeMap(false);
+        this.actionTypeSettingFilter = loadSettingFilterMap(false);
+        this.actionTypeSettingDefault = loadSettingDefaultMap(false);
     }
 
     public Action(@Nonnull final ActionDTO.Action recommendation,
@@ -175,7 +185,8 @@ public class Action implements ActionView {
         this.decision = new Decision();
         this.actionTranslation = new ActionTranslation(this.recommendation);
         this.entitySettings = Objects.requireNonNull(entitySettings);
-        this.actionTypeSettingFilter = loadActionTypeMap(true);
+        this.actionTypeSettingFilter = loadSettingFilterMap(true);
+        this.actionTypeSettingDefault = loadSettingDefaultMap(true);
     }
 
     public Action(Action prototype, ActionDTO.Action.SupportLevel supportLevel) {
@@ -188,7 +199,8 @@ public class Action implements ActionView {
         this.recommendation = ActionDTO.Action.newBuilder(prototype.recommendation)
                 .setSupportingLevel(supportLevel).build();
         this.entitySettings = prototype.entitySettings;
-        this.actionTypeSettingFilter = loadActionTypeMap(this.entitySettings != null);
+        this.actionTypeSettingFilter = loadSettingFilterMap(this.entitySettings != null);
+        this.actionTypeSettingDefault = loadSettingDefaultMap(this.entitySettings != null);
     }
 
     public Action(@Nonnull final ActionDTO.Action recommendation,
@@ -204,35 +216,86 @@ public class Action implements ActionView {
 
     /**
      * Create an immutable map of action type to the predicate needed to filter relevant
-     * entity settings.
-     * @param hasEntitySettings whether the entitySettingsCache exists, in which case move
-     *                          actions' predicates may determine whether to filter move or
-     *                          storage move settings.
+     * entity settings. Move actions' predicates may determine whether to use move or
+     * storage move settings.
+     *
+     * @param hasEntitySettings whether the entitySettingsCache has been initialized. This is
+     *                          the case for actions from a LiveActionStore, which may be executed
+     *                          if entity settings allow. A PlanActionStore does not load the
+     *                          entity settings cache.
      * @return ImmutableMap containing mappings for all supported action types
      */
-    private ImmutableMap<ActionTypeCase, Predicate<Setting>>
-    loadActionTypeMap(boolean hasEntitySettings) {
+    private ImmutableMap<ActionTypeCase, Predicate<Setting>> loadSettingFilterMap(
+            boolean hasEntitySettings) {
         ImmutableMap.Builder<ActionTypeCase, Predicate<Setting>> builder =
                 new ImmutableMap.Builder<>();
-        builder.put(ActionTypeCase.RESIZE, (s ->
-                s.getSettingSpecName().equals(SettingPolicySetting.Resize.getSettingName())))
+        builder.put(ActionTypeCase.RESIZE,
+                        (s -> s.getSettingSpecName()
+                                .equals(SettingPolicySetting.Resize.getSettingName())))
                 .put(ActionTypeCase.ACTIVATE,
                         (s -> s.getSettingSpecName()
                                 .equals(SettingPolicySetting.Activate.getSettingName())))
+                .put(ActionTypeCase.RECONFIGURE,
+                        (s -> (s.getSettingSpecName()
+                                .equals(SettingPolicySetting.Reconfigure.getSettingName()) &&
+                                s.hasEnumSettingValue() &&
+                                ActionMode.valueOf(s.getEnumSettingValue().getValue())
+                                        .getNumber() < ActionMode.MANUAL_VALUE)))
                 .put(ActionTypeCase.DEACTIVATE,
                         (s -> s.getSettingSpecName()
                                 .equals(SettingPolicySetting.Suspend.getSettingName())));
 
-        if (hasEntitySettings) {
-            builder.put(ActionTypeCase.MOVE, determineMoveType());
-        } else {
-            // todo: currently if there are no entity settings, there is no way to determine
-            // if a move action is a move storage action.
-            builder.put(ActionTypeCase.MOVE,
-                    (s -> s.getSettingSpecName()
-                            .equals(SettingPolicySetting.Move.getSettingName())));
-        }
+        // todo: currently if there are no entity settings, there is no way to determine
+        // if a move action is a move storage action.
+        final SettingPolicySetting moveType =
+                hasEntitySettings ? determineMoveType() : SettingPolicySetting.Move;
+
+        builder.put(ActionTypeCase.MOVE,
+                (s -> s.getSettingSpecName().equals(moveType.getSettingName())));
         return builder.build();
+    }
+
+    /**
+     * Create an immutable map from action type to the default ActionMode for that type.
+     * Move actions' predicates may determine whether to use move or storage move settings.
+     *
+     * @param hasEntitySettings whether the entitySettingsCache has been initialized. This is
+     *                          the case for actions from a LiveActionStore, which may be executed
+     *                          if entity settings allow. A PlanActionStore does not load the
+     *                          entity settings cache.
+     * @return ImmutableMap containing mappings for all supported action types
+     */
+    private ImmutableMap<ActionTypeCase, ActionMode>
+    loadSettingDefaultMap(boolean hasEntitySettings) {
+        ImmutableMap.Builder<ActionTypeCase, ActionMode> builder = new ImmutableMap.Builder<>();
+        builder.put(ActionTypeCase.RESIZE,
+                        getDefaultActionModeFromSetting(SettingPolicySetting.Resize))
+                .put(ActionTypeCase.ACTIVATE,
+                        getDefaultActionModeFromSetting(SettingPolicySetting.Activate))
+                .put(ActionTypeCase.RECONFIGURE,
+                        getDefaultActionModeFromSetting(SettingPolicySetting.Reconfigure))
+                .put(ActionTypeCase.DEACTIVATE,
+                        getDefaultActionModeFromSetting(SettingPolicySetting.Suspend))
+                .put(ActionTypeCase.PROVISION,
+                        getDefaultActionModeFromSetting(SettingPolicySetting.Provision));
+
+        // todo: currently if there are no entity settings, there is no way to determine
+        // if a move action is a move storage action.
+        final SettingPolicySetting moveType =
+                hasEntitySettings ? determineMoveType() : SettingPolicySetting.Move;
+
+        builder.put(ActionTypeCase.MOVE, getDefaultActionModeFromSetting(moveType));
+        return builder.build();
+    }
+
+    /**
+     * Find the default value of a SettingPolicySetting by using the associated spec.
+     *
+     * @param setting The SettingPolicySetting to get the default value of
+     * @return an ActionMode representing the default value of {@param setting}
+     */
+    private ActionMode getDefaultActionModeFromSetting(SettingPolicySetting setting) {
+        return ActionMode.valueOf(setting.createSettingSpec().getEnumSettingValueType().getDefault());
     }
 
     /**
@@ -349,7 +412,7 @@ public class Action implements ActionView {
                 .map(s -> ActionMode.valueOf(s.getEnumSettingValue().getValue()).getNumber())
                 .min(Integer::compareTo)
                 .map(ActionMode::forNumber)
-                .orElse(ActionMode.MANUAL);
+                .orElse(actionTypeSettingDefault.get(type));
     }
 
     /**
@@ -357,18 +420,16 @@ public class Action implements ActionView {
      * @return a predicate for filtering settings based on move type
      */
     @Nonnull
-    private Predicate<Setting> determineMoveType() {
-        if (entitySettings == null) { return s -> false; }
+    private SettingPolicySetting determineMoveType() {
         final Optional<EntityType> sourceType = entitySettings
                 .getTypeForEntity(recommendation.getInfo().getMove().getSourceId());
         final Optional<EntityType> destType = entitySettings
                 .getTypeForEntity(recommendation.getInfo().getMove().getDestinationId());
         if (sourceType.isPresent() && sourceType.get().equals(EntityType.STORAGE) &&
                 destType.isPresent() && destType.get().equals(EntityType.STORAGE)) {
-            return s ->
-                    s.getSettingSpecName().equals(SettingPolicySetting.StorageMove.getSettingName());
+            return SettingPolicySetting.StorageMove;
         } else {
-            return s -> s.getSettingSpecName().equals(SettingPolicySetting.Move.getSettingName());
+            return SettingPolicySetting.Move;
         }
     }
 

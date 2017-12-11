@@ -32,6 +32,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
+import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
@@ -44,7 +45,7 @@ import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
  */
 public class ActionTest {
 
-    final long actionPlanId = 1;
+    private final long actionPlanId = 1;
     private ActionDTO.Action moveRecommendation;
     private Action moveAction;
     private ActionDTO.Action resizeRecommendation;
@@ -55,6 +56,8 @@ public class ActionTest {
     private Action activateAction;
     private ActionDTO.Action storageMoveRecommendation;
     private Action storageMoveAction;
+    private ActionDTO.Action reconfigureRecommendation;
+    private Action reconfigureAction;
     private EntitySettingsCache entitySettingsCache = mock(EntitySettingsCache.class);
 
     @Before
@@ -62,13 +65,14 @@ public class ActionTest {
         IdentityGenerator.initPrefix(0);
 
         moveRecommendation =
-                makeAction(makeMoveInfo(11L, 22L, 33L), SupportLevel.SUPPORTED).build();
-        resizeRecommendation = makeAction(makeResizeInfo(11L), SupportLevel.SUPPORTED).build();
+                makeRec(makeMoveInfo(11L, 22L, 33L), SupportLevel.SUPPORTED).build();
+        resizeRecommendation = makeRec(makeResizeInfo(11L), SupportLevel.SUPPORTED).build();
         deactivateRecommendation =
-                makeAction(makeDeactivateInfo(11L), SupportLevel.SUPPORTED).build();
-        activateRecommendation = makeAction(makeActivateInfo(11L), SupportLevel.SUPPORTED).build();
+                makeRec(makeDeactivateInfo(11L), SupportLevel.SUPPORTED).build();
+        activateRecommendation = makeRec(makeActivateInfo(11L), SupportLevel.SUPPORTED).build();
         storageMoveRecommendation =
-                makeAction(makeMoveInfo(11L, 44L, 55L), SupportLevel.SUPPORTED).build();
+                makeRec(makeMoveInfo(11L, 44L, 55L), SupportLevel.SUPPORTED).build();
+        reconfigureRecommendation = makeRec(makeReconfigureInfo(11L, 22L), SupportLevel.SUPPORTED).build();
 
         when(entitySettingsCache.getSettingsForEntity(anyLong()))
             .thenReturn(Collections.emptyList());
@@ -84,6 +88,8 @@ public class ActionTest {
         activateAction = new Action(activateRecommendation, entitySettingsCache, actionPlanId);
         storageMoveAction =
                 new Action(storageMoveRecommendation, entitySettingsCache, actionPlanId);
+        reconfigureAction =
+                new Action(reconfigureRecommendation, entitySettingsCache, actionPlanId);
     }
 
     @Test
@@ -158,6 +164,19 @@ public class ActionTest {
     }
 
     @Test
+    public void testReconfigureActionNotAutomatable() {
+        List<Setting> settingsList1 =
+                Collections.singletonList(makeSetting("reconfigure", ActionMode.AUTOMATIC));
+        List<Setting> settingsList2 =
+                Collections.singletonList(makeSetting("reconfigure", ActionMode.MANUAL));
+
+        when(entitySettingsCache.getSettingsForEntity(eq(11L))).thenReturn(settingsList1);
+        assertEquals(reconfigureAction.getMode(), ActionMode.RECOMMEND);
+        when(entitySettingsCache.getSettingsForEntity(eq(11L))).thenReturn(settingsList2);
+        assertEquals(reconfigureAction.getMode(), ActionMode.RECOMMEND);
+    }
+
+    @Test
     public void testGetModeChoosesStrictestValidSetting(){
         //if an entity has multiple settings, the strictest applicable settings are chosen
         //THIS SHOULD NEVER HAPPEN
@@ -171,6 +190,8 @@ public class ActionTest {
                 makeSetting("activate", ActionMode.AUTOMATIC),
                 makeSetting("suspend", ActionMode.AUTOMATIC),
                 makeSetting("suspend", ActionMode.DISABLED),
+                makeSetting("reconfigure", ActionMode.DISABLED),
+                makeSetting("reconfigure", ActionMode.RECOMMEND),
                 makeSetting("move", ActionMode.MANUAL),
                 makeSetting("move", ActionMode.RECOMMEND)
         );
@@ -181,6 +202,7 @@ public class ActionTest {
         assertEquals(deactivateAction.getMode(), ActionMode.DISABLED);
         assertEquals(activateAction.getMode(), ActionMode.MANUAL);
         assertEquals(storageMoveAction.getMode(), ActionMode.RECOMMEND);
+        assertEquals(reconfigureAction.getMode(), ActionMode.DISABLED);
     }
 
     @Test
@@ -191,33 +213,38 @@ public class ActionTest {
         assertEquals(activateAction.getMode(), ActionMode.MANUAL);
         assertEquals(deactivateAction.getMode(), ActionMode.MANUAL);
         assertEquals(storageMoveAction.getMode(), ActionMode.MANUAL);
+        assertEquals(reconfigureAction.getMode(), ActionMode.RECOMMEND);
     }
 
     @Test
     public void testGetModeSupportLevelShowOnly(){
         //SHOW ONLY support level - no modes above RECOMMEND even though set to AUTOMATIC
         moveRecommendation =
-                makeAction(makeMoveInfo(11L, 22L, 33L), SupportLevel.SHOW_ONLY).build();
+                makeRec(makeMoveInfo(11L, 22L, 33L), SupportLevel.SHOW_ONLY).build();
         moveAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId);
         deactivateRecommendation =
-                makeAction(makeMoveInfo(11L, 22L, 33L), SupportLevel.SHOW_ONLY).build();
+                makeRec(makeDeactivateInfo(11L), SupportLevel.SHOW_ONLY).build();
         deactivateAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId);
         activateRecommendation =
-                makeAction(makeMoveInfo(11L, 22L, 33L), SupportLevel.SHOW_ONLY).build();
+                makeRec(makeActivateInfo(11L), SupportLevel.SHOW_ONLY).build();
         activateAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId);
         resizeRecommendation =
-                makeAction(makeMoveInfo(11L, 22L, 33L), SupportLevel.SHOW_ONLY).build();
+                makeRec(makeResizeInfo(11L), SupportLevel.SHOW_ONLY).build();
         resizeAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId);
         storageMoveRecommendation =
-                makeAction(makeMoveInfo(11L, 44L, 55L), SupportLevel.SHOW_ONLY).build();
+                makeRec(makeMoveInfo(11L, 44L, 55L), SupportLevel.SHOW_ONLY).build();
         storageMoveAction =
                 new Action(storageMoveRecommendation, entitySettingsCache, actionPlanId);
+        reconfigureRecommendation =
+                makeRec(makeReconfigureInfo(11L, 22L), SupportLevel.SHOW_ONLY).build();
+        reconfigureAction = new Action(reconfigureRecommendation, entitySettingsCache, actionPlanId);
 
         List<Setting> settingsList = Arrays.asList(
                 makeSetting("resize", ActionMode.AUTOMATIC),
                 makeSetting("move", ActionMode.AUTOMATIC),
                 makeSetting("storageMove", ActionMode.AUTOMATIC),
                 makeSetting("activate", ActionMode.AUTOMATIC),
+                makeSetting("reconfigure", ActionMode.RECOMMEND),
                 makeSetting("suspend", ActionMode.AUTOMATIC)
         );
 
@@ -228,32 +255,38 @@ public class ActionTest {
         assertEquals(activateAction.getMode(), ActionMode.RECOMMEND);
         assertEquals(deactivateAction.getMode(), ActionMode.RECOMMEND);
         assertEquals(storageMoveAction.getMode(), ActionMode.RECOMMEND);
+        assertEquals(reconfigureAction.getMode(), ActionMode.RECOMMEND);
     }
 
     @Test
     public void testGetModeSupportLevelUnsupported(){
         //UNSUPPORTED support level - no modes above DISABLED even though set to RECOMMEND
         moveRecommendation =
-                makeAction(makeMoveInfo(11L, 22L, 33L), SupportLevel.UNSUPPORTED).build();
+                makeRec(makeMoveInfo(11L, 22L, 33L), SupportLevel.UNSUPPORTED).build();
         moveAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId);
         deactivateRecommendation =
-                makeAction(makeDeactivateInfo(11L), SupportLevel.UNSUPPORTED).build();
+                makeRec(makeDeactivateInfo(11L), SupportLevel.UNSUPPORTED).build();
         deactivateAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId);
         activateRecommendation =
-                makeAction(makeActivateInfo(11L), SupportLevel.UNSUPPORTED).build();
+                makeRec(makeActivateInfo(11L), SupportLevel.UNSUPPORTED).build();
         activateAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId);
-        resizeRecommendation = makeAction(makeResizeInfo(11L), SupportLevel.UNSUPPORTED).build();
+        resizeRecommendation = makeRec(makeResizeInfo(11L), SupportLevel.UNSUPPORTED).build();
         resizeAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId);
         storageMoveRecommendation =
-                makeAction(makeMoveInfo(11L, 44L, 55L), SupportLevel.UNSUPPORTED).build();
+                makeRec(makeMoveInfo(11L, 44L, 55L), SupportLevel.UNSUPPORTED).build();
         storageMoveAction =
                 new Action(storageMoveRecommendation, entitySettingsCache, actionPlanId);
+        reconfigureRecommendation =
+                makeRec(makeReconfigureInfo(11L, 22L), SupportLevel.UNSUPPORTED).build();
+        reconfigureAction =
+                new Action(reconfigureRecommendation, entitySettingsCache, actionPlanId);
 
         List<Setting> settingsList = Arrays.asList(
                 makeSetting("resize", ActionMode.RECOMMEND),
                 makeSetting("move", ActionMode.RECOMMEND),
                 makeSetting("storageMove", ActionMode.RECOMMEND),
                 makeSetting("activate", ActionMode.RECOMMEND),
+                makeSetting("reconfigure", ActionMode.RECOMMEND),
                 makeSetting("suspend", ActionMode.RECOMMEND)
         );
 
@@ -264,6 +297,7 @@ public class ActionTest {
         assertEquals(activateAction.getMode(), ActionMode.DISABLED);
         assertEquals(deactivateAction.getMode(), ActionMode.DISABLED);
         assertEquals(storageMoveAction.getMode(), ActionMode.DISABLED);
+        assertEquals(reconfigureAction.getMode(), ActionMode.DISABLED);
     }
 
     @Test
@@ -275,6 +309,7 @@ public class ActionTest {
             makeSetting("move", ActionMode.AUTOMATIC),
             makeSetting("storageMove", ActionMode.AUTOMATIC),
             makeSetting("activate", ActionMode.AUTOMATIC),
+            makeSetting("reconfigure", ActionMode.RECOMMEND),
             makeSetting("suspend", ActionMode.AUTOMATIC)
         );
 
@@ -286,10 +321,11 @@ public class ActionTest {
         assertEquals(deactivateAction.getMode(), ActionMode.AUTOMATIC);
         assertEquals(moveAction.getMode(), ActionMode.AUTOMATIC);
         assertEquals(storageMoveAction.getMode(), ActionMode.AUTOMATIC);
+        assertEquals(reconfigureAction.getMode(), ActionMode.RECOMMEND);
     }
 
-    private ActionDTO.Action.Builder makeAction(ActionInfo.Builder infoBuilder,
-                                          final SupportLevel supportLevel) {
+    private ActionDTO.Action.Builder makeRec(ActionInfo.Builder infoBuilder,
+                                             final SupportLevel supportLevel) {
         return ActionDTO.Action.newBuilder()
                 .setId(IdentityGenerator.next())
                 .setImportance(0)
@@ -324,6 +360,11 @@ public class ActionTest {
         return ActionInfo.newBuilder().setActivate(Activate.newBuilder()
                 .setTargetId(targetId)
                 .addTriggeringCommodities(CommodityType.newBuilder().setType(0).build()));
+    }
+
+    private ActionInfo.Builder makeReconfigureInfo(long targetId, long sourceId) {
+        return ActionInfo.newBuilder().setReconfigure(Reconfigure.newBuilder()
+                .setTargetId(targetId).setSourceId(sourceId).build());
     }
 
     private Setting makeSetting(String specName, ActionMode mode) {

@@ -53,6 +53,11 @@ public enum SettingPolicySetting {
             EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE), actionExecutionMode(),
             true),
     /**
+     * Reconfigure action automation mode (not executable).
+     */
+    Reconfigure("reconfigure", "Reconfigure", Collections.emptyList(), SettingTiebreaker.SMALLER,
+            EnumSet.allOf(EntityType.class), nonExecutableActionMode()),
+    /**
      * Activate action automation mode.
      */
     Activate("activate", "Activate", Collections.emptyList(), SettingTiebreaker.SMALLER,
@@ -353,6 +358,11 @@ public enum SettingPolicySetting {
     @Nonnull
     private static SettingDataStructure<?> actionExecutionMode() {
         return new EnumSettingDataType<>(ActionMode.MANUAL);
+    }
+
+    @Nonnull
+    private static SettingDataStructure<?> nonExecutableActionMode() {
+        return new EnumSettingDataType<>(ActionMode.RECOMMEND, ActionMode.RECOMMEND);
     }
 
     @Nonnull
