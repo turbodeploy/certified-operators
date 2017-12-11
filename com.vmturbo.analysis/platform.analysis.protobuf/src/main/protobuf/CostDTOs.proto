@@ -44,7 +44,7 @@ message CostDTO {
 
     // the DTOs specifically define cost for cloud storages
     message ComputeResourceBundleCostDTO {
-        required double price = 1;
+        required double cost = 1;
     }
 
 }
