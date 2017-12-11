@@ -204,7 +204,11 @@ public class CostFunctionFactory {
         for (DependentResourcePair dependency : dependencyList) {
             int baseIndex = sl.getBasket().indexOf(dependency.getBaseCommodity());
             int depIndex = sl.getBasket().indexOf(dependency.getDependentCommodity());
-            // some sl may not have dependent commodity pair
+            // we iterate over the DependentResourcePair list, which defines the dependency
+            // between seller commodities. The sl is from the buyer, which may not buy all
+            // resources sold by the seller thus it does not comply with the dependency constraint,
+            // e.g: some VM does not request IOPS sold by IO1. The dependency
+            // limitation check is irrelevant for such commodities, and we skip it.
             if (baseIndex == -1 || depIndex == -1) {
                 continue;
             }
@@ -229,10 +233,10 @@ public class CostFunctionFactory {
         for (Entry<CommoditySpecification, CapacityLimitation> entry : commCapacity.entrySet()) {
             int index = sl.getBasket().indexOf(entry.getKey());
             if (index == -1) {
-                // the capacity limitation map defines the seller capacity constraint,
-                // yet the sl may be from a different seller and it does not ask for
-                // a particular resource, e.g: some VM does not request for IOPS but can
-                // reside on IO1
+                // we iterate over the capacity limitation map, which defines the seller capacity
+                // constraint. The sl is from the buyer, which may not buy all resources sold
+                // by the seller, e.g: some VM does not request IOPS sold by IO1. The capacity
+                // limitation check is irrelevant for such commodities, and we skip it.
                 continue;
             }
             if (sl.getQuantities()[index] < entry.getValue().getMinCapacity()
@@ -301,6 +305,10 @@ public class CostFunctionFactory {
                         .entrySet()) {
             int i = sl.getBasket().indexOf(commodityPrice.getKey());
             if (i == -1) {
+                // we iterate over the price data map, which defines the seller commodity price.
+                // The sl is from the buyer, which may not buy all resources sold
+                // by the seller, e.g: some VM does not request IOPS sold by IO1. We can skip it
+                // when trying to compute cost.
                 continue;
             }
             double requestedAmount = sl.getQuantities()[i];
