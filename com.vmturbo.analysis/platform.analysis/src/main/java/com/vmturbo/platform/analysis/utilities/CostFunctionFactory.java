@@ -202,9 +202,14 @@ public class CostFunctionFactory {
         // check if the dependent commodity requested amount is more than the
         // max ratio * base commodity requested amount
         for (DependentResourcePair dependency : dependencyList) {
-            if (sl.getQuantities()[sl.getBasket().indexOf(dependency.getBaseCommodity())]
-                            * dependency.maxRatio_ < sl.getQuantities()[sl.getBasket()
-                                            .indexOf(dependency.getDependentCommodity())]) {
+            int baseIndex = sl.getBasket().indexOf(dependency.getBaseCommodity());
+            int depIndex = sl.getBasket().indexOf(dependency.getDependentCommodity());
+            // some sl may not have dependent commodity pair
+            if (baseIndex == -1 || depIndex == -1) {
+                continue;
+            }
+            if (sl.getQuantities()[baseIndex]
+                            * dependency.maxRatio_ < sl.getQuantities()[depIndex]) {
                 return false;
             }
         }
@@ -223,6 +228,13 @@ public class CostFunctionFactory {
         // check if the commodities bought comply with capacity limitation on seller
         for (Entry<CommoditySpecification, CapacityLimitation> entry : commCapacity.entrySet()) {
             int index = sl.getBasket().indexOf(entry.getKey());
+            if (index == -1) {
+                // the capacity limitation map defines the seller capacity constraint,
+                // yet the sl may be from a different seller and it does not ask for
+                // a particular resource, e.g: some VM does not request for IOPS but can
+                // reside on IO1
+                continue;
+            }
             if (sl.getQuantities()[index] < entry.getValue().getMinCapacity()
                             || sl.getQuantities()[index] > entry.getValue().getMaxCapacity()) {
                 return false;
@@ -288,6 +300,9 @@ public class CostFunctionFactory {
         for (Entry<CommoditySpecification, List<PriceData>> commodityPrice : commodityPriceDataMap
                         .entrySet()) {
             int i = sl.getBasket().indexOf(commodityPrice.getKey());
+            if (i == -1) {
+                continue;
+            }
             double requestedAmount = sl.getQuantities()[i];
             double previousUpperBound = 0;
             for (PriceData priceData : commodityPrice.getValue()) {
