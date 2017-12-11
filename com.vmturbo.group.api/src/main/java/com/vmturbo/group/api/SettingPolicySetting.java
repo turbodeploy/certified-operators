@@ -56,7 +56,7 @@ public enum SettingPolicySetting {
      * Reconfigure action automation mode (not executable).
      */
     Reconfigure("reconfigure", "Reconfigure", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.allOf(EntityType.class), nonExecutableActionMode()),
+            EnumSet.allOf(EntityType.class), nonExecutableActionMode(), true),
     /**
      * Activate action automation mode.
      */
