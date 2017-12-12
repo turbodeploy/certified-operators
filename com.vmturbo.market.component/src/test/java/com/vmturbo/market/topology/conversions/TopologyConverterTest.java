@@ -356,12 +356,13 @@ public class TopologyConverterTest {
                         .convertToMarket(topologyDTOs.stream().collect(Collectors.toList()));
         assertEquals(2, traderTOs.size());
         for (TraderTO traderTO : traderTOs) {
-            if (traderTO.getType() == 14) {
+            if (traderTO.getType() == EntityType.PHYSICAL_MACHINE_VALUE) {
                 // this is the pm, so trader should not contain MemAllocation in commSold
                 assertFalse(traderTO.getCommoditiesSoldList().stream()
-                                .anyMatch(c -> c.getSpecification().getType() == 50));
+                                .anyMatch(c -> c.getSpecification().getType() ==
+                                    CommodityDTO.CommodityType.MEM_ALLOCATION_VALUE));
             }
-            if (traderTO.getType() == 10) {
+            if (traderTO.getType() == EntityType.VIRTUAL_MACHINE_VALUE) {
                 // this is the vm, so trader should not contain shoppinglist buys from VDC
                 assertFalse(traderTO.getShoppingListsList().stream()
                                 .anyMatch(s -> s.getSupplier() == 100));

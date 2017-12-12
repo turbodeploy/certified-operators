@@ -42,7 +42,7 @@
   ],
   "commoditiesBoughtFromProviders" : [
     { "providerId" : 100,
-      "providerEntityType" : 14,
+      "providerEntityType" : 1,
       "commodityBought": [
         {
           "commodityType": {

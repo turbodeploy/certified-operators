@@ -65,6 +65,7 @@ public class TopologyConverterGuaranteedTest {
                         .setOid(VDC2_OID)
                         .setEntityType(EntityType.VIRTUAL_DATACENTER_VALUE)
                         .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                            .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
                             .setProviderId(HOST_OID)
                             .addCommodityBought(CommodityBoughtDTO.newBuilder()
                                 .setCommodityType(MEM_ALLOC)))

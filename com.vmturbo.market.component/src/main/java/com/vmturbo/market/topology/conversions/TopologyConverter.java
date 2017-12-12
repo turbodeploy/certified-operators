@@ -123,10 +123,6 @@ public class TopologyConverter {
 
     private final NumericIDAllocator commodityTypeAllocator = new NumericIDAllocator();
 
-    // a list of oids of guaranteed buyers, used to skip creating shopping lists that buy from
-    // these entities (acting as sellers) when includeGuaranteedBuyer is false.
-    private @Nonnull List<Long> guaranteedList = new ArrayList<Long>();
-
     // a map to keep the oid to traderTO mapping, it also includes newly cloned traderTO
     private Map<Long, EconomyDTOs.TraderTO> oidToTraderTOMap = Maps.newHashMap();
 
@@ -139,8 +135,6 @@ public class TopologyConverter {
     // Note: the commodity key is composed of entity type and entity ID (which is different from
     // OID)
     private BiMap<String, Long> accessesByKey = HashBiMap.create();
-
-    private Set<CommodityDTOs.CommoditySoldTO> EMPTY_SET = Sets.newHashSet();
 
     private final TopologyInfo topologyInfo;
 
@@ -182,10 +176,9 @@ public class TopologyConverter {
         for (TopologyDTO.TopologyEntityDTO entity : entities) {
             int entityType = entity.getEntityType();
             if (AnalysisUtil.SKIPPED_ENTITY_TYPES.contains(entityType)
-                || SKIPPED_ENTITY_STATES.contains(entity.getEntityState())) {
+                || SKIPPED_ENTITY_STATES.contains(entity.getEntityState())
+                || !includeByType(entityType)) {
                 continue;
-            } else if (!includeGuaranteedBuyer && AnalysisUtil.GUARANTEED_BUYER_TYPES.contains(entityType)) {
-                guaranteedList.add(entity.getOid());
             } else {
                 entityOidToDto.put(entity.getOid(), entity);
                 if (isPlan() && CONTAINER_TYPES.contains(entityType)) {
@@ -659,7 +652,7 @@ public class TopologyConverter {
         Map<Long, Long> providers = oldProviders(topologyEntity);
         return topologyEntity.getCommoditiesBoughtFromProvidersList().stream()
             // skip converting shoppinglist that buys from VDC
-            .filter(commBoughtGrouping -> !guaranteedList.contains(commBoughtGrouping.getProviderId()))
+            .filter(commBoughtGrouping -> includeByType(commBoughtGrouping.getProviderEntityType()))
             .map(commBoughtGrouping -> createShoppingList(
                     topologyEntity.getOid(),
                     topologyEntity.getEntityType(),
@@ -668,6 +661,21 @@ public class TopologyConverter {
                     commBoughtGrouping,
                     providers))
             .collect(Collectors.toList());
+    }
+
+    /**
+     * Entity type is included in the converted topology if {@link #includeGuaranteedBuyer} is
+     * true (in which case it is included regardless of its actual type), or else if the type
+     * is not in the list of {@link AnalysisUtil#GUARANTEED_BUYER_TYPES}. This method is used
+     * to decide whether to include an entity in the topology by its type, and whether to
+     * include a shopping list by its provider type.
+     *
+     * @param entityType the type of entity to consider for inclusion in the converted topology
+     * @return whether to include this entity type in the converted topology
+     */
+    private boolean includeByType(int entityType) {
+        return includeGuaranteedBuyer
+            || !AnalysisUtil.GUARANTEED_BUYER_TYPES.contains(entityType);
     }
 
     /**
@@ -896,7 +904,7 @@ public class TopologyConverter {
                     ? bcKeys.stream()
                         .map(this::newBiCliqueCommoditySoldDTO)
                         .collect(Collectors.toSet())
-                    : EMPTY_SET;
+                    : Collections.emptySet();
     }
 
     @Nonnull
