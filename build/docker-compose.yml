@@ -38,6 +38,7 @@ volumes:
   group: *localdriver
   history: *localdriver
   plan-orchestrator: *localdriver
+  reporting: *localdriver
   mediation-vcenter: *localdriver
   mediation-stressprobe: *localdriver
   mediation-storagestressprobe: *localdriver
@@ -410,6 +411,26 @@ services:
       kafkaServers: ${KAFKA_SERVERS}
       JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${PLAN_ORCHESTRATOR_XMX_MB}M ${PLAN_ORCHESTRATOR_SYSTEM_PROPERTIES}"
     mem_limit: ${PLAN_ORCHESTRATOR_MEM_LIMIT_MB}M
+
+  reporting:
+    extends:
+      file: common-services.yml
+      service: dev-component
+    image: turbonomic/com.vmturbo.reports.component
+    ports:
+      - "${REPORTING_PORT}"
+      - "${REPORTING_DEBUG_PORT}"
+    depends_on:
+      - db
+      - clustermgr
+    volumes:
+      - reporting:/home/turbonomic/data
+    environment:
+      consul_host: consul
+      component_type: reporting
+      instance_id: reporting-1
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${REPORTING_XMX_MB}M ${REPORTING_SYSTEM_PROPERTIES}"
+    mem_limit: ${REPORTING_MEM_LIMIT_MB}M
 
   mediation-vcenter:
     extends:

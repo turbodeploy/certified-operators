@@ -13,6 +13,8 @@ import com.vmturbo.api.component.communication.CommunicationConfig;
 import com.vmturbo.api.component.external.api.mapper.MapperConfig;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
 import com.vmturbo.auth.api.SpringSecurityConfig;
+import com.vmturbo.reporting.api.ReportingClientConfig;
+import com.vmturbo.reporting.api.protobuf.ReportingServiceGrpc;
 
 /**
  * Spring Configuration that initializes all the services.
@@ -21,7 +23,7 @@ import com.vmturbo.auth.api.SpringSecurityConfig;
  */
 @Configuration
 @Import({SpringSecurityConfig.class, MapperConfig.class,
-        CommunicationConfig.class, ApiWebsocketConfig.class})
+        CommunicationConfig.class, ApiWebsocketConfig.class, ReportingClientConfig.class})
 public class ServiceConfig {
 
     @Value("${targetValidationTimeoutSeconds}")
@@ -47,6 +49,9 @@ public class ServiceConfig {
 
     @Autowired
     private ApiWebsocketConfig websocketConfig;
+
+    @Autowired
+    private ReportingClientConfig reportingClientConfig;
 
     @Bean
     public ActionsService actionsService() {
@@ -143,7 +148,8 @@ public class ServiceConfig {
 
     @Bean
     public ReportsService reportsService() {
-        return new ReportsService();
+        return new ReportsService(
+                ReportingServiceGrpc.newBlockingStub(reportingClientConfig.reportingChannel()));
     }
 
     @Bean

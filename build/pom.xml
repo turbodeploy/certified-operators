@@ -951,6 +951,11 @@
                 <artifactId>com.vmturbo.repository.api</artifactId>
                 <version>${project.version}</version>
             </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>com.vmturbo.reports.api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
             <!-- We keep versions of dependencies in the root pom.xml so that all
                  modules and components have the same version. -->
             <dependency>
@@ -1120,6 +1125,11 @@
             <dependency>
                 <groupId>com.vmturbo</groupId>
                 <artifactId>com.vmturbo.reports</artifactId>
+                <version>${vmturbo.mt.branch.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>com.vmturbo.reports.templates</artifactId>
                 <version>${vmturbo.mt.branch.version}</version>
             </dependency>
             <dependency>

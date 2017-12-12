@@ -1,0 +1,55 @@
+syntax = "proto2";
+package reporting;
+
+option java_package = "com.vmturbo.reporting.api.protobuf";
+
+// Request for the report
+message GenerateReportRequest {
+    // Format of the report to be represented.
+    // This is an ordinal value from ReportOutputFormat enum
+    required int32 format = 1;
+    // ID of the report to generate
+    required int32 report_id = 2;
+    // Parameters for the report
+    map<string, string> parameters = 3;
+}
+
+// Report template
+message ReportTemplate {
+    // Id of the report (represents id in the DB)
+    required int32 id = 1;
+    // Report type. Reffers to ReportType enumeration
+    required int32 reportType = 2;
+    // File name to be used for this report
+    // TODO decide, whether we need this field in UI at all.
+    optional string filename = 3;
+    // Title of the report
+    optional string title = 4;
+    // Category of the report
+    optional string category = 5;
+    // Short description of the report
+    optional string short_description = 6;
+    // Full description of the report
+    required string description = 7;
+    // Type of recurrency period
+    // These 2 numbers represents ordinal in appropriate enums.
+    optional int32 period = 8;
+    // Day of recurrency
+    optional int32 day_type = 9;
+}
+
+// Represents reporting response - an internal link to a report instance record
+message ReportResponse {
+    // Path to the file in the server, where generated report is stored
+    required int64 file_name = 1;
+}
+
+message EmptyRequest {}
+
+// GRPC service to process reporting requests
+service ReportingService {
+    // Generates a report
+    rpc GenerateReport (GenerateReportRequest) returns (ReportResponse);
+    // Lists all the existing reporting templates
+    rpc ListAllTemplates (EmptyRequest) returns (stream ReportTemplate);
+}

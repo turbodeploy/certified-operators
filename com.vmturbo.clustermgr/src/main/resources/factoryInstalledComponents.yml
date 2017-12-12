@@ -109,6 +109,7 @@ api:
   planOrchestratorHost: 'plan-orchestrator'
   groupHost: 'group'
   historyHost: 'history'
+  reportingHost: 'reporting'
   identityGeneratorPrefix: 5
   kvStoreRetryIntervalMillis: 1000
   keystoreFile: '/home/turbonomic/data/keystore.p12'
@@ -239,3 +240,12 @@ history:
   topologyProcessorHost: topology-processor
   grpcPingIntervalSeconds: 300
   websocket.pong.timeout: 30000
+
+reporting:
+  dbHost: 'db'
+  dbPort: '3306'
+  dbUsername: 'root'
+  dbSchemaName: 'vmtdb'
+  sqlDialect: 'MARIADB'
+  authHost: 'auth'
+  authPort: 8080

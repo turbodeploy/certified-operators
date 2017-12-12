@@ -245,6 +245,19 @@ services:
       kafkaServers: kafka1:9092
     restart: always
 
+  reporting-prod:
+    extends:
+      file: common-services.yml
+      service: prod-component
+    image: turbonomic/com.vmturbo.reports.component
+    volumes:
+      - reporting:/home/turbonomic/data
+    environment:
+      consul_host: consul
+      component_type: reporting
+      instance_id: reporting-1
+    restart: always
+
   mediation-vcenter-prod:
     extends:
       file: common-services.yml

@@ -33,6 +33,7 @@ volumes:
   group: *localdriver
   history: *localdriver
   plan-orchestrator: *localdriver
+  reporting: *localdriver
   mediation-vcenter: *localdriver
   mediation-hyperv: *localdriver
   mediation-netapp: *localdriver
@@ -194,6 +195,17 @@ services:
       - db
       - clustermgr
       - kafka1
+
+  reporting:
+    extends:
+      file: prod-services.yml
+      service: reporting-prod
+    environment:
+      JAVA_OPTS: "-Xmx768M"
+    mem_limit: 1024M
+    depends_on:
+      - db
+      - clustermgr
 
   mediation-vcenter:
     extends:
