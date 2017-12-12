@@ -82,6 +82,8 @@ public class StatsServiceTest {
 
     private GroupExpander groupExpander = Mockito.mock(GroupExpander.class);
 
+    private TargetsService targetsService = Mockito.mock(TargetsService.class);
+
     private Clock mockClock = Mockito.mock(Clock.class);
 
 
@@ -127,7 +129,7 @@ public class StatsServiceTest {
         groupExpander = Mockito.mock(GroupExpander.class);
 
         statsService = new StatsService(statsServiceRpc,
-                repositoryApi, groupExpander, mockClock);
+                repositoryApi, groupExpander, mockClock, targetsService);
 
         when(uuidMapper.fromUuid(oid1)).thenReturn(apiId1);
         when(uuidMapper.fromUuid(oid2)).thenReturn(apiId2);
@@ -144,6 +146,9 @@ public class StatsServiceTest {
         when(groupExpander.expandUuid(anyObject())).thenReturn(expandedOidList);
 
         List<StatSnapshotApiDTO> resp = statsService.getStatsByEntityQuery(oid1, inputDto);
+
+        // Should have called targets service to get a list of targets.
+        verify(targetsService).getTargets();
 
         // The returned stats contain cpu, latency, roi, and app.
         // Should only keep cpu and latency and filter out roi and app.

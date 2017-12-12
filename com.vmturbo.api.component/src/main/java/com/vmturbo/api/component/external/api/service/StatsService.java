@@ -36,6 +36,7 @@ import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
+import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.IStatsService;
 import com.vmturbo.api.utils.DateTimeUtil;
@@ -66,14 +67,18 @@ public class StatsService implements IStatsService {
 
     private final GroupExpander groupExpander;
 
+    private final TargetsService targetsService;
+
     StatsService(@Nonnull final StatsHistoryServiceBlockingStub statsServiceRpc,
                  @Nonnull final RepositoryApi repositoryApi,
                  @Nonnull final GroupExpander groupExpander,
-                 @Nonnull final Clock clock) {
+                 @Nonnull final Clock clock,
+                 @Nonnull final TargetsService targetsService) {
         this.statsServiceRpc = Objects.requireNonNull(statsServiceRpc);
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.clock = Objects.requireNonNull(clock);
         this.groupExpander = groupExpander;
+        this.targetsService = Objects.requireNonNull(targetsService);
     }
 
     /**
@@ -179,9 +184,17 @@ public class StatsService implements IStatsService {
                     .map(StatsMapper::toStatSnapshotApiDTO)
                     .collect(Collectors.toList()));
         }
+
+        List<TargetApiDTO> targets = null;
+        try {
+            targets = targetsService.getTargets();
+        } catch (RuntimeException e) {
+            logger.error("Unable to get targets list due to error: {}." +
+                " Not using targets list for stat filtering.", e.getMessage());
+        }
+
         // filter out those commodities listed in BLACK_LISTED_STATS in StatsUtils
-        // TODO: Pass in list of targets here.
-        return StatsUtils.filterStats(stats, null);
+        return StatsUtils.filterStats(stats, targets);
     }
 
 

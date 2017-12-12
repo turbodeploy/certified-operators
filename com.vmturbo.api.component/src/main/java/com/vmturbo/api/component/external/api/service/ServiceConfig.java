@@ -196,7 +196,8 @@ public class ServiceConfig {
         return new StatsService(communicationConfig.historyRpcService(),
                 communicationConfig.repositoryApi(),
                 groupExpander(),
-                Clock.systemUTC());
+                Clock.systemUTC(),
+                targetService());
     }
 
     @Bean
