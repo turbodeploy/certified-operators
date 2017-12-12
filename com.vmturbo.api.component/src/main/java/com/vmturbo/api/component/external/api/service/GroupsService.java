@@ -38,6 +38,7 @@ import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.group.FilterApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.notification.LogEntryApiDTO;
+import com.vmturbo.api.dto.notification.NotificationSettingsApiDTO;
 import com.vmturbo.api.dto.policy.PolicyApiDTO;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.setting.SettingApiInputDTO;
@@ -207,6 +208,11 @@ public class GroupsService implements IGroupsService {
 
     @Override
     public List<PolicyApiDTO> getPoliciesByGroupUuid(String uuid) throws Exception {
+        throw ApiUtils.notImplementedInXL();
+    }
+
+    @Override
+    public List<NotificationSettingsApiDTO> getNotificationSettingsByGroup(@Nonnull final String groupUuid) throws Exception {
         throw ApiUtils.notImplementedInXL();
     }
 
