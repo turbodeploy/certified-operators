@@ -1,5 +1,6 @@
 package com.vmturbo.components.test.performance.history;
 
+import java.util.Collection;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -12,11 +13,12 @@ import org.junit.Rule;
 import org.junit.Test;
 
 import io.grpc.Channel;
-
 import tec.units.ri.unit.MetricPrefix;
 
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.client.KafkaMessageConsumer;
 import com.vmturbo.components.api.server.KafkaMessageProducer;
 import com.vmturbo.components.test.utilities.ComponentTestRule;
@@ -28,7 +30,6 @@ import com.vmturbo.history.component.api.HistoryComponentNotifications.StatsAvai
 import com.vmturbo.history.component.api.impl.HistoryComponentNotificationReceiver;
 import com.vmturbo.history.component.api.impl.HistoryMessageReceiver;
 import com.vmturbo.topology.processor.api.server.TopologyBroadcast;
-import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
 
 /**
  * Performance tests for the history component.
@@ -107,10 +108,13 @@ public class HistoryLivePerformanceTest extends HistoryPerformanceTest {
 
     @Nonnull
     @Override
-    protected TopologyBroadcast createBroadcast(
-            @Nonnull TopologyProcessorNotificationSender tpSender,
-            @Nonnull TopologyInfo topologyInfo) {
-        return tpSender.broadcastLiveTopology(topologyInfo);
+    protected void broadcastSourceTopology(TopologyInfo topologyInfo, Collection<TopologyEntityDTO> topoDTOs)
+            throws CommunicationException, InterruptedException {
+        final TopologyBroadcast topologyBroadcast = tpSender.broadcastLiveTopology(topologyInfo);
+        for (final TopologyEntityDTO entity: topoDTOs) {
+            topologyBroadcast.append(entity);
+        }
+        topologyBroadcast.finish();
     }
 
     @Override

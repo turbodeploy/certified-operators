@@ -1,6 +1,7 @@
 package com.vmturbo.components.test.performance.history;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -22,6 +23,7 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistorySer
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.server.KafkaMessageProducer;
 import com.vmturbo.components.test.utilities.component.ComponentUtils;
@@ -39,8 +41,8 @@ import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSe
 public abstract class HistoryPerformanceTest {
     protected static final Logger logger = LogManager.getLogger();
 
-    private MarketNotificationSender marketSender;
-    private TopologyProcessorNotificationSender tpSender;
+    protected MarketNotificationSender marketSender;
+    protected TopologyProcessorNotificationSender tpSender;
 
     protected HistoryComponent historyComponent;
     protected IMessageReceiver<HistoryComponentNotification> historyMessageReceiver;
@@ -86,9 +88,9 @@ public abstract class HistoryPerformanceTest {
     protected abstract KafkaMessageProducer getKafkaMessageProducer();
 
     @Nonnull
-    protected abstract TopologyBroadcast createBroadcast(
-            @Nonnull TopologyProcessorNotificationSender tpSender,
-            @Nonnull TopologyInfo topologyInfo);
+    protected abstract void broadcastSourceTopology(TopologyInfo topologyInfo,
+                                                    Collection<TopologyEntityDTO> topoDTOs)
+                        throws CommunicationException, InterruptedException;
 
     public static final long DEFAULT_STATS_TIMEOUT_MINUTES = 10;
 
@@ -131,11 +133,7 @@ public abstract class HistoryPerformanceTest {
                 .setTopologyType(TopologyType.PLAN)
                 .setCreationTime(0L)
                 .build();
-        final TopologyBroadcast topologyBroadcast = createBroadcast(tpSender, topologyInfo);
-        for (final TopologyEntityDTO entity: topoDTOs) {
-            topologyBroadcast.append(entity);
-        }
-        topologyBroadcast.finish();
+        broadcastSourceTopology(topologyInfo, topoDTOs);
     }
 
     protected void sendProjectedTopology(@Nonnull final List<TopologyEntityDTO> topoDTOs,

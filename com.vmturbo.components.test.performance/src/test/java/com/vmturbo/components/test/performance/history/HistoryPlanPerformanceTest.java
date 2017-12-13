@@ -1,5 +1,6 @@
 package com.vmturbo.components.test.performance.history;
 
+import java.util.Collection;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -15,20 +16,19 @@ import io.grpc.Channel;
 import tec.units.ri.unit.MetricPrefix;
 
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.client.KafkaMessageConsumer;
 import com.vmturbo.components.api.server.KafkaMessageProducer;
 import com.vmturbo.components.test.utilities.ComponentTestRule;
 import com.vmturbo.components.test.utilities.alert.Alert;
-import com.vmturbo.components.test.utilities.communication.ComponentStubHost;
 import com.vmturbo.components.test.utilities.component.ComponentCluster;
 import com.vmturbo.components.test.utilities.component.ComponentUtils;
 import com.vmturbo.components.test.utilities.component.DockerEnvironment;
 import com.vmturbo.history.component.api.HistoryComponentNotifications.StatsAvailable;
 import com.vmturbo.history.component.api.impl.HistoryComponentNotificationReceiver;
 import com.vmturbo.history.component.api.impl.HistoryMessageReceiver;
-import com.vmturbo.topology.processor.api.server.TopologyBroadcast;
-import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
 
 /**
  * Performance tests for the history component.
@@ -113,10 +113,10 @@ public class HistoryPlanPerformanceTest extends HistoryPerformanceTest {
 
     @Nonnull
     @Override
-    protected TopologyBroadcast createBroadcast(
-            @Nonnull TopologyProcessorNotificationSender tpSender,
-            @Nonnull TopologyInfo topologyInfo) {
-        return tpSender.broadcastUserPlanTopology(topologyInfo);
+    protected void broadcastSourceTopology(TopologyInfo topologyInfo, Collection<TopologyEntityDTO> topoDTOs)
+            throws CommunicationException, InterruptedException {
+
+        marketSender.notifyPlanAnalysisTopology(topologyInfo, topoDTOs);
     }
 
     @Override
