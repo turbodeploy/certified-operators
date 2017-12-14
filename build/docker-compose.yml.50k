@@ -121,8 +121,8 @@ services:
       file: prod-services.yml
       service: action-orchestrator-prod
     environment:
-      JAVA_OPTS: "-Xmx384M"
-    mem_limit: 512M
+      JAVA_OPTS: "-Xmx768M"
+    mem_limit: 1024M
     depends_on:
       - db
       - clustermgr
@@ -133,8 +133,8 @@ services:
       file: prod-services.yml
       service: topology-processor-prod
     environment:
-      JAVA_OPTS: "-Xmx768M"
-    mem_limit: 1024M
+      JAVA_OPTS: "-Xmx3072M"
+    mem_limit: 4096M
     depends_on:
       - db
       - clustermgr
