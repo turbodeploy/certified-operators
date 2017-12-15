@@ -66,8 +66,6 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
-import jdk.nashorn.internal.ir.annotations.Immutable;
-
 /**
  * Maps scenarios between their API DTO representation and their protobuf representation.
  */
@@ -165,18 +163,23 @@ public class ScenarioMapper {
         if (loadChangesApiDTO == null) {
             return Collections.emptyList();
         }
-        ImmutableList.Builder<ScenarioChange> scenariChanges = ImmutableList.builder();
         final List<UtilizationApiDTO> utilizationList = loadChangesApiDTO.getUtilizationList();
-        if (!CollectionUtils.isEmpty(utilizationList)) {
-            final List<UtilizationLevel> utilizationLevels = utilizationList.stream().map(util ->
-                    UtilizationLevel.newBuilder().setPercentage(util.getPercentage()).build())
-                    .collect(Collectors.toList());
-            final ScenarioChange change = ScenarioChange.newBuilder().setPlanChanges(
-                    PlanChanges.newBuilder().addAllUtilizationLevel(utilizationLevels).build()
-            ).build();
-            scenariChanges.add(change);
+        if (CollectionUtils.isEmpty(utilizationList)) {
+            return Collections.emptyList();
         }
-        return scenariChanges.build();
+        /* Utilization comes from UI as list of utilizations but there is always one value in list
+         because in UI we cannot choose type of entity for setting - it's always for VMs.
+         So actually utilization should be single value instead of list.
+         We hold Iterable scenarioChanges as output parameter instead of single ScenarioChange
+         because there may be another plan changes in LoadChangesApiDTO */
+        final int percentage = utilizationList.get(0).getPercentage();
+        final UtilizationLevel utilizationLevel =
+                UtilizationLevel.newBuilder().setPercentage(percentage).build();
+        final ScenarioChange change = ScenarioChange.newBuilder()
+                .setPlanChanges(
+                        PlanChanges.newBuilder().setUtilizationLevel(utilizationLevel).build())
+                .build();
+        return Collections.singletonList(change);
     }
 
     /**
@@ -272,33 +275,31 @@ public class ScenarioMapper {
     }
 
     @Nonnull
-    private LoadChangesApiDTO buildLoadChangesApiDTO(@Nonnull List<ScenarioChange> changes) {
+    private static LoadChangesApiDTO buildLoadChangesApiDTO(@Nonnull List<ScenarioChange> changes) {
         final LoadChangesApiDTO loadChanges = new LoadChangesApiDTO();
         if (CollectionUtils.isEmpty(changes)) {
             return loadChanges;
         }
         final Stream<UtilizationLevel> utilizationLevels = changes.stream()
-                .filter(this::scenarioChangeHasUtilizationLevel)
+                .filter(ScenarioMapper::scenarioChangeHasUtilizationLevel)
                 .map(ScenarioChange::getPlanChanges)
-                .map(PlanChanges::getUtilizationLevelList)
-                .flatMap(List::stream);
+                .map(PlanChanges::getUtilizationLevel);
 
         final List<UtilizationApiDTO> utilizationApiDTOS = utilizationLevels
-                .map(this::createUtilizationApiDto).collect(Collectors.toList());
+                .map(ScenarioMapper::createUtilizationApiDto).collect(Collectors.toList());
         loadChanges.setUtilizationList(utilizationApiDTOS);
         return loadChanges;
     }
 
     @Nonnull
-    private UtilizationApiDTO createUtilizationApiDto(@Nonnull UtilizationLevel utilizationLevel) {
+    private static UtilizationApiDTO createUtilizationApiDto(@Nonnull UtilizationLevel utilizationLevel) {
         final UtilizationApiDTO utilizationDTO = new UtilizationApiDTO();
         utilizationDTO.setPercentage(utilizationLevel.getPercentage());
         return utilizationDTO;
     }
 
-    private boolean scenarioChangeHasUtilizationLevel(@Nonnull ScenarioChange change) {
-        return change.hasPlanChanges() &&
-                !CollectionUtils.isEmpty(change.getPlanChanges().getUtilizationLevelList());
+    private static boolean scenarioChangeHasUtilizationLevel(@Nonnull ScenarioChange change) {
+        return change.hasPlanChanges() && change.getPlanChanges().hasUtilizationLevel();
     }
 
     @Nonnull

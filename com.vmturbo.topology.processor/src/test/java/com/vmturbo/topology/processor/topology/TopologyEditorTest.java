@@ -14,18 +14,23 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 import com.google.gson.Gson;
 
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.UtilizationLevel;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyAddition;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyReplace;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
@@ -47,9 +52,10 @@ public class TopologyEditorTest {
     private static final long vmId = 10;
     private static final long pmId = 20;
     private static final long stId = 30;
+    private static final double USED = 100;
 
-    private static final CommodityType MEM = CommodityType.newBuilder().setType(1).build();
-    private static final CommodityType CPU = CommodityType.newBuilder().setType(2).build();
+    private static final CommodityType MEM = CommodityType.newBuilder().setType(21).build();
+    private static final CommodityType CPU = CommodityType.newBuilder().setType(40).build();
     private static final CommodityType LATENCY = CommodityType.newBuilder().setType(3).build();
     private static final CommodityType IOPS = CommodityType.newBuilder().setType(4).build();
 
@@ -59,13 +65,17 @@ public class TopologyEditorTest {
             .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
             .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
                 .setProviderId(pmId)
-                .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(MEM).build())
-                .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(CPU).build())
+                .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(MEM)
+                        .setUsed(USED).build())
+                .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(CPU)
+                        .setUsed(USED).build())
                 .build())
             .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
                 .setProviderId(stId)
-                .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(LATENCY).build())
-                .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(IOPS).build())
+                .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(LATENCY)
+                        .setUsed(USED).build())
+                .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(IOPS)
+                        .setUsed(USED).build())
                 .build())
             .build();
 
@@ -73,16 +83,20 @@ public class TopologyEditorTest {
             .setOid(pmId)
             .setDisplayName("PM")
             .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
-            .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(MEM).build())
-            .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(CPU).build())
+            .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(MEM).setUsed(USED)
+                    .setAccesses(vmId).build())
+            .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(CPU).setUsed(USED)
+                    .setAccesses(vmId).build())
             .build();
 
     private final TopologyEntityDTO st = TopologyEntityDTO.newBuilder()
             .setOid(stId)
             .setDisplayName("ST")
             .setEntityType(EntityType.STORAGE_VALUE)
-            .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(LATENCY).build())
-            .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(IOPS).build())
+            .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(LATENCY)
+                    .setAccesses(vmId).setUsed(USED).build())
+            .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(IOPS)
+                    .setAccesses(vmId).setUsed(USED).build())
             .build();
 
     private static int NUM_CLONES = 5;
@@ -174,6 +188,38 @@ public class TopologyEditorTest {
     }
 
     @Test
+    public void testEditTopologyChangeUtilizationLevel() {
+        final Map<Long, TopologyEntityDTO.Builder> topology = ImmutableMap.of(
+                vm.getOid(), vm.toBuilder(), pm.getOid(), pm.toBuilder(), st.getOid(), st.toBuilder()
+        );
+        final List<ScenarioChange> changes = ImmutableList.of(ScenarioChange.newBuilder().setPlanChanges(
+                PlanChanges.newBuilder().setUtilizationLevel(
+                        UtilizationLevel.newBuilder().setPercentage(50).build()
+                ).build()
+        ).build());
+        topologyEditor.editTopology(topology, changes);
+        final List<CommodityBoughtDTO> vmCommodities = topology.get(vmId).getCommoditiesBoughtFromProvidersList()
+                .stream()
+                .map(CommoditiesBoughtFromProvider::getCommodityBoughtList)
+                .flatMap(List::stream)
+                .collect(Collectors.toList());
+        Assert.assertEquals(150, vmCommodities.get(0).getUsed(), 0);
+        Assert.assertEquals(150, vmCommodities.get(1).getUsed(), 0);
+        Assert.assertEquals(100, vmCommodities.get(2).getUsed(), 0);
+        Assert.assertEquals(100, vmCommodities.get(3).getUsed(), 0);
+
+        final List<CommoditySoldDTO> pmSoldCommodities = topology.get(pmId)
+                .getCommoditySoldListList();
+        Assert.assertEquals(150, pmSoldCommodities.get(0).getUsed(), 0);
+        Assert.assertEquals(150, pmSoldCommodities.get(1).getUsed(), 0);
+
+        final List<CommoditySoldDTO> storageSoldCommodities = topology.get(stId)
+                .getCommoditySoldListList();
+        Assert.assertEquals(100, storageSoldCommodities.get(0).getUsed(), 0);
+        Assert.assertEquals(100, storageSoldCommodities.get(1).getUsed(), 0);
+    }
+
+    @Test
     public void testTopologyReplace() {
         Map<Long, TopologyEntityDTO.Builder> topology = Stream.of(vm, pm, st)
                 .map(TopologyEntityDTO::toBuilder)
@@ -182,8 +228,8 @@ public class TopologyEditorTest {
         final Multimap<Long, TopologyEntityDTO> templateToReplacedEntity = ArrayListMultimap.create();
         templateToReplacedEntity.put(TEMPLATE_ID, pm);
         when(templateConverterFactory.
-                generateTopologyEntityFromTemplates(Collections.emptyMap(),
-                        templateToReplacedEntity))
+                generateTopologyEntityFromTemplates(Mockito.anyMap(),
+                        Mockito.eq(templateToReplacedEntity)))
                 .thenReturn(Stream.of(TopologyEntityDTO.newBuilder(pm)
                         .setOid(1234L)
                         .setDisplayName("Test PM1")));

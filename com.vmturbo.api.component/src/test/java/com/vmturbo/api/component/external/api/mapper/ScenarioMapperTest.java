@@ -13,6 +13,7 @@ import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -37,11 +38,13 @@ import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.scenario.AddObjectApiDTO;
 import com.vmturbo.api.dto.scenario.ConfigChangesApiDTO;
+import com.vmturbo.api.dto.scenario.LoadChangesApiDTO;
 import com.vmturbo.api.dto.scenario.RemoveConstraintApiDTO;
 import com.vmturbo.api.dto.scenario.RemoveObjectApiDTO;
 import com.vmturbo.api.dto.scenario.ReplaceObjectApiDTO;
 import com.vmturbo.api.dto.scenario.ScenarioApiDTO;
 import com.vmturbo.api.dto.scenario.TopologyChangesApiDTO;
+import com.vmturbo.api.dto.scenario.UtilizationApiDTO;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.api.enums.ConstraintType;
@@ -49,6 +52,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.DetailsCase;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.IgnoreConstraint;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.UtilizationLevel;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.SettingOverride;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyAddition;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyRemoval;
@@ -231,7 +235,7 @@ public class ScenarioMapperTest {
         when(settingsManagerMapping.convertFromPlanSetting(any()))
             .thenAnswer(invocation -> invocation.getArguments()[0]);
 
-        final ScenarioInfo scenarioInfo = getScenarioInfo(Collections.singletonList(setting));
+        final ScenarioInfo scenarioInfo = getScenarioInfo(Collections.singletonList(setting), null);
         assertThat(scenarioInfo.getChangesCount(), is(1));
         final ScenarioChange change = scenarioInfo.getChanges(0);
         assertTrue(change.hasSettingOverride());
@@ -262,7 +266,7 @@ public class ScenarioMapperTest {
         when(settingsManagerMapping.convertFromPlanSetting(Collections.singletonList(setting)))
                 .thenReturn(Collections.singletonList(convertedSetting));
 
-        final ScenarioInfo scenarioInfo = getScenarioInfo(Collections.singletonList(setting));
+        final ScenarioInfo scenarioInfo = getScenarioInfo(Collections.singletonList(setting), null);
         assertThat(scenarioInfo.getChangesCount(), is(1));
         final ScenarioChange change = scenarioInfo.getChanges(0);
         assertTrue(change.hasSettingOverride());
@@ -278,7 +282,7 @@ public class ScenarioMapperTest {
         final SettingApiDTO setting = new SettingApiDTO();
         setting.setUuid("unknown");
         setting.setValue("value");
-        final ScenarioInfo scenarioInfo = getScenarioInfo(Collections.singletonList(setting));
+        final ScenarioInfo scenarioInfo = getScenarioInfo(Collections.singletonList(setting), null);
         assertThat(scenarioInfo.getChangesCount(), is(0));
     }
 
@@ -339,7 +343,7 @@ public class ScenarioMapperTest {
      */
     @Test
     public void testToScenarioInfoWithEmptyConfigChanges() {
-        final ScenarioInfo scenarioInfo = getScenarioInfo(null);
+        final ScenarioInfo scenarioInfo = getScenarioInfo(null, null);
         Assert.assertTrue(scenarioInfo.getChangesList().stream().noneMatch(ScenarioChange::hasSettingOverride));
     }
 
@@ -348,15 +352,40 @@ public class ScenarioMapperTest {
      */
     @Test
     public void testToScenarioInfoWithEmptyAutomationSettingsList() {
-        final ScenarioInfo scenarioInfo = getScenarioInfo(Collections.emptyList());
+        final ScenarioInfo scenarioInfo = getScenarioInfo(Collections.emptyList(), null);
         Assert.assertTrue(scenarioInfo.getChangesList().stream().noneMatch(ScenarioChange::hasSettingOverride));
     }
 
-    private ScenarioInfo getScenarioInfo(@Nonnull List<SettingApiDTO> automationSettings) {
+    @Test
+    public void testToScenarioInfoUtilizationLevel() {
+        final LoadChangesApiDTO loadChanges = new LoadChangesApiDTO();
+        loadChanges.setUtilizationList(ImmutableList.of(createUtilizationApiDto(20)));
+        final ScenarioInfo scenarioInfo = getScenarioInfo(Collections.emptyList(), loadChanges);
+        final UtilizationLevel utilizationLevel =
+                scenarioInfo.getChangesList().get(0).getPlanChanges().getUtilizationLevel();
+        Assert.assertEquals(20, utilizationLevel.getPercentage());
+    }
+
+    @Test
+    public void testToScenarioInfoUtilizationLevelEmptyLoadChanges() {
+        final LoadChangesApiDTO loadChanges = new LoadChangesApiDTO();
+        final ScenarioInfo scenarioInfo = getScenarioInfo(Collections.emptyList(), loadChanges);
+        Assert.assertEquals(0, scenarioInfo.getChangesList().size());
+    }
+
+    private UtilizationApiDTO createUtilizationApiDto(int percentage) {
+        final UtilizationApiDTO utilizationDto = new UtilizationApiDTO();
+        utilizationDto.setPercentage(percentage);
+        return utilizationDto;
+    }
+
+    private ScenarioInfo getScenarioInfo(@Nonnull List<SettingApiDTO> automationSettings,
+            @Nonnull LoadChangesApiDTO loadChangesApiDTO) {
         final ScenarioApiDTO dto = new ScenarioApiDTO();
         final ConfigChangesApiDTO configChanges = new ConfigChangesApiDTO();
         configChanges.setAutomationSettingList(automationSettings);
         dto.setConfigChanges(configChanges);
+        dto.setLoadChanges(loadChangesApiDTO);
         return scenarioMapper.toScenarioInfo("name", dto);
     }
 

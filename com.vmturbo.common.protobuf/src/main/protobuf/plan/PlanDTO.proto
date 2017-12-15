@@ -227,7 +227,7 @@ message ScenarioChange {
     message PlanChanges {
         repeated IgnoreConstraint ignore_constraints = 1;
         optional PolicyChange policy_change = 2;
-        repeated UtilizationLevel utilization_level = 3;
+        optional UtilizationLevel utilization_level = 3;
 
         message IgnoreConstraint {
             required string commodity_type = 1;

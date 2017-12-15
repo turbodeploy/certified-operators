@@ -7,6 +7,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
@@ -15,17 +17,25 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
 import com.google.gson.Gson;
 
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.UtilizationLevel;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyAddition;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyRemoval;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyReplace;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.template.TemplateConverterFactory;
 
@@ -42,6 +52,9 @@ public class TopologyEditor {
     private final IdentityProvider identityProvider;
 
     private final TemplateConverterFactory templateConverterFactory;
+
+    private static final Set<Integer> UTILIZATION_LEVEL_TYPES = ImmutableSet
+            .of(CommodityType.CPU_VALUE, CommodityType.MEM_VALUE);
 
     TopologyEditor(@Nonnull final IdentityProvider identityProvider,
                    @Nonnull final TemplateConverterFactory templateConverterFactory) {
@@ -88,6 +101,8 @@ public class TopologyEditor {
                 }
             } else if (change.hasTopologyReplace()) {
                 final TopologyReplace replace = change.getTopologyReplace();
+                templateToAdd.put(replace.getAddTemplateId(),
+                        templateToAdd.getOrDefault(replace.getAddTemplateId(), 0L) + 1);
                 if (replace.hasRemoveEntityId()) {
                     entitiesToReplace.add(replace.getRemoveEntityId());
                     if (!topology.containsKey(replace.getRemoveEntityId())) {
@@ -100,6 +115,11 @@ public class TopologyEditor {
                     logger.warn("Unimplemented handling for topology removal with {}",
                             replace.getEntityOrGroupRemovalIdCase());
                 }
+
+            } else if (change.hasPlanChanges()) {
+                final UtilizationLevel utilizationLevel =
+                        change.getPlanChanges().getUtilizationLevel();
+                changeUtilization(topology, utilizationLevel.getPercentage());
 
             } else {
                 logger.warn("Unimplemented handling for change of type {}", change.getDetailsCase());
@@ -129,6 +149,89 @@ public class TopologyEditor {
         addTemplateTopologyEntities(templateToAdd, templateToReplacedEntity)
             .forEach(entity ->
                 topology.put(entity.getOid(), entity));
+    }
+
+    private void changeUtilization(@Nonnull Map<Long, TopologyEntityDTO.Builder> topology, int percentage) {
+        final Predicate<TopologyEntityDTO.Builder> isVm =
+                entity -> entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE;
+        final Set<TopologyEntityDTO.Builder> topologyVms = topology.values().stream().filter(isVm)
+                .collect(Collectors.toSet());
+        for (TopologyEntityDTO.Builder vm : topologyVms) {
+            final List<CommoditiesBoughtFromProvider> commoditiesBoughtFromProviders =
+                    vm.getCommoditiesBoughtFromProvidersList();
+            final List<CommoditiesBoughtFromProvider> increasedCommodities =
+                    increaseProviderCommodities(topology, percentage, vm, commoditiesBoughtFromProviders);
+            vm.clearCommoditiesBoughtFromProviders();
+            vm.addAllCommoditiesBoughtFromProviders(increasedCommodities);
+        }
+    }
+
+    @Nonnull
+    private List<CommoditiesBoughtFromProvider> increaseProviderCommodities(
+            @Nonnull Map<Long, Builder> topology, int percentage,
+            @Nonnull Builder vm, List<CommoditiesBoughtFromProvider> commoditiesBoughtFromProviders) {
+        final ImmutableList.Builder<CommoditiesBoughtFromProvider> increasedProviderCommodities =
+                ImmutableList.builder();
+        for (CommoditiesBoughtFromProvider providerCommodities : commoditiesBoughtFromProviders) {
+            List<CommodityBoughtDTO> increasedCommodities =
+                    increaseComodities(topology, percentage, vm, providerCommodities);
+            increasedProviderCommodities.add(CommoditiesBoughtFromProvider
+                    .newBuilder(providerCommodities)
+                    .clearCommodityBought()
+                    .addAllCommodityBought(increasedCommodities)
+                    .build());
+        }
+        return increasedProviderCommodities.build();
+    }
+
+    @Nonnull
+    private List<CommodityBoughtDTO> increaseComodities(
+            @Nonnull Map<Long, Builder> topology,
+            int percentage, @Nonnull TopologyEntityDTO.Builder vm,
+            @Nonnull CommoditiesBoughtFromProvider providerCommodities) {
+        final ImmutableList.Builder<CommodityBoughtDTO> changedCommodities = ImmutableList.builder();
+        for (CommodityBoughtDTO commodity : providerCommodities.getCommodityBoughtList()) {
+            final int commodityType = commodity.getCommodityType().getType();
+            if (UTILIZATION_LEVEL_TYPES.contains(commodityType)) {
+                final double changedUtilization = increaseByPercent(commodity.getUsed(), percentage);
+                changedCommodities.add(CommodityBoughtDTO.newBuilder(commodity)
+                        .setUsed(changedUtilization).build());
+
+                increaseCommoditySoldByProvider(topology, providerCommodities.getProviderId(),
+                        vm.getOid(), commodityType, percentage);
+
+            } else {
+                changedCommodities.add(commodity);
+            }
+        }
+        return changedCommodities.build();
+    }
+
+    private void increaseCommoditySoldByProvider(@Nonnull Map<Long, TopologyEntityDTO.Builder> topology,
+            long providerId, long consumerId, int commodityType, int percentage) {
+        final ImmutableList.Builder<CommoditySoldDTO> changedSoldCommodities =
+                ImmutableList.builder();
+        final TopologyEntityDTO.Builder provider = topology.get(providerId);
+        if (provider == null) {
+            throw new IllegalArgumentException("Topology doesn't contain entity with id " + providerId);
+        }
+        for (CommoditySoldDTO sold : provider.getCommoditySoldListList()) {
+            if (sold.getAccesses() == consumerId
+                    && sold.getCommodityType().getType() == commodityType) {
+                final CommoditySoldDTO increasedCommodity = CommoditySoldDTO.newBuilder(sold)
+                        .setUsed(increaseByPercent(sold.getUsed(), percentage))
+                        .build();
+                changedSoldCommodities.add(increasedCommodity);
+            } else {
+                changedSoldCommodities.add(sold);
+            }
+        }
+        provider.clearCommoditySoldList()
+                .addAllCommoditySoldList(changedSoldCommodities.build());
+    }
+
+    private double increaseByPercent(double value, int percentage) {
+        return value + value * percentage / 100;
     }
 
     /**
