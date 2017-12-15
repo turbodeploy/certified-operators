@@ -11,9 +11,11 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.exception.DataAccessException;
@@ -170,9 +172,13 @@ public class DefaultSettingPolicyCreator implements Runnable {
         return specsByEntityType.entrySet()
                 .stream()
                 .collect(Collectors.toMap(Entry::getKey, entry -> {
+                    final String displayName = Stream.of(EntityType.forNumber(entry.getKey())
+                            .name().split("_"))
+                            .map(String::toLowerCase)
+                            .map(StringUtils::capitalize)
+                            .collect(Collectors.joining(" ", "", " Defaults"));
                     final SettingPolicyInfo.Builder policyBuilder = SettingPolicyInfo.newBuilder()
-                            // This name is really just a placeholder for visibility/debugging.
-                            .setName(EntityType.forNumber(entry.getKey()) + " Defaults")
+                            .setName(displayName)
                             .setEntityType(entry.getKey())
                             .setEnabled(true);
                     final List<SettingSpec> specsForType = entry.getValue();

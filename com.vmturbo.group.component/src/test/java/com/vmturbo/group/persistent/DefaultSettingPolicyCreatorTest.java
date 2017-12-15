@@ -211,7 +211,7 @@ public class DefaultSettingPolicyCreatorTest {
                 .build();
 
         final SettingPolicyInfo info = getPolicyInfo(spec1, spec2);
-        Assert.assertEquals("VIRTUAL_MACHINE Defaults", info.getName());
+        Assert.assertEquals("Virtual Machine Defaults", info.getName());
         Assert.assertEquals(10, info.getEntityType());
         Assert.assertEquals(true, info.getEnabled());
         Assert.assertFalse(info.hasScope());
@@ -283,7 +283,7 @@ public class DefaultSettingPolicyCreatorTest {
                 .filter(policy -> policy.getEntityType() == 10)
                 .findAny()
                 .get();
-        Assert.assertEquals("VIRTUAL_MACHINE Defaults", info1.getName());
+        Assert.assertEquals("Virtual Machine Defaults", info1.getName());
         Assert.assertEquals(10, info1.getEntityType());
         Assert.assertEquals(true, info1.getEnabled());
         Assert.assertFalse(info1.hasScope());
@@ -294,7 +294,7 @@ public class DefaultSettingPolicyCreatorTest {
                 .filter(policy -> policy.getEntityType() == 2)
                 .findAny()
                 .get();
-        Assert.assertEquals("STORAGE Defaults", info2.getName());
+        Assert.assertEquals("Storage Defaults", info2.getName());
         Assert.assertEquals(2, info2.getEntityType());
         Assert.assertEquals(true, info2.getEnabled());
         Assert.assertFalse(info2.hasScope());
