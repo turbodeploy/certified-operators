@@ -63,14 +63,15 @@ public class ConstraintsEditorTest {
     }
 
     @Nonnull
-    private TopologyEntityDTO.Builder buildTopologyEntityDto(long oid, int type) {
-        return TopologyEntityDTO.newBuilder().setOid(oid).addCommoditiesBoughtFromProviders(
+    private TopologyEntity.Builder buildTopologyEntity(long oid, int type) {
+        return TopologyEntityUtils.topologyEntityBuilder(
+            TopologyEntityDTO.newBuilder().setOid(oid).addCommoditiesBoughtFromProviders(
                 CommoditiesBoughtFromProvider.newBuilder().addCommodityBought(
-                        CommodityBoughtDTO.newBuilder().setCommodityType(
-                                CommodityType.newBuilder().setType(type).setKey("").build()
-                        ).setActive(true)
+                    CommodityBoughtDTO.newBuilder().setCommodityType(
+                        CommodityType.newBuilder().setType(type).setKey("").build()
+                    ).setActive(true)
                 )
-        );
+            ));
     }
 
     @Test
@@ -81,16 +82,16 @@ public class ConstraintsEditorTest {
         testServer.start();
         groupService = GroupServiceGrpc.newBlockingStub(testServer.getChannel());
         constraintsEditor = new ConstraintsEditor(groupResolver, groupService);
-        final Map<Long, Builder> topology = new HashMap<>();
-        topology.put(1l, buildTopologyEntityDto(1l, CommodityDTO.CommodityType.CLUSTER.getNumber()));
-        topology.put(2l, buildTopologyEntityDto(2l, CommodityDTO.CommodityType.CLUSTER.getNumber()));
-        topology.put(3l, buildTopologyEntityDto(3l, CommodityDTO.CommodityType.NETWORK.getNumber()));
+        final Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
+        topology.put(1l, buildTopologyEntity(1l, CommodityDTO.CommodityType.CLUSTER.getNumber()));
+        topology.put(2l, buildTopologyEntity(2l, CommodityDTO.CommodityType.CLUSTER.getNumber()));
+        topology.put(3l, buildTopologyEntity(3l, CommodityDTO.CommodityType.NETWORK.getNumber()));
         List<ScenarioChange> changes = ImmutableList.of(ScenarioChange.newBuilder()
                 .setPlanChanges(PlanChanges.newBuilder().addIgnoreConstraints(
                         IgnoreConstraint.newBuilder().setCommodityType("ClusterCommodity")
                                 .setGroupUuid(1l).build()
                 )).build());
-        final TopologyGraph graph = new TopologyGraph(topology);
+        final TopologyGraph graph = TopologyGraph.newGraph(topology);
         Assert.assertEquals(3, getActiveCommodities(graph).count());
         constraintsEditor.editConstraints(graph, changes);
         Assert.assertEquals(1, getActiveCommodities(graph).count());
@@ -107,15 +108,15 @@ public class ConstraintsEditorTest {
         testServer.start();
         groupService = GroupServiceGrpc.newBlockingStub(testServer.getChannel());
         constraintsEditor = new ConstraintsEditor(groupResolver, groupService);
-        final Map<Long, Builder> topology = new HashMap<>();
-        topology.put(1l, buildTopologyEntityDto(1l, CommodityDTO.CommodityType.CLUSTER.getNumber()));
-        topology.put(2l, buildTopologyEntityDto(2l, CommodityDTO.CommodityType.CLUSTER.getNumber()));
-        topology.put(3l, buildTopologyEntityDto(3l, CommodityDTO.CommodityType.NETWORK.getNumber()));
-        topology.put(4l, buildTopologyEntityDto(4l, CommodityDTO.CommodityType.NETWORK.getNumber()));
+        final Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
+        topology.put(1l, buildTopologyEntity(1l, CommodityDTO.CommodityType.CLUSTER.getNumber()));
+        topology.put(2l, buildTopologyEntity(2l, CommodityDTO.CommodityType.CLUSTER.getNumber()));
+        topology.put(3l, buildTopologyEntity(3l, CommodityDTO.CommodityType.NETWORK.getNumber()));
+        topology.put(4l, buildTopologyEntity(4l, CommodityDTO.CommodityType.NETWORK.getNumber()));
         List<ScenarioChange> changes = ImmutableList.of(
                 buildScenarioChange("ClusterCommodity", 1l),
                 buildScenarioChange("NetworkCommodity", 2l));
-        final TopologyGraph graph = new TopologyGraph(topology);
+        final TopologyGraph graph = TopologyGraph.newGraph(topology);
         Assert.assertEquals(4, getActiveCommodities(graph).count());
         constraintsEditor.editConstraints(graph, changes);
         Assert.assertEquals(0, getActiveCommodities(graph).count());
@@ -130,8 +131,8 @@ public class ConstraintsEditorTest {
     }
 
     private Stream<CommodityBoughtDTO> getActiveCommodities(TopologyGraph editedGraph) {
-        return editedGraph.vertices()
-                    .map(TopologyGraph.Vertex::getTopologyEntityDtoBuilder)
+        return editedGraph.entities()
+                    .map(TopologyEntity::getTopologyEntityDtoBuilder)
                     .map(Builder::getCommoditiesBoughtFromProvidersList)
                     .flatMap(List::stream)
                     .map(CommoditiesBoughtFromProvider::getCommodityBoughtList)

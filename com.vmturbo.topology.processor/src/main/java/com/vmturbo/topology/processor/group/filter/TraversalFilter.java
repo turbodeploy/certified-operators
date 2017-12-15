@@ -10,8 +10,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.TraversalDirection;
+import com.vmturbo.topology.processor.topology.TopologyEntity;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
-import com.vmturbo.topology.processor.topology.TopologyGraph.Vertex;
 
 /**
  * A filter that traverses the topology graph and inserts certain visited nodes
@@ -52,12 +52,12 @@ public abstract class TraversalFilter implements TopologyFilter {
      * @param graph The graph on which to perform lookups.
      * @return A method that can be used to lookup neighbors for a particular vertex in the graph.
      */
-    protected Function<Vertex, Stream<Vertex>> neighborLookup(@Nonnull final TopologyGraph graph) {
+    protected Function<TopologyEntity, Stream<TopologyEntity>> neighborLookup(@Nonnull final TopologyGraph graph) {
         // Note the difference between noun and verb here.
         // Following the CONSUMES relation is done by fetching producers,
         // and following the PRODUCES relation is done by fetching consumers.
         return traversalDirection == TraversalDirection.CONSUMES ?
-            graph::getProducers :
+            graph::getProviders :
             graph::getConsumers;
     }
 
@@ -76,7 +76,7 @@ public abstract class TraversalFilter implements TopologyFilter {
      */
     @Nonnull
     @Override
-    public Stream<Vertex> apply(@Nonnull final Stream<Vertex> vertices, @Nonnull final TopologyGraph graph) {
+    public Stream<TopologyEntity> apply(@Nonnull final Stream<TopologyEntity> vertices, @Nonnull final TopologyGraph graph) {
         return traverse(vertices, graph).distinct();
     }
 
@@ -92,7 +92,7 @@ public abstract class TraversalFilter implements TopologyFilter {
      * @return A stream of entity OIDs whose members match the traversal criteria
      */
     @Nonnull
-    protected abstract Stream<Vertex> traverse(@Nonnull final Stream<Vertex> vertices,
+    protected abstract Stream<TopologyEntity> traverse(@Nonnull final Stream<TopologyEntity> vertices,
                                              @Nonnull final TopologyGraph graph);
 
     /**
@@ -139,7 +139,7 @@ public abstract class TraversalFilter implements TopologyFilter {
          */
         @Nonnull
         @Override
-        protected Stream<Vertex> traverse(@Nonnull Stream<Vertex> vertices,
+        protected Stream<TopologyEntity> traverse(@Nonnull Stream<TopologyEntity> vertices,
                                           @Nonnull final TopologyGraph graph) {
             // Given stream lazy evaluation, performs a DFS to a fixed depth
             // and collects all nodes at exactly depth==traversalDepth.
@@ -210,7 +210,7 @@ public abstract class TraversalFilter implements TopologyFilter {
          */
         @Nonnull
         @Override
-        protected Stream<Vertex> traverse(@Nonnull Stream<Vertex> vertices, @Nonnull final TopologyGraph graph) {
+        protected Stream<TopologyEntity> traverse(@Nonnull Stream<TopologyEntity> vertices, @Nonnull final TopologyGraph graph) {
             return vertices
                 .flatMap(vertex -> traverseToProperty(vertex, neighborLookup(graph), 0));
         }
@@ -222,24 +222,24 @@ public abstract class TraversalFilter implements TopologyFilter {
          * Will exit the traversal early if the recursion exceeds a maximum depth. In the real world,
          * supply chains tend to be fairly shallow and should never approach this depth.
          *
-         * @param vertex The vertex from which to begin/continue the traversal.
+         * @param entity The vertex from which to begin/continue the traversal.
          * @param neighborLookup The method to use to lookup neighbors in a given direction.
          * @param traversalNesting The current recursion depth of the traversal.
          * @return A stream of all vertices in the graph that match the stoppingFilter reachable
          *         from the source in the given direction (where traversal stops at vertices that match
          *         the stoppingFilter).
          */
-        private Stream<Vertex> traverseToProperty(@Nonnull final Vertex vertex,
-                                                  @Nonnull final Function<Vertex, Stream<Vertex>> neighborLookup,
+        private Stream<TopologyEntity> traverseToProperty(@Nonnull final TopologyEntity entity,
+                                                  @Nonnull final Function<TopologyEntity, Stream<TopologyEntity>> neighborLookup,
                                                   int traversalNesting) {
-            if (stoppingFilter.test(vertex)) {
-                return Stream.of(vertex);
+            if (stoppingFilter.test(entity)) {
+                return Stream.of(entity);
             } else {
                 if (traversalNesting >= MAX_RECURSION_DEPTH) {
                     logger.error("Maximum chain depth exceeded in traversal. Prematurely ending traversal.");
                     return Stream.empty(); // Do not exceed maximum recursion depth
                 } else {
-                    return neighborLookup.apply(vertex)
+                    return neighborLookup.apply(entity)
                         .flatMap(neighbor -> traverseToProperty(neighbor, neighborLookup, traversalNesting + 1));
                 }
             }

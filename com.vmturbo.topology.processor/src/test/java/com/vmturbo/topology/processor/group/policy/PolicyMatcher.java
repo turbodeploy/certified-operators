@@ -14,8 +14,8 @@ import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.topology.processor.topology.TopologyEntity;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
-import com.vmturbo.topology.processor.topology.TopologyGraph.Vertex;
 
 /**
  * A helper for constructing matchers that make assertions about the behavior of policies.
@@ -31,12 +31,12 @@ public class PolicyMatcher {
         this.topologyGraph = topologyGraph;
     }
 
-    public Matcher<Vertex> hasProviderSegment(final long segmentId) {
-        return new BaseMatcher<Vertex>() {
+    public Matcher<TopologyEntity> hasProviderSegment(final long segmentId) {
+        return new BaseMatcher<TopologyEntity>() {
             @Override
             public boolean matches(Object o) {
-                final Vertex v = (Vertex)o;
-                return v.getTopologyEntityDtoBuilder().getCommoditySoldListList().stream()
+                final TopologyEntity entity = (TopologyEntity)o;
+                return entity.getTopologyEntityDtoBuilder().getCommoditySoldListList().stream()
                     .anyMatch(commodity ->
                         commodity.getCommodityType().getType() == CommodityType.SEGMENTATION_VALUE &&
                             commodity.getCommodityType().getKey().equals(Long.toString(segmentId)));
@@ -49,13 +49,13 @@ public class PolicyMatcher {
         };
     }
 
-    public Matcher<Vertex> hasProviderSegmentWithCapacity(final long segmentId,
+    public Matcher<TopologyEntity> hasProviderSegmentWithCapacity(final long segmentId,
                                                           final float expectedCapacity) {
-        return new BaseMatcher<Vertex>() {
+        return new BaseMatcher<TopologyEntity>() {
             @Override
             public boolean matches(Object o) {
-                final Vertex v = (Vertex)o;
-                return v.getTopologyEntityDtoBuilder().getCommoditySoldListList().stream()
+                final TopologyEntity entity = (TopologyEntity)o;
+                return entity.getTopologyEntityDtoBuilder().getCommoditySoldListList().stream()
                     .anyMatch(commodity ->
                         commodity.getCommodityType().getType() == CommodityType.SEGMENTATION_VALUE &&
                             commodity.getCommodityType().getKey().equals(Long.toString(segmentId)) &&
@@ -93,14 +93,14 @@ public class PolicyMatcher {
         };
     }
 
-    public Matcher<Vertex> hasProviderSegmentWithCapacityAndUsed(final long segmentId,
+    public Matcher<TopologyEntity> hasProviderSegmentWithCapacityAndUsed(final long segmentId,
                                                                  final float expectedCapacity,
                                                                  final float expectedUsed) {
-        return new BaseMatcher<Vertex>() {
+        return new BaseMatcher<TopologyEntity>() {
             @Override
             public boolean matches(Object o) {
-                final Vertex v = (Vertex)o;
-                return v.getTopologyEntityDtoBuilder().getCommoditySoldListList().stream()
+                final TopologyEntity entity = (TopologyEntity)o;
+                return entity.getTopologyEntityDtoBuilder().getCommoditySoldListList().stream()
                     .anyMatch(commodity ->
                         commodity.getCommodityType().getType() == CommodityType.SEGMENTATION_VALUE &&
                             commodity.getCommodityType().getKey().equals(Long.toString(segmentId)) &&
@@ -152,12 +152,12 @@ public class PolicyMatcher {
         };
     }
 
-    public Matcher<Vertex> hasConsumerSegment(long segmentId, final EntityType expectedEntityType) {
-        return new BaseMatcher<Vertex>() {
+    public Matcher<TopologyEntity> hasConsumerSegment(long segmentId, final EntityType expectedEntityType) {
+        return new BaseMatcher<TopologyEntity>() {
             @Override
             public boolean matches(Object o) {
-                final Vertex v = (Vertex)o;
-                return v.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList().stream()
+                final TopologyEntity entity = (TopologyEntity)o;
+                return entity.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList().stream()
                     .anyMatch(commodityBoughtGroup -> commodityBoughtGroup.getCommodityBoughtList().stream()
                         .anyMatch(commodity ->
                             commodity.getCommodityType().getType() == CommodityType.SEGMENTATION_VALUE &&
@@ -174,7 +174,7 @@ public class PolicyMatcher {
             }
 
             private boolean providerIsExpectedEntityType(final long providerId) {
-                return topologyGraph.getVertex(providerId).get()
+                return topologyGraph.getEntity(providerId).get()
                     .getEntityType() == expectedEntityType.getNumber();
             }
         };

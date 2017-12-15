@@ -41,8 +41,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
+import com.vmturbo.topology.processor.topology.TopologyEntity;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
-import com.vmturbo.topology.processor.topology.TopologyGraph.Vertex;
 
 /**
  * Responsible for resolving the Entities -> Settings mapping as well as
@@ -159,10 +159,10 @@ public class EntitySettingsResolver {
         // Group Component will look at the user settings and for the missing
         // settings, it will use the default settings which is defined in the
         // default SP.
-        final Map<Long, EntitySettings> settings = topologyGraph.vertices()
-            .map(vertex -> createEntitySettingsMessage(vertex,
-                userSettingsByEntityAndName.getOrDefault(vertex.getOid(), Collections.emptyMap())
-                        .values(),
+        final Map<Long, EntitySettings> settings = topologyGraph.entities()
+            .map(topologyEntity -> createEntitySettingsMessage(topologyEntity,
+                userSettingsByEntityAndName.getOrDefault(topologyEntity.getOid(), Collections.emptyMap())
+                    .values(),
                 defaultSettingPoliciesByEntityType,
                 settingOverrides))
             .collect(Collectors.toMap(EntitySettings::getEntityOid, Function.identity()));
@@ -320,7 +320,7 @@ public class EntitySettingsResolver {
     /**
      *  Create EntitySettings message.
      *
-     *  @param vertex Topology graph vertex
+     *  @param entity {@link TopologyEntity} whose settings should be created.
      *  @param userSettings List of user Setting
      *  @param defaultSettingPoliciesByEntityType Mapping of entityType to SettingPolicyId
      *  @param settingOverrides The map of overrides, by setting name. See
@@ -329,23 +329,22 @@ public class EntitySettingsResolver {
      *  @return EntitySettings message
      *
      */
-    private EntitySettings createEntitySettingsMessage(Vertex vertex,
+    private EntitySettings createEntitySettingsMessage(TopologyEntity entity,
                 @Nonnull final Collection<Setting> userSettings,
                 @Nonnull final Map<Integer, SettingPolicy> defaultSettingPoliciesByEntityType,
                 @Nonnull final SettingOverrides settingOverrides) {
 
         final EntitySettings.Builder entitySettingsBuilder =
             EntitySettings.newBuilder()
-                    .setEntityOid(vertex.getOid());
-        userSettings.forEach(setting ->
-            entitySettingsBuilder.addUserSettings(setting));
+                    .setEntityOid(entity.getOid());
+        userSettings.forEach(entitySettingsBuilder::addUserSettings);
 
         // Override user settings.
-        settingOverrides.overrideSettings(vertex.getTopologyEntityDtoBuilder(), entitySettingsBuilder);
+        settingOverrides.overrideSettings(entity.getTopologyEntityDtoBuilder(), entitySettingsBuilder);
 
-        if (defaultSettingPoliciesByEntityType.containsKey(vertex.getEntityType())) {
+        if (defaultSettingPoliciesByEntityType.containsKey(entity.getEntityType())) {
             entitySettingsBuilder.setDefaultSettingPolicyId(
-                defaultSettingPoliciesByEntityType.get(vertex.getEntityType()).getId());
+                defaultSettingPoliciesByEntityType.get(entity.getEntityType()).getId());
         }
 
         return entitySettingsBuilder.build();

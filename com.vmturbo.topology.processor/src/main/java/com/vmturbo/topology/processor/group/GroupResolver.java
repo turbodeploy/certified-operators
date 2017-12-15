@@ -22,14 +22,13 @@ import com.google.common.base.Preconditions;
 
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter.FilterTypeCase;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.group.filter.TopologyFilterFactory;
+import com.vmturbo.topology.processor.topology.TopologyEntity;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
-import com.vmturbo.topology.processor.topology.TopologyGraph.Vertex;
 
 /**
  *  Class to resolve members of groups by searching in the topologyGraph.
@@ -179,15 +178,15 @@ public class GroupResolver {
     }
 
     private Set<Long> executeResolution(@Nonnull final SearchParameters search, @Nonnull final TopologyGraph graph) {
-        Stream<Vertex> matchingVertices = filterFactory.filterFor(search.getStartingFilter())
-            .apply(graph.vertices(), graph);
+        Stream<TopologyEntity> matchingEntities = filterFactory.filterFor(search.getStartingFilter())
+            .apply(graph.entities(), graph);
 
         for (SearchFilter filter : search.getSearchFilterList()) {
-            matchingVertices = filterFactory.filterFor(filter).apply(matchingVertices, graph);
+            matchingEntities = filterFactory.filterFor(filter).apply(matchingEntities, graph);
         }
 
-        return matchingVertices
-            .map(Vertex::getOid)
+        return matchingEntities
+            .map(TopologyEntity::getOid)
             .collect(Collectors.toSet());
     }
 }

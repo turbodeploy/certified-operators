@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.topology.pipeline;
 
+import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.topologyEntityBuilder;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertTrue;
@@ -22,7 +23,6 @@ import com.google.common.collect.ImmutableMap;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyResponse;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.communication.CommunicationException;
@@ -39,8 +39,8 @@ import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyEditor;
+import com.vmturbo.topology.processor.topology.TopologyEntity;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
-import com.vmturbo.topology.processor.topology.TopologyGraph.Vertex;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.BroadcastStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.GraphCreationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PolicyStage;
@@ -111,7 +111,7 @@ public class StagesTest {
 
         final TopologyAcquisitionStage acquisitionStage =
                 new TopologyAcquisitionStage(repositoryClient);
-        Map<Long, Builder> ret = acquisitionStage.execute(1L);
+        Map<Long, TopologyEntity.Builder> ret = acquisitionStage.execute(1L);
         assertTrue(ret.containsKey(7L));
         assertThat(ret.get(7L).getOid(), is(7L));
         assertThat(ret.get(7L).getEntityType(), is(10));
@@ -128,12 +128,12 @@ public class StagesTest {
 
     @Test
     public void testGraphCreationStage() {
-        final Map<Long, TopologyEntityDTO.Builder> topology = ImmutableMap.of(7L, entity);
+        final Map<Long, TopologyEntity.Builder> topology = ImmutableMap.of(7L, topologyEntityBuilder(entity));
 
         final GraphCreationStage stage = new GraphCreationStage();
         final TopologyGraph topologyGraph = stage.execute(topology);
-        assertThat(topologyGraph.vertexCount(), is(1));
-        assertThat(topologyGraph.getVertex(7L).get().getTopologyEntityDtoBuilder(),
+        assertThat(topologyGraph.size(), is(1));
+        assertThat(topologyGraph.getEntity(7L).get().getTopologyEntityDtoBuilder(),
                 is(entity));
     }
 
@@ -240,9 +240,9 @@ public class StagesTest {
 
     private TopologyGraph createTopologyGraph() {
         final TopologyGraph graph = mock(TopologyGraph.class);
-        final Vertex vertex = mock(Vertex.class);
-        when(vertex.getTopologyEntityDtoBuilder()).thenReturn(entity);
-        when(graph.vertices()).thenReturn(Stream.of(vertex));
+        final TopologyEntity entity = mock(TopologyEntity.class);
+        when(entity.getTopologyEntityDtoBuilder()).thenReturn(this.entity);
+        when(graph.entities()).thenReturn(Stream.of(entity));
         return graph;
     }
 }

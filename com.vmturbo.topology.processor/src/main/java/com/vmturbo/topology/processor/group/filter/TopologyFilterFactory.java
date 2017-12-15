@@ -15,7 +15,7 @@ import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.St
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.filter.TraversalFilter.TraversalToDepthFilter;
 import com.vmturbo.topology.processor.group.filter.TraversalFilter.TraversalToPropertyFilter;
-import com.vmturbo.topology.processor.topology.TopologyGraph.Vertex;
+import com.vmturbo.topology.processor.topology.TopologyEntity;
 
 /**
  * A factory for constructing an appropriate filter to perform a search against the topology.
@@ -108,13 +108,13 @@ public class TopologyFilterFactory {
                 return new PropertyFilter(longPredicate(
                     numericCriteria.getValue(),
                     numericCriteria.getComparisonOperator(),
-                    Vertex::getOid
+                    TopologyEntity::getOid
                 ));
             case "entityType":
                 return new PropertyFilter(intPredicate(
                     (int) numericCriteria.getValue(),
                     numericCriteria.getComparisonOperator(),
-                    Vertex::getEntityType
+                    TopologyEntity::getEntityType
                 ));
             default:
                 throw new IllegalArgumentException("Unknown numeric property named: " + propertyName);
@@ -128,7 +128,7 @@ public class TopologyFilterFactory {
             case "displayName":
                 return new PropertyFilter(stringPredicate(
                     stringCriteria.getStringPropertyRegex(),
-                    vertex -> vertex.getTopologyEntityDtoBuilder().getDisplayName(),
+                    entity -> entity.getTopologyEntityDtoBuilder().getDisplayName(),
                     !stringCriteria.getMatch()
                 ));
             // Support oid either as a string or as a numeric filter.
@@ -136,7 +136,7 @@ public class TopologyFilterFactory {
                 return new PropertyFilter(longPredicate(
                     Long.valueOf(stringCriteria.getStringPropertyRegex()),
                     stringCriteria.getMatch() ? ComparisonOperator.EQ : ComparisonOperator.NE,
-                    Vertex::getOid
+                    TopologyEntity::getOid
                 ));
             default:
                 throw new IllegalArgumentException("Unknown string property named: " + stringCriteria);
@@ -149,28 +149,28 @@ public class TopologyFilterFactory {
      *
      * @param comparisonValue The value to compare the lookup value against.
      * @param operator The operation to apply in the comparison.
-     * @param propertyLookup The function to use to lookup an int-value from a given vertex.
+     * @param propertyLookup The function to use to lookup an int-value from a given {@link TopologyEntity}.
      * @return A predicate.
      */
     @Nonnull
-    private Predicate<Vertex> intPredicate(final int comparisonValue,
+    private Predicate<TopologyEntity> intPredicate(final int comparisonValue,
                                                  @Nonnull final ComparisonOperator operator,
-                                                 @Nonnull final ToIntFunction<Vertex> propertyLookup) {
+                                                 @Nonnull final ToIntFunction<TopologyEntity> propertyLookup) {
         Objects.requireNonNull(propertyLookup);
 
         switch (operator) {
             case EQ:
-                return vertex -> propertyLookup.applyAsInt(vertex) == comparisonValue;
+                return entity -> propertyLookup.applyAsInt(entity) == comparisonValue;
             case NE:
-                return vertex -> propertyLookup.applyAsInt(vertex) != comparisonValue;
+                return entity -> propertyLookup.applyAsInt(entity) != comparisonValue;
             case GT:
-                return vertex -> propertyLookup.applyAsInt(vertex) > comparisonValue;
+                return entity -> propertyLookup.applyAsInt(entity) > comparisonValue;
             case GTE:
-                return vertex -> propertyLookup.applyAsInt(vertex) >= comparisonValue;
+                return entity -> propertyLookup.applyAsInt(entity) >= comparisonValue;
             case LT:
-                return vertex -> propertyLookup.applyAsInt(vertex) < comparisonValue;
+                return entity -> propertyLookup.applyAsInt(entity) < comparisonValue;
             case LTE:
-                return vertex -> propertyLookup.applyAsInt(vertex) <= comparisonValue;
+                return entity -> propertyLookup.applyAsInt(entity) <= comparisonValue;
             default:
                 throw new IllegalArgumentException("Unknown operator type: " + operator);
         }
@@ -182,28 +182,28 @@ public class TopologyFilterFactory {
      *
      * @param comparisonValue The value to compare the lookup value against.
      * @param operator The operation to apply in the comparison.
-     * @param propertyLookup The function to use to lookup an int-value from a given vertex.
+     * @param propertyLookup The function to use to lookup an int-value from a given {@link TopologyEntity}.
      * @return A predicate.
      */
     @Nonnull
-    private Predicate<Vertex> longPredicate(final long comparisonValue,
+    private Predicate<TopologyEntity> longPredicate(final long comparisonValue,
                                                   @Nonnull final ComparisonOperator operator,
-                                                  @Nonnull final ToLongFunction<Vertex> propertyLookup) {
+                                                  @Nonnull final ToLongFunction<TopologyEntity> propertyLookup) {
         Objects.requireNonNull(propertyLookup);
 
         switch (operator) {
             case EQ:
-                return vertex -> propertyLookup.applyAsLong(vertex) == comparisonValue;
+                return entity -> propertyLookup.applyAsLong(entity) == comparisonValue;
             case NE:
-                return vertex -> propertyLookup.applyAsLong(vertex) != comparisonValue;
+                return entity -> propertyLookup.applyAsLong(entity) != comparisonValue;
             case GT:
-                return vertex -> propertyLookup.applyAsLong(vertex) > comparisonValue;
+                return entity -> propertyLookup.applyAsLong(entity) > comparisonValue;
             case GTE:
-                return vertex -> propertyLookup.applyAsLong(vertex) >= comparisonValue;
+                return entity -> propertyLookup.applyAsLong(entity) >= comparisonValue;
             case LT:
-                return vertex -> propertyLookup.applyAsLong(vertex) < comparisonValue;
+                return entity -> propertyLookup.applyAsLong(entity) < comparisonValue;
             case LTE:
-                return vertex -> propertyLookup.applyAsLong(vertex) <= comparisonValue;
+                return entity -> propertyLookup.applyAsLong(entity) <= comparisonValue;
             default:
                 throw new IllegalArgumentException("Unknown operator type: " + operator);
         }
@@ -212,19 +212,19 @@ public class TopologyFilterFactory {
     /**
      * Compose a string-based predicate for use in a string filter that filters based on a regex.
      *
-     * @param regex The regular expression to use when filtering vertices.
-     * @param propertyLookup The function to use to lookup an int-value from a given vertex.
+     * @param regex The regular expression to use when filtering entities.
+     * @param propertyLookup The function to use to lookup an int-value from a given {@link TopologyEntity}.
      * @param negate If true, return the opposite of the match. That is, if true return false
      *               if the match succeeds. If false, return the same as the match.
      * @return A predicate.
      */
     @Nonnull
-    private Predicate<Vertex> stringPredicate(final String regex,
-                                              @Nonnull final Function<Vertex, String> propertyLookup,
+    private Predicate<TopologyEntity> stringPredicate(final String regex,
+                                              @Nonnull final Function<TopologyEntity, String> propertyLookup,
                                               final boolean negate) {
         final Pattern pattern = Pattern.compile(regex);
         return negate ?
-            vertex -> !pattern.matcher(propertyLookup.apply(vertex)).find() :
-            vertex -> pattern.matcher(propertyLookup.apply(vertex)).find();
+            entity -> !pattern.matcher(propertyLookup.apply(entity)).find() :
+            entity -> pattern.matcher(propertyLookup.apply(entity)).find();
     }
 }

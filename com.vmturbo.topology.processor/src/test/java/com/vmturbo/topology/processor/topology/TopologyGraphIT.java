@@ -19,9 +19,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.Test;
 
+import sun.security.provider.certpath.Vertex;
+
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.topology.processor.topology.TopologyGraph.Vertex;
 
 public class TopologyGraphIT {
 
@@ -47,7 +48,7 @@ public class TopologyGraphIT {
     // to your test run arguments, and uncomment the memory measurer lines.
     @Test
     public void gatherPerformanceMetrics() {
-        final Map<Long, TopologyEntityDTO.Builder> topologyMap = buildTopologyMap();
+        final Map<Long, TopologyEntity.Builder> topologyMap = buildTopologyMap();
         final TopologyGraph graph = benchmark("Creating graph",
             () -> buildTopologyGraph(topologyMap),
             TimeUnit.MILLISECONDS);
@@ -65,9 +66,9 @@ public class TopologyGraphIT {
         printGraphMemoryUsage(graph);
     }
 
-    public Map<Long, TopologyEntityDTO.Builder> buildTopologyMap() {
+    public Map<Long, TopologyEntity.Builder> buildTopologyMap() {
         System.out.println("Building topology map...");
-        Map<Long, TopologyEntityDTO.Builder> map = new HashMap<>();
+        Map<Long, TopologyEntity.Builder> map = new HashMap<>();
         long nextVertex = 0;
         long nextEdge = 0;
 
@@ -108,8 +109,8 @@ public class TopologyGraphIT {
         return map;
     }
 
-    public TopologyGraph buildTopologyGraph(@Nonnull final Map<Long, TopologyEntityDTO.Builder> topologyMap) {
-        return new TopologyGraph(topologyMap);
+    public TopologyGraph buildTopologyGraph(@Nonnull final Map<Long, TopologyEntity.Builder> topologyMap) {
+        return TopologyGraph.newGraph(topologyMap);
     }
 
     private Collection<TopologyEntityDTO> testTraversal(@Nonnull final TopologyGraph graph,
@@ -119,7 +120,7 @@ public class TopologyGraphIT {
                 .flatMap(pm -> graph.getConsumers(pm)
                     .flatMap(graph::getConsumers)))
             .distinct()
-            .map(Vertex::getTopologyEntityDtoBuilder)
+            .map(TopologyEntity::getTopologyEntityDtoBuilder)
             .map(TopologyEntityDTO.Builder::build)
             .collect(Collectors.toList());
     }

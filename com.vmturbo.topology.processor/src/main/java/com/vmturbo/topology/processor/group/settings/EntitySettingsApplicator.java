@@ -18,6 +18,8 @@ import com.google.common.collect.ImmutableList;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import sun.security.provider.certpath.Vertex;
+
 import com.vmturbo.common.protobuf.action.ActionDTOREST.ActionMode;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
@@ -29,8 +31,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.group.api.SettingPolicySetting;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.topology.processor.topology.TopologyEntity;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
-import com.vmturbo.topology.processor.topology.TopologyGraph.Vertex;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline;
 
 /**
@@ -57,8 +59,8 @@ public class EntitySettingsApplicator {
      */
     public void applySettings(@Nonnull final TopologyInfo topologyInfo,
                               @Nonnull final GraphWithSettings graphWithSettings) {
-        graphWithSettings.getTopologyGraph().vertices()
-            .map(Vertex::getTopologyEntityDtoBuilder)
+        graphWithSettings.getTopologyGraph().entities()
+            .map(TopologyEntity::getTopologyEntityDtoBuilder)
             .forEach(entity -> {
                 final Map<SettingPolicySetting, Setting> settingsForEntity =
                         new EnumMap<>(SettingPolicySetting.class);
@@ -422,7 +424,7 @@ public class EntitySettingsApplicator {
 
     /**
      * Applicator for capacity resize increment settings.
-     * This sets the capacity_increment in the {@link TopologyDTO.CommoditySoldDTO}
+     * This sets the capacity_increment in the {@link CommoditySoldDTO}
      * for Virtual Machine entities.
      *
      */

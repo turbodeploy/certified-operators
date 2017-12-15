@@ -11,8 +11,8 @@ import javax.annotation.Nonnull;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.topology.processor.topology.TopologyEntity;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
-import com.vmturbo.topology.processor.topology.TopologyGraph.Vertex;
 
 /**
  * A set of utilities for testing filters.
@@ -34,14 +34,14 @@ public class FilterUtils {
      */
     public static Collection<Long> filterOids(@Nonnull final TopologyFilter filter,
                                         @Nonnull final TopologyGraph graph, long... startingPoints) {
-        Stream<Vertex> startingVertices = Arrays.stream(startingPoints)
+        Stream<TopologyEntity> startingVertices = Arrays.stream(startingPoints)
             .mapToObj(l -> l)
-            .map(graph::getVertex)
+            .map(graph::getEntity)
             .filter(Optional::isPresent)
             .map(Optional::get);
 
         return filter.apply(startingVertices, graph)
-            .map(Vertex::getOid)
+            .map(TopologyEntity::getOid)
             .collect(Collectors.toList());
     }
 
@@ -54,12 +54,12 @@ public class FilterUtils {
      *                  Does not actually associate any commodities with the producers.
      * @return A {@link TopologyEntityDTO} with the given properties.
      */
-    public static TopologyEntityDTO.Builder topologyEntity(long oid, EntityType entityType, long... producers) {
-        final TopologyEntityDTO.Builder builder = TopologyEntityDTO.newBuilder()
+    public static TopologyEntity.Builder topologyEntity(long oid, EntityType entityType, long... producers) {
+        final TopologyEntity.Builder builder = TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
             .setOid(oid)
-            .setEntityType(entityType.getNumber());
+            .setEntityType(entityType.getNumber()), 0);
 
-        addCommodityBoughtMap(builder, producers);
+        addCommodityBoughtMap(builder.getEntityBuilder(), producers);
         return builder;
     }
 
@@ -73,16 +73,16 @@ public class FilterUtils {
      *                  Does not actually associate any commodities with the producers.
      * @return A {@link TopologyEntityDTO} with the given properties.
      */
-    public static TopologyEntityDTO.Builder topologyEntityWithName(long oid,
+    public static TopologyEntity.Builder topologyEntityWithName(long oid,
                                                            EntityType entityType,
                                                            String name,
                                                            long... producers) {
-        final TopologyEntityDTO.Builder builder = TopologyEntityDTO.newBuilder()
+        final TopologyEntity.Builder builder = TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
                 .setOid(oid)
                 .setDisplayName(name)
-                .setEntityType(entityType.getNumber());
+                .setEntityType(entityType.getNumber()), 0);
 
-        addCommodityBoughtMap(builder, producers);
+        addCommodityBoughtMap(builder.getEntityBuilder(), producers);
         return builder;
     }
 

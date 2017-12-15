@@ -47,6 +47,7 @@ import com.vmturbo.topology.processor.stitching.StitchingManager;
 import com.vmturbo.topology.processor.topology.ConstraintsEditor;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyEditor;
+import com.vmturbo.topology.processor.topology.TopologyEntity;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.PassthroughStage;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.PipelineStageException;
@@ -107,7 +108,7 @@ public class Stages {
      * Stitching can happen in both the live topology broadcast and the plan topology broadcast if
      * the plan is on top of the "live" topology.
      */
-    public static class StitchingStage extends Stage<EntityStore, Map<Long, Builder>> {
+    public static class StitchingStage extends Stage<EntityStore, Map<Long, TopologyEntity.Builder>> {
 
         private final StitchingManager stitchingManager;
 
@@ -117,7 +118,7 @@ public class Stages {
 
         @Nonnull
         @Override
-        public Map<Long, TopologyEntityDTO.Builder> execute(@Nonnull final EntityStore entityStore) {
+        public Map<Long, TopologyEntity.Builder> execute(@Nonnull final EntityStore entityStore) {
             return stitchingManager.stitch(entityStore).constructTopology();
         }
     }
@@ -128,7 +129,7 @@ public class Stages {
      * We only do this in plans, because the live topology pipeline doesn't depend
      * on old topologies.
      */
-    public static class TopologyAcquisitionStage extends Stage<Long, Map<Long, Builder>> {
+    public static class TopologyAcquisitionStage extends Stage<Long, Map<Long, TopologyEntity.Builder>> {
 
         private final RepositoryClient repository;
 
@@ -138,7 +139,7 @@ public class Stages {
 
         @Nonnull
         @Override
-        public Map<Long, Builder> execute(@Nonnull final Long topologyId) {
+        public Map<Long, TopologyEntity.Builder> execute(@Nonnull final Long topologyId) {
             // we need to gather the entire topology in order to perform editing below
             Iterable<RepositoryDTO.RetrieveTopologyResponse> dtos =
                     () -> repository.retrieveTopology(topologyId);
@@ -146,7 +147,9 @@ public class Stages {
                     .map(RepositoryDTO.RetrieveTopologyResponse::getEntitiesList)
                     .flatMap(List::stream)
                     .map(TopologyEntityDTO::toBuilder)
-                    .collect(Collectors.toMap(TopologyEntityDTOOrBuilder::getOid, Function.identity()));
+                    .collect(Collectors.toMap(TopologyEntityDTOOrBuilder::getOid,
+                        // TODO: Persist lastUpdatedTime for entities and pass that information through here.
+                        dtoBuilder -> TopologyEntity.newBuilder(dtoBuilder, TopologyEntity.NEVER_UPDATED_TIME)));
         }
     }
 
@@ -155,7 +158,7 @@ public class Stages {
      *
      * We only do this in plans because only plans have scenario changes on top of a topology.
      */
-    public static class TopologyEditStage extends PassthroughStage<Map<Long, Builder>> {
+    public static class TopologyEditStage extends PassthroughStage<Map<Long, TopologyEntity.Builder>> {
 
         private final TopologyEditor topologyEditor;
         private final List<ScenarioChange> changes;
@@ -167,7 +170,7 @@ public class Stages {
         }
 
         @Override
-        public void passthrough(@Nonnull final Map<Long, TopologyEntityDTO.Builder> input) {
+        public void passthrough(@Nonnull final Map<Long, TopologyEntity.Builder> input) {
             topologyEditor.editTopology(input, changes);
         }
 
@@ -262,12 +265,12 @@ public class Stages {
     /**
      * This stage creates a {@link TopologyGraph} out of the topology entities.
      */
-    public static class GraphCreationStage extends Stage<Map<Long, Builder>, TopologyGraph> {
+    public static class GraphCreationStage extends Stage<Map<Long, TopologyEntity.Builder>, TopologyGraph> {
 
         @Nonnull
         @Override
-        public TopologyGraph execute(@Nonnull final Map<Long, TopologyEntityDTO.Builder> input) {
-            return new TopologyGraph(input);
+        public TopologyGraph execute(@Nonnull final Map<Long, TopologyEntity.Builder> input) {
+            return TopologyGraph.newGraph(input);
         }
     }
 
@@ -438,7 +441,7 @@ public class Stages {
         @Override
         public TopologyBroadcastInfo execute(@Nonnull final TopologyGraph input)
                 throws PipelineStageException, InterruptedException {
-            final Iterator<TopologyEntityDTO> entities = input.vertices()
+            final Iterator<TopologyEntityDTO> entities = input.entities()
                     .map(vertex -> vertex.getTopologyEntityDtoBuilder().build())
                     .iterator();
             try {

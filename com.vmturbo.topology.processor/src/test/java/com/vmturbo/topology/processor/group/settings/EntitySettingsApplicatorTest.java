@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.group.settings;
 
+import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.topologyEntityBuilder;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 
@@ -31,6 +32,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.group.api.SettingPolicySetting;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.topology.processor.topology.TopologyEntity;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 /**
@@ -355,8 +357,9 @@ public class EntitySettingsApplicatorTest {
                                @Nonnull TopologyEntityDTO.Builder entity,
                                @Nonnull Setting... settings) {
         final long entityId = entity.getOid();
-        final TopologyGraph graph = new TopologyGraph(ImmutableMap.of(entityId, entity, PARENT_ID,
-                TopologyEntityDTO.newBuilder(PARENT_OBJECT)));
+        final TopologyGraph graph = TopologyGraph.newGraph(ImmutableMap.of(
+            entityId, topologyEntityBuilder(entity),
+            PARENT_ID, topologyEntityBuilder(PARENT_OBJECT.toBuilder())));
         final EntitySettings.Builder settingsBuilder = EntitySettings.newBuilder()
                 .setEntityOid(entityId)
                 .setDefaultSettingPolicyId(DEFAULT_SETTING_ID);

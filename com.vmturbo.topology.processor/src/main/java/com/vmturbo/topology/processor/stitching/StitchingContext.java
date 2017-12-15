@@ -21,6 +21,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.topology.processor.conversions.Converter;
+import com.vmturbo.topology.processor.topology.TopologyEntity;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 /**
@@ -216,7 +217,7 @@ public class StitchingContext {
      * @return The entities in the {@link StitchingContext}, arranged by ID.
      */
     @Nonnull
-    public Map<Long, TopologyEntityDTO.Builder> constructTopology() {
+    public Map<Long, TopologyEntity.Builder> constructTopology() {
         /**
          * If this line throws an exception, it indicates an error in stitching. If stitching is
          * successful it should merge down all entities with duplicate OIDs into a single entity.
@@ -226,7 +227,8 @@ public class StitchingContext {
         return stitchingGraph.entities()
             .collect(Collectors.toMap(
                 TopologyStitchingEntity::getOid,
-                Converter::newTopologyEntityDTO,
+                stitchingEntity -> TopologyEntity.newBuilder(
+                    Converter.newTopologyEntityDTO(stitchingEntity), stitchingEntity.getLastUpdatedTime()),
                 (oldValue, newValue) -> {
                     logger.error("Multiple entities with oid {}. Keeping the first.", oldValue.getOid());
                     return oldValue;

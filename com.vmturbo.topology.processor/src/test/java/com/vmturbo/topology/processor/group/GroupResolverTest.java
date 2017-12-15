@@ -38,9 +38,9 @@ import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.StoppingCondition;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.group.filter.TopologyFilterFactory;
+import com.vmturbo.topology.processor.topology.TopologyEntity;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 public class GroupResolverTest {
@@ -61,7 +61,7 @@ public class GroupResolverTest {
      */
     @Before
     public void setup() {
-        final Map<Long, TopologyEntityDTO.Builder> topologyMap = new HashMap<>();
+        final Map<Long, TopologyEntity.Builder> topologyMap = new HashMap<>();
         topologyMap.put(1L, topologyEntity(1L, EntityType.PHYSICAL_MACHINE));
         topologyMap.put(2L, topologyEntity(2L, EntityType.PHYSICAL_MACHINE));
         topologyMap.put(3L, topologyEntity(3L, EntityType.PHYSICAL_MACHINE));
@@ -73,7 +73,7 @@ public class GroupResolverTest {
         topologyMap.put(9L, topologyEntity(9L, EntityType.VIRTUAL_DATACENTER, 5, 6));
         topologyMap.put(10L, topologyEntityWithName(10L, EntityType.VIRTUAL_MACHINE, "VM#10", 9));
 
-        topologyGraph = new TopologyGraph(topologyMap);
+        topologyGraph = TopologyGraph.newGraph(topologyMap);
     }
 
     @Test

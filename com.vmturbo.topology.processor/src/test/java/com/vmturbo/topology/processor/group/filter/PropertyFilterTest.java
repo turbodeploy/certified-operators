@@ -7,8 +7,8 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.vmturbo.topology.processor.topology.TopologyEntity;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
-import com.vmturbo.topology.processor.topology.TopologyGraph.Vertex;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
@@ -23,45 +23,45 @@ import static org.mockito.Mockito.when;
  */
 public class PropertyFilterTest {
 
-    private final PropertyFilter oidFilter = new PropertyFilter(vertex -> vertex.getOid() == 1L);
-    private final Vertex vertex1 = Mockito.mock(Vertex.class);
-    private final Vertex vertex2 = Mockito.mock(Vertex.class);
+    private final PropertyFilter oidFilter = new PropertyFilter(entity -> entity.getOid() == 1L);
+    private final TopologyEntity entity1 = Mockito.mock(TopologyEntity.class);
+    private final TopologyEntity entity2 = Mockito.mock(TopologyEntity.class);
     private final TopologyGraph graph = Mockito.mock(TopologyGraph.class);
 
     @Before
     public void setup() {
-        when(vertex1.getOid()).thenReturn(1L);
-        when(vertex2.getOid()).thenReturn(2L);
+        when(entity1.getOid()).thenReturn(1L);
+        when(entity2.getOid()).thenReturn(2L);
     }
 
     @Test
     public void testTestPasses() {
-        assertTrue(oidFilter.test(vertex1));
+        assertTrue(oidFilter.test(entity1));
     }
 
     @Test
     public void testTestFails() {
-        assertFalse(oidFilter.test(vertex2));
+        assertFalse(oidFilter.test(entity2));
     }
 
     @Test
     public void testApplyIncludesPassing() {
         assertThat(
-            oidFilter.apply(Stream.of(vertex1), graph).collect(Collectors.toList()),
-            contains(vertex1));
+            oidFilter.apply(Stream.of(entity1), graph).collect(Collectors.toList()),
+            contains(entity1));
     }
 
     @Test
     public void testApplyExcludesFailing() {
         assertThat(
-            oidFilter.apply(Stream.of(vertex2), graph).collect(Collectors.toList()),
+            oidFilter.apply(Stream.of(entity2), graph).collect(Collectors.toList()),
             is(empty()));
     }
 
     @Test
     public void testApplyIncludesPassingAndExcludesFailing() {
         assertThat(
-            oidFilter.apply(Stream.of(vertex1, vertex2), graph).collect(Collectors.toList()),
-            contains(vertex1));
+            oidFilter.apply(Stream.of(entity1, entity2), graph).collect(Collectors.toList()),
+            contains(entity1));
     }
 }

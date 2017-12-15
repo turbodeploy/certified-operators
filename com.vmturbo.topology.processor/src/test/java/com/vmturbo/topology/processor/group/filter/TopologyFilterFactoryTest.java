@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.group.filter;
 
+import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.topologyEntity;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -33,13 +34,13 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.group.filter.TraversalFilter.TraversalToDepthFilter;
 import com.vmturbo.topology.processor.group.filter.TraversalFilter.TraversalToPropertyFilter;
+import com.vmturbo.topology.processor.topology.TopologyEntity;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
-import com.vmturbo.topology.processor.topology.TopologyGraph.Vertex;
 
 public class TopologyFilterFactoryTest {
     final TopologyFilterFactory filterFactory = new TopologyFilterFactory();
-    final Vertex vertex1 = mock(Vertex.class);
-    final Vertex vertex2 = mock(Vertex.class);
+    final TopologyEntity entity1 = mock(TopologyEntity.class);
+    final TopologyEntity entity2 = mock(TopologyEntity.class);
     final TopologyGraph graph = mock(TopologyGraph.class);
 
     final TopologyEntityDTO.Builder fooEntity = TopologyEntityDTO.newBuilder()
@@ -69,11 +70,11 @@ public class TopologyFilterFactoryTest {
         assertTrue(filter instanceof PropertyFilter);
         PropertyFilter propertyFilter = (PropertyFilter)filter;
 
-        when(vertex1.getOid()).thenReturn(1234L);
-        assertTrue(propertyFilter.test(vertex1));
+        when(entity1.getOid()).thenReturn(1234L);
+        assertTrue(propertyFilter.test(entity1));
 
-        when(vertex2.getOid()).thenReturn(2345L);
-        assertFalse(propertyFilter.test(vertex2));
+        when(entity2.getOid()).thenReturn(2345L);
+        assertFalse(propertyFilter.test(entity2));
     }
 
     @Test
@@ -91,11 +92,11 @@ public class TopologyFilterFactoryTest {
         assertTrue(filter instanceof PropertyFilter);
         PropertyFilter propertyFilter = (PropertyFilter)filter;
 
-        when(vertex1.getEntityType()).thenReturn(EntityType.VIRTUAL_MACHINE.getNumber());
-        assertTrue(propertyFilter.test(vertex1));
+        when(entity1.getEntityType()).thenReturn(EntityType.VIRTUAL_MACHINE.getNumber());
+        assertTrue(propertyFilter.test(entity1));
 
-        when(vertex2.getEntityType()).thenReturn(EntityType.PHYSICAL_MACHINE.getNumber());
-        assertFalse(propertyFilter.test(vertex2));
+        when(entity2.getEntityType()).thenReturn(EntityType.PHYSICAL_MACHINE.getNumber());
+        assertFalse(propertyFilter.test(entity2));
     }
 
     @Test
@@ -112,11 +113,11 @@ public class TopologyFilterFactoryTest {
         assertTrue(filter instanceof PropertyFilter);
         PropertyFilter propertyFilter = (PropertyFilter)filter;
 
-        when(vertex1.getTopologyEntityDtoBuilder()).thenReturn(fooEntity);
-        assertTrue(propertyFilter.test(vertex1));
+        when(entity1.getTopologyEntityDtoBuilder()).thenReturn(fooEntity);
+        assertTrue(propertyFilter.test(entity1));
 
-        when(vertex2.getTopologyEntityDtoBuilder()).thenReturn(barEntity);
-        assertFalse(propertyFilter.test(vertex2));
+        when(entity2.getTopologyEntityDtoBuilder()).thenReturn(barEntity);
+        assertFalse(propertyFilter.test(entity2));
     }
 
     @Test
@@ -133,11 +134,11 @@ public class TopologyFilterFactoryTest {
         assertTrue(filter instanceof PropertyFilter);
         PropertyFilter propertyFilter = (PropertyFilter)filter;
 
-        when(vertex1.getTopologyEntityDtoBuilder()).thenReturn(fooEntity);
-        assertTrue(propertyFilter.test(vertex1));
+        when(entity1.getTopologyEntityDtoBuilder()).thenReturn(fooEntity);
+        assertTrue(propertyFilter.test(entity1));
 
-        when(vertex2.getTopologyEntityDtoBuilder()).thenReturn(barEntity);
-        assertFalse(propertyFilter.test(vertex2));
+        when(entity2.getTopologyEntityDtoBuilder()).thenReturn(barEntity);
+        assertFalse(propertyFilter.test(entity2));
     }
 
     @Test
@@ -155,11 +156,11 @@ public class TopologyFilterFactoryTest {
         assertTrue(filter instanceof PropertyFilter);
         PropertyFilter propertyFilter = (PropertyFilter)filter;
 
-        when(vertex1.getTopologyEntityDtoBuilder()).thenReturn(fooEntity);
-        assertFalse(propertyFilter.test(vertex1));
+        when(entity1.getTopologyEntityDtoBuilder()).thenReturn(fooEntity);
+        assertFalse(propertyFilter.test(entity1));
 
-        when(vertex2.getTopologyEntityDtoBuilder()).thenReturn(barEntity);
-        assertTrue(propertyFilter.test(vertex2));
+        when(entity2.getTopologyEntityDtoBuilder()).thenReturn(barEntity);
+        assertTrue(propertyFilter.test(entity2));
     }
 
     @Test
@@ -198,12 +199,12 @@ public class TopologyFilterFactoryTest {
 
         final TopologyEntityDTO.Builder builder = TopologyEntityDTO.newBuilder()
             .setOid(1234L);
-        final Vertex vertex = new Vertex(builder);
+        final TopologyEntity entity = topologyEntity(builder);
 
         final TopologyFilter filter = filterFactory.filterFor(searchCriteria);
         assertThat(
-            filter.apply(Stream.of(vertex), graph).collect(Collectors.toList()),
-            contains(vertex));
+            filter.apply(Stream.of(entity), graph).collect(Collectors.toList()),
+            contains(entity));
     }
 
     @Test
@@ -219,18 +220,18 @@ public class TopologyFilterFactoryTest {
 
         final TopologyEntityDTO.Builder builder = TopologyEntityDTO.newBuilder()
             .setOid(1234L);
-        final Vertex vertex = new Vertex(builder);
+        final TopologyEntity entity = topologyEntity(builder);
 
         final TopologyFilter filter = filterFactory.filterFor(searchCriteria);
-        assertTrue(filter.apply(Stream.of(vertex), graph).collect(Collectors.toList()).isEmpty());
+        assertTrue(filter.apply(Stream.of(entity), graph).collect(Collectors.toList()).isEmpty());
     }
 
     private class NumericFilterTest {
         private final ComparisonOperator operator;
-        private final Collection<Vertex> expectedMatches;
+        private final Collection<TopologyEntity> expectedMatches;
 
         public NumericFilterTest(final ComparisonOperator operator,
-                                 @Nonnull final Collection<Vertex> expectedMatches) {
+                                 @Nonnull final Collection<TopologyEntity> expectedMatches) {
             this.operator = operator;
             this.expectedMatches = expectedMatches;
         }
@@ -239,21 +240,21 @@ public class TopologyFilterFactoryTest {
             return operator;
         }
 
-        public Collection<Vertex> getExpectedMatches() {
+        public Collection<TopologyEntity> getExpectedMatches() {
             return expectedMatches;
         }
     }
 
     @Test
     public void testIntNumericComparisons() {
-        final Vertex vertex1 = mock(Vertex.class);
-        final Vertex vertex2 = mock(Vertex.class);
-        final Vertex vertex3 = mock(Vertex.class);
+        final TopologyEntity entity1 = mock(TopologyEntity.class);
+        final TopologyEntity entity2 = mock(TopologyEntity.class);
+        final TopologyEntity entity3 = mock(TopologyEntity.class);
 
-        final List<Vertex> testCases = Arrays.asList(vertex1, vertex2, vertex3);
-        when(vertex1.getEntityType()).thenReturn(1);
-        when(vertex2.getEntityType()).thenReturn(2);
-        when(vertex3.getEntityType()).thenReturn(3);
+        final List<TopologyEntity> testCases = Arrays.asList(entity1, entity2, entity3);
+        when(entity1.getEntityType()).thenReturn(1);
+        when(entity2.getEntityType()).thenReturn(2);
+        when(entity3.getEntityType()).thenReturn(3);
 
         final NumericFilter.Builder numericBuilder = NumericFilter.newBuilder()
             .setValue(2);
@@ -262,12 +263,12 @@ public class TopologyFilterFactoryTest {
 
         // Execute the comparison on entities with entityType 1,2,3 with the value 2 passed to the filter.
         Stream.of(
-            new NumericFilterTest(ComparisonOperator.EQ, Collections.singletonList(vertex2)),
-            new NumericFilterTest(ComparisonOperator.NE, Arrays.asList(vertex1, vertex3)),
-            new NumericFilterTest(ComparisonOperator.GT, Collections.singletonList(vertex3)),
-            new NumericFilterTest(ComparisonOperator.GTE, Arrays.asList(vertex2, vertex3)),
-            new NumericFilterTest(ComparisonOperator.LT, Collections.singletonList(vertex1)),
-            new NumericFilterTest(ComparisonOperator.LTE, Arrays.asList(vertex1, vertex2))
+            new NumericFilterTest(ComparisonOperator.EQ, Collections.singletonList(entity2)),
+            new NumericFilterTest(ComparisonOperator.NE, Arrays.asList(entity1, entity3)),
+            new NumericFilterTest(ComparisonOperator.GT, Collections.singletonList(entity3)),
+            new NumericFilterTest(ComparisonOperator.GTE, Arrays.asList(entity2, entity3)),
+            new NumericFilterTest(ComparisonOperator.LT, Collections.singletonList(entity1)),
+            new NumericFilterTest(ComparisonOperator.LTE, Arrays.asList(entity1, entity2))
         ).forEach(testCase -> {
             final SearchFilter searchCriteria = SearchFilter.newBuilder()
                 .setPropertyFilter(propertyBuilder.setNumericFilter(
@@ -286,14 +287,14 @@ public class TopologyFilterFactoryTest {
 
     @Test
     public void testLongNumericComparisons() {
-        final Vertex vertex1 = mock(Vertex.class);
-        final Vertex vertex2 = mock(Vertex.class);
-        final Vertex vertex3 = mock(Vertex.class);
+        final TopologyEntity entity1 = mock(TopologyEntity.class);
+        final TopologyEntity entity2 = mock(TopologyEntity.class);
+        final TopologyEntity entity3 = mock(TopologyEntity.class);
 
-        final List<Vertex> testCases = Arrays.asList(vertex1, vertex2, vertex3);
-        when(vertex1.getOid()).thenReturn(1L);
-        when(vertex2.getOid()).thenReturn(2L);
-        when(vertex3.getOid()).thenReturn(3L);
+        final List<TopologyEntity> testCases = Arrays.asList(entity1, entity2, entity3);
+        when(entity1.getOid()).thenReturn(1L);
+        when(entity2.getOid()).thenReturn(2L);
+        when(entity3.getOid()).thenReturn(3L);
 
         final NumericFilter.Builder numericBuilder = NumericFilter.newBuilder()
             .setValue(2L);
@@ -302,12 +303,12 @@ public class TopologyFilterFactoryTest {
 
         // Execute the comparison on entities with oid 1,2,3 with the value 2 passed to the filter.
         Stream.of(
-            new NumericFilterTest(ComparisonOperator.EQ, Collections.singletonList(vertex2)),
-            new NumericFilterTest(ComparisonOperator.NE, Arrays.asList(vertex1, vertex3)),
-            new NumericFilterTest(ComparisonOperator.GT, Collections.singletonList(vertex3)),
-            new NumericFilterTest(ComparisonOperator.GTE, Arrays.asList(vertex2, vertex3)),
-            new NumericFilterTest(ComparisonOperator.LT, Collections.singletonList(vertex1)),
-            new NumericFilterTest(ComparisonOperator.LTE, Arrays.asList(vertex1, vertex2))
+            new NumericFilterTest(ComparisonOperator.EQ, Collections.singletonList(entity2)),
+            new NumericFilterTest(ComparisonOperator.NE, Arrays.asList(entity1, entity3)),
+            new NumericFilterTest(ComparisonOperator.GT, Collections.singletonList(entity3)),
+            new NumericFilterTest(ComparisonOperator.GTE, Arrays.asList(entity2, entity3)),
+            new NumericFilterTest(ComparisonOperator.LT, Collections.singletonList(entity1)),
+            new NumericFilterTest(ComparisonOperator.LTE, Arrays.asList(entity1, entity2))
         ).forEach(testCase -> {
             final SearchFilter searchCriteria = SearchFilter.newBuilder()
                 .setPropertyFilter(propertyBuilder.setNumericFilter(
@@ -370,10 +371,10 @@ public class TopologyFilterFactoryTest {
         final TopologyEntityDTO.Builder builder = TopologyEntityDTO.newBuilder()
             .setDisplayName("entity-in-group-1");
 
-        final Vertex vertex = new Vertex(builder);
+        final TopologyEntity entity = topologyEntity(builder);
         assertThat(
-            displayNameFilter.apply(Stream.of(vertex), graph).collect(Collectors.toList()),
-            contains(vertex));
+            displayNameFilter.apply(Stream.of(entity), graph).collect(Collectors.toList()),
+            contains(entity));
     }
 
     @Test
@@ -388,10 +389,10 @@ public class TopologyFilterFactoryTest {
         final TopologyEntityDTO.Builder builder = TopologyEntityDTO.newBuilder()
             .setDisplayName("entity-in-group-1");
 
-        final Vertex vertex = new Vertex(builder);
+        final TopologyEntity entity = topologyEntity(builder);
         assertThat(
-            displayNameFilter.apply(Stream.of(vertex), graph).collect(Collectors.toList()),
-            contains(vertex));
+            displayNameFilter.apply(Stream.of(entity), graph).collect(Collectors.toList()),
+            contains(entity));
     }
 
     @Test
@@ -406,9 +407,9 @@ public class TopologyFilterFactoryTest {
         final TopologyEntityDTO.Builder builder = TopologyEntityDTO.newBuilder()
             .setDisplayName("entity-in-group-1");
 
-        final Vertex vertex = new Vertex(builder);
+        final TopologyEntity entity = topologyEntity(builder);
         assertThat(
-            displayNameFilter.apply(Stream.of(vertex), graph).collect(Collectors.toList()),
-            contains(vertex));
+            displayNameFilter.apply(Stream.of(entity), graph).collect(Collectors.toList()),
+            contains(entity));
     }
 }

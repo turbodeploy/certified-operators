@@ -5,7 +5,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -26,12 +25,10 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.IgnoreConstraint;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.CommonDTOREST.CommodityDTO.CommodityType;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
-import com.vmturbo.topology.processor.topology.TopologyGraph.Vertex;
 
 /**
  * Edits constraints in Ignore Constraint stage
@@ -62,20 +59,17 @@ public class ConstraintsEditor {
      *
      * @param graph to resolve groups members
      * @param changes with ignore constraint settings
-     * @return graph created from topology with disabled constraints.
      */
     public void editConstraints(@Nonnull final TopologyGraph graph,
             @Nonnull final List<ScenarioChange> changes) {
         final Multimap<Long, String> entitiesToIgnoredCommodities = HashMultimap.create();
-        final Map<Long, Builder> topology = graph.vertices().map(Vertex::getTopologyEntityDtoBuilder)
-                .collect(Collectors.toMap(TopologyEntityDTO.Builder::getOid, Function.identity()));
         changes.forEach(change -> {
             if (change.hasPlanChanges()) {
                 final List<IgnoreConstraint> ignoreConstraints = change
                         .getPlanChanges().getIgnoreConstraintsList();
                 if (!CollectionUtils.isEmpty(ignoreConstraints)) {
                     entitiesToIgnoredCommodities.putAll(
-                            getEntitiesOidsForIgnoredCommodities(ignoreConstraints, topology));
+                            getEntitiesOidsForIgnoredCommodities(ignoreConstraints, graph));
                 }
             } else {
                 logger.warn("Unimplemented handling for change of type {}", change.getDetailsCase());
@@ -87,8 +81,7 @@ public class ConstraintsEditor {
 
     @Nonnull
     private Multimap<Long, String> getEntitiesOidsForIgnoredCommodities(
-            @Nonnull List<IgnoreConstraint> ignoredCommodities,
-            @Nonnull Map<Long, TopologyEntityDTO.Builder> topologyMap) {
+            @Nonnull List<IgnoreConstraint> ignoredCommodities, @Nonnull TopologyGraph graph) {
         Set<Long> groups = ignoredCommodities.stream()
                 .map(IgnoreConstraint::getGroupUuid)
                 .collect(Collectors.toSet());
@@ -97,8 +90,7 @@ public class ConstraintsEditor {
             final GetGroupResponse groupResponse = groupService.getGroup(
                     GroupID.newBuilder().setId(groupId).build());
             try {
-                final Set<Long> groupMembersOids = groupResolver.resolve(groupResponse.getGroup(),
-                        new TopologyGraph(topologyMap));
+                final Set<Long> groupMembersOids = groupResolver.resolve(groupResponse.getGroup(), graph);
                 final Set<String> commoditiesOfGroup = ignoredCommodities.stream()
                         .filter(commodity -> commodity.getGroupUuid() == groupId)
                         .map(IgnoreConstraint::getCommodityType)
@@ -116,11 +108,11 @@ public class ConstraintsEditor {
     private void deactivateCommodities(@Nonnull TopologyGraph graph,
             @Nonnull Multimap<Long, String> entitiesToIgnoredCommodities) {
         for (Long entityId : entitiesToIgnoredCommodities.keySet()) {
-            final Optional<Vertex> vertex = graph.getVertex(entityId);
-            if (!vertex.isPresent()) {
+            final Optional<TopologyEntity> entity = graph.getEntity(entityId);
+            if (!entity.isPresent()) {
                 continue;
             }
-            final TopologyEntityDTO.Builder entityBuilder = vertex.get().getTopologyEntityDtoBuilder();
+            final TopologyEntityDTO.Builder entityBuilder = entity.get().getTopologyEntityDtoBuilder();
             final List<CommoditiesBoughtFromProvider> commoditiesBoughtFromProvider =
                     entityBuilder.getCommoditiesBoughtFromProvidersList();
             final List<CommoditiesBoughtFromProvider> deactivatedCommodities =

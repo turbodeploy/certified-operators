@@ -6,8 +6,8 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.topology.processor.topology.TopologyEntity;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
-import com.vmturbo.topology.processor.topology.TopologyGraph.Vertex;
 
 /**
  * A property filter selects members of the topology that match
@@ -18,9 +18,9 @@ import com.vmturbo.topology.processor.topology.TopologyGraph.Vertex;
  * make its {@link #apply(Stream, TopologyGraph)} method unsafe to run concurrently.
  */
 public class PropertyFilter implements TopologyFilter {
-    private final Predicate<Vertex> test;
+    private final Predicate<TopologyEntity> test;
 
-    public PropertyFilter(@Nonnull final Predicate<Vertex> test) {
+    public PropertyFilter(@Nonnull final Predicate<TopologyEntity> test) {
         this.test = Objects.requireNonNull(test);
     }
 
@@ -29,19 +29,19 @@ public class PropertyFilter implements TopologyFilter {
      */
     @Nonnull
     @Override
-    public Stream<Vertex> apply(@Nonnull final Stream<Vertex> vertices,
+    public Stream<TopologyEntity> apply(@Nonnull final Stream<TopologyEntity> vertices,
                                 @Nonnull final TopologyGraph graph) {
         return vertices.filter(test::test);
     }
 
     /**
-     * Test if a particular vertex passes the filter.
+     * Test if a particular {@link TopologyEntity} passes the filter.
      *
-     * @param vertex The vertex to test against the filter.
-     * @return True if the vertex passes the filter, false otherwise.
+     * @param entity The {@link TopologyEntity} to test against the filter.
+     * @return True if the {@link TopologyEntity} passes the filter, false otherwise.
      */
-    boolean test(@Nonnull Vertex vertex) {
-        return test.test(vertex);
+    boolean test(@Nonnull TopologyEntity entity) {
+        return test.test(entity);
     }
 
     /**
@@ -49,7 +49,7 @@ public class PropertyFilter implements TopologyFilter {
      *
      * @return The predicate that will be used by this filter.
      */
-    public Predicate<Vertex> getTest() {
+    public Predicate<TopologyEntity> getTest() {
         return test;
     }
 }

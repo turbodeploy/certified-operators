@@ -23,8 +23,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
+import com.vmturbo.topology.processor.topology.TopologyEntity;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
-import com.vmturbo.topology.processor.topology.TopologyGraph.Vertex;
 
 /**
  * A policy applies a constraint on a topology to restrict the possible options available to the market
@@ -128,8 +128,8 @@ public abstract class PlacementPolicy {
     protected void addCommoditySold(@Nonnull final Set<Long> providers,
                                     @Nonnull final TopologyGraph topologyGraph,
                                     @Nonnull final CommoditySoldDTO segmentationCommodity) {
-        providers.forEach(providerId -> topologyGraph.getVertex(providerId)
-            .map(Vertex::getTopologyEntityDtoBuilder)
+        providers.forEach(providerId -> topologyGraph.getEntity(providerId)
+            .map(TopologyEntity::getTopologyEntityDtoBuilder)
             .ifPresent(provider -> provider.addCommoditySoldList(segmentationCommodity)));
     }
 
@@ -150,8 +150,8 @@ public abstract class PlacementPolicy {
                                     @Nonnull final Set<Long> consumerGroupIds,
                                     @Nonnull final TopologyGraph topologyGraph,
                                     final float commoditySoldCapacity) {
-        providers.forEach(providerId -> topologyGraph.getVertex(providerId)
-            .map(Vertex::getTopologyEntityDtoBuilder)
+        providers.forEach(providerId -> topologyGraph.getEntity(providerId)
+            .map(TopologyEntity::getTopologyEntityDtoBuilder)
             .ifPresent(provider -> {
                 final CommoditySoldDTO segmentationCommodity = commoditySold(commoditySoldCapacity,
                     provider.getOid(), consumerGroupIds, topologyGraph);
@@ -172,10 +172,10 @@ public abstract class PlacementPolicy {
                                                             final long providerEntityTYpe,
                                                             @Nonnull final TopologyGraph topologyGraph,
                                                             @Nonnull final CommoditySoldDTO segmentationCommodity) {
-        topologyGraph.vertices()
-            .filter(vertex -> vertex.getEntityType() == providerEntityTYpe)
+        topologyGraph.entities()
+            .filter(entity -> entity.getEntityType() == providerEntityTYpe)
             .filter(vertex -> !providers.contains(vertex.getOid()))
-            .map(Vertex::getTopologyEntityDtoBuilder)
+            .map(TopologyEntity::getTopologyEntityDtoBuilder)
             .forEach(provider -> provider.addCommoditySoldList(segmentationCommodity));
     }
 
@@ -196,8 +196,8 @@ public abstract class PlacementPolicy {
                                       @Nonnull final CommodityBoughtDTO segmentationCommodity)
         throws PolicyApplicationException {
         for (Long consumerId : consumers) {
-            final Optional<Builder> optionalConsumer = topologyGraph.getVertex(consumerId)
-                .map(Vertex::getTopologyEntityDtoBuilder);
+            final Optional<Builder> optionalConsumer = topologyGraph.getEntity(consumerId)
+                .map(TopologyEntity::getTopologyEntityDtoBuilder);
             if (optionalConsumer.isPresent()) {
                 final TopologyEntityDTO.Builder consumer = optionalConsumer.get();
                 // Separate commoditiesBoughtFromProvider into two category: Key is True: which provider
@@ -295,7 +295,7 @@ public abstract class PlacementPolicy {
                                              @Nonnull final TopologyGraph topologyGraph) {
         // Calculate used value.
         final long numConsumersInConsumerGroup = topologyGraph.getConsumers(providerId)
-            .map(Vertex::getOid)
+            .map(TopologyEntity::getOid)
             .filter(consumerGroupIds::contains)
             .count();
 
@@ -343,7 +343,7 @@ public abstract class PlacementPolicy {
     protected boolean isProviderOfType(final long providerId,
                                        @Nonnull final TopologyGraph topologyGraph,
                                        final int providerEntityType) {
-        return topologyGraph.getVertex(providerId)
+        return topologyGraph.getEntity(providerId)
             .map(vertex -> vertex.getEntityType() == providerEntityType)
             .orElse(false);
     }

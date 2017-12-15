@@ -22,7 +22,6 @@ import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.topology.processor.topology.TopologyGraph.Vertex;
 
 public class TopologyGraphTest {
 
@@ -61,12 +60,12 @@ public class TopologyGraphTest {
             .setProviderId(2L)
             .build());
 
-    private final Map<Long, TopologyEntityDTO.Builder> topologyMap = ImmutableMap.of(
-        1L, entity1,
-        2L, entity2,
-        3L, entity3,
-        4L, entity4,
-        5L, entity5
+    private final Map<Long, TopologyEntity.Builder> topologyMap = ImmutableMap.of(
+        1L, TopologyEntityUtils.topologyEntityBuilder(entity1),
+        2L, TopologyEntityUtils.topologyEntityBuilder(entity2),
+        3L, TopologyEntityUtils.topologyEntityBuilder(entity3),
+        4L, TopologyEntityUtils.topologyEntityBuilder(entity4),
+        5L, TopologyEntityUtils.topologyEntityBuilder(entity5)
     );
 
     @Rule
@@ -74,16 +73,16 @@ public class TopologyGraphTest {
 
     @Test
     public void testBuildConstructionEmptyMap() {
-        final TopologyGraph graph = new TopologyGraph(Collections.emptyMap());
-        assertEquals(0, graph.vertexCount());
+        final TopologyGraph graph = TopologyGraph.newGraph(Collections.emptyMap());
+        assertEquals(0, graph.size());
         assertEquals(0, producerCount(graph));
         assertEquals(0, consumerCount(graph));
     }
 
     @Test
     public void testConstruction() {
-        final TopologyGraph graph = new TopologyGraph(topologyMap);
-        assertEquals(5, graph.vertexCount());
+        final TopologyGraph graph = TopologyGraph.newGraph(topologyMap);
+        assertEquals(5, graph.size());
         assertEquals(4, producerCount(graph));
         assertEquals(4, consumerCount(graph));
     }
@@ -97,47 +96,47 @@ public class TopologyGraphTest {
                 .setProviderId(2L)
                 .build());
 
-        final Map<Long, TopologyEntityDTO.Builder> topologyMap = ImmutableMap.of(
-            1L, entity1,
-            2L, entity2,
-            3L, entity3,
-            4L, entity4,
-            5L, entity4Duplicate
+        final Map<Long, TopologyEntity.Builder> topologyMap = ImmutableMap.of(
+            1L, TopologyEntityUtils.topologyEntityBuilder(entity1),
+            2L, TopologyEntityUtils.topologyEntityBuilder(entity2),
+            3L, TopologyEntityUtils.topologyEntityBuilder(entity3),
+            4L, TopologyEntityUtils.topologyEntityBuilder(entity4),
+            5L, TopologyEntityUtils.topologyEntityBuilder(entity4Duplicate)
         );
 
         expectedException.expect(IllegalArgumentException.class);
-        new TopologyGraph(topologyMap);
+        TopologyGraph.newGraph(topologyMap);
     }
 
     @Test
     public void testEntitiesInReverseOrder() {
-        final Map<Long, TopologyEntityDTO.Builder> topologyMap = ImmutableMap.of(
-            5L, entity5,
-            4L, entity4,
-            3L, entity3,
-            2L, entity2,
-            1L, entity1
+        final Map<Long, TopologyEntity.Builder> topologyMap = ImmutableMap.of(
+            5L, TopologyEntityUtils.topologyEntityBuilder(entity5),
+            4L, TopologyEntityUtils.topologyEntityBuilder(entity4),
+            3L, TopologyEntityUtils.topologyEntityBuilder(entity3),
+            2L, TopologyEntityUtils.topologyEntityBuilder(entity2),
+            1L, TopologyEntityUtils.topologyEntityBuilder(entity1)
         );
 
         // Verify that scanning an entity that links to an entity not yet seen
         // does not result in an error.
-        new TopologyGraph(topologyMap);
+        TopologyGraph.newGraph(topologyMap);
     }
 
     @Test
     public void testGetEmptyProducers() throws Exception {
-        final TopologyGraph graph = new TopologyGraph(topologyMap);
+        final TopologyGraph graph = TopologyGraph.newGraph(topologyMap);
 
-        assertThat(graph.getProducers(1L).collect(Collectors.toList()), is(empty()));
+        assertThat(graph.getProviders(1L).collect(Collectors.toList()), is(empty()));
     }
 
     @Test
     public void testGetNonEmptyProducers() throws Exception {
-        final TopologyGraph graph = new TopologyGraph(topologyMap);
+        final TopologyGraph graph = TopologyGraph.newGraph(topologyMap);
 
         assertThat(
-            graph.getProducers(2L)
-                .map(Vertex::getTopologyEntityDtoBuilder)
+            graph.getProviders(2L)
+                .map(TopologyEntity::getTopologyEntityDtoBuilder)
                 .collect(Collectors.toList()),
             contains(entity1)
         );
@@ -164,17 +163,17 @@ public class TopologyGraphTest {
             .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
             .setProviderId(2L));
 
-        final Map<Long, TopologyEntityDTO.Builder> topologyMap = ImmutableMap.of(
-            1L, entity1,
-            2L, entity2,
-            3L, entity3
+        final Map<Long, TopologyEntity.Builder> topologyMap = ImmutableMap.of(
+            1L, TopologyEntityUtils.topologyEntityBuilder(entity1),
+            2L, TopologyEntityUtils.topologyEntityBuilder(entity2),
+            3L, TopologyEntityUtils.topologyEntityBuilder(entity3)
         );
 
-        final TopologyGraph graph = new TopologyGraph(topologyMap);
+        final TopologyGraph graph = TopologyGraph.newGraph(topologyMap);
 
         assertThat(
-            graph.getProducers(3L)
-                .map(Vertex::getTopologyEntityDtoBuilder)
+            graph.getProviders(3L)
+                .map(TopologyEntity::getTopologyEntityDtoBuilder)
                 .collect(Collectors.toList()),
             containsInAnyOrder(entity1, entity2)
         );
@@ -182,24 +181,24 @@ public class TopologyGraphTest {
 
     @Test
     public void testGetEmptyConsumers() throws Exception {
-        final TopologyGraph graph = new TopologyGraph(topologyMap);
+        final TopologyGraph graph = TopologyGraph.newGraph(topologyMap);
 
         assertThat(graph.getConsumers(5L).collect(Collectors.toList()), is(empty()));
     }
 
     @Test
     public void testMultipleConsumers() throws Exception {
-        final TopologyGraph graph = new TopologyGraph(topologyMap);
+        final TopologyGraph graph = TopologyGraph.newGraph(topologyMap);
 
         assertThat(
             graph.getConsumers(1L)
-                .map(Vertex::getTopologyEntityDtoBuilder)
+                .map(TopologyEntity::getTopologyEntityDtoBuilder)
                 .collect(Collectors.toList()),
             containsInAnyOrder(entity2, entity3)
         );
         assertThat(
             graph.getConsumers(2L)
-                .map(Vertex::getTopologyEntityDtoBuilder)
+                .map(TopologyEntity::getTopologyEntityDtoBuilder)
                 .collect(Collectors.toList()),
             containsInAnyOrder(entity4, entity5)
         );
@@ -207,7 +206,7 @@ public class TopologyGraphTest {
 
     @Test
     public void testGetConsumersNotInGraph() {
-        final TopologyGraph graph = new TopologyGraph(Collections.emptyMap());
+        final TopologyGraph graph = TopologyGraph.newGraph(Collections.emptyMap());
 
         assertThat(
             graph.getConsumers(1L).collect(Collectors.toList()),
@@ -217,48 +216,48 @@ public class TopologyGraphTest {
 
     @Test
     public void testGetProducersNotInGraph() {
-        final TopologyGraph graph = new TopologyGraph(Collections.emptyMap());
+        final TopologyGraph graph = TopologyGraph.newGraph(Collections.emptyMap());
 
         assertThat(
-            graph.getProducers(1L).collect(Collectors.toList()),
+            graph.getProviders(1L).collect(Collectors.toList()),
             is(empty())
         );
     }
 
     @Test
-    public void testGetVertex() {
-        final TopologyGraph graph = new TopologyGraph(topologyMap);
+    public void testGetEntity() {
+        final TopologyGraph graph = TopologyGraph.newGraph(topologyMap);
 
-        assertEquals(entity1, graph.getVertex(1L).get().getTopologyEntityDtoBuilder());
+        assertEquals(entity1, graph.getEntity(1L).get().getTopologyEntityDtoBuilder());
     }
 
     @Test
-    public void testGetVertexNotInGraph() {
-        final TopologyGraph graph = new TopologyGraph(Collections.emptyMap());
+    public void testGetEntityNotInGraph() {
+        final TopologyGraph graph = TopologyGraph.newGraph(Collections.emptyMap());
 
-        assertFalse(graph.getVertex(1L).isPresent());
+        assertFalse(graph.getEntity(1L).isPresent());
     }
 
     @Test
-    public void testProducersForVertexWithMultipleConsumers() throws Exception {
-        final TopologyGraph graph = new TopologyGraph(topologyMap);
+    public void testProducersForEntityWithMultipleConsumers() throws Exception {
+        final TopologyGraph graph = TopologyGraph.newGraph(topologyMap);
 
         assertThat(
-            graph.getProducers(2L)
-                .map(Vertex::getTopologyEntityDtoBuilder)
+            graph.getProviders(2L)
+                .map(TopologyEntity::getTopologyEntityDtoBuilder)
                 .collect(Collectors.toList()),
             containsInAnyOrder(entity1)
         );
         assertThat(
-            graph.getProducers(3L)
-                .map(Vertex::getTopologyEntityDtoBuilder)
+            graph.getProviders(3L)
+                .map(TopologyEntity::getTopologyEntityDtoBuilder)
                 .collect(Collectors.toList()),
             containsInAnyOrder(entity1)
         );
     }
 
     @Test
-    public void testConsumersForVertexWithMultipleProducers() throws Exception {
+    public void testConsumersForEntityWithMultipleProducers() throws Exception {
         /**
          *    3
          *   / \
@@ -278,38 +277,38 @@ public class TopologyGraphTest {
             .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
                 .setProviderId(2L));
 
-        final Map<Long, TopologyEntityDTO.Builder> topologyMap = ImmutableMap.of(
-            1L, entity1,
-            2L, entity2,
-            3L, entity3
+        final Map<Long, TopologyEntity.Builder> topologyMap = ImmutableMap.of(
+            1L, TopologyEntityUtils.topologyEntityBuilder(entity1),
+            2L, TopologyEntityUtils.topologyEntityBuilder(entity2),
+            3L, TopologyEntityUtils.topologyEntityBuilder(entity3)
         );
 
-        final TopologyGraph graph = new TopologyGraph(topologyMap);
+        final TopologyGraph graph = TopologyGraph.newGraph(topologyMap);
 
         assertThat(
             graph.getConsumers(1L)
-                .map(Vertex::getTopologyEntityDtoBuilder)
+                .map(TopologyEntity::getTopologyEntityDtoBuilder)
                 .collect(Collectors.toList()),
             contains(entity3)
         );
         assertThat(
             graph.getConsumers(2L)
-                .map(Vertex::getTopologyEntityDtoBuilder)
+                .map(TopologyEntity::getTopologyEntityDtoBuilder)
                 .collect(Collectors.toList()),
             contains(entity3)
         );
     }
 
     private int producerCount(@Nonnull final TopologyGraph graph) {
-        return graph.vertices().mapToInt(
-            vertex -> graph.getProducers(vertex)
+        return graph.entities().mapToInt(
+            entity -> graph.getProviders(entity)
                 .collect(Collectors.summingInt(v -> 1))
         ).sum();
     }
 
     private int consumerCount(@Nonnull final TopologyGraph graph) {
-        return graph.vertices().mapToInt(
-            vertex -> graph.getConsumers(vertex)
+        return graph.entities().mapToInt(
+            entity -> graph.getConsumers(entity)
                 .collect(Collectors.summingInt(v -> 1))
         ).sum();
     }

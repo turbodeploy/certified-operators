@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.group.settings;
 
+import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.topologyEntity;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasItem;
@@ -68,8 +69,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.topology.processor.group.GroupResolver;
+import com.vmturbo.topology.processor.topology.TopologyEntity;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
-import com.vmturbo.topology.processor.topology.TopologyGraph.Vertex;
 
 public class EntitySettingsResolverTest {
 
@@ -136,8 +137,8 @@ public class EntitySettingsResolverTest {
             .setOid(entityOid2)
             .setEntityType(1);
 
-    private final Vertex vertex1 = new Vertex(entity1);
-    private final Vertex vertex2 = new Vertex(entity2);
+    private final TopologyEntity topologyEntity1 = topologyEntity(entity1);
+    private final TopologyEntity topologyEntity2 = topologyEntity(entity2);
 
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(testGroupService,
@@ -156,7 +157,7 @@ public class EntitySettingsResolverTest {
     public void testApplyUserSettings() throws Exception {
         ArgumentCaptor<Group> groupArguments = ArgumentCaptor.forClass(Group.class);
         when(groupResolver.resolve(group, topologyGraph)).thenReturn(entities);
-        when(topologyGraph.vertices()).thenReturn(Stream.of(vertex1, vertex2));
+        when(topologyGraph.entities()).thenReturn(Stream.of(topologyEntity1, topologyEntity2));
         when(testSettingPolicyService.listSettingPolicies(any()))
            .thenReturn(Arrays.asList(settingPolicy1, settingPolicy2));
         when(testGroupService.getGroups(any()))
@@ -179,7 +180,7 @@ public class EntitySettingsResolverTest {
     public void testApplyDefaultSettings() throws Exception {
         ArgumentCaptor<Group> groupArguments = ArgumentCaptor.forClass(Group.class);
         when(groupResolver.resolve(group, topologyGraph)).thenReturn(entities);
-        when(topologyGraph.vertices()).thenReturn(Stream.of(vertex1, vertex2));
+        when(topologyGraph.entities()).thenReturn(Stream.of(topologyEntity1, topologyEntity2));
         when(testSettingPolicyService.listSettingPolicies(any()))
            .thenReturn(Collections.singletonList(settingPolicy3));
 
@@ -199,7 +200,7 @@ public class EntitySettingsResolverTest {
 
         ArgumentCaptor<Group> groupArguments = ArgumentCaptor.forClass(Group.class);
         when(groupResolver.resolve(group, topologyGraph)).thenReturn(entities);
-        when(topologyGraph.vertices()).thenReturn(Stream.of(vertex1, vertex2));
+        when(topologyGraph.entities()).thenReturn(Stream.of(topologyEntity1, topologyEntity2));
         when(testSettingPolicyService.listSettingPolicies(any()))
            .thenReturn(Arrays.asList(settingPolicy1, settingPolicy2, settingPolicy3));
         when(testGroupService.getGroups(any()))
@@ -222,7 +223,7 @@ public class EntitySettingsResolverTest {
     public void testApplySettingsWhenSettingPolicyHasNoGroups() throws Exception {
 
         when(groupResolver.resolve(group, topologyGraph)).thenReturn(entities);
-        when(topologyGraph.vertices()).thenReturn(Stream.of(vertex1, vertex2));
+        when(topologyGraph.entities()).thenReturn(Stream.of(topologyEntity1, topologyEntity2));
         when(testSettingPolicyService.listSettingPolicies(any()))
            .thenReturn(Collections.singletonList(settingPolicy2));
         when(testGroupService.getGroups(any()))
@@ -241,7 +242,7 @@ public class EntitySettingsResolverTest {
     @Test
     public void testNoUserOrDefaultSettingPolicies() throws Exception {
         when(groupResolver.resolve(group, topologyGraph)).thenReturn(ImmutableSet.of(entityOid1));
-        when(topologyGraph.vertices()).thenReturn(Stream.of(vertex1));
+        when(topologyGraph.entities()).thenReturn(Stream.of(topologyEntity1));
         when(testSettingPolicyService.listSettingPolicies(any()))
            .thenReturn(Collections.emptyList());
         when(testGroupService.getGroups(any()))

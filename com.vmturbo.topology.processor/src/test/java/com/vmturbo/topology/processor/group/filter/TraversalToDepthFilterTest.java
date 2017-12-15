@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.group.filter;
 
 import static com.vmturbo.topology.processor.group.filter.FilterUtils.filterOids;
+import static com.vmturbo.topology.processor.group.filter.FilterUtils.topologyEntity;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
@@ -15,10 +16,9 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
 import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.TraversalDirection;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.group.filter.TraversalFilter.TraversalToDepthFilter;
+import com.vmturbo.topology.processor.topology.TopologyEntity;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 /**
@@ -40,7 +40,7 @@ public class TraversalToDepthFilterTest {
 
     @Before
     public void setup() {
-        final Map<Long, TopologyEntityDTO.Builder> topologyMap = new HashMap<>();
+        final Map<Long, TopologyEntity.Builder> topologyMap = new HashMap<>();
         topologyMap.put(1L, topologyEntity(1L, EntityType.PHYSICAL_MACHINE));
         topologyMap.put(2L, topologyEntity(2L, EntityType.PHYSICAL_MACHINE));
         topologyMap.put(3L, topologyEntity(3L, EntityType.PHYSICAL_MACHINE));
@@ -49,7 +49,7 @@ public class TraversalToDepthFilterTest {
         topologyMap.put(6L, topologyEntity(6L, EntityType.VIRTUAL_MACHINE, 2));
         topologyMap.put(7L, topologyEntity(7L, EntityType.APPLICATION, 4));
 
-        topologyGraph = new TopologyGraph(topologyMap);
+        topologyGraph = TopologyGraph.newGraph(topologyMap);
     }
 
     @Test
@@ -193,19 +193,5 @@ public class TraversalToDepthFilterTest {
             new TraversalToDepthFilter(TraversalDirection.CONSUMES, 3);
 
         assertThat(filterOids(filter, topologyGraph, 7L), is(empty()));
-    }
-
-    private TopologyEntityDTO.Builder topologyEntity(long oid, EntityType entityType, long... producers) {
-        final TopologyEntityDTO.Builder builder = TopologyEntityDTO.newBuilder()
-            .setOid(oid)
-            .setEntityType(entityType.getNumber());
-
-        for (long producer : producers) {
-            builder.addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                .setProviderId(producer)
-                .build());
-        }
-
-        return builder;
     }
 }

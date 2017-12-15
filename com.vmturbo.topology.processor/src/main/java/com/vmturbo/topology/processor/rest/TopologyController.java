@@ -28,8 +28,8 @@ import com.vmturbo.topology.processor.group.filter.TopologyFilterFactory;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
+import com.vmturbo.topology.processor.topology.TopologyEntity;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
-import com.vmturbo.topology.processor.topology.TopologyGraph.Vertex;
 import com.vmturbo.topology.processor.topology.TopologyHandler;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.TopologyPipelineException;
 
@@ -88,12 +88,12 @@ public class TopologyController {
             produces = MediaType.APPLICATION_JSON_UTF8_VALUE)
     @ApiOperation(value = "Retrieve the most recent topology.")
     public ResponseEntity<Collection<TopologyEntityDTO>> getTopology() {
-        TopologyGraph graph = new TopologyGraph(entityStore.constructTopology());
+        TopologyGraph graph = TopologyGraph.newGraph(entityStore.constructTopology());
         try {
             policyManager.applyPolicies(graph, new GroupResolver(new TopologyFilterFactory()));
             return new ResponseEntity<>(
-                graph.vertices()
-                    .map(Vertex::getTopologyEntityDtoBuilder)
+                graph.entities()
+                    .map(TopologyEntity::getTopologyEntityDtoBuilder)
                     .map(TopologyEntityDTO.Builder::build)
                     .collect(Collectors.toList()),
                 HttpStatus.OK);

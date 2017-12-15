@@ -43,6 +43,7 @@ import com.vmturbo.topology.processor.stitching.TopologyStitchingGraph;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.targets.TargetStoreListener;
+import com.vmturbo.topology.processor.topology.TopologyEntity;
 
 /**
  * Stores discovered entities.
@@ -152,7 +153,7 @@ public class EntityStore {
      *  in the topology.
      */
     @Nonnull
-    public Map<Long, TopologyEntityDTO.Builder> constructTopology() {
+    public Map<Long, TopologyEntity.Builder> constructTopology() {
         // TODO (roman, July 2016): Investigate the performance
         // effects of doing this synchronously as discovery results come
         // in. Right now assuming the simplicity of implementation makes
@@ -162,7 +163,8 @@ public class EntityStore {
                     .map(entity -> entity.constructTopologyDTO(this))
                     .filter(Optional::isPresent)
                     .map(Optional::get)
-                    .collect(Collectors.toMap(TopologyEntityDTO.Builder::getOid, Function.identity()));
+                    .collect(Collectors.toMap(TopologyEntityDTO.Builder::getOid,
+                        dtoBuilder -> TopologyEntity.newBuilder(dtoBuilder, 0)));
         }
     }
 

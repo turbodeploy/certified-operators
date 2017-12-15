@@ -1,7 +1,7 @@
 package com.vmturbo.topology.processor.stitching;
 
-import static com.vmturbo.topology.processor.stitching.StitchingTestUtils.sdkDtosFromFile;
 import static com.vmturbo.topology.processor.stitching.StitchingTestUtils.matchesEntity;
+import static com.vmturbo.topology.processor.stitching.StitchingTestUtils.sdkDtosFromFile;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -44,8 +44,8 @@ import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
+import com.vmturbo.topology.processor.topology.TopologyEntity;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
-import com.vmturbo.topology.processor.topology.TopologyGraph.Vertex;
 
 /**
  * Attempt to simulate a basic storage stitching operation.
@@ -88,16 +88,16 @@ public class StitchingIntegrationTest {
             .thenReturn(Collections.singletonList(netAppTarget));
 
         final StitchingContext stitchingContext = stitchingManager.stitch(entityStore);
-        final TopologyGraph topoGraph = new TopologyGraph(stitchingContext.constructTopology());
+        final TopologyGraph topoGraph = TopologyGraph.newGraph(stitchingContext.constructTopology());
 
-        final TopologyGraph otherGraph = new TopologyGraph(entityStore.constructTopology());
+        final TopologyGraph otherGraph = TopologyGraph.newGraph(entityStore.constructTopology());
 
-        final Map<Long, TopologyEntityDTO> stitchedEntities = topoGraph.vertices()
-            .map(Vertex::getTopologyEntityDtoBuilder)
+        final Map<Long, TopologyEntityDTO> stitchedEntities = topoGraph.entities()
+            .map(TopologyEntity::getTopologyEntityDtoBuilder)
             .map(TopologyEntityDTO.Builder::build)
             .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
-        final Map<Long, TopologyEntityDTO> unstitchedEntities = otherGraph.vertices()
-            .map(Vertex::getTopologyEntityDtoBuilder)
+        final Map<Long, TopologyEntityDTO> unstitchedEntities = otherGraph.entities()
+            .map(TopologyEntity::getTopologyEntityDtoBuilder)
             .map(TopologyEntityDTO.Builder::build)
             .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
 
@@ -132,7 +132,7 @@ public class StitchingIntegrationTest {
             .thenReturn(Collections.singletonList(netAppTarget));
 
         final StitchingContext stitchingContext = stitchingManager.stitch(entityStore);
-        final Map<Long, TopologyEntityDTO.Builder> topology = stitchingContext.constructTopology();
+        final Map<Long, TopologyEntity.Builder> topology = stitchingContext.constructTopology();
 
         // System should have found the following stitching points:
         // REMOVED                                RETAINED

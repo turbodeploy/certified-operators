@@ -141,21 +141,21 @@ public class StitchingContextTest {
 
     @Test
     public void testConstructTopology() {
-        final TopologyGraph topology = new TopologyGraph(stitchingContext.constructTopology());
-        assertEquals(4, topology.vertexCount());
+        final TopologyGraph topology = TopologyGraph.newGraph(stitchingContext.constructTopology());
+        assertEquals(4, topology.size());
 
-        assertEquals(e1_1.getOid(), topology.getVertex(e1_1.getOid()).get().getOid());
+        assertEquals(e1_1.getOid(), topology.getEntity(e1_1.getOid()).get().getOid());
         assertEquals(1, topology.getConsumers(e1_1.getOid()).count());
-        assertEquals(0, topology.getProducers(e1_1.getOid()).count());
+        assertEquals(0, topology.getProviders(e1_1.getOid()).count());
 
         assertEquals(0, topology.getConsumers(e2_1.getOid()).count());
-        assertEquals(1, topology.getProducers(e2_1.getOid()).count());
+        assertEquals(1, topology.getProviders(e2_1.getOid()).count());
 
         assertEquals(1, topology.getConsumers(e3_2.getOid()).count());
-        assertEquals(0, topology.getProducers(e3_2.getOid()).count());
+        assertEquals(0, topology.getProviders(e3_2.getOid()).count());
 
         assertEquals(0, topology.getConsumers(e4_2.getOid()).count());
-        assertEquals(1, topology.getProducers(e4_2.getOid()).count());
+        assertEquals(1, topology.getProviders(e4_2.getOid()).count());
     }
 
     // TODO: Remove this test after adding shared storage support and eliminating collision resolution.

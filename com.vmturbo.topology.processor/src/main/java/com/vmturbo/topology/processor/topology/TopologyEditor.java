@@ -32,7 +32,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -70,7 +69,7 @@ public class TopologyEditor {
      * @param changes The list of changes to make. Some of these changes may not be topology-related.
      *                We ignore those.
      */
-    public void editTopology(@Nonnull final Map<Long, TopologyEntityDTO.Builder> topology,
+    public void editTopology(@Nonnull final Map<Long, TopologyEntity.Builder> topology,
                              @Nonnull final List<ScenarioChange> changes) {
 
         final Map<Long, Long> entityAdditions = new HashMap<>();
@@ -110,7 +109,7 @@ public class TopologyEditor {
                         throw TopologyEditorException.notFoundEntityException(replace.getRemoveEntityId());
                     }
                     templateToReplacedEntity.put(replace.getAddTemplateId(),
-                        topology.get(replace.getRemoveEntityId()).build());
+                        topology.get(replace.getRemoveEntityId()).getEntityBuilder().build());
                 } else {
                     logger.warn("Unimplemented handling for topology removal with {}",
                             replace.getEntityOrGroupRemovalIdCase());
@@ -127,19 +126,19 @@ public class TopologyEditor {
         });
 
         entityAdditions.forEach((oid, addCount) -> {
-            TopologyEntityDTO.Builder entity = topology.get(oid);
+            TopologyEntity.Builder entity = topology.get(oid);
             if (entity != null) {
                 for (int i = 0; i < addCount; ++i) {
-                    TopologyEntityDTO.Builder clone = clone(entity, identityProvider, i);
-                    topology.put(clone.getOid(), clone);
+                    TopologyEntityDTO.Builder clone = clone(entity.getEntityBuilder(), identityProvider, i);
+                    topology.put(clone.getOid(), TopologyEntity.newBuilder(clone, TopologyEntity.NEVER_UPDATED_TIME));
                 }
             }
         });
 
         entitiesToRemove.forEach(oid -> {
-            TopologyEntityDTO.Builder entity = topology.get(oid);
+            TopologyEntity.Builder entity = topology.get(oid);
             if (entity != null) {
-                entity.setEntityState(EntityState.POWERED_OFF);
+                entity.getEntityBuilder().setEntityState(EntityState.POWERED_OFF);
             }
         });
 
@@ -148,33 +147,33 @@ public class TopologyEditor {
 
         addTemplateTopologyEntities(templateToAdd, templateToReplacedEntity)
             .forEach(entity ->
-                topology.put(entity.getOid(), entity));
+                topology.put(entity.getOid(), TopologyEntity.newBuilder(entity, TopologyEntity.NEVER_UPDATED_TIME)));
     }
 
-    private void changeUtilization(@Nonnull Map<Long, TopologyEntityDTO.Builder> topology, int percentage) {
-        final Predicate<TopologyEntityDTO.Builder> isVm =
+    private void changeUtilization(@Nonnull Map<Long, TopologyEntity.Builder> topology, int percentage) {
+        final Predicate<TopologyEntity.Builder> isVm =
                 entity -> entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE;
-        final Set<TopologyEntityDTO.Builder> topologyVms = topology.values().stream().filter(isVm)
+        final Set<TopologyEntity.Builder> topologyVms = topology.values().stream().filter(isVm)
                 .collect(Collectors.toSet());
-        for (TopologyEntityDTO.Builder vm : topologyVms) {
+        for (TopologyEntity.Builder vm : topologyVms) {
             final List<CommoditiesBoughtFromProvider> commoditiesBoughtFromProviders =
-                    vm.getCommoditiesBoughtFromProvidersList();
+                    vm.getEntityBuilder().getCommoditiesBoughtFromProvidersList();
             final List<CommoditiesBoughtFromProvider> increasedCommodities =
                     increaseProviderCommodities(topology, percentage, vm, commoditiesBoughtFromProviders);
-            vm.clearCommoditiesBoughtFromProviders();
-            vm.addAllCommoditiesBoughtFromProviders(increasedCommodities);
+            vm.getEntityBuilder().clearCommoditiesBoughtFromProviders();
+            vm.getEntityBuilder().addAllCommoditiesBoughtFromProviders(increasedCommodities);
         }
     }
 
     @Nonnull
     private List<CommoditiesBoughtFromProvider> increaseProviderCommodities(
-            @Nonnull Map<Long, Builder> topology, int percentage,
-            @Nonnull Builder vm, List<CommoditiesBoughtFromProvider> commoditiesBoughtFromProviders) {
+            @Nonnull Map<Long, TopologyEntity.Builder> topology, int percentage,
+            @Nonnull TopologyEntity.Builder vm, List<CommoditiesBoughtFromProvider> commoditiesBoughtFromProviders) {
         final ImmutableList.Builder<CommoditiesBoughtFromProvider> increasedProviderCommodities =
                 ImmutableList.builder();
         for (CommoditiesBoughtFromProvider providerCommodities : commoditiesBoughtFromProviders) {
             List<CommodityBoughtDTO> increasedCommodities =
-                    increaseComodities(topology, percentage, vm, providerCommodities);
+                    increaseCommodities(topology, percentage, vm.getEntityBuilder(), providerCommodities);
             increasedProviderCommodities.add(CommoditiesBoughtFromProvider
                     .newBuilder(providerCommodities)
                     .clearCommodityBought()
@@ -185,10 +184,10 @@ public class TopologyEditor {
     }
 
     @Nonnull
-    private List<CommodityBoughtDTO> increaseComodities(
-            @Nonnull Map<Long, Builder> topology,
-            int percentage, @Nonnull TopologyEntityDTO.Builder vm,
-            @Nonnull CommoditiesBoughtFromProvider providerCommodities) {
+    private List<CommodityBoughtDTO> increaseCommodities(
+        @Nonnull Map<Long, TopologyEntity.Builder> topology,
+        int percentage, @Nonnull TopologyEntityDTO.Builder vm,
+        @Nonnull CommoditiesBoughtFromProvider providerCommodities) {
         final ImmutableList.Builder<CommodityBoughtDTO> changedCommodities = ImmutableList.builder();
         for (CommodityBoughtDTO commodity : providerCommodities.getCommodityBoughtList()) {
             final int commodityType = commodity.getCommodityType().getType();
@@ -207,15 +206,15 @@ public class TopologyEditor {
         return changedCommodities.build();
     }
 
-    private void increaseCommoditySoldByProvider(@Nonnull Map<Long, TopologyEntityDTO.Builder> topology,
+    private void increaseCommoditySoldByProvider(@Nonnull Map<Long, TopologyEntity.Builder> topology,
             long providerId, long consumerId, int commodityType, int percentage) {
         final ImmutableList.Builder<CommoditySoldDTO> changedSoldCommodities =
                 ImmutableList.builder();
-        final TopologyEntityDTO.Builder provider = topology.get(providerId);
+        final TopologyEntity.Builder provider = topology.get(providerId);
         if (provider == null) {
             throw new IllegalArgumentException("Topology doesn't contain entity with id " + providerId);
         }
-        for (CommoditySoldDTO sold : provider.getCommoditySoldListList()) {
+        for (CommoditySoldDTO sold : provider.getEntityBuilder().getCommoditySoldListList()) {
             if (sold.getAccesses() == consumerId
                     && sold.getCommodityType().getType() == commodityType) {
                 final CommoditySoldDTO increasedCommodity = CommoditySoldDTO.newBuilder(sold)
@@ -226,8 +225,9 @@ public class TopologyEditor {
                 changedSoldCommodities.add(sold);
             }
         }
-        provider.clearCommoditySoldList()
-                .addAllCommoditySoldList(changedSoldCommodities.build());
+        provider.getEntityBuilder()
+            .clearCommoditySoldList()
+            .addAllCommoditySoldList(changedSoldCommodities.build());
     }
 
     private double increaseByPercent(double value, int percentage) {
@@ -278,24 +278,24 @@ public class TopologyEditor {
      * @param topology the entities in the topology, arranged by ID.
      */
     private void handleReplacedEntities(@Nonnull Set<Long> entitiesToReplace,
-                                        @Nonnull final Map<Long, TopologyEntityDTO.Builder> topology) {
+                                        @Nonnull final Map<Long, TopologyEntity.Builder> topology) {
         for (Long entityOid : topology.keySet()) {
-            final TopologyEntityDTO.Builder topologyBuilder = topology.get(entityOid);
+            final TopologyEntityDTO.Builder topologyBuilder = topology.get(entityOid).getEntityBuilder();
             if (isConsumerOfReplacedEntities(entitiesToReplace, topologyBuilder)) {
                 final Map<Long, Long> oldProvidersMap = Maps.newHashMap();
-                TopologyEntityDTO.Builder unplacedTopologyBuilder =
-                    TopologyEntityDTO.newBuilder(topologyBuilder.build())
-                        .clearCommoditiesBoughtFromProviders()
-                        .addAllCommoditiesBoughtFromProviders(unplacedCommoditiesBoughtGroup(
-                            topologyBuilder.getCommoditiesBoughtFromProvidersList(), entitiesToReplace,
-                            oldProvidersMap));
+                TopologyEntityDTO.Builder unplacedTopologyBuilder = topologyBuilder.clone()
+                    .clearCommoditiesBoughtFromProviders()
+                    .addAllCommoditiesBoughtFromProviders(unplacedCommoditiesBoughtGroup(
+                        topologyBuilder.getCommoditiesBoughtFromProvidersList(), entitiesToReplace,
+                        oldProvidersMap));
                 Map<String, String> entityProperties = Maps.newHashMap();
                 if (!oldProvidersMap.isEmpty()) {
                     // TODO: OM-26631 - get rid of unstructured data and Gson
                     entityProperties.put("oldProviders", new Gson().toJson(oldProvidersMap));
                 }
                 unplacedTopologyBuilder.putAllEntityPropertyMap(entityProperties);
-                topology.put(entityOid, unplacedTopologyBuilder);
+                topology.put(entityOid,
+                    TopologyEntity.newBuilder(unplacedTopologyBuilder, TopologyEntity.NEVER_UPDATED_TIME));
             }
         }
         entitiesToReplace.forEach(topology::remove);

@@ -18,8 +18,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
+import com.vmturbo.topology.processor.topology.TopologyEntity;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
-import com.vmturbo.topology.processor.topology.TopologyGraph.Vertex;
 
 /**
  * Requires that all entities in the consumer group must run together on a single provider in
@@ -87,7 +87,7 @@ public class MustRunTogetherPolicy extends PlacementPolicy {
         final Map<Long, Long> providerMatchCountMap = providers.stream()
             .collect(Collectors.toMap(Function.identity(),
                 provider -> topologyGraph.getConsumers(provider)
-                    .map(Vertex::getOid)
+                    .map(TopologyEntity::getOid)
                     .filter(consumers::contains)
                     .count())
             );
@@ -95,8 +95,8 @@ public class MustRunTogetherPolicy extends PlacementPolicy {
         Comparator<Long> providerCompare = Comparator.comparingLong(providerMatchCountMap::get);
         providers.stream()
             .max(providerCompare.thenComparing(Long::compare))
-            .flatMap(topologyGraph::getVertex)
-            .map(Vertex::getTopologyEntityDtoBuilder)
+            .flatMap(topologyGraph::getEntity)
+            .map(TopologyEntity::getTopologyEntityDtoBuilder)
             .ifPresent(provider -> provider.addCommoditySoldList(commoditySold()));
     }
 }

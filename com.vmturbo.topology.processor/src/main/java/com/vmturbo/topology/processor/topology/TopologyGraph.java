@@ -1,8 +1,5 @@
 package com.vmturbo.topology.processor.topology;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -19,288 +16,245 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
  * A graph built from the topology.
  * The graph should be an immutable DAG (directed acyclic graph) though that is not enforced by this interface.
  *
- * The graph is constructed by following consumes/produces relations
- * among the entities in the graph.
+ * The graph is constructed by following consumes/provides relations established by the commodities
+ * bought and sold among the entities in the topology.
  *
  * The graph does NOT permit parallel edges. That is, an entity consuming multiple commodities
- * from the same producer results in only a single edge between the two in the graph.
+ * from the same provider results in only a single edge between the two in the graph.
  *
- * The TopologyEntityDTO.Builder objects within the graph's vertices may be edited, but the graph is
+ * The TopologyEntityDTO.Builder objects within the graph's entities may be edited, but the graph is
  * immutable otherwise. Note that the edits made to the TopologyEntityDTO.Builder objects in the vertices
  * should not modify topological relationships or the graph will become out of synch with its members.
+ * This means that commodities bought and sold by entities should not be modified in a way that they change
+ * which entities are buying or selling commodities to each other.
  *
+ * See {@link TopologyEntity} for further details on the entities in the {@link TopologyGraph}.
  */
 public class TopologyGraph {
 
     /**
-     * A map permitting lookup from OID to vertex.
+     * A map permitting lookup from OID to {@link TopologyEntity}.
      */
-    @Nonnull private final Map<Long, Vertex> graph;
+    @Nonnull private final Map<Long, TopologyEntity> graph;
 
     /**
-     * Create a new topology graph.
+     * Create a new topology graph. Called via the appropriate builder.
      *
-     * Note that graph construction does not validate the consistency of the input - for example,
-     * if an entity in the input is buying from an entity not in the input, no error will be
-     * generated.
-     *
-     * @param topologyMap A map of the topology, with the key being OID and value being the corresponding entity.
+     * @param graph The graph of entities in the {@link TopologyGraph}.
      */
-    public TopologyGraph(@Nonnull final Map<Long, TopologyEntityDTO.Builder> topologyMap) {
-        graph = new HashMap<>();
-
-        topologyMap.forEach((oid, entity) -> {
-            if (oid != entity.getOid()) {
-                throw new IllegalArgumentException("Map key " + entity +
-                        " does not match OID value: " + entity.getOid());
-            }
-            addVertex(entity, topologyMap);
-        });
+    private TopologyGraph(@Nonnull final Map<Long, TopologyEntity> graph) {
+        this.graph = Objects.requireNonNull(graph);
     }
 
     /**
-     * Retrieve the vertex for an entity in the graph by its OID.
-     * Returns {@link Optional#empty()} if the no such vertex is in the graph.
+     * Retrieve the {@link TopologyEntity} for an entity in the graph by its OID.
+     * Returns {@link Optional#empty()} if no such {@link TopologyEntity} is in the graph.
      *
-     * @param oid The OID of the vertex in the graph.
-     * @return The vertex with the corresponding OID.
+     * @param oid The OID of the {@link TopologyEntity} in the graph.
+     * @return The {@link TopologyEntity} with the corresponding OID or {@link Optional#empty()} if no
+     *         entity with the given OID exists.
      */
-    public Optional<Vertex> getVertex(long oid) {
+    public Optional<TopologyEntity> getEntity(final long oid) {
         return Optional.ofNullable(graph.get(oid));
     }
 
     /**
-     * Get a stream of all vertices in the graph.
+     * Get a stream of all {@link TopologyEntity}s in the graph.
      *
-     * @return A stream of all vertices in the graph.
+     * @return A stream of all {@link TopologyEntity}s in the graph.
      */
-    public Stream<Vertex> vertices() {
+    public Stream<TopologyEntity> entities() {
         return graph.values().stream();
     }
 
     /**
      * Retrieve all consumers for a given entity in the graph.
-     * If no vertex with the given OID exists, returns empty.
+     * If no {@link TopologyEntity} with the given OID exists, returns empty.
      *
      * An entity is a consumer of another entity if it buys a commodity from
      * that entity.
      *
-     * @param oid The OID of the vertex in the graph.
-     * @return All consumers for a vertex in the graph by its OID.
+     * @param oid The OID of the {@link TopologyEntity} in the graph.
+     * @return All consumers for a {@link TopologyEntity} in the graph by its OID.
      */
     @Nonnull
-    public Stream<Vertex> getConsumers(long oid) {
-        // Because this is high-performance code, do not call getVertex which allocates
+    public Stream<TopologyEntity> getConsumers(long oid) {
+        // Because this is high-performance code, do not call getEntity which allocates
         // an additional object.
-        final Vertex vertex = graph.get(oid);
-        return vertex == null ? Stream.empty() : getConsumers(vertex);
+        final TopologyEntity entity = graph.get(oid);
+        return entity == null ? Stream.empty() : getConsumers(entity);
     }
 
     /**
-     * Get the consumers for a vertex in the graph.
+     * Get the consumers for a {@link TopologyEntity} in the graph.
      *
-     * @param vertex The vertex whose consumers should be retrieved.
-     * @return The consumers for a vertex in the graph.
+     * @param entity The {@link TopologyEntity} whose consumers should be retrieved.
+     * @return The consumers for a {@link TopologyEntity} in the graph.
      */
     @Nonnull
-    public Stream<Vertex> getConsumers(@Nonnull final Vertex vertex) {
-        return vertex.consumers.stream();
+    public Stream<TopologyEntity> getConsumers(@Nonnull final TopologyEntity entity) {
+        return entity.getConsumers().stream();
     }
 
     /**
-     * Retrieve all producers for a given entity in the graph.
-     * If no vertex with the given OID exists, returns empty.
+     * Retrieve all providers for a given entity in the graph.
+     * If no {@link TopologyEntity} with the given OID exists, returns empty.
      *
-     * An entity is a producer of another entity if the other entity
+     * An entity is a provider of another entity if the other entity
      * buys a commodity from this one.
      *
-     * @param oid The OID of the vertex in the graph.
-     * @return All producers for a vertex in the graph by its OID.
+     * @param oid The OID of the {@link TopologyEntity} in the graph.
+     * @return All providers for a {@link TopologyEntity} in the graph by its OID.
      */
     @Nonnull
-    public Stream<Vertex> getProducers(Long oid) {
-        // Because this is high-performance code, do not call getVertex which allocates
+    public Stream<TopologyEntity> getProviders(Long oid) {
+        // Because this is high-performance code, do not call getEntity which allocates
         // an additional object.
-        final Vertex vertex = graph.get(oid);
-        return vertex == null ? Stream.empty() : getProducers(vertex);
+        final TopologyEntity topologyEntity = graph.get(oid);
+        return topologyEntity == null ? Stream.empty() : getProviders(topologyEntity);
     }
 
     /**
-     * Get the producers for a vertex in the graph.
+     * Get the providers for a {@link TopologyEntity} in the graph.
      *
-     * @param vertex The vertex whose producers should be retrieved.
-     * @return The producers for a vertex in the graph.
+     * @param topologyEntity The {@link TopologyEntity} whose providers should be retrieved.
+     * @return The providers for a {@link TopologyEntity} in the graph.
      */
     @Nonnull
-    public Stream<Vertex> getProducers(@Nonnull final Vertex vertex) {
-        return vertex.producers.stream();
+    public Stream<TopologyEntity> getProviders(@Nonnull final TopologyEntity topologyEntity) {
+        return topologyEntity.getProviders().stream();
     }
 
     /**
-     * Get the number of vertices in the graph.
+     * Get the number of entities in the graph.
      *
-     * @return The number of vertices in the graph.
+     * @return The number of entities in the graph.
      */
-    public int vertexCount() {
+    public int size() {
         return graph.size();
     }
 
     /**
      * @return The graph output in the format
-     *         OID1: (list of consumers) -> (list of producers)
-     *         OID2: (list of consumers) -> (list of producers)
+     *         OID1: (list of consumers) -> (list of providers)
+     *         OID2: (list of consumers) -> (list of providers)
      *         etc...
      */
     @Override
     public String toString() {
         return graph.entrySet().stream()
             .map(entry -> entry.getValue() + ": (" +
-                entry.getValue().consumers.stream().map(Object::toString).collect(Collectors.joining(", ")) + ") -> (" +
-                entry.getValue().producers.stream().map(Object::toString).collect(Collectors.joining(", ")) + ")")
+                entry.getValue().getConsumers().stream().map(Object::toString).collect(Collectors.joining(", ")) + ") -> (" +
+                entry.getValue().getProviders().stream().map(Object::toString).collect(Collectors.joining(", ")) + ")")
             .collect(Collectors.joining("\n"));
     }
 
     /**
-     * Add a vertex corresponding to the input {@link TopologyEntityDTO}.
-     * Adds consumes edges in the graph for all entities the input is consuming from.
-     * Adds produces edges in the graph for all entities providing commodities this entity is consuming.
+     * Create a new topology graph from a map of OID -> {@link TopologyEntity.Builder}.
+     * Note that the builders in the map should have their lastUpdatedTime set, but the consumer and provider
+     * relationships should be empty because graph construction will create these relationships.
      *
-     * Clients should never attempt to add a vertex for an entity already in the graph.
-     * This may not be checked.
+     * Note that graph construction does not validate the consistency of the input - for example,
+     * if an entity in the input is buying from an entity not in the input, no error will be
+     * generated. This validation should occur earlier (ie in stitching).
      *
-     * @param topologyEntityDTO The entity to add a vertex for.
+     * @param topologyBuilderMap A map of the topology as represented by builders for TopologyEntities,
+     *                           The builders in the map should have their lastUpdatedTime set but their consumer
+     *                           and provider relationships will be set up during graph construction.
+     *                           The keys in the map are entity OIDs.
      */
-    private void addVertex(@Nonnull final TopologyEntityDTO.Builder topologyEntityDTO,
-                           @Nonnull final Map<Long, TopologyEntityDTO.Builder> topologyMap) {
-        final Vertex vertex = getOrCreateVertex(topologyEntityDTO);
+    public static TopologyGraph newGraph(@Nonnull final Map<Long, TopologyEntity.Builder> topologyBuilderMap) {
+        return new Builder(topologyBuilderMap).build();
+    }
 
-        for (Long producerOid : getCommodityBoughtProviderIds(topologyEntityDTO)) {
-            final TopologyEntityDTO.Builder producerEntity = topologyMap.get(producerOid);
-            // The producer might be null if the entity has unplaced commodities (e.g. for clones)
-            if (producerEntity != null) {
-                final Vertex producerVertex = getOrCreateVertex(topologyMap.get(producerOid));
+    /**
+     * A builder for a {@Link TopologyGraph}.
+     */
+    private static class Builder {
+        @Nonnull
+        final Map<Long, TopologyEntity.Builder> topologyBuilderMap;
 
-                // Note that producers and consumers are lists, but we do not perform an explicit check
-                // that the edge does not already exist. That is because such a check is unnecessary on
-                // properly formed input. The producers are pulled from a set, so they must be unique,
-                // and because the vertices themselves must be unique by OID (keys in constructor map are unique
-                // plus check that key==OID in the constructor ensures this as long as OIDs are unique),
-                // we are guaranteed that:
-                //
-                // 1. the producer cannot already be in the vertex's list of producers
-                // 2. the vertex cannot already be in the producer's list of consumers
-                //
-                // Having an explicit check for this invariant given the current implementation would
-                // be both expensive and redundant. However, keep this requirement in mind if making changes
-                // to the implementation.
-                vertex.producers.add(producerVertex);
-                producerVertex.consumers.add(vertex);
-            } else if (producerOid >= 0) {
-                // Clones have negative OIDs for their unplaced commodities.
-                // If the OID is non-negative (and, thus, a valid ID), this means
-                // the input topology is inconsistent.
-                throw new IllegalArgumentException("Illegal topology! Entity " +
-                    topologyEntityDTO.getOid() + " (name " + topologyEntityDTO.getDisplayName() +
-                    ") is consuming a commodity from non-existing provider " + producerOid);
+        private Builder(@Nonnull final Map<Long, TopologyEntity.Builder> topologyBuilderMap) {
+            this.topologyBuilderMap = Objects.requireNonNull(topologyBuilderMap);
+        }
+
+        /**
+         * Build a new {@link TopologyGraph} from this builder.
+         * Builders should not be re-used more than once.
+         *
+         * @return A {@link TopologyGraph} built from this builder.
+         */
+        public TopologyGraph build() {
+            topologyBuilderMap.forEach((oid, entity) -> {
+                if (oid != entity.getOid()) {
+                    throw new IllegalArgumentException("Map key " + entity +
+                        " does not match OID value: " + entity.getOid());
+                }
+                addConsumerSideRelationships(entity);
+            });
+
+            final Map<Long, TopologyEntity> graph = topologyBuilderMap.values().stream()
+                .collect(Collectors.toMap(TopologyEntity.Builder::getOid, TopologyEntity.Builder::build));
+            return new TopologyGraph(graph);
+        }
+
+        /**
+         * Set up the consumer-side relationships for a {@link TopologyEntity}. That is, for each entity that this
+         * entity consumes from, add those entities as providers to this entity, and add this entity as a consumer
+         * of those entities.
+         *
+         * Note that because of the symmetry of the consumer-provider relationships, by adding relations following
+         * the consumer-side for all entities, we guarantee that the the provider-side relationships when calling
+         * for this entity will be set up at other points when this method is called on the consumers of this entity.
+         *
+         * Clients should never attempt to add a {@link TopologyEntity} for an entity already in the graph.
+         * This may not be checked.
+         *
+         * @param topologyEntity The entity whose relationships should be added.
+         */
+        private void addConsumerSideRelationships(@Nonnull final TopologyEntity.Builder topologyEntity) {
+            for (Long providerOid : getCommodityBoughtProviderIds(topologyEntity.getEntityBuilder())) {
+                final TopologyEntity.Builder providerEntity = topologyBuilderMap.get(providerOid);
+                // The provider might be null if the entity has unplaced commodities (e.g. for clones)
+                if (providerEntity != null) {
+                    // Note that providers and consumers are lists, but we do not perform an explicit check
+                    // that the edge does not already exist. That is because such a check is unnecessary on
+                    // properly formed input. The providers are pulled from a set, so they must be unique,
+                    // and because the entities themselves must be unique by OID (keys in constructor map are unique
+                    // plus check that key==OID in the constructor ensures this as long as OIDs are unique),
+                    // we are guaranteed that:
+                    //
+                    // 1. the provider cannot already be in the TopologyEntity's list of providers
+                    // 2. the TopologyEntity cannot already be in the provider's list of consumers
+                    //
+                    // Having an explicit check for this invariant given the current implementation would
+                    // be both expensive and redundant. However, keep this requirement in mind if making changes
+                    // to the implementation.
+                    topologyEntity.addProvider(providerEntity);
+                    providerEntity.addConsumer(topologyEntity);
+                } else if (providerOid >= 0) {
+                    // Clones have negative OIDs for their unplaced commodities.
+                    // If the OID is non-negative (and, thus, a valid ID), this means
+                    // the input topology is inconsistent.
+                    throw new IllegalArgumentException("Illegal topology! Entity " +
+                        topologyEntity.getOid() + " (name " + topologyEntity.getEntityBuilder().getDisplayName() +
+                        ") is consuming a commodity from non-existing provider " + providerOid);
+                }
             }
         }
-    }
-
-    /**
-     * Get a set of provider ids of entity's commodity bought list. And all these provider ids will
-     * be producers of this entity. For commodity bought without provider id will be filtered out.
-     *
-     * @param topologyEntityDTO The entity to add a vertex for.
-     * @return A set of provider ids.
-     */
-    private Set<Long> getCommodityBoughtProviderIds(@Nonnull final TopologyEntityDTO.Builder topologyEntityDTO) {
-        return topologyEntityDTO.getCommoditiesBoughtFromProvidersList().stream()
-            .filter(CommoditiesBoughtFromProvider::hasProviderId)
-            .map(CommoditiesBoughtFromProvider::getProviderId)
-            .collect(Collectors.toSet());
-    }
-
-    /**
-     * Get the vertex corresponding to an entity from the graph, or if it does not exist,
-     * create one and insert it into the graph.
-     *
-     * @param topologyEntityDTO The entity whose corresponding vertex should be looked up.
-     * @return The retrieved or newly created vertex for the entity.
-     */
-    private Vertex getOrCreateVertex(@Nonnull final TopologyEntityDTO.Builder topologyEntityDTO) {
-        return getVertex(topologyEntityDTO.getOid()).orElseGet(() -> {
-            final Vertex vertex = new Vertex(topologyEntityDTO);
-            graph.put(vertex.getOid(), vertex);
-            return vertex;
-        });
-    }
-
-    /**
-     * A node in the TopologyGraph.
-     *
-     * Contains information about the OID and entityType for an entity in the topology.
-     * Vertices are equivalent when their OIDs are equal.
-     *
-     * The TopologyEntityDTO.Builder within a vertex may be edited but the vertex is immutable otherwise.
-     */
-    public static class Vertex {
 
         /**
-         * A builder for the entity in the topology corresponding to this vertex.
-         */
-        private TopologyEntityDTO.Builder entityBuilder;
-
-        /**
-         * The set of all vertices in the graph that consume from this vertex.
-         */
-        private final List<Vertex> consumers;
-
-        /**
-         * The set of all vertices in the graph that produce for this vertex.
-         */
-        private final List<Vertex> producers;
-
-        public Vertex(@Nonnull final TopologyEntityDTO.Builder entity) {
-            this.entityBuilder = Objects.requireNonNull(entity);
-            this.consumers = new ArrayList<>();
-            this.producers = new ArrayList<>();
-        }
-
-        /**
-         * Get the OID for this vertex.
+         * Get a set of provider ids of entity's commodity bought list. And all these provider ids will
+         * be providers of this entity. For commodity bought without provider id will be filtered out.
          *
-         * @return the OID for this vertex.
+         * @param topologyEntityDTO The entity to add a {@link TopologyEntity} for.
+         * @return A set of provider ids.
          */
-        public long getOid() {
-            return entityBuilder.getOid();
-        }
-
-        /**
-         * Get the entityType. This field corresponds to {@link TopologyEntityDTO#getEntityType()}
-         * Stored here as an optimization to avoid a lookup because it is used so commonly.
-         *
-         * @return The entityType for the entityBuilder corresponding to this node.
-         */
-        public int getEntityType() {
-            return entityBuilder.getEntityType();
-        }
-
-        /**
-         * Get a builder for the entity associated with this vertex.
-         * The builder may be mutated to modify the properties of the entity.
-         *
-         * DO NOT modify the providers or consumers of the entity or the graph will be invalidated.
-         *
-         * @return The property information for the entity associated with this vertex.
-         */
-        @Nonnull
-        public TopologyEntityDTO.Builder getTopologyEntityDtoBuilder() {
-            return entityBuilder;
-        }
-
-        @Override
-        public String toString() {
-            return "(oid: " + getOid() + ", entityType: " + getEntityType() + ")";
+        private Set<Long> getCommodityBoughtProviderIds(@Nonnull final TopologyEntityDTO.Builder topologyEntityDTO) {
+            return topologyEntityDTO.getCommoditiesBoughtFromProvidersList().stream()
+                .filter(CommoditiesBoughtFromProvider::hasProviderId)
+                .map(CommoditiesBoughtFromProvider::getProviderId)
+                .collect(Collectors.toSet());
         }
     }
 }
