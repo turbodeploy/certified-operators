@@ -351,7 +351,7 @@ public final class AnalysisToProtobuf {
                 reconfigureTO.setSource(traderOid.get(reconfigure.getSource()));
                 for (CommoditySpecification c : reconfigure.getTarget().getBasket()) {
                     if (!reconfigure.getSource().getBasketSold().contains(c)) {
-                        reconfigureTO.addCommodityToReconfigure(c.getBaseType());
+                        reconfigureTO.addCommodityToReconfigure(c.getType());
                     }
                 }
             }
