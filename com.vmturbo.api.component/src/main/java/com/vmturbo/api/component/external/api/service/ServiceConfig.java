@@ -158,6 +158,11 @@ public class ServiceConfig {
     }
 
     @Bean
+    public NotificationSettingsService notificationSettingsService() {
+        return new NotificationSettingsService();
+    }
+
+    @Bean
     public ScenariosService scenariosService() {
         return new ScenariosService(communicationConfig.planOrchestratorChannel(),
                 mapperConfig.scenarioMapper());
