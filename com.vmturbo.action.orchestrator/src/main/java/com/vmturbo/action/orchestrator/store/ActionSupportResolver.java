@@ -68,7 +68,7 @@ public class ActionSupportResolver {
                     .forEach(entry -> filteredForUiActions.add(resolveActionProbeSupport(entry)));
             return filteredForUiActions;
         } catch (TargetResolutionException | UnsupportedActionException ex) {
-            logger.warn("Cannot resolve support level for actions{}{}", actions, ex);
+            logger.warn("Cannot resolve support level for request for " + actions.size() + " actions", ex);
             return actions;
         }
     }
