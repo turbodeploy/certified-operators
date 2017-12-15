@@ -45,10 +45,10 @@ volumes:
   mediation-delegatingprobe: *localdriver
   mediation-netapp: *localdriver
   mediation-ucs: *localdriver
+  mediation-vmax: *localdriver
   kafka1-log: *localdriver
   zoo1-data: *localdriver
 #  mediation-aix: *localdriver
-#  mediation-vmax: *localdriver
 #  mediation-openstack: *localdriver
 #  mediation-compellent: *localdriver
 
@@ -545,20 +545,23 @@ services:
 #      JAVA_OPTS: "${DEV_JAVA_OPTS}"
 #    volumes:
 #      - mediation-aix:/home/turbonomic/data
-#  mediation-vmax:
-#    extends:
-#      file: common-services.yml
-#      service: dev-component
-#    image: turbonomic/com.vmturbo.mediation.vmax.component
-#    ports:
-#      - "${MEDIATION_VMAX_DEBUG_PORT}"
-#    depends_on: *clustermgrdep
-#    environment:
-#      component_type: mediation-vmax
-#      instance_id: mediation-vmax-1
-#      JAVA_OPTS: "${DEV_JAVA_OPTS}"
-#    volumes:
-#      - mediation-vmax:/home/turbonomic/data
+
+  mediation-vmax:
+    extends:
+      file: common-services.yml
+      service: dev-component
+    image: turbonomic/com.vmturbo.mediation.vmax.component
+    depends_on: *clustermgrdep
+    ports:
+      - "${MEDIATION_VMAX_PORT}"
+      - "${MEDIATION_VMAX_DEBUG_PORT}"
+    environment:
+      component_type: mediation-vmax
+      instance_id: mediation-vmax-1
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_VMAX_XMX_MB}M ${MEDIATION_VMAX_SYSTEM_PROPERTIES}"
+    volumes:
+      - mediation-vmax:/home/turbonomic/data
+
 #  mediation-openstack:
 #    extends:
 #      file: common-services.yml

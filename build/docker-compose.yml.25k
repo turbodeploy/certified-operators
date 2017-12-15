@@ -228,3 +228,12 @@ services:
       JAVA_OPTS: "-Xmx1536M"
     mem_limit: 2048M
     depends_on: *clustermgrdep
+
+  mediation-vmax:
+    extends:
+      file: prod-services.yml
+      service: mediation-vmax-prod
+    environment:
+      JAVA_OPTS: "-Xmx1536M"
+    mem_limit: 2048M
+    depends_on: *clustermgrdep

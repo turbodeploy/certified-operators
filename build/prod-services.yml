@@ -295,3 +295,16 @@ services:
     volumes:
       - mediation-ucs:/home/turbonomic/data
     restart: always
+
+  mediation-vmax-prod:
+    extends:
+      file: common-services.yml
+      service: prod-component
+    image: turbonomic/com.vmturbo.mediation.vmax.component
+    environment:
+      consul_host: consul
+      component_type: mediation-vmax
+      instance_id: mediation-vmax-1
+    volumes:
+      - mediation-vmax:/home/turbonomic/data
+    restart: always

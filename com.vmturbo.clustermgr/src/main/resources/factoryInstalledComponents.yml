@@ -176,6 +176,17 @@ mediation-ucs:
   grpcPingIntervalSeconds: 300
   websocket.pong.timeout: 30000
 
+mediation-vmax:
+  serverAddress: 'ws://topology-processor:8080/remoteMediation'
+  silentRetryTime: 0
+  connRetryIntervalSeconds: 10
+  sslKeystorePassword: ' '
+  sslKeystorePath: ' '
+  userName: vmtRemoteMediation
+  userPassword: vmtRemoteMediation
+  grpcPingIntervalSeconds: 300
+  websocket.pong.timeout: 30000
+
 plan-orchestrator:
   dbHost: 'db'
   dbPort: '3306'

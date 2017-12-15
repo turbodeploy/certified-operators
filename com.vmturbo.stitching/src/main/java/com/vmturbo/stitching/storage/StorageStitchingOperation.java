@@ -34,7 +34,8 @@ import com.vmturbo.stitching.utilities.MergeEntities;
  * Processing:
  * - Remove hypervisor disk array
  * - Remove storage storage
- * - Connect hypervisor storage to storage disk array using commodities from the storage storage.
+ * - Connect hypervisor storage to storage disk array or logical pool using commodities from the
+ *   storage storage.
  *
  *      Hypervisor    Storage
  *
@@ -44,7 +45,7 @@ import com.vmturbo.stitching.utilities.MergeEntities;
  *        /  \   connect
  *       PM  ST--------* ST <--delete
  *       |    |         \ |
- *       DC  DA<-delete  DA
+ *       DC  DA<-delete  DA/LP
  *                        |
  *                       SC
  */
@@ -84,9 +85,9 @@ public class StorageStitchingOperation implements StitchingOperation<List<String
     }
 
     /**
-     * Merge the hypervisor-probe disk array onto the storage-probe disk array.
+     * Merge the hypervisor-probe disk array onto the storage-probe disk array/logical pool.
      * Merge the storage-probe storage onto the hypervisor-probe disk array.
-     * Connect the hypervisor-probe storage to the storage-probe disk array.
+     * Connect the hypervisor-probe storage to the storage-probe disk array/logical pool.
      *
      * @param stitchingPoint The point at which the storage graph should be stitched with
      *                       the graphs discovered by external probes.
@@ -98,12 +99,13 @@ public class StorageStitchingOperation implements StitchingOperation<List<String
                         @Nonnull final StitchingResult.Builder resultBuilder) {
         // The storage and disk array discovered by the storage probe
         final StitchingEntity storageStorage = stitchingPoint.getInternalEntity();
-        final StitchingEntity storageDiskArray = storageStorage.getProviders().stream()
-            .filter(entity -> entity.getEntityType() == EntityType.DISK_ARRAY)
+        final StitchingEntity storageDiskArrayOrLogicalPool = storageStorage.getProviders().stream()
+            .filter(entity -> entity.getEntityType() == EntityType.DISK_ARRAY ||
+                    entity.getEntityType() == EntityType.LOGICAL_POOL)
             .findFirst()
             .get();
 
-        // The storage and disk array discovered by the hypervisor probe
+        // The storage and disk array or logical pool discovered by the hypervisor probe
         final StitchingEntity hypervisorStorage = stitchingPoint.getExternalMatches().iterator().next();
         final StitchingEntity hypervisorDiskArray = hypervisorStorage.getProviders().stream()
             .filter(entity -> entity.getEntityType() == EntityType.DISK_ARRAY)
@@ -122,7 +124,8 @@ public class StorageStitchingOperation implements StitchingOperation<List<String
             // Merge the storage-probe discovered storage onto the hypervisor probe discovered storage.
             .queueEntityMerger(MergeEntities.mergeEntity(storageStorage).onto(hypervisorStorage))
             // Merge the hypervisor diskArray onto the storage DiskArray.
-            .queueEntityMerger(MergeEntities.mergeEntity(hypervisorDiskArray).onto(storageDiskArray));
+            .queueEntityMerger(MergeEntities.mergeEntity(hypervisorDiskArray)
+                    .onto(storageDiskArrayOrLogicalPool));
     }
 
     @Nonnull

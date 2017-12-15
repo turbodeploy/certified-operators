@@ -36,6 +36,7 @@ public class RepoObjectType {
         SWITCH("Switch"),
         CHASSIS("Chassis"),
         NETWORK("Network"),
+        LOGICALPOOL("LogicalPool"),
         UNKNOWN("Unknown");
 
         private final String value;
@@ -89,6 +90,7 @@ public class RepoObjectType {
             .put(EntityType.SWITCH,                 RepoEntityType.SWITCH)
             .put(EntityType.CHASSIS,                RepoEntityType.CHASSIS)
             .put(EntityType.NETWORK,                RepoEntityType.NETWORK)
+            .put(EntityType.LOGICAL_POOL,           RepoEntityType.LOGICALPOOL)
             .put(EntityType.UNKNOWN,                RepoEntityType.UNKNOWN)
             .build();
 
