@@ -22,40 +22,41 @@ import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class TopologyGraphTest {
 
     /**
-     * 4   5
+     * 4   5     VIRTUAL_MACHINE
      *  \ /
-     *   2   3
+     *   2   3   PHYSICAL_MACHINE
      *    \ /
-     *     1
+     *     1     DATACENTER
      */
     private final TopologyEntityDTO.Builder entity1 = TopologyEntityDTO.newBuilder()
         .setOid(1L)
-        .setEntityType(1);
+        .setEntityType(EntityType.DATACENTER.getNumber());
     private final TopologyEntityDTO.Builder entity2 = TopologyEntityDTO.newBuilder()
         .setOid(2L)
-        .setEntityType(2)
+        .setEntityType(EntityType.PHYSICAL_MACHINE.getNumber())
         .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
             .setProviderId(1L)
             .build());
     private final TopologyEntityDTO.Builder entity3 = TopologyEntityDTO.newBuilder()
         .setOid(3L)
-        .setEntityType(3)
+        .setEntityType(EntityType.PHYSICAL_MACHINE.getNumber())
         .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
             .setProviderId(1L)
             .build());
     private final TopologyEntityDTO.Builder entity4 = TopologyEntityDTO.newBuilder()
         .setOid(4L)
-        .setEntityType(4)
+        .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
         .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
             .setProviderId(2L)
             .build());
     private final TopologyEntityDTO.Builder entity5 = TopologyEntityDTO.newBuilder()
         .setOid(5L)
-        .setEntityType(5)
+        .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
         .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
             .setProviderId(2L)
             .build());
@@ -297,6 +298,58 @@ public class TopologyGraphTest {
                 .collect(Collectors.toList()),
             contains(entity3)
         );
+    }
+
+    @Test
+    public void testEntitiesOfType() {
+        final TopologyGraph graph = TopologyGraph.newGraph(topologyMap);
+
+        assertThat(
+            graph.entitiesOfType(EntityType.VIRTUAL_MACHINE)
+                .map(TopologyEntity::getTopologyEntityDtoBuilder)
+                .collect(Collectors.toList()),
+            containsInAnyOrder(entity4, entity5));
+        assertThat(
+            graph.entitiesOfType(EntityType.PHYSICAL_MACHINE)
+                .map(TopologyEntity::getTopologyEntityDtoBuilder)
+                .collect(Collectors.toList()),
+            containsInAnyOrder(entity2, entity3));
+        assertThat(
+            graph.entitiesOfType(EntityType.DATACENTER)
+                .map(TopologyEntity::getTopologyEntityDtoBuilder)
+                .collect(Collectors.toList()),
+            contains(entity1));
+        assertThat(
+            graph.entitiesOfType(EntityType.STORAGE)
+                .map(TopologyEntity::getTopologyEntityDtoBuilder)
+                .collect(Collectors.toList()),
+            is(empty()));
+    }
+
+    @Test
+    public void testEntitiesOfTypeByNumber() {
+        final TopologyGraph graph = TopologyGraph.newGraph(topologyMap);
+
+        assertThat(
+            graph.entitiesOfType(EntityType.VIRTUAL_MACHINE.getNumber())
+                .map(TopologyEntity::getTopologyEntityDtoBuilder)
+                .collect(Collectors.toList()),
+            containsInAnyOrder(entity4, entity5));
+        assertThat(
+            graph.entitiesOfType(EntityType.PHYSICAL_MACHINE.getNumber())
+                .map(TopologyEntity::getTopologyEntityDtoBuilder)
+                .collect(Collectors.toList()),
+            containsInAnyOrder(entity2, entity3));
+        assertThat(
+            graph.entitiesOfType(EntityType.DATACENTER.getNumber())
+                .map(TopologyEntity::getTopologyEntityDtoBuilder)
+                .collect(Collectors.toList()),
+            contains(entity1));
+        assertThat(
+            graph.entitiesOfType(EntityType.STORAGE.getNumber())
+                .map(TopologyEntity::getTopologyEntityDtoBuilder)
+                .collect(Collectors.toList()),
+            is(empty()));
     }
 
     private int producerCount(@Nonnull final TopologyGraph graph) {

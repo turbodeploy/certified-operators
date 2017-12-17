@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.topology;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -11,6 +12,7 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * A graph built from the topology.
@@ -38,12 +40,19 @@ public class TopologyGraph {
     @Nonnull private final Map<Long, TopologyEntity> graph;
 
     /**
+     * An index permitting lookup from entity type to all the entities of that type in the graph.
+     */
+    @Nonnull private final Map<Integer, List<TopologyEntity>> entityTypeIndex;
+
+    /**
      * Create a new topology graph. Called via the appropriate builder.
      *
      * @param graph The graph of entities in the {@link TopologyGraph}.
      */
-    private TopologyGraph(@Nonnull final Map<Long, TopologyEntity> graph) {
+    private TopologyGraph(@Nonnull final Map<Long, TopologyEntity> graph,
+                          @Nonnull final Map<Integer, List<TopologyEntity>> entityTypeIndex) {
         this.graph = Objects.requireNonNull(graph);
+        this.entityTypeIndex = Objects.requireNonNull(entityTypeIndex);
     }
 
     /**
@@ -65,6 +74,31 @@ public class TopologyGraph {
      */
     public Stream<TopologyEntity> entities() {
         return graph.values().stream();
+    }
+
+    /**
+     * Get a stream of all {@link TopologyEntity}s in the graph of a given type.
+     * Implementation note: This call fetches entities of a given type in constant time.
+     *
+     * @param entityType The type of entities to be retrieved.
+     * @return a stream of all {@link TopologyEntity}s in the graph of the given type.
+     *         If no entities of the given type are present, returns an empty stream.
+     */
+    public Stream<TopologyEntity> entitiesOfType(@Nonnull final EntityType entityType) {
+        return entitiesOfType(entityType.getNumber());
+    }
+
+    /**
+     * Get a stream of all {@link TopologyEntity}s in the graph of a given type specified by the type number.
+     * Implementation note: This call fetches entities of a given type in constant time.
+     *
+     * @param entityTypeNumber The number of the {@link EntityType} of entities to be retrieved.
+     * @return a stream of all {@link TopologyEntity}s in the graph of the given type.
+     *         If no entities of the given type are present, returns an empty stream.
+     */
+    public Stream<TopologyEntity> entitiesOfType(@Nonnull final Integer entityTypeNumber) {
+        final List<TopologyEntity> entitiesOfType = entityTypeIndex.get(entityTypeNumber);
+        return entitiesOfType == null ? Stream.empty() : entitiesOfType.stream();
     }
 
     /**
@@ -195,7 +229,10 @@ public class TopologyGraph {
 
             final Map<Long, TopologyEntity> graph = topologyBuilderMap.values().stream()
                 .collect(Collectors.toMap(TopologyEntity.Builder::getOid, TopologyEntity.Builder::build));
-            return new TopologyGraph(graph);
+            final Map<Integer, List<TopologyEntity>> entityTypeIndex = graph.values().stream()
+                .collect(Collectors.groupingBy(TopologyEntity::getEntityType));
+
+            return new TopologyGraph(graph, entityTypeIndex);
         }
 
         /**

@@ -129,15 +129,34 @@ public class GroupResolverTest {
                 .setEntityType(EntityType.PHYSICAL_MACHINE.getNumber())
                 .setSearchParametersCollection(SearchParametersCollection.newBuilder()
                         .addSearchParameters(SearchParameters.newBuilder()
-                                .setStartingFilter(Search.PropertyFilter.newBuilder()
-                                        .setPropertyName("entityType")
-                                        .setNumericFilter(NumericFilter.newBuilder()
-                                                .setComparisonOperator(ComparisonOperator.EQ)
-                                                .setValue(EntityType.PHYSICAL_MACHINE.getNumber()))))))
+                            .setStartingFilter(Search.PropertyFilter.newBuilder()
+                                .setPropertyName("entityType")
+                                .setNumericFilter(NumericFilter.newBuilder()
+                                    .setComparisonOperator(ComparisonOperator.EQ)
+                                    .setValue(EntityType.PHYSICAL_MACHINE.getNumber()))))))
             .build();
 
         final GroupResolver resolver = new GroupResolver(new TopologyFilterFactory());
         assertThat(resolver.resolve(dynamicGroup, topologyGraph), containsInAnyOrder(1L, 2L, 3L, 4L));
+    }
+
+    @Test
+    public void testResolveDynamicGroupStartingFilterNotEquals() throws Exception {
+        final Group dynamicGroup = Group.newBuilder()
+            .setId(1234L)
+            .setGroup(GroupInfo.newBuilder()
+                .setEntityType(EntityType.PHYSICAL_MACHINE.getNumber())
+                .setSearchParametersCollection(SearchParametersCollection.newBuilder()
+                    .addSearchParameters(SearchParameters.newBuilder()
+                        .setStartingFilter(Search.PropertyFilter.newBuilder()
+                            .setPropertyName("entityType")
+                            .setNumericFilter(NumericFilter.newBuilder()
+                                .setComparisonOperator(ComparisonOperator.NE)
+                                .setValue(EntityType.PHYSICAL_MACHINE.getNumber()))))))
+            .build();
+
+        final GroupResolver resolver = new GroupResolver(new TopologyFilterFactory());
+        assertThat(resolver.resolve(dynamicGroup, topologyGraph), containsInAnyOrder(5L, 6L, 7L, 8L, 9L, 10L));
     }
 
     @Test

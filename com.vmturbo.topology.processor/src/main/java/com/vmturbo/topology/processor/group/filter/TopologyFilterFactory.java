@@ -26,6 +26,8 @@ import com.vmturbo.topology.processor.topology.TopologyEntity;
  * TODO: A more extensible means of property filter creation.
  */
 public class TopologyFilterFactory {
+    public static final String ENTITY_TYPE_PROPERTY_NAME = "entityType";
+
     public TopologyFilterFactory() {
         // Nothing to do
     }
@@ -110,7 +112,7 @@ public class TopologyFilterFactory {
                     numericCriteria.getComparisonOperator(),
                     TopologyEntity::getOid
                 ));
-            case "entityType":
+            case ENTITY_TYPE_PROPERTY_NAME:
                 return new PropertyFilter(intPredicate(
                     (int) numericCriteria.getValue(),
                     numericCriteria.getComparisonOperator(),

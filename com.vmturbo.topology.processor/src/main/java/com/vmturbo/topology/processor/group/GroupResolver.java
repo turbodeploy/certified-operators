@@ -22,10 +22,13 @@ import com.google.common.base.Preconditions;
 
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.search.Search;
+import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter.FilterTypeCase;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.topology.processor.group.filter.PropertyFilter;
 import com.vmturbo.topology.processor.group.filter.TopologyFilterFactory;
 import com.vmturbo.topology.processor.topology.TopologyEntity;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
@@ -178,8 +181,7 @@ public class GroupResolver {
     }
 
     private Set<Long> executeResolution(@Nonnull final SearchParameters search, @Nonnull final TopologyGraph graph) {
-        Stream<TopologyEntity> matchingEntities = filterFactory.filterFor(search.getStartingFilter())
-            .apply(graph.entities(), graph);
+        Stream<TopologyEntity> matchingEntities = startingEntities(search.getStartingFilter(), graph);
 
         for (SearchFilter filter : search.getSearchFilterList()) {
             matchingEntities = filterFactory.filterFor(filter).apply(matchingEntities, graph);
@@ -188,5 +190,20 @@ public class GroupResolver {
         return matchingEntities
             .map(TopologyEntity::getOid)
             .collect(Collectors.toSet());
+    }
+
+    private Stream<TopologyEntity> startingEntities(@Nonnull final Search.PropertyFilter startingFilter,
+                                                    @Nonnull final TopologyGraph graph) {
+        if (startingFilter.getPropertyName().equals(TopologyFilterFactory.ENTITY_TYPE_PROPERTY_NAME)) {
+            Preconditions.checkArgument(startingFilter.hasNumericFilter());
+            if (startingFilter.getNumericFilter().getComparisonOperator().equals(ComparisonOperator.EQ)) {
+                // In the case where the starting filter is an EQUALS comparison on entity type,
+                // we can accelerate the lookup using the graph.entitiesOfType method.
+                return graph.entitiesOfType((int) startingFilter.getNumericFilter().getValue());
+            }
+        }
+
+        return filterFactory.filterFor(startingFilter)
+                .apply(graph.entities(), graph);
     }
 }

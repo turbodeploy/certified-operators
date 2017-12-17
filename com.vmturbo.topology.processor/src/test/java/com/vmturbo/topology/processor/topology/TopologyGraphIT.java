@@ -19,8 +19,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.Test;
 
-import sun.security.provider.certpath.Vertex;
-
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -143,19 +141,14 @@ public class TopologyGraphIT {
         System.out.println("Skipping memory measurement. See comments in code on how to enable locally...");
 
 //        long graphSizeBytes = MemoryMeasurer.measureBytes(graph);
-//        System.out.println("Graph size (including protobuf info) in MB: {}", graphSizeBytes / (1024 * 1024));
+//        System.out.println("Graph size (including protobuf info) in MB: " + graphSizeBytes / (1024 * 1024));
 //
-//        long protobufSizeBytes = Stream.concat(
-//            Stream.concat(
-//                Stream.concat(
-//                    Stream.concat(datacenterArray.stream(), hostArray.stream()),
-//                    storageArray.stream()),
-//                vmArray.stream()),
-//            appArray.stream())
-//            .mapToLong(entity -> MemoryMeasurer.measureBytes(entity))
+//        long protobufSizeBytes = graph.entities()
+//            .map(TopologyEntity::getTopologyEntityDtoBuilder)
+//            .mapToLong(MemoryMeasurer::measureBytes)
 //            .sum();
 //        long excludingProtobufBytes = graphSizeBytes - protobufSizeBytes;
 //
-//        System.out.println("Graph size excluding protobuf in MB {}: ", excludingProtobufBytes / (1024 * 1024));
+//        System.out.println("Graph size excluding protobuf in MB: " + excludingProtobufBytes / (1024 * 1024));
     }
 }
