@@ -44,7 +44,13 @@ message CostDTO {
 
     // the DTOs specifically define cost for cloud storages
     message ComputeResourceBundleCostDTO {
-        required double cost = 1;
+        message CostPair {
+            required double licenseType = 1;
+            required double licenseCost = 2;
+        }
+        repeated CostPair costMap = 1;
+        required double licenseBaseType  = 2;
+        required double costWithoutLicense = 3;
     }
 
 }

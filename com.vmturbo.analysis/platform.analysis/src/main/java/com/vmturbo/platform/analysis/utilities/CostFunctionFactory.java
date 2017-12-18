@@ -398,7 +398,7 @@ public class CostFunctionFactory {
      * @return CostFunction
      */
     public static @NonNull CostFunction createResourceBundleCostFunctionForCompute(ComputeResourceBundleCostDTO costDTO) {
-        double templatePrice = costDTO.getCost();
+        double templatePrice = costDTO.getCostWithoutLicense();
         CostFunction costFunction = (buyer, seller)
                         -> {
                             Trader currentSupplier = buyer.getSupplier();
