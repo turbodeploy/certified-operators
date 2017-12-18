@@ -38,7 +38,7 @@ public class DockerEnvironment {
      * Port used for access kafka broker instance from the outside. Used to connect from
      * notification senders stubs.
      */
-    private static int KAFKA_EXTERNAL_PORT = 9093;
+    private static int KAFKA_EXTERNAL_PORT = 9094;
 
     private static final String XMX_SUFFIX = "_XMX_MB";
 

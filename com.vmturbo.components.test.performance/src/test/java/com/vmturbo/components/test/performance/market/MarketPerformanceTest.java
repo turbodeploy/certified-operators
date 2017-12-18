@@ -15,26 +15,33 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 
+import com.google.common.base.Preconditions;
+
+import io.grpc.stub.StreamObserver;
 import tec.units.ri.unit.MetricPrefix;
 
+import com.vmturbo.common.protobuf.SettingDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceImplBase;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
-import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.client.KafkaMessageConsumer;
 import com.vmturbo.components.test.utilities.ComponentTestRule;
 import com.vmturbo.components.test.utilities.alert.Alert;
+import com.vmturbo.components.test.utilities.communication.ComponentStubHost;
 import com.vmturbo.components.test.utilities.component.ComponentCluster;
 import com.vmturbo.components.test.utilities.component.ComponentUtils;
 import com.vmturbo.components.test.utilities.component.DockerEnvironment;
 import com.vmturbo.components.test.utilities.utils.TopologyUtils;
+import com.vmturbo.group.api.GlobalSettingSpecs;
 import com.vmturbo.market.component.api.ActionsListener;
 import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.impl.MarketComponentNotificationReceiver;
-import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
 import com.vmturbo.topology.processor.api.server.TopologyBroadcast;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorKafkaSender;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
@@ -51,12 +58,13 @@ public class MarketPerformanceTest {
     public ComponentTestRule componentTestRule = ComponentTestRule.newBuilder()
              .withComponentCluster(ComponentCluster.newBuilder()
                     .withService(ComponentCluster.newService("market")
-                            .withConfiguration("topologyProcessorHost",
-                                ComponentUtils.getDockerHostRoute())
-                            .withMemLimit(4, MetricPrefix.GIGA)
-                            .logsToLogger(logger)))
-            .withoutStubs()
-            .scrapeClusterAndLocalMetricsToInflux();
+                        .withConfiguration("groupHost", ComponentUtils.getDockerHostRoute())
+                        .withConfiguration("topologyProcessorHost", ComponentUtils.getDockerHostRoute())
+                        .withMemLimit(4, MetricPrefix.GIGA)
+                        .logsToLogger(logger)))
+        .withStubs(ComponentStubHost.newBuilder()
+            .withGrpcServices(new GlobalSettingsStub()))
+        .scrapeClusterAndLocalMetricsToInflux();
 
     private MarketComponent marketComponent;
     private IMessageReceiver<ActionPlan> actionsReceiver;
@@ -162,6 +170,26 @@ public class MarketPerformanceTest {
         @Override
         public void onActionsReceived(@Nonnull final ActionPlan actionPlan) {
             actionPlanFuture.complete(actionPlan);
+        }
+    }
+
+
+    public class GlobalSettingsStub extends SettingServiceImplBase {
+        @Override
+        public void getGlobalSetting(final GetSingleGlobalSettingRequest request,
+                                   final StreamObserver<Setting> responseObserver) {
+            Preconditions.checkArgument(
+                request.getSettingSpecName().equals(GlobalSettingSpecs.RateOfResize.getSettingName())
+            );
+
+            responseObserver.onNext(
+                Setting.newBuilder()
+                    .setSettingSpecName(
+                        GlobalSettingSpecs.RateOfResize.getSettingName())
+                    .setNumericSettingValue(
+                        SettingDTOUtil.createNumericSettingValue(2.0f))
+                    .build());
+            responseObserver.onCompleted();
         }
     }
 }
