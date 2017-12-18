@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.template;
 
+import static com.vmturbo.topology.processor.template.TemplateConverterTestUtil.getCommodityBoughtKey;
 import static com.vmturbo.topology.processor.template.TemplateConverterTestUtil.getCommodityBoughtValue;
 import static com.vmturbo.topology.processor.template.TemplateConverterTestUtil.getCommoditySoldValue;
 import static org.junit.Assert.assertEquals;
@@ -7,12 +8,7 @@ import static org.junit.Assert.assertFalse;
 
 import org.junit.Test;
 
-import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory;
-import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.ResourcesCategoryName;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
-import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateField;
-import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
-import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateResource;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -20,51 +16,9 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 public class VirtualMachineEntityConstructorTest {
     private double epsilon = 1e-5;
 
-    private final static TemplateInfo VM_TEMPLATE_INFO = TemplateInfo.newBuilder()
-        .setName("test-VM-template")
-        .setTemplateSpecId(1)
-        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-        .addResources(TemplateResource.newBuilder()
-            .setCategory(ResourcesCategory.newBuilder()
-                .setName(ResourcesCategoryName.Compute))
-            .addFields(TemplateField.newBuilder()
-                .setName("numOfCpu")
-                .setValue("2"))
-            .addFields(TemplateField.newBuilder()
-                .setName("cpuSpeed")
-                .setValue("200"))
-            .addFields(TemplateField.newBuilder()
-                .setName("cpuConsumedFactor")
-                .setValue("0.1"))
-            .addFields(TemplateField.newBuilder()
-                .setName("memorySize")
-                .setValue("100"))
-            .addFields(TemplateField.newBuilder()
-                .setName("memoryConsumedFactor")
-                .setValue("0.1"))
-            .addFields(TemplateField.newBuilder()
-                .setName("ioThroughput")
-                .setValue("300"))
-            .addFields(TemplateField.newBuilder()
-                .setName("networkThroughput")
-                .setValue("400")))
-        .addResources(TemplateResource.newBuilder()
-            .setCategory(ResourcesCategory.newBuilder()
-                .setName(ResourcesCategoryName.Storage))
-            .addFields(TemplateField.newBuilder()
-                .setName("diskIops")
-                .setValue("300"))
-            .addFields(TemplateField.newBuilder()
-                .setName("diskSize")
-                .setValue("300"))
-            .addFields(TemplateField.newBuilder()
-                .setName("diskConsumedFactor")
-                .setValue("0.1")))
-        .build();
-
     private final static Template VM_TEMPLATE = Template.newBuilder()
         .setId(123)
-        .setTemplateInfo(VM_TEMPLATE_INFO)
+        .setTemplateInfo(TemplateConverterTestUtil.VM_TEMPLATE_INFO)
         .build();
 
     @Test
@@ -73,7 +27,8 @@ public class VirtualMachineEntityConstructorTest {
             .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
             .setOid(1);
         final TopologyEntityDTO.Builder topologyEntityDTO =
-            new VirtualMachineEntityConstructor().createTopologyEntityFromTemplate(VM_TEMPLATE, builder);
+            new VirtualMachineEntityConstructor().createTopologyEntityFromTemplate(VM_TEMPLATE, builder,
+                null);
         assertEquals(3, topologyEntityDTO.getCommoditySoldListCount());
         assertEquals(2, topologyEntityDTO.getCommoditiesBoughtFromProvidersCount());
         assertEquals(400.0, getCommoditySoldValue(topologyEntityDTO.getCommoditySoldListList(),
@@ -97,5 +52,41 @@ public class VirtualMachineEntityConstructorTest {
         assertEquals(40.0, getCommodityBoughtValue(topologyEntityDTO.getCommoditiesBoughtFromProvidersList(),
             CommodityType.CPU_VALUE), epsilon);
         assertFalse(topologyEntityDTO.getAnalysisSettings().getShopTogether());
+    }
+
+    @Test
+    public void testVMConvertWithConstraints() {
+        final TopologyEntityDTO.Builder builder = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .setOid(1);
+        final TopologyEntityDTO.Builder topologyEntityDTO =
+            new VirtualMachineEntityConstructor().createTopologyEntityFromTemplate(VM_TEMPLATE, builder,
+                TopologyEntityDTO.newBuilder()
+                    .setOid(1)
+                    .setEntityType(10)
+                    .addAllCommoditySoldList(TemplateConverterTestUtil.VM_COMMODITY_SOLD)
+                    .addAllCommoditiesBoughtFromProviders(TemplateConverterTestUtil.VM_COMMODITY_BOUGHT_FROM_PROVIDER)
+                    .build());
+
+        assertEquals(4, topologyEntityDTO.getCommoditySoldListCount());
+        assertEquals(1, topologyEntityDTO.getCommoditySoldListList().stream()
+            .filter(commoditySoldDTO ->
+                commoditySoldDTO.getCommodityType().getType() == CommodityType.APPLICATION_VALUE)
+            .count());
+        assertEquals(2, topologyEntityDTO.getCommoditiesBoughtFromProvidersCount());
+        assertEquals("123-network", getCommodityBoughtKey(
+            topologyEntityDTO.getCommoditiesBoughtFromProvidersList(), CommodityType.NETWORK_VALUE));
+        assertEquals("123-datastore", getCommodityBoughtKey(
+            topologyEntityDTO.getCommoditiesBoughtFromProvidersList(), CommodityType.DATASTORE_VALUE));
+        assertEquals("123-data-center", getCommodityBoughtKey(
+            topologyEntityDTO.getCommoditiesBoughtFromProvidersList(), CommodityType.DATACENTER_VALUE));
+        assertEquals("123-cluster", getCommodityBoughtKey(
+            topologyEntityDTO.getCommoditiesBoughtFromProvidersList(), CommodityType.CLUSTER_VALUE));
+        assertEquals("123-storage-cluster", getCommodityBoughtKey(
+            topologyEntityDTO.getCommoditiesBoughtFromProvidersList(), CommodityType.STORAGE_CLUSTER_VALUE));
+        assertEquals("123-dspm-access", getCommodityBoughtKey(
+            topologyEntityDTO.getCommoditiesBoughtFromProvidersList(), CommodityType.DSPM_ACCESS_VALUE));
+        assertEquals("123-extent", getCommodityBoughtKey(
+            topologyEntityDTO.getCommoditiesBoughtFromProvidersList(), CommodityType.EXTENT_VALUE));
     }
 }

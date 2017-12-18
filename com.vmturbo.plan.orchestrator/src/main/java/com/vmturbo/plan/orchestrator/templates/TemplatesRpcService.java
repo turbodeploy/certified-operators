@@ -204,6 +204,7 @@ public class TemplatesRpcService extends TemplateServiceImplBase {
             }
             responseObserver.onCompleted();
         } catch (DataAccessException e) {
+            logger.error("Failed to find templates.", e);
             responseObserver.onError(Status.INTERNAL
                 .withDescription("Failed to get templates.")
                 .asException());

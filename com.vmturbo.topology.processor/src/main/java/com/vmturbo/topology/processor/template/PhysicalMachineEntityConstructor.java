@@ -2,13 +2,18 @@ package com.vmturbo.topology.processor.template;
 
 import static com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.ResourcesCategoryName.Compute;
 import static com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.ResourcesCategoryName.Infrastructure;
+import static com.vmturbo.topology.processor.template.TemplatesConverterUtils.addCommodityConstraints;
 import static com.vmturbo.topology.processor.template.TemplatesConverterUtils.createCommodityBoughtDTO;
 import static com.vmturbo.topology.processor.template.TemplatesConverterUtils.createCommoditySoldDTO;
+import static com.vmturbo.topology.processor.template.TemplatesConverterUtils.getActiveCommoditiesWithKeysGroups;
+import static com.vmturbo.topology.processor.template.TemplatesConverterUtils.getCommoditySoldConstraint;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateResource;
@@ -17,13 +22,14 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Create a topologyEntityDTO from Physical Machine template. The new Topology Entity contains such as OID,
  * displayName, commodity sold, commodity bought, entity state, provider policy and consumer policy.
+ * And also it will try to keep all commodity constrains from the original topology entity.
  */
 public class PhysicalMachineEntityConstructor implements TopologyEntityConstructor {
-
     private static final String ZERO = "0";
 
     /**
@@ -31,20 +37,28 @@ public class PhysicalMachineEntityConstructor implements TopologyEntityConstruct
      * and Commodity sold from template fields.
      *
      * @param template physical machine template.
+     * @param topologyEntityBuilder builder of TopologyEntityDTO which could contains some basic setting already.
+     * @param originalTopologyEntity the original topology entity which this template want to keep its
+     *                               commodity constraints. It could be null, if it is new adding template.
      * @return {@link TopologyEntityDTO}
      */
     @Override
     public TopologyEntityDTO.Builder createTopologyEntityFromTemplate(
-        @Nonnull final Template template,
-        @Nonnull final TopologyEntityDTO.Builder topologyEntityBuilder) {
+            @Nonnull final Template template,
+            @Nonnull final TopologyEntityDTO.Builder topologyEntityBuilder,
+            @Nullable final TopologyEntityDTO originalTopologyEntity) {
+        final List<CommoditiesBoughtFromProvider> commodityBoughtConstraints = getActiveCommoditiesWithKeysGroups(
+            originalTopologyEntity);
+        final Set<CommoditySoldDTO> commoditySoldConstraints = getCommoditySoldConstraint(
+            originalTopologyEntity);
         final List<TemplateResource> computeTemplateResources =
             TemplatesConverterUtils.getTemplateResources(template, Compute);
         addComputeCommodities(topologyEntityBuilder, computeTemplateResources);
 
-        final List<TemplateResource> storageTemplateResources =
+        final List<TemplateResource> InfraTemplateResources =
             TemplatesConverterUtils.getTemplateResources(template, Infrastructure);
-        addInfraCommodities(topologyEntityBuilder, storageTemplateResources);
-
+        addInfraCommodities(topologyEntityBuilder, InfraTemplateResources);
+        addCommodityConstraints(topologyEntityBuilder, commoditySoldConstraints, commodityBoughtConstraints);
         return topologyEntityBuilder;
     }
 
@@ -138,8 +152,9 @@ public class PhysicalMachineEntityConstructor implements TopologyEntityConstruct
      * @param topologyEntityBuilder builder of TopologyEntityDTO.
      * @param fieldNameValueMap a Map which key is template field name and value is field value.
      */
-    private static void addInfraCommoditiesBought(@Nonnull final TopologyEntityDTO.Builder topologyEntityBuilder,
-                                                  @Nonnull Map<String, String> fieldNameValueMap) {
+    private static void addInfraCommoditiesBought(
+            @Nonnull final TopologyEntityDTO.Builder topologyEntityBuilder,
+            @Nonnull Map<String, String> fieldNameValueMap) {
         final double powerSize = Double.valueOf(
             fieldNameValueMap.getOrDefault(TemplatesConverterUtils.POWER_SIZE, ZERO));
         final double spaceSize = Double.valueOf(
@@ -154,10 +169,14 @@ public class PhysicalMachineEntityConstructor implements TopologyEntityConstruct
         CommodityBoughtDTO coolingSizeCommodity =
             createCommodityBoughtDTO(CommodityDTO.CommodityType.SPACE_VALUE, coolingSize);
 
-        topologyEntityBuilder.addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-            .addCommodityBought(powerSizeCommodity)
-            .addCommodityBought(spaceSizeCommodity)
-            .addCommodityBought(coolingSizeCommodity)
-            .setMovable(true));
+        final CommoditiesBoughtFromProvider newCommoditiesBoughtFromProvider =
+            CommoditiesBoughtFromProvider.newBuilder()
+                .addCommodityBought(powerSizeCommodity)
+                .addCommodityBought(spaceSizeCommodity)
+                .addCommodityBought(coolingSizeCommodity)
+                .setMovable(true)
+                .setProviderEntityType(EntityType.DATACENTER_VALUE)
+                .build();
+        topologyEntityBuilder.addCommoditiesBoughtFromProviders(newCommoditiesBoughtFromProvider);
     }
 }

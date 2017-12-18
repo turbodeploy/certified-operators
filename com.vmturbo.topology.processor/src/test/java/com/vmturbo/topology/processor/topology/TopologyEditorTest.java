@@ -5,8 +5,10 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -18,15 +20,19 @@ import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
+import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Multimap;
 import com.google.gson.Gson;
 
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyAddition;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyReplace;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -81,11 +87,19 @@ public class TopologyEditorTest {
 
     private static int NUM_CLONES = 5;
 
+    private static long TEMPLATE_ID = 123;
+
     private final ScenarioChange ADD = ScenarioChange.newBuilder()
                     .setTopologyAddition(TopologyAddition.newBuilder()
                         .setAdditionCount(NUM_CLONES)
                         .setEntityId(vmId)
                         .build())
+                    .build();
+
+    private final ScenarioChange REPLACE = ScenarioChange.newBuilder()
+                    .setTopologyReplace(TopologyReplace.newBuilder()
+                            .setAddTemplateId(TEMPLATE_ID)
+                            .setRemoveEntityId(pmId))
                     .build();
 
     private IdentityProvider identityProvider = mock(IdentityProvider.class);
@@ -157,5 +171,37 @@ public class TopologyEditorTest {
             assertEquals(cloneCommBought.getCommodityBoughtList(),
                 vmCommBought.getCommodityBoughtList());
         }
+    }
+
+    @Test
+    public void testTopologyReplace() {
+        Map<Long, TopologyEntityDTO.Builder> topology = Stream.of(vm, pm, st)
+                .map(TopologyEntityDTO::toBuilder)
+                .collect(Collectors.toMap(TopologyEntityDTOOrBuilder::getOid, Function.identity()));
+        List<ScenarioChange> changes = Lists.newArrayList(REPLACE);
+        final Multimap<Long, TopologyEntityDTO> templateToReplacedEntity = ArrayListMultimap.create();
+        templateToReplacedEntity.put(TEMPLATE_ID, pm);
+        when(templateConverterFactory.
+                generateTopologyEntityFromTemplates(Collections.emptyMap(),
+                        templateToReplacedEntity))
+                .thenReturn(Stream.of(TopologyEntityDTO.newBuilder(pm)
+                        .setOid(1234L)
+                        .setDisplayName("Test PM1")));
+
+        topologyEditor.editTopology(topology, changes);
+        final List<TopologyEntityDTO> topologyEntityDTOS = topology.entrySet().stream()
+                .map(Entry::getValue)
+                .map(Builder::build)
+                .collect(Collectors.toList());
+        assertEquals(3, topologyEntityDTOS.size());
+        // make sure consumers of replaced PM are unplaced
+        assertTrue(topologyEntityDTOS.stream()
+                .filter(topologyEntity ->
+                        topologyEntity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
+                .map(TopologyEntityDTO::getCommoditiesBoughtFromProvidersList)
+                .flatMap(List::stream)
+                .anyMatch(commoditiesBoughtFromProvider ->
+                        !commoditiesBoughtFromProvider.hasProviderId() ||
+                                commoditiesBoughtFromProvider.getProviderId() <= 0));
     }
 }

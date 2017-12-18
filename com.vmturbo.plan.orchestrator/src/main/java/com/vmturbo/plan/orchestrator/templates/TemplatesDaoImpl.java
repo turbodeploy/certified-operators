@@ -132,6 +132,7 @@ public class TemplatesDaoImpl implements TemplatesDao {
      * @param templateInfo the new template instance need to store
      * @return Updated template
      * @throws NoSuchObjectException if not found existing template.
+     * @throws IllegalTemplateOperationException if any operation is not allowed.
      */
     @Override
     @Nonnull
@@ -192,7 +193,8 @@ public class TemplatesDaoImpl implements TemplatesDao {
                 if (template.getType().equals(TemplateDTO.Template.Type.USER)) {
                     transactionDsl.deleteFrom(TEMPLATE).where(TEMPLATE.ID.eq(id)).execute();
                 } else {
-                    throw new IllegalTemplateOperationException(id, "Only user-created templates can be deleted.");
+                    throw new IllegalTemplateOperationException(id,
+                            "Only user-created templates can be deleted.");
                 }
                 return template;
             });
@@ -246,7 +248,8 @@ public class TemplatesDaoImpl implements TemplatesDao {
     }
 
     /**
-     * Get a set of templates by template id list.
+     * Get a set of templates by template id list. The return templates size could be equal or less
+     * than request ids size. The client needs to check if there are missing templates.
      *
      * @param ids Set of template ids.
      * @return  Set of templates.

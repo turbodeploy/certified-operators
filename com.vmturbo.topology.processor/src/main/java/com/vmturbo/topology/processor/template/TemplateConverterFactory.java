@@ -1,18 +1,24 @@
 package com.vmturbo.topology.processor.template;
 
-import java.util.HashSet;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Stream;
 import java.util.stream.LongStream;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.commons.lang.NotImplementedException;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Multimap;
+import com.google.common.collect.Sets;
+
+import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesByIdsRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
@@ -20,6 +26,7 @@ import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceBlock
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
+import com.vmturbo.topology.processor.topology.TopologyEditorException;
 
 /**
  * Generate a list of TopologyEntityDTO from a list of template ids. it will call TemplateService to get
@@ -47,46 +54,87 @@ public class TemplateConverterFactory {
      * Ids are valid. And right now, it only support Virtual Machine, Physical Machine and Storage
      * templates.
      *
-     * @param templateAdditions A map of the IDs to add, where the value is the number of entities
-     *                          to generate from that template.
-     * @return Stream of {@link TopologyEntityDTO}.
+     * @param templateAdditions map key is template id, value is the number of template need to add.
+     * @param templateToReplacedEntity map key is template id, value is a list of replaced topology entity.
+     * @return set of {@link TopologyEntityDTO}.
      */
     public Stream<TopologyEntityDTO.Builder> generateTopologyEntityFromTemplates(
-            @Nonnull final Map<Long, Long> templateAdditions) {
-        final GetTemplatesByIdsRequest getTemplatesRequest = GetTemplatesByIdsRequest.newBuilder()
-            .addAllTemplateIds(templateAdditions.keySet())
+        @Nonnull final Map<Long, Long> templateAdditions,
+        @Nonnull Multimap<Long, TopologyEntityDTO> templateToReplacedEntity) {
+        final Set<Long> templateIds = Sets.union(templateAdditions.keySet(), templateToReplacedEntity.keySet());
+        GetTemplatesByIdsRequest getTemplatesRequest = GetTemplatesByIdsRequest.newBuilder()
+            .addAllTemplateIds(templateIds)
             .build();
-        Iterable<Template> templates = () -> templateService.getTemplatesByIds(getTemplatesRequest);
-        return StreamSupport.stream(templates.spliterator(), false)
-            .flatMap(template -> {
-                final long additionCount = templateAdditions.getOrDefault(template.getId(), 1L);
-                return LongStream.range(0L, additionCount)
-                    .mapToObj(number -> generateTopologyEntityByType(template, number));
+        try {
+            Iterable<Template> templates = () -> templateService.getTemplatesByIds(getTemplatesRequest);
+            final int templatesFoundSize = Iterables.size(templates);
+            if (templatesFoundSize != templateIds.size()) {
+                throw new TemplatesNotFoundException(templateIds.size(), templatesFoundSize);
+            }
+            return StreamSupport.stream(templates.spliterator(), false)
+                    .flatMap(template -> {
+                        final long additionCount = templateAdditions.getOrDefault(template.getId(), 0L);
+                        final Collection<TopologyEntityDTO> replacedEntities =
+                                templateToReplacedEntity.get(template.getId());
+                        final Stream<TopologyEntityDTO.Builder> additionTemplates =
+                                generateEntityByTemplateAddition(template, additionCount);
+                        final Stream<TopologyEntityDTO.Builder> replacedTemplates =
+                                generateEntityByTemplateReplaced(template, replacedEntities);
+                        return Stream.concat(additionTemplates, replacedTemplates);
+                    });
+        } catch (StatusRuntimeException e) {
+            // TODO: (OM-28609) we should have mechanism to notify Plan component that some plan failed
+            // at the middle of process (e.g topology processor). In this case, UI or API will not be
+            // stuck.
+            throw TopologyEditorException.notFoundTemplateException(templateIds);
+        }
+    }
+
+    private Stream<TopologyEntityDTO.Builder> generateEntityByTemplateAddition(
+        @Nonnull final Template template,
+        final long additionCount) {
+        return LongStream.range(0L, additionCount)
+            .mapToObj(number -> {
+                final TopologyEntityDTO.Builder topologyEntityBuilder =
+                    TemplatesConverterUtils.generateTopologyEntityBuilder(template);
+                topologyEntityBuilder
+                    .setOid(identityProvider.generateTopologyId())
+                    .setDisplayName(template.getTemplateInfo().getName() + " - Clone #" + number);
+                return generateTopologyEntityByType(template, topologyEntityBuilder, null);
             });
     }
 
+    private Stream<TopologyEntityDTO.Builder> generateEntityByTemplateReplaced(
+        @Nonnull final Template template,
+        @Nonnull Collection<TopologyEntityDTO> replacedEntities) {
+        return replacedEntities.stream()
+            .map(entity -> {
+                final TopologyEntityDTO.Builder topologyEntityBuilder =
+                    TemplatesConverterUtils.generateTopologyEntityBuilder(template);
+                topologyEntityBuilder
+                    .setOid(identityProvider.generateTopologyId())
+                    .setDisplayName(template.getTemplateInfo().getName() + " - Clone for replacement");
+                return generateTopologyEntityByType(template, topologyEntityBuilder, entity);
+            });
+    }
     /**
      * Based on different template type, delegate create topology entity logic to different instance.
      *
      * @param template {@link Template} used to create {@link TopologyEntityDTO}.
-     * @param instanceNum The number of the entity (used for the name when generating multiple entities
-     *              from one template).
+     * @param topologyEntityBuilder topologyEntity builder contains setting up basic fields.
+     * @param originalTopologyEntity the original topology entity which this template want to keep its
+     *                               commodity constrains.
      * @return The {@link TopologyEntityDTO.Builder} for the newly generated entity.
      */
-    @Nonnull
     private TopologyEntityDTO.Builder generateTopologyEntityByType(
-            @Nonnull final Template template,
-            final long instanceNum) {
+        @Nonnull final Template template,
+        @Nonnull final TopologyEntityDTO.Builder topologyEntityBuilder,
+        @Nullable final TopologyEntityDTO originalTopologyEntity) {
         final int templateEntityType = template.getTemplateInfo().getEntityType();
         if (!templateConverterMap.containsKey(templateEntityType)) {
             throw new NotImplementedException(templateEntityType + " template is not supported.");
         }
-        final TopologyEntityDTO.Builder topologyEntityBuilder =
-                TemplatesConverterUtils.generateTopologyEntityBuilder(template);
-        topologyEntityBuilder
-                .setOid(identityProvider.generateTopologyId())
-                .setDisplayName(template.getTemplateInfo().getName() + " - Clone #" + instanceNum);
         return templateConverterMap.get(templateEntityType)
-            .createTopologyEntityFromTemplate(template, topologyEntityBuilder);
+            .createTopologyEntityFromTemplate(template, topologyEntityBuilder, originalTopologyEntity);
     }
 }
