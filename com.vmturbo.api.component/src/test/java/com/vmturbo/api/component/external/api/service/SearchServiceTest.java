@@ -31,7 +31,8 @@ import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
-import com.vmturbo.api.component.external.api.util.SupplyChainFetcher;
+import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
+import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplychainApiDTOFetcherBuilder;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -54,7 +55,7 @@ public class SearchServiceTest {
     private RepositoryApi repositoryApi = Mockito.mock(RepositoryApi.class);
     private final GroupMapper groupMapper = Mockito.mock(GroupMapper.class);
     private final GroupUseCaseParser groupUseCaseParser = Mockito.mock(GroupUseCaseParser.class);
-    private final SupplyChainFetcher supplyChainFetcher = Mockito.mock(SupplyChainFetcher.class);
+    private final SupplyChainFetcherFactory supplyChainFetcherFactory = Mockito.mock(SupplyChainFetcherFactory.class);
     private final UuidMapper uuidMapper = new UuidMapper(7777777L);
     private final GroupExpander groupExpander = Mockito.mock(GroupExpander.class);
 
@@ -69,7 +70,7 @@ public class SearchServiceTest {
                 targetsService,
                 searchGrpcStub,
                 groupExpander,
-                supplyChainFetcher,
+                supplyChainFetcherFactory,
                 groupMapper,
                 groupUseCaseParser,
                 uuidMapper
@@ -143,8 +144,9 @@ public class SearchServiceTest {
                     scopeEntities, types, environmentType, null, false, 3, TimeUnit.MINUTES);
 
          */
-        SupplyChainFetcher.OperationBuilder mockOperationBuilder = Mockito.mock(SupplyChainFetcher.OperationBuilder.class);
-        when(supplyChainFetcher.newOperation()).thenReturn(mockOperationBuilder);
+        SupplychainApiDTOFetcherBuilder mockOperationBuilder =
+                Mockito.mock(SupplychainApiDTOFetcherBuilder.class);
+        when(supplyChainFetcherFactory.newApiDtoFetcher()).thenReturn(mockOperationBuilder);
 
         // we need to set up these mocks to support the builder pattern
         when(mockOperationBuilder.topologyContextId(anyLong())).thenReturn(mockOperationBuilder);

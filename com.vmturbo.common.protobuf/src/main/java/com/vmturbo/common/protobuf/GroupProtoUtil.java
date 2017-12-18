@@ -39,6 +39,7 @@ public class GroupProtoUtil {
      */
     public static void checkEntityType(@Nonnull final Group group) {
         Preconditions.checkArgument(group.getType().equals(Type.CLUSTER) ||
+                group.getTempGroup().hasEntityType() ||
                 group.getGroup().hasEntityType());
     }
 
@@ -63,6 +64,8 @@ public class GroupProtoUtil {
                     default:
                         throw new IllegalArgumentException("Unknown cluster type: " + group.getType());
                 }
+            case TEMP_GROUP:
+                return group.getTempGroup().getEntityType();
             default:
                 throw new IllegalArgumentException("Unknown group type: " + group.getType());
         }
@@ -87,6 +90,10 @@ public class GroupProtoUtil {
             case CLUSTER:
                 Preconditions.checkArgument(group.hasCluster() && group.getCluster().hasName());
                 name = group.getCluster().getName();
+                break;
+            case TEMP_GROUP:
+                Preconditions.checkArgument(group.hasTempGroup() && group.getTempGroup().hasName());
+                name = group.getTempGroup().getName();
                 break;
             default:
                 throw new IllegalArgumentException("Unknown group type: " + group.getType());

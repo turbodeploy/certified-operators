@@ -38,6 +38,13 @@ message Group {
         // that act as the units of management for an environment - e.g. Clusters for vSphere, Business
         // Units for cloud environments - can be represented in a common fashion.
         CLUSTER = 2;
+
+        // A temporary group is a GROUP that can only have static scope, is not persisted to
+        // the database, and gets removed after a certain time.
+        //
+        // Temporary groups are not valid targets for policies or setting policies, and are
+        // only used for query purposes.
+        TEMP_GROUP = 3;
     }
 
     // The unique numeric identifier of the group.
@@ -60,6 +67,10 @@ message Group {
         // The properties describing the cluster.
         // This field is only set for groups where Type == CLUSTER.
         ClusterInfo cluster = 4;
+
+        // The properties describing a temporary group.
+        // This field is only set for groups where Type == TEMP_GROUP.
+        TempGroupInfo temp_group = 5;
     }
 
     // The ID of the target that discovered the group.
@@ -86,6 +97,19 @@ message GroupInfo {
         // A wrapper layer to respent a list of search parameters
         SearchParametersCollection search_parameters_collection = 5;
     }
+}
+
+message TempGroupInfo {
+    // The name of the group.
+    optional string name = 1;
+
+    // The type of entity in the group. A group can only have entities of
+    // a single type.
+    optional int32 entity_type = 2;
+
+    // A static group's members are fixed at the time they are created and that membership
+    // may only be updated by an explicit call to update the group.
+    optional StaticGroupMembers members = 3;
 }
 
 // The properties of a cluster.
@@ -179,6 +203,9 @@ message GetGroupsRequest {
     optional Group.Origin origin_filter = 3;
 
     // Return only groups of a particular type.
+    //
+    // Note: GetGroupsRequest does not
+    // return temporary groups unless explicitly specified here.
     optional Group.Type type_filter = 4;
 
     // Apply this filter to any groups returned where Group.Type is CLUSTER.
@@ -236,10 +263,20 @@ message ClusterFilter {
     optional ClusterInfo.Type type_filter = 1;
 }
 
+message CreateTempGroupRequest {
+    optional TempGroupInfo group_info = 1;
+}
+
+message CreateTempGroupResponse {
+    optional Group group = 1;
+}
+
 // A service responsible for group operations.
 service GroupService {
     // Create a group
     rpc CreateGroup(GroupInfo) returns (CreateGroupResponse);
+
+    rpc CreateTempGroup(CreateTempGroupRequest) returns (CreateTempGroupResponse);
 
     // Get a group
     rpc GetGroup(GroupID) returns (GetGroupResponse);

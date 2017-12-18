@@ -1,11 +1,15 @@
 package com.vmturbo.group.service;
 
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -17,18 +21,24 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.mockito.Mock;
-import org.mockito.Mockito;
-import org.mockito.runners.MockitoJUnitRunner;
+import org.mockito.ArgumentCaptor;
 
 import com.google.common.collect.Lists;
 
+import io.grpc.Status.Code;
+import io.grpc.StatusException;
 import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.common.protobuf.group.GroupDTO;
+import com.vmturbo.common.protobuf.group.GroupDTO.CreateTempGroupRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.CreateTempGroupResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
+import com.vmturbo.common.protobuf.group.GroupDTO.TempGroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupRequest;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.InputPolicy.BindToGroupPolicy;
@@ -36,25 +46,27 @@ import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.components.api.test.GrpcExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.group.persistent.DatabaseException;
 import com.vmturbo.group.persistent.GroupStore;
 import com.vmturbo.group.persistent.PolicyStore;
 import com.vmturbo.group.persistent.PolicyStore.PolicyDeleteException;
+import com.vmturbo.group.persistent.TemporaryGroupCache;
+import com.vmturbo.group.persistent.TemporaryGroupCache.InvalidTempGroupException;
 
 @SuppressWarnings("unchecked")
-@RunWith(MockitoJUnitRunner.class)
 public class GroupServiceTest {
 
     private AtomicReference<List<Long>> mockDataReference = new AtomicReference<>(Collections.emptyList());
 
     private SearchServiceHandler searchServiceHandler = new SearchServiceHandler(mockDataReference);
 
-    @Mock
-    private GroupStore groupStore;
+    private GroupStore groupStore = mock(GroupStore.class);
 
-    @Mock
-    private PolicyStore policyStore;
+    private PolicyStore policyStore = mock(PolicyStore.class);
+
+    private TemporaryGroupCache temporaryGroupCache = mock(TemporaryGroupCache.class);
 
     private GroupService groupService;
 
@@ -64,7 +76,9 @@ public class GroupServiceTest {
     @Before
     public void setUp() throws Exception {
         SearchServiceBlockingStub searchServiceRpc = SearchServiceGrpc.newBlockingStub(testServer.getChannel());
-        groupService = new GroupService(groupStore, policyStore, searchServiceRpc);
+        groupService = new GroupService(groupStore, policyStore, temporaryGroupCache, searchServiceRpc);
+        when(temporaryGroupCache.get(anyLong())).thenReturn(Optional.empty());
+        when(temporaryGroupCache.delete(anyLong())).thenReturn(Optional.empty());
     }
 
     @Test
@@ -77,7 +91,7 @@ public class GroupServiceTest {
                     .setName("group-foo"))
                 .build();
         final StreamObserver<GroupDTO.CreateGroupResponse> mockObserver =
-                Mockito.mock(StreamObserver.class);
+                mock(StreamObserver.class);
 
         given(groupStore.newUserGroup(group.getGroup())).willReturn(group);
 
@@ -91,6 +105,65 @@ public class GroupServiceTest {
     }
 
     @Test
+    public void testCreateTempGroup() throws Exception {
+        final TempGroupInfo tempGroupInfo = TempGroupInfo.newBuilder()
+                .setName("foo")
+                .build();
+        when(temporaryGroupCache.create(tempGroupInfo)).thenReturn(Group.getDefaultInstance());
+
+        final StreamObserver<GroupDTO.CreateTempGroupResponse> mockObserver =
+                mock(StreamObserver.class);
+
+        groupService.createTempGroup(CreateTempGroupRequest.newBuilder()
+                .setGroupInfo(tempGroupInfo)
+                .build(), mockObserver);
+
+        verify(temporaryGroupCache).create(tempGroupInfo);
+        verify(mockObserver).onNext(CreateTempGroupResponse.newBuilder()
+                .setGroup(Group.getDefaultInstance())
+                .build());
+        verify(mockObserver).onCompleted();
+    }
+
+    @Test
+    public void testCreateTempGroupNoInfo() throws Exception {
+        final StreamObserver<GroupDTO.CreateTempGroupResponse> mockObserver =
+                mock(StreamObserver.class);
+
+        groupService.createTempGroup(CreateTempGroupRequest.newBuilder()
+                // No group info set.
+                .build(), mockObserver);
+
+        final ArgumentCaptor<StatusException> exceptionCaptor =
+                ArgumentCaptor.forClass(StatusException.class);
+        verify(mockObserver).onError(exceptionCaptor.capture());
+
+        final StatusException exception = exceptionCaptor.getValue();
+        assertThat(exception, GrpcExceptionMatcher.hasCode(Code.INVALID_ARGUMENT)
+                .descriptionContains("No group info"));
+    }
+
+    @Test
+    public void testCreateTempGroupException() throws Exception {
+        final StreamObserver<GroupDTO.CreateTempGroupResponse> mockObserver =
+                mock(StreamObserver.class);
+
+        when(temporaryGroupCache.create(TempGroupInfo.getDefaultInstance()))
+            .thenThrow(new InvalidTempGroupException(Collections.singletonList("ERROR")));
+        groupService.createTempGroup(CreateTempGroupRequest.newBuilder()
+                .setGroupInfo(TempGroupInfo.getDefaultInstance())
+                .build(), mockObserver);
+
+        final ArgumentCaptor<StatusException> exceptionCaptor =
+                ArgumentCaptor.forClass(StatusException.class);
+        verify(mockObserver).onError(exceptionCaptor.capture());
+
+        final StatusException exception = exceptionCaptor.getValue();
+        assertThat(exception, GrpcExceptionMatcher.hasCode(Code.INVALID_ARGUMENT)
+                .descriptionContains("ERROR"));
+    }
+
+    @Test
     public void testCreateGroupFail() throws Exception {
         final long id = 1234L;
         final GroupDTO.Group group = GroupDTO.Group.newBuilder()
@@ -99,7 +172,7 @@ public class GroupServiceTest {
                     .setName("group-foo"))
                 .build();
         final StreamObserver<GroupDTO.CreateGroupResponse> mockObserver =
-                Mockito.mock(StreamObserver.class);
+                mock(StreamObserver.class);
 
         given(groupStore.newUserGroup(group.getGroup())).willThrow(DatabaseException.class);
 
@@ -114,7 +187,7 @@ public class GroupServiceTest {
         final GroupDTO.GroupID gid = GroupDTO.GroupID.getDefaultInstance();
 
         final StreamObserver<GroupDTO.DeleteGroupResponse> mockObserver =
-                Mockito.mock(StreamObserver.class);
+                mock(StreamObserver.class);
 
         groupService.deleteGroup(gid, mockObserver);
 
@@ -139,13 +212,33 @@ public class GroupServiceTest {
             .build();
 
         final StreamObserver<GroupDTO.DeleteGroupResponse> mockObserver =
-                Mockito.mock(StreamObserver.class);
+                mock(StreamObserver.class);
 
         given(policyStore.getAll()).willReturn(Lists.newArrayList(testPolicy));
 
         groupService.deleteGroup(gid, mockObserver);
 
+        verify(temporaryGroupCache).delete(groupIdToDelete);
         verify(policyStore).deletePolicies(Lists.newArrayList(policyIdToDelete));
+        verify(mockObserver).onNext(
+                GroupDTO.DeleteGroupResponse.newBuilder().setDeleted(true).build());
+        verify(mockObserver).onCompleted();
+        verify(mockObserver, never()).onError(any());
+    }
+
+    @Test
+    public void testDeleteTempGroup() throws Exception {
+        final long id = 7;
+        when(temporaryGroupCache.delete(id)).thenReturn(Optional.of(Group.getDefaultInstance()));
+
+        final StreamObserver<GroupDTO.DeleteGroupResponse> mockObserver =
+                mock(StreamObserver.class);
+        groupService.deleteGroup(GroupID.newBuilder().setId(id).build(), mockObserver);
+
+        verify(temporaryGroupCache).delete(id);
+        verify(groupStore, never()).deleteUserGroup(anyLong());
+        verify(policyStore, never()).deletePolicies(any());
+
         verify(mockObserver).onNext(
                 GroupDTO.DeleteGroupResponse.newBuilder().setDeleted(true).build());
         verify(mockObserver).onCompleted();
@@ -161,7 +254,7 @@ public class GroupServiceTest {
 
 
         final StreamObserver<GroupDTO.DeleteGroupResponse> mockObserver =
-                Mockito.mock(StreamObserver.class);
+                mock(StreamObserver.class);
         given(policyStore.getAll()).willReturn(new ArrayList<>());
         doThrow(DatabaseException.class).when(groupStore).deleteUserGroup(eq(idToDelete));
 
@@ -176,7 +269,7 @@ public class GroupServiceTest {
         final GroupDTO.GroupID gid = GroupDTO.GroupID.getDefaultInstance();
 
         final StreamObserver<GroupDTO.GetGroupResponse> mockObserver =
-                Mockito.mock(StreamObserver.class);
+                mock(StreamObserver.class);
 
         groupService.getGroup(gid, mockObserver);
 
@@ -192,7 +285,7 @@ public class GroupServiceTest {
                 .setId(id)
                 .build();
         final StreamObserver<GroupDTO.GetGroupResponse> mockObserver =
-                Mockito.mock(StreamObserver.class);
+                mock(StreamObserver.class);
 
         final GroupDTO.Group group = GroupDTO.Group.newBuilder()
                         .setId(id)
@@ -207,6 +300,25 @@ public class GroupServiceTest {
     }
 
     @Test
+    public void testGetTempGroup() throws Exception {
+        final long id = 1234L;
+
+        final StreamObserver<GroupDTO.GetGroupResponse> mockObserver =
+                mock(StreamObserver.class);
+
+        given(temporaryGroupCache.get(id)).willReturn(Optional.of(Group.getDefaultInstance()));
+
+        groupService.getGroup(GroupID.newBuilder().setId(id).build(), mockObserver);
+
+        verify(temporaryGroupCache).get(id);
+        verify(groupStore, never()).get(anyLong());
+        verify(mockObserver).onNext(GroupDTO.GetGroupResponse.newBuilder()
+                .setGroup(Group.getDefaultInstance())
+                .build());
+        verify(mockObserver).onCompleted();
+    }
+
+    @Test
     public void testGetAll() throws Exception {
         final long id1 = 1234L;
         final long id2 = 5678L;
@@ -214,7 +326,7 @@ public class GroupServiceTest {
         final GroupDTO.GetGroupsRequest getGroupsRequest =
                 GroupDTO.GetGroupsRequest.getDefaultInstance();
         final StreamObserver<GroupDTO.Group> mockObserver =
-                Mockito.mock(StreamObserver.class);
+                mock(StreamObserver.class);
 
         final GroupDTO.Group g1 = GroupDTO.Group.newBuilder()
                         .setId(id1)
@@ -229,15 +341,37 @@ public class GroupServiceTest {
         groupService.getGroups(getGroupsRequest, mockObserver);
 
         verify(groupStore).getAll();
+        verify(temporaryGroupCache, never()).getAll();
         verify(mockObserver).onNext(g1);
         verify(mockObserver).onNext(g2);
         verify(mockObserver).onCompleted();
     }
 
     @Test
+    public void testGetAllTempGroups() throws Exception {
+        final Group group = Group.newBuilder()
+                .setType(Type.TEMP_GROUP)
+                .build();
+
+        when(temporaryGroupCache.getAll())
+            .thenReturn(Collections.singletonList(group));
+        final StreamObserver<GroupDTO.Group> mockObserver =
+                mock(StreamObserver.class);
+
+        groupService.getGroups(GetGroupsRequest.newBuilder()
+                .setTypeFilter(Type.TEMP_GROUP)
+                .build(), mockObserver);
+
+        verify(temporaryGroupCache).getAll();
+        verify(groupStore, never()).getAll();
+        verify(mockObserver).onNext(group);
+        verify(mockObserver).onCompleted();
+    }
+
+    @Test
     public void testUpdateWithoutID() {
         final StreamObserver<GroupDTO.UpdateGroupResponse> mockObserver =
-                Mockito.mock(StreamObserver.class);
+                mock(StreamObserver.class);
 
         groupService.updateGroup(UpdateGroupRequest.getDefaultInstance(), mockObserver);
 
@@ -248,7 +382,7 @@ public class GroupServiceTest {
     @Test
     public void testUpdateWithoutNewInfo() {
         final StreamObserver<GroupDTO.UpdateGroupResponse> mockObserver =
-                Mockito.mock(StreamObserver.class);
+                mock(StreamObserver.class);
 
         groupService.updateGroup(UpdateGroupRequest.newBuilder()
                 .setId(1)
@@ -268,7 +402,7 @@ public class GroupServiceTest {
                         .setName("new"))
                 .build();
         final StreamObserver<GroupDTO.UpdateGroupResponse> mockObserver =
-                Mockito.mock(StreamObserver.class);
+                mock(StreamObserver.class);
 
         given(groupStore.updateUserGroup(eq(id), eq(group.getGroup()))).willReturn(group);
 
@@ -293,7 +427,7 @@ public class GroupServiceTest {
                 .build();
         final GroupInfo newInfo = GroupInfo.newBuilder().setName("new").build();
         final StreamObserver<GroupDTO.UpdateGroupResponse> mockObserver =
-                Mockito.mock(StreamObserver.class);
+                mock(StreamObserver.class);
 
         given(groupStore.updateUserGroup(eq(id), eq(newInfo))).willThrow(DatabaseException.class);
 
@@ -311,7 +445,7 @@ public class GroupServiceTest {
         final GroupDTO.GetMembersRequest missingGroupIdReq = GroupDTO.GetMembersRequest.getDefaultInstance();
 
         final StreamObserver<GroupDTO.GetMembersResponse> mockObserver =
-                (StreamObserver<GroupDTO.GetMembersResponse>) Mockito.mock(StreamObserver.class);
+                (StreamObserver<GroupDTO.GetMembersResponse>) mock(StreamObserver.class);
 
         groupService.getMembers(missingGroupIdReq, mockObserver);
 
@@ -336,7 +470,7 @@ public class GroupServiceTest {
                 .build();
 
         final StreamObserver<GroupDTO.GetMembersResponse> mockObserver =
-                (StreamObserver<GroupDTO.GetMembersResponse>) Mockito.mock(StreamObserver.class);
+                (StreamObserver<GroupDTO.GetMembersResponse>) mock(StreamObserver.class);
 
         given(groupStore.get(groupId)).willReturn(Optional.of(group1234));
         givenSearchHanderWillReturn(mockSearchResults);
@@ -369,7 +503,7 @@ public class GroupServiceTest {
                 .build();
 
         final StreamObserver<GroupDTO.GetMembersResponse> mockObserver =
-                (StreamObserver<GroupDTO.GetMembersResponse>) Mockito.mock(StreamObserver.class);
+                (StreamObserver<GroupDTO.GetMembersResponse>) mock(StreamObserver.class);
 
         given(groupStore.get(groupId)).willReturn(Optional.of(group1234));
 
@@ -393,7 +527,7 @@ public class GroupServiceTest {
                 .build();
 
         final StreamObserver<GroupDTO.GetMembersResponse> mockObserver =
-                (StreamObserver<GroupDTO.GetMembersResponse>) Mockito.mock(StreamObserver.class);
+                (StreamObserver<GroupDTO.GetMembersResponse>) mock(StreamObserver.class);
 
         given(groupStore.get(groupId)).willReturn(Optional.empty());
 

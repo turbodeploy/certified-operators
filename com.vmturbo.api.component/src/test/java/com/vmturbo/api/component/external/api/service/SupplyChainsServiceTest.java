@@ -33,7 +33,8 @@ import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.api.component.external.api.service.SupplyChainsService.FilterSet;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
-import com.vmturbo.api.component.external.api.util.SupplyChainFetcher;
+import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
+import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplychainApiDTOFetcherBuilder;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainEntryDTO;
 import com.vmturbo.api.dto.supplychain.SupplyChainStatsApiInputDTO;
@@ -48,13 +49,13 @@ public class SupplyChainsServiceTest {
     private static final long LIVE_TOPOLOGY_CONTEXT_ID = 7777777L;
 
     @Mock
-    private SupplyChainFetcher supplyChainsFetcherMock;
+    private SupplyChainFetcherFactory supplyChainsFetcherMock;
 
     @Mock
     private GroupExpander groupExpanderMock;
 
     @Mock
-    private SupplyChainFetcher.OperationBuilder supplyChainFetcherOperationBuilderMock;
+    private SupplychainApiDTOFetcherBuilder supplyChainFetcherOperationBuilderMock;
 
     private final SupplyChainTestUtils supplyChainTestUtils = new SupplyChainTestUtils();
 
@@ -63,7 +64,7 @@ public class SupplyChainsServiceTest {
     @Before
     public void setup() throws Exception {
         MockitoAnnotations.initMocks(this);
-        when(supplyChainsFetcherMock.newOperation())
+        when(supplyChainsFetcherMock.newApiDtoFetcher())
                 .thenReturn(supplyChainFetcherOperationBuilderMock);
         when(supplyChainFetcherOperationBuilderMock.entityTypes(anyListOf(String.class)))
                 .thenReturn(supplyChainFetcherOperationBuilderMock);

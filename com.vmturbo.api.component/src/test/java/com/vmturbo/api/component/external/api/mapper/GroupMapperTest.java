@@ -1,8 +1,17 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.hamcrest.Matchers.is;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -11,19 +20,27 @@ import java.util.Optional;
 
 import org.junit.Test;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
+import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
+import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplyChainNodeFetcherBuilder;
 import com.vmturbo.api.dto.group.FilterApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
+import com.vmturbo.api.exceptions.InvalidOperationException;
+import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group.Origin;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo.SelectionCriteriaCase;
 import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
+import com.vmturbo.common.protobuf.group.GroupDTO.TempGroupInfo;
+import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
@@ -37,8 +54,12 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class GroupMapperTest {
     private final String groupUseCaseFileName = "groupBuilderUsecases.json";
+
     private final GroupUseCaseParser groupUseCaseParser = new GroupUseCaseParser(groupUseCaseFileName);
-    private GroupMapper groupMapper = new GroupMapper(groupUseCaseParser);
+
+    private SupplyChainFetcherFactory supplyChainFetcherFactory = mock(SupplyChainFetcherFactory.class);
+
+    private GroupMapper groupMapper = new GroupMapper(groupUseCaseParser, supplyChainFetcherFactory);
 
     private static String AND = "AND";
     private static String FOO = "foo";
@@ -462,4 +483,52 @@ public class GroupMapperTest {
         assertEquals(EnvironmentType.ONPREM, dto.getEnvironmentType());
     }
 
+    @Test
+    public void testToTempGroupProto() throws OperationFailedException, InvalidOperationException {
+        final GroupApiDTO apiDTO = new GroupApiDTO();
+        apiDTO.setTemporary(true);
+        apiDTO.setDisplayName("foo");
+        apiDTO.setScope(Collections.singletonList("Scope"));
+        apiDTO.setGroupType(VM_TYPE);
+
+        final SupplyChainNodeFetcherBuilder fetcherBuilder = mock(SupplyChainNodeFetcherBuilder.class);
+        when(fetcherBuilder.addSeedUuids(any())).thenReturn(fetcherBuilder);
+        when(fetcherBuilder.entityTypes(any())).thenReturn(fetcherBuilder);
+        when(fetcherBuilder.fetch()).thenReturn(ImmutableMap.of(VM_TYPE, SupplyChainNode.newBuilder()
+                .addMemberOids(7L)
+                .build()));
+        when(supplyChainFetcherFactory.newNodeFetcher()).thenReturn(fetcherBuilder);
+
+        TempGroupInfo groupInfo = groupMapper.toTempGroupProto(apiDTO);
+        assertThat(groupInfo.getEntityType(), is(ServiceEntityMapper.fromUIEntityType(VM_TYPE)));
+        assertThat(groupInfo.getMembers().getStaticMemberOidsList(), containsInAnyOrder(7L));
+        assertThat(groupInfo.getName(), is("foo"));
+
+        verify(fetcherBuilder).addSeedUuids(Collections.singletonList("Scope"));
+        verify(fetcherBuilder).entityTypes(Collections.singletonList(VM_TYPE));
+    }
+
+    @Test
+    public void testMapTempGroup() {
+        final GroupApiDTO mappedDto = groupMapper.toGroupApiDto(Group.newBuilder()
+            .setType(Group.Type.TEMP_GROUP)
+            .setId(8L)
+            .setOrigin(Origin.USER)
+            .setTempGroup(TempGroupInfo.newBuilder()
+                .setName("foo")
+                .setEntityType(10)
+                .setMembers(StaticGroupMembers.newBuilder()
+                    .addStaticMemberOids(1L)))
+            .build());
+
+        assertThat(mappedDto.getTemporary(), is(true));
+        assertThat(mappedDto.getUuid(), is("8"));
+        assertThat(mappedDto.getIsStatic(), is(true));
+        assertThat(mappedDto.getEntitiesCount(), is(1));
+        assertThat(mappedDto.getMembersCount(), is(1));
+        assertThat(mappedDto.getMemberUuidList(), containsInAnyOrder("1"));
+        assertThat(mappedDto.getGroupType(), is(VM_TYPE));
+        assertThat(mappedDto.getEnvironmentType(), is(EnvironmentType.ONPREM));
+        assertThat(mappedDto.getClassName(), is("Group"));
+    }
 }

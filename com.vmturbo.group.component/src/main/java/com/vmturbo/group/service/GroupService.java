@@ -7,6 +7,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -15,16 +16,18 @@ import org.apache.logging.log4j.Logger;
 
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
-import javaslang.collection.Stream;
 
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.CreateTempGroupRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.CreateTempGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.DeleteGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
@@ -42,6 +45,8 @@ import com.vmturbo.group.persistent.GroupStore.GroupNotFoundException;
 import com.vmturbo.group.persistent.GroupStore.ImmutableUpdateException;
 import com.vmturbo.group.persistent.PolicyStore;
 import com.vmturbo.group.persistent.PolicyStore.PolicyDeleteException;
+import com.vmturbo.group.persistent.TemporaryGroupCache;
+import com.vmturbo.group.persistent.TemporaryGroupCache.InvalidTempGroupException;
 
 public class GroupService extends GroupServiceImplBase {
 
@@ -49,15 +54,19 @@ public class GroupService extends GroupServiceImplBase {
 
     private final GroupStore groupStore;
 
+    private final TemporaryGroupCache tempGroupCache;
+
     private final PolicyStore policyStore;
 
     private final SearchServiceBlockingStub searchServiceRpc;
 
     public GroupService(final GroupStore groupStore,
                         final PolicyStore policyStore,
+                        final TemporaryGroupCache tempGroupCache,
                         final SearchServiceBlockingStub searchServiceRpc) {
         this.groupStore = Objects.requireNonNull(groupStore);
         this.policyStore = Objects.requireNonNull(policyStore);
+        this.tempGroupCache = Objects.requireNonNull(tempGroupCache);
         this.searchServiceRpc = Objects.requireNonNull(searchServiceRpc);
     }
 
@@ -79,6 +88,28 @@ public class GroupService extends GroupServiceImplBase {
     }
 
     @Override
+    public void createTempGroup(final CreateTempGroupRequest request,
+                                final StreamObserver<CreateTempGroupResponse> responseObserver) {
+        if (!request.hasGroupInfo()) {
+            responseObserver.onError(Status.INVALID_ARGUMENT
+                .withDescription("No group info present.").asException());
+            return;
+        }
+
+        try {
+            final Group group = tempGroupCache.create(request.getGroupInfo());
+            responseObserver.onNext(CreateTempGroupResponse.newBuilder()
+                    .setGroup(group)
+                    .build());
+            responseObserver.onCompleted();
+        } catch (InvalidTempGroupException e) {
+            logger.error("Failed to create temporary group: {}", e.getMessage());
+            responseObserver.onError(Status.INVALID_ARGUMENT
+                    .withDescription(e.getMessage()).asException());
+        }
+    }
+
+    @Override
     public void getGroup(GroupID gid, StreamObserver<GetGroupResponse> responseObserver) {
         if (!gid.hasId()) {
             final String errMsg = "Invalid GroupID input for get a group: No group ID specified";
@@ -90,7 +121,11 @@ public class GroupService extends GroupServiceImplBase {
         logger.info("Getting a group: {}", gid);
 
         try {
-            final Optional<Group> group = groupStore.get(gid.getId());
+            // Try the temporary group cache first because it's much faster.
+            Optional<Group> group = tempGroupCache.get(gid.getId());
+            if (!group.isPresent()) {
+                group = groupStore.get(gid.getId());
+            }
             GetGroupResponse.Builder builder = GetGroupResponse.newBuilder();
             group.ifPresent(builder::setGroup);
             responseObserver.onNext(builder.build());
@@ -108,8 +143,10 @@ public class GroupService extends GroupServiceImplBase {
 
         final Set<Long> requestedIds = new HashSet<>(request.getIdList());
         try {
-            groupStore.getAll().stream()
-                    .filter(group -> requestedIds.isEmpty() || requestedIds.contains(group.getId()))
+            final Stream<Group> groupStream =
+                request.hasTypeFilter() && request.getTypeFilter() == Type.TEMP_GROUP ?
+                    tempGroupCache.getAll().stream() : groupStore.getAll().stream();
+            groupStream.filter(group -> requestedIds.isEmpty() || requestedIds.contains(group.getId()))
                     .filter(group -> !request.hasOriginFilter() ||
                             group.getOrigin().equals(request.getOriginFilter()))
                     .filter(group -> !request.hasTypeFilter() ||
@@ -173,39 +210,49 @@ public class GroupService extends GroupServiceImplBase {
             return;
         }
 
-        logger.info("Deleting a group: {}", gid);
-        try {
-            // TODO: Policy and group delete should happen in a single transaction, but because we are
-            // migrating from ArangoDB to MySQL, it isn't worth time to figure out transactional
-            // operations in ArangoDB.
-            List<Long> policies = getPolicyByGroup(gid.getId());
-            logger.info("Find group " + gid.getId() + " attached policies: " + policies);
+        final long groupId = gid.getId();
 
-            policyStore.deletePolicies(policies);
-            logger.info("Deleted policy " + policies + " successfully");
-
-            groupStore.deleteUserGroup(gid.getId());
+        logger.info("Deleting a group: {}", groupId);
+        final Optional<Group> group = tempGroupCache.delete(groupId);
+        if (group.isPresent()) {
+            // If the group was a temporary group, it shouldn't have been in any policies, so
+            // we don't need to do any other work.
             responseObserver.onNext(DeleteGroupResponse.newBuilder().setDeleted(true).build());
             responseObserver.onCompleted();
-        } catch (ImmutableUpdateException e) {
-            logger.error("Failed to update group {} due to error: {}",
-                    gid.getId(), e.getLocalizedMessage());
-            responseObserver.onError(Status.INVALID_ARGUMENT
-                    .withDescription(e.getLocalizedMessage()).asException());
-        } catch (GroupNotFoundException e) {
-            logger.error("Failed to update group {} because it doesn't exist.",
-                    gid.getId(), e.getLocalizedMessage());
-            responseObserver.onError(Status.NOT_FOUND
-                    .withDescription(e.getLocalizedMessage()).asException());
-        } catch (DatabaseException e) {
-            logger.error("Failed to delete group " + gid, e);
-            responseObserver.onError(Status.ABORTED.withDescription(e.getLocalizedMessage())
-                    .asException());
-        }
-        catch (PolicyDeleteException e) {
-            logger.error("Failed to delete attached policies for " + gid, e);
-            responseObserver.onError(Status.ABORTED.withDescription(e.getLocalizedMessage())
-                .asException());
+        } else {
+            try {
+                // TODO: Policy and group delete should happen in a single transaction, but because we are
+                // migrating from ArangoDB to MySQL, it isn't worth time to figure out transactional
+                // operations in ArangoDB.
+                List<Long> policies = getPolicyByGroup(gid.getId());
+                logger.info("Find group " + gid.getId() + " attached policies: " + policies);
+
+                policyStore.deletePolicies(policies);
+                logger.info("Deleted policy " + policies + " successfully");
+
+                groupStore.deleteUserGroup(gid.getId());
+                responseObserver.onNext(DeleteGroupResponse.newBuilder().setDeleted(true).build());
+                responseObserver.onCompleted();
+            } catch (ImmutableUpdateException e) {
+                logger.error("Failed to update group {} due to error: {}",
+                        gid.getId(), e.getLocalizedMessage());
+                responseObserver.onError(Status.INVALID_ARGUMENT
+                        .withDescription(e.getLocalizedMessage()).asException());
+            } catch (GroupNotFoundException e) {
+                logger.error("Failed to update group {} because it doesn't exist.",
+                        gid.getId(), e.getLocalizedMessage());
+                responseObserver.onError(Status.NOT_FOUND
+                        .withDescription(e.getLocalizedMessage()).asException());
+            } catch (DatabaseException e) {
+                logger.error("Failed to delete group " + gid, e);
+                responseObserver.onError(Status.ABORTED.withDescription(e.getLocalizedMessage())
+                        .asException());
+            }
+            catch (PolicyDeleteException e) {
+                logger.error("Failed to delete attached policies for " + gid, e);
+                responseObserver.onError(Status.ABORTED.withDescription(e.getLocalizedMessage())
+                        .asException());
+            }
         }
     }
 
@@ -213,7 +260,7 @@ public class GroupService extends GroupServiceImplBase {
         final List<Long> memberIds = staticGroupMembers.getStaticMemberOidsList();
         logger.debug("Static group ({}) and its first 10 members {}",
                 groupId,
-                Stream.ofAll(memberIds).take(10).toJavaList());
+                Stream.of(memberIds).limit(10).collect(Collectors.toList()));
         return GroupDTO.GetMembersResponse.newBuilder()
                 .addAllMemberId(memberIds)
                 .build();
@@ -230,9 +277,13 @@ public class GroupService extends GroupServiceImplBase {
         }
 
         final long groupId = request.getId();
-        final Optional<Group> optGroupInfo;
+        Optional<Group> optGroupInfo;
         try {
-            optGroupInfo = groupStore.get(groupId);
+            // Check temp group cache first, because it's faster.
+            optGroupInfo = tempGroupCache.get(groupId);
+            if (!optGroupInfo.isPresent()) {
+                optGroupInfo = groupStore.get(groupId);
+            }
         } catch (DatabaseException e) {
             logger.error("Failed to get group: " + groupId, e);
             responseObserver.onError(Status.INTERNAL
@@ -260,7 +311,7 @@ public class GroupService extends GroupServiceImplBase {
                             final List<Long> searchResults = searchResponse.getEntitiesList();
                             logger.debug("Dynamic group ({}) and its first 10 members {}",
                                     groupId,
-                                    Stream.ofAll(searchResults).take(10).toJavaList());
+                                    Stream.of(searchResults).limit(10).collect(Collectors.toList()));
 
                             resp = GroupDTO.GetMembersResponse.newBuilder()
                                     .addAllMemberId(searchResults)
@@ -273,6 +324,9 @@ public class GroupService extends GroupServiceImplBase {
                             return;
                         }
                     }
+                    break;
+                case TEMP_GROUP:
+                    resp = getStaticMembers(group.getId(), group.getTempGroup().getMembers());
                     break;
                 default:
                     throw new IllegalStateException("Invalid group returned.");

@@ -11,8 +11,6 @@ import org.springframework.context.annotation.Import;
 
 import com.vmturbo.api.component.communication.CommunicationConfig;
 import com.vmturbo.api.component.external.api.mapper.MapperConfig;
-import com.vmturbo.api.component.external.api.util.GroupExpander;
-import com.vmturbo.api.component.external.api.util.SupplyChainFetcher;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
 import com.vmturbo.auth.api.SpringSecurityConfig;
 
@@ -31,9 +29,6 @@ public class ServiceConfig {
 
     @Value("${targetValidationPollIntervalSeconds}")
     private Long targetValidationPollIntervalSeconds;
-
-    @Value("${supplyChainFetcherTimeoutSeconds}")
-    private Long supplyChainFetcherTimeoutSeconds;
 
     /**
      * We allow autowiring between different configuration objects, but not for a bean.
@@ -176,8 +171,8 @@ public class ServiceConfig {
                 groupsService(),
                 targetService(),
                 communicationConfig.searchServiceBlockingStub(),
-                groupExpander(),
-                supplyChainFetcher(),
+                communicationConfig.groupExpander(),
+                communicationConfig.supplyChainFetcher(),
                 mapperConfig.groupMapper(),
                 mapperConfig.groupUseCaseParser(),
                 mapperConfig.uuidMapper());
@@ -200,30 +195,16 @@ public class ServiceConfig {
     public StatsService statsService() {
         return new StatsService(communicationConfig.historyRpcService(),
                 communicationConfig.repositoryApi(),
-                groupExpander(),
+                communicationConfig.groupExpander(),
                 Clock.systemUTC(),
                 targetService());
     }
 
     @Bean
     public SupplyChainsService supplyChainService() {
-        return new SupplyChainsService(supplyChainFetcher(),
+        return new SupplyChainsService(communicationConfig.supplyChainFetcher(),
                 communicationConfig.getRealtimeTopologyContextId(),
-                groupExpander());
-    }
-
-    @Bean
-    public SupplyChainFetcher supplyChainFetcher() {
-        return new SupplyChainFetcher(communicationConfig.repositoryChannel(),
-                communicationConfig.actionOrchestratorChannel(),
-                communicationConfig.repositoryApi(),
-                groupExpander(),
-                Duration.ofSeconds(supplyChainFetcherTimeoutSeconds));
-    }
-
-    @Bean
-    public GroupExpander groupExpander() {
-        return new GroupExpander(communicationConfig.groupRpcService());
+                communicationConfig.groupExpander());
     }
 
     @Bean

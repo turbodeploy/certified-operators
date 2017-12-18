@@ -30,9 +30,8 @@ import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser;
 import com.vmturbo.api.component.external.api.mapper.MarketMapper;
 import com.vmturbo.api.component.external.api.mapper.SearchMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
-import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
-import com.vmturbo.api.component.external.api.util.SupplyChainFetcher;
+import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.market.MarketApiDTO;
@@ -67,7 +66,7 @@ public class SearchService implements ISearchService {
 
     private final GroupMapper groupMapper;
 
-    private final SupplyChainFetcher supplyChainFetcher;
+    private final SupplyChainFetcherFactory supplyChainFetcherFactory;
 
     private final GroupUseCaseParser groupUseCaseParser;
 
@@ -80,7 +79,7 @@ public class SearchService implements ISearchService {
                   @Nonnull final TargetsService targetsService,
                   @Nonnull final SearchServiceBlockingStub searchServiceRpc,
                   @Nonnull GroupExpander groupExpander,
-                  @Nonnull final SupplyChainFetcher supplyChainFetcher,
+                  @Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
                   @Nonnull final GroupMapper groupMapper,
                   @Nonnull final GroupUseCaseParser groupUseCaseParser,
                   @Nonnull UuidMapper uuidMapper) {
@@ -92,7 +91,7 @@ public class SearchService implements ISearchService {
         this.groupExpander = Objects.requireNonNull(groupExpander);
         this.groupMapper = Objects.requireNonNull(groupMapper);
         this.groupUseCaseParser = groupUseCaseParser;
-        this.supplyChainFetcher = supplyChainFetcher;
+        this.supplyChainFetcherFactory = supplyChainFetcherFactory;
         this.uuidMapper = uuidMapper;
     }
 
@@ -177,7 +176,7 @@ public class SearchService implements ISearchService {
             // expand to include the supplychain for the 'scopes', some of which may be groups or
             // clusters, and derive a list of ServiceEntities
             Set<String> scopeServiceEntityIds = Sets.newHashSet(scopes);
-            SupplychainApiDTO supplychain = supplyChainFetcher.newOperation()
+            SupplychainApiDTO supplychain = supplyChainFetcherFactory.newApiDtoFetcher()
                     .topologyContextId(uuidMapper.fromUuid(UuidMapper.UI_REAL_TIME_MARKET_STR).oid())
                     .addSeedUuids(scopeServiceEntityIds)
                     .entityTypes(types)

@@ -18,7 +18,8 @@ import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
-import com.vmturbo.api.component.external.api.util.SupplyChainFetcher;
+import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
+import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplychainApiDTOFetcherBuilder;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainEntryDTO;
@@ -34,7 +35,7 @@ import com.vmturbo.api.utils.DateTimeUtil;
 
 public class SupplyChainsService implements ISupplyChainsService {
 
-    private final SupplyChainFetcher supplyChainFetcher;
+    private final SupplyChainFetcherFactory supplyChainFetcherFactory;
     private final long liveTopologyContextId;
     private final GroupExpander groupExpander;
 
@@ -44,10 +45,10 @@ public class SupplyChainsService implements ISupplyChainsService {
                     EntitiesCountCriteria.severity
             );
 
-    SupplyChainsService(@Nonnull final SupplyChainFetcher supplyChainFetcher,
+    SupplyChainsService(@Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
                         final long liveTopologyContextId, GroupExpander groupExpander) {
         this.liveTopologyContextId = liveTopologyContextId;
-        this.supplyChainFetcher = supplyChainFetcher;
+        this.supplyChainFetcherFactory = supplyChainFetcherFactory;
         this.groupExpander = groupExpander;
     }
 
@@ -62,7 +63,7 @@ public class SupplyChainsService implements ISupplyChainsService {
         }
 
         // request the supply chain for the items, including expanding groups and clusters
-        return supplyChainFetcher.newOperation()
+        return supplyChainFetcherFactory.newApiDtoFetcher()
                 .topologyContextId(liveTopologyContextId)
                 .addSeedUuids(uuids)
                 .entityTypes(entityTypes)
@@ -101,8 +102,8 @@ public class SupplyChainsService implements ISupplyChainsService {
         final List<EntitiesCountCriteria> criteriaToGroupBy = supplyChainStatsApiInputDTO.getGroupBy();
 
         // fetch the supplychain for the list of seeds; includes group and cluster expansion
-        SupplyChainFetcher.OperationBuilder supplyChainFetcher = this.supplyChainFetcher
-                .newOperation()
+        final SupplychainApiDTOFetcherBuilder supplyChainFetcher = this.supplyChainFetcherFactory
+                .newApiDtoFetcher()
                 .topologyContextId(liveTopologyContextId)
                 .addSeedUuids(uuids)
                 .entityTypes(supplyChainStatsApiInputDTO.getTypes())

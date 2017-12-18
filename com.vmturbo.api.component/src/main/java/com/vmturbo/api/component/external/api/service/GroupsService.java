@@ -60,6 +60,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.CreateTempGroupRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.CreateTempGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.DeleteGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
@@ -70,6 +72,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Group.Origin;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.TempGroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
@@ -242,9 +245,18 @@ public class GroupsService implements IGroupsService {
 
     @Override
     public GroupApiDTO createGroup(GroupApiDTO inputDTO) throws Exception {
-        final GroupInfo request = groupMapper.toGroupInfo(inputDTO);
-        final CreateGroupResponse res = groupServiceRpc.createGroup(request);
-        return groupMapper.toGroupApiDto(res.getGroup());
+        if (Boolean.TRUE.equals(inputDTO.getTemporary())) {
+            final TempGroupInfo tempGroupInfo = groupMapper.toTempGroupProto(inputDTO);
+            final CreateTempGroupResponse response = groupServiceRpc.createTempGroup(
+                    CreateTempGroupRequest.newBuilder()
+                        .setGroupInfo(tempGroupInfo)
+                        .build());
+            return groupMapper.toGroupApiDto(response.getGroup());
+        } else {
+            final GroupInfo request = groupMapper.toGroupInfo(inputDTO);
+            final CreateGroupResponse res = groupServiceRpc.createGroup(request);
+            return groupMapper.toGroupApiDto(res.getGroup());
+        }
     }
 
     @Override

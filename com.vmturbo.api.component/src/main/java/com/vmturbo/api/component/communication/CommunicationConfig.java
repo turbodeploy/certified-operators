@@ -1,8 +1,7 @@
 package com.vmturbo.api.component.communication;
 
 import java.net.URISyntaxException;
-
-import io.grpc.Channel;
+import java.time.Duration;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -12,7 +11,11 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.converter.xml.Jaxb2RootElementHttpMessageConverter;
 import org.springframework.web.client.RestTemplate;
 
+import io.grpc.Channel;
+
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
+import com.vmturbo.api.component.external.api.util.GroupExpander;
+import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
 import com.vmturbo.auth.api.authorization.jwt.JwtClientInterceptor;
 import com.vmturbo.clustermgr.api.impl.ClusterMgrClient;
@@ -83,6 +86,9 @@ public class CommunicationConfig {
 
     @Value("${websocket.pong.timeout}")
     private long websocketPongTimeout;
+
+    @Value("${supplyChainFetcherTimeoutSeconds}")
+    private Long supplyChainFetcherTimeoutSeconds;
 
     @Autowired
     private ApiWebsocketConfig websocketConfig;
@@ -236,4 +242,20 @@ public class CommunicationConfig {
     public Channel actionOrchestratorChannel() {
         return aoClientConfig.actionOrchestratorChannel();
     }
+
+    @Bean
+    public SupplyChainFetcherFactory supplyChainFetcher() {
+        return new SupplyChainFetcherFactory(repositoryChannel(),
+                actionOrchestratorChannel(),
+                repositoryApi(),
+                groupExpander(),
+                Duration.ofSeconds(supplyChainFetcherTimeoutSeconds),
+                realtimeTopologyContextId);
+    }
+
+    @Bean
+    public GroupExpander groupExpander() {
+        return new GroupExpander(groupRpcService());
+    }
+
 }

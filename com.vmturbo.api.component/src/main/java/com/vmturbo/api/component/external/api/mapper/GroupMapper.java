@@ -4,12 +4,14 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -17,15 +19,20 @@ import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser.GroupUseCase;
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser.GroupUseCase.GroupUseCaseCriteria;
+import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.dto.group.FilterApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
+import com.vmturbo.api.exceptions.InvalidOperationException;
+import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
+import com.vmturbo.common.protobuf.group.GroupDTO.TempGroupInfo;
+import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
@@ -54,8 +61,54 @@ public class GroupMapper {
 
     private final GroupUseCaseParser groupUseCaseParser;
 
-    public GroupMapper(GroupUseCaseParser groupUseCaseParser) {
-        this.groupUseCaseParser = groupUseCaseParser;
+    private final SupplyChainFetcherFactory supplyChainFetcherFactory;
+
+    public GroupMapper(@Nonnull final GroupUseCaseParser groupUseCaseParser,
+                       @Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory) {
+        this.groupUseCaseParser = Objects.requireNonNull(groupUseCaseParser);
+        this.supplyChainFetcherFactory = Objects.requireNonNull(supplyChainFetcherFactory);
+    }
+
+    /**
+     * Convert a {@link GroupApiDTO} for a temporary group to the associated
+     * {@link TempGroupInfo}.
+     *
+     * @param apiDTO The {@link GroupApiDTO} for a temporary group.
+     * @return A {@link TempGroupInfo} to describe the temporary group in XL.
+     * @throws OperationFailedException If there is an error obtaining associated information.
+     * @throws InvalidOperationException If the {@link GroupApiDTO} is illegal in some way.
+     */
+    @Nonnull
+    public TempGroupInfo toTempGroupProto(@Nonnull final GroupApiDTO apiDTO)
+            throws OperationFailedException, InvalidOperationException {
+        if (!Boolean.TRUE.equals(apiDTO.getTemporary())) {
+            throw new InvalidOperationException("Attempting to create temp group out of " +
+                    "non-temp group request.");
+        } else if (apiDTO.getDisplayName() == null) {
+            throw new InvalidOperationException("No name for temp group!");
+        } else if (CollectionUtils.isEmpty(apiDTO.getScope())) {
+            // At the time of this writing temporary groups are always created from some scope.
+            throw new InvalidOperationException("No scope for temp group " + apiDTO.getDisplayName());
+        }
+
+        // Derive the members from the scope
+        final Map<String, SupplyChainNode> supplyChainForScope =
+                supplyChainFetcherFactory.newNodeFetcher()
+                        .addSeedUuids(apiDTO.getScope())
+                        .entityTypes(Collections.singletonList(apiDTO.getGroupType()))
+                        .fetch();
+        final SupplyChainNode node = supplyChainForScope.get(apiDTO.getGroupType());
+        if (node == null) {
+            throw new InvalidOperationException("Group type: " + apiDTO.getGroupType() +
+                " not found in supply chain for scopes: " + apiDTO.getScope());
+        }
+
+        return TempGroupInfo.newBuilder()
+                .setEntityType(ServiceEntityMapper.fromUIEntityType(apiDTO.getGroupType()))
+                .setMembers(StaticGroupMembers.newBuilder()
+                        .addAllStaticMemberOids(node.getMemberOidsList()))
+                .setName(apiDTO.getDisplayName())
+                .build();
     }
 
     /**
@@ -124,6 +177,21 @@ public class GroupMapper {
         return outputDTO;
     }
 
+    @Nonnull
+    private GroupApiDTO createTempGroupApiDTO(@Nonnull final TempGroupInfo tempGroupInfo) {
+        final GroupApiDTO outputDTO = new GroupApiDTO();
+        outputDTO.setClassName(GROUP);
+        // Not clear if there should be a difference between these.
+        outputDTO.setEntitiesCount(tempGroupInfo.getMembers().getStaticMemberOidsCount());
+        outputDTO.setMembersCount(tempGroupInfo.getMembers().getStaticMemberOidsCount());
+        outputDTO.setIsStatic(true);
+        outputDTO.setMemberUuidList(tempGroupInfo.getMembers().getStaticMemberOidsList().stream()
+                .map(Object::toString)
+                .collect(Collectors.toList()));
+        outputDTO.setTemporary(true);
+        return outputDTO;
+    }
+
     /**
      * Converts from {@link Group} to {@link GroupApiDTO}.
      *
@@ -138,6 +206,9 @@ public class GroupMapper {
                 break;
             case CLUSTER:
                 outputDTO = createClusterApiDto(group.getCluster());
+                break;
+            case TEMP_GROUP:
+                outputDTO = createTempGroupApiDTO(group.getTempGroup());
                 break;
             default:
                 throw new IllegalArgumentException("Unrecognized group type: " + group.getType());

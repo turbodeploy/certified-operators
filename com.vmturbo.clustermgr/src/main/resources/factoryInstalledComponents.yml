@@ -84,6 +84,8 @@ group:
   grpcPingIntervalSeconds: 300
   identityGeneratorPrefix: 4
   createDefaultSettingPolicyRetryIntervalSec: 30
+  tempGroupExpirationTimeMins: 10
+
   # START - database-related properties.
   dbHost: 'db'
   dbPort: 3306

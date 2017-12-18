@@ -58,6 +58,10 @@
 
         <!-- Other Dependencies -->
         <dependency>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
+        </dependency>
+        <dependency>
             <groupId>com.arangodb</groupId>
             <artifactId>arangodb-java-driver</artifactId>
         </dependency>

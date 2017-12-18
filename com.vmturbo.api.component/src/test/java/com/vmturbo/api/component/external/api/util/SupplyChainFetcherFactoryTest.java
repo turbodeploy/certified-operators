@@ -1,17 +1,18 @@
 package com.vmturbo.api.component.external.api.util;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.junit.Assert.assertThat;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -29,8 +30,6 @@ import org.springframework.web.client.RestTemplate;
 
 import com.google.common.collect.ImmutableList;
 
-import io.grpc.stub.StreamObserver;
-
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
@@ -39,28 +38,28 @@ import com.vmturbo.common.protobuf.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
+import com.vmturbo.common.protobuf.action.EntitySeverityDTOMoles.EntitySeverityServiceMole;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
-import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceImplBase;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainRequest;
-import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceImplBase;
+import com.vmturbo.common.protobuf.repository.SupplyChainMoles.SupplyChainServiceMole;
 import com.vmturbo.components.api.test.GrpcTestServer;
 
-public class SupplyChainFetcherTest {
+public class SupplyChainFetcherFactoryTest {
     private static final String VM = "VirtualMachine";
     private static final String PM = "PhysicalMachine";
     private static final long LIVE_TOPOLOGY_ID = 1234;
 
-    private SupplyChainFetcher supplyChainFetcher;
+    private SupplyChainFetcherFactory supplyChainFetcherFactory;
 
     /**
      * The backend the API forwards calls to (i.e. the part that's in the plan orchestrator).
      */
-    private final EntitySeverityServiceMock severityServiceBackend =
-        Mockito.spy(new EntitySeverityServiceMock());
-    private final SupplyChainServiceMock supplyChainServiceBackend =
-        Mockito.spy(new SupplyChainServiceMock());
+    private final EntitySeverityServiceMole severityServiceBackend =
+        Mockito.spy(new EntitySeverityServiceMole());
+    private final SupplyChainServiceMole supplyChainServiceBackend =
+        Mockito.spy(new SupplyChainServiceMole());
     private RepositoryApiMock repositoryApiBackend;
     private GroupExpander groupExpander = Mockito.mock(GroupExpander.class);
 
@@ -79,9 +78,10 @@ public class SupplyChainFetcherTest {
         repositoryApiBackend =
                 Mockito.spy(new RepositoryApiMock(entitySeverityRpc));
 
+
         // set up the ActionsService under test
-        supplyChainFetcher = new SupplyChainFetcher(grpcServer.getChannel(), grpcServer.getChannel(),
-                repositoryApiBackend, groupExpander, timeoutDuration);
+        supplyChainFetcherFactory = new SupplyChainFetcherFactory(grpcServer.getChannel(), grpcServer.getChannel(),
+                repositoryApiBackend, groupExpander, timeoutDuration, 7);
     }
 
     /**
@@ -97,7 +97,7 @@ public class SupplyChainFetcherTest {
         final Set<String> supplyChainSeedUuidSet = Sets.newHashSet(supplyChainSeedUuids);
 
         // act
-        SupplychainApiDTO result = supplyChainFetcher.newOperation()
+        SupplychainApiDTO result = supplyChainFetcherFactory.newApiDtoFetcher()
                 .addSeedUuids(supplyChainSeedUuidSet)
                 .fetch();
 
@@ -115,27 +115,55 @@ public class SupplyChainFetcherTest {
     public void testHealthStatusAllNormal() throws Exception {
         final SupplyChainNode vms = SupplyChainNode.newBuilder()
             .setEntityType(VM)
-            .addAllMemberOids(Arrays.asList(1L, 2L, 3L, 4L))
+            .addMemberOids(1L)
             .build();
         final SupplyChainNode hosts = SupplyChainNode.newBuilder()
             .setEntityType(PM)
-            .addAllMemberOids(Arrays.asList(5L, 6L, 7L))
+            .addMemberOids(5L)
             .build();
-        supplyChainServiceBackend.addNode(vms);
-        supplyChainServiceBackend.addNode(hosts);
 
-        final SupplychainApiDTO result = supplyChainFetcher.newOperation()
+        when(supplyChainServiceBackend.getSupplyChain(any()))
+                .thenReturn(Arrays.asList(vms, hosts));
+
+        when(severityServiceBackend.getEntitySeverities(MultiEntityRequest.newBuilder()
+                .setTopologyContextId(LIVE_TOPOLOGY_ID)
+                .addEntityIds(1L)
+                .build()))
+            .thenReturn(Collections.singletonList(newSeverity(1L, Severity.NORMAL)));
+        when(severityServiceBackend.getEntitySeverities(MultiEntityRequest.newBuilder()
+                .setTopologyContextId(LIVE_TOPOLOGY_ID)
+                .addEntityIds(5L)
+                .build()))
+                .thenReturn(Collections.singletonList(newSeverity(5L, Severity.NORMAL)));
+
+        final SupplychainApiDTO result = supplyChainFetcherFactory.newApiDtoFetcher()
                 .topologyContextId(LIVE_TOPOLOGY_ID)
                 .includeHealthSummary(true)
                 .fetch();
 
-        Assert.assertEquals(2, result.getSeMap().size());
-        Assert.assertEquals(vms.getMemberOidsList().size(), getObjectsCountInHealth(result, VM));
-        Assert.assertEquals(hosts.getMemberOidsList().size(), getObjectsCountInHealth(result, PM));
+        assertThat(result.getSeMap().size(), is(2));
+        assertThat(getObjectsCountInHealth(result, VM), is(vms.getMemberOidsList().size()));
+        assertThat(getObjectsCountInHealth(result, PM), is(hosts.getMemberOidsList().size()));
 
-        Assert.assertEquals(vms.getMemberOidsList().size(), getSeveritySize(result, VM, Severity.NORMAL));
-        Assert.assertEquals(hosts.getMemberOidsList().size(),
-            getSeveritySize(result, PM, Severity.NORMAL));
+        assertThat(getSeveritySize(result, VM, Severity.NORMAL), is(vms.getMemberOidsList().size()));
+        assertThat(getSeveritySize(result, PM, Severity.NORMAL), is(hosts.getMemberOidsList().size()));
+    }
+
+    @Test
+    public void testSupplyChainNodeFetcher() throws Exception {
+        final SupplyChainNode vms = SupplyChainNode.newBuilder()
+                .setEntityType(VM)
+                .addMemberOids(1L)
+                .build();
+        when(supplyChainServiceBackend.getSupplyChain(SupplyChainRequest.newBuilder()
+                .addEntityTypesToInclude(VM)
+                .build()))
+            .thenReturn(Collections.singletonList(vms));
+        final Map<String, SupplyChainNode> nodes = supplyChainFetcherFactory.newNodeFetcher()
+                .entityTypes(Collections.singletonList(VM))
+                .fetch();
+        assertThat(nodes.size(), is(1));
+        assertThat(nodes.get(VM), is(vms));
     }
 
     /**
@@ -148,30 +176,35 @@ public class SupplyChainFetcherTest {
         // arrange
         final SupplyChainNode vms = SupplyChainNode.newBuilder()
             .setEntityType(VM)
-            .addAllMemberOids(Arrays.asList(1L, 2L, 3L, 4L))
+            .addMemberOids(1L)
+            .addMemberOids(2L)
             .build();
         final SupplyChainNode hosts = SupplyChainNode.newBuilder()
             .setEntityType(PM)
-            .addAllMemberOids(Arrays.asList(5L, 6L, 7L))
+            .addMemberOids(5L)
             .build();
-        supplyChainServiceBackend.addNode(vms);
-        supplyChainServiceBackend.addNode(hosts);
+        when(supplyChainServiceBackend.getSupplyChain(any()))
+                .thenReturn(Arrays.asList(vms, hosts));
 
-        severityServiceBackend.putSeverity(1L, Severity.CRITICAL);
-        severityServiceBackend.putSeverity(2L, Severity.MAJOR);
-        severityServiceBackend.putSeverity(3L, Severity.MAJOR);
-        severityServiceBackend.putSeverity(6L, Severity.MAJOR);
+        when(severityServiceBackend.getEntitySeverities(MultiEntityRequest.newBuilder()
+                .setTopologyContextId(LIVE_TOPOLOGY_ID)
+                .addEntityIds(1L)
+                .addEntityIds(2L)
+                .build()))
+            .thenReturn(Arrays.asList(newSeverity(1L, Severity.CRITICAL),
+                    newSeverity(2L, null)));
+        when(severityServiceBackend.getEntitySeverities(MultiEntityRequest.newBuilder()
+                .setTopologyContextId(LIVE_TOPOLOGY_ID)
+                .addEntityIds(5L)
+                .build()))
+            .thenReturn(Collections.singletonList(newSeverity(5L, Severity.MAJOR)));
 
         repositoryApiBackend.putServiceEnity(1L, VM, Severity.CRITICAL);
-        repositoryApiBackend.putServiceEnity(2L, VM, Severity.MAJOR);
-        repositoryApiBackend.putServiceEnity(3L, VM, Severity.MAJOR);
-        repositoryApiBackend.putServiceEnity(4L, VM, null);
-        repositoryApiBackend.putServiceEnity(5L, PM, null);
-        repositoryApiBackend.putServiceEnity(6L, PM, Severity.MAJOR);
-        repositoryApiBackend.putServiceEnity(7L, PM, null);
+        repositoryApiBackend.putServiceEnity(2L, VM, null);
+        repositoryApiBackend.putServiceEnity(5L, PM, Severity.MAJOR);
 
         // act
-        final SupplychainApiDTO result = supplyChainFetcher.newOperation()
+        final SupplychainApiDTO result = supplyChainFetcherFactory.newApiDtoFetcher()
                 .topologyContextId(LIVE_TOPOLOGY_ID)
                 .addSeedUuid("Market")
                 .includeHealthSummary(true)
@@ -184,27 +217,17 @@ public class SupplyChainFetcherTest {
         Assert.assertEquals(hosts.getMemberOidsList().size(), getObjectsCountInHealth(result, PM));
 
         Assert.assertEquals(1, getSeveritySize(result, VM, Severity.CRITICAL));
-        Assert.assertEquals(2, getSeveritySize(result, VM, Severity.MAJOR));
         Assert.assertEquals(1, getSeveritySize(result, VM, Severity.NORMAL));
 
         Assert.assertEquals(1, getSeveritySize(result, PM, Severity.MAJOR));
-        Assert.assertEquals(2, getSeveritySize(result, PM, Severity.NORMAL));
 
         // test that the SE's returned are populated with the severity info
         Assert.assertEquals(Severity.CRITICAL.name(),
                 result.getSeMap().get(VM).getInstances().get("1").getSeverity());
-        Assert.assertEquals(Severity.MAJOR.name(),
+        Assert.assertEquals(Severity.NORMAL.name(), // by default
                 result.getSeMap().get(VM).getInstances().get("2").getSeverity());
         Assert.assertEquals(Severity.MAJOR.name(),
-                result.getSeMap().get(VM).getInstances().get("3").getSeverity());
-        Assert.assertEquals(Severity.NORMAL.name(),   // ... by default
-                result.getSeMap().get(VM).getInstances().get("4").getSeverity());
-        Assert.assertEquals(Severity.NORMAL.name(),   // ... by default
                 result.getSeMap().get(PM).getInstances().get("5").getSeverity());
-        Assert.assertEquals(Severity.MAJOR.name(),
-                result.getSeMap().get(PM).getInstances().get("6").getSeverity());
-        Assert.assertEquals(Severity.NORMAL.name(),   // ... by default
-                result.getSeMap().get(PM).getInstances().get("7").getSeverity());
     }
 
     private int getSeveritySize(@Nonnull final SupplychainApiDTO src, @Nonnull String objType,
@@ -221,50 +244,6 @@ public class SupplyChainFetcherTest {
             .stream()
             .mapToInt(Integer::intValue)
             .sum();
-    }
-
-    public static class SupplyChainServiceMock extends SupplyChainServiceImplBase {
-        private final List<SupplyChainNode> nodes = new ArrayList<>();
-
-        void addNode(@Nonnull final SupplyChainNode node) {
-            nodes.add(Objects.requireNonNull(node));
-        }
-
-        @Override
-        public void getSupplyChain(SupplyChainRequest request,
-                                   StreamObserver<SupplyChainNode> responseObserver) {
-            nodes.forEach(responseObserver::onNext);
-            responseObserver.onCompleted();
-        }
-    }
-
-    /**
-     * Entity service gRPC server mock. Used to report severities for different entities.
-     */
-    public static class EntitySeverityServiceMock extends EntitySeverityServiceImplBase {
-
-        private Map<Long, Severity> severities = new HashMap<>();
-
-        void putSeverity(@Nonnull final Long oid, @Nonnull final Severity severity) {
-            severities.put(oid, severity);
-        }
-
-        @Override
-        public void getEntitySeverities(MultiEntityRequest request,
-                                        StreamObserver<EntitySeverity> responseObserver) {
-            for (Long id : request.getEntityIdsList()) {
-                EntitySeverity.Builder severityBuilder = EntitySeverity.newBuilder()
-                    .setEntityId(id);
-
-                final Severity severity = severities.get(id);
-                if (severity != null) {
-                    severityBuilder.setSeverity(severity);
-                }
-
-                responseObserver.onNext(severityBuilder.build());
-            }
-            responseObserver.onCompleted();
-        }
     }
 
     public static class RepositoryApiMock extends RepositoryApi {
@@ -288,7 +267,7 @@ public class SupplyChainFetcherTest {
         }
 
         @Override
-        public @Nonnull Map<Long, Optional<ServiceEntityApiDTO>>getServiceEntitiesById(
+        public @Nonnull Map<Long, Optional<ServiceEntityApiDTO>> getServiceEntitiesById(
                 @Nonnull final ServiceEntitiesRequest serviceEntitiesRequest) {
             return serviceEntitiesRequest.getEntityIds().stream()
                     .collect(Collectors.toMap(oid -> oid,
@@ -307,5 +286,15 @@ public class SupplyChainFetcherTest {
             answer.setSeverity(severity.name());
         }
         return answer;
+    }
+
+    @Nonnull
+    private static EntitySeverity newSeverity(final long entityId, @Nullable Severity severity) {
+        final EntitySeverity.Builder builder = EntitySeverity.newBuilder()
+                .setEntityId(entityId);
+        if (severity != null) {
+            builder.setSeverity(severity);
+        }
+        return builder.build();
     }
 }

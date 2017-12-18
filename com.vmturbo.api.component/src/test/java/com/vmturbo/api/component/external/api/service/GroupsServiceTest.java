@@ -31,11 +31,16 @@ import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupDTO;
+import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.CreateTempGroupRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.CreateTempGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.TempGroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -181,5 +186,38 @@ public class GroupsServiceTest {
                 .build())))
             .thenReturn(Optional.of(Status.NOT_FOUND.asException()));
         groupsService.getMemberIds("1");
+    }
+
+    @Test
+    public void testCreateGroup() throws Exception {
+        final GroupApiDTO apiDTO = new GroupApiDTO();
+        final Group group = Group.newBuilder()
+                .setId(7L)
+                .build();
+        when(groupMapper.toGroupInfo(apiDTO)).thenReturn(GroupInfo.getDefaultInstance());
+        when(groupServiceSpy.createGroup(GroupInfo.getDefaultInstance()))
+            .thenReturn(CreateGroupResponse.newBuilder()
+                    .setGroup(group)
+                    .build());
+        when(groupMapper.toGroupApiDto(group)).thenReturn(apiDTO);
+        assertThat(groupsService.createGroup(apiDTO), is(apiDTO));
+    }
+
+    @Test
+    public void testCreateTempGroup() throws Exception {
+        final GroupApiDTO apiDTO = new GroupApiDTO();
+        apiDTO.setTemporary(true);
+        final Group group = Group.newBuilder()
+                .setId(7L)
+                .build();
+        when(groupMapper.toTempGroupProto(apiDTO)).thenReturn(TempGroupInfo.getDefaultInstance());
+        when(groupServiceSpy.createTempGroup(CreateTempGroupRequest.newBuilder()
+                .setGroupInfo(TempGroupInfo.getDefaultInstance())
+                .build()))
+            .thenReturn(CreateTempGroupResponse.newBuilder()
+                .setGroup(group)
+                .build());
+        when(groupMapper.toGroupApiDto(group)).thenReturn(apiDTO);
+        assertThat(groupsService.createGroup(apiDTO), is(apiDTO));
     }
 }
