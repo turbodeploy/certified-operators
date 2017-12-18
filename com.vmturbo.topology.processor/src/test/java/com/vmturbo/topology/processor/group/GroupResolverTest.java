@@ -40,7 +40,7 @@ import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.Tr
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.group.filter.TopologyFilterFactory;
-import com.vmturbo.topology.processor.topology.TopologyEntity;
+import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 public class GroupResolverTest {

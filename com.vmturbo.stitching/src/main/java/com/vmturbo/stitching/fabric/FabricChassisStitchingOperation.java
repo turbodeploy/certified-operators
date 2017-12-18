@@ -4,8 +4,8 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.StitchingEntity;
-import com.vmturbo.stitching.StitchingResult;
 import com.vmturbo.stitching.StitchingPoint;
+import com.vmturbo.stitching.StitchingResult;
 import com.vmturbo.stitching.utilities.DeleteCommodities;
 
 /**

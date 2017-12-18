@@ -15,7 +15,7 @@ import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.St
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.filter.TraversalFilter.TraversalToDepthFilter;
 import com.vmturbo.topology.processor.group.filter.TraversalFilter.TraversalToPropertyFilter;
-import com.vmturbo.topology.processor.topology.TopologyEntity;
+import com.vmturbo.stitching.TopologyEntity;
 
 /**
  * A factory for constructing an appropriate filter to perform a search against the topology.

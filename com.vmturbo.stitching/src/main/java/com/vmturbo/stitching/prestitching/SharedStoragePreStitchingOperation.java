@@ -10,7 +10,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -20,12 +19,13 @@ import com.google.common.base.Preconditions;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTOOrBuilder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.stitching.PreStitchingOperation;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingResult;
+import com.vmturbo.stitching.StitchingScope;
+import com.vmturbo.stitching.StitchingScope.StitchingScopeFactory;
 import com.vmturbo.stitching.utilities.EntityScopeFilters;
 
 /**
@@ -44,9 +44,10 @@ public class SharedStoragePreStitchingOperation implements PreStitchingOperation
 
     @Nonnull
     @Override
-    public CalculationScope getCalculationScope(@Nonnull CalculationScopeFactory calculationScopeFactory) {
+    public StitchingScope<StitchingEntity> getScope(
+        @Nonnull StitchingScopeFactory<StitchingEntity> stitchingScopeFactory) {
         // Apply this calculation to all storages discovered by hypervisor probes.
-        return calculationScopeFactory.probeCategoryEntityTypeScope(ProbeCategory.HYPERVISOR, EntityType.STORAGE);
+        return stitchingScopeFactory.probeCategoryEntityTypeScope(ProbeCategory.HYPERVISOR, EntityType.STORAGE);
     }
 
     @Nonnull

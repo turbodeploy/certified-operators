@@ -46,6 +46,14 @@
             <groupId>com.vmturbo</groupId>
             <artifactId>com.vmturbo.platform.sdk.common</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>common-protobuf</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.group.api</artifactId>
+        </dependency>
 
         <dependency>
             <groupId>org.mockito</groupId>

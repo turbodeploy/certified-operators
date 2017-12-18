@@ -33,8 +33,8 @@ import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.InitialPlacementConstraint;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.topology.TopologyEditorException;
-import com.vmturbo.topology.processor.topology.TopologyEntity;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 /**
@@ -179,7 +179,7 @@ public class InitialPlacementPolicyFactory {
         // for initial placement, it only has template entities, so we use it to tell which
         // entities are created from templates.
         return graph.entities()
-                .filter(entity -> entity.getLastUpdatedTime() == TopologyEntity.NEVER_UPDATED_TIME)
+                .filter(entity -> !entity.getDiscoveryInformation().isPresent())
                 .map(TopologyEntity::getOid)
                 .collect(Collectors.toSet());
     }

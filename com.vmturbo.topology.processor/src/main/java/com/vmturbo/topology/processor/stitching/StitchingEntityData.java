@@ -82,7 +82,7 @@ public class StitchingEntityData {
             return false;
         }
 
-        final StitchingEntityData otherEntityData = (StitchingEntityData) other;
+        final StitchingEntityData otherEntityData = (StitchingEntityData)other;
         return targetId == otherEntityData.targetId &&
             oid == otherEntityData.oid &&
             entityDtoBuilder == otherEntityData.entityDtoBuilder;

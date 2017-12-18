@@ -145,6 +145,10 @@ public class StitchingContextTest {
         assertEquals(4, topology.size());
 
         assertEquals(e1_1.getOid(), topology.getEntity(e1_1.getOid()).get().getOid());
+        assertEquals(e1_1.getLastUpdatedTime(),
+            topology.getEntity(e1_1.getOid()).get().getDiscoveryInformation().get().getLastUpdatedTime());
+        assertEquals(e1_1.getTargetId(),
+            topology.getEntity(e1_1.getOid()).get().getDiscoveryInformation().get().getTargetId());
         assertEquals(1, topology.getConsumers(e1_1.getOid()).count());
         assertEquals(0, topology.getProviders(e1_1.getOid()).count());
 

@@ -11,7 +11,7 @@ import javax.annotation.Nonnull;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.topology.processor.topology.TopologyEntity;
+import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 /**
@@ -98,7 +98,7 @@ public class FilterUtils {
         final TopologyEntity.Builder builder = TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
                 .setOid(oid)
                 .setDisplayName(name)
-                .setEntityType(entityType.getNumber()), 0);
+                .setEntityType(entityType.getNumber()));
 
         addCommodityBoughtMap(builder.getEntityBuilder(), producers);
         return builder;

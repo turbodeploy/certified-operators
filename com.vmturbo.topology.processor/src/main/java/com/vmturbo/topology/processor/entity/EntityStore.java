@@ -43,7 +43,7 @@ import com.vmturbo.topology.processor.stitching.TopologyStitchingGraph;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.targets.TargetStoreListener;
-import com.vmturbo.topology.processor.topology.TopologyEntity;
+import com.vmturbo.stitching.TopologyEntity;
 
 /**
  * Stores discovered entities.
@@ -164,7 +164,7 @@ public class EntityStore {
                     .filter(Optional::isPresent)
                     .map(Optional::get)
                     .collect(Collectors.toMap(TopologyEntityDTO.Builder::getOid,
-                        dtoBuilder -> TopologyEntity.newBuilder(dtoBuilder, 0)));
+                        TopologyEntity::newBuilder));
         }
     }
 

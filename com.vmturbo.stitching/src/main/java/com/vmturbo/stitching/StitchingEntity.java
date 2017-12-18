@@ -11,6 +11,7 @@ import javax.annotation.Nonnull;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.stitching.TopologyEntity.DiscoveryInformation;
 
 /**
  * An entity capable of being stitched.
@@ -194,4 +195,15 @@ public interface StitchingEntity {
      * @return True if the entity is consuming commodities to this entity, false otherwise.
      */
     boolean hasConsumer(@Nonnull final StitchingEntity entity);
+
+    /**
+     * Get a {@link DiscoveryInformation} object representing when this target was last updated and by which
+     * target(s).
+     *
+     * @return {@link DiscoveryInformation} for this entity.
+     */
+    default DiscoveryInformation getDiscoveryInformation() {
+        return TopologyEntity.discoveredBy(getTargetId())
+            .lastUpdatedAt(getLastUpdatedTime());
+    }
 }

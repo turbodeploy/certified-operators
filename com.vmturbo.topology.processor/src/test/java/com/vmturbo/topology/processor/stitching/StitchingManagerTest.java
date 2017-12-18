@@ -42,6 +42,8 @@ import com.vmturbo.stitching.StitchingOperation;
 import com.vmturbo.stitching.StitchingResult;
 import com.vmturbo.stitching.StitchingPoint;
 import com.vmturbo.stitching.StitchingResult.Builder;
+import com.vmturbo.stitching.StitchingScope;
+import com.vmturbo.stitching.StitchingScope.StitchingScopeFactory;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.stitching.StitchingOperationStore.ProbeStitchingOperation;
@@ -286,8 +288,9 @@ public class StitchingManagerTest {
 
         @Nonnull
         @Override
-        public CalculationScope getCalculationScope(@Nonnull CalculationScopeFactory calculationScopeFactory) {
-            return calculationScopeFactory.entityTypeScope(EntityType.VIRTUAL_MACHINE);
+        public StitchingScope<StitchingEntity> getScope(
+            @Nonnull StitchingScopeFactory<StitchingEntity> stitchingScopeFactory) {
+            return stitchingScopeFactory.entityTypeScope(EntityType.VIRTUAL_MACHINE);
         }
 
         @Nonnull

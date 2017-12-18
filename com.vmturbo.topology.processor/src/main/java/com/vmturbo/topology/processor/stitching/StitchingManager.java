@@ -29,6 +29,7 @@ import com.vmturbo.stitching.StitchingPoint;
 import com.vmturbo.stitching.StitchingResult;
 import com.vmturbo.stitching.StitchingResult.StitchingChange;
 import com.vmturbo.topology.processor.entity.EntityStore;
+import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.targets.TargetStore;
 
@@ -109,6 +110,15 @@ public class StitchingManager {
         .register();
 
     /**
+     * A metric that tracks duration of execution for PostStitching.
+     */
+    private static final DataMetricSummary POST_STITCHING_EXECUTION_DURATION_SUMMARY = DataMetricSummary.builder()
+        .withName("tp_post_stitching_execution_duration_seconds")
+        .withHelp("Duration of execution of all post-stitching operations.")
+        .build()
+        .register();
+
+    /**
      * A store of the operations to be applied during the Stitching phase.
      */
     private final StitchingOperationStore stitchingOperationStore;
@@ -151,7 +161,6 @@ public class StitchingManager {
      */
     @Nonnull
     public StitchingContext stitch(@Nonnull final EntityStore entityStore) {
-
         final DataMetricTimer preparationTimer = STITCHING_PREPARATION_DURATION_SUMMARY.startTimer();
         final StitchingContext stitchingContext = entityStore.constructStitchingContext();
         preparationTimer.observe();
@@ -173,9 +182,9 @@ public class StitchingManager {
      */
     @VisibleForTesting
     void preStitch(@Nonnull final PreStitchingOperationScopeFactory scopeFactory) {
-        final DataMetricTimer executionTimer = PRE_STITCHING_EXECUTION_DURATION_SUMMARY.startTimer();
         logger.info("Applying {} pre-stitching operations.",
             preStitchingOperationLibrary.getPreStitchingOperations().size());
+        final DataMetricTimer executionTimer = PRE_STITCHING_EXECUTION_DURATION_SUMMARY.startTimer();
 
         preStitchingOperationLibrary.getPreStitchingOperations().stream()
             .forEach(preStitchingOperation -> applyPreStitchingOperation(preStitchingOperation, scopeFactory));
@@ -215,7 +224,7 @@ public class StitchingManager {
                                             @Nonnull final PreStitchingOperationScopeFactory scopeFactory) {
         try {
             final Stream<StitchingEntity> entities =
-                preStitchingOperation.getCalculationScope(scopeFactory).entities();
+                preStitchingOperation.getScope(scopeFactory).entities();
             final TopologyStitchingResultBuilder resultBuilder =
                 new TopologyStitchingResultBuilder(scopeFactory.getStitchingContext());
 

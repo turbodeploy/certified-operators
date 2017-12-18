@@ -87,8 +87,8 @@ public class TopologyStitchingChanges {
                 return;
             }
 
-            final TopologyStitchingEntity from = (TopologyStitchingEntity) mergeFromEntity;
-            final TopologyStitchingEntity onto = (TopologyStitchingEntity) mergeOntoEntity;
+            final TopologyStitchingEntity from = (TopologyStitchingEntity)mergeFromEntity;
+            final TopologyStitchingEntity onto = (TopologyStitchingEntity)mergeOntoEntity;
 
             // TODO: (DavidBlinn 12/1/2017)
             // TODO: Support for replacing an entity in discovered groups.

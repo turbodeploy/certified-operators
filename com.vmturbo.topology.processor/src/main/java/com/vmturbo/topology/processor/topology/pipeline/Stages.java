@@ -26,7 +26,6 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScopeEntry;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.CommunicationException;
@@ -47,7 +46,7 @@ import com.vmturbo.topology.processor.stitching.StitchingManager;
 import com.vmturbo.topology.processor.topology.ConstraintsEditor;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyEditor;
-import com.vmturbo.topology.processor.topology.TopologyEntity;
+import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.PassthroughStage;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.PipelineStageException;
@@ -148,8 +147,8 @@ public class Stages {
                     .flatMap(List::stream)
                     .map(TopologyEntityDTO::toBuilder)
                     .collect(Collectors.toMap(TopologyEntityDTOOrBuilder::getOid,
-                        // TODO: Persist lastUpdatedTime for entities and pass that information through here.
-                        dtoBuilder -> TopologyEntity.newBuilder(dtoBuilder, TopologyEntity.NEVER_UPDATED_TIME)));
+                        // TODO: Persist and pass through discovery information for this entity.
+                        dtoBuilder -> TopologyEntity.newBuilder(dtoBuilder)));
         }
     }
 

@@ -1,18 +1,18 @@
-package com.vmturbo.topology.processor.topology;
+package com.vmturbo.stitching;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 
 /**
- * A node in the {@link TopologyGraph}. Wraps a {@link TopologyEntityDTO.Builder}. Properties
- * of the entity such as commodity values may be updated, but relationships to other entities
- * in the topology cannot be changed.
+ * A wrapper around {@link TopologyEntityDTO.Builder}.Properties of the entity such as commodity values
+ * may be updated, but relationships to other entities in the topology cannot be changed.
  *
  * {@link TopologyEntity}s are equivalent when their OIDs are equal. It is an error to create two different
  * {@link TopologyEntity}s with the same OIDs and behavior is undefined when this is done.
@@ -39,26 +39,18 @@ public class TopologyEntity {
     private final List<TopologyEntity> providers;
 
     /**
-     * The time that the data for this entity was last updated.
-     * {@see TopologyEntity#getLastUpdatedTime} for additional details.
+     * Discovery information about this entity. {@see DiscoveryInformation}
+     * While this field is not marked as final, it is only set during the build of the entity.
      */
-    private final long lastUpdatedTime;
-
-    /**
-     * A value for a time indicating the entity was never updated via a target discovery. When an entity has a
-     * lastUpdatedTime matching this value, it is usually a product of something like a clone or replace-by-template
-     * as part of a plan.
-     */
-    public static final long NEVER_UPDATED_TIME = -1;
+    private Optional<DiscoveryInformation> discoveryInformation;
 
     private TopologyEntity(@Nonnull final TopologyEntityDTO.Builder entity,
                            @Nonnull final List<TopologyEntity> consumers,
-                           @Nonnull final List<TopologyEntity> providers,
-                           final long lastUpdatedTime) {
+                           @Nonnull final List<TopologyEntity> providers) {
         this.entityBuilder = Objects.requireNonNull(entity);
         this.consumers = consumers;
         this.providers = providers;
-        this.lastUpdatedTime = lastUpdatedTime;
+        this.discoveryInformation = Optional.empty();
     }
 
     /**
@@ -146,21 +138,14 @@ public class TopologyEntity {
     }
 
     /**
-     * Get the time that the data for this entity was last updated.
-     * If the entity was discovered by multiple targets, this time is the time at which the most recent update
-     * across all those targets provided new information for this entity.
+     * Get information describing when the entity was last updated and by which target(s)
+     * this entity was discovered.
      *
-     * Important note: This is the time that TopologyProcessor received this data from the probe, not the actual
-     * time that the probe retrieved the information from the target.
-     *
-     * This field may be used as a heuristic for the recency of the data in the absence of better information.
-     * The time is in "computer time" and not necessarily UTC, however, times on {@link TopologyEntity}s
-     * are comparable. See {@link System#currentTimeMillis()} for further details.
-     *
-     * @return The time that the data for this entity was last updated.
+     * @return {@link DiscoveryInformation} describing when and by which target(s) this entity
+     *         was discovered.
      */
-    public long getLastUpdatedTime() {
-        return lastUpdatedTime;
+    public Optional<DiscoveryInformation> getDiscoveryInformation() {
+        return discoveryInformation;
     }
 
     @Override
@@ -169,18 +154,88 @@ public class TopologyEntity {
     }
 
     /**
+     * Set the discovery information for this entity.
+     *
+     * @param discoveryInformation Information describing when and by which targets this entity was discovered.
+     */
+    private void setDiscoveryInformation(@Nonnull final DiscoveryInformation discoveryInformation) {
+        this.discoveryInformation = Optional.of(discoveryInformation);
+    }
+
+    /**
      * Create a new builder for constructing a {@link TopologyEntity}.
      *
      * @param entityBuilder The builder for the {@link TopologyEntityDTO.Builder} that the
      *                      {@link TopologyEntity} will wrap.
-     * @param lastUpdatedTime The last time at which this entity was updated.
-     *                        {@see TopologyEntity#getlastUpdatedTime()}. A time < 0 indicates that the entity was
-     *                        never discovered or updated by a target (ie it is the product of a clone in a plan).
      * @return a new builder for constructing a {@link TopologyEntity}.
      */
-    public static Builder newBuilder(@Nonnull final TopologyEntityDTO.Builder entityBuilder,
+    public static Builder newBuilder(@Nonnull final TopologyEntityDTO.Builder entityBuilder) {
+        return new Builder(entityBuilder);
+    }
+
+    /**
+     * Information describing when the entity was last updated and by which target(s) this entity was discovered.
+     */
+    public static class DiscoveryInformation {
+        private final long targetId;
+        private final long lastUpdatedTime;
+
+        private DiscoveryInformation(final long targetId,
                                      final long lastUpdatedTime) {
-        return new Builder(entityBuilder, lastUpdatedTime);
+            this.targetId = targetId;
+            this.lastUpdatedTime = lastUpdatedTime;
+        }
+
+        /**
+         * Get the time that the data for this entity was last updated.
+         * If the entity was discovered by multiple targets, this time is the time at which the most recent update
+         * across all those targets provided new information for this entity.
+         *
+         * Important note: This is the time that TopologyProcessor received this data from the probe, not the actual
+         * time that the probe retrieved the information from the target.
+         *
+         * This field may be used as a heuristic for the recency of the data in the absence of better information.
+         * The time is in "computer time" and not necessarily UTC, however, times on {@link TopologyEntity}s
+         * are comparable. See {@link System#currentTimeMillis()} for further details.
+         *
+         * @return The time that the data for this entity was last updated.
+         */
+        public long getLastUpdatedTime() {
+            return lastUpdatedTime;
+        }
+
+        /**
+         * Get the id of the target that discovered this entity. If the entity was never discovered (ie it is the
+         * product of a clone or replace-by-template operation to add demand for a plan), it will return
+         * {@link Optional#empty()}.
+         *
+         * TODO: Support for multiple targets discovering the entity.
+         *
+         * @return The ID of the target that discovered this entity.
+         */
+        public long getTargetId() {
+            return targetId;
+        }
+    }
+
+    /**
+     * A builder for {@link com.vmturbo.stitching.TopologyEntity.DiscoveryInformation} that contains only
+     * the targetId indicating which target discovered an entity.
+     */
+    public static class DiscoveredByInformationBuilder {
+        private final long targetId;
+
+        private DiscoveredByInformationBuilder(final long targetId) {
+            this.targetId = targetId;
+        }
+
+        public DiscoveryInformation lastUpdatedAt(final long lastUpdateTime) {
+            return new DiscoveryInformation(targetId, lastUpdateTime);
+        }
+    }
+
+    public static DiscoveredByInformationBuilder discoveredBy(final long targetId) {
+        return new DiscoveredByInformationBuilder(targetId);
     }
 
     /**
@@ -197,16 +252,16 @@ public class TopologyEntity {
 
         private final TopologyEntity associatedTopologyEntity;
 
-        private Builder(@Nonnull final TopologyEntityDTO.Builder entityBuilder,
-                        final long lastUpdatedTime) {
+        private Builder(@Nonnull final TopologyEntityDTO.Builder entityBuilder) {
             this.consumers = new ArrayList<>();
             this.providers = new ArrayList<>();
             this.associatedTopologyEntity = new TopologyEntity(entityBuilder,
-                this.consumers, this.providers, lastUpdatedTime);
+                this.consumers, this.providers);
         }
 
-        public long getLastUpdatedTime() {
-            return associatedTopologyEntity.getLastUpdatedTime();
+        public TopologyEntity.Builder discoveryInformation(@Nonnull final DiscoveryInformation discoveryInformation) {
+            associatedTopologyEntity.setDiscoveryInformation(discoveryInformation);
+            return this;
         }
 
         public void addConsumer(@Nonnull final TopologyEntity.Builder consumer) {

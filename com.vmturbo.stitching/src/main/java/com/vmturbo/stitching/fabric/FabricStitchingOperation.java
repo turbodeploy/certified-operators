@@ -22,9 +22,9 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingIndex;
 import com.vmturbo.stitching.StitchingOperation;
+import com.vmturbo.stitching.StitchingPoint;
 import com.vmturbo.stitching.StitchingResult;
 import com.vmturbo.stitching.StitchingResult.Builder;
-import com.vmturbo.stitching.StitchingPoint;
 
 /**
  * A stitching operation appropriate for use by fabric targets.

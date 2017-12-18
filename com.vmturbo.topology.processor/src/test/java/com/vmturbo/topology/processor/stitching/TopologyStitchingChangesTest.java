@@ -6,7 +6,6 @@ import static com.vmturbo.platform.common.builders.CommodityBuilders.powerWatts;
 import static com.vmturbo.topology.processor.stitching.StitchingTestUtils.buying;
 import static com.vmturbo.topology.processor.stitching.StitchingTestUtils.newStitchingGraph;
 import static com.vmturbo.topology.processor.stitching.StitchingTestUtils.stitchingData;
-import static com.vmturbo.topology.processor.stitching.StitchingTestUtils.stitchingData;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;

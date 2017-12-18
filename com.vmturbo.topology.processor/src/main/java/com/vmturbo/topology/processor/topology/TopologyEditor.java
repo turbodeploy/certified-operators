@@ -35,6 +35,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.template.TemplateConverterFactory;
 
@@ -130,7 +131,7 @@ public class TopologyEditor {
             if (entity != null) {
                 for (int i = 0; i < addCount; ++i) {
                     TopologyEntityDTO.Builder clone = clone(entity.getEntityBuilder(), identityProvider, i);
-                    topology.put(clone.getOid(), TopologyEntity.newBuilder(clone, TopologyEntity.NEVER_UPDATED_TIME));
+                    topology.put(clone.getOid(), TopologyEntity.newBuilder(clone));
                 }
             }
         });
@@ -147,7 +148,7 @@ public class TopologyEditor {
 
         addTemplateTopologyEntities(templateToAdd, templateToReplacedEntity)
             .forEach(entity ->
-                topology.put(entity.getOid(), TopologyEntity.newBuilder(entity, TopologyEntity.NEVER_UPDATED_TIME)));
+                topology.put(entity.getOid(), TopologyEntity.newBuilder(entity)));
     }
 
     private void changeUtilization(@Nonnull Map<Long, TopologyEntity.Builder> topology, int percentage) {
@@ -295,7 +296,7 @@ public class TopologyEditor {
                 }
                 unplacedTopologyBuilder.putAllEntityPropertyMap(entityProperties);
                 topology.put(entityOid,
-                    TopologyEntity.newBuilder(unplacedTopologyBuilder, TopologyEntity.NEVER_UPDATED_TIME));
+                    TopologyEntity.newBuilder(unplacedTopologyBuilder));
             }
         }
         entitiesToReplace.forEach(topology::remove);
