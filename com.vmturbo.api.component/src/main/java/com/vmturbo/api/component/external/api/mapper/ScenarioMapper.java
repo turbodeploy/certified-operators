@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -49,6 +50,9 @@ import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.api.enums.ConstraintType;
 import com.vmturbo.common.protobuf.PlanDTOUtil;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScope;
 import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
@@ -110,17 +114,21 @@ public class ScenarioMapper {
 
     private PoliciesService policiesService;
 
+    private final GroupServiceBlockingStub groupService;
+
     public ScenarioMapper(@Nonnull final RepositoryApi repositoryApi,
                           @Nonnull final TemplatesUtils templatesUtils,
                           @Nonnull final SettingsManagerMapping settingsManagerMapping,
                           @Nonnull final SettingsMapper settingsMapper,
-                          @Nonnull final PoliciesService policiesService) {
+                          @Nonnull final PoliciesService policiesService,
+                          @Nonnull final GroupServiceBlockingStub groupService) {
 
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.policiesService = Objects.requireNonNull(policiesService);
         this.templatesUtils = Objects.requireNonNull(templatesUtils);
         this.settingsManagerMapping = Objects.requireNonNull(settingsManagerMapping);
         this.settingsMapper = Objects.requireNonNull(settingsMapper);
+        this.groupService = Objects.requireNonNull(groupService);
     }
 
     /**
@@ -386,7 +394,7 @@ public class ScenarioMapper {
     }
 
     @Nonnull
-    private static List<ScenarioChange> getTopologyChanges(final TopologyChangesApiDTO topoChanges,
+    private List<ScenarioChange> getTopologyChanges(final TopologyChangesApiDTO topoChanges,
                                            @Nonnull final Set<Long> templateIds) {
         if (topoChanges == null) {
             return Collections.emptyList();
@@ -395,7 +403,7 @@ public class ScenarioMapper {
         final ImmutableList.Builder<ScenarioChange> changes = ImmutableList.builder();
 
         CollectionUtils.emptyIfNull(topoChanges.getAddList())
-            .forEach(change -> changes.add(mapTopologyAddition(change, templateIds)));
+            .forEach(change -> changes.addAll(mapTopologyAddition(change, templateIds)));
 
         CollectionUtils.emptyIfNull(topoChanges.getRemoveList())
             .forEach(change -> changes.add(mapTopologyRemoval(change)));
@@ -445,27 +453,55 @@ public class ScenarioMapper {
         return projDays == null ? Collections.emptyList() : projDays;
     }
 
-    private static ScenarioChange mapTopologyAddition(@Nonnull final AddObjectApiDTO change,
+    private List<ScenarioChange> mapTopologyAddition(@Nonnull final AddObjectApiDTO change,
                                             @Nonnull final Set<Long> templateIds) {
+
         Preconditions.checkArgument(change.getTarget() != null,
                 "Topology additions must contain a target");
         // Default count to 1
         int count = change.getCount() != null ? change.getCount() : 1;
 
         final Long uuid = Long.parseLong(change.getTarget().getUuid());
+        final List<ScenarioChange> changes = new ArrayList<>();
 
         final TopologyAddition.Builder additionBuilder = TopologyAddition.newBuilder()
             .addAllChangeApplicationDays(projectionDays(change.getProjectionDays()))
             .setAdditionCount(count);
         if (templateIds.contains(uuid)) {
-            additionBuilder.setTemplateId(uuid);
+            changes.add(ScenarioChange.newBuilder().setTopologyAddition(
+                    additionBuilder.setTemplateId(uuid).build()).build());
         } else {
-            additionBuilder.setEntityId(uuid);
+            changes.addAll(getGroupOrEntityAdditionChanges(uuid, additionBuilder));
         }
+        return changes;
+    }
 
-        return ScenarioChange.newBuilder()
-            .setTopologyAddition(additionBuilder)
-            .build();
+    /**
+     * As we faced the UI bug OM-28653 we don't know if this group or VM, so we have to
+     * check each change either for group or for entity addition. If we can resolve the
+     * group from id then we add each group member as entity addition. If we can't resolve
+     * the group then it's entity addition. This approach should be changed when UI bug is fixed.
+     * In the future we should treat groups like with groups instead of "set of entities".
+     *
+     * @param uuid of group or entity to add
+     * @param additionBuilder builder with populated count and days fields
+     * @return created scenario changes with all entities of group or just one-entity list if it
+     * was entity-addition
+     */
+    private List<ScenarioChange> getGroupOrEntityAdditionChanges(long uuid,
+            @Nonnull TopologyAddition.Builder additionBuilder) {
+        final List<ScenarioChange> changes = new ArrayList<>();
+        final Group group = groupService.getGroup(GroupID.newBuilder().setId(uuid).build()).getGroup();
+        if (group.hasGroup()) {
+            final List<Long> membersOids = group.getGroup().getStaticGroupMembers()
+                    .getStaticMemberOidsList();
+            membersOids.forEach(oid -> changes.add(ScenarioChange.newBuilder().setTopologyAddition(
+                    additionBuilder.setEntityId(oid).build()).build()));
+        } else {
+            changes.add(ScenarioChange.newBuilder().setTopologyAddition(
+                    additionBuilder.setEntityId(uuid).build()).build());
+        }
+        return changes;
     }
 
     private static ScenarioChange mapTopologyRemoval(@Nonnull final RemoveObjectApiDTO change) {

@@ -15,7 +15,9 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
@@ -46,8 +48,17 @@ import com.vmturbo.api.dto.scenario.ScenarioApiDTO;
 import com.vmturbo.api.dto.scenario.TopologyChangesApiDTO;
 import com.vmturbo.api.dto.scenario.UtilizationApiDTO;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
+import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.api.enums.ConstraintType;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse.Builder;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceImplBase;
 import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.DetailsCase;
@@ -63,6 +74,9 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
+import com.vmturbo.components.api.test.GrpcTestServer;
+
+import io.grpc.stub.StreamObserver;
 
 public class ScenarioMapperTest {
     private static final String SCENARIO_NAME = "MyScenario";
@@ -80,6 +94,10 @@ public class ScenarioMapperTest {
 
     private SettingsMapper settingsMapper = mock(SettingsMapper.class);
 
+    private TestGroupService testGroupService = new TestGroupService();
+
+    private GrpcTestServer server = GrpcTestServer.newServer(testGroupService);
+
     @Before
     public void setup() throws IOException {
         repositoryApi = Mockito.mock(RepositoryApi.class);
@@ -90,8 +108,11 @@ public class ScenarioMapperTest {
         when(repositoryApi.getServiceEntitiesById(any()))
             .thenReturn(Collections.emptyMap());
 
+
+        server.start();
         scenarioMapper = new ScenarioMapper(repositoryApi,
-                templatesUtils, settingsManagerMapping, settingsMapper, policiesService);
+                templatesUtils, settingsManagerMapping, settingsMapper, policiesService,
+                GroupServiceGrpc.newBlockingStub(server.getChannel()));
     }
 
     @Test
@@ -554,6 +575,35 @@ public class ScenarioMapperTest {
         Assert.assertEquals(2l, ignoreDataCenterCommodity.getGroupUuid());
     }
 
+    @Test
+    public void testAdditionFromGroup() {
+        Group group = Group.newBuilder().setId(1).setGroup(GroupInfo.newBuilder()
+                .setStaticGroupMembers(StaticGroupMembers.newBuilder().addStaticMemberOids(2)
+                        .addStaticMemberOids(3).build()).build()).build();
+        testGroupService.whenThenReturn(group.getId(), group);
+
+        final TargetApiDTO target = new TargetApiDTO();
+        target.setUuid("1");
+        final AddObjectApiDTO addObject = new AddObjectApiDTO();
+        addObject.setCount(10);
+        addObject.setTarget(target);
+        final TopologyChangesApiDTO topologyChanges = new TopologyChangesApiDTO();
+        topologyChanges.setAddList(ImmutableList.of(addObject));
+        final ScenarioApiDTO dto = new ScenarioApiDTO();
+        dto.setTopologyChanges(topologyChanges);
+        final ScenarioInfo scenarioInfo = scenarioMapper.toScenarioInfo("", dto);
+        final ScenarioChange firstAddtion = scenarioInfo.getChanges(0);
+        final ScenarioChange secondAddtion = scenarioInfo.getChanges(1);
+
+        Assert.assertEquals(2, scenarioInfo.getChangesList().size());
+        Assert.assertTrue(firstAddtion.hasTopologyAddition());
+        Assert.assertTrue(secondAddtion.hasTopologyAddition());
+        Assert.assertEquals(2, firstAddtion.getTopologyAddition().getEntityId());
+        Assert.assertEquals(3, secondAddtion.getTopologyAddition().getEntityId());
+        Assert.assertEquals(10, firstAddtion.getTopologyAddition().getAdditionCount());
+        Assert.assertEquals(10, secondAddtion.getTopologyAddition().getAdditionCount());
+    }
+
     @Nonnull
     private RemoveConstraintApiDTO createRemoveConstraintApiDto(@Nonnull String targetUuid,
             @Nonnull ConstraintType constraintType) {
@@ -596,5 +646,28 @@ public class ScenarioMapperTest {
         template.setDisplayName("Template " + templateId);
         template.setUuid(Long.toString(templateId));
         return template;
+    }
+
+    /**
+     * Implementation of group service for tests.
+     */
+    private static final class TestGroupService extends GroupServiceImplBase {
+
+        private final Map<Long, Group> preparedGroups = new HashMap<>();
+
+        private void whenThenReturn(long uuid, Group group) {
+            preparedGroups.put(uuid, group);
+        }
+
+        @Override
+        public void getGroup(GroupID request, StreamObserver<GetGroupResponse> responseObserver) {
+            final Builder responseBuilder = GetGroupResponse.newBuilder();
+            final Group group = preparedGroups.get(request.getId());
+            if (group != null) {
+                responseBuilder.setGroup(group);
+            }
+            responseObserver.onNext(responseBuilder.build());
+            responseObserver.onCompleted();
+        }
     }
 }

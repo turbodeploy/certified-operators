@@ -304,7 +304,7 @@ public class MarketsServiceTest {
             return new ScenarioMapper(repositoryApi(), templatesUtils(),
                     Mockito.mock(SettingsManagerMapping.class),
                     Mockito.mock(SettingsMapper.class),
-                    policiesService());
+                    policiesService(), null);
         }
 
         @Bean
