@@ -11,7 +11,7 @@ import com.vmturbo.api.dto.license.LicenseApiInputDTO;
 import com.vmturbo.api.serviceinterfaces.ILicenseService;
 
 public class LicenseService implements ILicenseService {
-    final LocalDate EXPIRATION_DATE = LocalDate.of(2018, 1, 1);
+    final LocalDate EXPIRATION_DATE = LocalDate.of(2019, 1, 1);
 
     @Override
     public LicenseApiDTO getLicense() {
