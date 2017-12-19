@@ -15,6 +15,7 @@ volumes:
   consuldata: &localdriver
     driver: local
   syslogdata: *localdriver
+  auditlogdata: *localdriver
   mysqldata: *localdriver
   mysql_var: *localdriver
   mysql_log: *localdriver

@@ -11,6 +11,7 @@ services:
     image: turbonomic/syslog
     volumes:
       - syslogdata:/home/vmtsyslog
+      - auditlogdata:/var/log/turbonomic
     restart: always
 
   consul-prod:
