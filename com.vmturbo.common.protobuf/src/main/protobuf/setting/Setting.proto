@@ -313,9 +313,85 @@ message SettingPolicyInfo {
     // Default setting policies are always enabled.
     optional bool enabled = 4 [default = true];
 
+    // The period for which the setting policy may apply.
+    // If not specified, the setting policy may apply all the time.
+    optional Schedule schedule = 5;
+
     // The scope of a setting policy is the groups of entities the policy applies to.
     // Default setting policies do not have a scope (see detailed comments above).
     optional Scope scope = 7;
+}
+
+// The time during which the setting policy may be active.
+message Schedule {
+
+    // Currently for one-time policies the UI supports periods of activity only within
+    // a single day. That is, a one-time policy can only be active on one day. A monthly policy
+    // can be active on only one day per month currently.
+
+    // The first occasion the policy is active (milliseconds since Unix epoch)
+    optional int64 start_time = 2;
+
+    // Duration of period of activity (time [milliseconds since Unix epoch] at which or number
+    // of minutes until the policy becomes inactive. This is necessary when describing a period of
+    // time, but unnecessary when describing a time at which a process is triggered.
+    oneof duration {
+        int64 end_time = 3;
+        int32 minutes = 4;
+    }
+
+
+    // Whether the setting policy applies daily, weekly, monthly, or only once.
+    oneof recurrence {
+        OneTime one_time = 10;
+        Daily daily = 11;
+        Weekly weekly = 12;
+        Monthly monthly = 13;
+    }
+
+    // The last date (milliseconds since Unix epoch) the policy is active, if any
+    oneof ending {
+        int64 last_date = 6;
+        Perpetual perpetual = 7;
+    }
+
+    // A policy active only once
+    message OneTime {}
+
+    // A policy active daily
+    message Daily {}
+
+    // A policy active weekly
+    message Weekly {
+
+        // The day(s) of the week on which the policy should be active
+        // If not set, this defaults to the day of the start_date
+        repeated DayOfWeek days_of_week = 4;
+    }
+
+    // A policy active monthly
+    message Monthly {
+
+        // The day(s) of the month on which the policy should be active.
+        // Currently only one day per month, the first day of the policy,
+        // is supported by the UI, but who knows what the future holds.
+        // If not set, this defaults to the day of the start_date
+        repeated int32 days_of_month = 4;
+    }
+
+    enum DayOfWeek {
+        MONDAY = 1;
+        TUESDAY = 2;
+        WEDNESDAY = 3;
+        THURSDAY = 4;
+        FRIDAY = 5;
+        SATURDAY = 6;
+        SUNDAY = 7;
+    }
+
+    // To mark that a policy will continue indefinitely without an end date
+    message Perpetual {}
+
 }
 
 // A scope defines the groups to which the SettingPolicy applies to.
