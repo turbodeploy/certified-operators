@@ -5,6 +5,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
@@ -42,8 +43,12 @@ import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingSpecM
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
+import com.vmturbo.api.dto.settingspolicy.RecurrenceApiDTO;
+import com.vmturbo.api.dto.settingspolicy.ScheduleApiDTO;
 import com.vmturbo.api.dto.settingspolicy.SettingsPolicyApiDTO;
+import com.vmturbo.api.enums.DayOfWeek;
 import com.vmturbo.api.enums.InputValueType;
+import com.vmturbo.api.enums.RecurrenceType;
 import com.vmturbo.api.enums.SettingScope;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
@@ -62,6 +67,12 @@ import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyResponse
 import com.vmturbo.common.protobuf.setting.SettingProto.GlobalSettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValueType;
+import com.vmturbo.common.protobuf.setting.SettingProto.Schedule;
+import com.vmturbo.common.protobuf.setting.SettingProto.Schedule.Daily;
+import com.vmturbo.common.protobuf.setting.SettingProto.Schedule.Monthly;
+import com.vmturbo.common.protobuf.setting.SettingProto.Schedule.OneTime;
+import com.vmturbo.common.protobuf.setting.SettingProto.Schedule.Perpetual;
+import com.vmturbo.common.protobuf.setting.SettingProto.Schedule.Weekly;
 import com.vmturbo.common.protobuf.setting.SettingProto.Scope;
 import com.vmturbo.common.protobuf.setting.SettingProto.SearchSettingSpecsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
@@ -89,6 +100,14 @@ public class SettingsMapperTest {
     private final String mgrId2 = "mgr2";
     private final String mgrName2 = "Manager2";
     private final String mgrCategory2 = "Category2";
+
+    private final long startTimestamp = 1564507800425L;
+    private final long endTimestamp = 1564522200425L;
+    private final long endDatestamp = 1564506000425L;
+
+    private final String startDateString = "2019-07-30T17:30:00.425";
+    private final String endTimeString = "2019-07-30T21:30:00.425";
+    private final String endDateString = "2019-07-30T17:00:00.425";
 
     private final SettingSpec settingSpec1 = SettingSpec.newBuilder()
             .setName("move")
@@ -374,47 +393,27 @@ public class SettingsMapperTest {
         assertEquals(SettingScope.GLOBAL, dto.getScope());
     }
 
-    @Test
-    public void testMapInputPolicy() throws InvalidOperationException {
+    private SettingsMapper setUpMapper() {
         final SettingsManagerMapping mapping = mock(SettingsManagerMapping.class);
         final SettingSpecMapper specMapper = mock(SettingSpecMapper.class);
         final SettingPolicyMapper policyMapper = mock(SettingPolicyMapper.class);
-        final SettingsMapper mapper = new SettingsMapper(mapping, settingStyleMapping, specMapper,
+
+        return new SettingsMapper(mapping, settingStyleMapping, specMapper,
                 policyMapper, grpcServer.getChannel());
+    }
 
+    private SettingApiDTO makeSetting(String uuid, String value) {
+        final SettingApiDTO setting = new SettingApiDTO();
+        setting.setUuid(uuid);
+        setting.setValue(value);
+        return setting;
+    }
+
+    private SettingsPolicyApiDTO makeSettingsPolicyApiDto(SettingApiDTO boolSetting,
+                                                          SettingApiDTO numSetting,
+                                                          SettingApiDTO stringSetting,
+                                                          SettingApiDTO enumSetting) {
         final SettingsPolicyApiDTO settingsPolicyApiDTO = new SettingsPolicyApiDTO();
-
-        final SettingApiDTO boolSetting = new SettingApiDTO();
-        boolSetting.setUuid("bool setting");
-        boolSetting.setValue("true");
-        final Setting boolSettingProto = Setting.newBuilder()
-                .setSettingSpecName(boolSetting.getUuid())
-                .setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(true))
-                .build();
-
-        final SettingApiDTO numSetting = new SettingApiDTO();
-        numSetting.setUuid("num setting");
-        numSetting.setValue("10");
-        final Setting numSettingProto = Setting.newBuilder()
-                .setSettingSpecName(numSetting.getUuid())
-                .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(10))
-                .build();
-
-        final SettingApiDTO stringSetting = new SettingApiDTO();
-        stringSetting.setUuid("string setting");
-        stringSetting.setValue("foo");
-        final Setting strSettingProto = Setting.newBuilder()
-                .setSettingSpecName(stringSetting.getUuid())
-                .setStringSettingValue(StringSettingValue.newBuilder().setValue("foo"))
-                .build();
-
-        final SettingApiDTO enumSetting = new SettingApiDTO();
-        enumSetting.setUuid("enum setting");
-        enumSetting.setValue("VAL");
-        final Setting enumSettingProto = Setting.newBuilder()
-                .setSettingSpecName(enumSetting.getUuid())
-                .setEnumSettingValue(EnumSettingValue.newBuilder().setValue("VAL"))
-                .build();
 
         when(settingBackend.searchSettingSpecs(any())).thenReturn(ImmutableList.of(
             SettingSpec.newBuilder()
@@ -442,8 +441,6 @@ public class SettingsMapperTest {
         settingsPolicyApiDTO.setSettingsManagers(Arrays.asList(settingMgr1, settingMgr2));
         settingsPolicyApiDTO.setDefault(false);
 
-        final int entityType = EntityType.VIRTUAL_MACHINE.getNumber();
-
         final GroupApiDTO group = new GroupApiDTO();
         group.setUuid("7");
         settingsPolicyApiDTO.setScopes(Collections.singletonList(group));
@@ -454,6 +451,46 @@ public class SettingsMapperTest {
                 EntityType.VIRTUAL_MACHINE.getNumber()));
         settingsPolicyApiDTO.setDisabled(false);
 
+        return settingsPolicyApiDTO;
+    }
+
+    @Test
+    public void testMapInputPolicy() throws InvalidOperationException {
+
+        final SettingsMapper mapper = setUpMapper();
+
+        final SettingApiDTO boolSetting = makeSetting("bool setting", "true");
+        final Setting boolSettingProto = Setting.newBuilder()
+                .setSettingSpecName(boolSetting.getUuid())
+                .setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(true))
+                .build();
+
+        final SettingApiDTO numSetting = makeSetting("num setting", "10");
+        final Setting numSettingProto = Setting.newBuilder()
+                .setSettingSpecName(numSetting.getUuid())
+                .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(10))
+                .build();
+
+        final SettingApiDTO stringSetting = makeSetting("string setting", "foo");
+        final Setting strSettingProto = Setting.newBuilder()
+                .setSettingSpecName(stringSetting.getUuid())
+                .setStringSettingValue(StringSettingValue.newBuilder().setValue("foo"))
+                .build();
+
+        final SettingApiDTO enumSetting = makeSetting("enum setting", "VAL");
+        final Setting enumSettingProto = Setting.newBuilder()
+                .setSettingSpecName(enumSetting.getUuid())
+                .setEnumSettingValue(EnumSettingValue.newBuilder().setValue("VAL"))
+                .build();
+
+        final SettingsPolicyApiDTO settingsPolicyApiDTO = makeSettingsPolicyApiDto(boolSetting, numSetting,
+                stringSetting, enumSetting);
+
+        final int entityType = EntityType.VIRTUAL_MACHINE.getNumber();
+
+        final ScheduleApiDTO once = makeBasicScheduleDTO();
+        settingsPolicyApiDTO.setSchedule(once);
+
         final SettingPolicyInfo info = mapper.convertInputPolicy(settingsPolicyApiDTO, entityType);
         assertEquals(settingsPolicyApiDTO.getDisplayName(), info.getName());
         assertEquals(EntityType.VIRTUAL_MACHINE.getNumber(), info.getEntityType());
@@ -463,6 +500,225 @@ public class SettingsMapperTest {
         assertThat(info.getSettingsList(),
                 containsInAnyOrder(boolSettingProto, numSettingProto,
                         strSettingProto, enumSettingProto));
+        assertTrue(info.hasSchedule());
+        final Schedule schedule = info.getSchedule();
+        verifyBasicSchedule(schedule);
+        assertTrue(schedule.hasOneTime());
+    }
+
+    @Test
+    public void testMapInputPolicyDailyEndDate() throws InvalidOperationException {
+
+        final SettingsMapper mapper = setUpMapper();
+
+        final SettingApiDTO boolSetting = makeSetting("bool setting", "true");
+
+        final SettingApiDTO numSetting = makeSetting("num setting", "10");
+
+        final SettingApiDTO stringSetting = makeSetting("string setting", "foo");
+
+        final SettingApiDTO enumSetting = makeSetting("enum setting", "VAL");
+
+        final SettingsPolicyApiDTO settingsPolicyApiDTO = makeSettingsPolicyApiDto(boolSetting, numSetting,
+                stringSetting, enumSetting);
+
+        final int entityType = EntityType.VIRTUAL_MACHINE.getNumber();
+
+        final ScheduleApiDTO dailyLastDay = makeBasicScheduleDTO();
+        dailyLastDay.setEndDate(Long.toString(endDatestamp));
+        final RecurrenceApiDTO dailyRec = new RecurrenceApiDTO();
+        dailyRec.setType(RecurrenceType.DAILY);
+        dailyLastDay.setRecurrence(dailyRec);
+        settingsPolicyApiDTO.setSchedule(dailyLastDay);
+
+        final SettingPolicyInfo info = mapper.convertInputPolicy(settingsPolicyApiDTO, entityType);
+        assertTrue(info.hasSchedule());
+        final Schedule schedule = info.getSchedule();
+        verifyBasicSchedule(schedule);
+        assertTrue(schedule.hasDaily());
+        assertTrue(schedule.hasLastDate());
+        assertEquals(schedule.getLastDate(), endDatestamp);
+
+    }
+
+    @Test
+    public void testMapInputPolicyDailyPerpetual() throws InvalidOperationException {
+        final SettingsMapper mapper = setUpMapper();
+
+        final SettingApiDTO boolSetting = makeSetting("bool setting", "true");
+
+        final SettingApiDTO numSetting = makeSetting("num setting", "10");
+
+        final SettingApiDTO stringSetting = makeSetting("string setting", "foo");
+
+        final SettingApiDTO enumSetting = makeSetting("enum setting", "VAL");
+
+        final SettingsPolicyApiDTO settingsPolicyApiDTO = makeSettingsPolicyApiDto(boolSetting, numSetting,
+                stringSetting, enumSetting);
+
+        final int entityType = EntityType.VIRTUAL_MACHINE.getNumber();
+
+        final ScheduleApiDTO dailyPerpet = makeBasicScheduleDTO();
+        final RecurrenceApiDTO dailyRec = new RecurrenceApiDTO();
+        dailyRec.setType(RecurrenceType.DAILY);
+        dailyPerpet.setRecurrence(dailyRec);
+        settingsPolicyApiDTO.setSchedule(dailyPerpet);
+
+        final SettingPolicyInfo info = mapper.convertInputPolicy(settingsPolicyApiDTO, entityType);
+        assertTrue(info.hasSchedule());
+        final Schedule schedule = info.getSchedule();
+        verifyBasicSchedule(schedule);
+        assertTrue(schedule.hasDaily());
+        assertTrue(schedule.hasPerpetual());
+    }
+
+    @Test
+    public void testMapInputPolicyWeeklyUnspecifiedDay() throws InvalidOperationException {
+        final SettingsMapper mapper = setUpMapper();
+
+        final SettingApiDTO boolSetting = makeSetting("bool setting", "true");
+
+        final SettingApiDTO numSetting = makeSetting("num setting", "10");
+
+        final SettingApiDTO stringSetting = makeSetting("string setting", "foo");
+
+        final SettingApiDTO enumSetting = makeSetting("enum setting", "VAL");
+
+        final SettingsPolicyApiDTO settingsPolicyApiDTO = makeSettingsPolicyApiDto(boolSetting, numSetting,
+                stringSetting, enumSetting);
+
+        final int entityType = EntityType.VIRTUAL_MACHINE.getNumber();
+
+        final ScheduleApiDTO weeklyUnspecified = makeBasicScheduleDTO();
+        final RecurrenceApiDTO weeklyRec = new RecurrenceApiDTO();
+        weeklyRec.setType(RecurrenceType.WEEKLY);
+        weeklyUnspecified.setRecurrence(weeklyRec);
+        settingsPolicyApiDTO.setSchedule(weeklyUnspecified);
+
+        final SettingPolicyInfo info = mapper.convertInputPolicy(settingsPolicyApiDTO, entityType);
+        assertTrue(info.hasSchedule());
+        final Schedule schedule = info.getSchedule();
+        verifyBasicSchedule(schedule);
+        assertTrue(schedule.hasPerpetual());
+        assertTrue(schedule.hasWeekly());
+        assertEquals(schedule.getWeekly().getDaysOfWeekList(),
+                Collections.singletonList(Schedule.DayOfWeek.TUESDAY));
+
+    }
+
+    @Test
+    public void testMapInputPolicyWeeklySpecificDay() throws InvalidOperationException {
+        final SettingsMapper mapper = setUpMapper();
+
+        final SettingApiDTO boolSetting = makeSetting("bool setting", "true");
+
+        final SettingApiDTO numSetting = makeSetting("num setting", "10");
+
+        final SettingApiDTO stringSetting = makeSetting("string setting", "foo");
+
+        final SettingApiDTO enumSetting = makeSetting("enum setting", "VAL");
+
+        final SettingsPolicyApiDTO settingsPolicyApiDTO = makeSettingsPolicyApiDto(boolSetting, numSetting,
+                stringSetting, enumSetting);
+
+        final int entityType = EntityType.VIRTUAL_MACHINE.getNumber();
+
+        final ScheduleApiDTO weeklySpecified = makeBasicScheduleDTO();
+        final RecurrenceApiDTO weeklyRec = new RecurrenceApiDTO();
+        weeklyRec.setType(RecurrenceType.WEEKLY);
+        weeklyRec.setDaysOfWeek(Collections.singletonList(DayOfWeek.Fri));
+        weeklySpecified.setRecurrence(weeklyRec);
+        settingsPolicyApiDTO.setSchedule(weeklySpecified);
+
+        final SettingPolicyInfo info = mapper.convertInputPolicy(settingsPolicyApiDTO, entityType);
+        assertTrue(info.hasSchedule());
+        final Schedule schedule = info.getSchedule();
+        verifyBasicSchedule(schedule);
+        assertTrue(schedule.hasPerpetual());
+        assertTrue(schedule.hasWeekly());
+        assertEquals(schedule.getWeekly().getDaysOfWeekList(),
+                Collections.singletonList(Schedule.DayOfWeek.FRIDAY));
+    }
+
+    @Test
+    public void testMapInputPolicyMonthlyUnspecifiedDay() throws InvalidOperationException {
+        final SettingsMapper mapper = setUpMapper();
+
+        final SettingApiDTO boolSetting = makeSetting("bool setting", "true");
+
+        final SettingApiDTO numSetting = makeSetting("num setting", "10");
+
+        final SettingApiDTO stringSetting = makeSetting("string setting", "foo");
+
+        final SettingApiDTO enumSetting = makeSetting("enum setting", "VAL");
+
+        final SettingsPolicyApiDTO settingsPolicyApiDTO = makeSettingsPolicyApiDto(boolSetting, numSetting,
+                stringSetting, enumSetting);
+
+        final int entityType = EntityType.VIRTUAL_MACHINE.getNumber();
+
+        final ScheduleApiDTO monthlyUnspecified = makeBasicScheduleDTO();
+        final RecurrenceApiDTO monthlyRec = new RecurrenceApiDTO();
+        monthlyRec.setType(RecurrenceType.MONTHLY);
+        monthlyUnspecified.setRecurrence(monthlyRec);
+        settingsPolicyApiDTO.setSchedule(monthlyUnspecified);
+
+        final SettingPolicyInfo info = mapper.convertInputPolicy(settingsPolicyApiDTO, entityType);
+        assertTrue(info.hasSchedule());
+        final Schedule schedule = info.getSchedule();
+        verifyBasicSchedule(schedule);
+        assertTrue(schedule.hasPerpetual());
+        assertTrue(schedule.hasMonthly());
+        assertEquals(schedule.getMonthly().getDaysOfMonthList(), Collections.singletonList(30));
+    }
+
+    @Test
+    public void testMapInputPolicyMonthlySpecificDay() throws InvalidOperationException {
+        final SettingsMapper mapper = setUpMapper();
+
+        final SettingApiDTO boolSetting = makeSetting("bool setting", "true");
+
+        final SettingApiDTO numSetting = makeSetting("num setting", "10");
+
+        final SettingApiDTO stringSetting = makeSetting("string setting", "foo");
+
+        final SettingApiDTO enumSetting = makeSetting("enum setting", "VAL");
+
+        final SettingsPolicyApiDTO settingsPolicyApiDTO = makeSettingsPolicyApiDto(boolSetting, numSetting,
+                stringSetting, enumSetting);
+
+        final int entityType = EntityType.VIRTUAL_MACHINE.getNumber();
+
+        final ScheduleApiDTO monthlySpecified = makeBasicScheduleDTO();
+        final RecurrenceApiDTO monthlyRec = new RecurrenceApiDTO();
+        monthlyRec.setType(RecurrenceType.MONTHLY);
+        monthlyRec.setDaysOfMonth(Collections.singletonList(3));
+        monthlySpecified.setRecurrence(monthlyRec);
+        settingsPolicyApiDTO.setSchedule(monthlySpecified);
+
+        final SettingPolicyInfo info = mapper.convertInputPolicy(settingsPolicyApiDTO, entityType);
+        assertTrue(info.hasSchedule());
+        final Schedule schedule = info.getSchedule();
+        verifyBasicSchedule(schedule);
+        assertTrue(schedule.hasPerpetual());
+        assertTrue(schedule.hasMonthly());
+        assertEquals(schedule.getMonthly().getDaysOfMonthList(), Collections.singletonList(3));
+
+    }
+
+    private ScheduleApiDTO makeBasicScheduleDTO() {
+        ScheduleApiDTO scheduleApiDTO = new ScheduleApiDTO();
+        scheduleApiDTO.setEndTime(Long.toString(endTimestamp));
+        scheduleApiDTO.setStartTime(Long.toString(startTimestamp));
+        scheduleApiDTO.setStartDate(Long.toString(startTimestamp));
+        return scheduleApiDTO;
+    }
+
+    private void verifyBasicSchedule(Schedule schedule) {
+        assertTrue(schedule.hasStartTime());
+        assertEquals(schedule.getStartTime(), startTimestamp);
+        assertTrue(schedule.hasEndTime());
+        assertEquals(schedule.getEndTime(), endTimestamp);
     }
 
     @Test(expected = InvalidOperationException.class)
@@ -484,14 +740,23 @@ public class SettingsMapperTest {
         mapper.convertInputPolicy(inputDto, 1);
     }
 
-    @Test
-    public void testMapPolicyInfoToApiDto() {
+    private DefaultSettingPolicyMapper setUpPolicyMapperInfoToDtoTest() {
         final SettingsManagerMapping mapping = mock(SettingsManagerMapping.class);
         final SettingsMapper mapper = mock(SettingsMapper.class);
+        when(mapper.getManagerMapping()).thenReturn(mapping);
+        when(mapping.getManagerUuid(eq(settingSpec1.getName()))).thenReturn(Optional.of(mgrId1));
+        when(mapping.getManagerInfo(mgrId1))
+                .thenReturn(Optional.of(mgr1Info));
+
         final SettingServiceBlockingStub settingServiceClient =
-             SettingServiceGrpc.newBlockingStub(grpcServer.getChannel());
-        final DefaultSettingPolicyMapper policyMapper =
-                new DefaultSettingPolicyMapper(mapper, settingServiceClient);
+               SettingServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        return new DefaultSettingPolicyMapper(mapper, settingServiceClient);
+    }
+
+    @Test
+    public void testMapPolicyInfoToApiDto() {
+
+        final DefaultSettingPolicyMapper policyMapper = setUpPolicyMapperInfoToDtoTest();
 
         final long groupId = 7;
         final String groupName = "goat";
@@ -499,23 +764,12 @@ public class SettingsMapperTest {
         final SettingPolicy settingPolicy = SettingPolicy.newBuilder()
                 .setId(1)
                 .setSettingPolicyType(Type.USER)
-                .setInfo(SettingPolicyInfo.newBuilder()
-                    .setName("foo")
-                    .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
-                    .setEnabled(true)
-                    .setScope(Scope.newBuilder()
-                            .addGroups(7L))
-                    .addSettings(Setting.newBuilder()
-                            .setSettingSpecName(settingSpec1.getName())
-                            .setEnumSettingValue(EnumSettingValue.newBuilder()
-                                    .setValue("AUTOMATIC"))
-                            .build()))
+                .setInfo(makeStandardSettingPolicyInfoBuilder()
+                        .setSchedule(Schedule.newBuilder().setStartTime(startTimestamp)
+                                .setEndTime(endTimestamp)
+                                .setOneTime(OneTime.newBuilder()).build())
+                        .build())
                 .build();
-
-        when(mapper.getManagerMapping()).thenReturn(mapping);
-        when(mapping.getManagerUuid(eq(settingSpec1.getName()))).thenReturn(Optional.of(mgrId1));
-        when(mapping.getManagerInfo(mgrId1))
-                .thenReturn(Optional.of(mgr1Info));
 
         final SettingsPolicyApiDTO retDto =
                 policyMapper.convertSettingPolicy(settingPolicy, ImmutableMap.of(groupId, groupName));
@@ -533,6 +787,211 @@ public class SettingsMapperTest {
         final SettingApiDTO setting = mgr.getSettings().get(0);
         assertEquals(settingSpec1.getName(), setting.getUuid());
         assertEquals("AUTOMATIC", setting.getValue());
+
+        final ScheduleApiDTO scheduleApiDTO = retDto.getSchedule();
+        verifyBasicScheduleDTO(scheduleApiDTO);
+        assertEquals(scheduleApiDTO.getEndDate(), null);
+
+    }
+
+    @Test
+    public void testMapPolicyInfoToApiDtoMinuteDuration() {
+
+        final DefaultSettingPolicyMapper policyMapper = setUpPolicyMapperInfoToDtoTest();
+
+        final SettingPolicy settingPolicy = SettingPolicy.newBuilder()
+                .setId(1)
+                .setSettingPolicyType(Type.USER)
+                .setInfo(makeStandardSettingPolicyInfoBuilder()
+                        .setSchedule(Schedule.newBuilder().setStartTime(startTimestamp)
+                                .setOneTime(OneTime.newBuilder())
+                                .setMinutes(240).build())
+                        .build())
+                .build();
+
+        final SettingsPolicyApiDTO retDto =
+                policyMapper.convertSettingPolicy(settingPolicy, ImmutableMap.of(7L, "goat"));
+
+        final ScheduleApiDTO scheduleApiDTO = retDto.getSchedule();
+        verifyBasicScheduleDTO(scheduleApiDTO);
+        assertEquals(scheduleApiDTO.getEndDate(), null);
+    }
+
+    @Test
+    public void testMapPolicyInfoToApiDtoDailyPerpetual() {
+
+        final DefaultSettingPolicyMapper policyMapper = setUpPolicyMapperInfoToDtoTest();
+
+        final SettingPolicy settingPolicy = SettingPolicy.newBuilder()
+                .setId(1)
+                .setSettingPolicyType(Type.USER)
+                .setInfo(makeStandardSettingPolicyInfoBuilder()
+                        .setSchedule(Schedule.newBuilder().setStartTime(startTimestamp)
+                                .setDaily(Daily.newBuilder().build())
+                                .setMinutes(240)
+                                .setPerpetual(Perpetual.newBuilder().build()).build())
+                        .build())
+                .build();
+
+        final SettingsPolicyApiDTO retDto =
+                policyMapper.convertSettingPolicy(settingPolicy, ImmutableMap.of(7L, "goat"));
+
+        final ScheduleApiDTO scheduleApiDTO = retDto.getSchedule();
+        verifyBasicScheduleDTO(scheduleApiDTO);
+        assertEquals(scheduleApiDTO.getEndDate(), null);
+        assertEquals(scheduleApiDTO.getRecurrence().getType(), RecurrenceType.DAILY);
+    }
+
+    @Test
+    public void testMapPolicyInfoToApiDtoDailyEndDate() {
+
+        final DefaultSettingPolicyMapper policyMapper = setUpPolicyMapperInfoToDtoTest();
+
+        final SettingPolicy settingPolicy = SettingPolicy.newBuilder()
+                .setId(1)
+                .setSettingPolicyType(Type.USER)
+                .setInfo(makeStandardSettingPolicyInfoBuilder()
+                        .setSchedule(Schedule.newBuilder().setStartTime(startTimestamp)
+                                .setDaily(Daily.newBuilder())
+                                .setMinutes(240)
+                                .setLastDate(endDatestamp)))
+                .build();
+
+        final SettingsPolicyApiDTO retDto =
+                policyMapper.convertSettingPolicy(settingPolicy, ImmutableMap.of(7L, "goat"));
+
+        final ScheduleApiDTO scheduleApiDTO = retDto.getSchedule();
+        verifyBasicScheduleDTO(scheduleApiDTO);
+        assertEquals(scheduleApiDTO.getEndDate(), endDateString);
+        assertEquals(scheduleApiDTO.getRecurrence().getType(), RecurrenceType.DAILY);
+    }
+
+    @Test
+    public void testMapPolicyInfoToApiDtoWeeklyUnspecified() {
+
+        final DefaultSettingPolicyMapper policyMapper = setUpPolicyMapperInfoToDtoTest();
+
+        final SettingPolicy settingPolicy = SettingPolicy.newBuilder()
+                .setId(1)
+                .setSettingPolicyType(Type.USER)
+                .setInfo(makeStandardSettingPolicyInfoBuilder()
+                        .setSchedule(Schedule.newBuilder().setStartTime(startTimestamp)
+                                .setWeekly(Weekly.newBuilder().build())
+                                .setMinutes(240)
+                                .setPerpetual(Perpetual.newBuilder().build()).build())
+                        .build())
+                .build();
+
+        final SettingsPolicyApiDTO retDto =
+                policyMapper.convertSettingPolicy(settingPolicy, ImmutableMap.of(7L, "goat"));
+
+        final ScheduleApiDTO scheduleApiDTO = retDto.getSchedule();
+        verifyBasicScheduleDTO(scheduleApiDTO);
+        assertEquals(scheduleApiDTO.getEndDate(), null);
+        assertEquals(scheduleApiDTO.getRecurrence().getType(), RecurrenceType.WEEKLY);
+        assertEquals(scheduleApiDTO.getRecurrence().getDaysOfWeek(),
+                Collections.singletonList(DayOfWeek.Tue));
+    }
+
+    @Test
+    public void testMapPolicyInfoToApiDtoWeeklySpecified() {
+
+        final DefaultSettingPolicyMapper policyMapper = setUpPolicyMapperInfoToDtoTest();
+
+        final SettingPolicy settingPolicy = SettingPolicy.newBuilder()
+                .setId(1)
+                .setSettingPolicyType(Type.USER)
+                .setInfo(makeStandardSettingPolicyInfoBuilder()
+                        .setSchedule(Schedule.newBuilder().setStartTime(startTimestamp)
+                                .setWeekly(Weekly.newBuilder()
+                                        .addDaysOfWeek(Schedule.DayOfWeek.FRIDAY))
+                                .setMinutes(240)
+                                .setPerpetual(Perpetual.newBuilder().build()).build())
+                        .build())
+                .build();
+
+        final SettingsPolicyApiDTO retDto =
+                policyMapper.convertSettingPolicy(settingPolicy, ImmutableMap.of(7L, "goat"));
+
+        final ScheduleApiDTO scheduleApiDTO = retDto.getSchedule();
+        verifyBasicScheduleDTO(scheduleApiDTO);
+        assertEquals(scheduleApiDTO.getEndDate(), null);
+        assertEquals(scheduleApiDTO.getRecurrence().getType(), RecurrenceType.WEEKLY);
+        assertEquals(scheduleApiDTO.getRecurrence().getDaysOfWeek(),
+                Collections.singletonList(DayOfWeek.Fri));
+    }
+
+    @Test
+    public void testMapPolicyInfoToApiDtoMonthlyUnspecified() {
+
+        final DefaultSettingPolicyMapper policyMapper = setUpPolicyMapperInfoToDtoTest();
+
+        final SettingPolicy settingPolicy = SettingPolicy.newBuilder()
+                .setId(1)
+                .setSettingPolicyType(Type.USER)
+                .setInfo(makeStandardSettingPolicyInfoBuilder()
+                        .setSchedule(Schedule.newBuilder().setStartTime(startTimestamp)
+                                .setMonthly(Monthly.newBuilder().build())
+                                .setMinutes(240)
+                                .setPerpetual(Perpetual.newBuilder().build()).build())
+                        .build())
+                .build();
+
+        final SettingsPolicyApiDTO retDto =
+                policyMapper.convertSettingPolicy(settingPolicy, ImmutableMap.of(7L, "goat"));
+
+        final ScheduleApiDTO scheduleApiDTO = retDto.getSchedule();
+        verifyBasicScheduleDTO(scheduleApiDTO);
+        assertEquals(scheduleApiDTO.getEndDate(), null);
+        assertEquals(scheduleApiDTO.getRecurrence().getType(), RecurrenceType.MONTHLY);
+        assertEquals(scheduleApiDTO.getRecurrence().getDaysOfMonth(), Collections.singletonList(30));
+    }
+
+    @Test
+    public void testMapPolicyInfoToApiDtoMonthlySpecified() {
+
+        final DefaultSettingPolicyMapper policyMapper = setUpPolicyMapperInfoToDtoTest();
+
+        final SettingPolicy settingPolicy = SettingPolicy.newBuilder()
+                .setId(1)
+                .setSettingPolicyType(Type.USER)
+                .setInfo(makeStandardSettingPolicyInfoBuilder()
+                        .setSchedule(Schedule.newBuilder().setStartTime(startTimestamp)
+                                .setMonthly(Monthly.newBuilder().addDaysOfMonth(3).build())
+                                .setMinutes(240)
+                                .setPerpetual(Perpetual.newBuilder().build()).build())
+                        .build())
+                .build();
+
+        final SettingsPolicyApiDTO retDto =
+                policyMapper.convertSettingPolicy(settingPolicy, ImmutableMap.of(7L, "goat"));
+
+        final ScheduleApiDTO scheduleApiDTO = retDto.getSchedule();
+        verifyBasicScheduleDTO(scheduleApiDTO);
+        assertEquals(scheduleApiDTO.getEndDate(), null);
+        assertEquals(scheduleApiDTO.getRecurrence().getType(), RecurrenceType.MONTHLY);
+        assertEquals(scheduleApiDTO.getRecurrence().getDaysOfMonth(), Collections.singletonList(3));
+    }
+
+    private SettingPolicyInfo.Builder makeStandardSettingPolicyInfoBuilder() {
+        return SettingPolicyInfo.newBuilder()
+                        .setName("foo")
+                        .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
+                        .setEnabled(true)
+                        .setScope(Scope.newBuilder()
+                                .addGroups(7L))
+                        .addSettings(Setting.newBuilder()
+                                .setSettingSpecName(settingSpec1.getName())
+                                .setEnumSettingValue(EnumSettingValue.newBuilder()
+                                        .setValue("AUTOMATIC"))
+                                .build());
+    }
+
+    private void verifyBasicScheduleDTO(ScheduleApiDTO scheduleApiDTO) {
+        assertNotEquals(scheduleApiDTO, null);
+        assertEquals(scheduleApiDTO.getStartDate(), startDateString);
+        assertEquals(scheduleApiDTO.getStartTime(), startDateString);
+        assertEquals(scheduleApiDTO.getEndTime(), endTimeString);
     }
 
     @Test

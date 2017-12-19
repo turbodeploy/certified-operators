@@ -1,6 +1,11 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -16,6 +21,7 @@ import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -31,11 +37,16 @@ import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.setting.SettingOptionApiDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
+import com.vmturbo.api.dto.settingspolicy.RecurrenceApiDTO;
+import com.vmturbo.api.dto.settingspolicy.ScheduleApiDTO;
 import com.vmturbo.api.dto.settingspolicy.SettingsPolicyApiDTO;
+import com.vmturbo.api.enums.DayOfWeek;
 import com.vmturbo.api.enums.InputValueType;
+import com.vmturbo.api.enums.RecurrenceType;
 import com.vmturbo.api.enums.SettingScope;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
+import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.SettingDTOUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
@@ -53,6 +64,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyResponse
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValueType;
+import com.vmturbo.common.protobuf.setting.SettingProto.Schedule;
 import com.vmturbo.common.protobuf.setting.SettingProto.Scope;
 import com.vmturbo.common.protobuf.setting.SettingProto.SearchSettingSpecsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
@@ -119,6 +131,8 @@ public class SettingsMapper {
      * A constant indicating that a {@link SettingSpec} has no associated setting manager.
      */
     private static final String NO_MANAGER = "";
+
+    private static final ZoneId UTC_ZONE_ID = ZoneId.of("UTC");
 
     private final SettingsManagerMapping managerMapping;
 
@@ -386,6 +400,9 @@ public class SettingsMapper {
 
         infoBuilder.setEnabled(apiInputPolicy.getDisabled() == null || !apiInputPolicy.getDisabled());
 
+        if (apiInputPolicy.getSchedule() != null) {
+            infoBuilder.setSchedule(convertScheduleApiDTO(apiInputPolicy.getSchedule()));
+        }
         involvedSettings.values()
             .stream()
             .map(settingApiDto -> {
@@ -400,6 +417,88 @@ public class SettingsMapper {
                         setting));
 
         return infoBuilder.build();
+    }
+
+    /**
+     * Convert a Schedule DTO from the classic API to one that can be used by an XL SettingPolicyInfo.
+     * A schedule may contain a recurrence DTO that in XL may indicate a one-time, daily, weekly, or
+     * monthly policy. However in classic the recurrence DTO can only be of type daily, weekly, or
+     * monthly, with its complete absence denoting a one-time policy.
+     *
+     * @param apiSchedule The classic API schedule to convert
+     * @return the equivalent XL Schedule object
+     */
+    private Schedule convertScheduleApiDTO(ScheduleApiDTO apiSchedule) {
+        final Schedule.Builder scheduleBuilder = Schedule.newBuilder();
+
+        scheduleBuilder.setStartTime(DateTimeUtil.parseTime(apiSchedule.getStartTime()))
+                .setEndTime(DateTimeUtil.parseTime(apiSchedule.getEndTime()));
+
+        if (apiSchedule.getRecurrence() == null || apiSchedule.getRecurrence().getType() == null) {
+            scheduleBuilder.setOneTime(Schedule.OneTime.newBuilder().build());
+        } else {
+            if (apiSchedule.getEndDate() != null) {
+
+                scheduleBuilder.setLastDate(DateTimeUtil.parseTime(apiSchedule.getEndDate()));
+            } else {
+                scheduleBuilder.setPerpetual(Schedule.Perpetual.newBuilder().build());
+            }
+            switch (apiSchedule.getRecurrence().getType()) {
+                case DAILY:
+                    scheduleBuilder.setDaily(Schedule.Daily.newBuilder().build());
+                    break;
+                case WEEKLY:
+                    final Schedule.Weekly.Builder weeklyBuilder = Schedule.Weekly.newBuilder();
+                    final List<DayOfWeek> apiDays = apiSchedule.getRecurrence().getDaysOfWeek();
+                    if (apiDays == null || apiDays.isEmpty()) {
+                        final LocalDateTime dateTime = makeDateTime(scheduleBuilder.getStartTime());
+                        final String weekday = dateTime.getDayOfWeek().name();
+                        weeklyBuilder.addDaysOfWeek(Schedule.DayOfWeek.valueOf(weekday));
+                    } else {
+                        weeklyBuilder.addAllDaysOfWeek(apiDays.stream()
+                                .map(this::translateDayOfWeekFromDTO)
+                                .collect(Collectors.toList()));
+                    }
+                    scheduleBuilder.setWeekly(weeklyBuilder.build());
+                    break;
+                case MONTHLY:
+                    final Schedule.Monthly.Builder monthlyBuilder = Schedule.Monthly.newBuilder();
+                    final List<Integer> daysMonth = apiSchedule.getRecurrence().getDaysOfMonth();
+                    if (daysMonth == null || daysMonth.isEmpty()) {
+                        final LocalDateTime dateTime = makeDateTime(scheduleBuilder.getStartTime());
+                        monthlyBuilder.addDaysOfMonth(dateTime.getDayOfMonth());
+                    } else {
+                        monthlyBuilder.addAllDaysOfMonth(daysMonth);
+                    }
+                    scheduleBuilder.setMonthly(monthlyBuilder.build());
+                    break;
+            }
+        }
+        return scheduleBuilder.build();
+    }
+
+    /**
+     * Translate the day of the week from the classic API enum to the XL recurrence enum
+     *
+     * @param day the classic API day of the week
+     * @return the equivalent XL day of the week
+     */
+    private Schedule.DayOfWeek translateDayOfWeekFromDTO(DayOfWeek day) {
+        List<Schedule.DayOfWeek> relevantDay = Arrays.stream(Schedule.DayOfWeek.values())
+                .filter(dayEnum ->
+                        dayEnum.name().toLowerCase().startsWith(day.getName().toLowerCase()))
+                .collect(Collectors.toList());
+        return relevantDay.get(0);
+    }
+
+    /**
+     * Translate a Unix timestamp to a java.time.LocalDateTime that info can be extracted from
+     *
+     * @param millisSinceEpoch the Unix timestamp in milliseconds in UTC
+     * @return the equivalent java.time.LocalDateTime
+     */
+    static  LocalDateTime makeDateTime(final long millisSinceEpoch) {
+        return LocalDateTime.ofInstant(Instant.ofEpochMilli(millisSinceEpoch), UTC_ZONE_ID);
     }
 
     /**
@@ -548,6 +647,10 @@ public class SettingsMapper {
                         .collect(Collectors.toList()));
             }
 
+            if (info.hasSchedule()) {
+                apiDto.setSchedule(convertScheduleToApiDTO(info.getSchedule()));
+            }
+
             final SettingsManagerMapping managerMapping = mapper.getManagerMapping();
 
             // Do the actual settings mapping.
@@ -591,6 +694,95 @@ public class SettingsMapper {
                     .collect(Collectors.toList()));
 
             return apiDto;
+        }
+
+        /**
+         * Convert an XL Schedule object to the Schedule DTO used by the classic API.
+         *
+         * @param schedule the XL Schedule object
+         * @return an equivalent ScheduleApiDTO
+         */
+        private ScheduleApiDTO convertScheduleToApiDTO(Schedule schedule) {
+            final ScheduleApiDTO scheduleApiDTO = new ScheduleApiDTO();
+            final long startTime = schedule.getStartTime();
+
+            // Schedule datetimes are only visible in the UI if DateTimeFormatter.ISO_DATE_TIME is used.
+            // If the datetimes are in Unix millisecond format, they are stored but not visible.
+            // ಠ_ಠ
+            scheduleApiDTO.setStartDate(makeDateTime(startTime)
+                    .format(DateTimeFormatter.ISO_DATE_TIME));
+            scheduleApiDTO.setStartTime(makeDateTime(startTime)
+                    .format(DateTimeFormatter.ISO_DATE_TIME));
+
+            switch (schedule.getDurationCase()) {
+                case MINUTES:
+                    final LocalDateTime endDateTime = makeDateTime(startTime)
+                            .plusMinutes(schedule.getMinutes());
+                    scheduleApiDTO.setEndTime(endDateTime.format(DateTimeFormatter.ISO_DATE_TIME));
+                    break;
+                case END_TIME:
+                    scheduleApiDTO.setEndTime(makeDateTime(schedule.getEndTime())
+                            .format(DateTimeFormatter.ISO_DATE_TIME));
+                    break;
+            }
+
+            if (schedule.hasLastDate()) {
+                scheduleApiDTO.setEndDate(makeDateTime(schedule.getLastDate())
+                        .format(DateTimeFormatter.ISO_DATE_TIME));
+            }
+
+            final RecurrenceApiDTO recurrenceApiDTO = new RecurrenceApiDTO();
+            switch (schedule.getRecurrenceCase()) {
+                case DAILY:
+                    recurrenceApiDTO.setType(RecurrenceType.DAILY);
+                    scheduleApiDTO.setRecurrence(recurrenceApiDTO);
+                    break;
+                case WEEKLY:
+                    recurrenceApiDTO.setType(RecurrenceType.WEEKLY);
+                    if (schedule.getWeekly().getDaysOfWeekList().isEmpty()) {
+                        recurrenceApiDTO.setDaysOfWeek(Collections.singletonList(
+                                getDayOfWeekForDatestamp(schedule.getStartTime())));
+                    } else {
+                        recurrenceApiDTO.setDaysOfWeek(schedule.getWeekly().getDaysOfWeekList()
+                                .stream().map(this::translateDayOfWeekToDTO)
+                                .collect(Collectors.toList()));
+                    }
+                    scheduleApiDTO.setRecurrence(recurrenceApiDTO);
+                    break;
+                case MONTHLY:
+                    recurrenceApiDTO.setType(RecurrenceType.MONTHLY);
+                    if (schedule.getMonthly().getDaysOfMonthList().isEmpty()) {
+                        recurrenceApiDTO.setDaysOfMonth(
+                                Collections.singletonList(makeDateTime(startTime).getDayOfMonth()));
+                    } else {
+                        recurrenceApiDTO.setDaysOfMonth(schedule.getMonthly().getDaysOfMonthList());
+                    }
+                    scheduleApiDTO.setRecurrence(recurrenceApiDTO);
+                    break;
+            }
+            return scheduleApiDTO;
+
+        }
+
+        /**
+         * Translate an XL DayOfWeek enum to the DayOfWeek enum used by the classic API
+         * @param day the XL DayOfWeek
+         * @return the corresponding classic DayOfWeek
+         */
+        private DayOfWeek translateDayOfWeekToDTO(Schedule.DayOfWeek day) {
+            return DayOfWeek.valueOf(StringUtils.capitalize(
+                    day.name().substring(0,3).toLowerCase()));
+        }
+
+        /**
+         * Get the name of the day of the week associated with a date represented by a
+         * Unix millisecond datetime.
+         * @param datestamp the Unix millisecond datetime
+         * @return the day name of the associated date
+         */
+        private DayOfWeek getDayOfWeekForDatestamp(long datestamp) {
+            return DayOfWeek.valueOf(StringUtils.capitalize(
+                    makeDateTime(datestamp).getDayOfWeek().name().substring(0,3).toLowerCase()));
         }
 
         /**

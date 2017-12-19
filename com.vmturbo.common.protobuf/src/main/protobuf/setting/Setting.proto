@@ -333,7 +333,7 @@ message Schedule {
     optional int64 start_time = 2;
 
     // Duration of period of activity (time [milliseconds since Unix epoch] at which or number
-    // of minutes until the policy becomes inactive. This is necessary when describing a period of
+    // of minutes until the policy becomes inactive). This is necessary when describing a period of
     // time, but unnecessary when describing a time at which a process is triggered.
     oneof duration {
         int64 end_time = 3;
