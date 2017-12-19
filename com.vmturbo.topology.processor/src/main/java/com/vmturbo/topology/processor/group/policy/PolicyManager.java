@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.group.policy;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -109,23 +110,24 @@ public class PolicyManager {
             final Iterator<PolicyResponse> policyIter =
                     policyService.getAllPolicies(PolicyRequest.newBuilder().build());
             final ImmutableList<PolicyResponse> policyResponses = ImmutableList.copyOf(policyIter);
-            final Map<Long, Group> groupsById = groupsById(policyResponses);
+            List<Policy> planOnlyPolicies = planOnlyPolicies(changes);
+            final Map<Long, Group> groupsById = groupsById(policyResponses, planOnlyPolicies);
             final Map<PolicyDetailCase, Integer> policyTypeCounts = Maps.newEnumMap(PolicyDetailCase.class);
 
             applyServerPolicies(graph, groupResolver, changes,
                             policyResponses, groupsById, policyTypeCounts);
-            applyPlanOnlyPolicies(graph, groupResolver, changes,
-                            policyResponses, groupsById, policyTypeCounts);
+            applyPlanOnlyPolicies(graph, groupResolver, planOnlyPolicies,
+                            groupsById, policyTypeCounts);
 
             final long durationMs = System.currentTimeMillis() - startTime;
             logger.info("Completed application of {} policies in {}ms.", policyTypeCounts, durationMs);
         }
     }
 
-    private Map<Long, Group> groupsById(List<PolicyResponse> policyResponses) {
-        Set<Long> groupIds = policyResponses.stream()
-                        .filter(PolicyResponse::hasPolicy)
-                        .flatMap(resp -> GroupProtoUtil.getPolicyGroupIds(resp.getPolicy()).stream())
+    private Map<Long, Group> policyGroupsById(Collection<Policy> policies) {
+        Set<Long> groupIds = policies.stream()
+                        .map(GroupProtoUtil::getPolicyGroupIds)
+                        .flatMap(Set::stream)
                         .collect(Collectors.toSet());
 
         final Map<Long, Group> groupsById = new HashMap<>(groupIds.size());
@@ -144,6 +146,23 @@ public class PolicyManager {
             }
         }
         return groupsById;
+    }
+
+    /**
+     * Obtain all {@link Group}s referenced by policies.
+     *
+     * @param policyResponses policies persisted in the policy service.
+     * @param otherPolicies other policies, such as plan-only policies, that are not
+     * persisted in the policy service.
+     * @return mapping from group oid to group
+     */
+    private Map<Long, Group> groupsById(List<PolicyResponse> policyResponses, List<Policy> otherPolicies) {
+        Set<Policy> policies = policyResponses.stream()
+                        .filter(PolicyResponse::hasPolicy)
+                        .map(PolicyResponse::getPolicy)
+                        .collect(Collectors.toSet());
+        policies.addAll(otherPolicies);
+        return policyGroupsById(policies);
     }
 
     private void applyServerPolicies(
@@ -184,23 +203,25 @@ public class PolicyManager {
     private void applyPlanOnlyPolicies(
                     @Nonnull final TopologyGraph graph,
                     @Nonnull final GroupResolver groupResolver,
-                    @Nonnull List<ScenarioChange> changes,
-                    @Nonnull List<PolicyResponse> policyResponses,
+                    @Nonnull List<Policy> planOnlyPolicies,
                     @Nonnull Map<Long, Group> groupsById,
                     @Nonnull Map<PolicyDetailCase, Integer> policyTypeCounts) {
-        List<Policy> planOnlyPolicies = changes.stream()
-                        .filter(ScenarioChange::hasPlanChanges)
-                        .filter(change -> change.getPlanChanges().hasPolicyChange())
-                        .map(change -> change.getPlanChanges().getPolicyChange())
-                        .filter(PolicyChange::hasPlanOnlyPolicy)
-                        .map(PolicyChange::getPlanOnlyPolicy)
-                        .collect(Collectors.toList());
         for (Policy policyDefinition : planOnlyPolicies) {
             // Policy definition needs an ID, but plan-only policies don't have one
             policyDefinition = Policy.newBuilder(policyDefinition).setId(0).build();
             PlacementPolicy policy = policyFactory.newPolicy(policyDefinition, groupsById);
             applyPolicy(groupResolver, policy, graph, policyTypeCounts);
         }
+    }
+
+    private List<Policy> planOnlyPolicies(List<ScenarioChange> changes) {
+        return changes.stream()
+                        .filter(ScenarioChange::hasPlanChanges)
+                        .filter(change -> change.getPlanChanges().hasPolicyChange())
+                        .map(change -> change.getPlanChanges().getPolicyChange())
+                        .filter(PolicyChange::hasPlanOnlyPolicy)
+                        .map(PolicyChange::getPlanOnlyPolicy)
+                        .collect(Collectors.toList());
     }
 
     /**
