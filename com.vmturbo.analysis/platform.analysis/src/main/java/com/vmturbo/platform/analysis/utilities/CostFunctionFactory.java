@@ -6,19 +6,19 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.stream.Collectors;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
 
-import com.vmturbo.platform.analysis.economy.BalanceAccount;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
-import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeResourceBundleCostDTO;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeResourceBundleCostDTO.CostPair;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageResourceBundleCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageResourceBundleCostDTO.ResourceCost;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageResourceBundleCostDTO.ResourceDependency;
@@ -279,14 +279,25 @@ public class CostFunctionFactory {
         return true;
     }
 
-    public static double calculateComputeCost(Trader seller, ShoppingList buyer) {
-        double currentCost = (buyer.getSupplier() == null || buyer.getSupplier().getSettings().getCostFunction() == null) ? 0 :
-                                    buyer.getSupplier().getSettings().getCostFunction().calculateCost(null, null);
-        double newCost = seller.getSettings().getCostFunction().calculateCost(null, null);
-        PriceFunction pf = PriceFunction.Cache.createStandardWeightedPriceFunction(1);
-        BalanceAccount ba = seller.getSettings().getBalanceAccount();
-        double util = (ba.getSpent() - currentCost + newCost) / ba.getBudget();
-        return pf.unitPrice(util, seller, null, null);
+    /**
+     * Calculates the cost of template that a shopping list has matched to
+     *
+     * @param seller {@link Trader} that the buyer matched to
+     * @param sl is the {@link ShoppingList} that is requesting price
+     * @param costDTO is the resourceBundle associated with this templateProvider
+     * @param costMap is the license based cost map where the key is the commType and the value is the cost
+     *
+     * @return the cost given by {@link CostFunction}
+     */
+    public static double calculateComputeCost(Trader seller, ShoppingList sl,
+                                              ComputeResourceBundleCostDTO costDTO,
+                                              Map<Integer, Double> costMap) {
+        int licenseCommBoughtIndex = sl.getBasket().indexOfBaseType(costDTO.getLicenseBaseType());
+        if (licenseCommBoughtIndex == -1) {
+            return costDTO.getCostWithoutLicense();
+        } else {
+            return costMap.get(licenseCommBoughtIndex);
+        }
     }
 
     /**
@@ -398,18 +409,19 @@ public class CostFunctionFactory {
      * @return CostFunction
      */
     public static @NonNull CostFunction createResourceBundleCostFunctionForCompute(ComputeResourceBundleCostDTO costDTO) {
-        double templatePrice = costDTO.getCostWithoutLicense();
+        Map<Integer, Double> costMap = costDTO.getCostMapList().stream().collect(Collectors.toMap(CostPair::getLicenseType,
+                                                                                               CostPair::getLicenseCost));
         CostFunction costFunction = (buyer, seller)
                         -> {
                             Trader currentSupplier = buyer.getSupplier();
                             if (currentSupplier == seller) {
                                 // seller is the currentSupplier. Just return cost
-                                return templatePrice;
+                                return costDTO.getCostWithoutLicense();
                             }
                             if (!validateRequestedAmountWithinSellerCapacity(buyer, seller)) {
                                 return Double.POSITIVE_INFINITY;
                             }
-                            return templatePrice;
+                            return calculateComputeCost(seller, buyer, costDTO, costMap);
                         };
         return costFunction;
     }
