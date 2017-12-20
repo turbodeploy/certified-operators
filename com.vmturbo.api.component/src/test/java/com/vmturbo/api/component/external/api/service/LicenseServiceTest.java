@@ -16,7 +16,7 @@ public class LicenseServiceTest {
         final LicenseApiDTO license = new LicenseService().getLicense();
 
         assertEquals("Turbonomic XL", license.getLicenseOwner());
-        assertEquals("Jan 01 2018", license.getExpirationDate());
+        assertEquals("Jan 01 2019", license.getExpirationDate());
         assertEquals(28, license.getFeatures().size());
         assertThat(license.getFeatures(), hasItems("vmturbo_api"));
         assertTrue(license.getIsValid());
