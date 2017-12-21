@@ -1,15 +1,19 @@
 package com.vmturbo.topology.processor.group.discovery;
 
-import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredPolicyInfo;
-import com.vmturbo.platform.common.dto.CommonDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintType;
-
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
+import org.junit.Assert;
+import org.junit.Test;
+
+import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredPolicyInfo;
+import com.vmturbo.platform.common.dto.CommonDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintInfo;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintType;
+import com.vmturbo.platform.common.dto.CommonDTO.UpdateType;
 
 /**
  * Class for testing of parsing DRS rules into policy specs.
@@ -17,138 +21,205 @@ import java.util.List;
 public class TestParsePolicySpec {
 
     private DiscoveredPolicyInfoParser discoveredPolicyInfoParser;
-    private final List<CommonDTO.GroupDTO> groups = new LinkedList<>();
 
-    @Before
-    public void init() {
-        initGroups();
-    }
+    private final static String POLICY_ID_1 = "policy-1";
+    private final static String POLICY_ID_2 = "policy-2";
+    private final static String POLICY_ID_3 = "policy-3";
+    private final static String POLICY_ID_4 = "non-policy-4";
 
     /**
-     * Initializes list of groups for test. Creates groups and constraints.
+     * Creates groups with buyer/seller constraints.
+     *
+     * @return list of groups associated with buyer/seller constraints
      */
-    public void initGroups() {
-        groups.clear();
-        // Constraint for the buyers of first policy
-        CommonDTO.GroupDTO.ConstraintInfo constraint =
-                createConstraint("firstPolicy", true);
-        // Add buyers group of first policy
-        groups.add(createGroup("group_1", constraint));
-        // Constraint for the sellers group of first policy
-        constraint = createConstraint("firstPolicy", false);
-        // Add sellers group of first policy
-        groups.add(createGroup("group_2", constraint));
-        // This is a constraint without a pair. Policy shouldn't be parsed from it
-        constraint = createConstraint("notPolicy", true);
-        // Group with the constraint without a pair. Policy shouldn't be parsed from it
-        groups.add(createGroup("group_3", constraint));
-        // Constraint and group of the sellers of second policy
-        constraint = createConstraint("secondPolicy", false);
-        groups.add(createGroup("group_4", constraint));
-        // Constraint and group of the buyers of
-        constraint = createConstraint("secondPolicy", true);
-        groups.add(createGroup("group_5", constraint));
+    private List<CommonDTO.GroupDTO> initBuyerSellerGroups() {
+        List<CommonDTO.GroupDTO> groups = new LinkedList<>();
+        // Constraint and buyers group for policy 1
+        groups.add(createGroup("group_1", createConstraint(POLICY_ID_1, true)));
+        // Constraint and sellers group for policy 1
+        groups.add(createGroup("group_2", createConstraint(POLICY_ID_1, false)));
+
+        // A constraint with just one group. This should not become a policy.
+        groups.add(createGroup("group_3", createConstraint(POLICY_ID_2, true)));
+
+        // Constraint and sellers group for policy 3
+        groups.add(createGroup("group_4", createConstraint(POLICY_ID_3, false)));
+        // Constraint and buyers group for policy 3
+        groups.add(createGroup("group_5", createConstraint(POLICY_ID_3, true)));
+
+        // Constraint and sellers group ofor policy 4. Group is deleted so this should not become a policy.
+        groups.add(createGroup("group_6", createConstraint(POLICY_ID_4, false), true)); // deleted
+        // Constraint and group of the buyers of policy 4
+        groups.add(createGroup("group_7", createConstraint(POLICY_ID_4, true)));
+
+        return groups;
     }
 
     /**
-     * Tests parsing groupDTOs to UploadedPolicySpecs
+     * Tests parsing VM/PM policies.
      */
     @Test
     public void testParsePoliciesOfGroups() {
 
+        List<CommonDTO.GroupDTO> groups = initBuyerSellerGroups();
         discoveredPolicyInfoParser = new DiscoveredPolicyInfoParser(groups);
-        List<DiscoveredPolicyInfo> policies =
-                discoveredPolicyInfoParser.parsePoliciesOfGroups();
-        // initGroups() creates 3 pair of groups, 2 of them are engaged by policy
+        List<DiscoveredPolicyInfo> policies = discoveredPolicyInfoParser.parsePoliciesOfGroups();
+        // 4 sets of groups created, only 2 of them become policies.
+        // Of the other two - one is not a pair and one has a deleted group.
         Assert.assertEquals(2, policies.size());
-        Assert.assertEquals(DiscoveredPolicyInfoParser.createStringId(groups.get(0)), policies.get(0)
-                .getBuyersGroupStringId());
-        Assert.assertEquals(DiscoveredPolicyInfoParser.createStringId(groups.get(1)),policies.get
-                (0).getSellersGroupStringId());
-        Assert.assertEquals(groups.get(0).getConstraintInfo().getConstraintType().getNumber(),
-                policies.get(0).getConstraintType());
-        Assert.assertEquals(groups.get(1).getConstraintInfo().getConstraintType().getNumber(),
-                policies.get(0).getConstraintType());
-        Assert.assertEquals(groups.get(0).getConstraintInfo().getConstraintName(),
-                policies.get(0).getPolicyName());
+
+        Map<String, CommonDTO.GroupDTO> stringIdToGroup = groups.stream()
+            .collect(Collectors.toMap(
+                DiscoveredPolicyInfoParser::createStringId, Function.identity()));
+
+        for (DiscoveredPolicyInfo policyInfo : policies) {
+            CommonDTO.GroupDTO buyers = stringIdToGroup.get(policyInfo.getBuyersGroupStringId());
+            CommonDTO.GroupDTO sellers = stringIdToGroup.get(policyInfo.getSellersGroupStringId());
+            Assert.assertEquals(policyInfo.getPolicyName(),
+                            sellers.getConstraintInfo().getConstraintId());
+            Assert.assertEquals(policyInfo.getPolicyName(),
+                            buyers.getConstraintInfo().getConstraintId());
+            Assert.assertEquals(policyInfo.getConstraintType(),
+                            buyers.getConstraintInfo().getConstraintType().getNumber());
+            Assert.assertEquals(policyInfo.getConstraintType(),
+                            sellers.getConstraintInfo().getConstraintType().getNumber());
+        }
     }
 
     /**
-     *  Tests parsing when groups has VM group which engaged with cluster by policy
+     * Creates groups with buyer/buyer constraints.
+     *
+     * @return list of groups associated with buyer/seller constraints
+     */
+    private List<CommonDTO.GroupDTO> initBuyerBuyerGroups() {
+        List<CommonDTO.GroupDTO> groups = new LinkedList<>();
+        // Add a VM group with BUYER_BUYER_AFFINITY constraint. Should become a policy.
+        groups.add(vmGroup("affinity", ConstraintType.BUYER_BUYER_AFFINITY));
+        // Add a VM group with BUYER_BUYER_ANTI_AFFINITY constraint. Should become a policy.
+        groups.add(vmGroup("anti-affinity", ConstraintType.BUYER_BUYER_ANTI_AFFINITY));
+        // Add a VM group with buyer/seller constraint. Should not become a policy.
+        groups.add(vmGroup("affinity-2", ConstraintType.BUYER_BUYER_AFFINITY, true));
+        // Add the cluster group.
+        groups.add(clusterGroup);
+        return groups;
+    }
+
+    /**
+     *  Test parsing VM/VM policies.
      */
     @Test
     public void testParsePoliciesOfGroupsWithVmClusterPolicy() {
-        // Add pair of Vm-cluster groups, engaged by BUYER_BUYER_AFFINITY. Should be parsed in test.
-        groups.addAll(addVmClusterPolicyToTestedGroups
-                ("affinityCluster", ConstraintType.BUYER_BUYER_AFFINITY));
-        // Add pair of Vm-cluster groups, engaged by BUYER_BUYER_ANTI_AFFINITY. Should be parsed.
-        groups.addAll(addVmClusterPolicyToTestedGroups
-                ("antiAffinityCluster", ConstraintType.BUYER_BUYER_ANTI_AFFINITY));
-        // Add pair of Vm-cluster groups, with non-policy affinity. Shouldn't be parse to Policy.
-        groups.addAll(addVmClusterPolicyToTestedGroups
-                ("nonPolicyCluster", ConstraintType.BUYER_SELLER_AFFINITY));
+        List<CommonDTO.GroupDTO> groups = initBuyerBuyerGroups();
         discoveredPolicyInfoParser = new DiscoveredPolicyInfoParser(groups);
-        List<DiscoveredPolicyInfo> policies =
-                discoveredPolicyInfoParser.parsePoliciesOfGroups();
+        List<DiscoveredPolicyInfo> policies = discoveredPolicyInfoParser.parsePoliciesOfGroups();
+        // 3 VM groups created with buyer/buyer constraints, only 2 of them become policies.
+        // The third is a deleted group so no policy gets created.
+        Assert.assertEquals(2, policies.size());
 
-        //So, we has 2 vm-cluster pairs with Policy and 2 Policy pairs of groups from initGroups()
-        Assert.assertEquals(4, policies.size());
+        Map<String, CommonDTO.GroupDTO> stringIdToGroup = groups.stream()
+                        .collect(Collectors.toMap(
+                            DiscoveredPolicyInfoParser::createStringId, Function.identity()));
+        for (DiscoveredPolicyInfo policyInfo : policies) {
+            CommonDTO.GroupDTO buyers = stringIdToGroup.get(policyInfo.getBuyersGroupStringId());
+            Assert.assertEquals(policyInfo.getPolicyName(),
+                            buyers.getConstraintInfo().getConstraintId());
+            Assert.assertEquals(policyInfo.getConstraintType(),
+                            buyers.getConstraintInfo().getConstraintType().getNumber());
+        }
     }
 
+    // THE cluster used for buyer/buyer groups.
+    private static final String CLUSTER_NAME = "CLUSTER-1";
+    private static final CommonDTO.GroupDTO clusterGroup = CommonDTO.GroupDTO.newBuilder()
+                    .setEntityType(CommonDTO.EntityDTO.EntityType.PHYSICAL_MACHINE)
+                    .setDisplayName(CLUSTER_NAME)
+                    .setConstraintInfo(ConstraintInfo.newBuilder()
+                        .setConstraintType(ConstraintType.CLUSTER)
+                        .setConstraintId("cluster-constraint")
+                        .setConstraintName("foo")
+                        .build())
+                    .build();
+
+    private static int count = 0; // used to generate distinct display names for VM groups
+
     /**
-     *  Adds two more groups to group list. one of them is VM and second is cluster.
-     * @return New list of tested groups
+     *  Create a non-deleted VM group with a constraint associated with the cluster.
+     *
+     * @param constraintId constraint identifier
+     * @param constraintType type of constraint to use with the VM group
+     * @return a non-deleted VM group
      */
-    private List<CommonDTO.GroupDTO> addVmClusterPolicyToTestedGroups(String clusterName,
-            ConstraintType vmGroupConstraintType) {
-
-        List<CommonDTO.GroupDTO> testedGroups = new LinkedList<>();
-
-        CommonDTO.GroupDTO.ConstraintInfo vmConstraint =
-                createConstraint(clusterName, true)
-                        .toBuilder().setConstraintType(vmGroupConstraintType).build();
-
-        CommonDTO.GroupDTO vmGroup = createGroup("VM_group", vmConstraint)
-                .toBuilder().setEntityType(CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE)
-                .setDisplayName("vm/" + clusterName + "/vmturbo.com").build();
-
-        CommonDTO.GroupDTO.ConstraintInfo clusterConstraint =
-                createConstraint(clusterName + "_cluster", false).toBuilder()
-                .setConstraintType(CommonDTO.GroupDTO.ConstraintType.CLUSTER).build();
-
-        CommonDTO.GroupDTO clusterGroup = createGroup(clusterName, clusterConstraint)
-                .toBuilder().setEntityType(CommonDTO.EntityDTO.EntityType.PHYSICAL_MACHINE)
-                .setDisplayName(clusterName).build();
-
-        testedGroups.add(vmGroup);
-        testedGroups.add(clusterGroup);
-        return testedGroups;
+    private CommonDTO.GroupDTO vmGroup(String constraintId, ConstraintType constraintType) {
+        return vmGroup(constraintId, constraintType, false);
     }
 
     /**
-     * Creates group for testing
+     *  Create a VM group with a constraint associated with THE cluster.
+     *
+     * @param constraintId constraint identifier
+     * @param constraintType type of constraint to use with the VM group
+     * @param deleted when true, mark the group as deleted
+     * @return a VM group with the specified properties
+     */
+    private CommonDTO.GroupDTO vmGroup(String constraintId, ConstraintType constraintType,
+                    boolean deleted) {
+        CommonDTO.GroupDTO.ConstraintInfo vmConstraint =
+                createConstraint(constraintId, true)
+                        .toBuilder().setConstraintType(constraintType).build();
+        CommonDTO.GroupDTO.Builder vmGroupBuilder = createGroup("VM_group", vmConstraint)
+                .toBuilder().setEntityType(CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE)
+                .setDisplayName("vm_" + (count++) + "/" + CLUSTER_NAME + "/vmturbo.com");
+        if (deleted) {
+            vmGroupBuilder.setUpdateType(UpdateType.DELETED);
+        }
+        return vmGroupBuilder.build();
+    }
+
+    /**
+     * Creates a non-deleted group for testing.
+     *
      * @param id name of created group
      * @param constraintInfo constraint info of created group
      * @return created group
      */
     private static CommonDTO.GroupDTO createGroup(String id, CommonDTO.GroupDTO.ConstraintInfo constraintInfo) {
-        return CommonDTO.GroupDTO.newBuilder()
-                .setEntityType(CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE)
-                .setSourceGroupId(id)
-                .setConstraintInfo(constraintInfo).build();
+        return createGroup(id, constraintInfo, false);
     }
 
     /**
-     * Creates constraint info for tested group
-     * @param constraintId
-     * @param isBuyer
-     * @return
+     * Creates a group for testing.
+     *
+     * @param id name of created group
+     * @param constraintInfo constraint info of created group
+     * @param deleted when true, mark the group as deleted
+     * @return created group
+     */
+    private static CommonDTO.GroupDTO createGroup(String id, CommonDTO.GroupDTO.ConstraintInfo constraintInfo, boolean deleted) {
+        CommonDTO.GroupDTO.Builder groupBuilder = CommonDTO.GroupDTO.newBuilder()
+                .setEntityType(CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE)
+                .setDisplayName(id)
+                .setSourceGroupId(id)
+                .setConstraintInfo(constraintInfo);
+        if (deleted) {
+            groupBuilder.setUpdateType(UpdateType.DELETED);
+        }
+        return groupBuilder.build();
+    }
+
+    /**
+     * Creates a BUYER_SELLER_AFFINITY constraint info for tested group.
+     *
+     * @param constraintId constraint identifier
+     * @param isBuyer whether the constraint info created is referenced from the
+     *           buyers group or the sellers group
+     * @return a constraint info with the provided arguments
      */
     private static CommonDTO.GroupDTO.ConstraintInfo createConstraint(String constraintId, boolean isBuyer) {
         return CommonDTO.GroupDTO.ConstraintInfo.newBuilder()
                 .setConstraintName(constraintId)
                 .setConstraintType(CommonDTO.GroupDTO.ConstraintType.BUYER_SELLER_AFFINITY)
                 .setConstraintId(constraintId)
-                .setIsBuyer(isBuyer).build();
+                .setIsBuyer(isBuyer)
+                .build();
     }
 }

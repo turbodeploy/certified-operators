@@ -1,9 +1,5 @@
 package com.vmturbo.topology.processor.group.discovery;
 
-import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredPolicyInfo;
-import com.vmturbo.platform.common.dto.CommonDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintType;
-
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -20,21 +16,17 @@ import javax.annotation.concurrent.NotThreadSafe;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredPolicyInfo;
+import com.vmturbo.platform.common.dto.CommonDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintType;
+import com.vmturbo.platform.common.dto.CommonDTO.UpdateType;
+
 /**
- * Class for parsing spec of DRS rules from GroupDTOs.
- * These specs then will be send to group component to create Policies.
+ * Class for parsing specs of DRS rules from GroupDTOs.
+ * These specs are then sent to the group component to create Policies.
  */
 @NotThreadSafe
 public class DiscoveredPolicyInfoParser {
-
-    /**
-     * Size of set of groups which are engaged by the certain DRS rule.
-     */
-    private static final int GROUPS_IN_POLICY = 2;
-    /**
-     * Name consists of parts which are separated by '/'. One of parts is cluster name.
-     */
-    private static final int CLUSTER_PART_OF_NAME = 1;
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -48,14 +40,13 @@ public class DiscoveredPolicyInfoParser {
     }
 
     /**
-     * Searches pairs of groups which are engaged by the same DRS rule.
-     * Then creates these pairs DRS rule specs.
+     * Search pairs of groups which are engaged by the same DRS rule.
+     * Then create these pairs DRS rule specs.
      *
      * @return Created DRS rule Specs
      */
     @Nonnull
     public List<DiscoveredPolicyInfo> parsePoliciesOfGroups() {
-
         final List<DiscoveredPolicyInfo> parsedInfos = new LinkedList<>();
         collectPolicyGroups()
                 .forEach(policyGroups ->  {
@@ -73,8 +64,8 @@ public class DiscoveredPolicyInfoParser {
      */
     private Stream<Entry<String, List<CommonDTO.GroupDTO>>> collectPolicyGroups() {
         return allGroups.stream()
-                .collect(
-                        Collectors.groupingBy(group -> group.getConstraintInfo().getConstraintId()))
+                .collect(Collectors.groupingBy(
+                    group -> group.getConstraintInfo().getConstraintId()))
                 .entrySet()
                 .stream()
                 .filter(entry -> isPolicyEntry(entry.getValue()));
@@ -82,33 +73,66 @@ public class DiscoveredPolicyInfoParser {
 
     /**
      * Returns true if entry has groups engaged by DRS rule, or if entry has
-     * VM-group, which engaged by DRS rule with some Cluster
+     * VM-group, which engaged by DRS rule with some Cluster.
      *
-     * @param groups Entry of ConstraintId and List of Policies whith this Constraint id
+     * @param groups Entry of ConstraintId and List of Policies with this Constraint id
      * @return True if it's possible to parse policy from this entry
      */
     private boolean isPolicyEntry(@Nonnull List<CommonDTO.GroupDTO> groups) {
-        return groups.size() == GROUPS_IN_POLICY || isVmClusterPolicy(groups);
+        return isBuyerSellerPolicy(groups) || isBuyerBuyerPolicy(groups);
     }
 
     /**
-     * Returnes true if VM group is engaged with another VM group
-     * by VM_VM Affinity of Antiaffinity.
+     * A buyer/seller policy has exactly two groups. If any of the groups
+     * is marked as deleted then don't create the policy.
      *
-     * @param groups Groups engaged by policy
-     * @return
+     * @param groups list of groups associated with the same policy identifier
+     * @return whether this is a buyer/seller policy
      */
-    private boolean isVmClusterPolicy(@Nonnull List<CommonDTO.GroupDTO> groups) {
-        ConstraintType constraintType = groups.get(0).getConstraintInfo().getConstraintType();
-        return (constraintType == ConstraintType.BUYER_BUYER_AFFINITY ||
-                constraintType == ConstraintType.BUYER_BUYER_ANTI_AFFINITY) &&
-                groups.size() == 1;
+    private boolean isBuyerSellerPolicy(List<CommonDTO.GroupDTO> groups) {
+        return groups.size() == 2
+            && groupNotDeleted(groups.get(0))
+            && groupNotDeleted(groups.get(1));
+    }
+
+    /**
+     * When a list of groups is of size 1 and associated with
+     * a buyer/buyer affinity or anti-affinity rule - it is a buyer/buyer policy.
+     *
+     * @param groups list of groups associated with the same policy identifier
+     * @return whether this is a buyer/buyer policy
+     */
+    private boolean isBuyerBuyerPolicy(@Nonnull List<CommonDTO.GroupDTO> groups) {
+        // A buyer/buyer policy is associated with exactly one group
+        if (groups.size() != 1) {
+            return false;
+        }
+        CommonDTO.GroupDTO group = groups.get(0);
+        // If the group was deleted then don't process the policy
+        if (!groupNotDeleted(group)) {
+            return false;
+        }
+        ConstraintType constraintType = group.getConstraintInfo().getConstraintType();
+        return constraintType == ConstraintType.BUYER_BUYER_AFFINITY
+            || constraintType == ConstraintType.BUYER_BUYER_ANTI_AFFINITY;
+    }
+
+    /**
+     * When a policy is disabled in the target, the discovery
+     * message marks at least one of the groups associated with the policy
+     * with updateType = DELETED.
+     *
+     * @param group a discovered group
+     * @return whether the group is marked by the probe as deleted
+     */
+    private boolean groupNotDeleted(CommonDTO.GroupDTO group) {
+        return group.getUpdateType() != UpdateType.DELETED;
     }
 
     /**
      * Parses policy from policyGroups, which are pair of DRS-rule groups or
      * only VM-group which may be engaged with some Cluster by Policy
-     * and add parsed policy to list
+     * and add parsed policy to list.
      *
      * @param policyGroups Groups for parsing (Pair or just VM-group).
      * @return Created policy if everything was ok and it was created.
@@ -116,7 +140,7 @@ public class DiscoveredPolicyInfoParser {
     private Optional<DiscoveredPolicyInfo> parsePolicyFromGroups(@Nonnull List<CommonDTO.GroupDTO>
             policyGroups) {
 
-        if (isVmClusterPolicy(policyGroups)) {
+        if (isBuyerBuyerPolicy(policyGroups)) {
             return parseVmClusterPolicy(policyGroups);
         } else {
             return Optional.of(parsePolicyFromPairOfGroups(policyGroups.get(0),
@@ -148,7 +172,9 @@ public class DiscoveredPolicyInfoParser {
     }
 
     /**
-     * Parses name of policy group and gets name of cluster from this.
+     * Extract the cluster name from a policy name. For example:
+     * <p>"GROUP-DRS-testRule-rule/Physical Hosts_Cluster2/vsphere-dc13.corp.vmturbo.com"
+     * <p>Here the name of the cluster is "Physical Hosts_Cluster2".
      *
      * @param policyGroup Discovered group. It has name of cluster as a part of name.
      * @return Name of policy cluster if it was found.
@@ -159,10 +185,9 @@ public class DiscoveredPolicyInfoParser {
         * We suppose that it should be changed in future.
         */
         final String[] nameParts = policyGroup.getDisplayName().split("/");
-        if (nameParts.length > CLUSTER_PART_OF_NAME) {
-            return Optional.of(nameParts[CLUSTER_PART_OF_NAME]);
-        }
-        return Optional.empty();
+        return nameParts.length > 1
+                ? Optional.of(nameParts[1])
+                : Optional.empty();
     }
 
     /**
@@ -177,7 +202,7 @@ public class DiscoveredPolicyInfoParser {
         if (clusterInMap != null) {
             return Optional.of(clusterInMap);
         }
-        Optional <CommonDTO.GroupDTO> clusterOpt = allGroups.stream()
+        Optional<CommonDTO.GroupDTO> clusterOpt = allGroups.stream()
                 .filter(group -> group.getDisplayName().equals(clusterName) &&
                         group.getConstraintInfo().getConstraintType() ==
                                 CommonDTO.GroupDTO.ConstraintType.CLUSTER)
