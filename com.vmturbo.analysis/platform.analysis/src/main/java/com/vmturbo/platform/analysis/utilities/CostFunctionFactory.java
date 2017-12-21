@@ -8,8 +8,10 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.stream.Collectors;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
-
+import com.vmturbo.platform.analysis.economy.BalanceAccount;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
@@ -83,13 +85,15 @@ public class CostFunctionFactory {
         private double price_;
         private boolean isUnitPrice_;
         private boolean isAccumulative_;
+        private double minRequestedAmount_;
 
         public PriceData(double upperBound, double price, boolean isUnitPrice,
-                        boolean isAccumulative) {
+                        boolean isAccumulative, double minRequestedAmount) {
             upperBound_ = upperBound;
             price_ = price;
             isUnitPrice_ = isUnitPrice;
             isAccumulative_ = isAccumulative;
+            minRequestedAmount_ = minRequestedAmount;
         }
 
         public double getUpperBound() {
@@ -98,6 +102,10 @@ public class CostFunctionFactory {
 
         public double getPrice() {
             return price_;
+        }
+
+        public double getMinRequestedAmount() {
+            return minRequestedAmount_;
         }
 
         public boolean isUnitPrice() {
@@ -154,7 +162,8 @@ public class CostFunctionFactory {
                 for (CostDTOs.CostDTO.StorageResourceBundleCostDTO.PriceData priceData : cost.getPriceDataList()) {
                     CostFunctionFactory.PriceData newEntry = new PriceData(
                                     priceData.getUpperBound(), priceData.getPrice(),
-                                    priceData.getIsUnitPrice(), priceData.getIsAccumulativeCost());
+                                    priceData.getIsUnitPrice(), priceData.getIsAccumulativeCost(),
+                                    priceData.getMinRequestedAmount());
                     priceDataList.add(newEntry);
                 }
                 // make sure list is ascending based on upperbound, because we need to get the
@@ -343,7 +352,8 @@ public class CostFunctionFactory {
                                 && requestedAmount <= currentUpperBound) {
                     // non accumulative cost only depends on the exact range where the requested
                     // amount falls
-                    cost += (priceData.isUnitPrice() ? priceData.getPrice() * requestedAmount
+                    cost += (priceData.isUnitPrice() ? priceData.getPrice() *
+                                    (Math.max(priceData.getMinRequestedAmount(), requestedAmount))
                                     : priceData.getPrice());
                 }
                 previousUpperBound = currentUpperBound;
@@ -425,4 +435,5 @@ public class CostFunctionFactory {
                         };
         return costFunction;
     }
+
 }
