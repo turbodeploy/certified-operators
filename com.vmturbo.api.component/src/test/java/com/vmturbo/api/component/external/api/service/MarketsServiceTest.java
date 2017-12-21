@@ -56,6 +56,7 @@ import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.MarketMapper;
 import com.vmturbo.api.component.external.api.mapper.PolicyMapper;
 import com.vmturbo.api.component.external.api.mapper.ScenarioMapper;
+import com.vmturbo.api.component.external.api.mapper.ScenarioMapperTest;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
@@ -304,7 +305,7 @@ public class MarketsServiceTest {
             return new ScenarioMapper(repositoryApi(), templatesUtils(),
                     Mockito.mock(SettingsManagerMapping.class),
                     Mockito.mock(SettingsMapper.class),
-                    policiesService(), null);
+                    policiesService(), GroupServiceGrpc.newBlockingStub(grpcTestServer().getChannel()));
         }
 
         @Bean
