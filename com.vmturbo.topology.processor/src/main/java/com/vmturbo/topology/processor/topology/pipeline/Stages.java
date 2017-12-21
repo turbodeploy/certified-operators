@@ -408,6 +408,27 @@ public class Stages {
     }
 
     /**
+     * This stage applies post-stitching operations to apply additional stitching operations to the topology
+     * that operate in a context with settings available. For additional details {@see PostStitchingOperation}.
+     *
+     * Post-stitching should be applied in the same pipelines as the main stitching phase.
+     * {@see StitchingStage}.
+     */
+    public static class PostStitchingStage extends PassthroughStage<GraphWithSettings> {
+
+        private final StitchingManager stitchingManager;
+
+        public PostStitchingStage(@Nonnull final StitchingManager stitchingManager) {
+            this.stitchingManager = stitchingManager;
+        }
+
+        @Override
+        public void passthrough(final GraphWithSettings input) throws PipelineStageException {
+            stitchingManager.postStitch(input);
+        }
+    }
+
+    /**
      * Placeholder stage to extract the {@link TopologyGraph} for the {@link BroadcastStage}
      * in the live and plan (but not plan-over-plan) topology.
      *

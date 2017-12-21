@@ -11,6 +11,7 @@ import javax.annotation.Nonnull;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.stitching.DiscoveryInformation;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 
@@ -56,13 +57,14 @@ public class FilterUtils {
      * @return A {@link TopologyEntityDTO} with the given properties.
      */
     public static TopologyEntity.Builder topologyEntity(long oid, EntityType entityType, long... producers) {
-        return topologyEntity(oid, 0, entityType, producers);
+        return topologyEntity(oid, 0, 0, entityType, producers);
     }
 
     /**
      * Create a minimal topology entity builder.
      *
      * @param oid The OID of the topology entity.
+     * @param discoveringTargetId The ID of the target that discovered the entity.
      * @param lastUpdatedTime last updated time of the topology entity
      * @param entityType The entity type for the entity.
      * @param producers The OIDs of the producers that the created entity should be consuming from.
@@ -70,12 +72,35 @@ public class FilterUtils {
      * @return A {@link TopologyEntityDTO} with the given properties.
      */
     public static TopologyEntity.Builder topologyEntity(long oid,
+                                                        long discoveringTargetId,
                                                         long lastUpdatedTime,
                                                         EntityType entityType,
                                                         long... producers) {
-        final TopologyEntity.Builder builder = TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
+        final TopologyEntity.Builder builder = TopologyEntity.newBuilder(
+            TopologyEntityDTO.newBuilder()
                 .setOid(oid)
-                .setEntityType(entityType.getNumber()), lastUpdatedTime);
+                .setEntityType(entityType.getNumber()))
+            .discoveryInformation(DiscoveryInformation.discoveredBy(discoveringTargetId).lastUpdatedAt(lastUpdatedTime));
+
+        addCommodityBoughtMap(builder.getEntityBuilder(), producers);
+        return builder;
+    }
+    /**
+     * Create a minimal topology entity builder that was never discovered.
+     *
+     * @param oid The OID of the topology entity.
+     * @param entityType The entity type for the entity.
+     * @param producers The OIDs of the producers that the created entity should be consuming from.
+     *                  Does not actually associate any commodities with the producers.
+     * @return A {@link TopologyEntityDTO} with the given properties.
+     */
+    public static TopologyEntity.Builder neverDiscoveredTopologyEntity(long oid,
+                                                        EntityType entityType,
+                                                        long... producers) {
+        final TopologyEntity.Builder builder = TopologyEntity.newBuilder(
+            TopologyEntityDTO.newBuilder()
+                .setOid(oid)
+                .setEntityType(entityType.getNumber()));
 
         addCommodityBoughtMap(builder.getEntityBuilder(), producers);
         return builder;

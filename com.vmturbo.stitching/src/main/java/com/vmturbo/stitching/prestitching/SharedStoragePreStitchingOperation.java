@@ -23,9 +23,10 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.stitching.PreStitchingOperation;
 import com.vmturbo.stitching.StitchingEntity;
-import com.vmturbo.stitching.StitchingResult;
+import com.vmturbo.stitching.TopologicalChangelog;
 import com.vmturbo.stitching.StitchingScope;
 import com.vmturbo.stitching.StitchingScope.StitchingScopeFactory;
+import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
 import com.vmturbo.stitching.utilities.EntityScopeFilters;
 
 /**
@@ -52,8 +53,8 @@ public class SharedStoragePreStitchingOperation implements PreStitchingOperation
 
     @Nonnull
     @Override
-    public StitchingResult performOperation(@Nonnull Stream<StitchingEntity> entities,
-                                            @Nonnull StitchingResult.Builder resultBuilder) {
+    public TopologicalChangelog performOperation(@Nonnull Stream<StitchingEntity> entities,
+                                               @Nonnull StitchingChangesBuilder<StitchingEntity> resultBuilder) {
         EntityScopeFilters.sharedEntitiesByOid(entities).forEach(sharedStorages ->
             mergeSharedStorages(sharedStorages, resultBuilder));
 
@@ -71,7 +72,7 @@ public class SharedStoragePreStitchingOperation implements PreStitchingOperation
      * @param resultBuilder The builder for the result of the stitching calculation.
      */
     private void mergeSharedStorages(@Nonnull final List<StitchingEntity> sharedStorageInstances,
-                                     @Nonnull final StitchingResult.Builder resultBuilder) {
+                                     @Nonnull final StitchingChangesBuilder<StitchingEntity> resultBuilder) {
         Preconditions.checkArgument(sharedStorageInstances.size() > 1, "There must be multiple instances of a " +
             "shared storage.");
         logger.debug("Merging shared storages: {}", sharedStorageInstances);
@@ -104,7 +105,7 @@ public class SharedStoragePreStitchingOperation implements PreStitchingOperation
 
     private void mergeStorageAndStorageProviders(@Nonnull final StitchingEntity duplicateInstance,
                                                  @Nonnull final StitchingEntity mostUpToDateInstance,
-                                                 @Nonnull final StitchingResult.Builder resultBuilder) {
+                                                 @Nonnull final StitchingChangesBuilder resultBuilder) {
         resultBuilder.queueEntityMerger(mergeEntity(duplicateInstance).onto(mostUpToDateInstance));
 
         // Remove the providers that are shared between the two instances.
@@ -124,13 +125,13 @@ public class SharedStoragePreStitchingOperation implements PreStitchingOperation
      * @param typeToMerge The type of provider to merge.
      * @param duplicateInstanceProviders The providers to the duplicate instance.
      * @param mostUpToDateInstanceProviders The providers to the up-to-date instance.
-     * @param resultBuilder The {@link com.vmturbo.stitching.StitchingResult.Builder} on which to add
+     * @param resultBuilder The {@link StitchingChangesBuilder} on which to add
      *                      the merge details.
      */
     private void mergeProviders(@Nonnull final EntityType typeToMerge,
                                 @Nonnull final Stream<StitchingEntity> duplicateInstanceProviders,
                                 @Nonnull final Stream<StitchingEntity> mostUpToDateInstanceProviders,
-                                @Nonnull final StitchingResult.Builder resultBuilder) {
+                                @Nonnull final StitchingChangesBuilder resultBuilder) {
         // Remove the disk array supply the duplicate instance. We'll retain the disk array supplying
         // the mostUpToDate instance.
         final Optional<StitchingEntity> duplicateProvider = duplicateInstanceProviders

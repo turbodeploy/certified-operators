@@ -4,7 +4,8 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.stitching.StitchingResult.Builder;
+import com.vmturbo.stitching.TopologicalChangelog.EntityChangesBuilder;
+import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
 import com.vmturbo.stitching.StitchingScope.StitchingScopeFactory;
 
 /**
@@ -15,7 +16,7 @@ import com.vmturbo.stitching.StitchingScope.StitchingScopeFactory;
  * They instead operate on {@link TopologyEntity}s which contain
  * {@link com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO}s.
  *
- * {@link PostStitchingOperation}s may may NOT modify the topology in ways that modify topological relationships.
+ * {@link PostStitchingOperation}s may NOT modify the topology in ways that modify topological relationships.
  * They are capable of changing attributes of individual entities such as commodity capacity or usage values or
  * individual entity properties, but they MUST NOT change which entities are buying or selling which commodities
  * to each other. TODO: (DavidBlinn 12/17/2017) Revisit this decision if a sufficiently strong use case presents itself.
@@ -33,7 +34,7 @@ import com.vmturbo.stitching.StitchingScope.StitchingScopeFactory;
 public interface PostStitchingOperation {
     /**
      * Get the scope for this {@link PostStitchingOperation}. The {@link StitchingScope} returned determines
-     * which entities are provided as input to the {@link #performOperation(Stream, EntitySettingsCollection, Builder)}
+     * which entities are provided as input to the {@link #performOperation}
      * method for this {@link PostStitchingOperation}. See {@link StitchingScopeFactory} for further details.
      *
      * @param stitchingScopeFactory The factory to use to construct the {@link StitchingScope} for this
@@ -52,7 +53,7 @@ public interface PostStitchingOperation {
      * not be modified in a way that they change which entities are buying or selling commodities to each other,
      * however properties such as a commodity's used or capacity value may be modified without issue.
      *
-     * Any updates to entities or must be noted in the returned {@link StitchingResult}
+     * Any updates to entities or must be noted in the returned {@link TopologicalChangelog}
      * so that the updates can be tracked.
      *
      * @param entities The entities in the calculation scope. For details on scope see
@@ -62,11 +63,11 @@ public interface PostStitchingOperation {
      * @param resultBuilder A builder for the result containing the changes this operation wants to make
      *                      to the entities and their relationships. The calculation should use this builder
      *                      to create the result it returns.
-     * @return A {@link StitchingResult} that describes the result of stitching. The result should be built using
-     *         the {@link StitchingResult.Builder} provided as input.
+     * @return A {@link TopologicalChangelog} that describes the result of stitching. The result should be built using
+     *         the {@link StitchingChangesBuilder} provided as input.
      */
     @Nonnull
-    StitchingResult performOperation(@Nonnull final Stream<TopologyEntity> entities,
-                                     @Nonnull final EntitySettingsCollection settingsCollection,
-                                     @Nonnull final StitchingResult.Builder resultBuilder);
+    TopologicalChangelog performOperation(@Nonnull final Stream<TopologyEntity> entities,
+                                        @Nonnull final EntitySettingsCollection settingsCollection,
+                                        @Nonnull final EntityChangesBuilder<TopologyEntity> resultBuilder);
 }

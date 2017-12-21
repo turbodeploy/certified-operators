@@ -17,7 +17,7 @@ import com.google.common.base.Preconditions;
 
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.stitching.StitchingEntity;
-import com.vmturbo.stitching.StitchingResult.StitchingChange;
+import com.vmturbo.stitching.TopologicalChangelog.TopologicalChange;
 
 /**
  * A collection of objects representing the changes that can be made to a topology during stitching.
@@ -33,7 +33,7 @@ public class TopologyStitchingChanges {
      * Represents the removal of an individual {@link StitchingEntity} from the eventual topology.
      */
     @Immutable
-    public static class RemoveEntityChange implements StitchingChange {
+    public static class RemoveEntityChange implements TopologicalChange {
         private final StitchingEntity entityToRemove;
         private final StitchingContext stitchingContext;
 
@@ -55,7 +55,7 @@ public class TopologyStitchingChanges {
      * Represents replacing one entity with another.
      */
     @Immutable
-    public static class MergeEntitiesChange implements  StitchingChange {
+    public static class MergeEntitiesChange implements TopologicalChange {
         private final StitchingContext stitchingContext;
         private final StitchingEntity mergeFromEntity;
         private final StitchingEntity mergeOntoEntity;
@@ -142,7 +142,7 @@ public class TopologyStitchingChanges {
      * We do NOT currently support destructive changes to commodities sold.
      */
     @Immutable
-    public static class UpdateEntityRelationshipsChange implements StitchingChange {
+    public static class UpdateEntityRelationshipsChange implements TopologicalChange {
         private final StitchingEntity entityToUpdate;
         private final Consumer<StitchingEntity> updateMethod;
 
@@ -177,12 +177,12 @@ public class TopologyStitchingChanges {
      * A stitching change that makes no changes to relationships on any entity in the topology.
      * This sort of change may update the builder or the values in some commodity on a single entity.
      */
-    public static class UpdateEntityAloneChange implements StitchingChange {
-        private final StitchingEntity entityToUpdate;
-        private final Consumer<StitchingEntity> updateMethod;
+    public static class UpdateEntityAloneChange<ENTITY> implements TopologicalChange {
+        private final ENTITY entityToUpdate;
+        private final Consumer<ENTITY> updateMethod;
 
-        public UpdateEntityAloneChange(@Nonnull final StitchingEntity entityToUpdate,
-                                       @Nonnull final Consumer<StitchingEntity> updateMethod) {
+        public UpdateEntityAloneChange(@Nonnull final ENTITY entityToUpdate,
+                                       @Nonnull final Consumer<ENTITY> updateMethod) {
             this.entityToUpdate = Objects.requireNonNull(entityToUpdate);
             this.updateMethod = Objects.requireNonNull(updateMethod);
         }

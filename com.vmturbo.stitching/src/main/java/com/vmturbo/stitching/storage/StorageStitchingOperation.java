@@ -20,7 +20,8 @@ import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingIndex;
 import com.vmturbo.stitching.StitchingOperation;
 import com.vmturbo.stitching.StitchingPoint;
-import com.vmturbo.stitching.StitchingResult;
+import com.vmturbo.stitching.TopologicalChangelog;
+import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
 import com.vmturbo.stitching.utilities.CopyCommodities;
 import com.vmturbo.stitching.utilities.MergeEntities;
 
@@ -77,8 +78,8 @@ public class StorageStitchingOperation implements StitchingOperation<List<String
 
     @Nonnull
     @Override
-    public StitchingResult stitch(@Nonnull final Collection<StitchingPoint> stitchingPoints,
-                                           @Nonnull final StitchingResult.Builder resultBuilder) {
+    public TopologicalChangelog stitch(@Nonnull final Collection<StitchingPoint> stitchingPoints,
+                                     @Nonnull final StitchingChangesBuilder<StitchingEntity> resultBuilder) {
         stitchingPoints.forEach(stitchingPoint -> stitch(stitchingPoint, resultBuilder));
 
         return resultBuilder.build();
@@ -96,7 +97,7 @@ public class StorageStitchingOperation implements StitchingOperation<List<String
      *                      in these results.
      */
     private void stitch(@Nonnull final StitchingPoint stitchingPoint,
-                        @Nonnull final StitchingResult.Builder resultBuilder) {
+                        @Nonnull final StitchingChangesBuilder<StitchingEntity> resultBuilder) {
         // The storage and disk array discovered by the storage probe
         final StitchingEntity storageStorage = stitchingPoint.getInternalEntity();
         final StitchingEntity storageDiskArrayOrLogicalPool = storageStorage.getProviders().stream()

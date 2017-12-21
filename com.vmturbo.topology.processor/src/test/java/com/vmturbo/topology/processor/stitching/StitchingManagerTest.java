@@ -2,6 +2,7 @@ package com.vmturbo.topology.processor.stitching;
 
 import static com.vmturbo.platform.common.builders.EntityBuilders.physicalMachine;
 import static com.vmturbo.platform.common.builders.EntityBuilders.virtualMachine;
+import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.topologyEntityBuilder;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.not;
@@ -35,20 +36,27 @@ import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.stitching.EntitySettingsCollection;
+import com.vmturbo.stitching.PostStitchingOperation;
+import com.vmturbo.stitching.PostStitchingOperationLibrary;
 import com.vmturbo.stitching.PreStitchingOperation;
 import com.vmturbo.stitching.PreStitchingOperationLibrary;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingOperation;
-import com.vmturbo.stitching.StitchingResult;
 import com.vmturbo.stitching.StitchingPoint;
-import com.vmturbo.stitching.StitchingResult.Builder;
 import com.vmturbo.stitching.StitchingScope;
 import com.vmturbo.stitching.StitchingScope.StitchingScopeFactory;
+import com.vmturbo.stitching.TopologicalChangelog;
+import com.vmturbo.stitching.TopologicalChangelog.EntityChangesBuilder;
+import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
+import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.entity.EntityStore;
+import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.stitching.StitchingOperationStore.ProbeStitchingOperation;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
+import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 public class StitchingManagerTest {
 
@@ -57,6 +65,7 @@ public class StitchingManagerTest {
     private final ProbeStore probeStore = mock(ProbeStore.class);
     private final StitchingOperationStore stitchingOperationStore = mock(StitchingOperationStore.class);
     private final PreStitchingOperationLibrary preStitchingOperationLibrary = mock(PreStitchingOperationLibrary.class);
+    private final PostStitchingOperationLibrary postStitchingOperationLibrary = mock(PostStitchingOperationLibrary.class);
     private final Target target = mock(Target.class);
 
     private final long probeId = 1234L;
@@ -110,7 +119,8 @@ public class StitchingManagerTest {
 
         when(stitchingOperationStore.getAllOperations()).thenReturn(Collections.emptyList());
         final StitchingManager stitchingManager =
-                spy(new StitchingManager(stitchingOperationStore, preStitchingOperationLibrary, probeStore, targetStore));
+                spy(new StitchingManager(stitchingOperationStore, preStitchingOperationLibrary,
+                    postStitchingOperationLibrary, probeStore, targetStore));
         final StitchingContext returnedContext = stitchingManager.stitch(entityStore);
 
         verify(stitchingManager).stitch(eq(stitchingContext));
@@ -129,7 +139,8 @@ public class StitchingManagerTest {
         when(stitchingOperationStore.getAllOperations())
             .thenReturn(Collections.singletonList(new ProbeStitchingOperation(probeId, stitchingOperation)));
         final StitchingManager stitchingManager =
-                new StitchingManager(stitchingOperationStore, preStitchingOperationLibrary, probeStore, targetStore);
+                new StitchingManager(stitchingOperationStore, preStitchingOperationLibrary,
+                    postStitchingOperationLibrary, probeStore, targetStore);
 
         stitchingManager.stitch(stitchingContext);
         verify(stitchingContext).removeEntity(stitchingEntityCaptor.capture());
@@ -149,8 +160,8 @@ public class StitchingManagerTest {
         final StitchingContext stitchingContext = spy(contextBuilder.build());
         when(entityStore.constructStitchingContext()).thenReturn(stitchingContext);
 
-        final StitchingManager stitchingManager =
-                new StitchingManager(stitchingOperationStore, preStitchingOperationLibrary, probeStore, targetStore);
+        final StitchingManager stitchingManager = new StitchingManager(stitchingOperationStore,
+            preStitchingOperationLibrary, postStitchingOperationLibrary, probeStore, targetStore);
 
         stitchingManager.stitch(stitchingContext);
         verify(stitchingContext, times(2)).removeEntity(stitchingEntityCaptor.capture());
@@ -174,8 +185,8 @@ public class StitchingManagerTest {
         final StitchingContext stitchingContext = contextBuilder.build();
         when(entityStore.constructStitchingContext()).thenReturn(stitchingContext);
 
-        final StitchingManager stitchingManager =
-            new StitchingManager(stitchingOperationStore, preStitchingOperationLibrary, probeStore, targetStore);
+        final StitchingManager stitchingManager = new StitchingManager(stitchingOperationStore,
+            preStitchingOperationLibrary, postStitchingOperationLibrary, probeStore, targetStore);
         stitchingManager.stitch(entityStore);
 
         entityData.values().forEach(entity -> {
@@ -183,6 +194,33 @@ public class StitchingManagerTest {
                 assertThat(entity.getEntityDtoBuilder().getDisplayName(), startsWith("updated-"));
             } else {
                 assertThat(entity.getEntityDtoBuilder().getDisplayName(), not(startsWith("updated-")));
+            }
+        });
+    }
+
+    @Test
+    public void testPostStitching() {
+        when(postStitchingOperationLibrary.getPostStitchingOperations()).thenReturn(
+            Collections.singletonList(new EntityScopePostStitchingOperation()));
+        final Map<Long, TopologyEntity.Builder> entities = ImmutableMap.of(
+            1L, topologyEntityBuilder(1L, EntityType.VIRTUAL_MACHINE, Collections.emptyList()),
+            2L, topologyEntityBuilder(2L, EntityType.PHYSICAL_MACHINE, Collections.emptyList()),
+            3L, topologyEntityBuilder(3L, EntityType.STORAGE, Collections.emptyList()),
+            4L, topologyEntityBuilder(4L, EntityType.VIRTUAL_MACHINE, Collections.emptyList())
+        );
+        final TopologyGraph graph = TopologyGraph.newGraph(entities);
+        final GraphWithSettings graphWithSettings = new GraphWithSettings(graph, Collections.emptyMap(),
+            Collections.emptyMap());
+
+        final StitchingManager stitchingManager = new StitchingManager(stitchingOperationStore,
+            preStitchingOperationLibrary, postStitchingOperationLibrary, probeStore, targetStore);
+        stitchingManager.postStitch(graphWithSettings);
+
+        graph.entities().forEach(entity -> {
+            if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
+                assertThat(entity.getDisplayName(), startsWith("post-stitch-updated-"));
+            } else {
+                assertThat(entity.getDisplayName(), not(startsWith("post-stitch-updated-")));
             }
         });
     }
@@ -232,8 +270,8 @@ public class StitchingManagerTest {
 
         @Nonnull
         @Override
-        public StitchingResult stitch(@Nonnull Collection<StitchingPoint> stitchingPoints,
-                                               @Nonnull StitchingResult.Builder result) {
+        public TopologicalChangelog stitch(@Nonnull Collection<StitchingPoint> stitchingPoints,
+                                         @Nonnull StitchingChangesBuilder<StitchingEntity> result) {
             for (StitchingPoint stitchingPoint : stitchingPoints) {
                 final StitchingEntity internalEntity = stitchingPoint.getInternalEntity();
 
@@ -272,8 +310,8 @@ public class StitchingManagerTest {
 
         @Nonnull
         @Override
-        public StitchingResult stitch(@Nonnull final Collection<StitchingPoint> stitchingPoints,
-                                               @Nonnull StitchingResult.Builder result) {
+        public TopologicalChangelog stitch(@Nonnull final Collection<StitchingPoint> stitchingPoints,
+                                         @Nonnull StitchingChangesBuilder<StitchingEntity> result) {
             stitchingPoints.forEach(stitchingPoint -> {
                 stitchingPoint.getExternalMatches().forEach(result::queueEntityRemoval);
                 stitchingPoint.getInternalEntity().getEntityBuilder()
@@ -285,7 +323,6 @@ public class StitchingManagerTest {
     }
 
     private static class EntityScopePreStitchingOperation implements PreStitchingOperation {
-
         @Nonnull
         @Override
         public StitchingScope<StitchingEntity> getScope(
@@ -295,11 +332,32 @@ public class StitchingManagerTest {
 
         @Nonnull
         @Override
-        public StitchingResult performOperation(@Nonnull Stream<StitchingEntity> entities,
-                                                @Nonnull Builder resultBuilder) {
+        public TopologicalChangelog performOperation(@Nonnull Stream<StitchingEntity> entities,
+                                                   @Nonnull StitchingChangesBuilder<StitchingEntity> resultBuilder) {
             entities.forEach(entity ->
                 resultBuilder.queueUpdateEntityAlone(entity,
                     e -> e.getEntityBuilder().setDisplayName("updated-" + e.getLocalId())));
+
+            return resultBuilder.build();
+        }
+    }
+
+    private static class EntityScopePostStitchingOperation implements PostStitchingOperation {
+        @Nonnull
+        @Override
+        public StitchingScope<TopologyEntity> getScope(
+            @Nonnull StitchingScopeFactory<TopologyEntity> stitchingScopeFactory) {
+            return stitchingScopeFactory.entityTypeScope(EntityType.VIRTUAL_MACHINE);
+        }
+
+        @Nonnull
+        @Override
+        public TopologicalChangelog performOperation(@Nonnull final Stream<TopologyEntity> entities,
+                                                   @Nonnull final EntitySettingsCollection settingsCollection,
+                                                   @Nonnull final EntityChangesBuilder<TopologyEntity> resultBuilder) {
+            entities.forEach(entity ->
+                resultBuilder.queueUpdateEntityAlone(entity,
+                    e -> e.getTopologyEntityDtoBuilder().setDisplayName("post-stitch-updated-" + e.getOid())));
 
             return resultBuilder.build();
         }

@@ -31,6 +31,7 @@ import org.mockito.Mockito;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.stitching.PostStitchingOperationLibrary;
 import com.vmturbo.stitching.PreStitchingOperationLibrary;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingOperationLibrary;
@@ -56,6 +57,8 @@ public class StitchingIntegrationTest {
         new StitchingOperationStore(stitchingOperationLibrary);
     private final PreStitchingOperationLibrary preStitchingOperationLibrary =
         new PreStitchingOperationLibrary();
+    private final PostStitchingOperationLibrary postStitchingOperationLibrary =
+        new PostStitchingOperationLibrary();
 
     private final long netAppProbeId = 1234L;
     private final long netAppTargetId = 1111L;
@@ -79,8 +82,8 @@ public class StitchingIntegrationTest {
 
         stitchingOperationStore.setOperationsForProbe(vcProbeId, Collections.emptyList());
 
-        final StitchingManager stitchingManager =
-                new StitchingManager(stitchingOperationStore, preStitchingOperationLibrary, probeStore, targetStore);
+        final StitchingManager stitchingManager = new StitchingManager(stitchingOperationStore,
+            preStitchingOperationLibrary, postStitchingOperationLibrary, probeStore, targetStore);
         final Target netAppTarget = Mockito.mock(Target.class);
         when(netAppTarget.getId()).thenReturn(netAppTargetId);
 
@@ -123,8 +126,8 @@ public class StitchingIntegrationTest {
             Collections.singletonList(new StorageStitchingOperation()));
         stitchingOperationStore.setOperationsForProbe(vcProbeId, Collections.emptyList());
 
-        final StitchingManager stitchingManager =
-                new StitchingManager(stitchingOperationStore, preStitchingOperationLibrary, probeStore, targetStore);
+        final StitchingManager stitchingManager = new StitchingManager(stitchingOperationStore,
+            preStitchingOperationLibrary, postStitchingOperationLibrary, probeStore, targetStore);
         final Target netAppTarget = Mockito.mock(Target.class);
         when(netAppTarget.getId()).thenReturn(netAppTargetId);
 

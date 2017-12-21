@@ -8,6 +8,7 @@ import javax.annotation.Nonnull;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.Builder;
 import com.vmturbo.stitching.StitchingEntity;
+import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
 
 /**
  * Merge a pair of entity instances down onto a single instance.
@@ -27,7 +28,7 @@ import com.vmturbo.stitching.StitchingEntity;
  * Merging FROM an entity NOT IN the topology ONTO an entity IN the topology results in a no-op.
  * Merging ONTO an entity NOT IN the topology results in an exception.
  *
- * @see com.vmturbo.stitching.StitchingResult.Builder#queueEntityMerger(MergeEntitiesDetails)
+ * @see StitchingChangesBuilder#queueEntityMerger(MergeEntitiesDetails)
  *
  * TODO: Support for replacing an entity in discovered groups.
  * TODO: Support for bookkeeping which targets discovered the entity.

@@ -15,7 +15,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.stitching.PreStitchingOperation;
 import com.vmturbo.stitching.StitchingEntity;
-import com.vmturbo.stitching.StitchingResult.Builder;
+import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
 import com.vmturbo.stitching.StitchingScope;
 import com.vmturbo.stitching.StitchingScope.StitchingScopeFactory;
 import com.vmturbo.topology.processor.probes.ProbeStore;
@@ -27,7 +27,7 @@ import com.vmturbo.topology.processor.targets.TargetStore;
  * {@link PreStitchingOperation}s.
  *
  * These scopes determine which entities in the {@link StitchingContext} are fed to the
- * {@link PreStitchingOperation#performOperation(Stream, Builder)}
+ * {@link PreStitchingOperation#performOperation(Stream, StitchingChangesBuilder)}
  * method.
  */
 public class PreStitchingOperationScopeFactory implements StitchingScopeFactory<StitchingEntity> {

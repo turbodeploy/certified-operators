@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.group.policy;
 
+import static com.vmturbo.topology.processor.group.filter.FilterUtils.neverDiscoveredTopologyEntity;
 import static com.vmturbo.topology.processor.group.filter.FilterUtils.topologyEntity;
 
 import java.util.HashMap;
@@ -25,8 +26,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.Initi
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.topology.processor.topology.TopologyEntity;
-import com.vmturbo.topology.processor.topology.TopologyEntity.Builder;
+import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 
@@ -54,13 +54,13 @@ public class InitialPlacementPolicyFactoryTest {
     @Before
     public void setup() {
         IdentityGenerator.initPrefix(0);
-        final Map<Long, Builder> topologyMap = new HashMap<>();
+        final Map<Long, TopologyEntity.Builder> topologyMap = new HashMap<>();
 
         topologyMap.put(3L, topologyEntity(3L, EntityType.STORAGE));
         topologyMap.put(7L, topologyEntity(7L, EntityType.DATACENTER));
         topologyMap.put(1L, topologyEntity(1L, EntityType.PHYSICAL_MACHINE, 3, 7));
         topologyMap.put(9L, topologyEntity(9L, EntityType.VIRTUAL_DATACENTER, 1));
-        topologyMap.put(5L, topologyEntity(5L, -1, EntityType.VIRTUAL_MACHINE, 9, 3));
+        topologyMap.put(5L, neverDiscoveredTopologyEntity(5L, EntityType.VIRTUAL_MACHINE, 9, 3));
 
         topologyMap.put(4L, topologyEntity(4L, EntityType.STORAGE));
         topologyMap.put(8L, topologyEntity(8L, EntityType.DATACENTER));

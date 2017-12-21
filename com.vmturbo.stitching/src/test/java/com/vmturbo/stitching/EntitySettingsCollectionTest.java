@@ -37,7 +37,7 @@ public class EntitySettingsCollectionTest {
 
     private static final TopologyEntity PARENT_ENTITY =
         TopologyEntity.newBuilder(PARENT_ENTITY_DTO_BUILDER)
-            .discoveryInformation(TopologyEntity.discoveredBy(1234L).lastUpdatedAt(5678L))
+            .discoveryInformation(DiscoveryInformation.discoveredBy(1234L).lastUpdatedAt(5678L))
             .build();
 
     final Map<Long, SettingPolicy> defaultSettingPolicies = Collections.singletonMap(

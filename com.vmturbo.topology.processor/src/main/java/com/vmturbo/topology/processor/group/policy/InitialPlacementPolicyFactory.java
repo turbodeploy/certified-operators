@@ -19,7 +19,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
@@ -166,9 +165,9 @@ public class InitialPlacementPolicyFactory {
     }
 
     /**
-     * Get all entities which created from templates. It use {@link TopologyEntity} last update time
-     * to tell which entity is created from templates. Because for all template entities, those last
-     * update time will be TopologyEntity.NEVER_UPDATED_TIME.
+     * Get all entities which created from templates. It use {@link TopologyEntity}
+     * {@link com.vmturbo.stitching.DiscoveryInformation} to tell which entity is created from templates.
+     * Because for all template entities, discovery information is not present.
      *
      * @param graph The topology graph contains all entities and relations between entities.
      * @return a set of entities id which created from templates.

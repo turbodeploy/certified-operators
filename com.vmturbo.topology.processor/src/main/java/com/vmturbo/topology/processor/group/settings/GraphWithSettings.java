@@ -11,6 +11,7 @@ import javax.annotation.Nonnull;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
+import com.vmturbo.stitching.EntitySettingsCollection;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineContext;
@@ -72,6 +73,11 @@ public class GraphWithSettings {
     @Nonnull
     public Collection<EntitySettings> getEntitySettings() {
         return settingsByEntity.values();
+    }
+
+    @Nonnull
+    public EntitySettingsCollection constructEntitySettingsCollection() {
+        return new EntitySettingsCollection(defaultSettingPolicies, settingsByEntity);
     }
 
     @Nonnull

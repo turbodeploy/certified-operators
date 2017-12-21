@@ -34,6 +34,7 @@ import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
+import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileNotifier;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
@@ -44,6 +45,7 @@ import com.vmturbo.topology.processor.topology.TopologyGraph;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.BroadcastStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.GraphCreationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PolicyStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.PostStitchingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.SettingsResolutionStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.StitchingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.TopologyAcquisitionStage;
@@ -153,6 +155,17 @@ public class StagesTest {
         policyStage.execute(topologyGraph);
 
         verify(policyManager).applyPolicies(eq(topologyGraph), eq(groupResolver), eq(Collections.emptyList()));
+    }
+
+    @Test
+    public void testPostStitchingStage() throws PipelineStageException {
+        final StitchingManager stitchingManager = mock(StitchingManager.class);
+        final PostStitchingStage postStitchingStage = new PostStitchingStage(stitchingManager);
+        final GraphWithSettings graphWithSettings = mock(GraphWithSettings.class);
+
+        postStitchingStage.execute(graphWithSettings);
+
+        verify(stitchingManager).postStitch(eq(graphWithSettings));
     }
 
     @Test

@@ -93,7 +93,7 @@ public class TopologyStitchingChangesTest {
 
     @Test
     public void testUpdateAloneChange() {
-        final UpdateEntityAloneChange change = new UpdateEntityAloneChange(entity2,
+        final UpdateEntityAloneChange change = new UpdateEntityAloneChange<>(entity2,
             e -> e.getEntityBuilder().setDisplayName("foo"));
 
         assertNotEquals("foo", entity2.getDisplayName());

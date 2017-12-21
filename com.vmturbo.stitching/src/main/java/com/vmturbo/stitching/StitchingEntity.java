@@ -11,7 +11,7 @@ import javax.annotation.Nonnull;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.stitching.TopologyEntity.DiscoveryInformation;
+import com.vmturbo.stitching.TopologicalChangelog.TopologicalChange;
 
 /**
  * An entity capable of being stitched.
@@ -27,9 +27,9 @@ import com.vmturbo.stitching.TopologyEntity.DiscoveryInformation;
  * Access the consumers and providers of a {@link StitchingEntity} to traverse the graph from that entity.
  *
  * Mutations to stitching entities during stitching should be tracked via an appropriate
- * {@link StitchingResult.StitchingChange} on a {@link StitchingResult}
+ * {@link TopologicalChange} on a {@link TopologicalChangelog}
  * object. Mutating a {@link StitchingEntity} directly may not propagate that change
- * to all objects that need to track the change. See {@link StitchingResult} for additional details.
+ * to all objects that need to track the change. See {@link TopologicalChangelog} for additional details.
  */
 public interface StitchingEntity {
     /**
@@ -197,13 +197,13 @@ public interface StitchingEntity {
     boolean hasConsumer(@Nonnull final StitchingEntity entity);
 
     /**
-     * Get a {@link DiscoveryInformation} object representing when this target was last updated and by which
+     * Get a {@link DiscoveryInformation} object representing when this entity was last updated and by which
      * target(s).
      *
      * @return {@link DiscoveryInformation} for this entity.
      */
     default DiscoveryInformation getDiscoveryInformation() {
-        return TopologyEntity.discoveredBy(getTargetId())
+        return DiscoveryInformation.discoveredBy(getTargetId())
             .lastUpdatedAt(getLastUpdatedTime());
     }
 }

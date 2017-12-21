@@ -10,7 +10,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -25,12 +24,11 @@ import com.google.common.collect.ImmutableMap;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.stitching.StitchingEntity;
-import com.vmturbo.stitching.StitchingResult.StitchingChange;
+import com.vmturbo.stitching.TopologicalChangelog.TopologicalChange;
 import com.vmturbo.stitching.prestitching.SharedStoragePreStitchingOperation;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingEntityData;
-import com.vmturbo.topology.processor.stitching.StitchingTestUtils;
-import com.vmturbo.topology.processor.stitching.TopologyStitchingResultBuilder;
+import com.vmturbo.topology.processor.stitching.StitchingResultBuilder;
 
 public class SharedStorageTest {
     private static double epsilon = 1e-5; // used in assertEquals(double, double, epsilon)
@@ -53,7 +51,7 @@ public class SharedStorageTest {
         .build()
         .toBuilder();
 
-    private TopologyStitchingResultBuilder resultBuilder;
+    private StitchingResultBuilder resultBuilder;
 
     private StitchingEntity oldStorage;
     private StitchingEntity newStorage;
@@ -73,7 +71,7 @@ public class SharedStorageTest {
     public void testStorageAmountKeepsNewer() {
         assertEquals(2, stitchingContext.size());
         operation.performOperation(Stream.of(newStorage, oldStorage), resultBuilder)
-            .getChanges().forEach(StitchingChange::applyChange);
+            .getChanges().forEach(TopologicalChange::applyChange);
 
         assertEquals(1, stitchingContext.size());
         assertTrue(stitchingContext.hasEntity(newStorage));
@@ -88,7 +86,7 @@ public class SharedStorageTest {
     @Test
     public void testStorageProvisionedCalculation() {
         operation.performOperation(Stream.of(newStorage, oldStorage), resultBuilder)
-            .getChanges().forEach(StitchingChange::applyChange);
+            .getChanges().forEach(TopologicalChange::applyChange);
 
         assertEquals(700.0, newStorage.getCommoditiesSold()
             .filter(commodity -> commodity.getCommodityType() == CommodityType.STORAGE_PROVISIONED)
@@ -99,7 +97,7 @@ public class SharedStorageTest {
     @Test
     public void testStorageLatencyCalculationIsIopsWeightedAverage() {
         operation.performOperation(Stream.of(newStorage, oldStorage), resultBuilder)
-            .getChanges().forEach(StitchingChange::applyChange);
+            .getChanges().forEach(TopologicalChange::applyChange);
 
         // (100*20 + 50*30) / 50 = 70
         assertEquals(70.0, newStorage.getCommoditiesSold()
@@ -121,7 +119,7 @@ public class SharedStorageTest {
             .toBuilder();
 
         operation.performOperation(entityStream(a, b), resultBuilder)
-            .getChanges().forEach(StitchingChange::applyChange);
+            .getChanges().forEach(TopologicalChange::applyChange);
 
         final StitchingEntity result = stitchingContext.getStitchingGraph().entities().findFirst().get();
 
@@ -134,7 +132,7 @@ public class SharedStorageTest {
     @Test
     public void testStorageAccessCalculationIsSum() {
         operation.performOperation(Stream.of(newStorage, oldStorage), resultBuilder)
-            .getChanges().forEach(StitchingChange::applyChange);
+            .getChanges().forEach(TopologicalChange::applyChange);
 
         assertEquals(50.0, newStorage.getCommoditiesSold()
             .filter(commodity -> commodity.getCommodityType() == CommodityType.STORAGE_ACCESS)
@@ -165,7 +163,7 @@ public class SharedStorageTest {
         entityDataList.forEach(entity -> builder.addEntity(entity, ImmutableMap.of(entity.getLocalId(), entity)));
 
         stitchingContext = builder.build();
-        resultBuilder = new TopologyStitchingResultBuilder(stitchingContext);
+        resultBuilder = new StitchingResultBuilder(stitchingContext);
     }
 
     private Stream<StitchingEntity> entityStream(@Nonnull final EntityDTO.Builder... entities) {

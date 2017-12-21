@@ -30,7 +30,7 @@ public class TopologyEntityTest {
     @Test
     public void testBuildDiscoveryInformation() {
         final TopologyEntity entity = TopologyEntity.newBuilder(dtoBuilder)
-            .discoveryInformation(TopologyEntity.discoveredBy(111L).lastUpdatedAt(222L))
+            .discoveryInformation(DiscoveryInformation.discoveredBy(111L).lastUpdatedAt(222L))
             .build();
 
         assertTrue(entity.getDiscoveryInformation().isPresent());

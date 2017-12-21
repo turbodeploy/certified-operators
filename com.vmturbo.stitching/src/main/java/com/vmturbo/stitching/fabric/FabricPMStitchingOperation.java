@@ -7,7 +7,7 @@ import javax.annotation.Nonnull;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingPoint;
-import com.vmturbo.stitching.StitchingResult.Builder;
+import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
 import com.vmturbo.stitching.utilities.CopyCommodities;
 import com.vmturbo.stitching.utilities.DeleteCommodities;
 
@@ -29,7 +29,8 @@ public class FabricPMStitchingOperation extends FabricStitchingOperation {
     }
 
     @Override
-    protected void stitch(@Nonnull final StitchingPoint stitchingPoint, @Nonnull final Builder resultBuilder) {
+    protected void stitch(@Nonnull final StitchingPoint stitchingPoint,
+                          @Nonnull final StitchingChangesBuilder<StitchingEntity> resultBuilder) {
         // The PM discovered by the fabric probe
         final StitchingEntity fabricPM = stitchingPoint.getInternalEntity();
 

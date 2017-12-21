@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import com.vmturbo.stitching.PostStitchingOperationLibrary;
 import com.vmturbo.stitching.PreStitchingOperationLibrary;
 import com.vmturbo.stitching.StitchingOperationLibrary;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
@@ -35,13 +36,18 @@ public class StitchingConfig {
     }
 
     @Bean
-    public PreStitchingOperationLibrary stitchingCalculationStore() {
+    public PreStitchingOperationLibrary preStitchingOperationStore() {
         return new PreStitchingOperationLibrary();
     }
 
     @Bean
+    public PostStitchingOperationLibrary postStitchingOperationStore() {
+        return new PostStitchingOperationLibrary();
+    }
+
+    @Bean
     public StitchingManager stitchingManager() {
-        return new StitchingManager(stitchingOperationStore(), stitchingCalculationStore(),
-            probeConfig.probeStore(), targetConfig.targetStore());
+        return new StitchingManager(stitchingOperationStore(), preStitchingOperationStore(),
+            postStitchingOperationStore(), probeConfig.probeStore(), targetConfig.targetStore());
     }
 }

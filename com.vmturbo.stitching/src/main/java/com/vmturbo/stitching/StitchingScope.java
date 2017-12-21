@@ -6,10 +6,11 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
 
 /**
  * A {@link StitchingScope} determines which entities will be fed to the
- * {@link PreStitchingOperation#performOperation(Stream, StitchingResult.Builder)} method.
+ * {@link PreStitchingOperation#performOperation(Stream, StitchingChangesBuilder)} method.
  *
  * @param <ENTITY> The class of entity that stitching will operate on. Examples are {@link StitchingEntity}
  *                 or {@link TopologyEntity}.

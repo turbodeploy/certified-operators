@@ -20,14 +20,18 @@ import com.google.common.annotations.VisibleForTesting;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
+import com.vmturbo.stitching.EntitySettingsCollection;
+import com.vmturbo.stitching.PostStitchingOperation;
+import com.vmturbo.stitching.PostStitchingOperationLibrary;
 import com.vmturbo.stitching.PreStitchingOperation;
 import com.vmturbo.stitching.PreStitchingOperationLibrary;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingIndex;
 import com.vmturbo.stitching.StitchingOperation;
 import com.vmturbo.stitching.StitchingPoint;
-import com.vmturbo.stitching.StitchingResult;
-import com.vmturbo.stitching.StitchingResult.StitchingChange;
+import com.vmturbo.stitching.TopologicalChangelog;
+import com.vmturbo.stitching.TopologicalChangelog.TopologicalChange;
+import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.probes.ProbeStore;
@@ -76,8 +80,9 @@ import com.vmturbo.topology.processor.targets.TargetStore;
  *    {@link StitchingOperation}s are run during this phase.
  * 3. PostStitching: This phase happens after the
  *    {@link com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline} phases listed above.
- *    Settings are available in this phase. TODO: Implement PostStitching.
- *    {@link PreStitchingOperation}s are run during this phase.
+ *    Settings are available in this phase but the relationships in the
+ *    {@link com.vmturbo.topology.processor.topology.TopologyGraph} being stitched cannot be mutated by this phase.
+ *    {@link PostStitchingOperation}s are run during this phase.
  */
 public class StitchingManager {
     private static final Logger logger = LogManager.getLogger();
@@ -124,9 +129,14 @@ public class StitchingManager {
     private final StitchingOperationStore stitchingOperationStore;
 
     /**
-     * A store of the pre stitching operations to be applied during the PreStitching and PostStitching phases.
+     * A store of the {@link PreStitchingOperation}s to be applied during the pre-stitching phase.
      */
     private final PreStitchingOperationLibrary preStitchingOperationLibrary;
+
+    /**
+     * A store of the {@link PostStitchingOperation}s to be applied during the post-stitching phase.
+     */
+    private final PostStitchingOperationLibrary postStitchingOperationLibrary;
 
     private final ProbeStore probeStore;
     private final TargetStore targetStore;
@@ -134,17 +144,20 @@ public class StitchingManager {
     /**
      * Create a new {@link StitchingManager} instance.
      *
-     * @param stitchingOperationStore The store of the operations to be applied during Stitching.
-     * @param preStitchingOperationLibrary The store of pre stitching operations to be applied during PreStitching.
+     * @param stitchingOperationStore The store of the operations to be applied during the main stitching phase.
+     * @param preStitchingOperationLibrary The store of pre stitching operations to be applied during pre-stitching.
+     * @param postStitchingOperationLibrary The store of post stitching operations to be applied during post-stitching.
      * @param probeStore The store of probes known to the topology processor.
      * @param targetStore The store of available targets known to the topology processor.
      */
     public StitchingManager(@Nonnull final StitchingOperationStore stitchingOperationStore,
                             @Nonnull final PreStitchingOperationLibrary preStitchingOperationLibrary,
+                            @Nonnull final PostStitchingOperationLibrary postStitchingOperationLibrary,
                             @Nonnull final ProbeStore probeStore,
                             @Nonnull final TargetStore targetStore) {
         this.stitchingOperationStore = Objects.requireNonNull(stitchingOperationStore);
         this.preStitchingOperationLibrary = Objects.requireNonNull(preStitchingOperationLibrary);
+        this.postStitchingOperationLibrary = Objects.requireNonNull(postStitchingOperationLibrary);
         this.probeStore = Objects.requireNonNull(probeStore);
         this.targetStore = Objects.requireNonNull(targetStore);
     }
@@ -174,6 +187,22 @@ public class StitchingManager {
         return stitchingContext;
     }
 
+    public void postStitch(@Nonnull final GraphWithSettings graphWithSettings) {
+        logger.info("Applying {} post-stitching operations.",
+            postStitchingOperationLibrary.getPostStitchingOperations().size());
+        final DataMetricTimer executionTimer = POST_STITCHING_EXECUTION_DURATION_SUMMARY.startTimer();
+
+        final PostStitchingOperationScopeFactory scopeFactory = new PostStitchingOperationScopeFactory(
+            graphWithSettings.getTopologyGraph(), probeStore, targetStore);
+        final EntitySettingsCollection settingsCollection = graphWithSettings.constructEntitySettingsCollection();
+
+        postStitchingOperationLibrary.getPostStitchingOperations().stream()
+            .forEach(postStitchingOperation ->
+                applyPostStitchingOperation(postStitchingOperation, scopeFactory, settingsCollection));
+
+        executionTimer.observe();
+    }
+
     /**
      * Apply PreStitching phase to the entities in the stitching context.
      *
@@ -196,7 +225,6 @@ public class StitchingManager {
      * Apply the stitching phase to the entities in the stitching context.
      *
      * @param stitchingContext The context containing the entities to be stitched.
-     * @return The context that was stitched. This context is a mutated version of the input context.
      */
     @VisibleForTesting
     void stitch(@Nonnull final StitchingContext stitchingContext) {
@@ -225,15 +253,41 @@ public class StitchingManager {
         try {
             final Stream<StitchingEntity> entities =
                 preStitchingOperation.getScope(scopeFactory).entities();
-            final TopologyStitchingResultBuilder resultBuilder =
-                new TopologyStitchingResultBuilder(scopeFactory.getStitchingContext());
+            final StitchingResultBuilder resultBuilder =
+                new StitchingResultBuilder(scopeFactory.getStitchingContext());
 
-            final StitchingResult results = preStitchingOperation.performOperation(
+            final TopologicalChangelog results = preStitchingOperation.performOperation(
                 entities, resultBuilder);
-            results.getChanges().forEach(StitchingChange::applyChange);
+            results.getChanges().forEach(TopologicalChange::applyChange);
         } catch (RuntimeException e) {
             logger.error("Unable to apply pre-stitching operation " + preStitchingOperation.getClass().getSimpleName() +
                 " due to exception: ", e);
+        }
+    }
+
+    /**
+     * Apply a specific {@link PostStitchingOperation}.
+     *
+     * @param postStitchingOperation The post-stitching operation to be applied.
+     * @param scopeFactory The factory for use in generating the scopes to be used to create the scope
+     *                     of entities that the post-stitching operation should operate on.
+     * @param settingsCollection A collection of settings for entities permitting the by-name lookup of a setting
+     *                           for a given entity.
+     */
+    private void applyPostStitchingOperation(@Nonnull final PostStitchingOperation postStitchingOperation,
+                                             @Nonnull final PostStitchingOperationScopeFactory scopeFactory,
+                                             @Nonnull final EntitySettingsCollection settingsCollection) {
+        try {
+            final Stream<TopologyEntity> entities =
+                postStitchingOperation.getScope(scopeFactory).entities();
+            final PostStitchingResultBuilder resultBuilder = new PostStitchingResultBuilder();
+
+            final TopologicalChangelog results = postStitchingOperation.performOperation(
+                entities, settingsCollection, resultBuilder);
+            results.getChanges().forEach(TopologicalChange::applyChange);
+        } catch (RuntimeException e) {
+            logger.error("Unable to apply post-stitching operation " +
+                postStitchingOperation.getClass().getSimpleName() + " due to exception: ", e);
         }
     }
 
@@ -255,11 +309,11 @@ public class StitchingManager {
         try {
             Optional<EntityType> externalType = operation.getExternalEntityType();
 
-            final StitchingResult results = externalType.isPresent() ?
+            final TopologicalChangelog results = externalType.isPresent() ?
                 applyStitchWithExternalEntitiesOperation(operation, stitchingContext, targetId, externalType.get()) :
                 applyStitchAloneOperation(operation, stitchingContext, targetId);
 
-            results.getChanges().forEach(StitchingChange::applyChange);
+            results.getChanges().forEach(TopologicalChange::applyChange);
         } catch (RuntimeException e) {
             logger.error("Unable to apply stitching operation " + operation.getClass().getSimpleName() +
                 " due to exception: ", e);
@@ -278,7 +332,7 @@ public class StitchingManager {
      *         be applied to mutate the {@link StitchingContext} and its associated
      *         {@link TopologyStitchingGraph}.
      */
-    private StitchingResult applyStitchAloneOperation(
+    private TopologicalChangelog applyStitchAloneOperation(
         @Nonnull final StitchingOperation<?, ?> operation,
         @Nonnull final StitchingContext stitchingContext,
         final long targetId) {
@@ -289,7 +343,7 @@ public class StitchingManager {
             .map(StitchingPoint::new)
             .collect(Collectors.toList());
 
-        final TopologyStitchingResultBuilder resultBuilder = new TopologyStitchingResultBuilder(stitchingContext);
+        final StitchingResultBuilder resultBuilder = new StitchingResultBuilder(stitchingContext);
         return operation.stitch(stitchingPoints, resultBuilder);
     }
 
@@ -309,7 +363,7 @@ public class StitchingManager {
      *         {@link TopologyStitchingGraph}.
      */
     private <INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGNATURE_TYPE>
-    StitchingResult applyStitchWithExternalEntitiesOperation(
+    TopologicalChangelog applyStitchWithExternalEntitiesOperation(
         @Nonnull final StitchingOperation<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGNATURE_TYPE> operation,
         @Nonnull final StitchingContext stitchingContext,
         final long targetId,
@@ -348,7 +402,7 @@ public class StitchingManager {
                     matchMap.addMatch(signaturesToEntities.get(internalSignature), externalEntity))));
 
         // Process the matches.
-        final TopologyStitchingResultBuilder resultBuilder = new TopologyStitchingResultBuilder(stitchingContext);
+        final StitchingResultBuilder resultBuilder = new StitchingResultBuilder(stitchingContext);
         return operation.stitch(matchMap.createStitchingPoints(), resultBuilder);
     }
 

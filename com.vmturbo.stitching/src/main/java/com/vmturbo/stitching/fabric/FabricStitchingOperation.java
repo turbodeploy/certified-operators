@@ -23,8 +23,8 @@ import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingIndex;
 import com.vmturbo.stitching.StitchingOperation;
 import com.vmturbo.stitching.StitchingPoint;
-import com.vmturbo.stitching.StitchingResult;
-import com.vmturbo.stitching.StitchingResult.Builder;
+import com.vmturbo.stitching.TopologicalChangelog;
+import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
 
 /**
  * A stitching operation appropriate for use by fabric targets.
@@ -50,7 +50,7 @@ public abstract class FabricStitchingOperation implements StitchingOperation<Lis
 
     /**
      * Return the name of the entity property of the Internal Entity Type that we are using to
-     * identify the Physical Machine to stich with.
+     * identify the Physical Machine to stitch with.
      *
      * @return String giving the name of the property, e.g. PM_UUID_LIST
      */
@@ -93,8 +93,8 @@ public abstract class FabricStitchingOperation implements StitchingOperation<Lis
 
     @Nonnull
     @Override
-    public StitchingResult stitch(@Nonnull final Collection<StitchingPoint> stitchingPoints,
-                                           @Nonnull final Builder resultBuilder) {
+    public TopologicalChangelog stitch(@Nonnull final Collection<StitchingPoint> stitchingPoints,
+                                     @Nonnull final StitchingChangesBuilder<StitchingEntity> resultBuilder) {
         stitchingPoints.forEach(stitchingPoint -> stitch(stitchingPoint, resultBuilder));
 
         return resultBuilder.build();
@@ -111,7 +111,7 @@ public abstract class FabricStitchingOperation implements StitchingOperation<Lis
      *                      in these results.
      */
     protected abstract void stitch(@Nonnull final StitchingPoint stitchingPoint,
-                        @Nonnull final StitchingResult.Builder resultBuilder);
+                        @Nonnull final StitchingChangesBuilder<StitchingEntity> resultBuilder);
 
     @Nonnull
     @Override

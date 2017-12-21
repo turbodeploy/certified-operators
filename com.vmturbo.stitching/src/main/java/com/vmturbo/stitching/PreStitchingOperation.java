@@ -5,6 +5,8 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.stitching.StitchingScope.StitchingScopeFactory;
+import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
+import com.vmturbo.stitching.TopologicalChangelog.TopologicalChange;
 
 /**
  * A {@link PreStitchingOperation} runs prior to probe stitching {@link StitchingOperation}s.
@@ -22,7 +24,7 @@ import com.vmturbo.stitching.StitchingScope.StitchingScopeFactory;
 public interface PreStitchingOperation {
     /**
      * Get the scope for this {@link PreStitchingOperation}. The {@link StitchingScope} returned determines
-     * which entities are provided as input to the {@link #performOperation(Stream, StitchingResult.Builder)}
+     * which entities are provided as input to the {@link #performOperation(Stream, StitchingChangesBuilder)}
      * method for this {@link PreStitchingOperation}. See {@link StitchingScopeFactory} for further details.
      *
      * @param stitchingScopeFactory The factory to use to construct the {@link StitchingScope} for this
@@ -35,13 +37,13 @@ public interface PreStitchingOperation {
     /**
      * Perform this {@link PreStitchingOperation}. Any changes the operation wants to make to
      * the entities or their relationships should be made by adding an appropriate
-     * {@link StitchingResult.StitchingChange} to using the {@link StitchingResult.Builder}.
+     * {@link TopologicalChange} to using the {@link StitchingChangesBuilder}.
      *
      * The precise semantics of a {@link PreStitchingOperation} vary, but in general these operations
      * may want to update values in entity commodities or merge multiple views of a single entity discovered
      * by multiple probes down to a single view.
      *
-     * Any updates to entities or their relationships must be noted in the returned {@link StitchingResult}
+     * Any updates to entities or their relationships must be noted in the returned {@link TopologicalChangelog}
      * so that the graph and certain other acceleration structures that track entities and relationships
      * can be updated for further stitching.
      *
@@ -50,10 +52,10 @@ public interface PreStitchingOperation {
      * @param resultBuilder A builder for the result containing the changes this operation wants to make
      *                      to the entities and their relationships. The calculation should use this builder
      *                      to create the result it returns.
-     * @return A {@link StitchingResult} that describes the result of stitching. The result should be built using
-     *         the {@link StitchingResult.Builder} provided as input.
+     * @return A {@link TopologicalChangelog} that describes the result of stitching. The result should be built using
+     *         the {@link StitchingChangesBuilder} provided as input.
      */
     @Nonnull
-    StitchingResult performOperation(@Nonnull final Stream<StitchingEntity> entities,
-                                     @Nonnull final StitchingResult.Builder resultBuilder);
+    TopologicalChangelog performOperation(@Nonnull final Stream<StitchingEntity> entities,
+                                        @Nonnull final StitchingChangesBuilder<StitchingEntity> resultBuilder);
 }

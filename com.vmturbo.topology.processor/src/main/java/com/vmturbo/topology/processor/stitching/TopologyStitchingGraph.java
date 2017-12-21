@@ -51,7 +51,7 @@ import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity.Commodit
  *
  * Note that the graph itself only contains methods for constructing the graph. Mutate the graph and
  * the entities within the graph via the appropriate classes in {@link TopologyStitchingChanges}. See
- * also {@link TopologyStitchingResultBuilder} which contains methods for constructing and queueing
+ * also {@link StitchingResultBuilder} which contains methods for constructing and queueing
  * change objects during the stitching processing phase.
  *
  * The graph retains references to its constituent {@link TopologyStitchingEntity}s via a map that uses

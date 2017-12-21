@@ -1,6 +1,6 @@
 package com.vmturbo.topology.processor.stitching.prestitching;
 
-import static com.vmturbo.stitching.TopologyEntity.discoveredBy;
+import static com.vmturbo.stitching.DiscoveryInformation.discoveredBy;
 import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.topologyEntityBuilder;
 import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.topologyGraphOf;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -34,7 +34,7 @@ import com.vmturbo.topology.processor.topology.TopologyGraph;
 public class PostStitchingOperationScopeFactoryTest {
 
     private final ProbeStore probeStore = mock(ProbeStore.class);
-    private final TargetStore targetStore = mock(TargetStore.classin);
+    private final TargetStore targetStore = mock(TargetStore.class);
     private PostStitchingOperationScopeFactory scopeFactory;
 
     private final TopologyEntity.Builder vm1 = topologyEntityBuilder(1L, EntityType.VIRTUAL_MACHINE,
