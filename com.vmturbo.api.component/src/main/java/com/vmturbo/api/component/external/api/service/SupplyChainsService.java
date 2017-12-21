@@ -28,6 +28,7 @@ import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.enums.EntitiesCountCriteria;
+import com.vmturbo.api.enums.EntityState;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.SupplyChainDetailType;
 import com.vmturbo.api.serviceinterfaces.ISupplyChainsService;
@@ -55,6 +56,7 @@ public class SupplyChainsService implements ISupplyChainsService {
     @Override
     public SupplychainApiDTO getSupplyChainByUuids(List<String> uuids,
                                                    List<String> entityTypes,
+                                                   List<EntityState> entityStates,
                                                    EnvironmentType environmentType,
                                                    SupplyChainDetailType supplyChainDetailType,
                                                    Boolean includeHealthSummary) throws Exception {
