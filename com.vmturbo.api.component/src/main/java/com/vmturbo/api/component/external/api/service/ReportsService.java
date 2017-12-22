@@ -8,6 +8,7 @@ import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -112,7 +113,7 @@ public class ReportsService implements IReportsService {
         final int templateId = getReportTemplateId(templateApiId);
         final GenerateReportRequest.Builder builder =
                 GenerateReportRequest.newBuilder().setReportId(templateId);
-        builder.setFormat(reportApiRequest.getFormat().ordinal());
+        builder.setFormat(reportApiRequest.getFormat().getLiteral());
         // TODO add attributes, as soon as we face at least one real use case
         final ReportResponse response = reportingService.generateReport(builder.build());
         final ReportInstanceApiDTO result = new ReportInstanceApiDTO();
@@ -160,7 +161,8 @@ public class ReportsService implements IReportsService {
     @Nonnull
     private static ReportApiDTO convert(@Nonnull ReportTemplate src) {
         final ReportApiDTO dst = new ReportApiDTO();
-        dst.setTemplateID(1, src.getId());
+        dst.setTemplateID(src.getReportType(), src.getId());
+        dst.setReportType(src.getReportType());
         dst.setFileName(src.getFilename());
         dst.setTitle(src.getTitle());
         dst.setCategory(src.getCategory());
@@ -175,8 +177,8 @@ public class ReportsService implements IReportsService {
     }
 
     /**
-     * Extracts report templated id from the IU supplied Id.In the UI report template is combined in
-     * form (reportType)_(templateId).
+     * Extracts report templated id from the UI supplied Id. In the UI report template is combined
+     * in form (reportType)_(templateId).
      *
      * @param reportApiId UI supplied Id.
      * @return internal report template id.
@@ -187,12 +189,13 @@ public class ReportsService implements IReportsService {
             throw new IllegalArgumentException(
                     "Report id is malformed. Should be <reportType>_<id>. but is " + reportApiId);
         }
-        try {
-            return Integer.valueOf(parts[1]);
-        } catch (NumberFormatException e) {
+        final String reportIdString = parts[1];
+        if (!StringUtils.isNumeric(reportIdString)) {
             throw new IllegalArgumentException(
-                    "Report id is not parsable: " + parts[0] + " from report id request " +
+                    "Report id is not parsable: " + reportIdString + " from report id request " +
                             reportApiId);
+        } else {
+            return Integer.valueOf(parts[1]);
         }
     }
 }

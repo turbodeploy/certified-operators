@@ -129,7 +129,7 @@ public class TestSQLDatabaseConfig {
             .withRenderMapping(new RenderMapping()
                     .withSchemata(new MappedSchema()
                             .withInput(originalSchemaName)
-                            .withOutput(testSchemaName(originalSchemaName)))));
+                            .withOutput(testSchemaName()))));
 
         jooqConfiguration.set(SQLDialect.MARIADB);
 
@@ -139,7 +139,7 @@ public class TestSQLDatabaseConfig {
     @Bean
     public Flyway flyway() {
         Flyway flyway = new Flyway();
-        flyway.setSchemas(testSchemaName(originalSchemaName));
+        flyway.setSchemas(testSchemaName());
         flyway.setDataSource(dataSource());
 
         return flyway;
@@ -154,15 +154,15 @@ public class TestSQLDatabaseConfig {
     /**
      * Convert an original schema name to the test schema name to use.
      *
-     * @param originalSchemaName The original schema name.
      * @return The test schema name.
      */
-    @Nonnull
-    private static String testSchemaName(@Nonnull final String originalSchemaName) {
+    @Bean
+    protected String testSchemaName() {
         return originalSchemaName + "_test";
     }
 
-    private String getDbUrl() {
+    @Nonnull
+    protected String getDbUrl() {
         return UriComponentsBuilder.newInstance()
             .scheme("jdbc:mysql")
             .host("localhost")

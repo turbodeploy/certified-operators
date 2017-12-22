@@ -1,10 +1,9 @@
 package com.vmturbo.reports.component;
 
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -17,6 +16,7 @@ import java.util.logging.Level;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.sql.DataSource;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -24,6 +24,7 @@ import org.eclipse.birt.core.data.DataTypeUtil;
 import org.eclipse.birt.core.exception.BirtException;
 import org.eclipse.birt.core.framework.Platform;
 import org.eclipse.birt.core.script.ParameterAttribute;
+import org.eclipse.birt.report.data.oda.jdbc.IConnectionFactory;
 import org.eclipse.birt.report.engine.api.EngineConfig;
 import org.eclipse.birt.report.engine.api.IGetParameterDefinitionTask;
 import org.eclipse.birt.report.engine.api.IParameterDefnBase;
@@ -50,6 +51,7 @@ public class ComponentReportRunner implements AutoCloseable {
      */
     private final IReportEngine engine;
     private final Logger logger = LogManager.getLogger();
+    private final DataSource dataSource;
 
     /**
      * The type of html. Used to decorate the HTML output, used in Render and RunAndRender mode.
@@ -59,9 +61,11 @@ public class ComponentReportRunner implements AutoCloseable {
     /**
      * Creates report runner, usable in a separate component.
      *
+     * @param dataSource data source to use for the reports
      * @throws BirtException if exception is raised while initializing Birt.
      */
-    public ComponentReportRunner() throws BirtException {
+    public ComponentReportRunner(@Nonnull DataSource dataSource) throws BirtException {
+        this.dataSource = Objects.requireNonNull(dataSource);
         final EngineConfig config = createEngineConfig();
         Platform.startup(config);
         final IReportEngineFactory factory = (IReportEngineFactory)Platform.createFactoryObject(
@@ -69,8 +73,7 @@ public class ComponentReportRunner implements AutoCloseable {
         engine = factory.createReportEngine(config);
 
         // JRE default level is INFO, which may reveal too much internal
-        // logging
-        // information.
+        // logging information.
         engine.changeLogLevel(Level.WARNING);
     }
 
@@ -78,25 +81,26 @@ public class ComponentReportRunner implements AutoCloseable {
      * Runs a report and returns a stream representing the result (report data itself).
      *
      * @param request report request to run
-     * @return resulting report bytes stream
+     * @param outputFile file to write report output to
      * @throws ReportingException if some internal error occurred.
      */
-    public InputStream createReport(@Nonnull ReportRequest request) throws ReportingException {
+    public void createReport(@Nonnull ReportRequest request, @Nonnull File outputFile)
+            throws ReportingException {
+        final String templateFile = request.getRptDesign();
+        logger.info("Generating report {}", templateFile);
         try {
             final File reportFile = runReport(request);
-            final File resultFile;
             try {
-                resultFile = renderReport(request, reportFile);
+                logger.debug("Rendering report {}", templateFile);
+                renderReport(request, reportFile, outputFile);
+                logger.trace("Rendering report {} finished successfully", templateFile);
             } finally {
                 if (!reportFile.delete()) {
-                    logger.warn("Failed to remote report file {}", reportFile.getAbsolutePath());
+                    logger.warn("Failed to remove report file {}", reportFile.getAbsolutePath());
                 }
             }
-
-            return new ColsableFileInputStream(resultFile);
-        } catch (BirtException | IOException e) {
-            throw new ReportingException("Could not run/render a report " + request.getRptDesign(),
-                    e);
+        } catch (BirtException | IOException | SQLException e) {
+            throw new ReportingException("Could not run a report " + templateFile, e);
         }
     }
 
@@ -106,12 +110,13 @@ public class ComponentReportRunner implements AutoCloseable {
      * @param request report request to use.
      * @param reportFile report file to render an output from. This file is an input for
      *         this method to generate report from.
-     * @return file, containing an executed report
+     * @param outputFile stream to put report into
      * @throws BirtException if Birt thrown an internal exception
      * @throws IOException if error occurred while operating with files
      */
-    private File renderReport(@Nonnull ReportRequest request, @Nonnull File reportFile)
-            throws BirtException, IOException {
+    private void renderReport(@Nonnull ReportRequest request, @Nonnull File reportFile,
+            @Nonnull File outputFile) throws BirtException, IOException {
+
         // use the archive to open the report document
         final IReportDocument document = engine.openReportDocument(reportFile.getAbsolutePath());
         // create the render task
@@ -126,14 +131,11 @@ public class ComponentReportRunner implements AutoCloseable {
         //task.setLocale(getLocale(locale));
         task.setLocale(Locale.US);
 
-        final File outputFile =
-                File.createTempFile("report-", '.' + request.getFormat().getLiteral());
         // setup the output file
         options.setOutputFileName(outputFile.getAbsolutePath());
         task.setPageRange("All");
         task.render();
         task.close();
-        return outputFile;
     }
 
     /**
@@ -143,11 +145,17 @@ public class ComponentReportRunner implements AutoCloseable {
      * @return File containing a report, filled with data
      * @throws BirtException if Birt thrown an internal exception
      * @throws IOException if error occurred while operating with files
+     * @throws SQLException if DB connection could not be established
      */
     @Nonnull
-    private File runReport(@Nonnull ReportRequest request) throws BirtException, IOException {
+    private File runReport(@Nonnull ReportRequest request)
+            throws BirtException, IOException, SQLException {
         // parse the source to get the report runnable
         try (final InputStream is = getClass().getResourceAsStream(request.getRptDesign())) {
+            if (is == null) {
+                throw new BirtException(
+                        "Could not locate report design file at path " + request.getRptDesign());
+            }
             final IReportRunnable runnable = engine.openReportDesign(is);
             // create the report task
             final IRunTask task = engine.createRunTask(runnable);
@@ -169,7 +177,11 @@ public class ComponentReportRunner implements AutoCloseable {
             }
 
             // set the application context
-            task.setAppContext(new HashMap());
+            @SuppressWarnings("unckecked")
+            final Map<String, Object> appContext = task.getAppContext();
+            appContext.put(IConnectionFactory.PASS_IN_CONNECTION, dataSource.getConnection());
+            appContext.put(IConnectionFactory.CLOSE_PASS_IN_CONNECTION, false);
+            task.setAppContext(appContext);
 
             // run the task to create the report document
             final File targetFile = File.createTempFile("report-", ".rptdocument");
@@ -325,27 +337,5 @@ public class ComponentReportRunner implements AutoCloseable {
     @Override
     public void close() {
         engine.destroy();
-    }
-
-    /**
-     * Special input stream, that will remove the file associated, after the stream is closed.
-     */
-    private class ColsableFileInputStream extends FileInputStream {
-
-        private final File source;
-
-        private ColsableFileInputStream(@Nonnull File source) throws FileNotFoundException {
-            super(source);
-            this.source = Objects.requireNonNull(source);
-        }
-
-        @Override
-        public void close() throws IOException {
-            super.close();
-            if (!source.delete()) {
-                logger.warn("Failed to remove file " + source.getAbsolutePath() +
-                        " after it has been closed");
-            }
-        }
     }
 }

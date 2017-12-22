@@ -14,6 +14,7 @@ import org.springframework.boot.context.embedded.tomcat.TomcatEmbeddedServletCon
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import org.springframework.cloud.commons.util.InetUtils;
 import org.springframework.cloud.commons.util.InetUtilsProperties;
+import org.springframework.cloud.consul.config.ConsulConfigBootstrapConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
@@ -26,7 +27,7 @@ import com.vmturbo.components.common.BaseVmtComponent;
  * Component for running reports.
  */
 @Component("theComponent")
-@Import({ReportingConfig.class})
+@Import({ReportingConfig.class, ConsulConfigBootstrapConfiguration.class})
 @Configuration
 @EnableWebMvc
 @EnableDiscoveryClient

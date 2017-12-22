@@ -249,3 +249,4 @@ reporting:
   sqlDialect: 'MARIADB'
   authHost: 'auth'
   authPort: 8080
+  identityGeneratorPrefix: 8

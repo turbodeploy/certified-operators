@@ -18,7 +18,7 @@ import com.google.common.annotations.VisibleForTesting;
  * If the database is not accepting connections, retry the connection until the
  * {@link this#maximumDatabaseWaitTime} elapses.
  */
-class FlywayMigrator {
+public class FlywayMigrator {
     private final Duration maximumDatabaseWaitTime;
     private final Duration retryInterval;
     private final Supplier<Flyway> flywayFactory;
@@ -39,8 +39,7 @@ class FlywayMigrator {
         });
     }
 
-    @VisibleForTesting
-    FlywayMigrator(@Nonnull final Duration maximumDatabaseWaitTime,
+    public FlywayMigrator(@Nonnull final Duration maximumDatabaseWaitTime,
                    @Nonnull final Duration retryInterval,
                    @Nonnull final Supplier<Flyway> flywayFactory) {
         this.maximumDatabaseWaitTime = maximumDatabaseWaitTime;
@@ -56,7 +55,7 @@ class FlywayMigrator {
      * @return the {@link Flyway} instance used to migrate the database.
      */
     @Nonnull
-    Flyway migrate() {
+    public Flyway migrate() {
         Duration waitForDatabaseDelay = maximumDatabaseWaitTime;
 
         while (true) {

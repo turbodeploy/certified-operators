@@ -6,8 +6,8 @@ option java_package = "com.vmturbo.reporting.api.protobuf";
 // Request for the report
 message GenerateReportRequest {
     // Format of the report to be represented.
-    // This is an ordinal value from ReportOutputFormat enum
-    required int32 format = 1;
+    // This is an literal value from ReportOutputFormat enum
+    required string format = 1;
     // ID of the report to generate
     required int32 report_id = 2;
     // Parameters for the report

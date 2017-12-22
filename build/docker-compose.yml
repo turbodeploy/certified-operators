@@ -429,6 +429,7 @@ services:
       consul_host: consul
       component_type: reporting
       instance_id: reporting-1
+      report.files.output.dir: /home/turbonomic/data
       JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${REPORTING_XMX_MB}M ${REPORTING_SYSTEM_PROPERTIES}"
     mem_limit: ${REPORTING_MEM_LIMIT_MB}M
 

@@ -2,6 +2,7 @@ package com.vmturbo.sql.utils;
 
 import java.time.Duration;
 
+import javax.annotation.Nonnull;
 import javax.sql.DataSource;
 
 import org.apache.logging.log4j.LogManager;
@@ -127,7 +128,13 @@ public class SQLDatabaseConfig {
         return new DefaultDSLContext(configuration());
     }
 
-    private String getDbUrl() {
+    /**
+     * Rerutns database connection URL.
+     *
+     * @return DB connection URL
+     */
+    @Nonnull
+    protected String getDbUrl() {
         return UriComponentsBuilder.newInstance()
                 .scheme("jdbc:mysql")
                 .host(dbHost)
