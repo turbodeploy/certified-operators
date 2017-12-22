@@ -14,14 +14,17 @@ import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
+import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.group.filter.TopologyFilterFactory;
+import com.vmturbo.topology.processor.group.policy.InitialPlacementPolicyFactory;
 import com.vmturbo.topology.processor.group.policy.PolicyFactory;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsApplicator;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
+import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
 
 /**
  * The configuration for dealing with groups.
@@ -35,7 +38,6 @@ public class GroupConfig {
 
     @Autowired
     private GroupClientConfig groupClientConfig;
-
 
     @Value("${discoveredGroupUploadIntervalSeconds}")
     private long discoveredGroupUploadIntervalSeconds;
@@ -67,7 +69,8 @@ public class GroupConfig {
 
     @Bean
     public PolicyManager policyManager() {
-        return new PolicyManager(policyRpcService(), groupServiceClient(), new PolicyFactory());
+        return new PolicyManager(policyRpcService(), groupServiceClient(), new PolicyFactory(),
+                initialPlacementPolicyFactory());
     }
 
     @Bean
@@ -86,5 +89,10 @@ public class GroupConfig {
     public DiscoveredGroupUploader discoveredGroupUploader() {
         return new DiscoveredGroupUploader(groupClientConfig.groupChannel(),
                 entityConfig.entityStore());
+    }
+
+    @Bean
+    public InitialPlacementPolicyFactory initialPlacementPolicyFactory() {
+        return new InitialPlacementPolicyFactory(groupServiceClient());
     }
 }

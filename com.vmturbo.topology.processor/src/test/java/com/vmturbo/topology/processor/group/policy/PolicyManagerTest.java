@@ -59,6 +59,9 @@ public class PolicyManagerTest {
 
     private final TopologyGraph topologyGraph = Mockito.mock(TopologyGraph.class);
 
+    private final InitialPlacementPolicyFactory initialPlacementPolicyFactory =
+            Mockito.mock(InitialPlacementPolicyFactory.class);
+
     private final long id1 = 1L;
     private final long id2 = 2L;
     private final long id3 = 3L;
@@ -112,7 +115,7 @@ public class PolicyManagerTest {
 
         // set up the GroupService to test
         policyManager = new com.vmturbo.topology.processor.group.policy.PolicyManager(
-            policyRpcService, groupServiceStub, new PolicyFactory());
+            policyRpcService, groupServiceStub, new PolicyFactory(), initialPlacementPolicyFactory);
     }
 
     @Test

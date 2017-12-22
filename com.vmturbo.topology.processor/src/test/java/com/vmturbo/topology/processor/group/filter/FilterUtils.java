@@ -45,6 +45,7 @@ public class FilterUtils {
             .collect(Collectors.toList());
     }
 
+
     /**
      * Create a minimal topology entity builder.
      *
@@ -55,9 +56,26 @@ public class FilterUtils {
      * @return A {@link TopologyEntityDTO} with the given properties.
      */
     public static TopologyEntity.Builder topologyEntity(long oid, EntityType entityType, long... producers) {
+        return topologyEntity(oid, 0, entityType, producers);
+    }
+
+    /**
+     * Create a minimal topology entity builder.
+     *
+     * @param oid The OID of the topology entity.
+     * @param lastUpdatedTime last updated time of the topology entity
+     * @param entityType The entity type for the entity.
+     * @param producers The OIDs of the producers that the created entity should be consuming from.
+     *                  Does not actually associate any commodities with the producers.
+     * @return A {@link TopologyEntityDTO} with the given properties.
+     */
+    public static TopologyEntity.Builder topologyEntity(long oid,
+                                                        long lastUpdatedTime,
+                                                        EntityType entityType,
+                                                        long... producers) {
         final TopologyEntity.Builder builder = TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
-            .setOid(oid)
-            .setEntityType(entityType.getNumber()), 0);
+                .setOid(oid)
+                .setEntityType(entityType.getNumber()), lastUpdatedTime);
 
         addCommodityBoughtMap(builder.getEntityBuilder(), producers);
         return builder;

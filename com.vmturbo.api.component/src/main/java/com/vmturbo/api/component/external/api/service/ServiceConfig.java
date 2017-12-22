@@ -30,6 +30,9 @@ public class ServiceConfig {
     @Value("${targetValidationPollIntervalSeconds}")
     private Long targetValidationPollIntervalSeconds;
 
+    @Value("${initialPlacementTimeoutSeconds}")
+    private  Long initialPlacementTimeoutSeconds;
+
     /**
      * We allow autowiring between different configuration objects, but not for a bean.
      */
@@ -87,7 +90,8 @@ public class ServiceConfig {
                 communicationConfig.actionsRpcService(),
                 mapperConfig.actionSpecMapper(),
                 communicationConfig.repositoryApi(),
-                communicationConfig.getRealtimeTopologyContextId()
+                communicationConfig.getRealtimeTopologyContextId(),
+                communicationConfig.supplyChainFetcher()
         );
     }
 
@@ -144,7 +148,13 @@ public class ServiceConfig {
 
     @Bean
     public ReservationsService reservationsService() {
-        return new ReservationsService();
+        return new ReservationsService(
+                communicationConfig.reservationServiceBlockingStub(),
+                mapperConfig.reservationMapper(),
+                initialPlacementTimeoutSeconds,
+                communicationConfig.planRpcService(),
+                communicationConfig.planRpcServiceFuture(),
+                communicationConfig.actionsRpcService());
     }
 
     @Bean

@@ -28,6 +28,8 @@ import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyRequest;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.InitialPlacementConstraint;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.PolicyChange;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
@@ -57,6 +59,11 @@ public class PolicyManager {
      */
     final PolicyFactory policyFactory;
 
+    /**
+     * The factory to create policy for initial placement purpose.
+     */
+    final InitialPlacementPolicyFactory initialPlacementPolicyFactory;
+
     private static final DataMetricSummary POLICY_APPLICATION_SUMMARY = DataMetricSummary.builder()
         .withName("tp_policy_application_duration_seconds")
         .withHelp("Duration of applying policies to a topology.")
@@ -72,10 +79,12 @@ public class PolicyManager {
      */
     public PolicyManager(@Nonnull final PolicyServiceBlockingStub policyService,
                          @Nonnull final GroupServiceBlockingStub groupServiceBlockingStub,
-                         @Nonnull final PolicyFactory policyFactory) {
+                         @Nonnull final PolicyFactory policyFactory,
+                         @Nonnull final InitialPlacementPolicyFactory initialPlacementPolicyFactory) {
         this.policyService = Objects.requireNonNull(policyService);
         this.groupServiceBlockingStub = Objects.requireNonNull(groupServiceBlockingStub);
         this.policyFactory = Objects.requireNonNull(policyFactory);
+        this.initialPlacementPolicyFactory = Objects.requireNonNull(initialPlacementPolicyFactory);
     }
 
     /**
@@ -118,6 +127,8 @@ public class PolicyManager {
                             policyResponses, groupsById, policyTypeCounts);
             applyPlanOnlyPolicies(graph, groupResolver, planOnlyPolicies,
                             groupsById, policyTypeCounts);
+
+            applyPolicyForInitialPlacement(graph, groupResolver, changes, policyTypeCounts);
 
             final long durationMs = System.currentTimeMillis() - startTime;
             logger.info("Completed application of {} policies in {}ms.", policyTypeCounts, durationMs);
@@ -222,6 +233,33 @@ public class PolicyManager {
                         .filter(PolicyChange::hasPlanOnlyPolicy)
                         .map(PolicyChange::getPlanOnlyPolicy)
                         .collect(Collectors.toList());
+    }
+
+    /**
+     * Create and apply BindToGroup policy for initial placement. If there are InitialPlacementConstraints in
+     * PlanChanges, it will call InitialPlacementPolicyFactory to create BindToGroup policy and apply
+     * this policy.
+     *
+     * @param graph The topology graph on which to apply the policies.
+     * @param groupResolver The resolver for the groups that the policy applies to.
+     * @param scenarioChanges list of plan changes to be applied to the policies.
+     * @param policyTypeCounts policy type count map.
+     */
+    private void applyPolicyForInitialPlacement(@Nonnull final TopologyGraph graph,
+                                                @Nonnull final GroupResolver groupResolver,
+                                                @Nonnull final List<ScenarioChange> scenarioChanges,
+                                                @Nonnull Map<PolicyDetailCase, Integer> policyTypeCounts) {
+        final List<InitialPlacementConstraint> constraints = scenarioChanges.stream()
+                .filter(ScenarioChange::hasPlanChanges)
+                .map(ScenarioChange::getPlanChanges)
+                .map(PlanChanges::getInitialPlacementConstraintsList)
+                .flatMap(List::stream)
+                .collect(Collectors.toList());
+        if (!constraints.isEmpty()) {
+            final PlacementPolicy policy =
+                    initialPlacementPolicyFactory.generatePolicy(graph, constraints);
+            applyPolicy(groupResolver, policy, graph, policyTypeCounts);
+        }
     }
 
     /**

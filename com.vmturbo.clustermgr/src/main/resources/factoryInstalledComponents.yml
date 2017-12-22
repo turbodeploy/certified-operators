@@ -123,6 +123,7 @@ api:
   groupBuildUseCaseFile: 'groupBuilderUsecases.json'
   settingManagersFile: 'settingManagers.json'
   settingStyleFile: 'settingSpecStyle.json'
+  initialPlacementTimeoutSeconds: 600
 
 auth:
   kvStoreRetryIntervalMillis: 1000

@@ -4,8 +4,10 @@ package com.vmturbo.api.component.external.api.service;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -14,27 +16,34 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.collect.Lists;
+
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionCountsMapper;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
+import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
+import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.constraints.ConstraintApiDTO;
 import com.vmturbo.api.constraints.ConstraintApiInputDTO;
-import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.BaseApiDTO;
-import com.vmturbo.api.dto.notification.LogEntryApiDTO;
-import com.vmturbo.api.dto.policy.PolicyApiDTO;
+import com.vmturbo.api.dto.action.ActionApiDTO;
+import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entity.TagApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
-import com.vmturbo.api.dto.action.ActionApiInputDTO;
-import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
+import com.vmturbo.api.dto.notification.LogEntryApiDTO;
+import com.vmturbo.api.dto.policy.PolicyApiDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
 import com.vmturbo.api.dto.settingspolicy.SettingsPolicyApiDTO;
+import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
+import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
+import com.vmturbo.api.enums.SupplyChainDetailType;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.IEntitiesService;
@@ -45,6 +54,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsResponse;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Service entrypoints to query supply chain values.
@@ -65,14 +75,18 @@ public class EntitiesService implements IEntitiesService {
 
     private final long realtimeTopologyContextId;
 
+    private final SupplyChainFetcherFactory supplyChainFetcher;
+
     public EntitiesService(@Nonnull final ActionsServiceBlockingStub actionOrchestratorRpcService,
                            @Nonnull final ActionSpecMapper actionSpecMapper,
                            @Nonnull final RepositoryApi repositoryApi,
-                           final long realtimeTopologyContextId) {
+                           final long realtimeTopologyContextId,
+                           @Nonnull final SupplyChainFetcherFactory supplyChainFetcher) {
         this.actionOrchestratorRpcService = Objects.requireNonNull(actionOrchestratorRpcService);
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
-        this.repositoryApi = repositoryApi;
+        this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
+        this.supplyChainFetcher = Objects.requireNonNull(supplyChainFetcher);
     }
 
     @Override
@@ -179,7 +193,33 @@ public class EntitiesService implements IEntitiesService {
     @Override
     public List<BaseApiDTO> getGroupsByUuid(String uuid,
                                             Boolean path) throws Exception {
-        throw ApiUtils.notImplementedInXL();
+        if (!path) {
+            // TODO: Get all groups which the service entity is member of
+            throw ApiUtils.notImplementedInXL();
+        }
+        final List<String> entityTypes = Lists.newArrayList(
+                ServiceEntityMapper.toUIEntityType(EntityType.DATACENTER_VALUE),
+                ServiceEntityMapper.toUIEntityType(EntityType.CHASSIS_VALUE));
+        final SupplychainApiDTO supplyChain = supplyChainFetcher.newApiDtoFetcher()
+                .topologyContextId(realtimeTopologyContextId)
+                .addSeedUuids(Lists.newArrayList(uuid))
+                .entityTypes(entityTypes)
+                .includeHealthSummary(false)
+                .supplyChainDetailType(SupplyChainDetailType.entity)
+                .fetch();
+        final Set<Long> supplyChainInstanceIds = supplyChain.getSeMap().entrySet().stream()
+                .map(Entry::getValue)
+                .flatMap(supplyChainEntryDTO -> supplyChainEntryDTO.getInstances().keySet().stream())
+                .map(Long::valueOf)
+                .collect(Collectors.toSet());
+        final Map<Long, ServiceEntityApiDTO> serviceEntityMap =
+                repositoryApi.getServiceEntitiesById(
+                        ServiceEntitiesRequest.newBuilder(supplyChainInstanceIds)
+                                .build())
+                        .entrySet().stream()
+                        .filter(entry -> entry.getValue().isPresent())
+                        .collect(Collectors.toMap(Entry::getKey, entry -> entry.getValue().get()));
+        return Lists.newArrayList(serviceEntityMap.values());
     }
 
     @Override

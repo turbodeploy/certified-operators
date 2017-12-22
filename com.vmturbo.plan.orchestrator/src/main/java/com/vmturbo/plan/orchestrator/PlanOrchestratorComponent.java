@@ -23,6 +23,7 @@ import com.vmturbo.components.common.health.sql.SQLDBHealthMonitor;
 import com.vmturbo.plan.orchestrator.deployment.profile.DeploymentProfileConfig;
 import com.vmturbo.plan.orchestrator.plan.PlanConfig;
 import com.vmturbo.plan.orchestrator.project.PlanProjectConfig;
+import com.vmturbo.plan.orchestrator.reservation.ReservationConfig;
 import com.vmturbo.plan.orchestrator.scenario.ScenarioConfig;
 import com.vmturbo.plan.orchestrator.scheduled.ClusterRollupSchedulerConfig;
 import com.vmturbo.plan.orchestrator.scheduled.PlanProjectSchedulerConfig;
@@ -44,7 +45,8 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
         GlobalConfig.class,
         SQLDatabaseConfig.class,
         PlanProjectSchedulerConfig.class,
-        PlanProjectConfig.class})
+        PlanProjectConfig.class,
+        ReservationConfig.class})
 public class PlanOrchestratorComponent extends BaseVmtComponent {
     private static final Logger LOGGER = LogManager.getLogger();
 
@@ -74,6 +76,9 @@ public class PlanOrchestratorComponent extends BaseVmtComponent {
 
     @Autowired
     private PlanProjectConfig planProjectConfig;
+
+    @Autowired
+    private ReservationConfig reservationConfig;
 
     @Autowired
     private PlanProjectSchedulerConfig schedulerConfig;
@@ -116,6 +121,7 @@ public class PlanOrchestratorComponent extends BaseVmtComponent {
                 .addService(templatesConfig.discoveredTemplateDeploymentProfileService())
                 .addService(deploymentProfileConfig.deploymentProfileRpcService())
                 .addService(planProjectConfig.planProjectService())
+                .addService(reservationConfig.reservationRpcService())
                 .build());
     }
 }

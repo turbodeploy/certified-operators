@@ -81,6 +81,9 @@ enum PlanProjectType {
     // per-cluster headroom (i.e. how many VMs can still fit into the cluster).
     // There is always exactly one headroom plan project in the system.
     CLUSTER_HEADROOM = 1;
+
+    // A initial placement plan
+    INITAL_PLACEMENT = 2;
 }
 
 // Information describing the plan project.
@@ -226,8 +229,13 @@ message ScenarioChange {
 
     message PlanChanges {
         repeated IgnoreConstraint ignore_constraints = 1;
+
         optional PolicyChange policy_change = 2;
+
         optional UtilizationLevel utilization_level = 3;
+
+        // User specified multiple constraints for initial placement, the logic between them is AND.
+        repeated InitialPlacementConstraint initial_placement_constraints = 4;
 
         message IgnoreConstraint {
             required string commodity_type = 1;
@@ -248,6 +256,24 @@ message ScenarioChange {
         // Since we apply this setting only for VMs we need only percentage field.
         message UtilizationLevel {
             required int32 percentage = 2;
+        }
+
+        // The constraints user specified when running initial placement limit where templates could
+        // be placed. Right now, constraints could be Cluster, Data center or Virtual data center.
+        message InitialPlacementConstraint {
+            // It can be the id of cluster, data center, virtual data ceneter
+            optional int64 constraint_id = 1;
+            // The type of constraint
+            optional Type type = 2;
+
+            enum Type {
+                // Cluster constraint and constraint id is cluster id
+                CLUSTER = 1;
+                // Data center constraint and constraint id is data center id
+                DATA_CENTER = 2;
+                // Virtual data center constraint and constraint id is virtual data center id
+                VIRTUAL_DATA_CENTER = 3;
+            }
         }
     }
 
@@ -627,4 +653,21 @@ service PlanService {
     // @returns a PlanInstance reflecting the given ScenarioID, and the new topologyId.
     rpc CreatePlanOverPlan(PlanScenario) returns (PlanInstance);
 
+}
+
+message InitialPlacementRequest {
+    // ScenarioInfo contains list of ScenarioChanges for this initial placement request, later on
+    // if it needs, it also could include plan scope as well.
+    optional ScenarioInfo scenario_info = 1;
+}
+
+message InitialPlacementResponse {
+    // the id of initial placement plan, the caller will use it to check plan status.
+    optional int64 plan_id = 1;
+}
+
+// A service responsible for Reservation related request.
+service ReservationService {
+    // Attemp to run a initial placement
+    rpc InitialPlacement(InitialPlacementRequest) returns (InitialPlacementResponse);
 }

@@ -29,6 +29,9 @@ import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
+import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceFutureStub;
+import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc;
+import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.TemplateSpecServiceGrpc;
@@ -148,6 +151,11 @@ public class CommunicationConfig {
     }
 
     @Bean
+    public PlanServiceFutureStub planRpcServiceFuture() {
+        return PlanServiceGrpc.newFutureStub(planClientConfig.planOrchestratorChannel());
+    }
+
+    @Bean
     public EntitySeverityServiceBlockingStub entitySeverityService() {
         return EntitySeverityServiceGrpc.newBlockingStub(
                 aoClientConfig.actionOrchestratorChannel());
@@ -206,6 +214,11 @@ public class CommunicationConfig {
     @Bean
     public StatsHistoryServiceBlockingStub historyRpcService() {
         return StatsHistoryServiceGrpc.newBlockingStub(historyChannel());
+    }
+
+    @Bean
+    public ReservationServiceBlockingStub reservationServiceBlockingStub() {
+        return ReservationServiceGrpc.newBlockingStub(planClientConfig.planOrchestratorChannel());
     }
 
     @Bean
