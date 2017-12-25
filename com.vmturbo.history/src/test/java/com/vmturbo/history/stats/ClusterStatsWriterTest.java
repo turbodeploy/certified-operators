@@ -40,12 +40,14 @@ public class ClusterStatsWriterTest {
 
     private static final String TEST_DB_NAME = "vmt_testdb_" + System.currentTimeMillis();
 
+    private static final String XL_DB_MIGRATION_PATH = "db/xl-migrations";
+
     @Before
     public void setup() throws Exception {
         HistorydbIO.mappedSchemaForTests = TEST_DB_NAME;
         System.out.println("Initializing DB - " + TEST_DB_NAME);
         HistorydbIO.setSharedInstance(historydbIO);
-        historydbIO.init(true, null, TEST_DB_NAME);
+        historydbIO.init(true, null, TEST_DB_NAME, XL_DB_MIGRATION_PATH);
         clusterStatsWriter = new ClusterStatsWriter(historydbIO);
     }
 
@@ -60,30 +62,42 @@ public class ClusterStatsWriterTest {
         }
     }
 
-    /**
-     * Use ClusterStatsWrite to insert a record with headroom value to the cluster_stat_by_day table.
-     *
-     * @throws Exception
-     */
+
     @Test
-    public void testSaveClusterHeadroom() throws Exception {
+    public void testInsertClusterStatsByDayRecord() throws Exception {
         final long clusterOID = 1000L;
-        final long headroomValue = 20L;
-        clusterStatsWriter.saveClusterHeadroom(clusterOID, headroomValue);
+        final BigDecimal value1 = new BigDecimal(20).setScale(3);
+        final BigDecimal value2 = new BigDecimal(40).setScale(3);
+        final String propertyType = "type";
+        final String propertySubtype = "subtype";
+        clusterStatsWriter.insertClusterStatsByDayRecord(clusterOID, propertyType, propertySubtype,
+                value1);
 
         SelectConditionStep<ClusterStatsByDayRecord> selectStmt = historydbIO.getJooqBuilder()
                 .selectFrom(CLUSTER_STATS_BY_DAY)
-                .where(CLUSTER_STATS_BY_DAY.PROPERTY_SUBTYPE.eq("headroomVMs"));
+                .where(CLUSTER_STATS_BY_DAY.PROPERTY_SUBTYPE.eq(propertySubtype))
+                .and(CLUSTER_STATS_BY_DAY.PROPERTY_TYPE.eq(propertyType))
+                .and(CLUSTER_STATS_BY_DAY.INTERNAL_NAME.eq(Long.toString(clusterOID)));
         Result<ClusterStatsByDayRecord> statsRecords =
                 (Result<ClusterStatsByDayRecord>) historydbIO.execute(BasedbIO.Style.IMMEDIATE,
-                selectStmt);
+                        selectStmt);
 
         // One record created
-        assertEquals(statsRecords.size(), 1);
+        assertEquals(1, statsRecords.size());
 
-        // Check value of headroom value
-        assertTrue(statsRecords.get(0).getValue(CLUSTER_STATS_BY_DAY.VALUE)
-                .compareTo(BigDecimal.valueOf(headroomValue)) == 0);
+        assertEquals(value1, statsRecords.get(0).getValue(CLUSTER_STATS_BY_DAY.VALUE));
+
+        // Insert the reord again with a new value
+        clusterStatsWriter.insertClusterStatsByDayRecord(clusterOID, propertyType, propertySubtype,
+                value2);
+
+        statsRecords =
+                (Result<ClusterStatsByDayRecord>) historydbIO.execute(BasedbIO.Style.IMMEDIATE,
+                        selectStmt);
+
+        // Still one record but it has the new value
+        assertEquals(1, statsRecords.size());
+        assertEquals(value2, statsRecords.get(0).getValue(CLUSTER_STATS_BY_DAY.VALUE));
     }
 
     @Configuration

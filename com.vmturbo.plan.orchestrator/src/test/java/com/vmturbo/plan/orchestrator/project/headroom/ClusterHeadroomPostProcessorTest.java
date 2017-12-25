@@ -13,12 +13,14 @@ import org.junit.Test;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyEntityFilter;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
+import com.vmturbo.common.protobuf.repository.SupplyChainMoles.SupplyChainServiceMole;
 import com.vmturbo.common.protobuf.stats.Stats.SaveClusterHeadroomRequest;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -44,17 +46,23 @@ public class ClusterHeadroomPostProcessorTest {
 
     private StatsHistoryServiceMole historyServiceMole = spy(new StatsHistoryServiceMole());
 
+    private SupplyChainServiceMole supplyChainServiceMole = spy(new SupplyChainServiceMole());
+
+    private GroupServiceMole groupRpcServiceMole = spy(new GroupServiceMole());
+
     private PlanDao planDao = mock(PlanDao.class);
 
     @Rule
     public GrpcTestServer grpcTestServer =
-            GrpcTestServer.newServer(repositoryServiceMole, historyServiceMole);
+            GrpcTestServer.newServer(repositoryServiceMole, historyServiceMole,
+                    supplyChainServiceMole, groupRpcServiceMole);
 
     @Test
     public void testProjectedTopologyAvailable() {
         final ClusterHeadroomPlanPostProcessor processor =
                 spy(new ClusterHeadroomPlanPostProcessor(PLAN_ID, CLUSTER,
-                        grpcTestServer.getChannel(), grpcTestServer.getChannel(), ADDED_CLONES, planDao));
+                        grpcTestServer.getChannel(), grpcTestServer.getChannel(), ADDED_CLONES,
+                        planDao, grpcTestServer.getChannel()));
         final long projectedTopologyId = 100;
 
         when(repositoryServiceMole.retrieveTopology(RetrieveTopologyRequest.newBuilder()
@@ -77,6 +85,7 @@ public class ClusterHeadroomPostProcessorTest {
         verify(historyServiceMole).saveClusterHeadroom(SaveClusterHeadroomRequest.newBuilder()
                 .setClusterId(CLUSTER_ID)
                 .setHeadroom(49L)
+                .setNumVMs(0L)
                 .build());
     }
 
@@ -84,7 +93,8 @@ public class ClusterHeadroomPostProcessorTest {
     public void testPlanSucceeded() throws NoSuchObjectException {
         final ClusterHeadroomPlanPostProcessor processor =
                 spy(new ClusterHeadroomPlanPostProcessor(PLAN_ID, CLUSTER,
-                        grpcTestServer.getChannel(), grpcTestServer.getChannel(), ADDED_CLONES, planDao));
+                        grpcTestServer.getChannel(), grpcTestServer.getChannel(), ADDED_CLONES,
+                        planDao, grpcTestServer.getChannel()));
         Consumer<ProjectPlanPostProcessor> onCompleteHandler = mock(Consumer.class);
         processor.registerOnCompleteHandler(onCompleteHandler);
 
@@ -102,7 +112,8 @@ public class ClusterHeadroomPostProcessorTest {
     public void testPlanFailed() throws NoSuchObjectException {
         final ClusterHeadroomPlanPostProcessor processor =
                 spy(new ClusterHeadroomPlanPostProcessor(PLAN_ID, CLUSTER,
-                        grpcTestServer.getChannel(), grpcTestServer.getChannel(), ADDED_CLONES, planDao));
+                        grpcTestServer.getChannel(), grpcTestServer.getChannel(), ADDED_CLONES,
+                        planDao, grpcTestServer.getChannel()));
         Consumer<ProjectPlanPostProcessor> onCompleteHandler = mock(Consumer.class);
         processor.registerOnCompleteHandler(onCompleteHandler);
 

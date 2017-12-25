@@ -169,14 +169,20 @@ class ClusterStatsWriter {
     }
 
     /**
-     * Save headroom data in cluster_stat_by_day table. If a record already exists,
-     * the record will be updated with the new values. It can happen if the method is
-     * called more than once in a day.
+     * Insert a record into the cluster_stats_by_day table. Current date will be used for the record.
+     * If a record with the same primary key already exists, the value of the existing record
+     * will be updated with the new value.
      *
      * @param clusterOID cluster OID
-     * @param headroom headroom
+     * @param propertyType property Type
+     * @param propertySubtype property subtype
+     * @param value value
+     * @throws VmtDbException
      */
-    public void saveClusterHeadroom(final long clusterOID, final long headroom)
+    public void insertClusterStatsByDayRecord(final long clusterOID,
+                                              final String propertyType,
+                                              final String propertySubtype,
+                                              final BigDecimal value)
             throws VmtDbException {
         LocalDate today = LocalDate.now(Clock.systemUTC());
         Date dbToday = Date.valueOf(today);
@@ -184,11 +190,11 @@ class ClusterStatsWriter {
         // create insert statement persist it to the CLUSTER_STATS table
         InsertSetMoreStep<?> insertStmt = getBaseClusterStatInsert(dbToday, clusterOID);
         insertStmt
-                .set(CLUSTER_STATS_BY_DAY.PROPERTY_TYPE, CLUSTER_STAT_TYPE_CLUSTER)
-                .set(CLUSTER_STATS_BY_DAY.PROPERTY_SUBTYPE, CLUSTER_STAT_SUBTYPE_HEADROOM)
-                .set(CLUSTER_STATS_BY_DAY.VALUE, BigDecimal.valueOf(headroom))
+                .set(CLUSTER_STATS_BY_DAY.PROPERTY_TYPE, propertyType)
+                .set(CLUSTER_STATS_BY_DAY.PROPERTY_SUBTYPE, propertySubtype)
+                .set(CLUSTER_STATS_BY_DAY.VALUE, value)
                 .onDuplicateKeyUpdate()
-                .set(CLUSTER_STATS_BY_DAY.VALUE, BigDecimal.valueOf(headroom));
+                .set(CLUSTER_STATS_BY_DAY.VALUE, value);
 
         historydbIO.execute(BasedbIO.Style.FORCED, insertStmt);
     }

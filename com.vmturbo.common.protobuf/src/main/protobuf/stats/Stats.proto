@@ -155,6 +155,9 @@ message SaveClusterHeadroomRequest {
 
     // The headroom for the cluster at the time of this request.
     optional int64 headroom = 2;
+
+    // The number of VMs in the cluster at the time of this request
+    optional int64 numVMs = 3;
 }
 
 message SaveClusterHeadroomResponse {
@@ -186,7 +189,7 @@ service StatsHistoryService {
     // Will return no significant data.
     rpc ComputeClusterRollup(ClusterRollupRequest) returns (ClusterRollupResponse);
 
-    // Save computed cluster headroom to the relevant location, where it can
+    // Save values computed by the headroom plan in the cluster statistics table, where it can
     // be retrieved alongside other stats.
     //
     // This is an internal call, in the sense that user and external API request should never

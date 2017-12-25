@@ -1,9 +1,11 @@
 package com.vmturbo.plan.orchestrator.project.headroom;
 
+import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
@@ -17,7 +19,10 @@ import com.google.common.annotations.VisibleForTesting;
 import io.grpc.Channel;
 import io.grpc.StatusRuntimeException;
 
+import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyRequest;
@@ -25,6 +30,10 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyResp
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyEntityFilter;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
+import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainRequest;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.Stats.SaveClusterHeadroomRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
@@ -56,6 +65,10 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
 
     private final StatsHistoryServiceBlockingStub statsHistoryService;
 
+    private final SupplyChainServiceBlockingStub supplyChainRpcService;
+
+    private final GroupServiceGrpc.GroupServiceBlockingStub groupRpcService;
+
     private PlanDao planDao;
 
     private Consumer<ProjectPlanPostProcessor> onCompleteHandler;
@@ -71,13 +84,19 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
                                             @Nonnull final Channel repositoryChannel,
                                             @Nonnull final Channel historyChannel,
                                             final long addedClones,
-                                            @Nonnull final PlanDao planDao) {
+                                            @Nonnull final PlanDao planDao,
+                                            @Nonnull final Channel groupChannel) {
         this.planId = planId;
         this.cluster = Objects.requireNonNull(cluster);
         this.repositoryService =
                 RepositoryServiceGrpc.newBlockingStub(Objects.requireNonNull(repositoryChannel));
         this.statsHistoryService =
                 StatsHistoryServiceGrpc.newBlockingStub(Objects.requireNonNull(historyChannel));
+        this.supplyChainRpcService =
+                SupplyChainServiceGrpc.newBlockingStub(Objects.requireNonNull(repositoryChannel));
+        this.groupRpcService =
+                GroupServiceGrpc.newBlockingStub(Objects.requireNonNull(groupChannel));
+
         this.addedClones = addedClones;
         this.planDao = Objects.requireNonNull(planDao);
     }
@@ -108,8 +127,9 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
                         .mapToLong(List::size)
                         .sum();
                 final long headroom = addedClones - unplacedClones;
+                final long numVMs = getNumberOfVMs();
 
-                storeHeadroom(headroom);
+                createStatsRecords(headroom, numVMs);
             }
         }
 
@@ -149,7 +169,7 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
      * @param headroom The calculated headroom.
      */
     @VisibleForTesting
-    void storeHeadroom(final long headroom) {
+    void createStatsRecords(final long headroom, final long numVMs) {
         if (headroom == addedClones) {
             logger.info("Cluster headroom for cluster {} is over {}",
                     cluster.getCluster().getName(), headroom);
@@ -162,6 +182,7 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
         try {
             statsHistoryService.saveClusterHeadroom(SaveClusterHeadroomRequest.newBuilder()
                     .setClusterId(cluster.getId())
+                    .setNumVMs(numVMs)
                     .setHeadroom(headroom)
                     .build());
         } catch (StatusRuntimeException e) {
@@ -172,5 +193,29 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
     @Override
     public void registerOnCompleteHandler(final Consumer<ProjectPlanPostProcessor> handler) {
         this.onCompleteHandler = handler;
+    }
+
+    /**
+     * Get the number of VMs running in the cluster.
+     *
+     * @return number of VMs
+     */
+    private long getNumberOfVMs() {
+        // Use the group service to get a list of IDs of all members (physical machines)
+        GetMembersResponse response = groupRpcService.getMembers(GetMembersRequest.newBuilder()
+                .setId(cluster.getId())
+                .build());
+        List<Long> memberIds = response.getMemberIdList();
+
+        // Use the supply chain service to get all VM nodes that belong to the physical machines
+        Iterator<SupplyChainNode> supplyChainNodeIterator = supplyChainRpcService.getSupplyChain(
+                SupplyChainRequest.newBuilder()
+                        .addAllStartingEntityOid(memberIds)
+                        .addEntityTypesToInclude("VirtualMachine")
+                        .build());
+
+        Iterable<SupplyChainNode> iterable = () -> supplyChainNodeIterator;
+        Stream<SupplyChainNode> nodeStream = StreamSupport.stream(iterable.spliterator(), false);
+        return nodeStream.map(SupplyChainNode::getMemberOidsCount).reduce(0, Integer::sum);
     }
 }

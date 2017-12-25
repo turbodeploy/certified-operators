@@ -21,7 +21,6 @@ import io.grpc.Channel;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles;
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectInfo;
@@ -45,8 +44,6 @@ public class PlanProjectExecutorTest {
 
     private PlanDao planDao = mock(PlanDao.class);
 
-    private GroupServiceGrpc.GroupServiceBlockingStub groupRpcService;
-
     private PlanProjectExecutor planProjectExecutor;
 
     private GroupDTOMoles.GroupServiceMole groupServiceMole = spy(new GroupDTOMoles.GroupServiceMole());
@@ -63,8 +60,7 @@ public class PlanProjectExecutorTest {
         PlanRpcService planRpcService = mock(PlanRpcService.class);
         Channel repositoryChannel = mock(Channel.class);
         Channel historyChannel = mock(Channel.class);
-        groupRpcService = GroupServiceGrpc.newBlockingStub(grpcServer.getChannel());
-        planProjectExecutor = new PlanProjectExecutor(planDao, groupRpcService,
+        planProjectExecutor = new PlanProjectExecutor(planDao, grpcServer.getChannel(),
                 planRpcService, registry, repositoryChannel, templatesDao, historyChannel);
         when(templatesDao.getTemplatesByName("headroomVM"))
             .thenReturn(Collections.singletonList(Template.newBuilder()

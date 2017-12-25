@@ -16,6 +16,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 import static org.mockito.internal.verification.VerificationModeFactory.times;
 
+import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -554,14 +555,19 @@ public class StatsHistoryServiceTest {
     public void saveClusterHeadroom() throws Exception {
         long clusterId = 1L;
         long headroom = 20L;
+        long numVMs = 25L;
         SaveClusterHeadroomRequest request = SaveClusterHeadroomRequest.newBuilder()
                 .setClusterId(clusterId)
                 .setHeadroom(headroom)
+                .setNumVMs(numVMs)
                 .build();
 
         statsHistoryService.saveClusterHeadroom(request, mockSaveClusterHeadroomStreamObserver);
 
-        verify(mockClusterStatsWriter).saveClusterHeadroom(clusterId, headroom);
+        verify(mockClusterStatsWriter).insertClusterStatsByDayRecord(clusterId,
+                "headroomVMs", "headroomVMs", BigDecimal.valueOf(headroom));
+        verify(mockClusterStatsWriter).insertClusterStatsByDayRecord(clusterId,
+                "numVMs", "numVMs", BigDecimal.valueOf(numVMs));
         verify(mockSaveClusterHeadroomStreamObserver).onNext(anyObject());
         verify(mockSaveClusterHeadroomStreamObserver).onCompleted();
     }

@@ -45,8 +45,6 @@ public class PlanProjectExecutor {
 
     private final PlanDao planDao;
 
-    private final GroupServiceGrpc.GroupServiceBlockingStub groupRpcService;
-
     private final PlanRpcService planService;
 
     private final ProjectPlanPostProcessorRegistry projectPlanPostProcessorRegistry;
@@ -56,6 +54,10 @@ public class PlanProjectExecutor {
     private final Channel historyChannel;
 
     private final TemplatesDao templatesDao;
+
+    private final Channel groupChannel;
+
+    private final GroupServiceGrpc.GroupServiceBlockingStub groupRpcService;
 
     /**
      * The number of clones to add to a cluster headroom plan for every host that's
@@ -70,25 +72,29 @@ public class PlanProjectExecutor {
      * Constructor for {@link PlanProjectExecutor}
      *
      * @param planDao Plan DAO
-     * @param groupRpcService Group PRC Service
-     * @param planRpcService Plan PRC Service
+     * @param groupChannel  Group service channel
+     * @param planRpcService Plan RPC Service
      * @param projectPlanPostProcessorRegistry Registry for post processors of plans
      * @param repositoryChannel Repository channel
+     * @param templatesDao templates DAO
+     * @param historyChannel history channel
      */
     public PlanProjectExecutor(@Nonnull final PlanDao planDao,
-                               @Nonnull final GroupServiceGrpc.GroupServiceBlockingStub groupRpcService,
+                               @Nonnull final Channel groupChannel,
                                @Nonnull final PlanRpcService planRpcService,
                                @Nonnull final ProjectPlanPostProcessorRegistry projectPlanPostProcessorRegistry,
                                @Nonnull final Channel repositoryChannel,
                                @Nonnull final TemplatesDao templatesDao,
                                @Nonnull final Channel historyChannel) {
-        this.groupRpcService = Objects.requireNonNull(groupRpcService);
+        this.groupChannel = Objects.requireNonNull(groupChannel);
         this.planService = Objects.requireNonNull(planRpcService);
         this.projectPlanPostProcessorRegistry = Objects.requireNonNull(projectPlanPostProcessorRegistry);
         this.repositoryChannel = Objects.requireNonNull(repositoryChannel);
         this.planDao = Objects.requireNonNull(planDao);
         this.templatesDao = Objects.requireNonNull(templatesDao);
         this.historyChannel = Objects.requireNonNull(historyChannel);
+
+        groupRpcService = GroupServiceGrpc.newBlockingStub(Objects.requireNonNull(groupChannel));
     }
 
     /**
@@ -151,7 +157,8 @@ public class PlanProjectExecutor {
                 ProjectPlanPostProcessor planProjectPostProcessor = null;
                 if (planProject.getPlanProjectInfo().getType().equals(PlanProjectType.CLUSTER_HEADROOM)) {
                     planProjectPostProcessor = new ClusterHeadroomPlanPostProcessor(planInstance.getPlanId(),
-                            cluster, repositoryChannel, historyChannel, getNumClonesToAddForCluster(cluster), planDao);
+                            cluster, repositoryChannel, historyChannel, getNumClonesToAddForCluster(cluster),
+                            planDao, groupChannel);
                 }
                 if (planProjectPostProcessor != null) {
                     projectPlanPostProcessorRegistry.registerPlanPostProcessor(planProjectPostProcessor);

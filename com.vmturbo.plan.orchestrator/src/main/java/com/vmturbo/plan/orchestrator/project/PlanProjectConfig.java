@@ -6,7 +6,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanDTOREST.PlanProjectServiceController;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
@@ -73,14 +72,12 @@ public class PlanProjectConfig {
 
     @Bean
     public PlanProjectExecutor planProjectExecutor() {
-        return new PlanProjectExecutor(planConfig.planDao(), groupRpcService(),
-                planConfig.planService(), planProjectRuntime(),
+        return new PlanProjectExecutor(planConfig.planDao(),
+                groupClientConfig.groupChannel(),
+                planConfig.planService(),
+                planProjectRuntime(),
                 repositoryClientConfig.repositoryChannel(),
                 templatesConfig.templatesDao(),
                 historyClientConfig.historyChannel());
-    }
-    @Bean
-    public GroupServiceGrpc.GroupServiceBlockingStub groupRpcService() {
-        return GroupServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
     }
 }

@@ -12,6 +12,7 @@ import static com.vmturbo.reports.db.StringConstants.RELATION;
 import static com.vmturbo.reports.db.StringConstants.SNAPSHOT_TIME;
 import static com.vmturbo.reports.db.StringConstants.UTILIZATION;
 
+import java.math.BigDecimal;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.Collections;
@@ -78,6 +79,9 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
     private final ClusterStatsWriter clusterStatsWriter;
 
     private final ProjectedStatsStore projectedStatsStore;
+
+    private static final String CLUSTER_STATS_TYPE_HEADROOM_VMS = "headroomVMs";
+    private static final String CLUSTER_STATS_TYPE_NUM_VMS = "numVMs";
 
     private static final Summary GET_STATS_SNAPSHOT_DURATION_SUMMARY = Summary.build()
         .name("history_get_stats_snapshot_duration_seconds")
@@ -301,7 +305,14 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
                                     @Nonnull StreamObserver<Stats.SaveClusterHeadroomResponse> responseObserver) {
         logger.info("Got request to save cluster headroom: {}", request);
         try {
-            clusterStatsWriter.saveClusterHeadroom(request.getClusterId(), request.getHeadroom());
+            clusterStatsWriter.insertClusterStatsByDayRecord(request.getClusterId(),
+                    CLUSTER_STATS_TYPE_HEADROOM_VMS,
+                    CLUSTER_STATS_TYPE_HEADROOM_VMS,
+                    BigDecimal.valueOf(request.getHeadroom()));
+            clusterStatsWriter.insertClusterStatsByDayRecord(request.getClusterId(),
+                    CLUSTER_STATS_TYPE_NUM_VMS,
+                    CLUSTER_STATS_TYPE_NUM_VMS,
+                    BigDecimal.valueOf(request.getNumVMs()));
             responseObserver.onNext(Stats.SaveClusterHeadroomResponse.getDefaultInstance());
             responseObserver.onCompleted();
         } catch (VmtDbException e) {
