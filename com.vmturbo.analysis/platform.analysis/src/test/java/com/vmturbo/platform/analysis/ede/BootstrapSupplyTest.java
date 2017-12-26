@@ -5,6 +5,7 @@ import static org.junit.Assert.*;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.function.Function;
 
 import org.junit.Ignore;
 import org.junit.Test;
@@ -682,9 +683,7 @@ public class BootstrapSupplyTest {
      * Tests both shop together and non shop together
      * Case: When there are no sellers, then bootstrapSupplyDecisions should generate a reconfigure action.
      */
-    //TODO: turn on test after fixing OM-24544
-    //@Test
-    public void test_bootstrapSupplyDecisions_reconfigureWhenNoSellers(){
+    private void test_bootstrapSupplyDecisions_reconfigureWhenNoSellers(Function<Economy, List<Action>> shopper) {
         Economy economy = new Economy();
         Trader st1 = TestUtils.createStorage(economy, Arrays.asList(0l), 300, true);
         st1.setDebugInfoNeverUseInCode("DS1");
@@ -695,10 +694,20 @@ public class BootstrapSupplyTest {
         TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.ST_AMT), vm1, new double[]{100}, st1);
         vm1.setDebugInfoNeverUseInCode("VM1");
 
-        List<Action> bootStrapActionList =
-                        BootstrapSupply.bootstrapSupplyDecisions(economy);
+        List<Action> bootStrapActionList = shopper.apply(economy);
 
+        assertFalse(bootStrapActionList.isEmpty());
         assertEquals(ActionType.RECONFIGURE, bootStrapActionList.get(0).getType());
+    }
+
+    @Test
+    public void test_bootstrapSupplyDecisions_reconfigureWhenNoSellers_nonShopTogether() {
+        test_bootstrapSupplyDecisions_reconfigureWhenNoSellers(BootstrapSupply::nonShopTogetherBootstrap);
+    }
+
+//    @Test
+    public void test_bootstrapSupplyDecisions_reconfigureWhenNoSellers_shopTogether() {
+        test_bootstrapSupplyDecisions_reconfigureWhenNoSellers(BootstrapSupply::shopTogetherBootstrap);
     }
 
     /**

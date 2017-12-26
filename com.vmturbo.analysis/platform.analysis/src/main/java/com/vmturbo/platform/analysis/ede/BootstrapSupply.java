@@ -458,8 +458,8 @@ public class BootstrapSupply {
         Action bootstrapAction;
         Trader provisionedSeller;
         List<Trader> activeSellers = market.getActiveSellersAvailableForPlacement();
-        // returns if all the sellers are not cloneable
-        if (activeSellers.stream().filter(seller -> seller.getSettings().isCloneable())
+        // Return if there are active sellers and none of them are cloneable
+        if (!activeSellers.isEmpty() && activeSellers.stream().filter(seller -> seller.getSettings().isCloneable())
                         .count() == 0) {
             return actions;
         }
