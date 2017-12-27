@@ -362,6 +362,8 @@
                 <module>../com.vmturbo.kvstore</module>
                 <module>../com.vmturbo.repository.api</module>
                 <module>../com.vmturbo.repository.component</module>
+                <module>../com.vmturbo.reports.api</module>
+                <module>../com.vmturbo.reports.component</module>
                 <module>../com.vmturbo.stitching</module>
                 <module>../com.vmturbo.topology.processor.api</module>
                 <module>../com.vmturbo.topology.processor</module>
@@ -447,6 +449,8 @@
                 <module>../com.vmturbo.kvstore</module>
                 <module>../com.vmturbo.repository.api</module>
                 <module>../com.vmturbo.repository.component</module>
+                <module>../com.vmturbo.reports.api</module>
+                <module>../com.vmturbo.reports.component</module>
                 <module>../com.vmturbo.stitching</module>
                 <module>../com.vmturbo.topology.processor.api</module>
                 <module>../com.vmturbo.topology.processor</module>
