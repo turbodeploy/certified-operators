@@ -42,16 +42,28 @@ public class CostFunctionFactory {
             maxCapacity_ = maxCapacity;
         }
 
+        /**
+         * Returns the minimal capacity limit of commodity
+         * @return
+         */
         public double getMinCapacity() {
             return minCapacity_;
         }
 
+        /**
+         * Returns the maximal capacity limit of commodity
+         * @return
+         */
         public double getMaxCapacity() {
             return maxCapacity_;
         }
     }
 
-    // a class to represent the capacity constraint between two different commodities.
+    /**
+     * A class to represent the capacity constraint between two different commodities.
+     * @author weiduan
+     *
+     */
     public static class DependentResourcePair {
         private CommoditySpecification baseCommodity_;
         private CommoditySpecification dependentCommodity_;
@@ -64,21 +76,37 @@ public class CostFunctionFactory {
             maxRatio_ = maxRatio;
         }
 
+        /**
+         * Returns the base commodity in the dependency pair
+         * @return
+         */
         public CommoditySpecification getBaseCommodity() {
             return baseCommodity_;
         }
 
+        /**
+         * Returns the dependent commodity in the dependency pair
+         * @return
+         */
         public CommoditySpecification getDependentCommodity() {
             return dependentCommodity_;
         }
 
+        /**
+         * Returns the maximal ratio of dependent commodity to base commodity
+         * @return
+         */
         public int getMaxRatio() {
             return maxRatio_;
         }
     }
 
-    // a class represents the price information of a commodity
-    // NOTE: the PriceData comparator is overridden to make sure upperBound decides the order
+    /**
+     * A class represents the price information of a commodity
+     * NOTE: the PriceData comparator is overridden to make sure upperBound decides the order
+     * @author weiduan
+     *
+     */
     @SuppressWarnings("rawtypes")
     public static class PriceData implements Comparable {
         private double upperBound_;
@@ -96,22 +124,42 @@ public class CostFunctionFactory {
             minRequestedAmount_ = minRequestedAmount;
         }
 
+        /**
+         * Returns the upper bound limit of commodity
+         * @return
+         */
         public double getUpperBound() {
             return upperBound_;
         }
 
+        /**
+         * Returns the price of commodity
+         * @return
+         */
         public double getPrice() {
             return price_;
         }
 
+        /**
+         * Returns the minimal requested amount of commodity of any buyer
+         * @return
+         */
         public double getMinRequestedAmount() {
             return minRequestedAmount_;
         }
 
+        /**
+         * Returns true if the price is a unit price
+         * @return
+         */
         public boolean isUnitPrice() {
             return isUnitPrice_;
         }
 
+        /**
+         * Returns true if the cost should be accumulated
+         * @return
+         */
         public boolean isAccumulative() {
             return isAccumulative_;
         }
