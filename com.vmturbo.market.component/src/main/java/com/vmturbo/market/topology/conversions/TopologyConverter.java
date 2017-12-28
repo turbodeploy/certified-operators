@@ -50,7 +50,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.Units;
 import com.vmturbo.commons.analysis.AnalysisUtil;
-import com.vmturbo.commons.analysis.InvalidTopologyException;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.market.settings.EntitySettings;
 import com.vmturbo.market.settings.MarketSettings;
@@ -138,6 +137,8 @@ public class TopologyConverter {
 
     private final TopologyInfo topologyInfo;
 
+    public static final float CAPACITY_FACTOR = 0.999999f;
+
     /**
      * A non-shop-together TopologyConverter.
      *
@@ -171,8 +172,7 @@ public class TopologyConverter {
      */
     @Nonnull
     public Set<EconomyDTOs.TraderTO> convertToMarket(
-                @Nonnull final Collection<TopologyDTO.TopologyEntityDTO> entities)
-                                throws InvalidTopologyException {
+                @Nonnull final Collection<TopologyDTO.TopologyEntityDTO> entities) {
         for (TopologyDTO.TopologyEntityDTO entity : entities) {
             int entityType = entity.getEntityType();
             if (AnalysisUtil.SKIPPED_ENTITY_TYPES.contains(entityType)
@@ -200,7 +200,7 @@ public class TopologyConverter {
      * @throws InvalidTopologyException when the topology is invalid, e.g. used > capacity
      */
     @Nonnull
-    private Set<EconomyDTOs.TraderTO> convertToMarket() throws InvalidTopologyException {
+    private Set<EconomyDTOs.TraderTO> convertToMarket() {
         logger.info("Converting topologyEntityDTOs to traderTOs");
         logger.debug("Start creating bicliques");
         BiMap<Long, String> oidToUuidMap = HashBiMap.create();
@@ -212,23 +212,10 @@ public class TopologyConverter {
         }
         bicliquer.compute(oidToUuidMap);
         logger.debug("Done creating bicliques");
-        List<String> exceptions = Lists.newArrayList();
         final ImmutableSet.Builder<EconomyDTOs.TraderTO> returnBuilder = ImmutableSet.builder();
         entityOidToDto.values().stream()
-                .map(dto -> {
-                    try {
-                        return topologyDTOtoTraderTO(dto);
-                    } catch (InvalidTopologyException e) {
-                        exceptions.add(e.getMessage());
-                    }
-                    return null;
-                })
-                .filter(trader -> trader != null)
+                .map(this::topologyDTOtoTraderTO)
                 .forEach(returnBuilder::add);
-        if (!exceptions.isEmpty()) {
-            throw new InvalidTopologyException(
-                "Invalid entities :\n" + exceptions.stream().collect(Collectors.joining("\n")));
-        }
         logger.info("Converted topologyEntityDTOs to traderTOs");
         return returnBuilder.build();
     }
@@ -484,8 +471,7 @@ public class TopologyConverter {
     }
 
     private EconomyDTOs.TraderTO topologyDTOtoTraderTO(
-            @Nonnull final TopologyDTO.TopologyEntityDTO topologyDTO)
-                            throws InvalidTopologyException {
+            @Nonnull final TopologyDTO.TopologyEntityDTO topologyDTO) {
         final boolean shopTogether = topologyDTO.getAnalysisSettings().getShopTogether();
         final EconomyDTOs.TraderStateTO state = traderState(topologyDTO);
         final boolean active = EconomyDTOs.TraderStateTO.ACTIVE.equals(state);
@@ -814,9 +800,36 @@ public class TopologyConverter {
                 : generateBcCommodityBoughtTO(
                     providers.getOrDefault(providerOid, providerOid), type)
             // all other commodities - convert to DTO regardless of shop-together
-            : CommodityDTOs.CommodityBoughtTO.newBuilder()
-                .setQuantity((float)topologyCommBought.getUsed())
-                .setPeakQuantity((float)topologyCommBought.getPeak())
+            : createAndValidateCommBoughtTO(topologyCommBought);
+    }
+
+    private CommodityDTOs.CommodityBoughtTO createAndValidateCommBoughtTO(
+                    TopologyDTO.CommodityBoughtDTO topologyCommBought) {
+        float peakQuantity = (float)topologyCommBought.getPeak();
+        float usedQuantity = (float)topologyCommBought.getUsed();
+
+        if (usedQuantity < 0) {
+            // We don't want to log every time we get used = -1 because mediation
+            // sets some values to -1 as default.
+            if (logger.isDebugEnabled() || usedQuantity != -1) {
+                logger.info("Setting negative used value for "
+                                + topologyCommBought.getCommodityType() + " to 0.");
+            }
+            usedQuantity = 0;
+        }
+
+        if (peakQuantity < 0) {
+            // We don't want to log every time we get peak = -1 because mediation
+            // sets some values to -1 as default.
+            if (logger.isDebugEnabled() || peakQuantity != -1) {
+                logger.info("Setting negative peak value for "
+                                + topologyCommBought.getCommodityType() + " to 0.");
+            }
+            peakQuantity = 0;
+        }
+        return CommodityDTOs.CommodityBoughtTO.newBuilder()
+                .setQuantity(usedQuantity)
+                .setPeakQuantity(peakQuantity)
                 .setSpecification(commoditySpecification(topologyCommBought.getCommodityType()))
                 .build();
     }
@@ -863,10 +876,8 @@ public class TopologyConverter {
 
     @Nonnull
     private Collection<CommodityDTOs.CommoditySoldTO> commoditiesSoldList(
-            @Nonnull final TopologyDTO.TopologyEntityDTO topologyDTO)
-                            throws InvalidTopologyException {
+            @Nonnull final TopologyDTO.TopologyEntityDTO topologyDTO) {
         // DSPMAccess and Datastore commodities are always dropped (shop-together or not)
-        List<String> exceptions = Lists.newArrayList();
         final boolean shopTogether = topologyDTO.getAnalysisSettings().getShopTogether();
         List<CommodityDTOs.CommoditySoldTO> list = topologyDTO.getCommoditySoldListList().stream()
             .filter(commSold -> commSold.getActive())
@@ -874,20 +885,8 @@ public class TopologyConverter {
             .filter(commSold -> includeGuaranteedBuyer
                 || !AnalysisUtil.GUARANTEED_SELLER_TYPES.contains(topologyDTO.getEntityType())
                 || !AnalysisUtil.VDC_COMMODITY_TYPES.contains(commSold.getCommodityType().getType()))
-            .map(commSold -> {
-                try {
-                    return commoditySold(commSold);
-                } catch (InvalidTopologyException e) {
-                    exceptions.add(e.getMessage());
-                    return null;
-                }
-            })
+            .map(this::commoditySold)
             .collect(Collectors.toList());
-        if (!exceptions.isEmpty()) {
-            throw new InvalidTopologyException(
-                topologyDTO.getDisplayName() + "[oid="
-                        + topologyDTO.getOid() + "] : " + exceptions);
-        }
 
         // In the case of non-shop-together, create the biclique commodities
         if (!shopTogether) {
@@ -909,18 +908,31 @@ public class TopologyConverter {
 
     @Nonnull
     private CommodityDTOs.CommoditySoldTO commoditySold(
-                    @Nonnull final TopologyDTO.CommoditySoldDTO topologyCommSold)
-                                    throws InvalidTopologyException {
+                    @Nonnull final TopologyDTO.CommoditySoldDTO topologyCommSold) {
         final CommodityType commodityType = topologyCommSold.getCommodityType();
         final float capacity = (float)topologyCommSold.getCapacity();
         float used = (float)topologyCommSold.getUsed();
         final int type = commodityType.getType();
-        if (used > capacity) {
+        if (used < 0) {
+            if (logger.isDebugEnabled() || used != -1) {
+                // We don't want to log every time we get used = -1 because mediation
+                // sets some values to -1 as default.
+                logger.info("Setting negative used value for "
+                                + commodityType + " to 0.");
+            }
+            used = 0;
+        } else if (used > capacity) {
             if (AnalysisUtil.COMMODITIES_TO_CAP.contains(type)) {
-                used = capacity * 0.999999f;
+                float cappedUsed = capacity * CAPACITY_FACTOR;
+                logger.error("Used > Capacity for " + commodityType
+                                + ". Used : " + used + ", Capacity : " + capacity
+                                + ", Capped used : " + cappedUsed
+                                + ". This is a mediation error and should be looked at.");
+                used = cappedUsed;
             } else if (!(AnalysisUtil.COMMODITIES_TO_SKIP.contains(type) ||
                             AnalysisUtil.ACCESS_COMMODITY_TYPES.contains(type))) {
-                throw new InvalidTopologyException(errorMsg(topologyCommSold));
+                logger.error("Used > Capacity for " + commodityType
+                                + ". Used : " + used + " and Capacity : " + capacity);
             }
         }
         final CommodityDTOs.CommoditySoldSettingsTO economyCommSoldSettings =
@@ -941,14 +953,6 @@ public class TopologyConverter {
                         .setSpecification(commoditySpecification(commodityType))
                         .setThin(topologyCommSold.getIsThin())
                         .build();
-    }
-
-    private static String errorMsg(TopologyDTO.CommoditySoldDTO topologyCommSold) {
-        return "used > capacity (commodity type="
-                        + topologyCommSold.getCommodityType().getType()
-                        + ", used=" + topologyCommSold.getUsed()
-                        + ", capacity=" + topologyCommSold.getCapacity()
-                        + ")";
     }
 
     private boolean isBicliqueCommodity(CommodityType commodityType) {

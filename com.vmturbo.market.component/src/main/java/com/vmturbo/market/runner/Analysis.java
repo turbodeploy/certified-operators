@@ -175,7 +175,7 @@ public class Analysis {
             logger.info(logPrefix + "Completed successfully");
             processResultTime.observe();
             state = AnalysisState.SUCCEEDED;
-        } catch (InvalidTopologyException | RuntimeException e) {
+        } catch (RuntimeException e) {
             logger.error(logPrefix + e + " while running analysis", e);
             state = AnalysisState.FAILED;
             errorMsg = e.toString();
