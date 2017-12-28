@@ -2,6 +2,7 @@ package com.vmturbo.api.component.external.api.service;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
@@ -33,10 +34,11 @@ public class WidgetSetsService implements IWidgetSetsService {
 
     @Override
     public List<WidgetsetApiDTO> getWidgetsetList(
-            @Nullable String category,
+            @Nullable Set<String> categories,
             @Nullable String scopeType) throws Exception {
         return inMemoryWidgetSetCache.values().stream()
-                .filter(widgetSet -> (category == null || category.equals(widgetSet.getCategory()))
+                .filter(widgetSet -> (categories == null || categories.isEmpty() ||
+                    categories.contains(widgetSet.getCategory()))
                         && (scopeType == null || scopeType.equals(widgetSet.getScopeType())))
                 .collect(Collectors.toList());
     }
