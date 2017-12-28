@@ -10,6 +10,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Set;
 
 import org.junit.Before;
@@ -27,6 +28,7 @@ import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
@@ -67,16 +69,23 @@ public class AnalysisTest {
     @Before
     public void before() {
         IdentityGenerator.initPrefix(0L);
-        settingServiceClient =
-            SettingServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        settingServiceClient = getSettingService(10.0f);
+    }
+
+    /*
+     * Set rateOfResize with given value and return settings.
+     */
+    private SettingServiceBlockingStub getSettingService(float resizeValue) {
+        SettingServiceBlockingStub settingServiceClient = SettingServiceGrpc.newBlockingStub(grpcServer.getChannel());
         when(testSettingService.getGlobalSetting(any()))
             .thenReturn(
                 Setting.newBuilder()
                     .setSettingSpecName(
                         GlobalSettingSpecs.RateOfResize.getSettingName())
                     .setNumericSettingValue(
-                        SettingDTOUtil.createNumericSettingValue(10.0f))
+                        SettingDTOUtil.createNumericSettingValue(resizeValue))
                     .build());
+        return settingServiceClient;
     }
 
     /**
@@ -122,11 +131,12 @@ public class AnalysisTest {
      */
     @Test
     public void testFailedAnalysis() {
-        Set<TopologyEntityDTO> set = Sets.newHashSet(buyer()); // seller is missing
+        Set<TopologyEntityDTO> set = Sets.newHashSet(buyer());
         Analysis analysis  = (new Analysis.AnalysisFactory()).newAnalysisBuilder()
                 .setIncludeVDC(true)
                 .setTopologyDTOs(set)
-                .setSettingsServiceClient(settingServiceClient)
+                // RateOfResize negative to throw exception
+                .setSettingsServiceClient(getSettingService(-1))
                 .build();
         analysis.execute();
         assertTrue(analysis.isDone());

@@ -281,13 +281,13 @@ public class TopologyEntitiesHandlerTest {
     }
 
     /**
-     * Test that when used > capacity we throw InvalidTopologyException.
+     * Test that when used > capacity we don't throw any exception.
      * In the loaded file there are 3 such commodities.
+     * We should be able to handle them.
      * @throws IOException if the test file cannot be loaded
-     * @throws InvalidTopologyException when the topology is invalid
      */
-    @Test(expected = InvalidTopologyException.class)
-    public void testInvalidTopology() throws IOException, InvalidTopologyException {
+    @Test
+    public void testInvalidTopology() throws IOException {
         List<CommonDTO.EntityDTO> probeDTOs = messagesFromJsonFile("protobuf/messages/invalid-topology.json",
             EntityDTO::newBuilder);
 
