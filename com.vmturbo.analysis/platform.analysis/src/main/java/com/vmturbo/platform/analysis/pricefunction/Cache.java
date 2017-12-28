@@ -47,10 +47,10 @@ class Cache {
     }
 
     /*
-    * Same as standard price function but returns non-infinite value MAX_UNIT_PRICE for utilization > 1.
+    * Same as standard price function but returns finite value MAX_UNIT_PRICE for utilization > 1.
     */
-   public static synchronized PriceFunction createNonInfiniteStandardWeightedPriceFunction(double weight) {
-       String key = "NISWPF-" + weight;
+   public static synchronized PriceFunction createFiniteStandardWeightedPriceFunction(double weight) {
+       String key = "FSWPF-" + weight;
        PriceFunction pf = pfMap.get(key);
        if (pf == null) {
            pf = (u, seller, commSold, e) ->
