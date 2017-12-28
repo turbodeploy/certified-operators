@@ -1,10 +1,13 @@
 package com.vmturbo.reports.component;
 
 import java.util.Optional;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import io.grpc.stub.StreamObserver;
 
 import org.hamcrest.CoreMatchers;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -15,7 +18,9 @@ import org.mockito.Mockito;
 
 import com.vmturbo.api.enums.ReportOutputFormat;
 import com.vmturbo.reporting.api.protobuf.Reporting.GenerateReportRequest;
-import com.vmturbo.reporting.api.protobuf.Reporting.ReportResponse;
+import com.vmturbo.reporting.api.protobuf.Reporting.ReportInstanceId;
+import com.vmturbo.reports.component.communication.ReportNotificationSender;
+import com.vmturbo.reports.component.communication.ReportingServiceRpc;
 import com.vmturbo.reports.component.instances.ReportInstanceDao;
 import com.vmturbo.reports.component.instances.ReportInstanceRecord;
 import com.vmturbo.reports.component.templates.TemplatesDao;
@@ -26,6 +31,8 @@ import com.vmturbo.sql.utils.DbException;
  * Unit test to cover all the cases of generating report in {@link ReportingServiceRpc}.
  */
 public class ReportingServiceReportGenerationTest {
+
+    private static final long TIMEOUT_MS = 30 * 1000;
 
     private static final String EXCEPTION_MESSAGE = "Some underlying error";
 
@@ -38,8 +45,10 @@ public class ReportingServiceReportGenerationTest {
     private StandardReportsRecord reportTemplate;
     private ReportInstanceRecord dirtyRecord;
     private GenerateReportRequest request;
-    private StreamObserver<ReportResponse> observer;
+    private StreamObserver<ReportInstanceId> observer;
     private ReportingServiceRpc reportingServer;
+    private ReportNotificationSender notificationSender;
+    private ExecutorService threadPool;
 
     @Before
     public void init() throws Exception {
@@ -58,12 +67,21 @@ public class ReportingServiceReportGenerationTest {
         dirtyRecord = Mockito.mock(ReportInstanceRecord.class);
         Mockito.when(dirtyRecord.getId()).thenReturn(200L);
         instancesDao = Mockito.mock(ReportInstanceDao.class);
-        Mockito.when(instancesDao.createInstanceRecord(Mockito.anyInt())).thenReturn(dirtyRecord);
+        Mockito.when(instancesDao.createInstanceRecord(Mockito.anyInt(),
+                Mockito.any(ReportOutputFormat.class))).thenReturn(dirtyRecord);
 
-        observer = (StreamObserver<ReportResponse>)Mockito.mock(StreamObserver.class);
+        observer = (StreamObserver<ReportInstanceId>)Mockito.mock(StreamObserver.class);
+
+        notificationSender = Mockito.mock(ReportNotificationSender.class);
+        threadPool = Executors.newCachedThreadPool();
 
         reportingServer = new ReportingServiceRpc(reportRunner, templatesDao, instancesDao,
-                tmpFolder.newFolder());
+                tmpFolder.newFolder(), threadPool,  notificationSender);
+    }
+
+    @After
+    public void cleanup() {
+        threadPool.shutdownNow();
     }
 
     /**
@@ -79,6 +97,9 @@ public class ReportingServiceReportGenerationTest {
         Mockito.verify(observer).onCompleted();
         Mockito.verify(observer).onNext(Mockito.any());
         Mockito.verify(observer, Mockito.never()).onError(Mockito.any());
+        Mockito.verify(notificationSender).notifyReportGenerated(Mockito.anyLong());
+        Mockito.verify(notificationSender, Mockito.never())
+                .notifyReportGenerationFailed(Mockito.anyLong(), Mockito.anyString());
     }
 
     /**
@@ -90,7 +111,7 @@ public class ReportingServiceReportGenerationTest {
     public void testNoTemplate() throws Exception {
         Mockito.when(templatesDao.getTemplateById(Mockito.anyInt())).thenReturn(Optional.empty());
         reportingServer.generateReport(request, observer);
-        Assert.assertThat(expectFailure().getMessage(),
+        Assert.assertThat(expectSyncFailure().getMessage(),
                 CoreMatchers.containsString("Could not find report template by id"));
     }
 
@@ -104,7 +125,7 @@ public class ReportingServiceReportGenerationTest {
         Mockito.when(templatesDao.getTemplateById(Mockito.anyInt()))
                 .thenThrow(new DbException(EXCEPTION_MESSAGE));
         reportingServer.generateReport(request, observer);
-        Assert.assertThat(expectFailure().getMessage(),
+        Assert.assertThat(expectSyncFailure().getMessage(),
                 CoreMatchers.containsString(EXCEPTION_MESSAGE));
     }
 
@@ -115,10 +136,10 @@ public class ReportingServiceReportGenerationTest {
      */
     @Test
     public void testDbErrorFromInstances() throws Exception {
-        Mockito.when(instancesDao.createInstanceRecord(Mockito.anyInt()))
+        Mockito.when(instancesDao.createInstanceRecord(Mockito.anyInt(), Mockito.any()))
                 .thenThrow(new DbException(EXCEPTION_MESSAGE));
         reportingServer.generateReport(request, observer);
-        Assert.assertThat(expectFailure().getMessage(),
+        Assert.assertThat(expectSyncFailure().getMessage(),
                 CoreMatchers.containsString(EXCEPTION_MESSAGE));
     }
 
@@ -133,19 +154,49 @@ public class ReportingServiceReportGenerationTest {
         Mockito.doThrow(new ReportingException(EXCEPTION_MESSAGE, new NullPointerException()))
                 .when(reportRunner)
                 .createReport(Mockito.any(), Mockito.any());
-
         reportingServer.generateReport(request, observer);
-        Mockito.verify(dirtyRecord).rollback();
-        Assert.assertThat(expectFailure().getMessage(),
-                CoreMatchers.containsString(EXCEPTION_MESSAGE));
+        Mockito.verify(dirtyRecord, Mockito.timeout(TIMEOUT_MS)).rollback();
+        Assert.assertThat(expectAsyncFailure(), CoreMatchers.containsString(EXCEPTION_MESSAGE));
     }
 
-    private Throwable expectFailure() throws DbException {
+    /**
+     * Expects synchronous report generation error (befor the generation itself). Initial GRPC call
+     * is expected to finish with failure. No notifications are expected.
+     *
+     * @return exception thrown while submitting for the report generation
+     * @throws Exception if sume exception occur
+     */
+    private Throwable expectSyncFailure() throws Exception {
         Mockito.verify(observer, Mockito.never()).onCompleted();
         Mockito.verify(observer, Mockito.never()).onNext(Mockito.any());
         final ArgumentCaptor<Throwable> captor = ArgumentCaptor.forClass(Throwable.class);
         Mockito.verify(observer).onError(captor.capture());
         Mockito.verify(dirtyRecord, Mockito.never()).commit();
+        Mockito.verify(notificationSender, Mockito.never())
+                .notifyReportGenerated(Mockito.anyLong());
+        Mockito.verify(notificationSender, Mockito.never())
+                .notifyReportGenerationFailed(Mockito.anyLong(), Mockito.anyString());
+        return captor.getValue();
+    }
+
+    /**
+     * Expect failure in asyncrhonous part of report generation (BIRT itself and later). Initial
+     * GRPC call is expected to finish successfully. Failure should be reported by notifications
+     * later.
+     *
+     * @return failure message string
+     * @throws Exception if sume exception occur
+     */
+    private String expectAsyncFailure() throws Exception {
+        Mockito.verify(observer).onCompleted();
+        Mockito.verify(observer).onNext(Mockito.any());
+        Mockito.verify(observer, Mockito.never()).onError(Mockito.any());
+        Mockito.verify(dirtyRecord, Mockito.never()).commit();
+        Mockito.verify(notificationSender, Mockito.never())
+                .notifyReportGenerated(Mockito.anyLong());
+        final ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
+        Mockito.verify(notificationSender, Mockito.timeout(TIMEOUT_MS))
+                .notifyReportGenerationFailed(Mockito.anyLong(), captor.capture());
         return captor.getValue();
     }
 }

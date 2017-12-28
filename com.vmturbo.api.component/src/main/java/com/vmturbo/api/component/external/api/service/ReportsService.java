@@ -13,6 +13,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.external.api.util.ApiUtils;
+import com.vmturbo.api.component.external.api.websocket.UINotificationChannel;
+import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.report.ReportApiDTO;
 import com.vmturbo.api.dto.report.ReportInstanceApiDTO;
 import com.vmturbo.api.dto.report.ReportInstanceApiInputDTO;
@@ -20,10 +22,11 @@ import com.vmturbo.api.dto.report.ReportScheduleApiDTO;
 import com.vmturbo.api.dto.report.ReportScheduleApiInputDTO;
 import com.vmturbo.api.dto.report.ReportTemplateApiInputDTO;
 import com.vmturbo.api.enums.Period;
+import com.vmturbo.api.enums.ReportType;
 import com.vmturbo.api.serviceinterfaces.IReportsService;
-import com.vmturbo.reporting.api.protobuf.Reporting.EmptyRequest;
+import com.vmturbo.reporting.api.protobuf.Reporting.Empty;
 import com.vmturbo.reporting.api.protobuf.Reporting.GenerateReportRequest;
-import com.vmturbo.reporting.api.protobuf.Reporting.ReportResponse;
+import com.vmturbo.reporting.api.protobuf.Reporting.ReportInstanceId;
 import com.vmturbo.reporting.api.protobuf.Reporting.ReportTemplate;
 import com.vmturbo.reporting.api.protobuf.ReportingServiceGrpc.ReportingServiceBlockingStub;
 
@@ -76,7 +79,7 @@ public class ReportsService implements IReportsService {
     public List<ReportApiDTO> getTemplatesList() {
         final List<ReportApiDTO> result = new ArrayList<>();
         final Iterator<ReportTemplate> iterator =
-                reportingService.listAllTemplates(EmptyRequest.getDefaultInstance());
+                reportingService.listAllTemplates(Empty.getDefaultInstance());
         while (iterator.hasNext()) {
             final ReportTemplate template = iterator.next();
             result.add(convert(template));
@@ -104,6 +107,14 @@ public class ReportsService implements IReportsService {
         throw ApiUtils.notImplementedInXL();
     }
 
+    /**
+     * Generates a new report of the specified template id and report parameters.
+     *
+     * @param templateApiId report template id
+     * @param reportApiRequest report parameters for generation
+     * @return report instance id. Really, UI does not use it, but we still return to REST API for
+     *         other users
+     */
     @Override
     public ReportInstanceApiDTO generateReportTemplateInstance(final String templateApiId,
             final ReportInstanceApiInputDTO reportApiRequest) {
@@ -111,14 +122,19 @@ public class ReportsService implements IReportsService {
                 templateApiId::toString, reportApiRequest::getFormat,
                 reportApiRequest::getAttributes);
         final int templateId = getReportTemplateId(templateApiId);
+        final ReportType reportType = getReportType(templateApiId);
         final GenerateReportRequest.Builder builder =
                 GenerateReportRequest.newBuilder().setReportId(templateId);
         builder.setFormat(reportApiRequest.getFormat().getLiteral());
         // TODO add attributes, as soon as we face at least one real use case
-        final ReportResponse response = reportingService.generateReport(builder.build());
+        final ReportInstanceId response = reportingService.generateReport(builder.build());
         final ReportInstanceApiDTO result = new ReportInstanceApiDTO();
-        result.setFilename(Long.toString(response.getFileName()));
-        logger.trace("Report generation finished successfully into file {}", result::getFilename);
+        result.setFilename(Long.toString(response.getId()));
+        result.setReportType(reportType);
+        result.setTemplateId(reportType.getValue(), templateId);
+        result.setUserName(reportApiRequest.getUserName());
+        result.setScope(new BaseApiDTO());
+        logger.trace("Report generation triggered successfully into file {}", result::getFilename);
         return result;
     }
 
@@ -196,6 +212,36 @@ public class ReportsService implements IReportsService {
                             reportApiId);
         } else {
             return Integer.valueOf(parts[1]);
+        }
+    }
+
+    /**
+     * Extracts report templated id from the UI supplied Id. In the UI report template is combined
+     * in form (reportType)_(templateId).
+     *
+     * @param reportApiId UI supplied Id.
+     * @return internal report template id.
+     */
+    @Nonnull
+    private ReportType getReportType(@Nonnull String reportApiId) {
+        final String[] parts = reportApiId.split("_");
+        if (parts.length != 2) {
+            throw new IllegalArgumentException(
+                    "Report id is malformed. Should be <reportType>_<id>. but is " + reportApiId);
+        }
+        final String reportTypeString = parts[0];
+        if (!StringUtils.isNumeric(reportTypeString)) {
+            throw new IllegalArgumentException(
+                    "Report type is not parsable: " + reportTypeString + " from report id request " +
+                            reportApiId);
+        } else {
+            final ReportType result = ReportType.get(Integer.valueOf(reportTypeString));
+            if (result == null) {
+                throw new IllegalArgumentException(
+                        "Could not find ReportType by id " + reportTypeString);
+            } else {
+                return result;
+            }
         }
     }
 }

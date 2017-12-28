@@ -8,6 +8,7 @@ import com.google.common.collect.Lists;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.annotation.DirtiesContext.ClassMode;
@@ -16,9 +17,11 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
 import com.vmturbo.api.enums.ReportOutputFormat;
-import com.vmturbo.reporting.api.protobuf.Reporting.EmptyRequest;
+import com.vmturbo.reporting.api.ReportListener;
+import com.vmturbo.reporting.api.protobuf.Reporting.Empty;
 import com.vmturbo.reporting.api.protobuf.Reporting.GenerateReportRequest;
-import com.vmturbo.reporting.api.protobuf.Reporting.ReportResponse;
+import com.vmturbo.reporting.api.protobuf.Reporting.ReportData;
+import com.vmturbo.reporting.api.protobuf.Reporting.ReportInstanceId;
 import com.vmturbo.reporting.api.protobuf.Reporting.ReportTemplate;
 import com.vmturbo.reporting.api.protobuf.ReportingServiceGrpc;
 import com.vmturbo.reporting.api.protobuf.ReportingServiceGrpc.ReportingServiceBlockingStub;
@@ -30,7 +33,9 @@ import com.vmturbo.reporting.api.protobuf.ReportingServiceGrpc.ReportingServiceB
 @ContextConfiguration(loader = AnnotationConfigContextLoader.class,
         classes = {ReportingTestConfig.class})
 @DirtiesContext(classMode = ClassMode.BEFORE_EACH_TEST_METHOD)
-public class ReportingServiceTests {
+public class ReportingServiceTest {
+
+    private static long TIMEOUT_MS = 30 * 1000;
 
     @Autowired
     private ReportingTestConfig reportingConfig;
@@ -46,7 +51,7 @@ public class ReportingServiceTests {
         final ReportingServiceBlockingStub stub =
                 ReportingServiceGrpc.newBlockingStub(reportingConfig.planGrpcServer().getChannel());
         final Iterator<ReportTemplate> templatesIterator =
-                stub.listAllTemplates(EmptyRequest.getDefaultInstance());
+                stub.listAllTemplates(Empty.getDefaultInstance());
         final Collection<ReportTemplate> templates = Lists.newArrayList(templatesIterator);
         Assert.assertFalse(templates.isEmpty());
     }
@@ -61,11 +66,20 @@ public class ReportingServiceTests {
         final ReportingServiceBlockingStub stub =
                 ReportingServiceGrpc.newBlockingStub(reportingConfig.planGrpcServer().getChannel());
         final ReportTemplate template =
-                stub.listAllTemplates(EmptyRequest.getDefaultInstance()).next();
-        final ReportResponse response = stub.generateReport(GenerateReportRequest.newBuilder()
+                stub.listAllTemplates(Empty.getDefaultInstance()).next();
+        final ReportInstanceId response = stub.generateReport(GenerateReportRequest.newBuilder()
                 .setFormat(ReportOutputFormat.PDF.getLiteral())
                 .setReportId(template.getId())
                 .build());
-        Assert.assertTrue(response.getFileName() > 0);
+        Assert.assertTrue(response.getId() > 0);
+        final ReportListener listener = Mockito.mock(ReportListener.class);
+
+        reportingConfig.notificationReceiver().addListener(listener);
+        Mockito.verify(listener, Mockito.timeout(TIMEOUT_MS)).onReportGenerated(response.getId());
+        Mockito.verify(listener, Mockito.never()).onReportFailed(Mockito.anyLong(), Mockito.anyString());
+
+        final ReportData data = stub.getReportData(response);
+        Assert.assertTrue(data.getData().size() > 0);
+        Assert.assertEquals(ReportOutputFormat.PDF.getLiteral(), data.getFormat());
     }
 }

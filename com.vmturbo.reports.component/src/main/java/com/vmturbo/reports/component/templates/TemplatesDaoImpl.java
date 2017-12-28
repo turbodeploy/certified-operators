@@ -60,7 +60,7 @@ public class TemplatesDaoImpl implements TemplatesDao {
     @Nonnull
     @Override
     public Optional<StandardReportsRecord> getTemplateById(int templateId) throws DbException {
-        logger.debug("Gerring template by id {}", templateId);
+        logger.debug("Getting template by id {}", templateId);
         final List<StandardReportsRecord> records;
         try {
             records = dsl.transactionResult(configuration -> {
@@ -71,7 +71,7 @@ public class TemplatesDaoImpl implements TemplatesDao {
                         .into(StandardReportsRecord.class);
             });
         } catch (DataAccessException e) {
-            throw new DbException("Error fetching reporting remplate " + templateId, e);
+            throw new DbException("Error fetching reporting template " + templateId, e);
         }
         return records.isEmpty() ? Optional.empty() : Optional.of(records.get(0));
     }

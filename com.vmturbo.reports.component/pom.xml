@@ -660,10 +660,20 @@
                                     <inputSchema>${db.schema}</inputSchema>
                                 </schema>
                             </schemata>
+                            <customTypes>
+                                <customType>
+                                    <name>com.vmturbo.api.enums.ReportOutputFormat</name>
+                                    <converter>com.vmturbo.reports.component.instances.ReportOutputTypeConverter</converter>
+                                </customType>
+                            </customTypes>
                             <forcedTypes>
                                 <forcedType>
                                     <name>boolean</name>
                                     <expression>.*\.report_instance\.committed</expression>
+                                </forcedType>
+                                <forcedType>
+                                    <name>com.vmturbo.api.enums.ReportOutputFormat</name>
+                                    <expression>.*\.report_instance\.output_format</expression>
                                 </forcedType>
                             </forcedTypes>
                         </database>

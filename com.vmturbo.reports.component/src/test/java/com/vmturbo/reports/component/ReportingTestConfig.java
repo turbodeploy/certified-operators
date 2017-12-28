@@ -4,12 +4,15 @@ import java.io.File;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Properties;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import javax.annotation.PostConstruct;
 
 import org.eclipse.birt.core.exception.BirtException;
 import org.flywaydb.core.Flyway;
 import org.junit.rules.TemporaryFolder;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
@@ -19,8 +22,16 @@ import org.springframework.context.support.PropertySourcesPlaceholderConfigurer;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.communication.ShortcutTransport;
+import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.api.test.SenderReceiverPair;
+import com.vmturbo.reporting.api.ReportingNotificationReceiver;
+import com.vmturbo.reporting.api.protobuf.Reporting.ReportNotification;
 import com.vmturbo.reporting.api.protobuf.ReportingServiceGrpc.ReportingServiceImplBase;
+import com.vmturbo.reports.component.communication.ReportNotificationSender;
+import com.vmturbo.reports.component.communication.ReportNotificationSenderImpl;
+import com.vmturbo.reports.component.communication.ReportingServiceRpc;
 import com.vmturbo.reports.component.instances.ReportInstanceDao;
 import com.vmturbo.reports.component.instances.ReportInstanceDaoImpl;
 import com.vmturbo.reports.component.templates.TemplatesDao;
@@ -75,7 +86,27 @@ public class ReportingTestConfig {
     @Bean
     protected ReportingServiceImplBase reportingService() {
         return new ReportingServiceRpc(reportRunner(), templatesDao(), reportInstanceDao(),
-                reportsOutputDir());
+                reportsOutputDir(), Executors.newCachedThreadPool(), notificationSender());
+    }
+
+    @Bean
+    public ReportNotificationSender notificationSender() {
+        return new ReportNotificationSenderImpl(messageChannel());
+    }
+
+    @Bean
+    public SenderReceiverPair<ReportNotification> messageChannel() {
+        return new SenderReceiverPair<>();
+    }
+
+    @Bean
+    public ReportingNotificationReceiver notificationReceiver() {
+        return new ReportingNotificationReceiver(messageChannel(), threadPool());
+    }
+
+    @Bean
+    public ExecutorService threadPool() {
+        return Executors.newCachedThreadPool();
     }
 
     @Bean

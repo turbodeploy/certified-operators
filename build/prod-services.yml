@@ -272,6 +272,7 @@ services:
       consul_host: consul
       component_type: reporting
       instance_id: reporting-1
+      kafkaServers: kafka1:9092
     restart: always
 
   mediation-vcenter-prod:

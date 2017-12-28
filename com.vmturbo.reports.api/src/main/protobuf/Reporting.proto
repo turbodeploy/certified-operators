@@ -39,17 +39,40 @@ message ReportTemplate {
 }
 
 // Represents reporting response - an internal link to a report instance record
-message ReportResponse {
+message ReportInstanceId {
     // Path to the file in the server, where generated report is stored
-    required int64 file_name = 1;
+    required int64 id = 1;
 }
 
-message EmptyRequest {}
+message Empty {}
+
+// Message holds report data, suitable for download or view by browser/end user.
+message ReportData {
+    // Format of the report instance.
+    required string format = 1;
+    // Bytes of the report.
+    required bytes data = 2;
+    // Name of the report to show.
+    required string report_name = 3;
+}
+
+// Report notification holds the status update for report generation. One notification should be
+// fired for one report, sent for generation.
+message ReportNotification {
+    required int64 report_id = 1;
+    oneof notification {
+        Empty generated = 2;
+        string failed = 3;
+    }
+}
 
 // GRPC service to process reporting requests
 service ReportingService {
-    // Generates a report
-    rpc GenerateReport (GenerateReportRequest) returns (ReportResponse);
+    // Triggeres generation of report. Method return as soon, as report instance id is assigned.
+    // When report generation will be finished, ReportNotification will be sent asyncrhonously.
+    rpc GenerateReport (GenerateReportRequest) returns (ReportInstanceId);
     // Lists all the existing reporting templates
-    rpc ListAllTemplates (EmptyRequest) returns (stream ReportTemplate);
+    rpc ListAllTemplates (Empty) returns (stream ReportTemplate);
+    // Retrieves report instance (its bytes, name and what is required to show it to the end-user).
+    rpc GetReportData (ReportInstanceId) returns (ReportData);
 }

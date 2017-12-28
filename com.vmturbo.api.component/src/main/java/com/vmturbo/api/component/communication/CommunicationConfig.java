@@ -3,6 +3,8 @@ package com.vmturbo.api.component.communication;
 import java.net.URISyntaxException;
 import java.time.Duration;
 
+import javax.annotation.Nonnull;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -14,6 +16,9 @@ import org.springframework.web.client.RestTemplate;
 import io.grpc.Channel;
 
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
+import com.vmturbo.api.ReportNotificationDTO.ReportNotification;
+import com.vmturbo.api.ReportNotificationDTO.ReportStatusNotification;
+import com.vmturbo.api.ReportNotificationDTO.ReportStatusNotification.ReportStatus;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
@@ -49,6 +54,9 @@ import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
 import com.vmturbo.plan.orchestrator.api.PlanOrchestrator;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
+import com.vmturbo.reporting.api.ReportListener;
+import com.vmturbo.reporting.api.ReportingClientConfig;
+import com.vmturbo.reporting.api.ReportingNotificationReceiver;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
@@ -60,7 +68,8 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 @Configuration
 @Import({ApiWebsocketConfig.class, TopologyProcessorClientConfig.class,
         ActionOrchestratorClientConfig.class, PlanOrchestratorClientConfig.class,
-        GroupClientConfig.class, HistoryClientConfig.class, RepositoryClientConfig.class})
+        GroupClientConfig.class, HistoryClientConfig.class, RepositoryClientConfig.class,
+        ReportingClientConfig.class})
 public class CommunicationConfig {
 
     @Autowired
@@ -75,6 +84,8 @@ public class CommunicationConfig {
     private HistoryClientConfig historyClientConfig;
     @Autowired
     private RepositoryClientConfig repositoryClientConfig;
+    @Autowired
+    private ReportingClientConfig reportingClientConfig;
     @Value("${clusterMgrHost}")
     private String clusterMgrHost;
 
@@ -271,4 +282,36 @@ public class CommunicationConfig {
         return new GroupExpander(groupRpcService());
     }
 
+    @Bean
+    public ReportingNotificationReceiver reportingNotificationReceiver() {
+        final ReportingNotificationReceiver receiver =
+                reportingClientConfig.reportingNotificationReceiver();
+        receiver.addListener(new ReportListener() {
+            @Override
+            public void onReportGenerated(long reportId) {
+                final String reportIdStr = Long.toString(reportId);
+                websocketConfig.websocketHandler()
+                        .broadcastReportNotification(ReportNotification.newBuilder()
+                                .setReportId(reportIdStr)
+                                .setReportStatusNotification(ReportStatusNotification.newBuilder()
+                                        .setDescription(reportIdStr)
+                                        .setStatus(ReportStatus.GENERATED))
+                                .build());
+            }
+
+            @Override
+            public void onReportFailed(long reportId, @Nonnull String failureDescription) {
+                // TODO add some specific websocket notifications
+                final String reportIdStr = Long.toString(reportId);
+                websocketConfig.websocketHandler()
+                        .broadcastReportNotification(ReportNotification.newBuilder()
+                                .setReportId(reportIdStr)
+                                .setReportStatusNotification(ReportStatusNotification.newBuilder()
+                                        .setDescription(reportIdStr)
+                                        .setStatus(ReportStatus.GENERATED))
+                                .build());
+            }
+        });
+        return receiver;
+    }
 }

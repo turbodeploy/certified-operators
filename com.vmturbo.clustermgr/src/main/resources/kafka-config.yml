@@ -48,6 +48,9 @@ topics:
   - topic: plan-orchestrator-status-changed
     properties:
       retention.ms: 86400000 # 86400k ms = 24 hr
+  - topic: report-generation-notifications
+    properties:
+      retention.ms: 600000 # 600k ms = 10 min
 # the following topics are not in use yet.
 #  - topic: action-status
 #    properties:

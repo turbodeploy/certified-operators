@@ -3,7 +3,9 @@ package com.vmturbo.reports.component.instances;
 import static com.vmturbo.reports.component.db.tables.ReportInstance.REPORT_INSTANCE;
 
 import java.sql.Timestamp;
+import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
@@ -11,7 +13,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 import org.jooq.exception.DataAccessException;
+import org.jooq.impl.DSL;
 
+import com.vmturbo.api.enums.ReportOutputFormat;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.reports.component.db.tables.pojos.ReportInstance;
 import com.vmturbo.sql.utils.DbException;
@@ -34,14 +38,16 @@ public class ReportInstanceDaoImpl implements ReportInstanceDao {
         this.dsl = Objects.requireNonNull(dsl);
     }
 
+    @Nonnull
     @Override
-    public ReportInstanceRecord createInstanceRecord(int reportTemplateId) throws DbException {
+    public ReportInstanceRecord createInstanceRecord(int reportTemplateId,
+            @Nonnull ReportOutputFormat format) throws DbException {
         final long reportId = IdentityGenerator.next();
         logger.debug("Creating new report instance record {} for template {}", reportId,
                 reportTemplateId);
         final Timestamp curTime = new Timestamp(System.currentTimeMillis());
         final ReportInstance instance =
-                new ReportInstance(reportId, curTime, reportTemplateId, false);
+                new ReportInstance(reportId, curTime, reportTemplateId, false, format);
         try {
             dsl.newRecord(REPORT_INSTANCE, instance).store();
         } catch (DataAccessException e) {
@@ -81,6 +87,26 @@ public class ReportInstanceDaoImpl implements ReportInstanceDao {
         } catch (DataAccessException e) {
             throw new DbException("Could not commit report instance record " + reportInstanceId, e);
         }
+    }
+
+    @Nonnull
+    @Override
+    public Optional<ReportInstance> getInstanceRecord(long reportInstanceId) throws DbException {
+        logger.debug("Getting report instance by id {}", reportInstanceId);
+        final List<ReportInstance> records;
+        try {
+            records = dsl.transactionResult(configuration -> {
+                final DSLContext context = DSL.using(configuration);
+                return context.selectFrom(REPORT_INSTANCE)
+                        .where(REPORT_INSTANCE.ID.eq(reportInstanceId)
+                                .and(REPORT_INSTANCE.COMMITTED.eq(true)))
+                        .fetch()
+                        .into(ReportInstance.class);
+            });
+        } catch (DataAccessException e) {
+            throw new DbException("Error fetching report instance " + reportInstanceId, e);
+        }
+        return records.isEmpty() ? Optional.empty() : Optional.of(records.get(0));
     }
 
     /**

@@ -21,6 +21,7 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 import com.vmturbo.api.ActionNotificationDTO.ActionNotification;
 import com.vmturbo.api.MarketNotificationDTO.MarketNotification;
 import com.vmturbo.api.NotificationDTO.Notification;
+import com.vmturbo.api.ReportNotificationDTO.ReportNotification;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 
 /**
@@ -112,6 +113,16 @@ public class ApiWebsocketHandler extends TextWebSocketHandler implements UINotif
                 .setId(IdentityGenerator.next())
                 .setTime(Instant.now().toEpochMilli())
                 .setActionNotification(Objects.requireNonNull(notification))
+                .build());
+    }
+
+    @Override
+    public void broadcastReportNotification(@Nonnull final ReportNotification notification) {
+        logger_.debug("Broadcasting report notification: {}", notification);
+        broadcastNotification(Notification.newBuilder()
+                .setId(IdentityGenerator.next())
+                .setTime(Instant.now().toEpochMilli())
+                .setReportNotification(Objects.requireNonNull(notification))
                 .build());
     }
 

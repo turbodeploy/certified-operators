@@ -5,6 +5,7 @@ import java.time.Duration;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.web.servlet.ServletRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
@@ -157,6 +158,17 @@ public class ServiceConfig {
     public ReportsService reportsService() {
         return new ReportsService(
                 ReportingServiceGrpc.newBlockingStub(reportingClientConfig.reportingChannel()));
+    }
+
+    @Bean
+    public ReportCgiServlet reportServlet() {
+        return new ReportCgiServlet(
+                ReportingServiceGrpc.newBlockingStub(reportingClientConfig.reportingChannel()));
+    }
+
+    @Bean
+    public ServletRegistrationBean servletRegistrationBean() {
+        return new ServletRegistrationBean(reportServlet(), "/cgi-bin/vmtreport.cgi");
     }
 
     @Bean

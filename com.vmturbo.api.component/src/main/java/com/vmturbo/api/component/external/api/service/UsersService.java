@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
@@ -620,13 +622,19 @@ public class UsersService implements IUsersService {
     }
 
     /**
-     * Get a User one-time password
+     * Get a User one-time password. This method is a fake implementation right now.
+     * TODO: should be implemented in OM-29255
      *
      * @return user includes one-time password
      * @throws UnauthorizedObjectException when user is not logged in
      */
     @Override
     public UserApiDTO getUserOneTimePassword() throws UnauthorizedObjectException {
-        throw ApiUtils.notImplementedInXL();
+        final UserApiDTO userDto = new UserApiDTO();
+        userDto.setUsername("fake user");
+        userDto.setAuthToken("fake token");
+        userDto.setPassword("fake password");
+        userDto.setUuid(UUID.randomUUID().toString());
+        return userDto;
     }
 }
