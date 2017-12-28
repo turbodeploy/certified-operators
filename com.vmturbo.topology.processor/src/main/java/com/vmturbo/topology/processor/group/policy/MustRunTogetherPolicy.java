@@ -4,6 +4,7 @@ import java.util.Comparator;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -12,10 +13,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.topology.TopologyEntity;
@@ -34,6 +37,9 @@ public class MustRunTogetherPolicy extends PlacementPolicy {
 
     private final Group consumerGroup;
     private final Group providerGroup;
+
+    private static final Set<Integer> HOST_AND_STORAGE_TYPES = ImmutableSet.of(
+            EntityType.PHYSICAL_MACHINE_VALUE, EntityType.STORAGE_VALUE);
 
     /**
      * Create a new MustRunTogetherPolicy, the policy should be of type MustRunTogether.
@@ -65,11 +71,20 @@ public class MustRunTogetherPolicy extends PlacementPolicy {
         logger.debug("Applying mustRunTogether policy.");
 
         final Set<Long> providers = groupResolver.resolve(providerGroup, topologyGraph);
+        /* We do filtering by entity types because VC cluster groups may contain Virtual
+           Datacenter as member. It is used by UI but it shouldn't be for DRS groups.
+           As it comes from probe we may want to change probe itself in the future.
+         */
+        final Predicate<Long> isHostOrStorage = id -> topologyGraph.getEntity(id).isPresent()
+                && HOST_AND_STORAGE_TYPES.contains(topologyGraph.getEntity(id).get().getEntityType());
+        final Set<Long> onlyHostsOrStoragesProviders = providers.stream()
+                .filter(isHostOrStorage)
+                .collect(Collectors.toSet());
         final Set<Long> consumers = groupResolver.resolve(consumerGroup, topologyGraph);
 
         final int providerType = GroupProtoUtil.getEntityType(providerGroup);
 
-        addCommoditySold(providers, consumers, topologyGraph);
+        addCommoditySold(onlyHostsOrStoragesProviders, consumers, topologyGraph);
         addCommodityBought(consumers, topologyGraph, providerType, commodityBought());
     }
 
