@@ -20,6 +20,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintType;
  */
 public class DiscoveredPoliciesMapper {
     private final Logger logger = LogManager.getLogger();
+    private static final String DRS_SEGMENTATION_COMMODITY = "DrsSegmentationCommodity";
 
     /**
      * Discovered policies reference groups by their IDs (usually the name). We need to map
@@ -36,6 +37,7 @@ public class DiscoveredPoliciesMapper {
                     "Can't create a policy where buyers group is the same as sellers group";
     private static final String NOT_FOUND = "Buyers or Sellers group ID not found";
     private static final String MESSAGE = "{}. Buyers : \"{}\" ({}). Sellers : \"{}\" ({}).";
+
     /**
      * Convert a discovered policy spec (representing e.g. a DRS rules)
      * to an {@link InputPolicy}.
@@ -59,7 +61,8 @@ public class DiscoveredPoliciesMapper {
             return Optional.empty();
         }
         InputPolicy.Builder builder = InputPolicy.newBuilder()
-                        .setName(spec.getPolicyName());
+                        .setName(spec.getPolicyName())
+                        .setCommodityType(DRS_SEGMENTATION_COMMODITY);
         switch (spec.getConstraintType()) {
             case ConstraintType.BUYER_SELLER_AFFINITY_VALUE:
                 return Optional.of(builder.setBindToGroup(BindToGroupPolicy.newBuilder()

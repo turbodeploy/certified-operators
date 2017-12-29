@@ -1,6 +1,7 @@
 package com.vmturbo.group.persistent;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 import org.junit.Before;
@@ -22,12 +23,13 @@ import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintType;
  */
 public class DiscoveredPoliciesMapperTest {
 
-    String BUYERS_GROUP_NAME = "B-group";
-    String SELLERS_GROUP_NAME = "S-group";
-    long BUYERS_GROUP_OID = 1111L;
-    long SELLERS_GROUP_OID = 2222L;
+    private static final String BUYERS_GROUP_NAME = "B-group";
+    private static final String SELLERS_GROUP_NAME = "S-group";
+    private static final long BUYERS_GROUP_OID = 1111L;
+    private static final long SELLERS_GROUP_OID = 2222L;
+    private static final String DRS_SEGMENTATION_COMMODITY = "DrsSegmentationCommodity";
 
-    ImmutableMap<String, Long> groupOids = ImmutableMap.of(
+    private static final ImmutableMap<String, Long> groupOids = ImmutableMap.of(
         BUYERS_GROUP_NAME, BUYERS_GROUP_OID,
         SELLERS_GROUP_NAME, SELLERS_GROUP_OID);
 
@@ -49,6 +51,7 @@ public class DiscoveredPoliciesMapperTest {
         InputPolicy policy = mapper.inputPolicy(info).get();
         assertTrue(policy.hasBindToGroup());
         assertEquals(info.getPolicyName(), policy.getName());
+        assertSame(DRS_SEGMENTATION_COMMODITY, policy.getCommodityType());
         BindToGroupPolicy bind = policy.getBindToGroup();
         assertEquals(BUYERS_GROUP_OID, bind.getConsumerGroup());
         assertEquals(SELLERS_GROUP_OID, bind.getProviderGroup());
@@ -65,6 +68,7 @@ public class DiscoveredPoliciesMapperTest {
         InputPolicy policy = mapper.inputPolicy(info).get();
         assertTrue(policy.hasBindToComplementaryGroup());
         assertEquals(info.getPolicyName(), policy.getName());
+        assertSame(DRS_SEGMENTATION_COMMODITY, policy.getCommodityType());
         BindToComplementaryGroupPolicy bind = policy.getBindToComplementaryGroup();
         assertEquals(BUYERS_GROUP_OID, bind.getConsumerGroup());
         assertEquals(SELLERS_GROUP_OID, bind.getProviderGroup());
@@ -81,6 +85,7 @@ public class DiscoveredPoliciesMapperTest {
         InputPolicy policy = mapper.inputPolicy(info).get();
         assertTrue(policy.hasMustRunTogether());
         assertEquals(info.getPolicyName(), policy.getName());
+        assertSame(DRS_SEGMENTATION_COMMODITY, policy.getCommodityType());
         MustRunTogetherPolicy together = policy.getMustRunTogether();
         assertEquals(BUYERS_GROUP_OID, together.getConsumerGroup());
         assertEquals(SELLERS_GROUP_OID, together.getProviderGroup());
@@ -97,6 +102,7 @@ public class DiscoveredPoliciesMapperTest {
         InputPolicy policy = mapper.inputPolicy(info).get();
         assertTrue(policy.hasAtMostN());
         assertEquals(info.getPolicyName(), policy.getName());
+        assertSame(DRS_SEGMENTATION_COMMODITY, policy.getCommodityType());
         AtMostNPolicy separate = policy.getAtMostN();
         assertEquals(BUYERS_GROUP_OID, separate.getConsumerGroup());
         assertEquals(SELLERS_GROUP_OID, separate.getProviderGroup());
