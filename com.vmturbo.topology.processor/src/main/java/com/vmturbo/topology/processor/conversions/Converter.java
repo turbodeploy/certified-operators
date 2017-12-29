@@ -319,7 +319,8 @@ public class Converter {
                 .setCapacity(commDTO.getCapacity())
                 .setReservedCapacity(commDTO.getReservation())
                 .setIsThin(commDTO.getThin())
-                .setActive(commDTO.getActive());
+                .setActive(commDTO.getActive())
+                .setIsResizeable(commDTO.getResizable());
 
         if (commDTO.hasUtilizationThresholdPct()) {
             retCommSoldBuilder.setEffectiveCapacityPercentage(commDTO.getUtilizationThresholdPct());
