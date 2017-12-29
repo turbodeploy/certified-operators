@@ -78,7 +78,9 @@ public class TopologyEntitiesHandlerTest {
     public void end2endTest() throws IOException, InvalidTopologyException {
         List<ActionTO> actionTOs = generateEnd2EndActions();
         assertFalse(actionTOs.isEmpty());
-        assertTrue(actionTOs.stream().anyMatch(ActionTO::hasResize));
+        // All commodities gotten from protobuf/messages/discoveredEntities.json
+        // in generateEnd2End actions have resizable=false, so, there should not be resize actions
+        assertFalse(actionTOs.stream().anyMatch(ActionTO::hasResize));
         assertTrue(actionTOs.stream().anyMatch(ActionTO::hasMove));
         assertTrue(actionTOs.stream().anyMatch(ActionTO::hasProvisionBySupply));
     }
