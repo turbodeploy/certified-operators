@@ -1,11 +1,17 @@
 package com.vmturbo.repository.graph.executor;
 
-import static com.vmturbo.repository.graph.result.ResultsFixture.DC_TYPE;
-import static com.vmturbo.repository.graph.result.ResultsFixture.PM_TYPE;
-import static com.vmturbo.repository.graph.result.ResultsFixture.VM_TYPE;
 import static com.vmturbo.repository.graph.result.ResultsFixture.fill;
-import static com.vmturbo.repository.graph.result.ResultsFixture.supplyChainQueryResultFor;
+import static com.vmturbo.repository.graph.result.SubgraphResultUtilities.dc;
+import static com.vmturbo.repository.graph.result.SubgraphResultUtilities.emptySubgraphFor;
+import static com.vmturbo.repository.graph.result.SubgraphResultUtilities.host;
+import static com.vmturbo.repository.graph.result.SubgraphResultUtilities.nodeMapFor;
+import static com.vmturbo.repository.graph.result.SubgraphResultUtilities.subgraphFor;
+import static com.vmturbo.repository.graph.result.SubgraphResultUtilities.vm;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
+import static org.junit.Assert.assertEquals;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyMap;
@@ -16,8 +22,8 @@ import static org.mockito.Mockito.when;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
-import com.vmturbo.repository.graph.driver.ArangoDatabaseFactory;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -31,14 +37,18 @@ import com.arangodb.ArangoDB;
 import com.arangodb.ArangoDBException;
 import com.arangodb.ArangoDatabase;
 import com.arangodb.model.AqlQueryOptions;
-import com.google.common.collect.Lists;
-import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
-import com.vmturbo.repository.graph.parameter.GraphCmd;
-import com.vmturbo.repository.graph.result.SupplyChainExecutorResult;
-import com.vmturbo.repository.graph.result.SupplyChainQueryResult;
-import com.vmturbo.repository.topology.TopologyDatabase;
 
 import javaslang.control.Try;
+
+import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
+import com.vmturbo.repository.constant.RepoObjectType.RepoEntityType;
+import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
+import com.vmturbo.repository.graph.driver.ArangoDatabaseFactory;
+import com.vmturbo.repository.graph.parameter.GraphCmd;
+import com.vmturbo.repository.graph.result.ResultsFixture;
+import com.vmturbo.repository.graph.result.SupplyChainSubgraph;
+import com.vmturbo.repository.graph.result.SupplyChainSubgraph.SubgraphResult;
+import com.vmturbo.repository.topology.TopologyDatabase;
 
 @RunWith(MockitoJUnitRunner.class)
 public class ArangoDBExecutorTest {
@@ -48,7 +58,7 @@ public class ArangoDBExecutorTest {
     private GraphCmd graphCmd;
 
     @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
-    private Try<SupplyChainExecutorResult> supplyChainExecutorResult;
+    private Try<SupplyChainSubgraph> supplyChainSubgraph;
 
     private Try<Collection<ServiceEntityRepoDTO>> searchServiceEntityResults;
 
@@ -67,7 +77,7 @@ public class ArangoDBExecutorTest {
 
     @Test
     public void testExecuteSupplyChainCmdWithException() throws Exception {
-        givenASupplyChainCmd("db","start", "graph", "vertex");
+        givenASupplyChainCmd("db", "start", "graph", "vertex");
         givenArangoDriverWillThrowException();
 
         whenExecuteSupplyChainCmd();
@@ -77,37 +87,71 @@ public class ArangoDBExecutorTest {
 
     @Test
     public void testExecuteSupplyChainCmdConsumerResults() throws Exception {
-        final List<ServiceEntityRepoDTO> pmInstances = fill(5, PM_TYPE);
-        List<SupplyChainQueryResult> consumerQueryResults = Collections.singletonList(
-                supplyChainQueryResultFor(PM_TYPE, pmInstances, Collections.emptyList()));
+        final SubgraphResult consumerResults = subgraphFor(1)
+            .providerEdges(
+                host(1).providesTo(vm(2)),
+                host(1).providesTo(vm(3)),
+                host(1).providesTo(vm(4)),
+                host(1).providesTo(vm(5))
+            ).build();
 
         givenASupplyChainCmd("db","start", "graph", "vertex");
         givenArangoDriverWillThrowException();
-        givenSupplyChainQueryResults(Collections.emptyList(), consumerQueryResults);
+        givenSupplyChainSubgraphResults(emptySubgraphFor(host(1)), consumerResults);
         whenExecuteSupplyChainCmd();
-        thenSupplyChainExecutorResults(Collections.emptyList(), consumerQueryResults);
+        final Map<String, SupplyChainNode> supplyChainNodes = nodeMapFor(supplyChainSubgraph.get());
+        assertEquals(1, supplyChainNodes.get(RepoEntityType.PHYSICAL_MACHINE.getValue())
+            .getMemberOidsCount());
+        assertEquals(4, supplyChainNodes.get(RepoEntityType.VIRTUAL_MACHINE.getValue())
+            .getMemberOidsCount());
+
+        org.hamcrest.MatcherAssert.assertThat(
+            supplyChainNodes.get(RepoEntityType.PHYSICAL_MACHINE.getValue()).getConnectedConsumerTypesList(),
+            contains(RepoEntityType.VIRTUAL_MACHINE.getValue()));
+        org.hamcrest.MatcherAssert.assertThat(
+            supplyChainNodes.get(RepoEntityType.PHYSICAL_MACHINE.getValue()).getConnectedProviderTypesList(),
+            is(empty()));
+        org.hamcrest.MatcherAssert.assertThat(
+            supplyChainNodes.get(RepoEntityType.VIRTUAL_MACHINE.getValue()).getConnectedProviderTypesList(),
+            contains(RepoEntityType.PHYSICAL_MACHINE.getValue()));
     }
 
     @Test
     public void testExecuteSupplyChainCmd() throws Exception {
-        final List<ServiceEntityRepoDTO> pmInstances = fill(5, PM_TYPE);
-        final List<ServiceEntityRepoDTO> vmInstances = fill(5, VM_TYPE);
-        final List<ServiceEntityRepoDTO> dcInstances = fill(2, DC_TYPE);
 
-        List<SupplyChainQueryResult> consumerQueryResults = Lists.newArrayList(
-            supplyChainQueryResultFor(PM_TYPE, pmInstances, vmInstances)
-        );
-
-        List<SupplyChainQueryResult> providerQueryResults = Lists.newArrayList(
-            supplyChainQueryResultFor(PM_TYPE, pmInstances, dcInstances)
-        );
+        final SubgraphResult consumerResults = subgraphFor(1)
+            .providerEdges(
+                host(1).providesTo(vm(2)),
+                host(1).providesTo(vm(3)),
+                host(1).providesTo(vm(4)),
+                host(1).providesTo(vm(5)),
+                host(10).providesTo(vm(50)) // This edge won't be traversed because it is not outward from host 1
+            ).build();
+        final SubgraphResult providerResults = subgraphFor(1)
+            .consumerEdges(
+                host(1).consumesFrom(dc(20)),
+                host(10).consumesFrom(dc(20)) // This edge won't be traversed either
+            ).build();
 
         givenASupplyChainCmd("db","start", "graph", "vertex");
-        givenSupplyChainQueryResults(providerQueryResults, consumerQueryResults);
-
+        givenArangoDriverWillThrowException();
+        givenSupplyChainSubgraphResults(providerResults, consumerResults);
         whenExecuteSupplyChainCmd();
+        final Map<String, SupplyChainNode> supplyChainNodes = nodeMapFor(supplyChainSubgraph.get());
+        final SupplyChainNode pmNode = supplyChainNodes.get(RepoEntityType.PHYSICAL_MACHINE.getValue());
+        assertEquals(1, pmNode.getMemberOidsCount());
+        assertEquals(4, supplyChainNodes.get(RepoEntityType.VIRTUAL_MACHINE.getValue())
+            .getMemberOidsCount());
+        assertEquals(1, supplyChainNodes.get(RepoEntityType.DATACENTER.getValue())
+            .getMemberOidsCount());
 
-        thenSupplyChainExecutorResults(providerQueryResults, consumerQueryResults);
+        org.hamcrest.MatcherAssert.assertThat(pmNode.getConnectedConsumerTypesList(),
+            contains(RepoEntityType.VIRTUAL_MACHINE.getValue()));
+        org.hamcrest.MatcherAssert.assertThat(pmNode.getConnectedProviderTypesList(),
+            contains(RepoEntityType.DATACENTER.getValue()));
+        org.hamcrest.MatcherAssert.assertThat(
+            supplyChainNodes.get(RepoEntityType.VIRTUAL_MACHINE.getValue()).getConnectedProviderTypesList(),
+            contains(RepoEntityType.PHYSICAL_MACHINE.getValue()));
     }
 
     @Test
@@ -122,7 +166,7 @@ public class ArangoDBExecutorTest {
 
     @Test
     public void testSearchServiceEntity() throws Exception {
-        final List<ServiceEntityRepoDTO> mockResults = fill(5, VM_TYPE);
+        final List<ServiceEntityRepoDTO> mockResults = fill(5, ResultsFixture.VM_TYPE);
 
         givenASearchEntityCmd("collection", "field", "query", GraphCmd.SearchType.FULLTEXT);
         givenSearchServiceEntityResults(mockResults);
@@ -134,7 +178,7 @@ public class ArangoDBExecutorTest {
 
     @Test
     public void testSearchServiceEntityNonFullText() throws Exception {
-        final List<ServiceEntityRepoDTO> mockResults = fill(5, VM_TYPE);
+        final List<ServiceEntityRepoDTO> mockResults = fill(5, ResultsFixture.VM_TYPE);
 
         givenASearchEntityCmd("collection", "uuid", "10", GraphCmd.SearchType.STRING);
         givenSearchServiceEntityResults(mockResults);
@@ -174,19 +218,19 @@ public class ArangoDBExecutorTest {
     }
 
     @SuppressWarnings("unchecked")
-    private void givenSupplyChainQueryResults(final List<SupplyChainQueryResult> providerResults,
-                                              final List<SupplyChainQueryResult> consumerResults) throws Exception {
+    private void givenSupplyChainSubgraphResults(final SubgraphResult providerResults,
+                                                 final SubgraphResult consumerResults) throws Exception {
 
-        final ArangoCursor<SupplyChainQueryResult> providerCursor = Mockito.mock(ArangoCursor.class);
-        final ArangoCursor<SupplyChainQueryResult> consumerCursor = Mockito.mock(ArangoCursor.class);
+        final ArangoCursor<SubgraphResult> providerCursor = Mockito.mock(ArangoCursor.class);
+        final ArangoCursor<SubgraphResult> consumerCursor = Mockito.mock(ArangoCursor.class);
 
-        given(providerCursor.asListRemaining()).willReturn(providerResults);
-        given(consumerCursor.asListRemaining()).willReturn(consumerResults);
+        given(providerCursor.asListRemaining()).willReturn(Collections.singletonList(providerResults));
+        given(consumerCursor.asListRemaining()).willReturn(Collections.singletonList(consumerResults));
 
         final ArangoDatabase mockDatabase = Mockito.mock(ArangoDatabase.class);
 
         when(mockDatabase.query(anyString(), anyMap(), any(AqlQueryOptions.class),
-                                          Matchers.<Class<SupplyChainQueryResult>>any()))
+                                          Matchers.<Class<SubgraphResult>>any()))
                 .thenReturn(providerCursor)
                 .thenReturn(consumerCursor);
 
@@ -206,18 +250,11 @@ public class ArangoDBExecutorTest {
     }
 
     private void whenExecuteSupplyChainCmd() {
-        supplyChainExecutorResult = arangoDBExecutor.executeSupplyChainCmd((GraphCmd.GetSupplyChain) graphCmd);
+        supplyChainSubgraph = arangoDBExecutor.executeSupplyChainCmd((GraphCmd.GetSupplyChain) graphCmd);
     }
 
     private void thenSupplyChainExecutorResultIsEmpty() {
-        assertThat(supplyChainExecutorResult).isEmpty();
-    }
-
-    private void thenSupplyChainExecutorResults(final List<SupplyChainQueryResult> expectedProviderResults,
-                                                final List<SupplyChainQueryResult> expectedConsumerResults) {
-        assertThat(supplyChainExecutorResult).isNotEmpty();
-        assertThat(supplyChainExecutorResult.get().getConsumers()).hasSameElementsAs(expectedConsumerResults);
-        assertThat(supplyChainExecutorResult.get().getProviders()).hasSameElementsAs(expectedProviderResults);
+        assertThat(supplyChainSubgraph).isEmpty();
     }
 
     private void whenSearchServiceEntity() {

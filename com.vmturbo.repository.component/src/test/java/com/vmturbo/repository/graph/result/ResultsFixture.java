@@ -12,6 +12,8 @@ import javaslang.Value;
 import javaslang.collection.Stream;
 
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
+import com.vmturbo.repository.graph.result.SupplyChainSubgraph.EdgeCollectionResult;
+import com.vmturbo.repository.graph.result.SupplyChainSubgraph.SubgraphResult;
 
 public class ResultsFixture {
 
@@ -51,18 +53,5 @@ public class ResultsFixture {
 
     public static ServiceEntityRepoDTO fillOne(final String entityType) {
         return Stream.continually(serviceEntitySupplier(entityType)).take(1).get();
-    }
-
-    public static SupplyChainQueryResult supplyChainQueryResultFor(final String entityType,
-                                                                   final List<ServiceEntityRepoDTO> instances,
-                                                                   final List<ServiceEntityRepoDTO> neighbours) {
-        final Map<String, List<SupplyChainNeighbour>> neighbourByType = neighbours.stream()
-                .collect(Collectors.groupingBy(ServiceEntityRepoDTO::getEntityType,
-                        Collectors.mapping(
-                            repoDto -> new SupplyChainNeighbour(repoDto.getOid(), 0),
-                            Collectors.toList())));
-        return new SupplyChainQueryResult(entityType,
-                instances.stream().map(ServiceEntityRepoDTO::getOid).collect(Collectors.toSet()),
-                neighbourByType);
     }
 }

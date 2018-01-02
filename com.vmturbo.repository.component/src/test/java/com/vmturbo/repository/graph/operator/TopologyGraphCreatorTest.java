@@ -1,9 +1,7 @@
 package com.vmturbo.repository.graph.operator;
 
-import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
-import com.vmturbo.repository.graph.GraphDefinition;
-import com.vmturbo.repository.graph.driver.GraphDatabaseDriver;
-import com.vmturbo.repository.graph.operator.TopologyGraphCreator;
+import java.util.Arrays;
+import java.util.List;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -11,8 +9,9 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.runners.MockitoJUnitRunner;
 
-import java.util.Arrays;
-import java.util.List;
+import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
+import com.vmturbo.repository.graph.GraphDefinition;
+import com.vmturbo.repository.graph.driver.GraphDatabaseDriver;
 
 @RunWith(MockitoJUnitRunner.class)
 public class TopologyGraphCreatorTest {

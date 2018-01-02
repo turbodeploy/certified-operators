@@ -8,6 +8,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -34,9 +35,8 @@ import com.vmturbo.repository.graph.driver.ArangoDatabaseFactory;
 import com.vmturbo.repository.graph.parameter.GraphCmd;
 import com.vmturbo.repository.graph.parameter.GraphCmd.ServiceEntityMultiGet;
 import com.vmturbo.repository.graph.parameter.GraphCmd.SupplyChainDirection;
-import com.vmturbo.repository.graph.result.SupplyChainExecutorResult;
-import com.vmturbo.repository.graph.result.SupplyChainInstancesType;
-import com.vmturbo.repository.graph.result.SupplyChainQueryResult;
+import com.vmturbo.repository.graph.result.SupplyChainSubgraph;
+import com.vmturbo.repository.graph.result.SupplyChainSubgraph.SubgraphResult;
 import com.vmturbo.repository.topology.TopologyDatabases;
 
 public class ArangoDBExecutor implements GraphDBExecutor {
@@ -93,8 +93,10 @@ public class ArangoDBExecutor implements GraphDBExecutor {
         final StrSubstitutor substitutor = new StrSubstitutor(valuesMap);
 
         return Match(direction).of(
-                Case(SupplyChainDirection.PROVIDER, substitutor.replace(ArangoDBQueries.SUPPLY_CHAIN_PROVIDER_QUERY_STRING)),
-                Case(SupplyChainDirection.CONSUMER, substitutor.replace(ArangoDBQueries.SUPPLY_CHAIN_CONSUMER_QUERY_STRING))
+                Case(SupplyChainDirection.PROVIDER,
+                    substitutor.replace(ArangoDBQueries.SUPPLY_CHAIN_PROVIDER_QUERY_STRING)),
+                Case(SupplyChainDirection.CONSUMER,
+                    substitutor.replace(ArangoDBQueries.SUPPLY_CHAIN_CONSUMER_QUERY_STRING))
         );
     }
 
@@ -153,7 +155,7 @@ public class ArangoDBExecutor implements GraphDBExecutor {
     }
 
     @Override
-    public Try<SupplyChainExecutorResult> executeSupplyChainCmd(final GraphCmd.GetSupplyChain supplyChainCmd) {
+    public Try<SupplyChainSubgraph> executeSupplyChainCmd(final GraphCmd.GetSupplyChain supplyChainCmd) {
         final ArangoDB driver = arangoDatabaseFactory.getArangoDriver();
         final String providerQuery = getSupplyChainQuery(SupplyChainDirection.PROVIDER, supplyChainCmd);
         final String consumerQuery = getSupplyChainQuery(SupplyChainDirection.CONSUMER, supplyChainCmd);
@@ -164,32 +166,21 @@ public class ArangoDBExecutor implements GraphDBExecutor {
         logger.debug("Supply chain provider query {}", providerQuery);
         logger.debug("Supply chain consumer query {}", consumerQuery);
 
-        final Try<Seq<ArangoCursor<SupplyChainQueryResult>>> combinedResults = Try.sequence(ImmutableList.of(
-            Try.of(() -> driver.db(databaseName).query(providerQuery, null, null, SupplyChainQueryResult.class))
-            , Try.of(() -> driver.db(databaseName).query(consumerQuery, null, null, SupplyChainQueryResult.class))));
+        final Try<Seq<ArangoCursor<SubgraphResult>>> combinedResults = Try.sequence(ImmutableList.of(
+            Try.of(() -> driver.db(databaseName).query(providerQuery, null, null, SubgraphResult.class))
+            , Try.of(() -> driver.db(databaseName).query(consumerQuery, null, null, SubgraphResult.class))));
         timer.observe();
 
         combinedResults.onFailure(logAQLException(Joiner.on("\n").join(providerQuery, consumerQuery)));
 
-        return combinedResults.map(results ->
-                new SupplyChainExecutorResult(results.get(0).asListRemaining(), results.get(1).asListRemaining()));
-    }
+        return combinedResults.flatMap(results -> {
+            final List<SubgraphResult> providerResults = results.get(0).asListRemaining();
+            final List<SubgraphResult> consumerResults = results.get(1).asListRemaining();
 
-    @Override
-    public Try<List<SupplyChainInstancesType>> executeGlobalSupplyChainCmd(GraphCmd.GetGlobalSupplyChain globalSupplyChain) {
-        final ArangoDB driver = arangoDatabaseFactory.getArangoDriver();
-        final String query = staticGlobalSupplyChainQuery(globalSupplyChain);
-        final DataMetricTimer timer = GLOBAL_SUPPLY_CHAIN_QUERY_DURATION_SUMMARY.startTimer();
-
-        logger.debug("Global supply chain query {}", globalSupplyChain);
-
-        final Try<ArangoCursor<SupplyChainInstancesType>> instancesAndTypes =
-            Try.of(() -> driver.db(DEFAULT_PLACEHOLDER_DATABASE).query(query, null, null, SupplyChainInstancesType.class));
-        timer.observe();
-
-        instancesAndTypes.onFailure(logAQLException(query));
-
-        return instancesAndTypes.map(ArangoCursor::asListRemaining);
+            return providerResults.size() == 1 && consumerResults.size() == 1
+                ? Try.success(new SupplyChainSubgraph(providerResults.get(0), consumerResults.get(0)))
+                : Try.failure(new NoSuchElementException("Entity " + supplyChainCmd.getStartingVertex() + " not found."));
+        });
     }
 
     @Override

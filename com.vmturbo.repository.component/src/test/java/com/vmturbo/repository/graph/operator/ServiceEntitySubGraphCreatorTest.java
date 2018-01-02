@@ -22,7 +22,6 @@ import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
 import com.vmturbo.repository.exception.GraphDatabaseExceptions.CollectionOperationException;
 import com.vmturbo.repository.graph.GraphDefinition;
 import com.vmturbo.repository.graph.driver.GraphDatabaseDriver;
-import com.vmturbo.repository.graph.operator.ServiceEntitySubGraphCreator;
 import com.vmturbo.repository.graph.parameter.CollectionParameter;
 import com.vmturbo.repository.graph.parameter.EdgeParameter;
 import com.vmturbo.repository.graph.parameter.VertexParameter;

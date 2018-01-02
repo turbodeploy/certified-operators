@@ -1,7 +1,6 @@
 package com.vmturbo.repository.graph.result;
 
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -17,7 +16,6 @@ import com.google.common.collect.Multimap;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
-import com.vmturbo.repository.graph.executor.GraphDBExecutor;
 import com.vmturbo.repository.graph.parameter.GraphCmd;
 
 /**
@@ -28,69 +26,6 @@ public class ResultsConverter {
 
 
     private ResultsConverter() {
-    }
-
-    /**
-     * Convert {@link SupplyChainExecutorResult} returned the {@link GraphDBExecutor} to
-     * a list of {@link SupplyChainNode}s.
-     *
-     * @param results The results returned by the {@link GraphDBExecutor}.
-     * @return {@link SupplyChainNode}s.
-     */
-    @Nonnull
-    public static java.util.stream.Stream<SupplyChainNode> toSupplyChainNodes(final SupplyChainExecutorResult results) {
-        Map<String, SupplyChainNode.Builder> nodes = new HashMap<>(
-            Math.max(results.getConsumers().size(), results.getProviders().size()));
-
-        results.getConsumers().forEach(consumer -> {
-            SupplyChainNode.Builder nodeBuilder = nodes.computeIfAbsent(
-                consumer.getType(), (nodeEntityType) -> nodeBuilderFor(consumer));
-            nodeBuilder.addAllConnectedConsumerTypes(consumer.getNeighbourTypes());
-            addNeighbors(nodes, consumer.getNeighbourInstances());
-        });
-        results.getProviders().forEach(provider -> {
-            SupplyChainNode.Builder nodeBuilder = nodes.computeIfAbsent(
-                provider.getType(), (nodeEntityType) -> nodeBuilderFor(provider));
-            nodeBuilder.addAllConnectedProviderTypes(provider.getNeighbourTypes());
-            addNeighbors(nodes, provider.getNeighbourInstances());
-        });
-
-        return nodes.values().stream()
-            .map(SupplyChainNode.Builder::build);
-    }
-
-    private static void addNeighbors(@Nonnull Map<String, SupplyChainNode.Builder> nodes,
-                                     @Nonnull Map<String, List<SupplyChainNeighbour>> neighbourInstances) {
-        neighbourInstances.forEach((type, entities) -> {
-            nodes.computeIfAbsent(type, (k) -> nodeBuilderFor(k, entities));
-        });
-    }
-
-    @Nonnull
-    private static SupplyChainNode.Builder nodeBuilderFor(@Nonnull final SupplyChainQueryResult queryResult) {
-        SupplyChainNode.Builder nodeBuilder = SupplyChainNode.newBuilder()
-            .setEntityType(queryResult.getType())
-            .setSupplyChainDepth(0);
-
-        queryResult.getInstances().forEach(oid -> nodeBuilder.addMemberOids(Long.parseLong(oid)));
-
-        return nodeBuilder;
-    }
-
-    @Nonnull
-    private static SupplyChainNode.Builder nodeBuilderFor(@Nonnull final String type,
-                                                          @Nonnull final List<SupplyChainNeighbour> neighborType) {
-        SupplyChainNode.Builder nodeBuilder = SupplyChainNode.newBuilder()
-            .setEntityType(type)
-            .setSupplyChainDepth(0);
-
-        neighborType.stream()
-            .map(SupplyChainNeighbour::getId)
-            .distinct()
-            .map(Long::parseLong)
-            .forEach(nodeBuilder::addMemberOids);
-
-        return nodeBuilder;
     }
 
     /**

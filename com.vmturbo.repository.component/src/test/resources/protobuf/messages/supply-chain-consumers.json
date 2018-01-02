@@ -1,0 +1,23 @@
+{
+  "origin": {
+    "id": "72240626791587",
+    "entityType": "VirtualMachine"
+  },
+  "edgeCollection": [
+    {
+      "entityType": "VirtualMachine",
+      "edges": [
+        {
+          "provider": {
+            "entityType": "VirtualMachine",
+            "id": "72240626791587"
+          },
+          "consumer": {
+            "entityType": "Application",
+            "id": "72240626791643"
+          }
+        }
+      ]
+    }
+  ]
+}

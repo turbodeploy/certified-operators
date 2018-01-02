@@ -7,8 +7,8 @@ import javaslang.control.Try;
 
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
 import com.vmturbo.repository.graph.parameter.GraphCmd;
-import com.vmturbo.repository.graph.result.SupplyChainExecutorResult;
 import com.vmturbo.repository.graph.result.SupplyChainInstancesType;
+import com.vmturbo.repository.graph.result.SupplyChainSubgraph;
 
 /**
  * The executor abstracts away the actual graph database backend.
@@ -21,17 +21,9 @@ public interface GraphDBExecutor {
      * for computing a supply chain.
      *
      * @param supplyChain A command that contains information needed to compute a supply chain.
-     * @return {@link SupplyChainExecutorResult}.
+     * @return {@link SupplyChainSubgraph} containing the results of executing the command.
      */
-    Try<SupplyChainExecutorResult> executeSupplyChainCmd(final GraphCmd.GetSupplyChain supplyChain);
-
-    /**
-     * Compute the global supply chain.
-     *
-     * @param globalSupplyChain A command the contains information needed to compute the global supply chain.
-     * @return A list of {@link SupplyChainInstancesType}
-     */
-    Try<List<SupplyChainInstancesType>> executeGlobalSupplyChainCmd(final GraphCmd.GetGlobalSupplyChain globalSupplyChain);
+    Try<SupplyChainSubgraph> executeSupplyChainCmd(final GraphCmd.GetSupplyChain supplyChain);
 
     /**
      * Search a service entity by its <code>displayName</code>.

@@ -32,7 +32,7 @@ import com.vmturbo.repository.graph.GraphDefinition;
 import com.vmturbo.repository.graph.executor.GraphDBExecutor;
 import com.vmturbo.repository.graph.parameter.GraphCmd;
 import com.vmturbo.repository.graph.result.ResultsConverter;
-import com.vmturbo.repository.graph.result.SupplyChainExecutorResult;
+import com.vmturbo.repository.graph.result.SupplyChainSubgraph;
 import com.vmturbo.repository.topology.TopologyDatabase;
 import com.vmturbo.repository.topology.TopologyID;
 import com.vmturbo.repository.topology.TopologyID.TopologyType;
@@ -90,7 +90,7 @@ public class GraphDBService {
                 graphDefinition.getServiceEntityVertex());
             logger.debug("Constructed command, {}", cmd);
 
-            final Try<SupplyChainExecutorResult> supplyChainResults = executor.executeSupplyChainCmd(cmd);
+            final Try<SupplyChainSubgraph> supplyChainResults = executor.executeSupplyChainCmd(cmd);
             logger.debug("Values returned by the GraphExecutor {}", supplyChainResults);
 
             final Option<Long> contextIDToUse =
@@ -99,9 +99,7 @@ public class GraphDBService {
             final Option<Either<String, java.util.stream.Stream<SupplyChainNode>>> supplyChainResult =
                 contextIDToUse.map(cid ->
                     Match(supplyChainResults).of(
-                        Case(Success($()), v -> timedValue(() -> Either.right(
-                                // Prune the supply chain before conversion.
-                                ResultsConverter.toSupplyChainNodes(v.prune(startId))),
+                        Case(Success($()), v -> timedValue(() -> Either.right(v.toSupplyChainNodes().stream()),
                             SINGLE_SOURCE_SUPPLY_CHAIN_CONVERSION_DURATION_SUMMARY)),
                         Case(Failure($()), exc -> Either.left(exc.getMessage()))
                     ));
@@ -160,8 +158,9 @@ public class GraphDBService {
 
             return Match(seResults).of(
                     Case(Success($()), repoDtos -> timedValue(
-                            () -> Either.right(repoDtos.stream().map(ResultsConverter::toServiceEntityApiDTO)
-                                                                .collect(Collectors.toList())),
+                            () -> Either.right(repoDtos.stream()
+                                .map(ResultsConverter::toServiceEntityApiDTO)
+                                .collect(Collectors.toList())),
                         SEARCH_CONVERSION_DURATION_SUMMARY)),
                     Case(Failure($()), exc -> Either.left(exc.getMessage()))
             );
@@ -197,8 +196,9 @@ public class GraphDBService {
 
             return Match(seResults).of(
                     Case(Success($()), v -> timedValue(
-                            () -> Either.right(v.stream().map(ResultsConverter::toServiceEntityApiDTO)
-                                    .collect(Collectors.toList())),
+                            () -> Either.right(v.stream()
+                                .map(ResultsConverter::toServiceEntityApiDTO)
+                                .collect(Collectors.toList())),
                         SEARCH_CONVERSION_DURATION_SUMMARY)),
                     Case(Failure($()), exc -> Either.left(exc.getMessage()))
             );
