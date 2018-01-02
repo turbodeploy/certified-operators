@@ -65,8 +65,8 @@ public class QuoteFunctionFactory {
     public static @Nonnull QuoteFunction budgetDepletionRiskBasedQuoteFunction() {
         QuoteFunction qf = (buyer, seller, bestQuoteSoFar, forTraderIncomeStmt, economy) -> {
             double[] quote = {0.0, 0.0, 0.0};
-            double costOnNewSeller = computeCost(buyer, seller);
-            double costOnCurrentSupplier = computeCost(buyer, buyer.getSupplier());
+            double costOnNewSeller = computeCost(buyer, seller, true);
+            double costOnCurrentSupplier = computeCost(buyer, buyer.getSupplier(), false);
             BalanceAccount ba = seller.getSettings().getBalanceAccount();
             // TODO: if the buyer is on the wrong supplier, costOnSupplier may be infinity
             // now I added this to workaround such a case
@@ -90,8 +90,8 @@ public class QuoteFunctionFactory {
      * @param seller the trader which charges the buyer
      * @return the cost
      */
-    private static double computeCost(ShoppingList shoppingList, Trader seller) {
+    private static double computeCost(ShoppingList shoppingList, Trader seller, boolean validate) {
         return (seller == null || seller.getSettings().getCostFunction() == null) ? 0
-                        : seller.getSettings().getCostFunction().calculateCost(shoppingList, seller);
+                        : seller.getSettings().getCostFunction().calculateCost(shoppingList, seller, validate);
     }
 }

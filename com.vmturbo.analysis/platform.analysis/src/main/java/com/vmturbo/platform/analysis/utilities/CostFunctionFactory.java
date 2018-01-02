@@ -8,10 +8,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.stream.Collectors;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
-import com.vmturbo.platform.analysis.economy.BalanceAccount;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
@@ -328,8 +325,8 @@ public class CostFunctionFactory {
                 soldIndex++;
             }
 
-            if (quantities[boughtIndex] > commsSold.get(soldIndex).getEffectiveCapacity() ||
-                            peakQuantities[boughtIndex] > commsSold.get(soldIndex).getEffectiveCapacity()) {
+            if (quantities[boughtIndex] > commsSold.get(soldIndex).getCapacity() ||
+                            peakQuantities[boughtIndex] > commsSold.get(soldIndex).getCapacity()) {
                 return false;
             }
         }
@@ -444,7 +441,7 @@ public class CostFunctionFactory {
         // the capacity constraint between commodities
         List<DependentResourcePair> dependencyList =
                         translateResourceDependency(costDTO.getResourceDependencyList());
-        CostFunction costFunction = (buyer, seller)
+        CostFunction costFunction = (buyer, seller, validate)
                         -> {
                             if (seller == null) {
                                 return 0;
@@ -469,11 +466,11 @@ public class CostFunctionFactory {
     public static @NonNull CostFunction createResourceBundleCostFunctionForCompute(ComputeResourceBundleCostDTO costDTO) {
         Map<Integer, Double> costMap = costDTO.getCostMapList().stream().collect(Collectors.toMap(CostPair::getLicenseType,
                                                                                                CostPair::getLicenseCost));
-        CostFunction costFunction = (buyer, seller)
+        CostFunction costFunction = (buyer, seller, validate)
                         -> {
-                            Trader currentSupplier = buyer.getSupplier();
-                            if (currentSupplier == seller) {
+                            if (!validate) {
                                 // seller is the currentSupplier. Just return cost
+                                // TODO: return license based currentCost
                                 return costDTO.getCostWithoutLicense();
                             }
                             if (!validateRequestedAmountWithinSellerCapacity(buyer, seller)) {

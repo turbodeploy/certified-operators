@@ -7,6 +7,6 @@ import com.vmturbo.platform.analysis.economy.Trader;
 
 @FunctionalInterface
 public interface CostFunction extends Serializable {
-    double calculateCost(ShoppingList buyer, Trader seller);
+    double calculateCost(ShoppingList buyer, Trader seller, boolean validate);
 
 }

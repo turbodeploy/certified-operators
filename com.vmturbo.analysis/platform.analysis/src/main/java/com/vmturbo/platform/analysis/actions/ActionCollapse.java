@@ -18,7 +18,6 @@ import org.checkerframework.dataflow.qual.Pure;
 import com.google.common.collect.Lists;
 
 import com.vmturbo.platform.analysis.economy.Trader;
-import com.vmturbo.platform.analysis.ede.Placement;
 
 /**
  * A class holding all utility method used for collapsing actions.
@@ -150,8 +149,7 @@ public class ActionCollapse {
         for (ActionType actionType : ACTIONS_REORDER_SEQUENCE) {
             List<Action> actionList = groupByActionTypeMap.get(actionType);
             if (actionList != null) {
-                reorderedActions.addAll(actionType.equals(ActionType.COMPOUND_MOVE)
-                                ? Placement.breakDownCompoundMove(actionList) : actionList);
+                reorderedActions.addAll(actionList);
             }
         }
         return reorderedActions;
