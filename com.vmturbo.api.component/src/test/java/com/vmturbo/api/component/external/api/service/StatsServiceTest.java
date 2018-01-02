@@ -54,6 +54,8 @@ import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.Stats;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
@@ -83,6 +85,8 @@ public class StatsServiceTest {
     private GroupExpander groupExpander = Mockito.mock(GroupExpander.class);
 
     private TargetsService targetsService = Mockito.mock(TargetsService.class);
+
+    private GroupServiceBlockingStub groupService;
 
     private Clock mockClock = Mockito.mock(Clock.class);
 
@@ -127,9 +131,10 @@ public class StatsServiceTest {
     public void setUp() throws IOException {
         StatsHistoryServiceBlockingStub statsServiceRpc = StatsHistoryServiceGrpc.newBlockingStub(testServer.getChannel());
         groupExpander = Mockito.mock(GroupExpander.class);
+        groupService = GroupServiceGrpc.newBlockingStub(testServer.getChannel());
 
         statsService = new StatsService(statsServiceRpc,
-                repositoryApi, groupExpander, mockClock, targetsService);
+                repositoryApi, groupExpander, mockClock, targetsService, groupService);
 
         when(uuidMapper.fromUuid(oid1)).thenReturn(apiId1);
         when(uuidMapper.fromUuid(oid2)).thenReturn(apiId2);

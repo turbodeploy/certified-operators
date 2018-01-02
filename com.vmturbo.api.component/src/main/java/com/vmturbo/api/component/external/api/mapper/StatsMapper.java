@@ -22,6 +22,7 @@ import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
+import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsRequest;
@@ -259,5 +260,21 @@ public class StatsMapper {
             }
         });
         return builder.build();
+    }
+
+    /**
+     * Create a ClusterStatsRequest object from a cluster UUID and a StatPeriodApiInputDTO object.
+     *
+     * @param uuid UUID of a cluster
+     * @param inputDto input DTO containing details of the request.
+     * @return a ClusterStatsRequest object contain details from the input DTO.
+     */
+    public static ClusterStatsRequest toClusterStatsRequest(
+            @Nonnull final String uuid,
+            @Nonnull final StatPeriodApiInputDTO inputDto) {
+        return ClusterStatsRequest.newBuilder()
+                .setClusterId(Long.parseLong(uuid))
+                .setStats(newPeriodStatsFilter(inputDto))
+                .build();
     }
 }

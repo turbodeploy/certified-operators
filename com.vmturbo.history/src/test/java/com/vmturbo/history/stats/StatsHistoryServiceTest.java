@@ -5,11 +5,14 @@ import static com.vmturbo.reports.db.StringConstants.UTILIZATION;
 import static junit.framework.TestCase.assertTrue;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.collection.IsIterableContainingInAnyOrder.containsInAnyOrder;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Matchers.isNull;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -17,6 +20,7 @@ import static org.mockito.Mockito.when;
 import static org.mockito.internal.verification.VerificationModeFactory.times;
 
 import java.math.BigDecimal;
+import java.sql.Date;
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -32,6 +36,7 @@ import org.jooq.Record;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
@@ -42,6 +47,7 @@ import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.stats.Stats;
+import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.DeletePlanStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.DeletePlanStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
@@ -56,6 +62,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.stats.projected.ProjectedStatsStore;
 import com.vmturbo.reports.db.VmtDbException;
+import com.vmturbo.reports.db.abstraction.tables.records.ClusterStatsByDayRecord;
 import com.vmturbo.reports.db.abstraction.tables.records.PmStatsLatestRecord;
 import com.vmturbo.reports.db.abstraction.tables.records.ScenariosRecord;
 
@@ -77,6 +84,9 @@ public class StatsHistoryServiceTest {
 
     @Mock
     private PlanStatsReader mockPlanStatsReader;
+
+    @Mock
+    private ClusterStatsReader mockClusterStatsReader;
 
     @Mock
     private ClusterStatsWriter mockClusterStatsWriter;
@@ -102,13 +112,17 @@ public class StatsHistoryServiceTest {
     @Mock
     private StreamObserver<DeletePlanStatsResponse> mockDeletePlanStatsStreamObserver;
 
+    @Captor
+    ArgumentCaptor<StatSnapshot> captor;
+
     @Before
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
 
         statsHistoryService =  new StatsHistoryService(REALTIME_CONTEXT_ID,
                 mockLivestatsreader, mockPlanStatsReader,
-                mockClusterStatsWriter, historyDbio, mockProjectedStatsStore);
+                mockClusterStatsReader, mockClusterStatsWriter,
+                historyDbio, mockProjectedStatsStore);
     }
 
     /**
@@ -570,5 +584,138 @@ public class StatsHistoryServiceTest {
                 "numVMs", "numVMs", BigDecimal.valueOf(numVMs));
         verify(mockSaveClusterHeadroomStreamObserver).onNext(anyObject());
         verify(mockSaveClusterHeadroomStreamObserver).onCompleted();
+    }
+
+    /**
+     * Test the invocation of the getClusterStats api of the StatsHistoryService.
+     * Date range is not provided in the request. Get the latest records of the record
+     * types requested.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testClusterStatsWithoutDates() throws Exception {
+        String[] dates = {"2017-12-15"};
+        String[] commodityNames = {"headroomVMs", "numVMs"};
+        String clusterId = "1234567890";
+
+        ClusterStatsRequest request = ClusterStatsRequest.newBuilder()
+                .setClusterId(Long.parseLong(clusterId))
+                .setStats(StatsFilter.newBuilder()
+                        .addCommodityName(commodityNames[0])
+                        .addCommodityName(commodityNames[1])
+                        .build())
+                .build();
+
+        when(mockClusterStatsReader.getStatsRecordsByDay(any(), any(), any(), any()))
+                .thenReturn(getMockStatRecords(clusterId, dates, commodityNames));
+        statsHistoryService.getClusterStats(request, mockStatSnapshotStreamObserver);
+
+        verify(mockStatSnapshotStreamObserver).onNext(captor.capture());
+        final StatSnapshot capturedArgument = captor.getValue();
+
+        assertEquals(2, capturedArgument.getStatRecordsCount());
+        List<StatRecord> startRecordList = capturedArgument.getStatRecordsList();
+        List<String> recordNames = Arrays.asList(startRecordList.get(0).getName(),
+                startRecordList.get(1).getName());
+        assertThat(recordNames, containsInAnyOrder("headroomVMs", "numVMs"));
+    }
+
+    /**
+     * Test the invocation of the getClusterStats api of the StatsHistoryService.
+     * A date range is provided in the request. Verify all records within the range
+     * are returned.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testClusterStatsWithDates() throws Exception {
+        String[] dates = {"2017-12-13", "2017-12-14", "2017-12-15"};
+        String[] commodityNames = {"headroomVMs", "numVMs"};
+
+        long startDate = Date.valueOf(dates[0]).getTime();
+        long endDate = Date.valueOf(dates[dates.length - 1]).getTime();
+        String clusterId = "1234567890";
+
+        ClusterStatsRequest request = ClusterStatsRequest.newBuilder()
+                .setClusterId(Long.parseLong(clusterId))
+                .setStats(StatsFilter.newBuilder()
+                        .setStartDate(startDate)
+                        .setEndDate(endDate)
+                        .addCommodityName(commodityNames[0])
+                        .addCommodityName(commodityNames[1])
+                        .build())
+                .build();
+
+        when(mockClusterStatsReader.getStatsRecordsByDay(any(), any(), any(), any()))
+                .thenReturn(getMockStatRecords(clusterId, dates, commodityNames));
+        statsHistoryService.getClusterStats(request, mockStatSnapshotStreamObserver);
+
+        verify(mockStatSnapshotStreamObserver, times(3)).onNext(captor.capture());
+        final List<StatSnapshot> capturedArgument = captor.getAllValues();
+        for (int i = 0; i < 3; i++) {
+            assertEquals(2, capturedArgument.get(i).getStatRecordsCount());
+            List<StatRecord> startRecordList = capturedArgument.get(i).getStatRecordsList();
+            List<String> recordNames = Arrays.asList(startRecordList.get(0).getName(),
+                    startRecordList.get(1).getName());
+            assertThat(recordNames, containsInAnyOrder("headroomVMs", "numVMs"));
+        }
+
+        verify(mockStatSnapshotStreamObserver).onCompleted();
+    }
+
+    /**
+     * Verify that if the date range spans over a month, fetch data from the CLUSTER_STATS_BY_MONTH
+     * table.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testClusterStatsByMonth() throws Exception {
+        String[] commodityNames = {"headroomVMs", "numVMs"};
+        long startDate = Date.valueOf("2017-06-25").getTime();
+        long endDate = Date.valueOf("2017-12-19").getTime();
+        String clusterId = "1234567890";
+
+        ClusterStatsRequest request = ClusterStatsRequest.newBuilder()
+                .setClusterId(Long.parseLong(clusterId))
+                .setStats(StatsFilter.newBuilder()
+                        .setStartDate(startDate)
+                        .setEndDate(endDate)
+                        .addCommodityName(commodityNames[0])
+                        .addCommodityName(commodityNames[1])
+                        .build())
+                .build();
+        statsHistoryService.getClusterStats(request, mockStatSnapshotStreamObserver);
+        verify(mockClusterStatsReader).getStatsRecordsByMonth(eq(Long.parseLong(clusterId)),
+                eq(startDate), eq(endDate), anyObject());
+    }
+
+    /**
+     * Generates a lists of fake stats records that belong to the given cluster ID, commodity names,
+     * and on the given dates.
+     *
+     * @param clusterId cluster ID
+     * @param dates an array of dates for the generated records
+     * @param commodityNames commodity names (e.g. headroomVMs)
+     * @return
+     */
+    private List<ClusterStatsByDayRecord> getMockStatRecords(String clusterId,
+                                                             String[] dates,
+                                                             String[] commodityNames) {
+        List<ClusterStatsByDayRecord> results = Lists.newArrayList();
+
+        for (int i = 0; i < dates.length; i++) {
+            for (int j = 0; j < commodityNames.length; j++) {
+                ClusterStatsByDayRecord record = new ClusterStatsByDayRecord();
+                record.setRecordedOn(Date.valueOf(dates[i]));
+                record.setInternalName(clusterId);
+                record.setPropertyType(commodityNames[j]);
+                record.setPropertySubtype(commodityNames[j]);
+                record.setValue(BigDecimal.valueOf(20));
+                results.add(record);
+            }
+        }
+        return results;
     }
 }

@@ -42,7 +42,7 @@ public class StatsConfig {
     @Bean
     public StatsHistoryService statsRpcService() {
         return new StatsHistoryService(realtimeTopologyContextId, liveStatsReader(),
-                planStatsReader(), clusterStatsWriter(), historyComponent.historyDbIO(),
+                planStatsReader(), clusterStatsReader(), clusterStatsWriter(), historyComponent.historyDbIO(),
                 projectedStatsStore());
     }
 
@@ -87,6 +87,11 @@ public class StatsConfig {
     @Bean
     public TopologySnapshotRegistry topologySnapshotRegistry() {
         return new TopologySnapshotRegistry();
+    }
+
+    @Bean
+    public ClusterStatsReader clusterStatsReader() {
+        return new ClusterStatsReader(historyComponent.historyDbIO());
     }
 
     @Bean

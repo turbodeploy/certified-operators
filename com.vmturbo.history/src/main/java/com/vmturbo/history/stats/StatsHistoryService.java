@@ -11,10 +11,14 @@ import static com.vmturbo.reports.db.StringConstants.PROPERTY_TYPE;
 import static com.vmturbo.reports.db.StringConstants.RELATION;
 import static com.vmturbo.reports.db.StringConstants.SNAPSHOT_TIME;
 import static com.vmturbo.reports.db.StringConstants.UTILIZATION;
+import static org.joda.time.DateTimeConstants.MILLIS_PER_DAY;
 
 import java.math.BigDecimal;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -26,6 +30,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -60,6 +65,8 @@ import com.vmturbo.reports.db.CommodityTypes;
 import com.vmturbo.reports.db.RelationType;
 import com.vmturbo.reports.db.StringConstants;
 import com.vmturbo.reports.db.VmtDbException;
+import com.vmturbo.reports.db.abstraction.tables.records.ClusterStatsByDayRecord;
+import com.vmturbo.reports.db.abstraction.tables.records.ClusterStatsByMonthRecord;
 import com.vmturbo.reports.db.abstraction.tables.records.MktSnapshotsStatsRecord;
 import com.vmturbo.reports.db.abstraction.tables.records.ScenariosRecord;
 
@@ -76,6 +83,7 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
     private final HistorydbIO historydbIO;
     private final PlanStatsReader planStatsReader;
     private final long realtimeContextId;
+    private final ClusterStatsReader clusterStatsReader;
     private final ClusterStatsWriter clusterStatsWriter;
 
     private final ProjectedStatsStore projectedStatsStore;
@@ -92,12 +100,14 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
     StatsHistoryService(final long realtimeContextId,
                         @Nonnull final LiveStatsReader liveStatsReader,
                         @Nonnull final PlanStatsReader planStatsReader,
-                        @Nonnull ClusterStatsWriter clusterStatsWriter,
+                        @Nonnull final ClusterStatsReader clusterStatsReader,
+                        @Nonnull final ClusterStatsWriter clusterStatsWriter,
                         @Nonnull final HistorydbIO historydbIO,
                         @Nonnull final ProjectedStatsStore projectedStatsStore) {
         this.realtimeContextId = realtimeContextId;
         this.liveStatsReader = Objects.requireNonNull(liveStatsReader);
         this.planStatsReader = Objects.requireNonNull(planStatsReader);
+        this.clusterStatsReader = Objects.requireNonNull(clusterStatsReader);
         this.clusterStatsWriter = Objects.requireNonNull(clusterStatsWriter);
         this.historydbIO = Objects.requireNonNull(historydbIO);
         this.projectedStatsStore = Objects.requireNonNull(projectedStatsStore);
@@ -255,14 +265,131 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
         }
     }
 
-
-
     @Override
     public void getClusterStats(@Nonnull Stats.ClusterStatsRequest request,
                                 @Nonnull StreamObserver<StatSnapshot> responseObserver) {
-        responseObserver.onCompleted();
+        final long clusterId = request.getClusterId();
+        final StatsFilter filter = request.getStats();
+
+        Long now = System.currentTimeMillis();
+        Long startDate = now;
+        if (filter.hasStartDate()) {
+            startDate = filter.getStartDate();
+        }
+        Long endDate = now;
+        if (filter.hasEndDate()) {
+            endDate = filter.getEndDate();
+        }
+        if (startDate > endDate) {
+            responseObserver.onError(Status.INVALID_ARGUMENT
+                    .withDescription("Invalid date range for retrieving cluster statistics.")
+                    .asException());
+            return;
+        }
+
+        final List<String> commodityNames = request.getStats().getCommodityNameList();
+
+        try {
+            Multimap<java.sql.Date, StatRecord> resultMap = HashMultimap.create();
+
+            if (startDate != null && endDate != null && isUseMonthlyData(startDate, endDate)) {
+                final List<ClusterStatsByMonthRecord> statDBRecordsByMonth =
+                        clusterStatsReader.getStatsRecordsByMonth(clusterId, startDate, endDate, commodityNames);
+
+                // Group records by date.
+                for (ClusterStatsByMonthRecord record : statDBRecordsByMonth) {
+                    resultMap.put(record.getRecordedOn(), createStatRecordForClusterStatsByMonth(record));
+                }
+            } else {
+                // If the date range is shorter than a month, or a date range is not provided,
+                // get the most recent snapshot from the cluster_stats_by_day table.
+                final List<ClusterStatsByDayRecord> statDBRecordsByDay =
+                        clusterStatsReader.getStatsRecordsByDay(clusterId, startDate, endDate, commodityNames);
+
+                // Group records by date.
+                for (ClusterStatsByDayRecord record : statDBRecordsByDay) {
+                    resultMap.put(record.getRecordedOn(), createStatRecordForClusterStatsByDay(record));
+                }
+            }
+
+            // A StatSnapshot will be created for each date.
+            // Each snapshot may have several record types (e.g. "headroomVMs", "numVMs")
+            for (java.sql.Date recordDate : resultMap.keySet()) {
+                StatSnapshot.Builder statSnapshotResponseBuilder = StatSnapshot.newBuilder();
+                resultMap.get(recordDate).forEach((record)-> statSnapshotResponseBuilder.addStatRecords(record));
+                statSnapshotResponseBuilder.setSnapshotDate(LocalDateTime.ofInstant(
+                        Instant.ofEpochMilli(recordDate.getTime()), ZoneOffset.systemDefault())
+                        .toString());
+                statSnapshotResponseBuilder.setStartDate(recordDate.getTime());
+                statSnapshotResponseBuilder.setEndDate(recordDate.getTime());
+                responseObserver.onNext(statSnapshotResponseBuilder.build());
+            }
+
+            responseObserver.onCompleted();
+        } catch (VmtDbException e) {
+            responseObserver.onError(Status.INTERNAL
+                    .withDescription("DB Error fetching stats for cluster " + clusterId)
+                    .withCause(e)
+                    .asException());
+        }
     }
 
+    /**
+     * If the date range spans over a month, get data from the CLUSTER_STATS_BY_MONTH table.
+     * Otherwise, get data from CLUSTER_STATS_BY_DAY table.
+     *
+     * @param startDate start date
+     * @param endDate end date
+     * @return Return true if monthly data should be used. Return false otherwise.
+     */
+    private boolean isUseMonthlyData(@Nullable Long startDate, @Nullable Long endDate) {
+        if (startDate != null && endDate != null) {
+            final int numberOfMillisInADay = MILLIS_PER_DAY;
+            final float numberOfDaysInDateRange = (endDate - startDate) / numberOfMillisInADay;
+            if (numberOfDaysInDateRange > 40) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Helper method to create StatRecord objects, which nest inside StatSnapshot objects.
+     *
+     * @param dbRecord
+     * @return
+     */
+    private StatRecord createStatRecordForClusterStatsByDay(ClusterStatsByDayRecord dbRecord) {
+        return buildStatRecord(
+                // FIXME the property subtype is substituted into the property_type field intentionally.
+                // We need the subtype value for the UI, but the subtype value is not set in StatRecord.
+                dbRecord.getPropertySubtype(),
+                dbRecord.getPropertySubtype(),
+                null,
+                null,
+                dbRecord.getValue().floatValue(),
+                dbRecord.getValue().floatValue(),
+                dbRecord.getValue().floatValue(),
+                null,
+                dbRecord.getValue().floatValue(),
+                null);
+    }
+
+    private StatRecord createStatRecordForClusterStatsByMonth(ClusterStatsByMonthRecord dbRecord) {
+        return buildStatRecord(
+                // FIXME the property subtype is substituted into the property_type field intentionally.
+                // We need the subtype value for the UI, but the subtype value is not set in StatRecord.
+                dbRecord.getPropertySubtype(),
+                dbRecord.getPropertySubtype(),
+                null,
+                null,
+                dbRecord.getValue().floatValue(),
+                dbRecord.getValue().floatValue(),
+                dbRecord.getValue().floatValue(),
+                null,
+                dbRecord.getValue().floatValue(),
+                null);
+    }
     /**
      * Calculate a Cluster Stats Rollup, if necessary, and persist to the appropriate stats table.
      *

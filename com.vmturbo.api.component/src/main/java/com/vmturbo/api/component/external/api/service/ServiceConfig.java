@@ -213,7 +213,8 @@ public class ServiceConfig {
                 communicationConfig.repositoryApi(),
                 communicationConfig.groupExpander(),
                 Clock.systemUTC(),
-                targetService());
+                targetService(),
+                communicationConfig.groupRpcService());
     }
 
     @Bean
