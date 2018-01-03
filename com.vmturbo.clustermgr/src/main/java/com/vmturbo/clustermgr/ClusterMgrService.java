@@ -1,19 +1,24 @@
 package com.vmturbo.clustermgr;
 
+import static com.vmturbo.clustermgr.ClusterMgrConfig.TELEMETRY_ENABLED;
+import static com.vmturbo.clustermgr.ClusterMgrConfig.TELEMETRY_LOCKED;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -22,29 +27,32 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.ws.rs.NotFoundException;
 
+import com.google.common.base.Splitter;
+import com.google.common.net.InetAddresses;
+import com.google.common.net.InternetDomainName;
+import com.orbitz.consul.model.catalog.CatalogService;
+import com.orbitz.consul.model.health.HealthCheck;
+import com.orbitz.consul.model.kv.Value;
+
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.http.HttpEntity;
+import org.apache.http.HttpResponse;
+import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.client.utils.URIBuilder;
+import org.apache.http.concurrent.FutureCallback;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
+import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
+import org.apache.http.impl.nio.client.HttpAsyncClients;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
-
-import com.google.common.base.Splitter;
-import com.google.common.net.InetAddresses;
-import com.google.common.net.InternetDomainName;
-import com.orbitz.consul.model.catalog.CatalogService;
-import com.orbitz.consul.model.kv.Value;
-
-import static com.vmturbo.clustermgr.ClusterMgrConfig.TELEMETRY_ENABLED;
-import static com.vmturbo.clustermgr.ClusterMgrConfig.TELEMETRY_LOCKED;
 
 /**
  * Implement the ClusterMgr Services: component status, component configuration, node configuration.
@@ -89,6 +97,12 @@ public class ClusterMgrService {
     // execution node name to use if none is specified.
     private static final String DEFAULT_NODE_NAME = "default";
     private static final String SERVICE_RESTART_REQUEST = "/service/restart";
+
+    private static final int REST_CONNECTION_TIMEOUT_MS = 5000;
+
+    // constant values used for parsing consul health check results
+    private static final String CONSUL_HEALTH_CHECK_PASSING_RESULT = "passing";
+    private static final String CONSUL_HEALTH_CHECK_UNSUCCESSFUL_FRAGMENT = "no such host";
 
     private Logger log = LogManager.getLogger();
 
@@ -533,24 +547,59 @@ public class ClusterMgrService {
     }
 
     /**
-     * Gather the current state from each running VMT Component Instance.
+     * Gather the current state from each running VMT Component Instance. We will do this by
+     * mapping the Consul health status to a turbo component state
+     *
+     *    consul health result     XL component status
+     *    --------------------     ------------------
+     *    passing                  RUNNING
+     *    critical - w/output      UNHEALTHY (presence of output means our check is working)
+     *    crticial - w/o output    UNKNOWN (no output means we haven't reported a check result yet)
      *
      * @return a map of component_id -> status
      */
-    public Map<String, String> getComponentsState() {
-        Map<String, String> answer = new HashMap<>();
-        String acceptTypes=MediaType.toString(Arrays.asList(
-                MediaType.APPLICATION_JSON,
-                MediaType.TEXT_PLAIN));
-        visitActiveComponents("/api/v2/state", acceptTypes, (componentInfo, entity) -> {
-            try {
-                String state = IOUtils.toString(entity.getContent(), StandardCharsets.UTF_8);
-                answer.put(componentInfo.getServiceId(), state);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        });
+    public Map<String, ComponentState> getComponentsState() {
+        long startTime = System.currentTimeMillis();
+
+        Map<String, HealthCheck> healthChecks = getAllComponentsHealth();
+
+        // map the resulting state based on the health state.
+        Map<String, ComponentState> answer = new HashMap<>();
+        for (Entry<String, HealthCheck> entry : healthChecks.entrySet()) {
+            final HealthCheck checkResult = entry.getValue();
+            // if there is no output, check has not succeeded yet -- component status is unknown or down.
+            // if the check is "passing" then the component is RUNNING
+            // o/w the check is failing -- if there is output, report an UNHEALTHY status
+            // o/w the check is failing and there is no output -- this is UNKNOWN
+            final String healthOutput = checkResult.getOutput().or(ComponentState.UNKNOWN.name());
+            final ComponentState result = checkResult.getStatus().equalsIgnoreCase(CONSUL_HEALTH_CHECK_PASSING_RESULT) ?
+                    ComponentState.RUNNING :
+                    // if the output ends with 'no such host', the health endpoint poll failed.
+                    // we'll treat this as an unknown result. Note that this is a Consul-specific
+                    // result, and will be revisited when we move to kubernetes.
+                    (healthOutput.endsWith(CONSUL_HEALTH_CHECK_UNSUCCESSFUL_FRAGMENT) ?
+                            ComponentState.UNKNOWN :
+                            ComponentState.UNHEALTHY);
+            answer.put(entry.getKey(), result);
+        }
+        log.debug("getComponentsState() took {} ms", System.currentTimeMillis() - startTime);
         return answer;
+    }
+
+    /**
+     * Retrieves a map of all of the component health checks from Consul.
+     *
+     * @return a map of component id -> health check
+     */
+    public Map<String,HealthCheck> getAllComponentsHealth() {
+        Set<String> discoveredComponents = getKnownComponents();
+        Map<String, HealthCheck> retVal = new HashMap<>();
+        for (String componentInstance : discoveredComponents) {
+            for (HealthCheck check : consulService.getServiceHealth(componentInstance)) {
+                retVal.put(check.getServiceId().or(componentInstance), check);
+            }
+        }
+        return retVal;
     }
 
     /**
@@ -729,7 +778,7 @@ public class ClusterMgrService {
             }
         }
     }
-
+    
     /**
      * Send an HTTP GET to a given VMT Component Instance and process the response.
      *
@@ -748,7 +797,6 @@ public class ClusterMgrService {
                 HttpEntity entity = response.getEntity();
                 if (entity != null) {
                     responseEntityProcessor.process(componentInfo, entity);
-
                 } else {
                     // log the error and continue to the next service in the list of services
                     log.error(componentInfo.toString() + " --- missing response entity");

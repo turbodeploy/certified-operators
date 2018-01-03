@@ -3,8 +3,13 @@ package com.vmturbo.clustermgr;
 import java.io.OutputStream;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
+
 import javax.annotation.Nonnull;
+
+import com.orbitz.consul.model.health.HealthCheck;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -14,6 +19,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -336,7 +342,18 @@ public class ClusterMgrController {
     @ResponseBody
     @SuppressWarnings("unused")
     public Map<String, String> getComponentsState() {
-        return clusterMgrService.getComponentsState();
+        return clusterMgrService.getComponentsState().entrySet().stream()
+                .collect(Collectors.toMap(entry -> entry.getKey(), entry -> entry.getValue().name() ));
+    }
+
+    /**
+     * Get service health from all running VmtComponents
+     */
+    @RequestMapping(path="/cluster/health")
+    @ResponseBody
+    @SuppressWarnings("unused")
+    public Map<String, HealthCheck> getClusterHealth() {
+        return clusterMgrService.getAllComponentsHealth();
     }
 
     /**

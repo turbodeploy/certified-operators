@@ -4,21 +4,24 @@ import java.net.HttpURLConnection;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.springframework.stereotype.Component;
 
 import com.google.common.base.Optional;
 import com.google.common.net.HostAndPort;
 import com.orbitz.consul.CatalogClient;
 import com.orbitz.consul.Consul;
 import com.orbitz.consul.ConsulException;
+import com.orbitz.consul.HealthClient;
 import com.orbitz.consul.KeyValueClient;
 import com.orbitz.consul.model.catalog.CatalogService;
+import com.orbitz.consul.model.health.HealthCheck;
 import com.orbitz.consul.model.kv.Value;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.springframework.stereotype.Component;
 
 /**
  * {@link ConsulService} provides utility methods that facility:
@@ -129,6 +132,12 @@ public class ConsulService {
 
     public List<CatalogService> getService(String componentName) {
         return getConsulCatalogClient().getService(componentName).getResponse();
+    }
+
+    public List<HealthCheck> getServiceHealth(String prefix) {
+        HealthClient healthClient = getConsulApi().healthClient();
+        List<HealthCheck> healthResults = healthClient.getServiceChecks(prefix).getResponse();
+        return healthResults;
     }
 
     /**
