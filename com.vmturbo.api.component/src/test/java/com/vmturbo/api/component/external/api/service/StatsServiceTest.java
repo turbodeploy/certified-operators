@@ -5,11 +5,9 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.anySetOf;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
@@ -19,6 +17,7 @@ import static org.mockito.internal.verification.VerificationModeFactory.times;
 import java.io.IOException;
 import java.time.Clock;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -28,6 +27,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import org.assertj.core.util.Lists;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -47,15 +47,20 @@ import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
+import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
-import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
-import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.plan.PlanDTO;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
+import com.vmturbo.common.protobuf.plan.PlanDTOMoles.PlanServiceMole;
+import com.vmturbo.common.protobuf.plan.PlanServiceGrpc;
+import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.Stats;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
@@ -72,6 +77,8 @@ import com.vmturbo.reports.db.RelationType;
 @RunWith(MockitoJUnitRunner.class)
 public class StatsServiceTest {
 
+    public static final String PHYSICAL_MACHINE_TYPE = "PhysicalMachine";
+
     private StatsService statsService;
 
     private UuidMapper uuidMapper = Mockito.mock(UuidMapper.class);
@@ -79,6 +86,8 @@ public class StatsServiceTest {
     private TestStatsHistoryService testStatsHistoryService = spy(new TestStatsHistoryService());
 
     private GroupServiceMole groupServiceSpy = spy(new GroupServiceMole());
+
+    private PlanServiceMole planServiceSpy = spy(new PlanServiceMole());
 
     private RepositoryApi repositoryApi = Mockito.mock(RepositoryApi.class);
 
@@ -125,16 +134,20 @@ public class StatsServiceTest {
 
     @Rule
     public GrpcTestServer testServer = GrpcTestServer.newServer(testStatsHistoryService,
-            groupServiceSpy);
+            groupServiceSpy, planServiceSpy);
 
     @Before
     public void setUp() throws IOException {
-        StatsHistoryServiceBlockingStub statsServiceRpc = StatsHistoryServiceGrpc.newBlockingStub(testServer.getChannel());
+        StatsHistoryServiceBlockingStub statsServiceRpc =
+                StatsHistoryServiceGrpc.newBlockingStub(testServer.getChannel());
+        PlanServiceBlockingStub planRpcService =
+                PlanServiceGrpc.newBlockingStub(testServer.getChannel());
+
         groupExpander = Mockito.mock(GroupExpander.class);
         groupService = GroupServiceGrpc.newBlockingStub(testServer.getChannel());
 
-        statsService = new StatsService(statsServiceRpc,
-                repositoryApi, groupExpander, mockClock, targetsService, groupService);
+        statsService = new StatsService(statsServiceRpc, planRpcService, repositoryApi,
+                groupExpander, mockClock, targetsService, groupService);
 
         when(uuidMapper.fromUuid(oid1)).thenReturn(apiId1);
         when(uuidMapper.fromUuid(oid2)).thenReturn(apiId2);
@@ -216,7 +229,7 @@ public class StatsServiceTest {
         when(groupExpander.expandUuid(oid1)).thenReturn(Sets.newHashSet(1L));
 
         // act
-        List<StatSnapshotApiDTO> result = statsService.getStatsByEntityQuery(oid1, inputDto);
+        statsService.getStatsByEntityQuery(oid1, inputDto);
 
         // assert
         ArgumentCaptor<EntityStatsRequest> entityRequestCaptor =
@@ -225,6 +238,8 @@ public class StatsServiceTest {
                 anyObject());
         assertThat(entityRequestCaptor.getAllValues().size(), equalTo(1));
         EntityStatsRequest entityStatsRequest = entityRequestCaptor.getAllValues().iterator().next();
+        assertThat(entityStatsRequest.getEntitiesList().size(), equalTo(1));
+        assertThat(entityStatsRequest.getEntitiesList().iterator().next(), equalTo(1L));
 
         verify(testStatsHistoryService, times(0)).getProjectedStats(anyObject(), anyObject());
     }
@@ -253,7 +268,7 @@ public class StatsServiceTest {
         when(groupExpander.expandUuid(oid1)).thenReturn(Sets.newHashSet(1L));
 
         // act
-        List<StatSnapshotApiDTO> result = statsService.getStatsByEntityQuery(oid1, inputDto);
+        statsService.getStatsByEntityQuery(oid1, inputDto);
 
         // assert
         verify(testStatsHistoryService, times(0)).getAveragedEntityStats(anyObject(),
@@ -303,6 +318,7 @@ public class StatsServiceTest {
     @Test
     public void testGetStatsByUuidsQueryProjected() throws Exception {
 
+        // Arrange
         StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
         inputDto.setScopes(Lists.newArrayList("1", "2"));
         StatPeriodApiInputDTO period = buildStatPeriodApiInputDTO(2000L, "2500",
@@ -315,7 +331,7 @@ public class StatsServiceTest {
                 2L, Optional.of(new ServiceEntityApiDTO()));
         when(repositoryApi.getServiceEntitiesById(any())).thenReturn(serviceEntityMap);
 
-        // act
+        // Act
         List<EntityStatsApiDTO> result = statsService.getStatsByUuidsQuery(inputDto);
 
         // Assert
@@ -330,6 +346,72 @@ public class StatsServiceTest {
 
         verify(testStatsHistoryService, times(0)).getEntityStats(anyObject(),
                 anyObject());
+
+    }
+
+    @Test
+    public void testGetPlanStats() throws Exception {
+        // Arrange
+        Long planOid = 999L;
+        StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
+        inputDto.setScopes(Lists.newArrayList(Long.toString(planOid)));
+
+        PlanDTO.PlanInstance planInstance = PlanDTO.PlanInstance.getDefaultInstance();
+
+        final PlanId planIdProto = PlanId.newBuilder().setPlanId(planOid).build();
+        when(planServiceSpy.getPlan(planIdProto))
+                .thenReturn(PlanDTO.OptionalPlanInstance.getDefaultInstance());
+
+        // Act
+        statsService.getStatsByUuidsQuery(inputDto);
+
+        // Assert
+        verify(planServiceSpy, times(1)).getPlan(planIdProto);
+
+    }
+
+    @Test
+    public void testFullMarketStats() throws Exception {
+        // Arrange
+        StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
+        inputDto.setScopes(Lists.newArrayList(UuidMapper.UI_REAL_TIME_MARKET_STR));
+        inputDto.setRelatedType(PHYSICAL_MACHINE_TYPE);
+        inputDto.setPeriod(new StatPeriodApiInputDTO());
+
+        // two PMs in the search results
+        final ServiceEntityApiDTO pm1 = new ServiceEntityApiDTO();
+        pm1.setUuid("1");
+        final ServiceEntityApiDTO pm2 = new ServiceEntityApiDTO();
+        pm2.setUuid("2");
+        Collection<ServiceEntityApiDTO> searchResults = Lists.newArrayList(pm1, pm2);
+        List<String> expectedTypes = Lists.newArrayList(PHYSICAL_MACHINE_TYPE);
+        when(repositoryApi.getSearchResults(null, expectedTypes,
+                UuidMapper.UI_REAL_TIME_MARKET_STR, null, null)).thenReturn(searchResults);
+
+        // Act
+        List<EntityStatsApiDTO> result = statsService.getStatsByUuidsQuery(inputDto);
+
+        // Assert
+        // expect stats for two PMs in the search response
+        assertThat(result.size(), equalTo(2));
+    }
+
+    /**
+     * Test that the 'relatedType' argument is required if the scope is "Market"
+     *
+     * @throws Exception as expected, with IllegalArgumentException since no 'relatedType'
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testFullMarketStatsNoRelatedType() throws Exception {
+        // Arrange
+        StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
+        inputDto.setScopes(Lists.newArrayList(UuidMapper.UI_REAL_TIME_MARKET_STR));
+
+        // Act
+        statsService.getStatsByUuidsQuery(inputDto);
+
+        // Assert
+        Assert.fail("Should never get here");
 
     }
 

@@ -210,6 +210,7 @@ public class ServiceConfig {
     @Bean
     public StatsService statsService() {
         return new StatsService(communicationConfig.historyRpcService(),
+                communicationConfig.planRpcService(),
                 communicationConfig.repositoryApi(),
                 communicationConfig.groupExpander(),
                 Clock.systemUTC(),

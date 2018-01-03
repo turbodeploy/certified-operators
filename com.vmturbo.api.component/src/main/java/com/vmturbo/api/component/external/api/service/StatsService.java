@@ -18,6 +18,7 @@ import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -44,6 +45,8 @@ import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.api.utils.EncodingUtil;
 import com.vmturbo.api.utils.StatsUtils;
 import com.vmturbo.api.utils.UrlsHelp;
+import com.vmturbo.common.protobuf.plan.PlanDTO;
+import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
@@ -65,6 +68,8 @@ public class StatsService implements IStatsService {
 
     private final StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub statsServiceRpc;
 
+    private final PlanServiceBlockingStub planRpcService;
+
     private final StatPeriodApiInputDTO DEFAULT_STAT_API_INPUT_DTO = new StatPeriodApiInputDTO();
 
     private final Clock clock;
@@ -81,12 +86,14 @@ public class StatsService implements IStatsService {
     private final String HEADROOM_VMS = "headroomVMs";
 
     StatsService(@Nonnull final StatsHistoryServiceBlockingStub statsServiceRpc,
+                 @Nonnull final PlanServiceBlockingStub planRpcService,
                  @Nonnull final RepositoryApi repositoryApi,
                  @Nonnull final GroupExpander groupExpander,
                  @Nonnull final Clock clock,
                  @Nonnull final TargetsService targetsService,
                  @Nonnull final GroupServiceBlockingStub groupServiceRpc) {
         this.statsServiceRpc = Objects.requireNonNull(statsServiceRpc);
+        this.planRpcService = planRpcService;
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.clock = Objects.requireNonNull(clock);
         this.groupExpander = groupExpander;
@@ -221,7 +228,7 @@ public class StatsService implements IStatsService {
             targets = targetsService.getTargets();
         } catch (RuntimeException e) {
             logger.error("Unable to get targets list due to error: {}." +
-                " Not using targets list for stat filtering.", e.getMessage());
+                    " Not using targets list for stat filtering.", e.getMessage());
         }
 
         // filter out those commodities listed in BLACK_LISTED_STATS in StatsUtils
@@ -265,32 +272,47 @@ public class StatsService implements IStatsService {
     public List<EntityStatsApiDTO> getStatsByUuidsQuery(StatScopesApiInputDTO inputDto)
             throws Exception {
 
-        // determine the list of entity OIDs to query for this operation
-        final Set<String> seedUuids = Sets.newHashSet(inputDto.getScopes());
-        final Set<Long> expandedUuids = groupExpander.expandUuids(
-                seedUuids);
-        // if not a global scope, then expanded OIDs are expected
-        if (UuidMapper.hasLimitedScope(seedUuids) && expandedUuids.isEmpty()) {
-            // empty expanded list; return an empty stats list
-            return Lists.newArrayList();
+        // check to see if this is a plan stats request
+        Optional<List<EntityStatsApiDTO>> planUuidStats = getPlanUuidStats(inputDto);
+        if (planUuidStats.isPresent()) {
+            return planUuidStats.get();
         }
 
-        // create a map of OID -> empty EntityStatsApiDTO for the Service Entity OIDs given;
-        // evaluate the Optional for each ServiceEntityApiDTO returned, and throw an exception if
-        // the corresponding oid is not found
-        Map<Long, EntityStatsApiDTO> entityStatsMap = new HashMap<>();
-        for (Map.Entry<Long, Optional<ServiceEntityApiDTO>> entry :
-                repositoryApi.getServiceEntitiesById(
-                        ServiceEntitiesRequest.newBuilder(expandedUuids).build()).entrySet()) {
-            final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
-            ServiceEntityApiDTO serviceEntity = entry.getValue().orElseThrow(()
-                    -> new UnknownObjectException(
-                    "ServiceEntity Not Found for oid: " + entry.getKey()));
-            entityStatsApiDTO.setUuid(serviceEntity.getUuid());
-            entityStatsApiDTO.setClassName(serviceEntity.getClassName());
-            entityStatsApiDTO.setDisplayName(serviceEntity.getDisplayName());
-            entityStatsApiDTO.setStats(new ArrayList<>());
-            entityStatsMap.put(entry.getKey(), entityStatsApiDTO);
+        final Set<Long> expandedUuids;
+        final Map<Long, EntityStatsApiDTO> entityStatsMap = new HashMap<>();
+
+        // check to see if this a full-market request (must be for a subset of entity types)
+        Optional<List<ServiceEntityApiDTO>> fullMarketEntities = getFullMarketEntitiesSubset(inputDto);
+        if (fullMarketEntities.isPresent()) {
+            // subset of the full market entities that match a 'relatedType' returned
+            fullMarketEntities.get().forEach(serviceEntity-> {
+                final EntityStatsApiDTO entityStatsApiDTO = populateEntityStatsApiDTO(serviceEntity);
+                entityStatsMap.put(Long.valueOf(serviceEntity.getUuid()), entityStatsApiDTO);
+            });
+            expandedUuids = entityStatsMap.keySet();
+        } else {
+            // Expand scopes list to determine the list of entity OIDs to query for this operation
+            final Set<String> seedUuids = Sets.newHashSet(inputDto.getScopes());
+            expandedUuids = groupExpander.expandUuids(
+                    seedUuids);
+            // if not a global scope, then expanded OIDs are expected
+            if (UuidMapper.hasLimitedScope(seedUuids) && expandedUuids.isEmpty()) {
+                // empty expanded list; return an empty stats list
+                return Lists.newArrayList();
+            }
+
+            // create a map of OID -> empty EntityStatsApiDTO for the Service Entity OIDs given;
+            // evaluate the Optional for each ServiceEntityApiDTO returned, and throw an exception if
+            // the corresponding oid is not found
+            for (Map.Entry<Long, Optional<ServiceEntityApiDTO>> entry :
+                    repositoryApi.getServiceEntitiesById(
+                            ServiceEntitiesRequest.newBuilder(expandedUuids).build()).entrySet()) {
+                ServiceEntityApiDTO serviceEntity = entry.getValue().orElseThrow(()
+                        -> new UnknownObjectException(
+                        "ServiceEntity Not Found for oid: " + entry.getKey()));
+                final EntityStatsApiDTO entityStatsApiDTO = populateEntityStatsApiDTO(serviceEntity);
+                entityStatsMap.put(entry.getKey(), entityStatsApiDTO);
+            }
         }
 
         // is the startDate in the past?
@@ -299,7 +321,7 @@ public class StatsService implements IStatsService {
                 || DateTimeUtil.parseTime(inputDto.getPeriod().getStartDate()) < clockTimeNow) {
             // fetch the historical stats for the given entities using the given search spec
             Iterator<EntityStats> historicalStatsIterator = statsServiceRpc.getEntityStats(
-                    StatsMapper.toEntityStatsRequest(expandedUuids, inputDto.getPeriod()));
+                    StatsMapper.toEntityStatsRequest(entityStatsMap.keySet(), inputDto.getPeriod()));
             while (historicalStatsIterator.hasNext()) {
                 EntityStats entityStats = historicalStatsIterator.next();
                 final long entityOid = entityStats.getOid();
@@ -345,5 +367,101 @@ public class StatsService implements IStatsService {
             }
         }
         return Lists.newArrayList(entityStatsMap.values());
+    }
+
+    /**
+     * Given a {@link ServiceEntityApiDTO} populate the entity-based fields
+     * of an {@link EntityStatsApiDTO}.
+     *
+     * @param serviceEntity The {@link ServiceEntityApiDTO} from which to get the entity-based fields
+     * @return a new {@link EntityStatsApiDTO} with the entity-based fields populated from the given
+     * {@link ServiceEntityApiDTO}
+     */
+    private EntityStatsApiDTO populateEntityStatsApiDTO(ServiceEntityApiDTO serviceEntity) {
+        final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
+        entityStatsApiDTO.setUuid(serviceEntity.getUuid());
+        entityStatsApiDTO.setClassName(serviceEntity.getClassName());
+        entityStatsApiDTO.setDisplayName(serviceEntity.getDisplayName());
+        entityStatsApiDTO.setStats(new ArrayList<>());
+        return entityStatsApiDTO;
+    }
+
+    /**
+     * If the uuid given in the 'scopes' value of the StatScopesApiInputDTO refers to a plan,
+     * then return an Optional containing the list of EntityStatsApiDTO for the plan.
+     *
+     * If the 'inputDto.period.startDate is before "now", then the stats returned will include stats
+     * for the Plan Source Topology. If the 'inputDto.period.startDate is after "now", then  the
+     * stats returned will include stats for the Plan Projected Topology.
+     *
+     * Return Optional.empty() if this request is not for a plan.
+     *
+     * @param inputDto the specification of the stats query
+     * @return if a plan scope, then return an optional containing a List of the EntityStatsApiDTO's
+     * for the plan; if not a plan, return Optional/empty();
+     */
+    private Optional<List<EntityStatsApiDTO>> getPlanUuidStats(StatScopesApiInputDTO inputDto) {
+        // plan stats request must be the only uuid in the scopes list
+        if (inputDto.getScopes().size() != 1) {
+            return Optional.empty();
+        }
+        // check for a plan uuid
+        String scopeUuid = inputDto.getScopes().iterator().next();
+        long scopeOid;
+        try {
+            scopeOid = Long.valueOf(scopeUuid);
+        } catch (NumberFormatException e) {
+            // not a number, so cannot be a plan UUID
+            return Optional.empty();
+        }
+
+        // fetch plan from plan orchestrator
+        PlanDTO.OptionalPlanInstance planInstanceOptional =
+                planRpcService.getPlan(PlanDTO.PlanId.newBuilder()
+                        .setPlanId(scopeOid)
+                        .build());
+        if (!planInstanceOptional.hasPlanInstance()) {
+            return Optional.empty();
+        }
+
+        // fetch stats for a plan from plan orchestrator
+        // TODO - OM-28024 - for now just return an empty list
+        return Optional.of(Collections.emptyList());
+    }
+
+    /**
+     * Fetch the subset of the full market where the entity matches the given 'relatedType'.
+     * Uses the Search service of the Repository API.
+     *
+     * If this is not a full market search, return Optional.empty().
+     *
+     * If this is a full market search and 'relatedType' is not specified throw an
+     * {@link IllegalArgumentException}.
+     *
+     * @param inputDto the specification of the search to perform, specifically the 'scopes' list and
+     *                 the 'relatedType'
+     * @return an Optional List of ServiceEntityApiDTO's if this is a full market search; otherwise
+     * return Optional.empty()
+     * @throws Exception if there is an error fetching results from Repository
+     */
+    private @Nonnull Optional<List<ServiceEntityApiDTO>> getFullMarketEntitiesSubset(
+            @Nonnull StatScopesApiInputDTO inputDto) throws Exception {
+        // Market stats request must be the only uuid in the scopes list
+        if (inputDto.getScopes().size() != 1 ||
+                !inputDto.getScopes().iterator().next().equals(UuidMapper.UI_REAL_TIME_MARKET_STR)) {
+            return Optional.empty();
+        }
+        String relatedType = inputDto.getRelatedType();
+        // 'relatedType' is required for full market entity stats
+        if (StringUtils.isEmpty(relatedType)) {
+            throw new IllegalArgumentException("Cannot request individual stats for full " +
+                    "Market without specifying 'relatedType'");
+        }
+        // Fetch the SE's of this type
+        List<ServiceEntityApiDTO> matchingServiceEntities = Lists.newArrayList(
+                repositoryApi.getSearchResults(null, Collections.singletonList(relatedType),
+                        UuidMapper.UI_REAL_TIME_MARKET_STR, null, null));
+
+        return Optional.of(matchingServiceEntities);
     }
 }
