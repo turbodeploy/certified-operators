@@ -2,6 +2,7 @@ package com.vmturbo.topology.processor.group.settings;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -124,6 +125,12 @@ public class EntitySettingsResolver {
         // SettingSpecName -> SettingSpec
         final Map<String, SettingSpec> settingNameToSettingSpecs = getAllSettingSpecs();
 
+        // entity id -> Map<Setting name, whether setting is scheduled for entity>
+        final Map<Long, Map<String, Boolean>> settingsAreScheduled = new HashMap<>();
+
+        //resolver to determine if a schedule applies at the canonical moment (i.e. right now)
+        final ScheduleResolver scheduleResolver = new ScheduleResolver(Instant.now());
+
         // For each group, resolve it to get its entities. Then apply the settings
         // from the SettingPolicies associated with the group to the resolved entities
         groupSettingPoliciesMap.forEach((groupId, settingPolicies) -> {
@@ -133,8 +140,10 @@ public class EntitySettingsResolver {
             try {
                 final Group group = groups.get(groupId);
                 if (group != null ) {
-                    resolve(groupResolver.resolve(group, topologyGraph),
-                        settingPolicies, userSettingsByEntityAndName, settingNameToSettingSpecs);
+                    final Set<Long> allEntitiesInGroup = groupResolver.resolve(group, topologyGraph);
+                    resolveAllEntitySettings(allEntitiesInGroup, settingPolicies, scheduleResolver,
+                            settingsAreScheduled, userSettingsByEntityAndName,
+                            settingNameToSettingSpecs);
                 } else {
                     logger.error("Group {} does not exist.", groupId);
                 }
@@ -170,46 +179,96 @@ public class EntitySettingsResolver {
     }
 
     /**
-     *  Resolve settings for a set of entities. If the settings have same values, resolve
-     *  conflict.
+     *  Resolve settings for a set of entities. If the settings use the same spec and have
+     *  different values, select a winner. If one setting has a scheduled period of
+     *  activity and another does not, the scheduled setting takes priority. When conflicting
+     *  settings are both scheduled or unscheduled, use the spec's tiebreaker to resolve.
      *
      * @param entities List of entity OIDs
      * @param settingPolicies List of settings policies to be applied to the entities
+     * @param scheduleResolver Used to determine if a settings policy schedule applies when
+     *              the settings are being resolved.
+     * @param settingsByEntityAreScheduled Used to mark whether a setting spec has a scheduled
+     *              value per entity
      * @param userSettingsByEntityAndName The return parameter which
      *              maps an entityId with its associated settings indexed by the
      *              settingsSpecName
      * @param settingNameToSettingSpecs Map of SettingSpecName to SettingSpecs
      */
     @VisibleForTesting
-    void resolve(Set<Long> entities,
-               List<SettingPolicy> settingPolicies,
+    void resolveAllEntitySettings(final Set<Long> entities,
+               final List<SettingPolicy> settingPolicies,
+               final ScheduleResolver scheduleResolver,
+               Map<Long, Map<String, Boolean>> settingsByEntityAreScheduled,
                Map<Long, Map<String, Setting>> userSettingsByEntityAndName,
-               Map<String, SettingSpec> settingNameToSettingSpecs) {
+               final Map<String, SettingSpec> settingNameToSettingSpecs) {
 
         checkNotNull(userSettingsByEntityAndName);
 
         for (Long oid: entities) {
             // settingSpecName-> Setting mapping
-            Map<String, Setting> settingsMap =
+            Map<String, Setting> settingsByName =
                 userSettingsByEntityAndName.computeIfAbsent(
                     oid, k -> new HashMap<>());
+            Map<String, Boolean> settingsAreScheduled =
+                    settingsByEntityAreScheduled.computeIfAbsent(
+                            oid, k -> new HashMap<>());
+
             for (SettingPolicy sp : settingPolicies) {
-                sp.getInfo().getSettingsList().forEach((setting) -> {
-                    final String specName = setting.getSettingSpecName();
-                    final Setting existingSetting = settingsMap.get(specName);
-                    final Setting resultSetting;
-                    if (existingSetting != null) {
-                        //  When 2 Settings have the same name and different values, there is a conflict
-                        logger.debug("Settings conflict : {} and {}", setting, existingSetting);
-                        resultSetting = resolveConflict(setting, existingSetting,
-                                settingNameToSettingSpecs);
-                    } else {
-                        resultSetting = setting;
-                    }
-                    settingsMap.put(specName, resultSetting);
-                });
+                final boolean policyIsScheduled = sp.getInfo().hasSchedule();
+                if (!policyIsScheduled ||
+                        scheduleResolver.appliesAtResolutionInstant(sp.getInfo().getSchedule())) {
+                    sp.getInfo().getSettingsList().forEach((newSetting) -> {
+                        final String specName = newSetting.getSettingSpecName();
+                        final Setting existingSetting = settingsByName.get(specName);
+                        if (existingSetting != null) {
+                            final Setting conflictWinner = resolveSettingConflict(existingSetting,
+                                    newSetting, settingNameToSettingSpecs, settingsAreScheduled,
+                                    policyIsScheduled);
+                            settingsByName.put(specName, conflictWinner);
+                        } else {
+                            settingsByName.put(specName, newSetting);
+                            settingsAreScheduled.put(specName, policyIsScheduled);
+                        }
+                    });
+                }
             }
         }
+    }
+
+    /**
+     * Determine which of an existing setting and a new setting, with the same spec name but
+     * different values, should apply to an entity. If one is scheduled and the other is not,
+     * the scheduled one wins. If both are scheduled or unscheduled, their spec's tiebreaker
+     * is used to resolve the conflict.
+     *
+     * @param existingSetting a previously found setting for an entity
+     * @param newSetting a new setting for an entity
+     * @param settingNameToSettingSpecs map of setting names to associated specs
+     * @param settingsAreScheduled map of which existing settings are scheduled
+     * @param newPolicyIsScheduled whether the new setting is scheduled
+     * @return whichever of the newSetting or the existingSetting that takes priority
+     */
+    private Setting resolveSettingConflict(final Setting existingSetting, final Setting newSetting,
+                                           final Map<String, SettingSpec> settingNameToSettingSpecs,
+                                           final Map<String, Boolean> settingsAreScheduled,
+                                           final boolean newPolicyIsScheduled) {
+        final String specName = newSetting.getSettingSpecName();
+        final boolean existingSettingIsScheduled =
+                settingsAreScheduled.getOrDefault(specName, false);
+        final Setting resultSetting;
+        if (existingSettingIsScheduled && !newPolicyIsScheduled) {
+            resultSetting = existingSetting;
+        } else if (newPolicyIsScheduled && !existingSettingIsScheduled) {
+            resultSetting = newSetting;
+            settingsAreScheduled.put(specName, true);
+        } else {
+            logger.debug("Applying tiebreaker to settings: {} and {}", newSetting, existingSetting);
+            resultSetting = applyTiebreaker(newSetting, existingSetting,
+                    settingNameToSettingSpecs);
+            settingsAreScheduled.put(specName, newPolicyIsScheduled);
+        }
+        return resultSetting;
     }
 
     /**
@@ -223,7 +282,7 @@ public class EntitySettingsResolver {
      *  @param settingNameToSettingSpecs Mapping from SettingSpecName to SettingSpec
      *  @return Resolved setting which won the tieBreaker
      */
-    public static Setting resolveConflict(
+    public static Setting applyTiebreaker(
                                 @Nonnull Setting setting1,
                                 @Nonnull Setting setting2,
                                 @Nonnull Map<String, SettingSpec> settingNameToSettingSpecs) {
@@ -264,7 +323,7 @@ public class EntitySettingsResolver {
                 return (ret <= 0) ? setting1 : setting2;
             default:
             // shouldn't reach here.
-            throw new IllegalArgumentException("Illegal tiebraker value : " + tieBreaker);
+            throw new IllegalArgumentException("Illegal tiebreaker value : " + tieBreaker);
         }
     }
 
