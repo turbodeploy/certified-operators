@@ -23,6 +23,7 @@ import com.google.protobuf.util.JsonFormat;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.builders.EntityBuilders;
@@ -39,32 +40,38 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualDatacenterData
  */
 public class ConverterTest {
 
-    private static final long PM_OID = 102L;
+    private static final long PM_POWEREDON_OID = 102L;
+    private static final long PM_MAINTENANCE_OID = 103L;
+    private static final long PM_FAILOVER_OID = 104L;
     private static final long VM_OID = 100L;
     private static final long DS_OID = 205L;
 
     @Test
     public void testConverter() throws IOException {
         CommonDTO.EntityDTO vmProbeDTO = messageFromJsonFile("protobuf/messages/vm-1.dto.json");
-        CommonDTO.EntityDTO pmProbeDTO = messageFromJsonFile("protobuf/messages/pm-1.dto.json");
+        CommonDTO.EntityDTO pmPoweredonProbeDTO = messageFromJsonFile("protobuf/messages/pm-1.dto.json");
+        CommonDTO.EntityDTO pmMaintenanceProbeDTO = messageFromJsonFile("protobuf/messages/pm-2-maintenance.dto.json");
+        CommonDTO.EntityDTO pmFailoverProbeDTO = messageFromJsonFile("protobuf/messages/pm-3-failover.dto.json");
         CommonDTO.EntityDTO dsProbeDTO = messageFromJsonFile("protobuf/messages/ds-1.dto.json");
         Map<Long, CommonDTO.EntityDTO> probeDTOs = Maps.newLinkedHashMap(); // preserve the order
         // The entities are placed in the map so that there are forward references (from the VM to the other two)
         probeDTOs.put(VM_OID, vmProbeDTO);
-        probeDTOs.put(PM_OID, pmProbeDTO);
+        probeDTOs.put(PM_POWEREDON_OID, pmPoweredonProbeDTO);
+        probeDTOs.put(PM_MAINTENANCE_OID, pmMaintenanceProbeDTO);
+        probeDTOs.put(PM_FAILOVER_OID, pmFailoverProbeDTO);
         probeDTOs.put(DS_OID, dsProbeDTO);
         final List<TopologyEntityDTO> topologyDTOs = Converter.convert(probeDTOs).stream()
             .map(TopologyEntityDTO.Builder::build)
             .collect(Collectors.toList());
-        assertEquals(3, topologyDTOs.size());
+        assertEquals(5, topologyDTOs.size());
         // OIDs match
-        TopologyEntityDTO vmTopologyDTO = findEntity(topologyDTOs, EntityType.VIRTUAL_MACHINE_VALUE);
+        TopologyEntityDTO vmTopologyDTO = findEntity(topologyDTOs, VM_OID);
         assertEquals(vmProbeDTO.getDisplayName(), vmTopologyDTO.getDisplayName());
         assertEquals(3, vmTopologyDTO.getCommoditySoldListCount()); // 2xVCPU, 1xVMem
         assertEquals(2, vmTopologyDTO.getCommoditiesBoughtFromProvidersCount()); // buying from two providers
 
         CommoditiesBoughtFromProvider vmCommBoughtGrouping = vmTopologyDTO.getCommoditiesBoughtFromProvidersList().stream()
-            .filter(commodityBoughtGrouping -> commodityBoughtGrouping.getProviderId() == PM_OID)
+            .filter(commodityBoughtGrouping -> commodityBoughtGrouping.getProviderId() == PM_POWEREDON_OID)
             .findFirst()
             .get();
 
@@ -73,13 +80,23 @@ public class ConverterTest {
         assertTrue(isActive(vmCommBoughtGrouping.getCommodityBoughtList(), CommodityType.CPU_VALUE));
         assertFalse(isActive(vmCommBoughtGrouping.getCommodityBoughtList(), CommodityType.BALLOONING_VALUE));
 
-        TopologyEntityDTO pmTopologyDTO = findEntity(topologyDTOs, EntityType.PHYSICAL_MACHINE_VALUE);
-        assertTrue(isActive(pmTopologyDTO, CommodityType.CPU_VALUE));
-        assertFalse(isActive(pmTopologyDTO, CommodityType.BALLOONING_VALUE));
+        // check powered on pm
+        TopologyEntityDTO pmPoweredOnTopologyDTO = findEntity(topologyDTOs, PM_POWEREDON_OID);
+        assertTrue(isActive(pmPoweredOnTopologyDTO, CommodityType.CPU_VALUE));
+        assertFalse(isActive(pmPoweredOnTopologyDTO, CommodityType.BALLOONING_VALUE));
+        assertTrue(pmPoweredOnTopologyDTO.getEntityState() == EntityState.POWERED_ON);
+
+        // check maintenance pm
+        TopologyEntityDTO pmMaintenanceTopologyDTO = findEntity(topologyDTOs, PM_MAINTENANCE_OID);
+        assertTrue(pmMaintenanceTopologyDTO.getEntityState() == EntityState.MAINTENANCE);
+
+        // check failover pm
+        TopologyEntityDTO pmFailoverTopologyDTO = findEntity(topologyDTOs, PM_FAILOVER_OID);
+        assertTrue(pmFailoverTopologyDTO.getEntityState() == EntityState.FAILOVER);
     }
 
-    private TopologyEntityDTO findEntity(List<TopologyEntityDTO> dtos, int entityType) {
-        return dtos.stream().filter(entity -> entity.getEntityType() == entityType).findFirst().get();
+    private TopologyEntityDTO findEntity(List<TopologyEntityDTO> dtos, long oid) {
+        return dtos.stream().filter(entity -> entity.getOid() == oid).findFirst().get();
     }
 
     private boolean isActive(List<CommodityBoughtDTO> list, int commodityType) {

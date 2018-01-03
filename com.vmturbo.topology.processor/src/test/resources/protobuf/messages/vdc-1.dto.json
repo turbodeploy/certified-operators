@@ -1,7 +1,7 @@
 {
   "entityType": "VIRTUAL_DATACENTER",
   "id": "XXX-XXX-000-999",
-  "displayName": "CDV-1",
+  "displayName": "vdc-1",
   "commoditiesSold": [
     {
       "commodityType": "MEM_ALLOCATION",

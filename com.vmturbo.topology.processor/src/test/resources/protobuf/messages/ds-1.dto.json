@@ -1,7 +1,7 @@
 {
   "entityType": "STORAGE",
   "id": "OpenStackSDK:hp-dl386.eng.vmturbo.com:STORAGE:hp-dl380.eng.vmturbo.com",
-  "displayName": "hp-dl380.eng.vmturbo.com [local]",
+  "displayName": "ds-1",
   "commoditiesSold": [
     {
       "commodityType": "STORAGE_AMOUNT",

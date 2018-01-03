@@ -1,0 +1,31 @@
+{
+  "entityType": "PHYSICAL_MACHINE",
+  "id": "OpenStackSDK:hp-dl386.eng.vmturbo.com:PM:hp-dl381.eng.vmturbo.com",
+  "displayName": "pm-2-maintenance",
+  "commoditiesSold": [
+    {
+      "commodityType": "MEM",
+      "capacity": 4.1203712E7
+    },
+    {
+      "commodityType": "CPU",
+      "capacity": 16000.0
+    },
+    {
+      "commodityType": "BALLOONING",
+      "capacity": 5.3E8,
+      "active": false
+    }
+  ],
+  "powerState": "POWERED_ON",
+  "maintenance": true,
+  "physicalMachineData": {
+    "pmState": {
+      "failover": false
+    },
+    "numCpuSockets": 4,
+    "numCpuCores": 64,
+    "numCpuThreads": 64,
+    "cpuCoreMhz": 2593
+  }
+}

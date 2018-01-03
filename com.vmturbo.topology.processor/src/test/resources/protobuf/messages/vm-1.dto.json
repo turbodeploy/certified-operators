@@ -1,7 +1,7 @@
 {
   "entityType": "VIRTUAL_MACHINE",
   "id": "52cc3b60-005e-40e6-a365-65ae34b29bbf",
-  "displayName": "cirros1",
+  "displayName": "vm-1",
   "commoditiesSold": [
     {
       "commodityType": "VCPU",
