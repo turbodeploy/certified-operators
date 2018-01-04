@@ -106,6 +106,15 @@
                             <targetPath>/www</targetPath>
                             <directory>${project.build.directory}/www</directory>
                         </resource>
+                        <resource>
+                            <targetPath>/swagger</targetPath>
+                            <directory>${project.basedir}/src/swagger</directory>
+                        </resource>
+                        <resource>
+                            <targetPath>/swagger</targetPath>
+                            <directory>${swagger.conf.directory}</directory>
+                            <include>swagger.json</include>
+                        </resource>
                     </resources>
                 </configuration>
             </plugin>
