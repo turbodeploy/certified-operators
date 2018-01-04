@@ -25,6 +25,7 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
+import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
 import javaslang.control.Either;
@@ -36,6 +37,7 @@ import com.vmturbo.repository.topology.TopologyID.TopologyType;
 /**
  * Implements Service Entity endpoint.
  */
+@Api("GraphServiceEntityController")
 @RequestMapping("/repository")
 public class GraphServiceEntityController {
     private static final Logger LOGGER = LoggerFactory.getLogger(GraphServiceEntityController.class);

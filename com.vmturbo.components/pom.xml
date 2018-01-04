@@ -13,29 +13,15 @@
     <description>The parent POM of all components.</description>
     <packaging>pom</packaging>
 
-    <build>
-        <resources>
-            <resource>
-                <directory>src/main/resources</directory>
-                <filtering>true</filtering>
-            </resource>
-        </resources>
-    </build>
-
     <properties>
         <!-- START properties for static swagger documentation generation -->
-
-        <!-- The ;-separated locations for swagger-annotated Java objects in the component.
-             Components should override this property with the locations of the REST controllers. -->
-        <swagger.locations>none</swagger.locations>
-
         <!-- The component's display name as it should be displayed in swagger docs -->
         <swagger.component.name>Name Not Set</swagger.component.name>
 
         <!-- The base path on which the component serves the API. Should begin with a slash. -->
         <swagger.basepath>/</swagger.basepath>
 
-        <base.generated.docs.dir>${project.build.directory}/generated-docs/${project.version}</base.generated.docs.dir>
+        <base.generated.docs.dir>${project.build.directory}/generated-docs/</base.generated.docs.dir>
         <swagger.conf.directory>${base.generated.docs.dir}/swagger</swagger.conf.directory>
         <generated.asciidoc.directory>${base.generated.docs.dir}/asciidoc</generated.asciidoc.directory>
         <asciidoctor.input.directory>${generated.asciidoc.directory}</asciidoctor.input.directory>
@@ -47,6 +33,55 @@
         <adoc.name>component-swagger</adoc.name>
         <!-- END properties for static swagger documentation generation -->
     </properties>
+
+    <build>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+            </resource>
+        </resources>
+        <pluginManagement>
+            <plugins>
+                <!-- generate swagger.json from the annotated controllers -->
+                <plugin>
+                    <groupId>com.github.kongchen</groupId>
+                    <artifactId>swagger-maven-plugin</artifactId>
+                    <configuration>
+                        <apiSources>
+                            <apiSource>
+                                <springmvc>true</springmvc>
+                                <schemes>
+                                    <scheme>http</scheme>
+                                </schemes>
+                                <basePath>${swagger.basepath}</basePath>
+                                <locations>
+                                    <location>com.vmturbo.components.common</location>
+                                </locations>
+                                <outputFormats>json</outputFormats>
+                                <info>
+                                    <title>${swagger.component.name}</title>
+                                    <version>${api.version}</version>
+                                    <description>REST API to access the ${swagger.component.name} functionality.</description>
+                                </info>
+                                <swaggerDirectory>${swagger.conf.directory}</swaggerDirectory>
+                                <outputPath>${swagger.conf.directory}</outputPath>
+                                <attachSwaggerArtifact>true</attachSwaggerArtifact>
+                            </apiSource>
+                        </apiSources>
+                    </configuration>
+                    <executions>
+                        <execution>
+                            <phase>prepare-package</phase>
+                            <goals>
+                                <goal>generate</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
 
     <profiles>
         <profile>
@@ -79,6 +114,10 @@
                                         <targetPath>/</targetPath>
                                         <directory>${project.build.directory}</directory>
                                         <include>${project.build.finalName}.jar</include>
+                                    </resource>
+                                    <resource>
+                                        <targetPath>/swagger</targetPath>
+                                        <directory>${project.build.directory}/generated-docs/swagger</directory>
                                     </resource>
                                 </resources>
                             </configuration>
@@ -116,118 +155,6 @@
                         </plugins>
                     </pluginManagement>
                 </build>
-        </profile>
-        <profile>
-            <id>release</id>
-            <build>
-                <plugins>
-                    <!-- generate swagger.json from the annotated controllers -->
-                    <plugin>
-                        <groupId>com.github.kongchen</groupId>
-                        <artifactId>swagger-maven-plugin</artifactId>
-                        <version>${swagger.plugin.version}</version>
-                        <configuration>
-                            <apiSources>
-                                <apiSource>
-                                    <springmvc>true</springmvc>
-                                    <schemes>http,https</schemes>
-                                    <basePath>${swagger.basepath}</basePath>
-                                    <locations>${swagger.locations}</locations>
-                                    <outputFormats>json,yaml</outputFormats>
-                                    <info>
-                                        <title>${swagger.component.name}</title>
-                                        <version>${api.version}</version>
-                                        <description>REST API to access the ${swagger.component.name} functionality.</description>
-                                    </info>
-                                    <swaggerDirectory>${swagger.conf.directory}</swaggerDirectory>
-                                </apiSource>
-                            </apiSources>
-                        </configuration>
-                        <executions>
-                            <execution>
-                                <phase>prepare-package</phase>
-                                <goals>
-                                    <goal>generate</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                    </plugin>
-
-                    <!-- Use the swagger2markup plugin to generate asciidoc -->
-                    <plugin>
-                        <groupId>io.github.robwin</groupId>
-                        <artifactId>swagger2markup-maven-plugin</artifactId>
-                        <version>${swagger2markup.plugin.version}</version>
-                        <configuration>
-                            <inputDirectory>${swagger.conf.directory}</inputDirectory>
-                            <outputDirectory>${generated.asciidoc.directory}</outputDirectory>
-                            <pathsGroupedBy>TAGS</pathsGroupedBy>
-                        </configuration>
-                        <executions>
-                            <execution>
-                                <phase>prepare-package</phase>
-                                <goals>
-                                    <goal>process-swagger</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                    </plugin>
-
-                    <!-- Run the generated asciidoc through Asciidoctor to generate
-                         HTML5 docs -->
-                    <plugin>
-                        <groupId>org.asciidoctor</groupId>
-                        <artifactId>asciidoctor-maven-plugin</artifactId>
-                        <version>${asciidoctor.plugin.version}</version>
-                        <!-- Configure generic document generation settings -->
-                        <configuration>
-                            <sourceDirectory>${aggregate.adoc.dir}</sourceDirectory>
-                            <sourceDocumentName>${adoc.name}.adoc</sourceDocumentName>
-                            <attributes>
-                                <toc>left</toc>
-                                <toclevels>3</toclevels>
-                                <generated>${generated.asciidoc.directory}</generated>
-                            </attributes>
-                        </configuration>
-                        <!-- Since each execution can only handle one backend, run
-                             separate executions for each desired output type -->
-                        <executions>
-                            <execution>
-                                <id>output-html</id>
-                                <phase>prepare-package</phase>
-                                <goals>
-                                    <goal>process-asciidoc</goal>
-                                </goals>
-                                <configuration>
-                                    <backend>html5</backend>
-                                    <outputDirectory>${asciidoctor.html.output.directory}</outputDirectory>
-                                </configuration>
-                            </execution>
-                        </executions>
-                    </plugin>
-
-                    <!-- Rename the generated HTML5 file. Unfortunately asciidoctor-maven-plugin doesn't
-                         let us change the name of the file before generating it, so we use a separate
-                         plugin to do that. -->
-                    <plugin>
-                        <groupId>com.coderplus.maven.plugins</groupId>
-                        <artifactId>copy-rename-maven-plugin</artifactId>
-                        <executions>
-                            <execution>
-                                <id>rename-file</id>
-                                <phase>install</phase>
-                                <goals>
-                                    <goal>rename</goal>
-                                </goals>
-                                <configuration>
-                                    <sourceFile>${asciidoctor.html.output.directory}/${adoc.name}.html</sourceFile>
-                                    <destinationFile>${asciidoctor.html.output.directory}/${project.artifactId}.html</destinationFile>
-                                </configuration>
-                            </execution>
-                        </executions>
-                    </plugin>
-                </plugins>
-            </build>
         </profile>
     </profiles>
 

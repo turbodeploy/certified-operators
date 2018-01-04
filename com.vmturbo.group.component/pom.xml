@@ -13,6 +13,8 @@
     <artifactId>com.vmturbo.group</artifactId>
 
     <properties>
+        <swagger.component.name>Group</swagger.component.name>
+
         <java.version>1.8</java.version>
         <assertj.version>3.6.1</assertj.version>
         <guava-retrying.version>2.0.0</guava-retrying.version>
@@ -162,14 +164,6 @@
             </exclusions>
         </dependency>
         <dependency>
-            <groupId>io.springfox</groupId>
-            <artifactId>springfox-swagger2</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>io.springfox</groupId>
-            <artifactId>springfox-swagger-ui</artifactId>
-        </dependency>
-        <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>sql-utils</artifactId>
         </dependency>
@@ -305,6 +299,21 @@
                             <directory>target/generated-sources/jooq</directory>
                         </target>
                     </generator>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>com.github.kongchen</groupId>
+                <artifactId>swagger-maven-plugin</artifactId>
+                <configuration>
+                    <apiSources>
+                        <apiSource>
+                            <locations>
+                                <location>com.vmturbo.group</location>
+                                <location>com.vmturbo.common.protobuf.group</location>
+                                <location>com.vmturbo.components.common</location>
+                            </locations>
+                        </apiSource>
+                    </apiSources>
                 </configuration>
             </plugin>
         </plugins>

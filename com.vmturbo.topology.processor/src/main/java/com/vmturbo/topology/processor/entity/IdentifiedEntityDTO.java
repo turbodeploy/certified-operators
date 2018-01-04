@@ -1,9 +1,12 @@
 package com.vmturbo.topology.processor.entity;
 
 import java.util.concurrent.atomic.AtomicLong;
+
 import javax.annotation.Nonnull;
 
 import com.google.gson.Gson;
+
+import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
 
 import com.vmturbo.components.api.ComponentGsonFactory;
@@ -12,6 +15,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 /**
  * An EntityDTO as discovered by the probe together with its OID identifier.
  */
+@ApiModel("IdentifiedEntityDTO")
 public class IdentifiedEntityDTO {
     private final long oid;
 

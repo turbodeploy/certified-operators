@@ -11,6 +11,8 @@
     <modelVersion>4.0.0</modelVersion>
 
     <properties>
+        <swagger.component.name>History</swagger.component.name>
+
         <!-- these DB-related version should be in sync with ones in com.vmturbo.reports -->
         <jooq.version>3.1.0</jooq.version>
         <flyway.version>3.0</flyway.version>
@@ -27,6 +29,24 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>com.github.kongchen</groupId>
+                <artifactId>swagger-maven-plugin</artifactId>
+                <configuration>
+
+                    <apiSources>
+                        <apiSource>
+                            <locations>
+                                <location>com.vmturbo.history</location>
+                                <location>com.vmturbo.common.protobuf.stats</location>
+                                <location>com.vmturbo.history.component.api</location>
+                                <location>com.vmturbo.components.common</location>
+                            </locations>
+                        </apiSource>
+                    </apiSources>
+
+                </configuration>
             </plugin>
             <plugin>
                 <groupId>com.spotify</groupId>

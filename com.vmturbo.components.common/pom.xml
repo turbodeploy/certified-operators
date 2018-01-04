@@ -34,6 +34,10 @@
                                 <directory>${project.build.directory}</directory>
                                 <include>${project.build.finalName}.jar</include>
                             </resource>
+                            <resource>
+                                <targetPath>/swagger</targetPath>
+                                <file>${project.build.directory}/generated-docs/swagger/swagger.json}</file>
+                            </resource>
                         </resources>
                     </configuration>
                 </plugin>

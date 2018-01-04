@@ -25,9 +25,13 @@
     </profiles>
 
     <properties>
-        <swagger.locations>com.vmturbo.api</swagger.locations>
-        <swagger.component.name>Turbonomic External API</swagger.component.name>
-        <swagger.basepath>/vmturbo</swagger.basepath>
+        <external.swagger.name>Turbonomic External API</external.swagger.name>
+        <external.swagger.basepath>/vmturbo/rest</external.swagger.basepath>
+        <base.generated.docs.dir>${project.build.directory}/generated-docs/</base.generated.docs.dir>
+        <swagger.conf.directory>${base.generated.docs.dir}/swagger</swagger.conf.directory>
+        <generated.asciidoc.directory>${base.generated.docs.dir}/asciidoc</generated.asciidoc.directory>
+        <asciidoctor.input.directory>${generated.asciidoc.directory}</asciidoctor.input.directory>
+        <asciidoctor.html.output.directory>${base.generated.docs.dir}/html</asciidoctor.html.output.directory>
         <env.svn.revision>${env.SVN_REVISION}</env.svn.revision>
     </properties>
 
@@ -40,6 +44,36 @@
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
+            </plugin>
+            <!-- generate swagger.json for the External API - requires https -->
+            <plugin>
+                <groupId>com.github.kongchen</groupId>
+                <artifactId>swagger-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <configuration>
+                            <apiSources>
+                                <apiSource>
+                                    <schemes>
+                                        <scheme>https</scheme>
+                                    </schemes>
+                                    <locations>
+                                        <location>com.vmturbo.api</location>
+                                    </locations>
+                                    <info>
+                                        <title>${external.swagger.name}</title>
+                                        <version>${api.version}</version>
+                                        <description>REST API to access the ${external.swagger.name} functionality.</description>
+                                    </info>
+                                </apiSource>
+                            </apiSources>
+                        </configuration>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>generate</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -133,6 +167,12 @@
         <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>com.vmturbo.api</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>io.springfox</groupId>
+                    <artifactId>springfox-swagger2</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>
@@ -222,26 +262,6 @@
         </dependency>
 
         <!-- test dependencies -->
-        <dependency>
-            <groupId>org.springframework</groupId>
-            <artifactId>spring-test</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.hamcrest</groupId>
-            <artifactId>hamcrest-all</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.mockito</groupId>
-            <artifactId>mockito-core</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>junit</groupId>
-            <artifactId>junit</artifactId>
-            <scope>test</scope>
-        </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>com.vmturbo.group</artifactId>

@@ -12,6 +12,9 @@ COPY logrotate.sh /
 RUN chmod 755 /entrypoint.sh && chmod 755 /collect_diags.sh && \
 chmod 755 /diags.py && chmod 755 /logrotate.sh
 
+# add the swagger UI
+COPY swagger /swagger/
+
 # rsyslog
 ADD rsyslog.conf /etc
 

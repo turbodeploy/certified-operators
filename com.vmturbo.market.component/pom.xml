@@ -13,6 +13,10 @@
 
     <artifactId>market-component</artifactId>
 
+    <properties>
+        <swagger.component.name>Market</swagger.component.name>
+    </properties>
+
     <build>
         <plugins>
            <plugin>
@@ -29,6 +33,21 @@
             <plugin>
                 <groupId>com.spotify</groupId>
                 <artifactId>docker-maven-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>com.github.kongchen</groupId>
+                <artifactId>swagger-maven-plugin</artifactId>
+                <configuration>
+
+                    <apiSources>
+                        <apiSource>
+                            <locations>
+                                <location>com.vmturbo.components.common</location>
+                            </locations>
+                        </apiSource>
+                    </apiSources>
+
+                </configuration>
             </plugin>
         </plugins>
     </build>

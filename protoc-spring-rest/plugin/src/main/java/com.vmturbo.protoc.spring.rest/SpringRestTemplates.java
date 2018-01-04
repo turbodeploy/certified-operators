@@ -78,8 +78,8 @@ class SpringRestTemplates {
             "import org.springframework.web.bind.annotation.RestController;";
 
     private static final String SERVICE_TEMPLATE =
-        "@Api(value=\"<serviceName>\") " +
-        "@RequestMapping(value=\"<serviceName>\") " +
+        "@Api(value=\"/<serviceName>\") " +
+        "@RequestMapping(value=\"/<serviceName>\") " +
         "@RestController " +
         "public static class <serviceName>Controller {" +
             "@ApiModel(description=\"Wrapper around the responses from <serviceName> to provide optional error information.\")" +

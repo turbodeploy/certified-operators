@@ -13,7 +13,7 @@
     <artifactId>com.vmturbo.reports.component</artifactId>
 
     <properties>
-        <java.version>1.8</java.version>
+        <swagger.component.name>Reports</swagger.component.name>
 
         <!-- TODO: user and password configuration should NOT be checked into source control -->
         <db.url>jdbc:mysql://localhost:3306</db.url>
@@ -545,7 +545,6 @@
         </dependency>
 
     </dependencies>
-
     <build>
         <pluginManagement>
             <plugins>
@@ -576,6 +575,21 @@
                 <configuration>
                     <!-- Publish only initial JAR, not Spring-boot to Maven repo -->
                     <attach>false</attach>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>com.github.kongchen</groupId>
+                <artifactId>swagger-maven-plugin</artifactId>
+                <configuration>
+                    <apiSources>
+                        <apiSource>
+                            <locations>
+                                <location>com.vmturbo.reporting.api.protobuf</location>
+                                <location>com.vmturbo.components.common</location>
+                            </locations>
+                        </apiSource>
+                    </apiSources>
+
                 </configuration>
             </plugin>
             <plugin>

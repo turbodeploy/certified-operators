@@ -196,5 +196,6 @@ service StatsHistoryService {
     // trigger this method.
     rpc SaveClusterHeadroom(SaveClusterHeadroomRequest) returns (SaveClusterHeadroomResponse);
 
+    // Delete plan stats
     rpc DeletePlanStats(DeletePlanStatsRequest) returns (DeletePlanStatsResponse);
 }

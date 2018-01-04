@@ -12,6 +12,10 @@
     <artifactId>com.vmturbo.mediation.delegatingprobe.component</artifactId>
     <description>Mediation Component for Delegating Probe</description>
 
+    <properties>
+        <swagger.component.name>Delegating Probe Mediation Component</swagger.component.name>
+    </properties>
+
     <build>
         <plugins>
             <plugin>

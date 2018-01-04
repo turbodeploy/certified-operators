@@ -81,8 +81,9 @@
         <start-class/>
         <!-- START swagger properties -->
         <springfox.version>2.4.0</springfox.version>
-        <api.version>0.1.0</api.version>
-        <swagger.plugin.version>3.1.3</swagger.plugin.version>
+        <api.version>${project.version}</api.version>
+        <swagger.plugin.version>3.1.5</swagger.plugin.version>
+        <swagger-ui-version>3.0.14</swagger-ui-version>
         <asciidoctor.plugin.version>1.5.3</asciidoctor.plugin.version>
         <swagger2markup.plugin.version>0.9.3</swagger2markup.plugin.version>
         <!-- END swagger properties -->
@@ -94,6 +95,8 @@
         <bouncycastle.version>1.57</bouncycastle.version>
         <json-path.version>2.2.0</json-path.version>
         <copy.rename.plugin.version>1.0.1</copy.rename.plugin.version>
+
+        <mariadb.client.version>1.1.7</mariadb.client.version>
 
         <reactor.version>3.0.4.RELEASE</reactor.version>
 
@@ -655,6 +658,11 @@
                     <groupId>org.jooq</groupId>
                     <artifactId>jooq-codegen-maven</artifactId>
                     <version>${jooq.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>com.github.kongchen</groupId>
+                    <artifactId>swagger-maven-plugin</artifactId>
+                    <version>${swagger.plugin.version}</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -1250,12 +1258,6 @@
                 <artifactId>springfox-swagger2</artifactId>
                 <version>${springfox.version}</version>
             </dependency>
-            <!-- Provide a UI to make calls to REST API -->
-            <dependency>
-                <groupId>io.springfox</groupId>
-                <artifactId>springfox-swagger-ui</artifactId>
-                <version>${springfox.version}</version>
-            </dependency>
             <!-- log4j 1.2 -->
             <dependency>
                 <groupId>log4j</groupId>
@@ -1419,7 +1421,7 @@
             <dependency>
                 <groupId>org.mariadb.jdbc</groupId>
                 <artifactId>mariadb-java-client</artifactId>
-                <version>1.1.7</version>
+                <version>${mariadb.client.version}</version>
             </dependency>
 
             <dependency>

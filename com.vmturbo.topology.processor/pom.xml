@@ -13,7 +13,6 @@
 
 
     <properties>
-        <swagger.locations>com.vmturbo.topology.processor</swagger.locations>
         <swagger.component.name>Topology Processor</swagger.component.name>
 
         <!-- Properties to support generation of JOOQ objects -->
@@ -130,6 +129,22 @@
                             <directory>target/generated-sources/jooq</directory>
                         </target>
                     </generator>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>com.github.kongchen</groupId>
+                <artifactId>swagger-maven-plugin</artifactId>
+                <configuration>
+                    <apiSources>
+                        <apiSource>
+                            <locations>
+                                <location>com.vmturbo.topology.processor</location>
+                                <location>com.vmturbo.common.protobuf.topology</location>
+                                <location>com.vmturbo.components.common</location>
+                            </locations>
+                        </apiSource>
+                    </apiSources>
+
                 </configuration>
             </plugin>
         </plugins>

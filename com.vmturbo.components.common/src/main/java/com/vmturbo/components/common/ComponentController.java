@@ -23,12 +23,16 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import io.swagger.annotations.Api;
+import io.swagger.annotations.ApiOperation;
+
 import com.vmturbo.components.common.health.CompositeHealthMonitor;
 
 /**
  * REST Endpoint for an individual {@link IVmtComponent}.
  */
 @Component
+@Api(value = "/api/v2")
 @RestController
 @RequestMapping(path = "/api/v2",
         produces = {MediaType.APPLICATION_JSON_UTF8_VALUE, MediaType.TEXT_PLAIN_VALUE})
@@ -55,6 +59,7 @@ public class ComponentController {
     @RequestMapping(value = "/",
             method = RequestMethod.GET,
             produces = {MediaType.APPLICATION_JSON_UTF8_VALUE, MediaType.TEXT_PLAIN_VALUE})
+    @ApiOperation("Return information about the current component.")
     @ResponseBody
     public String listComponentMetadata() {
         StringBuilder sb = new StringBuilder();
@@ -72,6 +77,7 @@ public class ComponentController {
     @RequestMapping(path = "/health",
             method = RequestMethod.GET,
             produces = {MediaType.APPLICATION_JSON_UTF8_VALUE})
+    @ApiOperation("Return the health of the current component.")
     @ResponseBody
     public ResponseEntity<CompositeHealthMonitor.CompositeHealthStatus> getHealth() {
         CompositeHealthMonitor.CompositeHealthStatus status = theComponent.getHealthMonitor().getHealthStatus();
@@ -88,6 +94,7 @@ public class ComponentController {
     @RequestMapping(path = "/state",
             method = RequestMethod.GET,
             produces = {MediaType.APPLICATION_JSON_UTF8_VALUE, MediaType.TEXT_PLAIN_VALUE})
+    @ApiOperation("Return the status of the current component")
     @ResponseBody
     public String getComponentStatus() {
         return theComponent.getComponentStatus().toString();
@@ -104,6 +111,9 @@ public class ComponentController {
             method = RequestMethod.PUT,
             consumes = {MediaType.TEXT_PLAIN_VALUE},
             produces = {MediaType.APPLICATION_JSON_UTF8_VALUE, MediaType.TEXT_PLAIN_VALUE})
+    @ApiOperation("Initiate a state change, moving from the current state to a target " +
+            "ExecutionStatus. This state transition is asynchronous. " +
+            "As such, the current state as returned from this request may not be equal to the new state.")
     @ResponseBody
     public String putComponentStatus(@RequestBody String newState) {
         switch (ExecutionStatus.valueOf(newState)) {
@@ -133,6 +143,7 @@ public class ComponentController {
     @RequestMapping(path = "/diagnostics",
             method = RequestMethod.GET,
             produces = {"application/zip"})
+    @ApiOperation("Fetch the diagnostic information for this component, packed into a .zip file.")
     @ResponseBody
     public void getDiagnostics(HttpServletResponse response) {
         response.setContentType("application/zip");

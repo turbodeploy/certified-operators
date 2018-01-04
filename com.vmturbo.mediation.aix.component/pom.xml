@@ -12,6 +12,10 @@
     <artifactId>com.vmturbo.mediation.aix.component</artifactId>
     <description>Mediation Component for IBM PowerVM probe</description>
 
+    <properties>
+        <swagger.component.name>AIX Mediation Component</swagger.component.name>
+    </properties>
+
     <build>
         <plugins>
             <plugin>

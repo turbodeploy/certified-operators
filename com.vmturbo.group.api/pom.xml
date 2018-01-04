@@ -4,11 +4,23 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <parent>
         <groupId>com.vmturbo</groupId>
-        <artifactId>com.vmturbo.components</artifactId>
+        <artifactId>components-api-root</artifactId>
         <version>7.0.b11-SNAPSHOT</version>
-        <relativePath>${basedir}/../com.vmturbo.components.api.root/pom.xml</relativePath>
+        <relativePath>../com.vmturbo.components.api.root/pom.xml</relativePath>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
     <artifactId>com.vmturbo.group.api</artifactId>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>grpc-extensions</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.hamcrest</groupId>
+            <artifactId>hamcrest-all</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
 </project>

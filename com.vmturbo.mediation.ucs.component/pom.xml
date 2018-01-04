@@ -12,6 +12,10 @@
     <artifactId>com.vmturbo.mediation.ucs.component</artifactId>
     <description>Mediation Component for Cisco USC SDK probe</description>
 
+    <properties>
+        <swagger.component.name>UCS Mediation Component</swagger.component.name>
+    </properties>
+
     <build>
         <plugins>
             <plugin>

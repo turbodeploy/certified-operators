@@ -125,6 +125,8 @@ api:
   settingManagersFile: 'settingManagers.json'
   settingStyleFile: 'settingSpecStyle.json'
   initialPlacementTimeoutSeconds: 600
+  externalApiSwaggerUri: "/vmturbo/apidoc/**"
+  externalApiFileSystemBase: "file:/swagger/"
 
 auth:
   kvStoreRetryIntervalMillis: 1000

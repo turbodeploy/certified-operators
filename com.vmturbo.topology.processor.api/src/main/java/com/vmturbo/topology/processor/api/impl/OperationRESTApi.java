@@ -15,6 +15,7 @@ import javax.annotation.concurrent.Immutable;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
+import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
 
 import com.vmturbo.topology.processor.api.ActionStatus;
@@ -30,6 +31,7 @@ public class OperationRESTApi {
     /**
      * Class to hold operation result data.
      */
+    @ApiModel("OperationDto")
     @Immutable
     public static class OperationDto implements DiscoveryStatus, ValidationStatus, ActionStatus {
 
@@ -142,6 +144,7 @@ public class OperationRESTApi {
     /**
      * Response to Operation-related REST API methods (Discovery, Validation, Action Execution).
      */
+    @ApiModel("OperationResponse")
     @Immutable
     public static class OperationResponse {
         public final String error;

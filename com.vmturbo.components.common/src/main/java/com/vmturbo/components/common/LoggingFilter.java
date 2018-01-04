@@ -1,4 +1,4 @@
-package com.vmturbo.api.component.external.api;
+package com.vmturbo.components.common;
 
 import javax.servlet.http.HttpServletRequest;
 
@@ -21,14 +21,14 @@ public class LoggingFilter extends AbstractRequestLoggingFilter {
 
     @Override
     protected void beforeRequest(final HttpServletRequest request, final String message) {
-        if (request.getRequestURI().contains("/vmturbo")) {
+         if (logger.isDebugEnabled()) {
             logger.debug("Starting request processing to URI: {}", request.getRequestURI());
         }
     }
 
     @Override
     protected void afterRequest(final HttpServletRequest request, final String message) {
-        if (request.getRequestURI().contains("/vmturbo")) {
+        if (logger.isDebugEnabled()) {
             logger.debug("Done request processing to URI: {}", request.getRequestURI());
         }
     }

@@ -2,6 +2,8 @@ package com.vmturbo.topology.processor.operation.validation;
 
 import javax.annotation.Nonnull;
 
+import io.swagger.annotations.ApiModel;
+
 import com.vmturbo.proactivesupport.DataMetricCounter;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
@@ -11,6 +13,7 @@ import com.vmturbo.topology.processor.operation.Operation;
 /**
  * An validation operation on a target.
  */
+@ApiModel("Validation")
 public class Validation extends Operation {
 
     /**

@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 
+import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
 
@@ -18,6 +19,7 @@ import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.utils.ParamStrings;
 import com.vmturbo.repository.service.SearchService;
 
+@Api("SearchController")
 @RequestMapping("/repository/search")
 public class SearchController {
 

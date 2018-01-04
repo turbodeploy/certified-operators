@@ -21,10 +21,6 @@
         </plugins>
     </build>
     <dependencies>
-        <dependency>
-            <groupId>io.springfox</groupId>
-            <artifactId>springfox-swagger2</artifactId>
-        </dependency>
         <!-- dependencies shared from Legacy OpsManager -->
         <dependency>
             <groupId>com.vmturbo</groupId>

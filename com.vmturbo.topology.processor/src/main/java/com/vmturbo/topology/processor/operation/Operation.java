@@ -9,6 +9,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
 
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO;
@@ -22,6 +23,7 @@ import com.vmturbo.topology.processor.identity.IdentityProvider;
  * An {@link Operation} maintains the state of an ongoing operation
  * (e.g. discovery) the topology processor is running.
  */
+@ApiModel("Operation")
 public abstract class Operation {
 
     /**

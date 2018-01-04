@@ -15,11 +15,8 @@
 
     <artifactId>sample</artifactId>
 
-    <!-- These properties are important for static swagger documentation generation. -->
     <properties>
-        <!-- This is the folder the component is in. -->
-        <swagger.locations>com.vmturbo.sample.component</swagger.locations>
-        <!-- This is the name of the component. -->
+        <!-- This is the name of the component used for static swagger documentation generation. -->
         <swagger.component.name>Sample Component</swagger.component.name>
     </properties>
 
@@ -50,6 +47,23 @@
             <plugin>
                 <groupId>com.spotify</groupId>
                 <artifactId>docker-maven-plugin</artifactId>
+            </plugin>
+            <!-- This is the plugin that will build a swagger.json file describing the
+            REST interface to any Controllers or gRPC Services -->
+            <plugin>
+                <groupId>com.github.kongchen</groupId>
+                <artifactId>swagger-maven-plugin</artifactId>
+                <configuration>
+                    <apiSources>
+                        <apiSource>
+                            <locations>
+                                <location>com.vmturbo.common.protobuf.sample</location>
+                                <location>com.vmturbo.components.common</location>
+                            </locations>
+                        </apiSource>
+                    </apiSources>
+
+                </configuration>
             </plugin>
         </plugins>
     </build>

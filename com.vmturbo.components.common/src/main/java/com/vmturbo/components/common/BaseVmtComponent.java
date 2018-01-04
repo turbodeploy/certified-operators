@@ -25,11 +25,6 @@ import io.grpc.ServerBuilder;
 import io.prometheus.client.CollectorRegistry;
 import io.prometheus.client.exporter.MetricsServlet;
 import io.prometheus.client.hotspot.DefaultExports;
-import springfox.documentation.builders.PathSelectors;
-import springfox.documentation.builders.RequestHandlerSelectors;
-import springfox.documentation.spi.DocumentationType;
-import springfox.documentation.spring.web.plugins.Docket;
-import springfox.documentation.swagger2.annotations.EnableSwagger2;
 
 import com.vmturbo.components.common.health.CompositeHealthMonitor;
 import com.vmturbo.components.common.health.HealthStatus;
@@ -45,7 +40,6 @@ import com.vmturbo.components.common.health.SimpleHealthStatus;
  * TODO: This will likely be the place to inject a state machine for each component to verify state-transitions
  * e.g. is start() legal, and if so what is the next state?
  **/
-@EnableSwagger2
 @Configuration
 @Import({BaseVmtComponentConfig.class})
 public abstract class BaseVmtComponent implements IVmtComponent {
@@ -99,11 +93,6 @@ public abstract class BaseVmtComponent implements IVmtComponent {
         });
     }
 
-    @Bean
-    public Docket api() {
-        return createSwaggerDocket();
-    }
-
     /**
      * The metrics endpoint that exposes Prometheus metrics on the pre-defined /metrics URL.
      */
@@ -111,21 +100,6 @@ public abstract class BaseVmtComponent implements IVmtComponent {
     public ServletRegistrationBean metricsServlet() {
         return new ServletRegistrationBean(
             new MetricsServlet(CollectorRegistry.defaultRegistry), METRICS_URL);
-    }
-
-    /**
-     * Create the docket that defines runtime swagger API generation for
-     * swagger-ui. Components can choose to override this if they want
-     * full control of how to create the docket.
-     *
-     * @return The {@link Docket} to use for swagger API generation.
-     */
-    protected Docket createSwaggerDocket() {
-        final Docket swaggerDocket = new Docket(DocumentationType.SWAGGER_2);
-        return swaggerDocket.select()
-                .paths(PathSelectors.any())
-                .apis(RequestHandlerSelectors.basePackage("com.vmturbo"))
-                .build();
     }
 
     /**

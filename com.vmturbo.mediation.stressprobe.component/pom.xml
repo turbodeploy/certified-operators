@@ -12,6 +12,10 @@
     <artifactId>com.vmturbo.mediation.stressprobe.component</artifactId>
     <description>Mediation Component for Stress probe</description>
 
+    <properties>
+        <swagger.component.name>Stressprobe Mediation Component</swagger.component.name>
+    </properties>
+
     <build>
         <plugins>
             <plugin>

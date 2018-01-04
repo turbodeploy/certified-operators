@@ -18,8 +18,10 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.vmturbo.repository.service.GraphTopologyService;
 
+import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 
+@Api("GraphTopologyController")
 @RequestMapping("/repository/topology")
 public class GraphTopologyController {
 

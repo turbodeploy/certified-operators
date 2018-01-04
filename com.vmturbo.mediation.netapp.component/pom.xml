@@ -12,6 +12,10 @@
     <artifactId>com.vmturbo.mediation.netapp.component</artifactId>
     <description>Mediation Component for NetApp SDK probe</description>
 
+    <properties>
+        <swagger.component.name>NetApp Mediation Component</swagger.component.name>
+    </properties>
+
     <build>
         <plugins>
             <plugin>

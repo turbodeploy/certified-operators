@@ -13,6 +13,8 @@
     <artifactId>com.vmturbo.plan.orchestrator</artifactId>
 
     <properties>
+        <swagger.component.name>Plan Orchestrator</swagger.component.name>
+
         <!-- TODO: user and password configuration should NOT be checked into source control -->
         <db.url>jdbc:mysql://localhost:3306</db.url>
         <db.username>root</db.username>
@@ -60,6 +62,24 @@
                     </schemas>
                 </configuration>
             </plugin>
+            <plugin>
+                <groupId>com.github.kongchen</groupId>
+                <artifactId>swagger-maven-plugin</artifactId>
+                <configuration>
+
+                    <apiSources>
+                        <apiSource>
+                            <locations>
+                                <location>com.vmturbo.common.protobuf.plan</location>
+                                <location>com.vmturbo.plan.orchestrator.api</location>
+                                <location>com.vmturbo.components.common</location>
+                            </locations>
+                        </apiSource>
+                    </apiSources>
+
+                </configuration>
+            </plugin>
+
             <!-- See comment from michael-simons at https://github.com/spring-projects/spring-boot/issues/6975
                  on recommended configuration for a Spring Boot + Flyway + jOOQ setup-->
             <plugin>

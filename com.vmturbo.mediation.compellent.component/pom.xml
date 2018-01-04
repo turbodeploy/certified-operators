@@ -12,6 +12,10 @@
     <artifactId>com.vmturbo.mediation.compellent.component</artifactId>
     <description>Mediation Component for Dell Compellent probe</description>
 
+    <properties>
+        <swagger.component.name>Compellent Mediation Component</swagger.component.name>
+    </properties>
+
     <build>
         <plugins>
             <plugin>

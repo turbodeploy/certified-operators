@@ -18,6 +18,7 @@ import com.vmturbo.api.component.external.api.dispatcher.DispatcherControllerCon
 import com.vmturbo.api.component.external.api.dispatcher.DispatcherValidatorConfig;
 import com.vmturbo.api.component.external.api.service.MarketsService;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
+import com.vmturbo.components.common.LoggingFilter;
 
 /**
  * Configuration for the external Turbonomic REST API.
@@ -105,12 +106,6 @@ public class ExternalApiConfig extends WebMvcConfigurerAdapter {
                 .addResourceLocations("file:/www/app/");
         registry.addResourceHandler("/assets/**")
                 .addResourceLocations("file:/www/assets/");
-
-        // resources for the Swagger UI
-        registry.addResourceHandler("/swagger-ui.html")
-                .addResourceLocations("classpath:/META-INF/resources/");
-        registry.addResourceHandler("/webjars/**")
-                .addResourceLocations("classpath:/META-INF/resources/webjars/");
     }
 
     /**

@@ -6,17 +6,14 @@ import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
-import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.HashBiMap;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.MapMaker;
 import com.google.common.collect.Table;
 import com.google.gson.Gson;
@@ -34,13 +31,10 @@ import com.google.gson.TypeAdapter;
 import com.google.gson.TypeAdapterFactory;
 import com.google.gson.reflect.TypeToken;
 import com.google.gson.stream.JsonReader;
-import com.google.gson.stream.JsonToken;
 import com.google.gson.stream.JsonWriter;
 import com.google.protobuf.AbstractMessage;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
-
-import springfox.documentation.spring.web.json.Json;
 
 /**
  * A utility class to create uniform {@link Gson} instances for components to
@@ -80,7 +74,6 @@ public class ComponentGsonFactory {
     private static Gson createGsonFormatter(boolean pretty) {
         GsonBuilder builder = new GsonBuilder()
                 .registerTypeHierarchyAdapter(AbstractMessage.class, new ProtoAdapter())
-                .registerTypeAdapter(Json.class, new SpringfoxJsonToGsonAdapter())
                 .registerTypeAdapterFactory(new GsonPostProcessEnabler())
                 .registerTypeAdapter(BiMap.class, new BiMapDeserializer())
                 .registerTypeHierarchyAdapter(Table.class, new TableAdapter())
@@ -179,18 +172,6 @@ public class ComponentGsonFactory {
                 // NB: it doesn't matter which method we return in the event of a race.
             }
             return method;
-        }
-    }
-
-    /**
-     * Required to get Swagger2 to work with a GSON http converter. Source:
-     * http://stackoverflow.com/questions/30219946/springfoxswagger2-does-not-work-with-gsonhttpmessageconverterconfig/30220562
-     */
-    private static class SpringfoxJsonToGsonAdapter implements JsonSerializer<Json> {
-        @Override
-        public JsonElement serialize(Json json, Type type, JsonSerializationContext context) {
-            final JsonParser parser = new JsonParser();
-            return parser.parse(json.value());
         }
     }
 

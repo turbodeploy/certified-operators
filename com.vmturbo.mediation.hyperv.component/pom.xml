@@ -12,6 +12,10 @@
     <artifactId>com.vmturbo.mediation.hyperv.component</artifactId>
     <description>Mediation Component for Hyper-V SDK probe</description>
 
+    <properties>
+        <swagger.component.name>HyperV Mediation Component</swagger.component.name>
+    </properties>
+
     <build>
         <plugins>
             <plugin>

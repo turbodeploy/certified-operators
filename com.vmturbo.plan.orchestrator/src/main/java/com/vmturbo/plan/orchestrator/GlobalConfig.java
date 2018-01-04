@@ -6,8 +6,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.converter.json.GsonHttpMessageConverter;
 import org.springframework.web.socket.server.standard.ServerEndpointExporter;
 
-import springfox.documentation.swagger2.annotations.EnableSwagger2;
-
 import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.components.api.ComponentGsonFactory;
 
@@ -17,7 +15,6 @@ import com.vmturbo.components.api.ComponentGsonFactory;
  */
 
 @Configuration
-@EnableSwagger2
 public class GlobalConfig {
     @Value("${identityGeneratorPrefix}")
     private long identityGeneratorPrefix;

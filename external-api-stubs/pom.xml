@@ -22,9 +22,8 @@
 
         <!-- START properties for static swagger documentation generation -->
 
-        <!-- The ;-separated locations for swagger-annotated Java objects in the component.
-             Components should override this property with the locations of the REST controllers. -->
-        <swagger.locations>com.vmturbo.api</swagger.locations>
+        <!-- The location for swagger-annotated Java objects in the component -->
+        <swagger.controllers.to.scan>com.vmturbo.api</swagger.controllers.to.scan>
 
         <!-- The component's display name as it should be displayed in swagger docs -->
         <swagger.component.name>Turbonomic External API</swagger.component.name>
@@ -32,7 +31,7 @@
         <!-- The base path on which the component serves the API. Should begin with a slash. -->
         <swagger.basepath>/vmturbo/rest</swagger.basepath>
 
-        <base.generated.docs.dir>${project.build.directory}/generated-docs/${project.version}</base.generated.docs.dir>
+        <base.generated.docs.dir>${project.build.directory}/generated-docs/</base.generated.docs.dir>
         <swagger.conf.directory>${base.generated.docs.dir}/swagger</swagger.conf.directory>
         <!-- END properties for static swagger documentation generation -->
     </properties>
@@ -43,14 +42,18 @@
             <plugin>
                 <groupId>com.github.kongchen</groupId>
                 <artifactId>swagger-maven-plugin</artifactId>
-                <version>${swagger.plugin.version}</version>
                 <configuration>
                     <apiSources>
                         <apiSource>
                             <springmvc>true</springmvc>
-                            <schemes>http,https</schemes>
+                            <schemes>
+                                <scheme>http</scheme>
+                                <scheme>https</scheme>
+                            </schemes>
                             <basePath>${swagger.basepath}</basePath>
-                            <locations>${swagger.locations}</locations>
+                            <locations>
+                                <location>${swagger.controllers.to.scan}</location>
+                            </locations>
                             <outputFormats>json,yaml</outputFormats>
                             <info>
                                 <title>${swagger.component.name}</title>
@@ -89,6 +92,7 @@
                 </dependencies>
             </plugin>
 
+            <!-- generate feign stubs for the External API entry points -->
             <plugin>
                 <groupId>io.swagger</groupId>
                 <artifactId>swagger-codegen-maven-plugin</artifactId>

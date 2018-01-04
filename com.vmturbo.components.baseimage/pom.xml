@@ -33,10 +33,10 @@
                             <phase>package</phase>
                         </execution>
                     </executions>
-    
+
                     <configuration>
                         <dotGitDirectory>${project.basedir}/.git</dotGitDirectory>
-    
+
                         <prefix>turbo-version</prefix>
                         <dateFormat>yyyyMMddHHmmssSSS</dateFormat>
                         <dateFormatTimeZone>${user.timezone}</dateFormatTimeZone>
@@ -63,15 +63,15 @@
                         <gitDescribe>
                              don't generate the describe property
                             <skip>false</skip>
-    
+
                             <always>false</always>
-    
+
                             <abbrev>7</abbrev>
-    
+
                             <dirty>-dirty</dirty>
                             <match>*</match>
                             <tags>false</tags>
-    
+
                             <forceLongFormat>false</forceLongFormat>
                         </gitDescribe>
                     </configuration>
@@ -83,6 +83,29 @@
             <id>docker</id>
             <build>
                 <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-dependency-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>unpack</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>unpack</goal>
+                                </goals>
+                                <configuration>
+                                    <artifactItems>
+                                        <artifactItem>
+                                            <groupId>org.webjars</groupId>
+                                            <artifactId>swagger-ui</artifactId>
+                                            <version>${swagger-ui-version}</version>
+                                        </artifactItem>
+                                    </artifactItems>
+                                    <excludes>**/*.gz</excludes>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
                     <plugin>
                         <groupId>org.jacoco</groupId>
                         <artifactId>jacoco-maven-plugin</artifactId>
@@ -107,6 +130,17 @@
                                 <resource>
                                     <targetPath>/</targetPath>
                                     <directory>${project.basedir}/docker</directory>
+                                    <include>**/*</include>
+                                </resource>
+                                <resource>
+                                    <targetPath>/swagger</targetPath>
+                                    <directory>${project.build.directory}/dependency/META-INF/resources/webjars/swagger-ui/${swagger-ui-version}</directory>
+                                    <include>**/*</include>
+                                    <exclude>index.html</exclude>
+                                </resource>
+                                <resource>
+                                    <targetPath>/swagger</targetPath>
+                                    <directory>${project.basedir}/swagger</directory>
                                     <include>**/*</include>
                                 </resource>
                             </resources>
