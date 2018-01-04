@@ -31,6 +31,7 @@ public class ServiceEntityMapper {
         SWITCH("Switch"),
         CHASSIS("Chassis"),
         NETWORK("Network"),
+        LOGICALPOOL("LogicalPool"),
         UNKNOWN("Unknown");
 
         private final String value;
@@ -83,6 +84,7 @@ public class ServiceEntityMapper {
             .put(EntityType.SWITCH.getNumber(),                 UIEntityType.SWITCH)
             .put(EntityType.CHASSIS.getNumber(),                UIEntityType.CHASSIS)
             .put(EntityType.NETWORK.getNumber(),                UIEntityType.NETWORK)
+            .put(EntityType.LOGICAL_POOL.getNumber(),           UIEntityType.LOGICALPOOL)
             .put(EntityType.UNKNOWN.getNumber(),                UIEntityType.UNKNOWN)
             .build();
 
