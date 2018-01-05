@@ -1,6 +1,9 @@
 package com.vmturbo.history.stats;
 
+import java.sql.Timestamp;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -8,19 +11,22 @@ import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import javax.annotation.Nullable;
 
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.topology.TopologySnapshotRegistry;
+import com.vmturbo.history.utils.HistoryStatsUtils;
 import com.vmturbo.history.utils.TopologyOrganizer;
 import com.vmturbo.reports.db.EntityType;
 import com.vmturbo.reports.db.VmtDbException;
@@ -87,7 +93,7 @@ public class LiveStatsWriter {
                 topologyOrganizer.getTopologyContextId(), numberOfEntities);
             allTopologyDTOs.addAll(chunk);
         }
-        logger.debug("time to recieve chunks & organize: {}", chunkTimer);
+        logger.debug("time to receive chunks & organize: {}", chunkTimer);
 
         // create class to buffer chunks of stats and insert in batches for efficiency
         LiveStatsAggregator aggregator = new LiveStatsAggregator(historydbIO, topologyOrganizer,
@@ -103,13 +109,18 @@ public class LiveStatsWriter {
 
         // process all the TopologyEntityDTOs
         chunkTimer.reset().start();
+        final List<EntitiesRecord> entitiesRecords = new ArrayList<>();
+        final long snapshotTime = topologyOrganizer.getSnapshotTime();
         for (TopologyEntityDTO entityDTO : allTopologyDTOs) {
             // persist this entity if necessary
-            persistEntity(entityDTO, knownChunkEntities, topologyOrganizer);
+            final Optional<EntitiesRecord> record = createRecord(snapshotTime, entityDTO,
+                    knownChunkEntities.get(entityDTO.getOid()));
+            record.ifPresent(entitiesRecords::add);
             // save the type information for processing priceIndex message
             topologyOrganizer.addEntityType(entityDTO);
             aggregator.aggregateEntity(entityDTO);
         }
+        historydbIO.persistEntities(entitiesRecords);
         logger.debug("time to persist entities: {} number of entities: {}", chunkTimer,
                 allTopologyDTOs.size());
         // write the per-entity-type aggregate stats (e.g. counts), and write the partial chunks
@@ -126,68 +137,69 @@ public class LiveStatsWriter {
     }
 
     /**
-     * Persist one entity DTO to the database. The entity will be persisted only if it has
-     * changed, based on the provided list of known entities.
+     * Creates db record, based on topology entity and potentially, on existing record from the DB.
+     * This method will return db record, if some operations (modification or insertion) is required
+     * for the specified entity.
      *
-     * @param entityDTO the entity DTO to persist
-     * @param knownChunkEntities a map of known entities
-     * @param topologyOrganizer
-     * @throws VmtDbException if writing to the DB failed.
-     * @see #entityInfoChanged(TopologyEntityDTO, EntitiesRecord)
-     */
-    private void persistEntity(@Nonnull TopologyEntityDTO entityDTO,
-                               @Nonnull Map<Long, EntitiesRecord> knownChunkEntities,
-                               @Nonnull TopologyOrganizer topologyOrganizer) throws VmtDbException {
-        long oid = entityDTO.getOid();
-        EntitiesRecord dbEntityRecord = knownChunkEntities.get(oid);
-        if (dbEntityRecord == null || entityInfoChanged(entityDTO, dbEntityRecord)) {
-            historydbIO.persistEntity(topologyOrganizer.getSnapshotTime(), entityDTO);
-        }
-    }
-
-
-    /**
-     * Return true if the incoming {@link TopologyEntityDTO} needs to be persisted to the 'entities'
-     * DB table, and false otherwise. A {@link TopologyEntityDTO} needs to be persisted if:
+     * A {@link TopologyEntityDTO} needs to be persisted if:
      * <ol>
      *     <li>its OID is not found in the DB, or
      *     <li>its Creation Class (EntityType) has changed, or
      *     <li>its Display Name has changed.
      * </ol>
      *
-     * Warning: currently a change in EntityType is allowed. One conceivable use case is where
-     * we discover something about a ServiceEntity of a given EntityType, and then through refinement
-     * or new information (e.g. stitching) it is mutated to a different EntityType.
      *
-     * @param entityDTO the incoming {@link TopologyEntityDTO}
-     * @param entitiesRecord the {@link EntitiesRecord} containing the previously stored info
-     * @return whether the incoming {@link TopologyEntityDTO} should be persisted
+     * @param snapshotTime time for this topology
+     * @param entityDTO the TopologyEntityDTO for the Service Entity to persist
+     * @param existingRecord existing record in the DB. Could be null if there is no record
+     *         in the DB.
      */
-    private boolean entityInfoChanged(TopologyEntityDTO entityDTO, EntitiesRecord entitiesRecord) {
-        // compare the entity type information
-        Optional<EntityType> entityDBInfo = historydbIO.getEntityType(entityDTO.getEntityType());
+    @Nonnull
+    private Optional<EntitiesRecord> createRecord(long snapshotTime,
+            @Nonnull TopologyDTO.TopologyEntityDTO entityDTO,
+            @Nullable EntitiesRecord existingRecord) {
 
+        final Optional<EntityType> entityDBInfo =
+                historydbIO.getEntityType(entityDTO.getEntityType());
         if (!entityDBInfo.isPresent()) {
-            // entity type not found - this entity should not be persisted.
-            return false;
+            // entity type not found - some entity types are not persisted
+            return Optional.empty();
         }
 
-        // if displayName has changed, entity info has changed
-        if (!entityDTO.getDisplayName().equals(entitiesRecord.getDisplayName())) {
-            logger.debug("Display name changed for oid {}. old: {}, new: {}",
-                    entityDTO.getOid(), entitiesRecord.getDisplayName(), entityDTO.getDisplayName());
-            return true;
-        }
+        final String entityType = entityDBInfo.get().getClsName();
+        final long entityOid = entityDTO.getOid();
 
-        // check if the entity type has changed
-        final String topologyEntityType = entityDBInfo.get().getClsName();
-        if (!topologyEntityType.equals(entitiesRecord.getCreationClass())) {
-            // entity type changed - warn and then return "true" -> should rewrite entity info
-            logger.debug("Creation class changed for oid {}. old: {}, new: {}",
-                    entityDTO.getOid(), entitiesRecord.getCreationClass(), topologyEntityType);
-            return true;
+        // in the Legacy OpsManager there is a "name" attribute different from the "displayName".
+        // I doubt it is used in the UX, but for backwards compatibility we will not leave this
+        // column null. This value is not provided in the input topology, so we will populate
+        // the "name" column with the following:
+        final String synthesizedEntityName = entityDTO.getDisplayName() + '-' + entityOid;
+
+        // the "onDuplicateKeyUpdate()" indicates that the '.set()' fields given should be updated
+        // in the existing 'entities' table row. The "name", "display_name", "creation_class",
+        // and "created_at" will be updated. The "id" and "uuid" fields should never change.
+
+        final EntitiesRecord record;
+        if (existingRecord == null) {
+            record = new EntitiesRecord();
+            record.setId(entityOid);
+        } else {
+            if (existingRecord.getDisplayName().equals(entityDTO.getDisplayName()) &&
+                    existingRecord.getCreationClass().equals(entityType)) {
+                return Optional.empty();
+            } else {
+                logger.debug("Entity with oid {} has been changed: displayName {} -> {}" +
+                                " creationType {} -> {}", entityDTO.getOid(),
+                        existingRecord.getDisplayName(), entityDTO.getDisplayName(),
+                        existingRecord.getCreationClass(), entityType);
+            }
+            record = existingRecord;
         }
-        // no changes
-        return false;
+        record.setName(synthesizedEntityName);
+        record.setDisplayName(entityDTO.getDisplayName());
+        record.setUuid(Long.toString(entityOid));
+        record.setCreationClass(entityType);
+        record.setCreatedAt(new Timestamp(snapshotTime));
+        return Optional.of(record);
     }
 }

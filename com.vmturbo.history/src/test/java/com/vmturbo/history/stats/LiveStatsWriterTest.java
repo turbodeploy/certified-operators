@@ -1,7 +1,6 @@
 package com.vmturbo.history.stats;
 
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyObject;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -12,15 +11,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import org.jooq.DSLContext;
-import org.jooq.InsertSetMoreStep;
-import org.junit.Before;
-import org.junit.Test;
-import org.mockito.Mockito;
-
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
+
+import org.jooq.DSLContext;
+import org.jooq.InsertSetMoreStep;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
+import org.mockito.Mockito;
+import org.mockito.MockitoAnnotations;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.communication.chunking.RemoteIterator;
@@ -55,9 +58,12 @@ public class LiveStatsWriterTest {
     private TopologyOrganizer topologyOrganizer;
     private DSLContext mockDSLContext;
     private Collection<TopologyEntityDTO> allEntities;
+    @Captor
+    private ArgumentCaptor<List<EntitiesRecord>> persistedEntitiesCaptor;
 
     @Before
     public void setup() throws Exception {
+        MockitoAnnotations.initMocks(this);
 
         mockHistorydbIO = Mockito.mock(HistorydbIO.class);
         mockDSLContext = Mockito.mock(DSLContext.class);
@@ -81,6 +87,7 @@ public class LiveStatsWriterTest {
                 Optional.of(dbEntityType));
         when(mockHistorydbIO.getBaseEntityType(vmEntityTypeNumber)).thenReturn(
                 Optional.of(dbEntityType.getClsName()));
+
     }
 
     private void consumeDTOs() throws Exception {
@@ -139,7 +146,8 @@ public class LiveStatsWriterTest {
         // check types for known entities
         verify(mockHistorydbIO, times(1)).getEntities(any());
         // don't persist the entity
-        verify(mockHistorydbIO, times(1)).persistEntity(anyObject(), anyObject());
+        verify(mockHistorydbIO, times(1)).persistEntities(persistedEntitiesCaptor.capture());
+        Assert.assertEquals(1, persistedEntitiesCaptor.getValue().size());
         // one test for entity type
         verify(mockHistorydbIO, times(2)).getEntityType(sdkEntityType.getNumber());
         // write aggregate stats and market stats in one chunk
@@ -184,9 +192,10 @@ public class LiveStatsWriterTest {
         // check types for known entities
         verify(mockHistorydbIO, times(1)).getEntities(any());
         // persist the entity
-        verify(mockHistorydbIO, times(1)).persistEntity(anyObject(), anyObject());
+        verify(mockHistorydbIO, times(1)).persistEntities(persistedEntitiesCaptor.capture());
+        Assert.assertEquals(1, persistedEntitiesCaptor.getValue().size());
         // look up to calculate _latest table
-        verify(mockHistorydbIO, times(1)).getEntityType(sdkEntityType.getNumber());
+        verify(mockHistorydbIO, times(2)).getEntityType(sdkEntityType.getNumber());
         // write aggregate stats and market stats
         verify(mockHistorydbIO, times(1)).execute(any(HistorydbIO.Style.class), any(List.class));
         verifyNoMoreInteractions(mockDSLContext);
@@ -215,7 +224,8 @@ public class LiveStatsWriterTest {
         // check types for all known the entities
         verify(mockHistorydbIO, times(1)).getEntities(any());
         // don't persist the entity
-        verify(mockHistorydbIO, times(0)).persistEntity(anyObject(), anyObject());
+        verify(mockHistorydbIO, times(1)).persistEntities(persistedEntitiesCaptor.capture());
+        Assert.assertEquals(0, persistedEntitiesCaptor.getValue().size());
         // one test for entity type
         verify(mockHistorydbIO, times(2)).getEntityType(sdkEntityType.getNumber());
         // One execute() to insert the aggregate stats and market stats (chunked)

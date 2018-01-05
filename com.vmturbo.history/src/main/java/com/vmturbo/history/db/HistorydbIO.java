@@ -26,6 +26,8 @@ import java.io.IOException;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -37,18 +39,23 @@ import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.BatchBindStep;
 import org.jooq.Condition;
 import org.jooq.Field;
 import org.jooq.InsertSetMoreStep;
 import org.jooq.InsertSetStep;
+import org.jooq.InsertValuesStep6;
 import org.jooq.Record;
 import org.jooq.Record1;
 import org.jooq.Result;
 import org.jooq.Select;
 import org.jooq.SelectConditionStep;
 import org.jooq.Table;
+import org.jooq.exception.DataAccessException;
+import org.jooq.impl.DSL;
 import org.springframework.beans.factory.annotation.Value;
 
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 
 import com.vmturbo.api.enums.DayOfWeek;
@@ -57,6 +64,7 @@ import com.vmturbo.api.enums.ReportOutputFormat;
 import com.vmturbo.api.enums.ReportType;
 import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.history.stats.MarketStatsAccumulator;
 import com.vmturbo.history.utils.HistoryStatsUtils;
 import com.vmturbo.history.utils.TopologyOrganizer;
@@ -466,35 +474,26 @@ public class HistorydbIO extends BasedbIO {
 
     /**
      * Get id, display name and creation class name of entities which IDs are given.
-     * When number of entity IDs is greater than 4000 (settable) then call this method twice,
-     * once for each half of the list (and do it recursively).
+     * Data is retrieved from the DB in chunks of 4000 (settable).
+     *
      * @param entityIds the list of entity IDs to get from the DB
      * @return a map from ID to entity record
      * @throws VmtDbException if there was an error accessing the database
      */
     public Map<Long, EntitiesRecord> getEntities(List<String> entityIds) throws VmtDbException {
         logger.trace("get {} entities: {}", entityIds.size(), entityIds);
-        int numEntities = entityIds.size();
-        Map<Long, EntitiesRecord> map;
-        if (numEntities > entitiesChunkSize) {
-            map = Maps.newHashMap();
-            int mid = numEntities / 2;
-            // notice subList excludes the 'to' argument
-            map.putAll(getEntities(entityIds.subList(0, mid)));
-            map.putAll(getEntities(entityIds.subList(mid, numEntities)));
-        } else {
-            List<EntitiesRecord> listRecords = execute(
-                JooqBuilder()
-                .select(Entities.ENTITIES.ID, Entities.ENTITIES.DISPLAY_NAME,
-                    Entities.ENTITIES.CREATION_CLASS)
-                .from(Entities.ENTITIES)
-                .where(Entities.ENTITIES.UUID.in(entityIds))).into(EntitiesRecord.class);
-
-            map = listRecords.stream()
-                .collect(Collectors.toMap(EntitiesRecord::getId,
-                        Function.identity()));
+        final Map<Long, EntitiesRecord> map = new HashMap<>();
+        for (List<String> idsChunk : Lists.partition(entityIds, entitiesChunkSize)) {
+            final List<EntitiesRecord> listRecords =
+                    execute(JooqBuilder().select(Entities.ENTITIES.ID,
+                            Entities.ENTITIES.DISPLAY_NAME, Entities.ENTITIES.CREATION_CLASS)
+                            .from(Entities.ENTITIES)
+                            .where(Entities.ENTITIES.UUID.in(idsChunk))).into(EntitiesRecord.class);
+            for (EntitiesRecord record : listRecords) {
+                map.put(record.getId(), record);
+            }
         }
-        logger.trace("getEntities returning {} entities : {}", map.size(), map);
+        logger.trace("getEntities returning {} entities : {}", map::size, map::toString);
         return map;
     }
 
@@ -775,56 +774,32 @@ public class HistorydbIO extends BasedbIO {
     }
 
     /**
-     * Persist the attributes of this entity to the "entities" and related tables. Not all entities
-     * are persisted, depending on the Entity Type - see
-     * {@link HistoryStatsUtils} SDK_ENTITY_TYPE_TO_ENTITY_TYPE for the list.
+     * Persist multiple entitites (insert or update, dependeing on the record source). If a record
+     * has been initially returned from the DB, UPDATE will be executed. If a record is a newly
+     * created INSERT will be executed.
      *
-     * @param snapshotTime time for this topology
-     * @param entityDTO the TopologyEntityDTO for the Service Entity to persist
-     * @throws VmtDbException if there is a database error writing the data.
+     * Queries are splitted into smaller batches of 4k (settable by {@link #entitiesChunkSize}
+     * property.
+     *
+     * @param entitiesRecords records, containing entities, required to update
+     * @throws VmtDbException if DB error occurred
      */
-    public void persistEntity(Long snapshotTime, TopologyDTO.TopologyEntityDTO entityDTO)
+    public void persistEntities(@Nonnull List<EntitiesRecord> entitiesRecords)
             throws VmtDbException {
-
-        Optional<EntityType> entityDBInfo = getEntityType(entityDTO.getEntityType());
-        if (!entityDBInfo.isPresent()) {
-            // entity type not found - some entity types are not persisted
-            return;
+        logger.trace("Persisting {} entities", entitiesRecords.size());
+        final Connection connection = transConnection();
+        try {
+            for (Collection<EntitiesRecord> chunk : Lists.partition(entitiesRecords,
+                    entitiesChunkSize)) {
+                logger.trace("Persisting next chunk if {} entities to the DB", chunk::size);
+                using(connection).batchStore(chunk).execute();
+            }
+        } catch (DataAccessException e) {
+            throw new VmtDbException(201, "Failed to insert/update entities table records", e);
+        } finally {
+            close(connection);
         }
-
-        final String entityType = entityDBInfo.get().getClsName();
-        final long entityOid = entityDTO.getOid();
-
-        // in the Legacy OpsManager there is a "name" attribute different from the "displayName".
-        // I doubt it is used in the UX, but for backwards compatibility we will not leave this
-        // column null. This value is not provided in the input topology, so we will populate
-        // the "name" column with the following:
-        final String synthesizedEntityName = entityDTO.getDisplayName() + "-" + entityOid;
-
-        // the "onDuplicateKeyUpdate()" indicates that the '.set()' fields given should be updated
-        // in the existing 'entities' table row. The "name", "display_name", "creation_class",
-        // and "created_at" will be updated. The "id" and "uuid" fields should never change.
-        execute(Style.FORCED, JooqBuilder()
-                .insertInto(Entities.ENTITIES,
-                        Entities.ENTITIES.ID,
-                        Entities.ENTITIES.NAME,
-                        Entities.ENTITIES.DISPLAY_NAME,
-                        Entities.ENTITIES.UUID,
-                        Entities.ENTITIES.CREATION_CLASS,
-                        Entities.ENTITIES.CREATED_AT)
-                .values(entityOid,
-                        synthesizedEntityName,
-                        entityDTO.getDisplayName(),
-                        Long.toString(entityOid),
-                        entityType,
-                        new Timestamp(snapshotTime))
-                .onDuplicateKeyUpdate()
-                // TODO: when TopologyEntityDTO includes legacy "name", use that instead.
-                .set(Entities.ENTITIES.NAME, synthesizedEntityName)
-                // TODO: when TopologyEntityDTO includes legacy UUID use that instead.
-                .set(Entities.ENTITIES.DISPLAY_NAME, entityDTO.getDisplayName())
-                .set(Entities.ENTITIES.CREATION_CLASS, entityType)
-                .set(Entities.ENTITIES.CREATED_AT, new Timestamp(snapshotTime)));
+        logger.trace("Successfully persisted entities");
     }
 
     /**
