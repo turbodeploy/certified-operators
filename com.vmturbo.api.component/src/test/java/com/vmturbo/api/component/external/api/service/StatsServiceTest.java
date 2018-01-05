@@ -177,6 +177,26 @@ public class StatsServiceTest {
                             Sets.newHashSet(stats.get(0).getName(), stats.get(1).getName()));
     }
 
+    /**
+     * Test that the uid "Market" is accepted without error.
+     *
+     * @throws Exception not expected
+     */
+    @Test
+    public void testGetStatsForFullMarket() throws Exception {
+        StatPeriodApiInputDTO inputDto = new StatPeriodApiInputDTO();
+        final Set<Long> expandedOidList = Sets.newHashSet(apiId1.oid(), apiId2.oid());
+        when(groupExpander.expandUuid(UuidMapper.UI_REAL_TIME_MARKET_STR))
+                .thenReturn(expandedOidList);
+
+        List<StatSnapshotApiDTO> resp = statsService.getStatsByEntityQuery(
+                UuidMapper.UI_REAL_TIME_MARKET_STR, inputDto);
+        assertEquals(1, resp.size());
+        List<StatApiDTO> stats = resp.get(0).getStatistics();
+        assertEquals(2, stats.size());
+
+    }
+
     @Test
     public void testGetStatsByEntityQueryWithAllFiltered() throws Exception {
         StatPeriodApiInputDTO inputDto = new StatPeriodApiInputDTO();

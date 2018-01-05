@@ -236,12 +236,16 @@ public class StatsService implements IStatsService {
     }
 
     /**
-     * Check if the uuid belongs to a cluster.
+     * Check if the uuid belongs to a cluster. Includes a specific check for the non-numeric
+     * string "Market".
      *
      * @param uuid UUID of an entity
      * @return true if it is a cluster, false otherwise
      */
-    private boolean isClusterUuid(String uuid) {
+    private boolean isClusterUuid(@Nonnull String uuid) {
+        if (uuid.equals(UuidMapper.UI_REAL_TIME_MARKET_STR)) {
+            return false;
+        }
         try {
             GetGroupResponse response = groupServiceRpc.getGroup(GroupID.newBuilder()
                     .setId(Long.parseLong(uuid))
