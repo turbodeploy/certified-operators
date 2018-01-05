@@ -225,7 +225,7 @@ public class StatsService implements IStatsService {
 
         List<TargetApiDTO> targets = null;
         try {
-            targets = targetsService.getTargets();
+            targets = targetsService.getTargets(null);
         } catch (RuntimeException e) {
             logger.error("Unable to get targets list due to error: {}." +
                     " Not using targets list for stat filtering.", e.getMessage());

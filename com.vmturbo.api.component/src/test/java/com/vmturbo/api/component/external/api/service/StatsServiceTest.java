@@ -166,7 +166,7 @@ public class StatsServiceTest {
         List<StatSnapshotApiDTO> resp = statsService.getStatsByEntityQuery(oid1, inputDto);
 
         // Should have called targets service to get a list of targets.
-        verify(targetsService).getTargets();
+        verify(targetsService).getTargets(null);
 
         // The returned stats contain cpu, latency, roi, and app.
         // Should only keep cpu and latency and filter out roi and app.

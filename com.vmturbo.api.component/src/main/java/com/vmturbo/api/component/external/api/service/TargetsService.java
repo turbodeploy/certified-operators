@@ -26,9 +26,15 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.external.api.util.ApiUtils;
+import com.vmturbo.api.dto.action.ActionApiDTO;
+import com.vmturbo.api.dto.action.ActionApiInputDTO;
+import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
+import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.target.InputFieldApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.dto.workflow.WorkflowApiDTO;
+import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.InputValueType;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
@@ -128,9 +134,14 @@ public class TargetsService implements ITargetsService {
      *             topology-processor
      */
     @Override
-    public List<TargetApiDTO> getTargets() {
+    public List<TargetApiDTO> getTargets(@Nullable final EnvironmentType environmentType) {
         logger.debug("Get all targets");
         try {
+            // No Cloud target supported yet, if the user ask for only Cloud, return empty
+            if (environmentType != null && environmentType == EnvironmentType.CLOUD) {
+                return new ArrayList<>();
+            }
+
             final Set<TargetInfo> targets = topologyProcessor.getAllTargets();
             final List<TargetApiDTO> answer = targets.stream()
                     .map(targetInfo -> {
@@ -199,6 +210,46 @@ public class TargetsService implements ITargetsService {
             }
         }
         return answer;
+    }
+
+    /**
+     * Return information about all the Actions related to the entities discovered by
+     * the given target.
+     *
+     * @param uuid the unique ID for the target
+     * @param actionApiInputDTO dto used to filter the list of Actions
+     * @return a List of {@link ActionApiDTO}
+     * @throws Exception
+     */
+    @Override
+    public List<ActionApiDTO> getActionsByTargetUuid(final String uuid, final ActionApiInputDTO actionApiInputDTO) throws Exception {
+        throw ApiUtils.notImplementedInXL();
+    }
+
+    /**
+     * Return information about all the Entities discovered by the given target.
+     *
+     * @param uuid the unique ID for the target
+     * @return a List of {@link ServiceEntityApiDTO}
+     * @throws Exception
+     */
+    @Override
+    public List<ServiceEntityApiDTO> getEntitiesByTargetUuid(final String uuid) throws Exception {
+        throw ApiUtils.notImplementedInXL();
+    }
+
+    /**
+     * Return information about all the Statistics related to the entities discovered by
+     * the given target.
+     *
+     * @param uuid the unique ID for the target
+     * @param statPeriodApiInputDTO dto used to filter the list of Statistics
+     * @return a List of {@link StatSnapshotApiDTO}
+     * @throws Exception
+     */
+    @Override
+    public List<StatSnapshotApiDTO> getStatsByTargetQuery(final String uuid, final StatPeriodApiInputDTO statPeriodApiInputDTO) throws Exception {
+        throw ApiUtils.notImplementedInXL();
     }
 
     @Nonnull

@@ -153,7 +153,7 @@ public class SearchService implements ISearchService {
                 final Collection<MarketApiDTO> markets = marketsService.getMarkets(scopes);
                 result = Lists.newArrayList(markets);
             } else if (types.contains(TargetsService.TARGET)) {
-                final Collection<TargetApiDTO> targets = targetsService.getTargets();
+                final Collection<TargetApiDTO> targets = targetsService.getTargets(null);
                 result = Lists.newArrayList(targets);
             }
             // if this one of the specific service queries, return the result.
@@ -206,7 +206,7 @@ public class SearchService implements ISearchService {
                 () -> repositoryApi.getSearchResults(
                         "", SearchMapper.SEARCH_ALL_TYPES, MarketMapper.MARKET, null, null));
         Future<List<GroupApiDTO>> groups = executor.submit(groupsService::getGroups);
-        Future<List<TargetApiDTO>> targets = executor.submit(targetsService::getTargets);
+        Future<List<TargetApiDTO>> targets = executor.submit(() -> targetsService.getTargets(null));
         List<BaseApiDTO> result = Lists.newArrayList();
         result.addAll(entities.get());
         result.addAll(groups.get());

@@ -92,14 +92,14 @@ public class SearchServiceTest {
         Mockito.verify(marketsService).getMarkets(Mockito.anyListOf(String.class));
 
         searchService.getSearchResults(null, Lists.newArrayList("Target"), null, null, null, EnvironmentType.ONPREM);
-        Mockito.verify(targetsService).getTargets();
+        Mockito.verify(targetsService).getTargets(null);
     }
 
     @Test
     public void testGetSearchGroup() throws Exception {
         searchService.getSearchResults(null, null, null, null, "SomeGroupType", EnvironmentType.ONPREM);
         Mockito.verify(groupsService).getGroups();
-        Mockito.verify(targetsService, Mockito.never()).getTargets();
+        Mockito.verify(targetsService, Mockito.never()).getTargets(null);
         Mockito.verify(marketsService, Mockito.never()).getMarkets(Mockito.anyListOf(String.class));
     }
     /**
@@ -163,7 +163,7 @@ public class SearchServiceTest {
 
         // Assert
         Mockito.verify(groupsService, Mockito.never()).getGroups();
-        Mockito.verify(targetsService, Mockito.never()).getTargets();
+        Mockito.verify(targetsService, Mockito.never()).getTargets(null);
         Mockito.verify(marketsService, Mockito.never()).getMarkets(Mockito.anyListOf(String.class));
 
         assertThat(results.size(), is(4));
