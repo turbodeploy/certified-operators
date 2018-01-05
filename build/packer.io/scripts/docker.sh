@@ -16,12 +16,12 @@ mkdir -p /usr/local/bin
 cat <<'EOF' >/usr/local/bin/vmtctl
 #!/bin/bash
 export HOST_IP=$(/sbin/ip route get 1 | awk '{print $NF;exit}')
-# Start the XL component.
-function start_xl_component() {
+# Start the XL component and verify that it has started up successfully
+function start_and_verify_xl_component() {
     component="$1"
     message="$2"
-    echo "Starting $component component" >/tmp/load_status
-    /usr/local/bin/docker-compose -f /etc/docker/docker-compose.yml up -d --no-color "${component}"
+    start_xl_component ${component}
+    # Now wait until it's started correctly
     while true
     do
         /usr/local/bin/docker-compose -f /etc/docker/docker-compose.yml logs rsyslog 2>&1 | grep "$component" | grep -q "${message}"
@@ -30,6 +30,20 @@ function start_xl_component() {
         fi
         sleep 5
     done
+}
+
+# Start an XL component without waiting for the startup to complete
+function start_xl_component() {
+    component="$1"
+    echo "Starting $component component" >/tmp/load_status
+    /usr/local/bin/docker-compose -f /etc/docker/docker-compose.yml up -d --no-color "${component}"
+}
+
+# Stop an XL component
+function stop_xl_component() {
+    component="$1"
+    echo "Stopping $component component" >/tmp/load_status
+    /usr/local/bin/docker-compose -f /etc/docker/docker-compose.yml stop "${component}"
 }
 
 function set_max_load() {
@@ -53,14 +67,9 @@ function set_max_load() {
 function start_xl() {
     # Chose the yml file based on the size
     vmem=$(cat /proc/meminfo | grep MemTotal | awk '{total=$2/1024/1024} {if(total-int(total)>0) {total=int(total)+1}}{print total}')
-    if [ $vmem -lt 16 ]; then
-       echo "!! Insufficient memory available with ${vmem}GB" >/tmp/load_status
-       sleep 10
-       return
-    fi
 
-    # 15K
-    set_max_load $vmem 15 16 24
+    # 15K config applies to memory sizes under 24 mb
+    set_max_load $vmem 15 1 24
     if [ $? -eq 1 ]; then
         # 25K
         set_max_load $vmem 25 24 32
@@ -78,9 +87,20 @@ function start_xl() {
         set_max_load $vmem 200 63
     fi
 
-    # Check that we did attach an ISO
+    # Verify that we did identify a docker-compose file to link to
     if [ ! -f "/etc/docker/docker-compose.yml" ]; then
-       echo "!! No component images are available" >/tmp/load_status
+       echo "!! No component configuration available" >/tmp/load_status
+       sleep 10
+       return
+    fi
+
+    # start nginx, if not already running -- chances are it was already started in "init" tho.
+    echo "Starting web server" >/tmp/load_status
+    start_xl_component nginx
+
+    # if there isn't at least 16 gb of memory, log a warning and don't start any more components
+    if [ $vmem -lt 16 ]; then
+       echo "!! Insufficient memory available with ${vmem}GB" >/tmp/load_status
        sleep 10
        return
     fi
@@ -96,77 +116,86 @@ function start_xl() {
        return
     fi
 
-    # Start all XL components. We use this order, in order to ensure that
+    # Start the remaining XL components. We use this order, in order to ensure that
     # API starts last, so that when we connect, all other components are already there.
     echo "Starting XL components" >/tmp/load_status
 	JAVA_MSG="Component transition from STARTING to RUNNING"
-	start_xl_component rsyslog "rsyslogd"
-	start_xl_component consul "New leader elected"
+	start_and_verify_xl_component rsyslog "rsyslogd"
+	start_and_verify_xl_component consul "New leader elected"
 	# docker-compose removes trailing decimals from the component name so the check will fail
 	# instead, we rely on the docker-compose dependencies to start both zookeeper and kafka
 #	start_xl_component zoo1 "binding to port"
 #	start_xl_component kafka1 "Startup complete."
-	start_xl_component clustermgr "Started ClusterMgrMain"
-	start_xl_component db "port: 3306"
-	start_xl_component arangodb "ready for business"
-	start_xl_component auth "${JAVA_MSG}"
-	start_xl_component topology-processor "$JAVA_MSG"
-	start_xl_component market "$JAVA_MSG"
-	start_xl_component repository "$JAVA_MSG"
-	start_xl_component plan-orchestrator "$JAVA_MSG"
-	start_xl_component action-orchestrator "$JAVA_MSG"
-	start_xl_component group "$JAVA_MSG"
-	start_xl_component history "$JAVA_MSG"
-	start_xl_component mediation-hyperv "$JAVA_MSG"
-	start_xl_component mediation-vcenter "$JAVA_MSG"
-	start_xl_component mediation-netapp "$JAVA_MSG"
-	start_xl_component mediation-ucs "$JAVA_MSG"
-	start_xl_component mediation-vmax "$JAVA_MSG"
+	start_and_verify_xl_component clustermgr "Started ClusterMgrMain"
+	start_and_verify_xl_component db "port: 3306"
+	start_and_verify_xl_component arangodb "ready for business"
+	start_and_verify_xl_component auth "${JAVA_MSG}"
+	start_and_verify_xl_component topology-processor "$JAVA_MSG"
+	start_and_verify_xl_component market "$JAVA_MSG"
+	start_and_verify_xl_component repository "$JAVA_MSG"
+    start_and_verify_xl_component plan-orchestrator "$JAVA_MSG"
+	start_and_verify_xl_component action-orchestrator "$JAVA_MSG"
+	start_and_verify_xl_component group "$JAVA_MSG"
+	start_and_verify_xl_component history "$JAVA_MSG"
+	start_and_verify_xl_component mediation-hyperv "$JAVA_MSG"
+	start_and_verify_xl_component mediation-vcenter "$JAVA_MSG"
+	start_and_verify_xl_component mediation-netapp "$JAVA_MSG"
+	start_and_verify_xl_component mediation-ucs "$JAVA_MSG"
+	start_and_verify_xl_component mediation-vmax "$JAVA_MSG"
     echo "Finalizing XL components startup" >/tmp/load_status
-    # Make sure the initial_setup scripts are terminated and deleted.
-    if [[ -d /root/initial_setup ]]; then
-      # Sleep for 10 seonds to allow the initial setup GUI to pick up the status.
-      # The initial setupGUI checks every 5 seconds.
-      sleep 10
-      # Kill the https
-      # The initial setup python script is stateless, so this won't break anything.
-      curl -k "https://${HOST_IP}:443/exit" >/dev/null 2>&1
-      kill -9 $(ps -e -o pid,cmd | grep [p]ython | grep httpd | awk '{print $1}') >/dev/null 2>&1
-      rm -rf /root/initial_setup
-    fi
 
     # Since we monitor for API to be up before we may proceed, we should be good
     # with starting the API component in a delayed fashion.
     # The auth component will have started by this time, so the initial setup should be okay.
-	start_xl_component api "$JAVA_MSG"
+	start_and_verify_xl_component api "$JAVA_MSG"
+
+    echo "System was successfully started." >/tmp/load_status
+
+    # wait a bit, then set one last status
+    sleep 30
+    echo "Turbonomic is running." >/tmp/load_status
+	#rm /tmp/load_status
 }
 
 if [[ "$1" == "init" ]]; then
-  # Load the images from ISO if needed.
+  # Configure the admin user, if this wasn't already done
+  if [[ -d /root/initial_setup ]]; then
+    echo "Setting up master admin" >/tmp/load_status
+    pushd /root/initial_setup >/dev/null
+    chmod +x setup
+    /usr/bin/nohup ./setup >/tmp/setup_nohup.txt &
+    popd >/dev/null
+    while true
+    do
+        # Part of establishing the admin account involves removing the neteditor account.
+        /usr/bin/getent passwd neteditor >/dev/null 2>&1
+        if [ $? -ne 0 ]; then
+            break
+        fi
+        echo "The initial admin account is being created"
+        sleep 30
+    done
+    echo "Master admin has been set up" >/tmp/load_status
+    # Make sure the initial_setup scripts are terminated and deleted.
+    # Sleep for 10 seonds to allow the initial setup GUI to pick up the status.
+    # The initial setupGUI checks every 5 seconds.
+    sleep 10
+    # Kill the https
+    # The initial setup python script is stateless, so this won't break anything.
+    curl -k "https://${HOST_IP}:443/exit" >/dev/null 2>&1
+    kill -9 $(ps -e -o pid,cmd | grep [p]ython | grep httpd | awk '{print $1}') >/dev/null 2>&1
+    rm -rf /root/initial_setup
+  fi
+
+  # start nginx
+  echo "Starting nginx" >/tmp/load_status
+  start_xl_component nginx
+
+  # Load docker images from ISO if needed.
   mkdir /media/cdrom >/dev/null 2>&1
   echo Attempting to load the CDROM >/tmp/load_status
   mount /dev/cdrom /media/cdrom/ >/dev/null 2>&1
   if [[ $? == 0 ]]; then
-      # Configure the admin user
-      if [[ -d /root/initial_setup ]]; then
-        echo "Setting up master admin" >/tmp/load_status
-        pushd /root/initial_setup >/dev/null
-        chmod +x setup
-        /usr/bin/nohup ./setup >/tmp/setup_nohup.txt &
-        popd >/dev/null
-        while true
-        do
-            # Part of establishing the admin account involves removing the neteditor account.
-            /usr/bin/getent passwd neteditor >/dev/null 2>&1
-            if [ $? -ne 0 ]; then
-                break
-            fi
-            echo "The initial admin account is being created"
-            sleep 30
-        done
-        echo "Master admin has been set up" >/tmp/load_status
-      fi
-
       echo "ISO Image has been mounted successfully" >/tmp/load_status
       # Check whether we need to do anything
       if [ -f "/media/cdrom/turbonomic_sums.txt" ]; then

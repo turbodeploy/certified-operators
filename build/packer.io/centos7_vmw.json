@@ -29,7 +29,11 @@
                 "ethernet0.virtualDev": "e1000",
                 "memsize": "16384",
                 "numvcpus": "4",
-                "cpuid.coresPerSocket": "1"
+                "cpuid.coresPerSocket": "1",
+                "ide1:1.devicetype": "cdrom-image",
+                "ide1:1.filename": "XL_ISO",
+                "ide1:1.present": "true",
+                "RemoteDisplay.vnc.enabled": "false"
             },
             "ssh_username": "root",
             "ssh_password": "vmturbo",
@@ -57,6 +61,7 @@
                 "scripts/packages.sh",
                 "scripts/vmware.sh",
                 "scripts/docker.sh",
+                "scripts/images.sh",
                 "scripts/cleanup.sh"
             ]
         }

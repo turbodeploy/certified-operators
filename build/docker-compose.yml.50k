@@ -41,6 +41,8 @@ volumes:
   mediation-vmax: *localdriver
   kafka1-log: *localdriver
   zoo1-data: *localdriver
+  nginx-data: *localdriver
+  nginx-run: *localdriver
 
 services:
   rsyslog:
@@ -107,6 +109,12 @@ services:
     depends_on:
       - clustermgr
       - kafka1
+      - nginx
+
+  nginx:
+    extends:
+      file: prod-services.yml
+      service: nginx-prod
 
   market:
     extends:

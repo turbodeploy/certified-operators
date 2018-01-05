@@ -40,6 +40,11 @@ echo 'echo "IP: $(/sbin/ip route get 1 | /bin/head -n 1 | awk '"'"'{print $7}'"'
 chmod +x /etc/rc.local
 chmod +x /etc/rc.d/rc.local
 
+# clean up the disk
+# Compress the image as much as possible
+dd if=/dev/zero of=/mytempfile bs=1024  count=1
+rm -rf /mytempfile
+
 # Disable root user.
 echo "root:$(dd if=/dev/urandom bs=1 count=32 2>/dev/null | base64 | tr '+' '_' | tr '/' '-' | head -c${1:-32};echo)" | chpasswd
 usermod -s /bin/false root

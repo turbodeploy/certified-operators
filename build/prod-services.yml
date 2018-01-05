@@ -14,6 +14,24 @@ services:
       - auditlogdata:/var/log/turbonomic
     restart: always
 
+  nginx-prod:
+    extends:
+      file: common-services.yml
+      service: prod-component
+    image: turbonomic/nginx
+    ports:
+      - "443:8443"
+      - "80:8000"
+    environment:
+      component_type: nginx
+      instance_id: nginx-1
+    volumes:
+      - /tmp/certs:/etc/nginx/certs
+      - /tmp/load_status:/var/www/load_status
+      - nginx-data:/var/lib/nginx
+      - nginx-run:/var/run
+    restart: always
+
   consul-prod:
     extends:
       file: common-services.yml
@@ -109,8 +127,6 @@ services:
       file: common-services.yml
       service: prod-component
     image: turbonomic/com.vmturbo.api.component
-    ports:
-      - "443:9443"
     environment:
       component_type: api
       instance_id: api-1

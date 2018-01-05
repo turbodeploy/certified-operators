@@ -259,6 +259,13 @@
         </profile>
 
         <profile>
+            <id>nginx</id>
+            <modules>
+                <module>../nginx</module>
+            </modules>
+        </profile>
+
+        <profile>
             <id>component-tests</id>
             <modules>
                 <module>../com.vmturbo.components.test.utilities</module>
@@ -422,7 +429,7 @@
                 <module>../diags</module>
                 <module>../kafka</module>
                 <module>../zookeeper</module>
-
+                <module>../nginx</module>
 
                 <!-- The meat of the XL code, and the platform components. -->
                 <module>../com.vmturbo.auth.api</module>
