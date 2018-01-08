@@ -35,12 +35,22 @@ public class ApiUtils {
      */
 
     public static Optional<JwtCallCredential> generateJWTCallCredential() {
+        return getCurrentJWTToken().map(token -> new JwtCallCredential(token));
+    }
+
+    /**
+     * Get current use's JWT token.
+     *
+     * @return current user's JWT token if it exists
+     */
+    public static Optional <String> getCurrentJWTToken() {
         SecurityContext securityContext = SecurityContextHolder.getContext();
         if (securityContext != null
                 && securityContext.getAuthentication() != null
-                && securityContext.getAuthentication().getPrincipal() != null) {
+                && securityContext.getAuthentication().getPrincipal() instanceof AuthUserDTO) {
             AuthUserDTO authUserDTO = (AuthUserDTO) securityContext.getAuthentication().getPrincipal();
-            return Optional.of(new JwtCallCredential(authUserDTO.getToken()));
+            String jwtToken = authUserDTO.getToken();
+            return Optional.of(jwtToken);
         }
         return Optional.empty();
     }

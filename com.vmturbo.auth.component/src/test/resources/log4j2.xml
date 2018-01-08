@@ -10,6 +10,10 @@
 
     <Loggers>
         <Logger name="com.vmturbo" level="info" />
+        <logger name="org.springframework.web" level ="INFO" />
+        <Logger name="com.vmturbo.platform.audit" level="INFO" additivity="false">
+            <AppenderRef ref="stdout"/>
+        </Logger>
         <Root level="info">
             <AppenderRef ref="stdout"/>
         </Root>
