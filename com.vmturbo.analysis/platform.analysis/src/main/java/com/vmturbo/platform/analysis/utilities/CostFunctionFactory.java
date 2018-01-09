@@ -325,8 +325,7 @@ public class CostFunctionFactory {
                 soldIndex++;
             }
 
-            if (quantities[boughtIndex] > commsSold.get(soldIndex).getCapacity() ||
-                            peakQuantities[boughtIndex] > commsSold.get(soldIndex).getCapacity()) {
+            if (quantities[boughtIndex] > commsSold.get(soldIndex).getCapacity()) {
                 return false;
             }
         }
