@@ -149,6 +149,11 @@ public class ServiceConfig {
     }
 
     @Bean
+    public ReservedInstancesService reservedInstancesService() {
+        return new ReservedInstancesService();
+    }
+
+    @Bean
     public ReportsService reportsService() {
         return new ReportsService(
                 ReportingServiceGrpc.newBlockingStub(reportingClientConfig.reportingChannel()));
