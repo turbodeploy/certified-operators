@@ -427,8 +427,11 @@ public class ActionSpecMapper {
      */
     private String readableCommodityTypes(@Nonnull final List<Integer> commodityTypes) {
         return commodityTypes.stream()
-            .map(CommodityType::forNumber)
-            .map(Enum::name)
+            .map(commodityTypeInt -> {
+                final CommodityType type = CommodityType.forNumber(commodityTypeInt);
+                // This is a short-term workaround until OM-29420 is fixed.
+                return type == null ? CommodityType.UNKNOWN.name() : type.name();
+            })
             .map(name -> formatString(CaseFormat.UPPER_UNDERSCORE.to(CaseFormat.UPPER_CAMEL, name)))
             .collect(Collectors.joining(", "));
     }
