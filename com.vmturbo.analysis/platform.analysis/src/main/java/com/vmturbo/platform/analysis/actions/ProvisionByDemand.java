@@ -178,9 +178,13 @@ public class ProvisionByDemand extends ActionImpl {
         for (CommoditySpecification commSpec : getModelBuyer().getBasket()) {
             int indexOfCommSold = basketSold.indexOf(commSpec.getType());
             int indexOfCommBought = getModelBuyer().getBasket().indexOf(commSpec);
-            double initialCapSold = modelSeller_.getCommoditiesSold().get(indexOfCommSold).getCapacity();
+            CommoditySold modelCommSold = modelSeller_.getCommoditiesSold().get(indexOfCommSold);
+            double initialCapSold = modelCommSold.getCapacity();
+            // the new capacity should be equal to the old capacity or scaled capacity that is a
+            // factor of the bought commodity
             double newCapacity = Math.max(getModelBuyer().getPeakQuantity(indexOfCommBought) /
-                            desiredUtil, initialCapSold);
+                            (desiredUtil * modelCommSold.getSettings().getUtilizationUpperBound()),
+                            initialCapSold);
             if (newCapacity > initialCapSold) {
                 // commodityNewCapacityMap_  keeps information about commodity sold and its
                 // new capacity, if there are several commodities of same base type, pick the
@@ -190,10 +194,17 @@ public class ProvisionByDemand extends ActionImpl {
                                 .containsKey(baseType) ? Math.max(commodityNewCapacityMap_
                                                 .get(baseType), newCapacity) : newCapacity);
             }
-            provisionedSeller_.getCommoditiesSold().get(indexOfCommSold).setCapacity(newCapacity);
-            provisionedSeller_.getCommoditiesSold().get(indexOfCommSold).setQuantity(
-                            getModelSeller().getCommoditiesSold().get(indexOfCommSold).getQuantity());
-
+            CommoditySold provCommSold = provisionedSeller_.getCommoditiesSold().get(indexOfCommSold);
+            provCommSold.setCapacity(newCapacity);
+            provCommSold.setQuantity(modelCommSold.getQuantity());
+            provCommSold.getSettings().setUtilizationUpperBound(modelCommSold.getSettings()
+                                                                .getUtilizationUpperBound());
+            provCommSold.getSettings().setOrigUtilizationUpperBound(modelCommSold.getSettings()
+                                                                    .getUtilizationUpperBound());
+            provCommSold.getSettings().setPriceFunction(modelCommSold.getSettings()
+                                                                    .getPriceFunction());
+            provCommSold.getSettings().setUpdatingFunction(modelCommSold.getSettings()
+                                                                    .getUpdatingFunction());
         }
 
         Utility.adjustOverhead(getModelSeller(), getProvisionedSeller(), getEconomy());

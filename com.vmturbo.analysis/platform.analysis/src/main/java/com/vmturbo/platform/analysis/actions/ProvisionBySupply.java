@@ -154,6 +154,8 @@ public class ProvisionBySupply extends ActionImpl {
                 getModelSeller().getCommoditiesSold().get(i).getSettings().getCapacityUpperBound());
             getProvisionedSeller().getCommoditiesSold().get(i).getSettings().setUtilizationUpperBound(
                 getModelSeller().getCommoditiesSold().get(i).getSettings().getUtilizationUpperBound());
+            getProvisionedSeller().getCommoditiesSold().get(i).getSettings().setOrigUtilizationUpperBound(
+                getModelSeller().getCommoditiesSold().get(i).getSettings().getOrigUtilizationUpperBound());
             getProvisionedSeller().getCommoditiesSold().get(i).getSettings().setResizable(
                 getModelSeller().getCommoditiesSold().get(i).getSettings().isResizable());
             getProvisionedSeller().getCommoditiesSold().get(i).getSettings().setPriceFunction(
