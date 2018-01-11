@@ -92,12 +92,14 @@ public class ReportingServiceReportGenerationTest {
     @Test
     public void testGoodReport() throws Exception {
         reportingServer.generateReport(request, observer);
-        Mockito.verify(dirtyRecord).commit();
+        // Steps from background steps are verified with timeout
+        Mockito.verify(dirtyRecord, Mockito.timeout(TIMEOUT_MS)).commit();
         Mockito.verify(dirtyRecord, Mockito.never()).rollback();
         Mockito.verify(observer).onCompleted();
         Mockito.verify(observer).onNext(Mockito.any());
         Mockito.verify(observer, Mockito.never()).onError(Mockito.any());
-        Mockito.verify(notificationSender).notifyReportGenerated(Mockito.anyLong());
+        Mockito.verify(notificationSender, Mockito.timeout(TIMEOUT_MS))
+                .notifyReportGenerated(Mockito.anyLong());
         Mockito.verify(notificationSender, Mockito.never())
                 .notifyReportGenerationFailed(Mockito.anyLong(), Mockito.anyString());
     }
