@@ -106,6 +106,10 @@ public class ExternalApiConfig extends WebMvcConfigurerAdapter {
                 .addResourceLocations("file:/www/app/");
         registry.addResourceHandler("/assets/**")
                 .addResourceLocations("file:/www/assets/");
+        registry.addResourceHandler("/vmturbo/apidoc/**")
+                .addResourceLocations("file:/swagger/");
+        registry.addResourceHandler("/swagger/**")
+                .addResourceLocations("file:/swagger/");
     }
 
     /**
@@ -117,5 +121,7 @@ public class ExternalApiConfig extends WebMvcConfigurerAdapter {
     @Override
     public void addViewControllers(ViewControllerRegistry registry) {
         registry.addRedirectViewController("/", "/app/index.html");
+        registry.addRedirectViewController("/vmturbo/apidoc", "/vmturbo/apidoc/index.html");
+        registry.addRedirectViewController("/swagger", "/swagger/index.html");
     }
 }

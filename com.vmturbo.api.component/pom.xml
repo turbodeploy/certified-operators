@@ -57,6 +57,7 @@
                                     <schemes>
                                         <scheme>https</scheme>
                                     </schemes>
+                                    <basePath>/vmturbo/rest</basePath>
                                     <locations>
                                         <location>com.vmturbo.api</location>
                                     </locations>
