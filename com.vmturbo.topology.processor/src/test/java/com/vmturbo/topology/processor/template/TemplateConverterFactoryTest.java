@@ -79,6 +79,8 @@ public class TemplateConverterFactoryTest {
                         .count());
         Assert.assertTrue(topologyEntityDTOList.stream()
                 .anyMatch(entity -> entity.getDisplayName().contains("Clone")));
+        Assert.assertTrue(topologyEntityDTOList.stream()
+                .allMatch(entity -> entity.getAnalysisSettings().getShopTogether()));
     }
 
     @Test
@@ -116,5 +118,7 @@ public class TemplateConverterFactoryTest {
         Assert.assertEquals(2, topologyEntityDTOList.size());
         Assert.assertTrue(topologyEntityDTOList.stream()
                 .anyMatch(entity -> entity.getDisplayName().contains("Clone")));
+        Assert.assertTrue(topologyEntityDTOList.stream()
+                .allMatch(entity -> entity.getAnalysisSettings().getShopTogether()));
     }
 }

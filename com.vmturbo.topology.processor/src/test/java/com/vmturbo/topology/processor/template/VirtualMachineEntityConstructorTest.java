@@ -4,7 +4,6 @@ import static com.vmturbo.topology.processor.template.TemplateConverterTestUtil.
 import static com.vmturbo.topology.processor.template.TemplateConverterTestUtil.getCommodityBoughtValue;
 import static com.vmturbo.topology.processor.template.TemplateConverterTestUtil.getCommoditySoldValue;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 
 import org.junit.Test;
 
@@ -51,7 +50,6 @@ public class VirtualMachineEntityConstructorTest {
             CommodityType.NET_THROUGHPUT_VALUE), epsilon);
         assertEquals(40.0, getCommodityBoughtValue(topologyEntityDTO.getCommoditiesBoughtFromProvidersList(),
             CommodityType.CPU_VALUE), epsilon);
-        assertFalse(topologyEntityDTO.getAnalysisSettings().getShopTogether());
     }
 
     @Test

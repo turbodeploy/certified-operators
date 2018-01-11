@@ -72,7 +72,7 @@ public class TemplatesConverterUtils {
             .setEntityState(EntityState.POWERED_ON)
             .setAnalysisSettings(AnalysisSettings.newBuilder()
                 .setIsAvailableAsProvider(true)
-                .setShopTogether(false));
+                .setShopTogether(true));
         return topologyEntityBuilder;
     }
 
