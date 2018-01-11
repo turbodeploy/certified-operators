@@ -5,9 +5,13 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.Executor;
 
 import javax.annotation.Nonnull;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.google.protobuf.ByteString;
 
@@ -15,11 +19,9 @@ import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.vmturbo.api.enums.ReportOutputFormat;
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.reporting.api.protobuf.Reporting;
 import com.vmturbo.reporting.api.protobuf.Reporting.Empty;
 import com.vmturbo.reporting.api.protobuf.Reporting.GenerateReportRequest;
 import com.vmturbo.reporting.api.protobuf.Reporting.ReportData;
@@ -32,6 +34,7 @@ import com.vmturbo.reports.component.ReportingException;
 import com.vmturbo.reports.component.db.tables.pojos.ReportInstance;
 import com.vmturbo.reports.component.instances.ReportInstanceDao;
 import com.vmturbo.reports.component.instances.ReportInstanceRecord;
+import com.vmturbo.reports.component.schedules.ScheduleDAO;
 import com.vmturbo.reports.component.templates.TemplateConverter;
 import com.vmturbo.reports.component.templates.TemplatesDao;
 import com.vmturbo.reports.db.abstraction.tables.records.StandardReportsRecord;
@@ -53,6 +56,7 @@ public class ReportingServiceRpc extends ReportingServiceImplBase {
 
     private final TemplatesDao templatesDao;
     private final ReportInstanceDao reportInstanceDao;
+    private final ScheduleDAO scheduleDAO;
 
     private final File outputDirectory;
     private final Executor executor;
@@ -64,17 +68,19 @@ public class ReportingServiceRpc extends ReportingServiceImplBase {
      * @param reportRunner report runner to use
      * @param templatesDao DAO resposible for template-related queries
      * @param reportInstanceDao DAO for accessing report instances records in the DB
+     * @param scheduleDAO DAO for accessing to schedules in the DB
      * @param outputDirectory directory to put generated report files into
      * @param executor thead pool to be used for report generation (they are asynchronous)
      * @param notificationSender notification sender to broadcast report generation results
      */
     public ReportingServiceRpc(@Nonnull ComponentReportRunner reportRunner,
             @Nonnull TemplatesDao templatesDao, @Nonnull ReportInstanceDao reportInstanceDao,
-            @Nonnull File outputDirectory, @Nonnull Executor executor,
+            @Nonnull ScheduleDAO scheduleDAO, @Nonnull File outputDirectory, @Nonnull Executor executor,
             @Nonnull ReportNotificationSender notificationSender) {
         this.reportRunner = Objects.requireNonNull(reportRunner);
         this.templatesDao = Objects.requireNonNull(templatesDao);
         this.reportInstanceDao = Objects.requireNonNull(reportInstanceDao);
+        this.scheduleDAO = scheduleDAO;
         this.outputDirectory = Objects.requireNonNull(outputDirectory);
         this.executor = Objects.requireNonNull(executor);
         this.notificationSender = Objects.requireNonNull(notificationSender);
@@ -208,6 +214,78 @@ public class ReportingServiceRpc extends ReportingServiceImplBase {
             logger.error(e.getMessage(), e);
             responseObserver.onError(
                     new StatusRuntimeException(Status.NOT_FOUND.withDescription(e.getMessage())));
+        }
+    }
+
+    @Override
+    public void addSchedule(Reporting.ScheduleInfo scheduleInfo,
+                            StreamObserver<Reporting.ScheduleDTO> responseObserver) {
+        try {
+            final Reporting.ScheduleDTO scheduleDTO = scheduleDAO.addSchedule(scheduleInfo);
+            responseObserver.onNext(scheduleDTO);
+            responseObserver.onCompleted();
+        } catch (DbException e) {
+            responseObserver.onError(new StatusRuntimeException(Status.ABORTED.withDescription(e.getMessage())));
+        }
+    }
+
+    @Override
+    public void getAllSchedules(Reporting.Empty empty, StreamObserver<Reporting.ScheduleDTO> responseObserver) {
+        try {
+            final Set<Reporting.ScheduleDTO> allSchedules = scheduleDAO.getAllSchedules();
+            allSchedules.forEach(responseObserver::onNext);
+            responseObserver.onCompleted();
+        } catch (DbException e) {
+            responseObserver.onError(new StatusRuntimeException(Status.ABORTED.withDescription(e.getMessage())));
+        }
+    }
+
+    @Override
+    public void deleteSchedule(Reporting.ScheduleId id, StreamObserver<Empty> responseObserver) {
+        try {
+            scheduleDAO.deleteSchedule(id.getId());
+            responseObserver.onNext(Empty.newBuilder().build());
+            responseObserver.onCompleted();
+        } catch (DbException e) {
+            responseObserver.onError(new StatusRuntimeException(Status.ABORTED.withDescription(e.getMessage())));
+        }
+    }
+
+    @Override
+    public void editSchedule(Reporting.ScheduleDTO scheduleDTO,
+                    StreamObserver<Reporting.ScheduleDTO> responseObserver) {
+        try {
+            scheduleDAO.editSchedule(scheduleDTO);
+            responseObserver.onNext(scheduleDTO);
+            responseObserver.onCompleted();
+        } catch (DbException e) {
+            responseObserver.onError(new StatusRuntimeException(Status.ABORTED.withDescription(e.getMessage())));
+        }
+    }
+
+    @Override
+    public void getSchedule(Reporting.ScheduleId id, StreamObserver<Reporting.ScheduleDTO> responseObserver) {
+        try {
+            final Reporting.ScheduleDTO schedule = scheduleDAO.getSchedule(id.getId());
+            responseObserver.onNext(schedule);
+            responseObserver.onCompleted();
+        } catch (DbException e) {
+            responseObserver.onError(new StatusRuntimeException(Status.ABORTED.withDescription(e.getMessage())));
+        }
+    }
+
+    @Override
+    public void getSchedulesBy(Reporting.GetSchedulesByRequest request,
+                    StreamObserver<Reporting.ScheduleDTO> responseObserver) {
+        try {
+            final int reportType = request.getReportType();
+            final int templateId = request.getTemplateId();
+            final Set<Reporting.ScheduleDTO> scheduleDTOS =
+                            scheduleDAO.getSchedulesBy(reportType, templateId);
+            scheduleDTOS.forEach(responseObserver::onNext);
+            responseObserver.onCompleted();
+        } catch (DbException e) {
+            responseObserver.onError(new StatusRuntimeException(Status.ABORTED.withDescription(e.getMessage())));
         }
     }
 }

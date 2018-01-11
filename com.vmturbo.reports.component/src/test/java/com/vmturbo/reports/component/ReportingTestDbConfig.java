@@ -11,7 +11,6 @@ import org.mariadb.jdbc.MySQLDataSource;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.sql.utils.FlywayMigrator;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 

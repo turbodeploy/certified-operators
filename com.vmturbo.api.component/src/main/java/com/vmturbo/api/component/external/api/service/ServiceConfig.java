@@ -157,7 +157,8 @@ public class ServiceConfig {
     @Bean
     public ReportsService reportsService() {
         return new ReportsService(
-                ReportingServiceGrpc.newBlockingStub(reportingClientConfig.reportingChannel()));
+                ReportingServiceGrpc.newBlockingStub(reportingClientConfig.reportingChannel()),
+                        groupsService());
     }
 
     @Bean

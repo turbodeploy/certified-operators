@@ -5,8 +5,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
 import org.eclipse.birt.core.exception.BirtException;
 import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,6 +12,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
@@ -23,6 +23,8 @@ import com.vmturbo.reports.component.communication.ReportNotificationSenderImpl;
 import com.vmturbo.reports.component.communication.ReportingServiceRpc;
 import com.vmturbo.reports.component.instances.ReportInstanceDao;
 import com.vmturbo.reports.component.instances.ReportInstanceDaoImpl;
+import com.vmturbo.reports.component.schedules.ScheduleDAO;
+import com.vmturbo.reports.component.schedules.ScheduleDAOimpl;
 import com.vmturbo.reports.component.templates.TemplatesDao;
 import com.vmturbo.reports.component.templates.TemplatesDaoImpl;
 
@@ -64,7 +66,7 @@ public class ReportingConfig {
     public ReportingServiceRpc reportingService() {
         IdentityGenerator.initPrefix(identityGeneratorPrefix);
         return new ReportingServiceRpc(componentReportRunner(), templatesDao(), reportInstanceDao(),
-                reportOutputDir, threadPool(), notificationSender());
+                scheduleDAO(), reportOutputDir, threadPool(), notificationSender());
     }
 
     @Bean
@@ -81,6 +83,11 @@ public class ReportingConfig {
     @Bean
     public ReportInstanceDao reportInstanceDao() {
         return new ReportInstanceDaoImpl(dbConfig.dsl());
+    }
+
+    @Bean
+    public ScheduleDAO scheduleDAO() {
+        return new ScheduleDAOimpl(dbConfig.dsl());
     }
 
     @Bean

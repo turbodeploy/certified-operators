@@ -11,8 +11,8 @@ import javax.annotation.PostConstruct;
 
 import org.eclipse.birt.core.exception.BirtException;
 import org.flywaydb.core.Flyway;
+import org.jooq.DSLContext;
 import org.junit.rules.TemporaryFolder;
-import org.mockito.Mockito;
 import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
@@ -22,8 +22,6 @@ import org.springframework.context.support.PropertySourcesPlaceholderConfigurer;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 
 import com.vmturbo.commons.idgen.IdentityGenerator;
-import com.vmturbo.communication.ShortcutTransport;
-import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.SenderReceiverPair;
 import com.vmturbo.reporting.api.ReportingNotificationReceiver;
@@ -34,6 +32,8 @@ import com.vmturbo.reports.component.communication.ReportNotificationSenderImpl;
 import com.vmturbo.reports.component.communication.ReportingServiceRpc;
 import com.vmturbo.reports.component.instances.ReportInstanceDao;
 import com.vmturbo.reports.component.instances.ReportInstanceDaoImpl;
+import com.vmturbo.reports.component.schedules.ScheduleDAO;
+import com.vmturbo.reports.component.schedules.ScheduleDAOimpl;
 import com.vmturbo.reports.component.templates.TemplatesDao;
 import com.vmturbo.reports.component.templates.TemplatesDaoImpl;
 import com.vmturbo.sql.utils.FlywayMigrator;
@@ -85,7 +85,7 @@ public class ReportingTestConfig {
 
     @Bean
     protected ReportingServiceImplBase reportingService() {
-        return new ReportingServiceRpc(reportRunner(), templatesDao(), reportInstanceDao(),
+        return new ReportingServiceRpc(reportRunner(), templatesDao(), reportInstanceDao(), scheduleDAO(),
                 reportsOutputDir(), Executors.newCachedThreadPool(), notificationSender());
     }
 
@@ -113,6 +113,9 @@ public class ReportingTestConfig {
     public TemplatesDao templatesDao() {
         return new TemplatesDaoImpl(dbConfig.dsl());
     }
+
+    @Bean
+    public ScheduleDAO scheduleDAO() { return new ScheduleDAOimpl(dbConfig.dsl()); }
 
     @Bean
     public ReportInstanceDao reportInstanceDao() {
@@ -145,5 +148,10 @@ public class ReportingTestConfig {
             flyway.setLocations(ReportingDbConfig.MIGRATIONS_LOCATION);
             return flyway;
         }).migrate();
+    }
+
+    @Bean
+    public DSLContext dslContext() {
+        return dbConfig.dsl();
     }
 }

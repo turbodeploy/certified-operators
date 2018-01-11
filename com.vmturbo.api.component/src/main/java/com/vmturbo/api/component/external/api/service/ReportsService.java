@@ -1,10 +1,12 @@
 package com.vmturbo.api.component.external.api.service;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -13,7 +15,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.external.api.util.ApiUtils;
-import com.vmturbo.api.component.external.api.websocket.UINotificationChannel;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.report.ReportApiDTO;
 import com.vmturbo.api.dto.report.ReportInstanceApiDTO;
@@ -21,9 +22,13 @@ import com.vmturbo.api.dto.report.ReportInstanceApiInputDTO;
 import com.vmturbo.api.dto.report.ReportScheduleApiDTO;
 import com.vmturbo.api.dto.report.ReportScheduleApiInputDTO;
 import com.vmturbo.api.dto.report.ReportTemplateApiInputDTO;
+import com.vmturbo.api.enums.DayOfWeek;
 import com.vmturbo.api.enums.Period;
+import com.vmturbo.api.enums.ReportOutputFormat;
 import com.vmturbo.api.enums.ReportType;
+import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.IReportsService;
+import com.vmturbo.reporting.api.protobuf.Reporting;
 import com.vmturbo.reporting.api.protobuf.Reporting.Empty;
 import com.vmturbo.reporting.api.protobuf.Reporting.GenerateReportRequest;
 import com.vmturbo.reporting.api.protobuf.Reporting.ReportInstanceId;
@@ -39,13 +44,17 @@ public class ReportsService implements IReportsService {
 
     private final ReportingServiceBlockingStub reportingService;
 
+    private final GroupsService groupsService;
+
     /**
      * Constructs reporting service with active connection to reporting component.
      *
      * @param reportingService reporting service GRPC connection.
      */
-    public ReportsService(@Nonnull ReportingServiceBlockingStub reportingService) {
+    public ReportsService(@Nonnull ReportingServiceBlockingStub reportingService,
+                    @Nonnull GroupsService groupsService) {
         this.reportingService = Objects.requireNonNull(reportingService);
+        this.groupsService = Objects.requireNonNull(groupsService);
     }
 
     @Override
@@ -65,14 +74,17 @@ public class ReportsService implements IReportsService {
     }
 
     @Override
-    public List<ReportScheduleApiDTO> getSchedulesList() throws Exception {
-        // TODO implement OM-28924
-        return Collections.emptyList();
+    public List<ReportScheduleApiDTO> getSchedulesList() {
+        final Iterator<Reporting.ScheduleDTO> scheduleDtos =
+                reportingService.getAllSchedules(Empty.newBuilder().build());
+        final List<ReportScheduleApiDTO> allApiSchedules = new ArrayList<>();
+        scheduleDtos.forEachRemaining(dto -> allApiSchedules.add(toReportScheduleApiDTO(dto)));
+        return allApiSchedules;
     }
 
     @Override
     public ReportScheduleApiDTO getReportScheduleByID(final String s) throws Exception {
-        throw ApiUtils.notImplementedInXL();
+        return getReportTemplateScheduleList(s).iterator().next();
     }
 
     @Override
@@ -144,28 +156,99 @@ public class ReportsService implements IReportsService {
     }
 
     @Override
-    public List<ReportScheduleApiDTO> getReportTemplateScheduleList(final String s) throws Exception {
-        throw ApiUtils.notImplementedInXL();
+    public List<ReportScheduleApiDTO> getReportTemplateScheduleList(final String reportTypeAndTemplateId) {
+        final int reportType = getReportType(reportTypeAndTemplateId).getValue();
+        final int templateId = getReportTemplateId(reportTypeAndTemplateId);
+        final Reporting.GetSchedulesByRequest request = Reporting.GetSchedulesByRequest
+                        .newBuilder()
+                        .setReportType(reportType)
+                        .setTemplateId(templateId)
+                        .build();
+        final List<ReportScheduleApiDTO> scheduleApiDTOS = new ArrayList<>();
+        reportingService.getSchedulesBy(request).forEachRemaining(
+                        scheduleDto -> scheduleApiDTOS.add(toReportScheduleApiDTO(scheduleDto)));
+        return scheduleApiDTOS;
     }
 
     @Override
-    public ReportScheduleApiDTO addReportTemplateSchedule(final String s, final ReportScheduleApiInputDTO reportScheduleApiInputDTO) throws Exception {
-        throw ApiUtils.notImplementedInXL();
+    @Nonnull
+    public ReportScheduleApiDTO addReportTemplateSchedule(final String reportTypeAndTemplateId,
+            final ReportScheduleApiInputDTO reportScheduleApiInputDTO) {
+        final Reporting.ScheduleInfo scheduleInfo = toScheduleInfo(reportTypeAndTemplateId,
+                        reportScheduleApiInputDTO);
+        final Reporting.ScheduleDTO scheduleDTO = reportingService.addSchedule(scheduleInfo);
+        return toReportScheduleApiDTO(scheduleDTO);
+    }
+
+    @Nonnull
+    private Reporting.ScheduleInfo toScheduleInfo(String s, @Nonnull ReportScheduleApiInputDTO reportScheduleApiInputDTO) {
+        final int reportType = getReportType(s).getValue();
+        final int reportTemplateId = getReportTemplateId(s);
+        final List<String> emails = Arrays.asList(reportScheduleApiInputDTO.getEmail().split(","));
+        emails.forEach(String::trim);
+        final Reporting.ScheduleInfo.Builder infoBuilder = Reporting.ScheduleInfo.newBuilder()
+                .setReportType(reportType)
+                .setTemplateId(reportTemplateId)
+                .setDayOfWeek(reportScheduleApiInputDTO.getDow().getName())
+                .setFormat(reportScheduleApiInputDTO.getFormat().getLiteral())
+                .setPeriod(reportScheduleApiInputDTO.getPeriod().getName())
+                .setShowCharts(reportScheduleApiInputDTO.isShowCharts())
+                .addAllSubscribersEmails(emails);
+        if (reportScheduleApiInputDTO.getScope() != null) {
+            infoBuilder.setScopeOid(reportScheduleApiInputDTO.getScope());
+        }
+        return infoBuilder.build();
     }
 
     @Override
-    public ReportScheduleApiDTO getReportTemplateSchedule(final String s, final int i) throws Exception {
-        throw ApiUtils.notImplementedInXL();
+    public ReportScheduleApiDTO getReportTemplateSchedule(final String s, final int i) {
+        final Reporting.ScheduleDTO scheduleDto = reportingService.getSchedule(
+                        Reporting.ScheduleId.newBuilder().setId(i).build());
+        return toReportScheduleApiDTO(scheduleDto);
     }
 
     @Override
-    public ReportScheduleApiDTO editReportTemplateSchedule(final String s, final int i, final ReportScheduleApiInputDTO reportScheduleApiInputDTO) throws Exception {
-        throw ApiUtils.notImplementedInXL();
+    public ReportScheduleApiDTO editReportTemplateSchedule(final String s, final int i, final ReportScheduleApiInputDTO reportScheduleApiInputDTO) {
+        final Reporting.ScheduleInfo info = toScheduleInfo(s, reportScheduleApiInputDTO);
+        final Reporting.ScheduleDTO scheduleDTO = Reporting.ScheduleDTO.newBuilder()
+                .setId(i).setScheduleInfo(info).build();
+        final Reporting.ScheduleDTO edited = reportingService.editSchedule(scheduleDTO);
+        return toReportScheduleApiDTO(edited);
     }
 
     @Override
-    public void deleteReportTemplateSchedule(final String s, final int i) throws Exception {
-        throw ApiUtils.notImplementedInXL();
+    public void deleteReportTemplateSchedule(final String s, final int i) {
+        reportingService.deleteSchedule(Reporting.ScheduleId.newBuilder().setId(i).build());
+    }
+
+    private ReportScheduleApiDTO toReportScheduleApiDTO(final Reporting.ScheduleDTO scheduleDTO) {
+        final Reporting.ScheduleInfo info = scheduleDTO.getScheduleInfo();
+        final BaseApiDTO scope = new BaseApiDTO();
+        final String scopeOid = info.getScopeOid();
+        scope.setUuid(scopeOid);
+        scope.setDisplayName(getScopeDisplayName(scopeOid));
+
+        final ReportScheduleApiDTO apiDTO = new ReportScheduleApiDTO();
+        apiDTO.setSubcriptionId(scheduleDTO.getId());
+        apiDTO.setScope(scope);
+        apiDTO.setDayOfWeek(DayOfWeek.valueOf(info.getDayOfWeek()));
+        apiDTO.setEmail(info.getSubscribersEmailsList()
+                .stream().collect(Collectors.joining(",")));
+        apiDTO.setFormat(ReportOutputFormat.valueOf(info.getFormat()));
+        apiDTO.setPeriod(Period.valueOf(info.getPeriod()));
+        apiDTO.setReportType(info.getReportType());
+        apiDTO.setShowCharts(info.getShowCharts());
+        apiDTO.setTemplateId(info.getReportType(), info.getTemplateId());
+        return apiDTO;
+    }
+
+    private String getScopeDisplayName(@Nonnull String uuid) {
+        try {
+            return groupsService.getGroupByUuid(uuid, true).getDisplayName();
+        } catch (UnknownObjectException e) {
+            logger.warn("Cannot resolve group with oid: {}", uuid);
+        }
+        return "";
     }
 
     /**

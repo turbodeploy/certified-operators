@@ -3,8 +3,6 @@ package com.vmturbo.reports.component;
 import java.util.Collection;
 import java.util.Iterator;
 
-import com.google.common.collect.Lists;
-
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -15,6 +13,8 @@ import org.springframework.test.annotation.DirtiesContext.ClassMode;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.context.support.AnnotationConfigContextLoader;
+
+import com.google.common.collect.Lists;
 
 import com.vmturbo.api.enums.ReportOutputFormat;
 import com.vmturbo.reporting.api.ReportListener;

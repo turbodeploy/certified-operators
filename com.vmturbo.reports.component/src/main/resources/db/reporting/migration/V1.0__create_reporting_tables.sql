@@ -10,4 +10,3 @@ create table report_instance (
     committed BOOLEAN NOT NULL,
     PRIMARY KEY (id)
 );
-

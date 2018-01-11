@@ -4,8 +4,6 @@ import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import io.grpc.stub.StreamObserver;
-
 import org.hamcrest.CoreMatchers;
 import org.junit.After;
 import org.junit.Assert;
@@ -16,6 +14,8 @@ import org.junit.rules.TemporaryFolder;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
+import io.grpc.stub.StreamObserver;
+
 import com.vmturbo.api.enums.ReportOutputFormat;
 import com.vmturbo.reporting.api.protobuf.Reporting.GenerateReportRequest;
 import com.vmturbo.reporting.api.protobuf.Reporting.ReportInstanceId;
@@ -23,6 +23,7 @@ import com.vmturbo.reports.component.communication.ReportNotificationSender;
 import com.vmturbo.reports.component.communication.ReportingServiceRpc;
 import com.vmturbo.reports.component.instances.ReportInstanceDao;
 import com.vmturbo.reports.component.instances.ReportInstanceRecord;
+import com.vmturbo.reports.component.schedules.ScheduleDAO;
 import com.vmturbo.reports.component.templates.TemplatesDao;
 import com.vmturbo.reports.db.abstraction.tables.records.StandardReportsRecord;
 import com.vmturbo.sql.utils.DbException;
@@ -41,6 +42,7 @@ public class ReportingServiceReportGenerationTest {
 
     private TemplatesDao templatesDao;
     private ReportInstanceDao instancesDao;
+    private ScheduleDAO scheduleDAO;
     private ComponentReportRunner reportRunner;
     private StandardReportsRecord reportTemplate;
     private ReportInstanceRecord dirtyRecord;
@@ -69,13 +71,14 @@ public class ReportingServiceReportGenerationTest {
         instancesDao = Mockito.mock(ReportInstanceDao.class);
         Mockito.when(instancesDao.createInstanceRecord(Mockito.anyInt(),
                 Mockito.any(ReportOutputFormat.class))).thenReturn(dirtyRecord);
+        scheduleDAO = Mockito.mock(ScheduleDAO.class);
 
         observer = (StreamObserver<ReportInstanceId>)Mockito.mock(StreamObserver.class);
 
         notificationSender = Mockito.mock(ReportNotificationSender.class);
         threadPool = Executors.newCachedThreadPool();
 
-        reportingServer = new ReportingServiceRpc(reportRunner, templatesDao, instancesDao,
+        reportingServer = new ReportingServiceRpc(reportRunner, templatesDao, instancesDao, scheduleDAO,
                 tmpFolder.newFolder(), threadPool,  notificationSender);
     }
 

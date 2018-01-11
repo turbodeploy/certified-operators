@@ -44,6 +44,43 @@ message ReportInstanceId {
     required int64 id = 1;
 }
 
+// Input type for Delete schedule and Get schedule methods
+message ScheduleId {
+    required int64 id = 1;
+}
+
+// DTO for report schedule with Id generated in backend
+message ScheduleDTO {
+    required int64 id = 1;
+    // All schedule parameters
+    required ScheduleInfo schedule_info = 2;
+}
+
+// Parameters of schedule
+message ScheduleInfo {
+    // day of week when scheduled report should be generated
+    required string day_of_week = 1;
+    // file format (for now PDF or XLSX)
+    required string format = 2;
+    // Daily, weekly or monthly
+    required string period = 4;
+    // type of generated report
+    required int32 report_type = 5;
+    // UUID of scope (like group or cluster) if it's presented
+    optional string scope_oid = 6;
+    required bool show_charts = 8;
+    // Template for scheduled report
+    required int32 template_id = 9;
+    // emails to send scheduled report
+    repeated string subscribers_emails = 10;
+}
+
+// Request param for getting schedule by report type and template id
+message GetSchedulesByRequest {
+    required int32 report_type = 1;
+    required int32 template_id = 2;
+}
+
 message Empty {}
 
 // Message holds report data, suitable for download or view by browser/end user.
@@ -75,4 +112,16 @@ service ReportingService {
     rpc ListAllTemplates (Empty) returns (stream ReportTemplate);
     // Retrieves report instance (its bytes, name and what is required to show it to the end-user).
     rpc GetReportData (ReportInstanceId) returns (ReportData);
+    // Create and store schedule to db
+    rpc AddSchedule (ScheduleInfo) returns (ScheduleDTO);
+    // Get all stored schedules
+    rpc GetAllSchedules(Empty) returns (stream ScheduleDTO);
+    // Delete schedule by id
+    rpc DeleteSchedule(ScheduleId) returns (Empty);
+    // Edit stored schedule.
+    rpc EditSchedule(ScheduleDTO) returns (ScheduleDTO);
+    // Get stored schedule by id
+    rpc GetSchedule(ScheduleId) returns (ScheduleDTO);
+    // Get all schedules with specified parameters
+    rpc GetSchedulesBy(GetSchedulesByRequest) returns (stream ScheduleDTO);
 }
