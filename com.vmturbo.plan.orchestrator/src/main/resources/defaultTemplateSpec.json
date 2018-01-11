@@ -33,6 +33,7 @@
             "name" : "memorySize",
             "displayName" : "Size",
             "units" : "MB",
+            "divisor" : "1024f",
             "valueType" : "NUMERIC",
             "description" : "Memory Size"
           },
@@ -150,6 +151,7 @@
             "name" : "memorySize",
             "displayName" : "Size",
             "units" : "MB",
+            "divisor" : "1024f",
             "valueType" : "NUMERIC",
             "description" : "Memory Size"
           },
