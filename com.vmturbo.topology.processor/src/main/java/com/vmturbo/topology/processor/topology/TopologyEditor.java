@@ -101,8 +101,6 @@ public class TopologyEditor {
                 }
             } else if (change.hasTopologyReplace()) {
                 final TopologyReplace replace = change.getTopologyReplace();
-                templateToAdd.put(replace.getAddTemplateId(),
-                        templateToAdd.getOrDefault(replace.getAddTemplateId(), 0L) + 1);
                 if (replace.hasRemoveEntityId()) {
                     entitiesToReplace.add(replace.getRemoveEntityId());
                     if (!topology.containsKey(replace.getRemoveEntityId())) {

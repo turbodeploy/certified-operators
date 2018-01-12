@@ -5,6 +5,7 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -225,8 +226,9 @@ public class TopologyEditorTest {
         List<ScenarioChange> changes = Lists.newArrayList(REPLACE);
         final Multimap<Long, TopologyEntityDTO> templateToReplacedEntity = ArrayListMultimap.create();
         templateToReplacedEntity.put(TEMPLATE_ID, pm.getEntityBuilder().build());
+        final Map<Long, Long> topologyAdditionEmpty = Collections.emptyMap();
         when(templateConverterFactory.
-                generateTopologyEntityFromTemplates(Mockito.anyMap(),
+                generateTopologyEntityFromTemplates(Mockito.eq(topologyAdditionEmpty),
                         Mockito.eq(templateToReplacedEntity)))
                 .thenReturn(Stream.of(pm.getEntityBuilder().clone()
                     .setOid(1234L)
