@@ -264,9 +264,17 @@ public class EntitySettingsApplicator {
         public void apply(@Nonnull final TopologyEntityDTO.Builder entity,
                           @Nonnull final Setting setting) {
             final boolean resizeable =
-                    !setting.getEnumSettingValue().getValue().equals("DISABLED");
+                    !setting.getEnumSettingValue().getValue().equals(ActionMode.DISABLED.name());
             entity.getCommoditySoldListBuilderList()
-                    .forEach(commSoldBuilder -> commSoldBuilder.setIsResizeable(resizeable));
+                    .forEach(commSoldBuilder -> {
+                        /* We shouldn't change isResizable if it comes as false from a probe side.
+                           For example static memory VMs comes from Hyper-V targets with resizeable=false
+                           for VMEM(53) commodities.
+                         */
+                        if (commSoldBuilder.getIsResizeable()) {
+                            commSoldBuilder.setIsResizeable(resizeable);
+                        }
+                    });
         }
     }
 

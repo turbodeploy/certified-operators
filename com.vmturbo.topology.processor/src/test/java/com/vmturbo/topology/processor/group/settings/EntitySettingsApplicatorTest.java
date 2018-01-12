@@ -5,9 +5,11 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 
 import java.util.Collections;
+import java.util.List;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
 import org.junit.Assert;
@@ -52,6 +54,9 @@ public class EntitySettingsApplicatorTest {
             .setEnumSettingValue(EnumSettingValue.newBuilder().setValue("DISABLED"))
             .build();
 
+    private static final Setting.Builder REZISE_SETTING_BUILDER = Setting.newBuilder()
+            .setSettingSpecName(SettingPolicySetting.Resize.getSettingName());
+
     private static final TopologyEntityDTO PARENT_OBJECT =
             TopologyEntityDTO.newBuilder().setOid(PARENT_ID).setEntityType(100001).build();
 
@@ -68,6 +73,43 @@ public class EntitySettingsApplicatorTest {
     @Before
     public void init() {
         applicator = new EntitySettingsApplicator();
+    }
+
+    /**
+     * Tests application of resize setting with MANUAL value, commodities shouldn't be changed.
+     */
+    @Test
+    public void testResizeSettingEnabled() {
+        final TopologyEntityDTO.Builder entity = getEntityForResizeableTest(ImmutableList.of(true, false));
+        REZISE_SETTING_BUILDER.setEnumSettingValue(EnumSettingValue.newBuilder()
+                .setValue(ActionMode.MANUAL.name()));
+        applySettings(TOPOLOGY_INFO, entity, REZISE_SETTING_BUILDER.build());
+        Assert.assertEquals(true, entity.getCommoditySoldList(0).getIsResizeable());
+        Assert.assertEquals(false, entity.getCommoditySoldList(1).getIsResizeable());
+    }
+
+    /**
+     * Tests application of resize setting with DISABLED value. Commodities which have isResizeable
+     * true should be shange, commodities with isResizeable=false shouldn't be changed.
+     */
+    @Test
+    public void testResizeSettingDisabled() {
+        final TopologyEntityDTO.Builder entity = getEntityForResizeableTest(ImmutableList.of(true, false));
+        REZISE_SETTING_BUILDER.setEnumSettingValue(EnumSettingValue.newBuilder()
+                .setValue(ActionMode.DISABLED.name()));
+        applySettings(TOPOLOGY_INFO, entity, REZISE_SETTING_BUILDER.build());
+        Assert.assertEquals(false, entity.getCommoditySoldList(0).getIsResizeable());
+        Assert.assertEquals(false, entity.getCommoditySoldList(1).getIsResizeable());
+    }
+
+    private TopologyEntityDTO.Builder getEntityForResizeableTest(final List<Boolean> commoditiesResizeable) {
+        final TopologyEntityDTO.Builder entity = TopologyEntityDTO.newBuilder();
+        for (boolean isResizeable : commoditiesResizeable) {
+            entity.addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                    .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(1).build())
+                    .setIsResizeable(isResizeable).build());
+        }
+        return entity;
     }
 
     /**
