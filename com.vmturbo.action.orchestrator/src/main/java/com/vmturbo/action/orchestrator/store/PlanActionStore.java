@@ -18,7 +18,10 @@ import javax.annotation.concurrent.ThreadSafe;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
+import org.jooq.InsertValuesStep4;
 import org.jooq.impl.DSL;
+
+import com.google.common.collect.Iterators;
 
 import io.prometheus.client.Summary;
 
@@ -57,6 +60,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
  */
 @ThreadSafe
 public class PlanActionStore implements ActionStore {
+    private static final int BATCH_SIZE = 1000;
     private static final Logger logger = LogManager.getLogger();
 
     private final IActionFactory actionFactory;
@@ -294,20 +298,31 @@ public class PlanActionStore implements ActionStore {
 
                 if (planData.isPresent()) {
                     final com.vmturbo.action.orchestrator.db.tables.pojos.ActionPlan data = planData.get();
-                    final List<MarketActionRecord> marketActionRecords = actions.stream()
-                        .map(action -> transactionDsl
-                            .newRecord(ACTION.MARKET_ACTION, buildMarketAction(data, action)))
-                        .collect(Collectors.toList());
 
                     // Store the action plan
                     transactionDsl
                         .newRecord(ACTION.ACTION_PLAN, data)
                         .store();
 
-                    // Store the associated actions for the plan
-                    transactionDsl
-                        .batchInsert(marketActionRecords)
-                        .execute();
+                    // Store the associated actions for the plan in batches, but keep
+                    // the batches in the same transaction.
+                    Iterators.partition(actions.iterator(), BATCH_SIZE).forEachRemaining(actionBatch -> {
+                        // If we expand the Market Action table we need to modify this insert
+                        // statement and the subsequent "values" bindings.
+                        InsertValuesStep4<MarketActionRecord, Long, Long, Long, ActionDTO.Action> step =
+                                transactionDsl.insertInto(ACTION.MARKET_ACTION,
+                                        ACTION.MARKET_ACTION.ID,
+                                        ACTION.MARKET_ACTION.ACTION_PLAN_ID,
+                                        ACTION.MARKET_ACTION.TOPOLOGY_CONTEXT_ID,
+                                        ACTION.MARKET_ACTION.RECOMMENDATION);
+                        for (ActionDTO.Action action : actionBatch) {
+                            step = step.values(action.getId(),
+                                    data.getId(),
+                                    data.getTopologyContextId(),
+                                    action);
+                        }
+                        step.execute();
+                    });
 
                     // Update internal state tracking only on success of database operations.
                     this.planRecommendationTime = Optional.of(data.getCreateTime());
@@ -324,16 +339,6 @@ public class PlanActionStore implements ActionStore {
             logger.error("Replace all actions transaction failed with error: ", e);
             return false;
         }
-    }
-
-    @Nonnull
-    private MarketAction buildMarketAction(@Nonnull final com.vmturbo.action.orchestrator.db.tables.pojos.ActionPlan data,
-                                           @Nonnull final ActionDTO.Action action) {
-        return new MarketAction(action.getId(),
-            data.getId(),
-            data.getTopologyContextId(),
-            action
-        );
     }
 
     /**
