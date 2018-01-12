@@ -6,6 +6,10 @@ import javax.annotation.concurrent.Immutable;
 
 import com.google.common.collect.ImmutableList;
 
+import com.vmturbo.stitching.poststitching.CpuAllocationPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.CpuProvisionedPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.MemoryProvisionedPostStitchingOperation;
+
 /**
  * A library of {@link PostStitchingOperation}s. Maintains the known topology preStitching operations
  * so that they can be run at the appropriate phases of the stitching lifecycle.
@@ -20,7 +24,8 @@ public class PostStitchingOperationLibrary {
      * Create a new calculation library.
      */
     public PostStitchingOperationLibrary() {
-        postStitchingOperations = ImmutableList.of();
+        postStitchingOperations = ImmutableList.of(new MemoryProvisionedPostStitchingOperation(),
+            new CpuProvisionedPostStitchingOperation(), new CpuAllocationPostStitchingOperation());
     }
 
     /**

@@ -12,8 +12,6 @@ import javax.annotation.concurrent.Immutable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.collect.ImmutableList;
-
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO;
@@ -101,7 +99,7 @@ public class EntityValidator {
                 // deal with them unless we want to fail the discovery.
                 logReplacementError(ownerEntity, original, sold, "capacity", original.getCapacity());
                 modifiedBuilder.setCapacity(HACKED_INFINITE_CAPACITY);
-            } else if (isProvisionCommodity(original)) {
+            } else if (original.getCommodityType().equals(CommodityDTO.CommodityType.STORAGE_PROVISIONED)) {
                 double hackedCapacitry = 10 * original.getCapacity();
                 logger.warn("{} : Multiplied original capacity of {} by 10. New capacity is {}",
                     ownerEntity.getDisplayName(), original.getCommodityType(), hackedCapacitry);
@@ -132,15 +130,6 @@ public class EntityValidator {
         }
 
         return modifiedBuilder.build();
-    }
-
-    private static List<CommodityDTO.CommodityType> PROVISION_COMMODITIES = ImmutableList.of(
-        CommodityDTO.CommodityType.MEM_PROVISIONED,
-        CommodityDTO.CommodityType.CPU_PROVISIONED,
-        CommodityDTO.CommodityType.STORAGE_PROVISIONED);
-
-    private boolean isProvisionCommodity(CommodityDTO original) {
-        return PROVISION_COMMODITIES.contains(original.getCommodityType());
     }
 
     public Optional<EntityValidationFailure> validateEntityDTO(final long entityId,
@@ -225,7 +214,7 @@ public class EntityValidator {
             if (commodityDTO.hasLimit() && commodityDTO.getLimit() < 0) {
                 errors.add("Limit " + commodityDTO.getCommodityType() + " has a negative value: " + commodityDTO.getLimit());
             }
-            if (!last && isProvisionCommodity(commodityDTO)) {
+            if (!last && commodityDTO.getCommodityType().equals(CommodityDTO.CommodityType.STORAGE_PROVISIONED)) {
                 errors.add("Capacity " + commodityDTO.getCommodityType() + " needs to be multiplied by 10");
             }
         }

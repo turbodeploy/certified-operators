@@ -155,18 +155,6 @@ public class EntityValidatorTest {
     private static final double PROV_CAPACITY = 13.0;
 
     /**
-     * Verify that capacity of provisioned commodity is multiplied by 10.
-     */
-    @Test
-    public void testProvisionCommodityCapacity() {
-        final CommodityDTO commodity = provisionedCommodity();
-        final EntityDTO ownerEntity = seller(commodity);
-        final CommodityDTO newCommodity =
-                    entityValidator.replaceIllegalCommodityValues(ownerEntity, commodity, true);
-        Assert.assertEquals(PROV_CAPACITY * 10, newCommodity.getCapacity(), 1e-5);
-    }
-
-    /**
      * Verify that when a provisioned commodity exists, a call to
      * {@link EntityValidator#validateEntityDTO(long, EntityDTO, boolean)}
      * returns errors when the last argument is false and no errors when it is true.
