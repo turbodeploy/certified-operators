@@ -96,15 +96,17 @@ public class ActionSpecMapper {
         final ActionSpecMappingContext context = new ActionSpecMappingContext(topologyContextId,
                 involvedEntities, repositoryApi);
 
-        final ImmutableList.Builder<ActionApiDTO> retBuilder = new ImmutableList.Builder<>();
-        for (final ActionSpec spec : actionSpecs) {
-            try {
-                retBuilder.add(mapActionSpecToActionApiDTOInternal(spec, context));
-            } catch (UnknownObjectException e) {
-                logger.error("Unable to map action spec: " + e);
-            }
-        }
-        return retBuilder.build();
+        return actionSpecs.stream()
+                .map(spec -> {
+                    try {
+                        return mapActionSpecToActionApiDTOInternal(spec, context);
+                    } catch (UnknownObjectException e) {
+                        logger.error("Unable to map action spec: " + e);
+                        return null;
+                    }
+                })
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
     }
 
     /**
