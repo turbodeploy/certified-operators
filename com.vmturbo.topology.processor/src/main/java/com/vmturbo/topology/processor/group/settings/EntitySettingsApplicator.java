@@ -17,6 +17,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.common.protobuf.action.ActionDTOREST.ActionMode;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
@@ -439,6 +440,15 @@ public class EntitySettingsApplicator {
 
         private final CommodityType commodityType;
 
+        // convert into units that market uses.
+        private final ImmutableMap<Integer, Float> conversionFactor =
+            ImmutableMap.of(
+                //VMEM setting value is in MBs. Market expects it in KBs.
+                CommodityType.VMEM_VALUE, 1024.0f,
+                //VSTORAGE setting value is in GBs. Market expects it in MBs.
+                CommodityType.VSTORAGE_VALUE, 1024.0f);
+
+
         private ResizeIncrementApplicator(@Nonnull EntitySettingSpecs setting,
                 @Nonnull final CommodityType commodityType) {
             super(setting);
@@ -454,7 +464,11 @@ public class EntitySettingsApplicator {
                         .filter(commodity -> commodity.getCommodityType().getType() ==
                                 commodityType.getNumber())
                         .forEach(commodityBuilder -> {
-                            commodityBuilder.setCapacityIncrement(settingValue);
+                            commodityBuilder.setCapacityIncrement(
+                                settingValue * conversionFactor.getOrDefault(
+                                    commodityBuilder.getCommodityType().getType(), 1.0f));
+                            logger.debug("Apply Resize Increment for commodity: {} , value={}",
+                                commodityType.getNumber(), commodityBuilder.getCapacityIncrement());
                         });
             }
         }

@@ -120,6 +120,7 @@ public class TopologyConverter {
             commRepo.setReservedCapacity(comm.getReservedCapacity());
             commRepo.setResizeable(comm.getIsResizeable());
             commRepo.setThin(comm.getIsThin());
+            commRepo.setCapacityIncrement(comm.getCapacityIncrement());
             return commRepo;
         }
 

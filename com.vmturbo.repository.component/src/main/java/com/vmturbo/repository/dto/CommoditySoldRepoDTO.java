@@ -15,6 +15,8 @@ public class CommoditySoldRepoDTO extends CommodityBaseRepoDTO {
 
     private boolean isThin;
 
+    private float capacityIncrement;
+
     public double getCapacity() {
         return capacity;
     }
@@ -53,5 +55,13 @@ public class CommoditySoldRepoDTO extends CommodityBaseRepoDTO {
 
     public void setThin(boolean isThin) {
         this.isThin = isThin;
+    }
+
+    public void setCapacityIncrement(float increment) {
+        this.capacityIncrement = increment;
+    }
+
+    public float getCapacityIncrement() {
+        return this.capacityIncrement;
     }
 }
