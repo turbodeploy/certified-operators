@@ -566,8 +566,21 @@ public class BootstrapSupply {
                 soldIndex++;
             }
             CommoditySold commSold = modelSeller.getCommoditiesSold().get(soldIndex);
-
-            if (buyerShoppingList.getQuantities()[boughtIndex] > commSold.getEffectiveCapacity()) {
+            // eliminate the overhead from the effective capacity to make sure there is still
+            // enough resource for shopping list
+            double overHead = commSold.getQuantity();
+            double overHeadPeak = commSold.getPeakQuantity();
+            // Inactive trader usually have no customers so it will skip the loop
+            for (ShoppingList sl : modelSeller.getCustomers()) {
+                int index = sl.getBasket().indexOf(basketCommSpec);
+                if (index != -1) {
+                    overHead = overHead - sl.getQuantity(index);
+                    overHeadPeak = overHeadPeak - sl.getPeakQuantity(index);
+                }
+            }
+            if ((buyerShoppingList.getQuantities()[boughtIndex] > (commSold.getEffectiveCapacity() - overHead))
+                            || (buyerShoppingList.getPeakQuantities()[boughtIndex] >
+                            (commSold.getEffectiveCapacity() - overHeadPeak))) {
                 return false;
             }
         }
