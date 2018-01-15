@@ -47,6 +47,7 @@ volumes:
   mediation-netapp: *localdriver
   mediation-ucs: *localdriver
   mediation-vmax: *localdriver
+  mediation-vmm: *localdriver
   kafka1-log: *localdriver
   zoo1-data: *localdriver
 #  mediation-aix: *localdriver
@@ -584,6 +585,22 @@ services:
       JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_VMAX_XMX_MB}M ${MEDIATION_VMAX_SYSTEM_PROPERTIES}"
     volumes:
       - mediation-vmax:/home/turbonomic/data
+
+  mediation-vmm:
+    extends:
+      file: common-services.yml
+      service: dev-component
+    image: turbonomic/com.vmturbo.mediation.vmm.component
+    depends_on: *clustermgrdep
+    ports:
+      - "${MEDIATION_VMM_PORT}"
+      - "${MEDIATION_VMM_DEBUG_PORT}"
+    environment:
+      component_type: mediation-vmm
+      instance_id: mediation-vmm-1
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_VMM_XMX_MB}M ${MEDIATION_VMM_SYSTEM_PROPERTIES}"
+    volumes:
+      - mediation-vmm:/home/turbonomic/data
 
 #  mediation-openstack:
 #    extends:

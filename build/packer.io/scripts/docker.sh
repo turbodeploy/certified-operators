@@ -142,6 +142,7 @@ function start_xl() {
 	start_and_verify_xl_component mediation-netapp "$JAVA_MSG"
 	start_and_verify_xl_component mediation-ucs "$JAVA_MSG"
 	start_and_verify_xl_component mediation-vmax "$JAVA_MSG"
+	start_and_verify_xl_component mediation-vmm "$JAVA_MSG"
     echo "Finalizing XL components startup" >/tmp/load_status
 
     # Since we monitor for API to be up before we may proceed, we should be good

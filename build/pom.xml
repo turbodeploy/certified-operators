@@ -249,6 +249,7 @@
                 <module>../com.vmturbo.mediation.hyperv.component</module>
                 <module>../com.vmturbo.mediation.netapp.component</module>
                 <module>../com.vmturbo.mediation.ucs.component</module>
+                <module>../com.vmturbo.mediation.vmm.component</module>
                 <module>../com.vmturbo.mediation.compellent.component</module>
                 <module>../com.vmturbo.mediation.openstack.component</module>
                 <module>../com.vmturbo.mediation.stressprobe.component</module>
@@ -331,6 +332,13 @@
         </profile>
 
         <profile>
+            <id>mediation-vmm</id>
+            <modules>
+                <module>../com.vmturbo.mediation.vmm.component</module>
+            </modules>
+        </profile>
+
+        <profile>
             <id>mediation-stressprobe</id>
             <modules>
                 <module>../com.vmturbo.mediation.stressprobe.component</module>
@@ -393,6 +401,11 @@
                      that we currently support in XL. -->
                 <module>../com.vmturbo.mediation.client</module>
                 <module>../com.vmturbo.mediation.vcenter.component</module>
+                <module>../com.vmturbo.mediation.vmax.component</module>
+                <module>../com.vmturbo.mediation.vmm.component</module>
+                <module>../com.vmturbo.mediation.ucs.component</module>
+                <module>../com.vmturbo.mediation.netapp.component</module>
+                <module>../com.vmturbo.mediation.hyperv.component</module>
                 <module>../com.vmturbo.mediation.stressprobe.component</module>
                 <module>../com.vmturbo.mediation.storagestressprobe.component</module>
                 <module>../com.vmturbo.mediation.delegatingprobe</module>
@@ -486,6 +499,7 @@
                 <module>../com.vmturbo.mediation.hyperv.component</module>
                 <module>../com.vmturbo.mediation.netapp.component</module>
                 <module>../com.vmturbo.mediation.vmax.component</module>
+                <module>../com.vmturbo.mediation.vmm.component</module>
                 <module>../com.vmturbo.mediation.stressprobe.component</module>
                 <module>../com.vmturbo.mediation.storagestressprobe.component</module>
                 <module>../com.vmturbo.mediation.delegatingprobe</module>

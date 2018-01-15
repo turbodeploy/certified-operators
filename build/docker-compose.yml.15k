@@ -39,6 +39,7 @@ volumes:
   mediation-netapp: *localdriver
   mediation-ucs: *localdriver
   mediation-vmax: *localdriver
+  mediation-vmm: *localdriver
   kafka1-log: *localdriver
   zoo1-data: *localdriver
   nginx-data: *localdriver
@@ -256,6 +257,15 @@ services:
     extends:
       file: prod-services.yml
       service: mediation-vmax-prod
+    environment:
+      JAVA_OPTS: "-Xmx768M"
+    mem_limit: 1024M
+    depends_on: *clustermgrdep
+
+  mediation-vmm:
+    extends:
+      file: prod-services.yml
+      service: mediation-vmm-prod
     environment:
       JAVA_OPTS: "-Xmx768M"
     mem_limit: 1024M
