@@ -257,6 +257,11 @@
             <groupId>io.prometheus</groupId>
             <artifactId>simpleclient_hotspot</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-email</artifactId>
+            <version>1.3.2</version>
+        </dependency>
         <!-- END Prometheus dependencies, for component metrics -->
     </dependencies>
 </project>
