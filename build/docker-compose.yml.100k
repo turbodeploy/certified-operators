@@ -254,7 +254,7 @@ services:
   mediation-vmax:
     extends:
       file: prod-services.yml
-      service: mediation-ucs-prod
+      service: mediation-vmax-prod
     environment:
       JAVA_OPTS: "-Xmx3072M"
     mem_limit: 4096M
