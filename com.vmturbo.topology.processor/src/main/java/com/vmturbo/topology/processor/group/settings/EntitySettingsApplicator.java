@@ -12,21 +12,21 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableList;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
+
 import com.vmturbo.common.protobuf.action.ActionDTOREST.ActionMode;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
+import com.vmturbo.common.protobuf.setting.EntitySettingSpecs;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProviderOrBuilder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.group.api.SettingPolicySetting;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -60,12 +60,12 @@ public class EntitySettingsApplicator {
         graphWithSettings.getTopologyGraph().entities()
             .map(TopologyEntity::getTopologyEntityDtoBuilder)
             .forEach(entity -> {
-                final Map<SettingPolicySetting, Setting> settingsForEntity =
-                        new EnumMap<>(SettingPolicySetting.class);
+                final Map<EntitySettingSpecs, Setting> settingsForEntity =
+                        new EnumMap<>(EntitySettingSpecs.class);
                 for (final Setting setting : graphWithSettings.getSettingsForEntity(
                         entity.getOid())) {
-                    final Optional<SettingPolicySetting> policySetting =
-                            SettingPolicySetting.getSettingByName(setting.getSettingSpecName());
+                    final Optional<EntitySettingSpecs> policySetting =
+                            EntitySettingSpecs.getSettingByName(setting.getSettingSpecName());
                     if (policySetting.isPresent()) {
                         settingsForEntity.put(policySetting.get(), setting);
                     } else {
@@ -94,29 +94,29 @@ public class EntitySettingsApplicator {
                 new ProvisionApplicator(),
                 new ResizeApplicator(),
                 new StorageMoveApplicator(),
-                new UtilizationThresholdApplicator(SettingPolicySetting.IoThroughput,
+                new UtilizationThresholdApplicator(EntitySettingSpecs.IoThroughput,
                         CommodityType.IO_THROUGHPUT),
-                new UtilizationThresholdApplicator(SettingPolicySetting.NetThroughput,
+                new UtilizationThresholdApplicator(EntitySettingSpecs.NetThroughput,
                         CommodityType.NET_THROUGHPUT),
-                new UtilizationThresholdApplicator(SettingPolicySetting.SwappingUtilization,
+                new UtilizationThresholdApplicator(EntitySettingSpecs.SwappingUtilization,
                         CommodityType.SWAPPING),
-                new UtilizationThresholdApplicator(SettingPolicySetting.ReadyQueueUtilization,
+                new UtilizationThresholdApplicator(EntitySettingSpecs.ReadyQueueUtilization,
                         CommodityType.QN_VCPU),
                 new UtilizationThresholdApplicator(
-                        SettingPolicySetting.StorageAmountUtilization,
+                        EntitySettingSpecs.StorageAmountUtilization,
                         CommodityType.STORAGE_AMOUNT),
-                new UtilizationThresholdApplicator(SettingPolicySetting.IopsUtilization,
+                new UtilizationThresholdApplicator(EntitySettingSpecs.IopsUtilization,
                         CommodityType.STORAGE_ACCESS),
-                new UtilizationThresholdApplicator(SettingPolicySetting.LatencyUtilization,
+                new UtilizationThresholdApplicator(EntitySettingSpecs.LatencyUtilization,
                         CommodityType.STORAGE_LATENCY),
                 new UtilTargetApplicator(),
                 new TargetBandApplicator(),
                 new HaDependentUtilizationApplicator(topologyInfo),
-                new ResizeIncrementApplicator(SettingPolicySetting.VcpuIncrement,
+                new ResizeIncrementApplicator(EntitySettingSpecs.VcpuIncrement,
                     CommodityType.VCPU),
-                new ResizeIncrementApplicator(SettingPolicySetting.VmemIncrement,
+                new ResizeIncrementApplicator(EntitySettingSpecs.VmemIncrement,
                         CommodityType.VMEM),
-                new ResizeIncrementApplicator(SettingPolicySetting.VstorageIncrement,
+                new ResizeIncrementApplicator(EntitySettingSpecs.VstorageIncrement,
                         CommodityType.VSTORAGE));
     }
 
@@ -134,9 +134,9 @@ public class EntitySettingsApplicator {
      */
     private static abstract class SingleSettingApplicator implements SettingApplicator {
 
-        private final SettingPolicySetting setting;
+        private final EntitySettingSpecs setting;
 
-        private SingleSettingApplicator(@Nonnull SettingPolicySetting setting) {
+        private SingleSettingApplicator(@Nonnull EntitySettingSpecs setting) {
             this.setting = Objects.requireNonNull(setting);
         }
 
@@ -145,7 +145,7 @@ public class EntitySettingsApplicator {
 
         @Override
         public void apply(@Nonnull Builder entity,
-                @Nonnull Map<SettingPolicySetting, Setting> settings) {
+                @Nonnull Map<EntitySettingSpecs, Setting> settings) {
             final Setting settingObject = settings.get(setting);
             if (settingObject != null) {
                 apply(entity, settingObject);
@@ -164,7 +164,7 @@ public class EntitySettingsApplicator {
          * @param settings settings to apply
          */
         void apply(@Nonnull final TopologyEntityDTO.Builder entity,
-                @Nonnull final Map<SettingPolicySetting, Setting> settings);
+                @Nonnull final Map<EntitySettingSpecs, Setting> settings);
     }
 
     /**
@@ -174,7 +174,7 @@ public class EntitySettingsApplicator {
     private static class MoveApplicator extends SingleSettingApplicator {
 
         private MoveApplicator() {
-            super(SettingPolicySetting.Move);
+            super(EntitySettingSpecs.Move);
         }
 
         @Override
@@ -202,7 +202,7 @@ public class EntitySettingsApplicator {
     static class StorageMoveApplicator extends SingleSettingApplicator {
 
         private StorageMoveApplicator() {
-            super(SettingPolicySetting.StorageMove);
+            super(EntitySettingSpecs.StorageMove);
         }
         @Override
         public void apply(@Nonnull final TopologyEntityDTO.Builder entity,
@@ -223,7 +223,7 @@ public class EntitySettingsApplicator {
     private static class SuspendApplicator extends SingleSettingApplicator {
 
         private SuspendApplicator() {
-            super(SettingPolicySetting.Suspend);
+            super(EntitySettingSpecs.Suspend);
         }
 
         @Override
@@ -240,7 +240,7 @@ public class EntitySettingsApplicator {
     private static class ProvisionApplicator extends SingleSettingApplicator {
 
         private ProvisionApplicator() {
-            super(SettingPolicySetting.Provision);
+            super(EntitySettingSpecs.Provision);
         }
 
         @Override
@@ -257,7 +257,7 @@ public class EntitySettingsApplicator {
     private static class ResizeApplicator extends SingleSettingApplicator {
 
         private ResizeApplicator() {
-            super(SettingPolicySetting.Resize);
+            super(EntitySettingSpecs.Resize);
         }
 
         @Override
@@ -289,7 +289,7 @@ public class EntitySettingsApplicator {
 
         private final CommodityType commodityType;
 
-        private UtilizationThresholdApplicator(@Nonnull SettingPolicySetting setting,
+        private UtilizationThresholdApplicator(@Nonnull EntitySettingSpecs setting,
                 @Nonnull final CommodityType commodityType) {
             super(setting);
             this.commodityType = Objects.requireNonNull(commodityType);
@@ -320,12 +320,12 @@ public class EntitySettingsApplicator {
 
         @Override
         public void apply(@Nonnull final TopologyEntityDTO.Builder entity,
-                @Nonnull final Map<SettingPolicySetting, Setting> settings) {
+                @Nonnull final Map<EntitySettingSpecs, Setting> settings) {
             if (topologyInfo.getPlanInfo().getPlanType() == PlanProjectType.CLUSTER_HEADROOM) {
                 // For cluster headroom calculation, we ignore the normal settings that affect
                 // effective capacity.
-                final Setting targetBand = settings.get(SettingPolicySetting.TargetBand);
-                final Setting utilTarget = settings.get(SettingPolicySetting.UtilTarget);
+                final Setting targetBand = settings.get(EntitySettingSpecs.TargetBand);
+                final Setting utilTarget = settings.get(EntitySettingSpecs.UtilTarget);
                 if (targetBand != null && utilTarget != null) {
                     // Calculate maximum desired utilization for the desired state of this entity.
                     final float maxDesiredUtilization = utilTarget.getNumericSettingValue().getValue() +
@@ -334,11 +334,11 @@ public class EntitySettingsApplicator {
                     applyMaxUtilizationToCapacity(entity, CommodityType.MEM, maxDesiredUtilization);
                 }
             } else {
-                final Setting ignoreHaSetting = settings.get(SettingPolicySetting.IgnoreHA);
+                final Setting ignoreHaSetting = settings.get(EntitySettingSpecs.IgnoreHA);
                 final boolean ignoreHa =
                         ignoreHaSetting != null && ignoreHaSetting.getBooleanSettingValue().getValue();
-                final Setting cpuUtilSetting = settings.get(SettingPolicySetting.CpuUtilization);
-                final Setting memUtilSetting = settings.get(SettingPolicySetting.MemoryUtilization);
+                final Setting cpuUtilSetting = settings.get(EntitySettingSpecs.CpuUtilization);
+                final Setting memUtilSetting = settings.get(EntitySettingSpecs.MemoryUtilization);
                 applyUtilizationChanges(entity, CommodityType.CPU, cpuUtilSetting, ignoreHa);
                 applyUtilizationChanges(entity, CommodityType.MEM, memUtilSetting, ignoreHa);
             }
@@ -394,7 +394,7 @@ public class EntitySettingsApplicator {
     private static class UtilTargetApplicator extends SingleSettingApplicator {
 
         private UtilTargetApplicator() {
-            super(SettingPolicySetting.UtilTarget);
+            super(EntitySettingSpecs.UtilTarget);
         }
 
         @Override
@@ -414,7 +414,7 @@ public class EntitySettingsApplicator {
     private static class TargetBandApplicator extends SingleSettingApplicator {
 
         private TargetBandApplicator() {
-            super(SettingPolicySetting.TargetBand);
+            super(EntitySettingSpecs.TargetBand);
         }
 
         @Override
@@ -439,7 +439,7 @@ public class EntitySettingsApplicator {
 
         private final CommodityType commodityType;
 
-        private ResizeIncrementApplicator(@Nonnull SettingPolicySetting setting,
+        private ResizeIncrementApplicator(@Nonnull EntitySettingSpecs setting,
                 @Nonnull final CommodityType commodityType) {
             super(setting);
             this.commodityType = Objects.requireNonNull(commodityType);

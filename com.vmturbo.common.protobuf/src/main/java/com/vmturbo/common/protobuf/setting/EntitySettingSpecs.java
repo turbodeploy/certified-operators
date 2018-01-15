@@ -1,4 +1,4 @@
-package com.vmturbo.group.api;
+package com.vmturbo.common.protobuf.setting;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -28,7 +28,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 /**
  * Enumeration for all the pre-built entity settings.
  */
-public enum SettingPolicySetting {
+public enum EntitySettingSpecs {
 
     /**
      * Move action automation mode.
@@ -221,7 +221,7 @@ public enum SettingPolicySetting {
     VcpuIncrement("usedIncrement_VCPU", "Increment constant for VCPU [MHz]",
             Arrays.asList("resizeRecommendationsConstants"),
             SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE), 
+            EnumSet.of(EntityType.VIRTUAL_MACHINE),
             numeric(0.0f/*min*/, 1000000.0f/*max*/, 1800.0f/*default*/), true),
 
     /**
@@ -245,7 +245,7 @@ public enum SettingPolicySetting {
     /**
      * Setting name to setting enumeration value map for fast access.
      */
-    private static final Map<String, SettingPolicySetting> SETTING_MAP;
+    private static final Map<String, EntitySettingSpecs> SETTING_MAP;
 
     private final String name;
     private final String displayName;
@@ -256,15 +256,15 @@ public enum SettingPolicySetting {
     private final boolean allowGlobalDefault;
 
     static {
-        final SettingPolicySetting[] settings = SettingPolicySetting.values();
-        final Map<String, SettingPolicySetting> result = new HashMap<>(settings.length);
-        for (SettingPolicySetting setting : settings) {
+        final EntitySettingSpecs[] settings = EntitySettingSpecs.values();
+        final Map<String, EntitySettingSpecs> result = new HashMap<>(settings.length);
+        for (EntitySettingSpecs setting : settings) {
             result.put(setting.getSettingName(), setting);
         }
         SETTING_MAP = Collections.unmodifiableMap(result);
     }
 
-    SettingPolicySetting(@Nonnull String name, @Nonnull String displayName,
+    EntitySettingSpecs(@Nonnull String name, @Nonnull String displayName,
             @Nonnull List<String> categoryPath, @Nonnull SettingTiebreaker tieBreaker,
             @Nonnull Set<EntityType> entityTypeScop, @Nonnull SettingDataStructure dataStructure,
             boolean allowGlobalDefault) {
@@ -295,7 +295,7 @@ public enum SettingPolicySetting {
      * @throws NullPointerException if {@code settingName} is null
      */
     @Nonnull
-    public static Optional<SettingPolicySetting> getSettingByName(@Nonnull String settingName) {
+    public static Optional<EntitySettingSpecs> getSettingByName(@Nonnull String settingName) {
         Objects.requireNonNull(settingName);
         return Optional.ofNullable(SETTING_MAP.get(settingName));
     }

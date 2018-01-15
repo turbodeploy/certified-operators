@@ -20,8 +20,9 @@ import com.google.common.base.Preconditions;
 import io.grpc.stub.StreamObserver;
 import tec.units.ri.unit.MetricPrefix;
 
-import com.vmturbo.common.protobuf.SettingDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
+import com.vmturbo.common.protobuf.setting.GlobalSettingSpecs;
+import com.vmturbo.common.protobuf.setting.SettingDTOUtil;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceImplBase;
@@ -38,7 +39,6 @@ import com.vmturbo.components.test.utilities.component.ComponentCluster;
 import com.vmturbo.components.test.utilities.component.ComponentUtils;
 import com.vmturbo.components.test.utilities.component.DockerEnvironment;
 import com.vmturbo.components.test.utilities.utils.TopologyUtils;
-import com.vmturbo.group.api.GlobalSettingSpecs;
 import com.vmturbo.market.component.api.ActionsListener;
 import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.impl.MarketComponentNotificationReceiver;

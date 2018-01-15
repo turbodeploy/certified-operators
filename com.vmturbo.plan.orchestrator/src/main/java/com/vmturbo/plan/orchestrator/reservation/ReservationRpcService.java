@@ -23,9 +23,9 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.SettingOverride;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceImplBase;
+import com.vmturbo.common.protobuf.setting.EntitySettingSpecs;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
-import com.vmturbo.group.api.SettingPolicySetting;
 import com.vmturbo.plan.orchestrator.plan.IntegrityException;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
 import com.vmturbo.plan.orchestrator.plan.PlanRpcService;
@@ -123,19 +123,19 @@ public class ReservationRpcService extends ReservationServiceImplBase {
         ScenarioChange settingOverrideDisablePMMove = ScenarioChange.newBuilder()
                 .setSettingOverride(SettingOverride.newBuilder()
                         .setSetting(Setting.newBuilder()
-                                .setSettingSpecName(SettingPolicySetting.Move.getSettingName())
+                                .setSettingSpecName(EntitySettingSpecs.Move.getSettingName())
                                 .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(DISABLED))))
                 .build();
         ScenarioChange settingOverrideDisableClone = ScenarioChange.newBuilder()
                 .setSettingOverride(SettingOverride.newBuilder()
                         .setSetting(Setting.newBuilder()
-                                .setSettingSpecName(SettingPolicySetting.Provision.getSettingName())
+                                .setSettingSpecName(EntitySettingSpecs.Provision.getSettingName())
                                 .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(DISABLED))))
                 .build();
         ScenarioChange settingOverrideDisableSTMove = ScenarioChange.newBuilder()
                 .setSettingOverride(SettingOverride.newBuilder()
                         .setSetting(Setting.newBuilder()
-                                .setSettingSpecName(SettingPolicySetting.StorageMove.getSettingName())
+                                .setSettingSpecName(EntitySettingSpecs.StorageMove.getSettingName())
                                 .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(DISABLED))))
                 .build();
         return Lists.newArrayList(settingOverrideDisablePMMove, settingOverrideDisableSTMove,

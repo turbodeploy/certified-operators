@@ -43,6 +43,8 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingTiebreaker;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
+import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
+import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -51,6 +53,8 @@ public class SettingsServiceTest {
     private SettingServiceMole settingRpcServiceSpy = spy(new SettingServiceMole());
 
     private SettingServiceBlockingStub settingServiceStub;
+
+    private StatsHistoryServiceBlockingStub statsServiceClient;
 
     private SettingsService settingsService;
 
@@ -80,8 +84,10 @@ public class SettingsServiceTest {
     public void setup() throws IOException {
         MockitoAnnotations.initMocks(this);
         settingServiceStub = SettingServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        statsServiceClient = StatsHistoryServiceGrpc.newBlockingStub(grpcServer.getChannel());
 
-        settingsService = new SettingsService(settingServiceStub, settingsMapper,
+        settingsService =
+            new SettingsService(settingServiceStub, statsServiceClient, settingsMapper,
                 settingsManagerMapping);
 
         when(settingRpcServiceSpy.searchSettingSpecs(any()))
@@ -126,7 +132,7 @@ public class SettingsServiceTest {
         assertEquals("test", result.get(0).getUuid());
 
         verify(settingsMapper).toManagerDtos(specCaptor.capture());
-        assertThat(specCaptor.getValue(),containsInAnyOrder(vmSettingSpec));
+        assertThat(specCaptor.getValue(), containsInAnyOrder(vmSettingSpec));
     }
 
     /**

@@ -48,11 +48,13 @@ import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
-import com.vmturbo.common.protobuf.SettingDTOUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.EntitySettingSpecs;
+import com.vmturbo.common.protobuf.setting.GlobalSettingSpecs;
+import com.vmturbo.common.protobuf.setting.SettingDTOUtil;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
@@ -80,8 +82,6 @@ import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.UpdateGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
-import com.vmturbo.group.api.GlobalSettingSpecs;
-import com.vmturbo.group.api.SettingPolicySetting;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -1019,8 +1019,8 @@ public class SettingsMapper {
     }
 
     private static Optional<SettingSpec> getSettingSpec(@Nonnull String settingSpecName) {
-        Optional<SettingPolicySetting> entitySpec =
-            SettingPolicySetting.getSettingByName(settingSpecName);
+        Optional<EntitySettingSpecs> entitySpec =
+            EntitySettingSpecs.getSettingByName(settingSpecName);
         if (entitySpec.isPresent()) {
             return Optional.of(entitySpec.get().createSettingSpec());
         }

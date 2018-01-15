@@ -36,6 +36,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Record;
+import org.jooq.exception.DataAccessException;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
@@ -47,13 +48,17 @@ import io.prometheus.client.Summary;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.stats.Stats;
 import com.vmturbo.common.protobuf.stats.Stats.DeletePlanStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.DeletePlanStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.GetStatsDataRetentionSettingsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsResponse;
+import com.vmturbo.common.protobuf.stats.Stats.SetStatsDataRetentionSettingRequest;
+import com.vmturbo.common.protobuf.stats.Stats.SetStatsDataRetentionSettingResponse;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
@@ -803,6 +808,61 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
             responseObserver.onError(Status.INTERNAL.withDescription("Error deleting plan stats with id: " + request.getTopologyContextId())
                     .withCause(e)
                     .asException());
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void getStatsDataRetentionSettings(
+                    GetStatsDataRetentionSettingsRequest request,
+                    StreamObserver<Setting> responseObserver) {
+
+        try {
+            historydbIO.getStatsRetentionSettings()
+                .stream()
+                .forEach(responseObserver::onNext);
+            responseObserver.onCompleted();
+        } catch (DataAccessException | VmtDbException e) {
+            responseObserver.onError(
+                Status.INTERNAL.withDescription(e.getMessage()).asException());
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void setStatsDataRetentionSetting(
+                    SetStatsDataRetentionSettingRequest request,
+                    StreamObserver<SetStatsDataRetentionSettingResponse> responseObserver) {
+
+        try {
+            SetStatsDataRetentionSettingResponse.Builder response =
+                    SetStatsDataRetentionSettingResponse.newBuilder();
+            if (!request.hasRetentionSettingName() || !request.hasRetentionSettingValue()) {
+                responseObserver.onNext(response.build());
+                responseObserver.onCompleted();
+                return;
+            }
+
+            Optional<Setting> result =
+                historydbIO.setStatsDataRetentionSetting(
+                                request.getRetentionSettingName(),
+                                request.getRetentionSettingValue());
+
+            if (result.isPresent()) {
+                responseObserver.onNext(
+                    response.setNewSetting(result.get())
+                        .build());
+            } else {
+                responseObserver.onNext(response.build());
+            }
+            responseObserver.onCompleted();
+        } catch (VmtDbException e) {
+            responseObserver.onError(
+                Status.INTERNAL.withDescription(e.getMessage()).asException());
         }
     }
 }

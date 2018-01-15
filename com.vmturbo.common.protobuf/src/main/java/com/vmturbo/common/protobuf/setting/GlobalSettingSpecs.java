@@ -1,4 +1,4 @@
-package com.vmturbo.group.api;
+package com.vmturbo.common.protobuf.setting;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -28,7 +28,31 @@ public enum GlobalSettingSpecs {
     RateOfResize("RATE_OF_RESIZE", "Rate of Resize",
             numeric(1.0f/*min*/, 3.0f/*max*/, 2.0f/*default*/),
             //path is needed for the UI to display this setting in a separate category
-            Arrays.asList("resizeRecommendationsConstants"));
+            Arrays.asList("resizeRecommendationsConstants")),
+
+    StatsRetentionHours("numRetainedHours", "Hourly saved statistics [Hours]",
+            numeric(24f/*min*/, 720f/*max*/, 72f/*default*/),
+            Collections.emptyList()),
+
+    StatsRetentionDays("numRetainedDays", "Daily saved statistics [Days]",
+            numeric(35f/*min*/, 730f/*max*/, 60f/*default*/),
+            Collections.emptyList()),
+
+    StatsRetentionMonths("numRetainedMonths", "Monthly saved statistics [Months]",
+            numeric(6f/*min*/, 240f/*max*/, 24f/*default*/),
+            Collections.emptyList()),
+
+    AuditLogRetentionDays("auditLogRetentionDays", "Saved audit-log entries [Days]",
+            numeric(30f/*min*/, 1000f/*max*/, 365f/*default*/),
+            Collections.emptyList()),
+
+    ReportsRetentionDays("reportRetentionDays", "Saved reports [Days]",
+            numeric(15f/*min*/, 365f/*max*/, 30f/*default*/),
+            Collections.emptyList()),
+
+    PlanRetentionDays("planRetentionDays", "Saved plans [Days]",
+            numeric(15f/*min*/, 365f/*max*/, 30f/*default*/),
+            Collections.emptyList());
 
     /**
      * Setting name to setting enumeration value map for fast access.

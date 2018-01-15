@@ -1,7 +1,9 @@
 package com.vmturbo.api.component.external.api.service;
 
 import java.util.Collections;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -18,11 +20,15 @@ import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.setting.SettingApiInputDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
 import com.vmturbo.api.serviceinterfaces.ISettingsService;
+import com.vmturbo.common.protobuf.setting.GlobalSettingSpecs;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.SearchSettingSpecsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
-import com.vmturbo.group.api.GlobalSettingSpecs;
+import com.vmturbo.common.protobuf.stats.Stats.GetStatsDataRetentionSettingsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.SetStatsDataRetentionSettingRequest;
+import com.vmturbo.common.protobuf.stats.Stats.SetStatsDataRetentionSettingResponse;
+import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 
 /**
  * Service implementation of Settings
@@ -35,10 +41,17 @@ public class SettingsService implements ISettingsService {
 
     private final SettingsManagerMapping settingsManagerMapping;
 
+    private final StatsHistoryServiceBlockingStub statsServiceClient;
+
+    private final String PERSISTENCE_MANAGER = "persistencemanager";
+
     public SettingsService(@Nonnull final SettingServiceBlockingStub settingServiceBlockingStub,
+                    @Nonnull final StatsHistoryServiceBlockingStub statsServiceClient,
                     @Nonnull final SettingsMapper settingsMapper,
                     @Nonnull final SettingsManagerMapping settingsManagerMapping) {
+
         this.settingServiceBlockingStub = settingServiceBlockingStub;
+        this.statsServiceClient = Objects.requireNonNull(statsServiceClient);
         this.settingsMapper = settingsMapper;
         this.settingsManagerMapping = settingsManagerMapping;
     }
@@ -50,7 +63,17 @@ public class SettingsService implements ISettingsService {
 
     @Override
     public List<SettingApiDTO> getSettingsByUuid(String uuid) throws Exception {
-        throw ApiUtils.notImplementedInXL();
+        if (uuid.equals(PERSISTENCE_MANAGER)) {
+            List<SettingApiDTO> settingApiDtos = new LinkedList<>();
+            statsServiceClient.getStatsDataRetentionSettings(
+                GetStatsDataRetentionSettingsRequest.newBuilder().build())
+                    .forEachRemaining(setting -> {
+                        settingApiDtos.add(SettingsMapper.toSettingApiDto(setting));
+                        });
+            return settingApiDtos;
+        } else {
+            throw ApiUtils.notImplementedInXL();
+        }
     }
 
     @Override
@@ -60,7 +83,24 @@ public class SettingsService implements ISettingsService {
 
     @Override
     public SettingApiDTO putSettingByUuidAndName(String uuid, String name, SettingApiInputDTO setting) throws Exception {
-        throw ApiUtils.notImplementedInXL();
+        if (uuid.equals(PERSISTENCE_MANAGER)) {
+            SetStatsDataRetentionSettingResponse response =
+                statsServiceClient.setStatsDataRetentionSetting(
+                    SetStatsDataRetentionSettingRequest.newBuilder()
+                        .setRetentionSettingName(name)
+                        // The SettingSpec uses "float" for the setting numeric value
+                        // type(NumericSettingDataType). So we are rounding to get an int
+                        .setRetentionSettingValue(Math.round(Float.parseFloat(setting.getValue())))
+                        .build());
+
+            if (response.hasNewSetting()) {
+                return SettingsMapper.toSettingApiDto(response.getNewSetting());
+            } else {
+                throw new Exception("Failed to set the new setting value for " + name);
+            }
+        } else {
+            throw ApiUtils.notImplementedInXL();
+        }
     }
 
     @Override

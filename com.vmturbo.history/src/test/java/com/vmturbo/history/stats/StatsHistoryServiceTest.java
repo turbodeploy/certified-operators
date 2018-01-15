@@ -2,6 +2,7 @@ package com.vmturbo.history.stats;
 
 import static com.vmturbo.reports.db.StringConstants.USED;
 import static com.vmturbo.reports.db.StringConstants.UTILIZATION;
+import static junit.framework.TestCase.assertFalse;
 import static junit.framework.TestCase.assertTrue;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
@@ -12,7 +13,6 @@ import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.eq;
-import static org.mockito.Matchers.isNull;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -46,16 +46,21 @@ import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.api.utils.DateTimeUtil;
+import com.vmturbo.common.protobuf.setting.SettingDTOUtil;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.stats.Stats;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.DeletePlanStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.DeletePlanStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.GetStatsDataRetentionSettingsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.SaveClusterHeadroomRequest;
 import com.vmturbo.common.protobuf.stats.Stats.SaveClusterHeadroomResponse;
+import com.vmturbo.common.protobuf.stats.Stats.SetStatsDataRetentionSettingRequest;
+import com.vmturbo.common.protobuf.stats.Stats.SetStatsDataRetentionSettingResponse;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
@@ -111,6 +116,12 @@ public class StatsHistoryServiceTest {
 
     @Mock
     private StreamObserver<DeletePlanStatsResponse> mockDeletePlanStatsStreamObserver;
+
+    @Mock
+    private StreamObserver<Setting> mockGetStatsDataRetentionSettingsObserver;
+
+    @Mock
+    private StreamObserver<SetStatsDataRetentionSettingResponse> mockSetStatsDataRetentionSettingObserver;
 
     @Captor
     ArgumentCaptor<StatSnapshot> captor;
@@ -448,13 +459,7 @@ public class StatsHistoryServiceTest {
         verify(mockDeletePlanStatsStreamObserver).onError(
             any(VmtDbException.class));
 
-        // TODO - karthikt : match exact arguments
-        // verify(mockDeletePlanStatsStreamObserver).onError(
-        //    Status.INTERNAL
-        //    .withDescription("Error deleting plan stats with id: "
-        //      + topologyContextId).asException());
     }
-
 
     @Test
     public void testGetProjectedStats() throws Exception {
@@ -717,5 +722,101 @@ public class StatsHistoryServiceTest {
             }
         }
         return results;
+    }
+
+    @Test
+    public void testGetStatsDataRetentionSettings() throws VmtDbException {
+
+        String retentionSettingName = "numRetainedHours";
+        int retentionPeriod = 10;
+        Setting expectedSetting =
+            Setting.newBuilder()
+                .setSettingSpecName(retentionSettingName)
+                .setNumericSettingValue(
+                    SettingDTOUtil.createNumericSettingValue(retentionPeriod))
+                .build();
+        when(historyDbio.getStatsRetentionSettings())
+                .thenReturn(Collections.singletonList(expectedSetting));
+        statsHistoryService.getStatsDataRetentionSettings(
+            GetStatsDataRetentionSettingsRequest.newBuilder().build(),
+            mockGetStatsDataRetentionSettingsObserver);
+
+        // Assert
+        ArgumentCaptor<Setting> responseCaptor = ArgumentCaptor.forClass(Setting.class);
+        verify(mockGetStatsDataRetentionSettingsObserver).onNext(responseCaptor.capture());
+        verify(mockGetStatsDataRetentionSettingsObserver).onCompleted();
+        assertThat(expectedSetting, equalTo(responseCaptor.getValue()));
+    }
+
+    @Test
+    public void testSetStatsDataRetentionSetting() throws VmtDbException {
+
+        // Setup
+        String retentionSettingName = "numRetainedHours";
+        int retentionPeriod = 10;
+        Setting expectedSetting =
+            Setting.newBuilder()
+                .setSettingSpecName(retentionSettingName)
+                .setNumericSettingValue(
+                    SettingDTOUtil.createNumericSettingValue(retentionPeriod))
+                .build();
+        when(historyDbio.setStatsDataRetentionSetting(retentionSettingName,
+            retentionPeriod)).thenReturn(Optional.of(expectedSetting));
+
+        // Act
+        statsHistoryService.setStatsDataRetentionSetting(
+            SetStatsDataRetentionSettingRequest.newBuilder()
+                .setRetentionSettingName(retentionSettingName)
+                .setRetentionSettingValue(retentionPeriod)
+                .build(),
+            mockSetStatsDataRetentionSettingObserver);
+
+        // Assert
+        ArgumentCaptor<SetStatsDataRetentionSettingResponse> responseCaptor =
+                ArgumentCaptor.forClass(SetStatsDataRetentionSettingResponse.class);
+        verify(mockSetStatsDataRetentionSettingObserver).onNext(responseCaptor.capture());
+        verify(mockSetStatsDataRetentionSettingObserver).onCompleted();
+        final SetStatsDataRetentionSettingResponse response = responseCaptor.getValue();
+        assertTrue(response.hasNewSetting());
+        assertThat(response.getNewSetting(), equalTo(expectedSetting));
+    }
+
+    @Test
+    public void testSetStatsDataRetentionSettingMissingRequestParameters()
+        throws VmtDbException {
+
+        statsHistoryService.setStatsDataRetentionSetting(
+            SetStatsDataRetentionSettingRequest.newBuilder()
+                .setRetentionSettingName("numRetainedHours")
+                .build(),
+            mockSetStatsDataRetentionSettingObserver);
+
+        ArgumentCaptor<SetStatsDataRetentionSettingResponse> responseCaptor =
+                ArgumentCaptor.forClass(SetStatsDataRetentionSettingResponse.class);
+        verify(mockSetStatsDataRetentionSettingObserver).onNext(responseCaptor.capture());
+        verify(mockSetStatsDataRetentionSettingObserver).onCompleted();
+        final SetStatsDataRetentionSettingResponse response = responseCaptor.getValue();
+        assertFalse(response.hasNewSetting());
+    }
+
+    @Test
+    public void testSetStatsDataRetentionSettingFailure() throws Exception {
+        String retentionSettingName = "numRetainedHours";
+        int retentionPeriod = 10;
+        VmtDbException dbException = new VmtDbException(
+            VmtDbException.UPDATE_ERR, "Error updating db");
+
+        doThrow(dbException).when(historyDbio).setStatsDataRetentionSetting(
+                retentionSettingName, retentionPeriod);
+
+        statsHistoryService.setStatsDataRetentionSetting(
+            SetStatsDataRetentionSettingRequest.newBuilder()
+                .setRetentionSettingName(retentionSettingName)
+                .setRetentionSettingValue(retentionPeriod)
+                .build(),
+            mockSetStatsDataRetentionSettingObserver);
+
+        verify(mockSetStatsDataRetentionSettingObserver).onError(
+            any(VmtDbException.class));
     }
 }

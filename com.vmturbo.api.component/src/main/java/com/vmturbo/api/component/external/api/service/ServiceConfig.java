@@ -216,6 +216,7 @@ public class ServiceConfig {
     @Bean
     public SettingsService settingsService() {
         return new SettingsService(communicationConfig.settingRpcService(),
+                communicationConfig.historyRpcService(),
                 mapperConfig.settingsMapper(),
                 mapperConfig.settingManagerMappingLoader().getMapping());
     }

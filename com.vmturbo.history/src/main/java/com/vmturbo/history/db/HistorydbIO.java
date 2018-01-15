@@ -11,6 +11,7 @@ import static com.vmturbo.reports.db.StringConstants.PROPERTY_TYPE;
 import static com.vmturbo.reports.db.StringConstants.RELATION;
 import static com.vmturbo.reports.db.StringConstants.SNAPSHOT_TIME;
 import static com.vmturbo.reports.db.StringConstants.UUID;
+import static com.vmturbo.reports.db.abstraction.Tables.RETENTION_POLICIES;
 import static com.vmturbo.reports.db.abstraction.tables.MktSnapshots.MKT_SNAPSHOTS;
 import static com.vmturbo.reports.db.abstraction.tables.MktSnapshotsStats.MKT_SNAPSHOTS_STATS;
 import static com.vmturbo.reports.db.abstraction.tables.PmStatsLatest.PM_STATS_LATEST;
@@ -26,10 +27,12 @@ import java.io.IOException;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -55,6 +58,7 @@ import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 import org.springframework.beans.factory.annotation.Value;
 
+import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 
@@ -63,6 +67,9 @@ import com.vmturbo.api.enums.Period;
 import com.vmturbo.api.enums.ReportOutputFormat;
 import com.vmturbo.api.enums.ReportType;
 import com.vmturbo.auth.api.db.DBPasswordUtil;
+import com.vmturbo.common.protobuf.setting.GlobalSettingSpecs;
+import com.vmturbo.common.protobuf.setting.SettingDTOUtil;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.history.stats.MarketStatsAccumulator;
@@ -133,6 +140,18 @@ public class HistorydbIO extends BasedbIO {
 
     @Value("${authPort:8080}")
     public int authPort;
+
+    // Mapping from the retention settings DB column name -> Setting name
+    private ImmutableBiMap<String, String> retentionDbColumnNameToSettingName =
+        ImmutableBiMap.of(
+           //"retention_latest_hours", , # skipping as there is no equivalent in the UI
+           "retention_hours", GlobalSettingSpecs.StatsRetentionHours.getSettingName(),
+           "retention_days", GlobalSettingSpecs.StatsRetentionDays.getSettingName(),
+           "retention_months", GlobalSettingSpecs.StatsRetentionMonths.getSettingName()
+           );
+
+    private ImmutableBiMap<String, String> retentionSettingNameToDbColumnName =
+        retentionDbColumnNameToSettingName.inverse();
 
     /**
      * Maximum number of entities allowed in the getEntities method.
@@ -832,4 +851,61 @@ public class HistorydbIO extends BasedbIO {
 
     }
 
+    /**
+     * Get all the stats data retention settings.
+     *
+     * @return List of all the data retention settings.
+     * @throws VmtDbException if there is a database error.
+     * @throws DataAccessException if there is a database error.
+     *
+     */
+    public List<Setting> getStatsRetentionSettings() throws VmtDbException {
+
+        Map<String, Integer> retentionSettingsMap =
+            using(connection()).selectFrom(RETENTION_POLICIES)
+            .fetchMap(RETENTION_POLICIES.POLICY_NAME, RETENTION_POLICIES.RETENTION_PERIOD);
+
+        List<Setting> settings = new ArrayList<>();
+
+        for (Entry<String, String> entry : retentionDbColumnNameToSettingName.entrySet()) {
+            // should be ok to skip if the entries don't exist in the DB.
+            Integer retentionPeriod = retentionSettingsMap.get(entry.getKey());
+            if (retentionPeriod != null) {
+                settings.add(createSetting(entry.getValue(), retentionPeriod));
+            }
+        }
+        return settings;
+    }
+
+    private Setting createSetting(String name, int value) {
+        return Setting.newBuilder()
+                    .setSettingSpecName(name)
+                    .setNumericSettingValue(SettingDTOUtil.createNumericSettingValue(value))
+                    .build();
+    }
+
+    /**
+     * Update the value of stats data retention setting.
+     *
+     * @param settingName The name of the setting to update.
+     * @param retentionPeriod The new retention period.
+     * @return The updated Setting.
+     * @throws VmtDbException if there is a database error.
+     *
+     */
+    public Optional<Setting> setStatsDataRetentionSetting(String settingName, int retentionPeriod)
+        throws VmtDbException {
+
+        if (!retentionSettingNameToDbColumnName.containsKey(settingName)) {
+            return Optional.empty();
+        }
+
+        execute(Style.FORCED, getJooqBuilder()
+                .update(RETENTION_POLICIES)
+                .set(RETENTION_POLICIES.RETENTION_PERIOD, retentionPeriod)
+                .where(RETENTION_POLICIES.POLICY_NAME.eq(
+                    retentionSettingNameToDbColumnName.get(settingName))));
+
+        return Optional.of(createSetting(settingName, retentionPeriod));
+    }
 }

@@ -33,8 +33,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep;
+import com.vmturbo.common.protobuf.setting.EntitySettingSpecs;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
-import com.vmturbo.group.api.SettingPolicySetting;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricGauge;
 import com.vmturbo.proactivesupport.DataMetricSummary;
@@ -231,24 +231,24 @@ public class Action implements ActionView {
                 new ImmutableMap.Builder<>();
         builder.put(ActionTypeCase.RESIZE,
                         (s -> s.getSettingSpecName()
-                                .equals(SettingPolicySetting.Resize.getSettingName())))
+                                .equals(EntitySettingSpecs.Resize.getSettingName())))
                 .put(ActionTypeCase.ACTIVATE,
                         (s -> s.getSettingSpecName()
-                                .equals(SettingPolicySetting.Activate.getSettingName())))
+                                .equals(EntitySettingSpecs.Activate.getSettingName())))
                 .put(ActionTypeCase.RECONFIGURE,
                         (s -> (s.getSettingSpecName()
-                                .equals(SettingPolicySetting.Reconfigure.getSettingName()) &&
+                                .equals(EntitySettingSpecs.Reconfigure.getSettingName()) &&
                                 s.hasEnumSettingValue() &&
                                 ActionMode.valueOf(s.getEnumSettingValue().getValue())
                                         .getNumber() < ActionMode.MANUAL_VALUE)))
                 .put(ActionTypeCase.DEACTIVATE,
                         (s -> s.getSettingSpecName()
-                                .equals(SettingPolicySetting.Suspend.getSettingName())));
+                                .equals(EntitySettingSpecs.Suspend.getSettingName())));
 
         // todo: currently if there are no entity settings, there is no way to determine
         // if a move action is a move storage action.
-        final SettingPolicySetting moveType =
-                hasEntitySettings ? determineMoveType() : SettingPolicySetting.Move;
+        final EntitySettingSpecs moveType =
+                hasEntitySettings ? determineMoveType() : EntitySettingSpecs.Move;
 
         builder.put(ActionTypeCase.MOVE,
                 (s -> s.getSettingSpecName().equals(moveType.getSettingName())));
@@ -269,32 +269,32 @@ public class Action implements ActionView {
     loadSettingDefaultMap(boolean hasEntitySettings) {
         ImmutableMap.Builder<ActionTypeCase, ActionMode> builder = new ImmutableMap.Builder<>();
         builder.put(ActionTypeCase.RESIZE,
-                        getDefaultActionModeFromSetting(SettingPolicySetting.Resize))
+                        getDefaultActionModeFromSetting(EntitySettingSpecs.Resize))
                 .put(ActionTypeCase.ACTIVATE,
-                        getDefaultActionModeFromSetting(SettingPolicySetting.Activate))
+                        getDefaultActionModeFromSetting(EntitySettingSpecs.Activate))
                 .put(ActionTypeCase.RECONFIGURE,
-                        getDefaultActionModeFromSetting(SettingPolicySetting.Reconfigure))
+                        getDefaultActionModeFromSetting(EntitySettingSpecs.Reconfigure))
                 .put(ActionTypeCase.DEACTIVATE,
-                        getDefaultActionModeFromSetting(SettingPolicySetting.Suspend))
+                        getDefaultActionModeFromSetting(EntitySettingSpecs.Suspend))
                 .put(ActionTypeCase.PROVISION,
-                        getDefaultActionModeFromSetting(SettingPolicySetting.Provision));
+                        getDefaultActionModeFromSetting(EntitySettingSpecs.Provision));
 
         // todo: currently if there are no entity settings, there is no way to determine
         // if a move action is a move storage action.
-        final SettingPolicySetting moveType =
-                hasEntitySettings ? determineMoveType() : SettingPolicySetting.Move;
+        final EntitySettingSpecs moveType =
+                hasEntitySettings ? determineMoveType() : EntitySettingSpecs.Move;
 
         builder.put(ActionTypeCase.MOVE, getDefaultActionModeFromSetting(moveType));
         return builder.build();
     }
 
     /**
-     * Find the default value of a SettingPolicySetting by using the associated spec.
+     * Find the default value of a EntitySettingSpecs by using the associated spec.
      *
-     * @param setting The SettingPolicySetting to get the default value of
+     * @param setting The EntitySettingSpecs to get the default value of
      * @return an ActionMode representing the default value of {@param setting}
      */
-    private ActionMode getDefaultActionModeFromSetting(SettingPolicySetting setting) {
+    private ActionMode getDefaultActionModeFromSetting(EntitySettingSpecs setting) {
         return ActionMode.valueOf(setting.createSettingSpec().getEnumSettingValueType().getDefault());
     }
 
@@ -420,16 +420,16 @@ public class Action implements ActionView {
      * @return a predicate for filtering settings based on move type
      */
     @Nonnull
-    private SettingPolicySetting determineMoveType() {
+    private EntitySettingSpecs determineMoveType() {
         final Optional<EntityType> sourceType = entitySettings
                 .getTypeForEntity(recommendation.getInfo().getMove().getSourceId());
         final Optional<EntityType> destType = entitySettings
                 .getTypeForEntity(recommendation.getInfo().getMove().getDestinationId());
         if (sourceType.isPresent() && sourceType.get().equals(EntityType.STORAGE) &&
                 destType.isPresent() && destType.get().equals(EntityType.STORAGE)) {
-            return SettingPolicySetting.StorageMove;
+            return EntitySettingSpecs.StorageMove;
         } else {
-            return SettingPolicySetting.Move;
+            return EntitySettingSpecs.Move;
         }
     }
 

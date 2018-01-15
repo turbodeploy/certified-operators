@@ -1,4 +1,4 @@
-package com.vmturbo.common.protobuf;
+package com.vmturbo.common.protobuf.setting;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -13,7 +13,6 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.Sets;
 
-import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.EntityTypeSet;

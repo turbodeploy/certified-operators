@@ -234,6 +234,13 @@
         </profile>
 
         <profile>
+            <id>api</id>
+            <modules>
+                <module>../com.vmturbo.api.component</module>
+            </modules>
+        </profile>
+
+        <profile>
             <id>mediation-all</id>
             <modules>
                 <module>../com.vmturbo.mediation.client</module>

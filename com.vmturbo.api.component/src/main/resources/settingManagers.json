@@ -79,6 +79,17 @@
         "diskCapacity15k",
         "diskCapacityVSeries"
       ]
+    },
+    "persistencemanager" : {
+      "displayName": "Data Retention Settings",
+      "settings": [
+      "numRetainedHours",
+      "numRetainedDays",
+      "numRetainedMonths",
+      "auditLogRetentionDays",
+      "reportRetentionDays",
+      "planRetentionDays"
+      ]
     }
   }
 }

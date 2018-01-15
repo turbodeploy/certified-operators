@@ -16,8 +16,11 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.google.common.collect.ImmutableMap;
+
 import com.vmturbo.common.protobuf.action.ActionDTOREST.ActionMode;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
+import com.vmturbo.common.protobuf.setting.EntitySettingSpecs;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
@@ -31,7 +34,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
-import com.vmturbo.group.api.SettingPolicySetting;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
@@ -45,17 +47,17 @@ public class EntitySettingsApplicatorTest {
     private static final long DEFAULT_SETTING_ID = 23346;
 
     private static final Setting MOVE_DISABLED_SETTING = Setting.newBuilder()
-            .setSettingSpecName(SettingPolicySetting.Move.getSettingName())
+            .setSettingSpecName(EntitySettingSpecs.Move.getSettingName())
             .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()))
             .build();
 
     private static final Setting STORAGE_MOVE_DISABLED_SETTING = Setting.newBuilder()
-            .setSettingSpecName(SettingPolicySetting.StorageMove.getSettingName())
+            .setSettingSpecName(EntitySettingSpecs.StorageMove.getSettingName())
             .setEnumSettingValue(EnumSettingValue.newBuilder().setValue("DISABLED"))
             .build();
 
     private static final Setting.Builder REZISE_SETTING_BUILDER = Setting.newBuilder()
-            .setSettingSpecName(SettingPolicySetting.Resize.getSettingName());
+            .setSettingSpecName(EntitySettingSpecs.Resize.getSettingName());
 
     private static final TopologyEntityDTO PARENT_OBJECT =
             TopologyEntityDTO.newBuilder().setOid(PARENT_ID).setEntityType(100001).build();
@@ -165,32 +167,32 @@ public class EntitySettingsApplicatorTest {
     @Test
     public void testUtilizationThresholdSettings() {
         testUtilizationSettings(EntityType.PHYSICAL_MACHINE, CommodityType.CPU,
-                SettingPolicySetting.CpuUtilization);
+                EntitySettingSpecs.CpuUtilization);
         testUtilizationSettings(EntityType.PHYSICAL_MACHINE, CommodityType.MEM,
-                SettingPolicySetting.MemoryUtilization);
+                EntitySettingSpecs.MemoryUtilization);
         testUtilizationSettings(EntityType.PHYSICAL_MACHINE, CommodityType.IO_THROUGHPUT,
-                SettingPolicySetting.IoThroughput);
+                EntitySettingSpecs.IoThroughput);
         testUtilizationSettings(EntityType.PHYSICAL_MACHINE, CommodityType.NET_THROUGHPUT,
-                SettingPolicySetting.NetThroughput);
+                EntitySettingSpecs.NetThroughput);
         testUtilizationSettings(EntityType.PHYSICAL_MACHINE, CommodityType.SWAPPING,
-                SettingPolicySetting.SwappingUtilization);
+                EntitySettingSpecs.SwappingUtilization);
         testUtilizationSettings(EntityType.PHYSICAL_MACHINE, CommodityType.QN_VCPU,
-                SettingPolicySetting.ReadyQueueUtilization);
+                EntitySettingSpecs.ReadyQueueUtilization);
 
         testUtilizationSettings(EntityType.SWITCH, CommodityType.NET_THROUGHPUT,
-                SettingPolicySetting.NetThroughput);
+                EntitySettingSpecs.NetThroughput);
 
         testUtilizationSettings(EntityType.STORAGE, CommodityType.STORAGE_AMOUNT,
-                SettingPolicySetting.StorageAmountUtilization);
+                EntitySettingSpecs.StorageAmountUtilization);
         testUtilizationSettings(EntityType.STORAGE, CommodityType.STORAGE_ACCESS,
-                SettingPolicySetting.IopsUtilization);
+                EntitySettingSpecs.IopsUtilization);
         testUtilizationSettings(EntityType.STORAGE, CommodityType.STORAGE_LATENCY,
-                SettingPolicySetting.LatencyUtilization);
+                EntitySettingSpecs.LatencyUtilization);
 
         testUtilizationSettings(EntityType.STORAGE_CONTROLLER, CommodityType.STORAGE_AMOUNT,
-                SettingPolicySetting.StorageAmountUtilization);
+                EntitySettingSpecs.StorageAmountUtilization);
         testUtilizationSettings(EntityType.STORAGE_CONTROLLER, CommodityType.CPU,
-                SettingPolicySetting.CpuUtilization);
+                EntitySettingSpecs.CpuUtilization);
     }
 
     private TopologyEntityDTO.Builder createEntityWithCommodity(@Nonnull EntityType entityType,
@@ -221,7 +223,7 @@ public class EntitySettingsApplicatorTest {
     }
 
     private void testUtilizationSettings(EntityType entityType, CommodityType commodityType,
-            SettingPolicySetting setting) {
+            EntitySettingSpecs setting) {
         final TopologyEntityDTO.Builder builder =
                 createEntityWithCommodity(entityType, commodityType, 100f);
         final Setting settingObj = Setting.newBuilder()
@@ -253,8 +255,8 @@ public class EntitySettingsApplicatorTest {
     public void testHaUtilOverrride() {
         final TopologyEntityDTO.Builder builder =
                 createEntityWithCommodity(EntityType.PHYSICAL_MACHINE, CommodityType.CPU, 11f);
-        applySettings(TOPOLOGY_INFO, builder, createSetting(SettingPolicySetting.CpuUtilization, 22f),
-                createSetting(SettingPolicySetting.IgnoreHA, true));
+        applySettings(TOPOLOGY_INFO, builder, createSetting(EntitySettingSpecs.CpuUtilization, 22f),
+                createSetting(EntitySettingSpecs.IgnoreHA, true));
         Assert.assertEquals(22f, builder.getCommoditySoldList(0).getEffectiveCapacityPercentage(),
                 0.0001);
     }
@@ -268,7 +270,7 @@ public class EntitySettingsApplicatorTest {
     public void testNoHaNoUtilOverride() {
         final TopologyEntityDTO.Builder entity =
                 createEntityWithCommodity(EntityType.PHYSICAL_MACHINE, CommodityType.CPU, 11f);
-        final Setting setting = createSetting(SettingPolicySetting.IgnoreHA, false);
+        final Setting setting = createSetting(EntitySettingSpecs.IgnoreHA, false);
         applySettings(TOPOLOGY_INFO, entity, setting);
         Assert.assertEquals(11f, entity.getCommoditySoldList(0).getEffectiveCapacityPercentage(),
                 0.0001);
@@ -283,7 +285,7 @@ public class EntitySettingsApplicatorTest {
     public void testHaNoUtilOverride() {
         final TopologyEntityDTO.Builder builder =
                 createEntityWithCommodity(EntityType.PHYSICAL_MACHINE, CommodityType.CPU, 11f);
-        applySettings(TOPOLOGY_INFO, builder, createSetting(SettingPolicySetting.IgnoreHA, true));
+        applySettings(TOPOLOGY_INFO, builder, createSetting(EntitySettingSpecs.IgnoreHA, true));
         Assert.assertFalse(builder.getCommoditySoldList(0).hasEffectiveCapacityPercentage());
     }
 
@@ -296,8 +298,8 @@ public class EntitySettingsApplicatorTest {
     public void testNoHaUtilOverride() {
         final TopologyEntityDTO.Builder builder =
                 createEntityWithCommodity(EntityType.PHYSICAL_MACHINE, CommodityType.CPU, 11f);
-        applySettings(TOPOLOGY_INFO, builder, createSetting(SettingPolicySetting.CpuUtilization, 22f),
-                createSetting(SettingPolicySetting.IgnoreHA, false));
+        applySettings(TOPOLOGY_INFO, builder, createSetting(EntitySettingSpecs.CpuUtilization, 22f),
+                createSetting(EntitySettingSpecs.IgnoreHA, false));
         Assert.assertEquals(22f, builder.getCommoditySoldList(0).getEffectiveCapacityPercentage(),
                 0.0001);
     }
@@ -310,8 +312,8 @@ public class EntitySettingsApplicatorTest {
     public void testNoHaUtilOverrideNoInitial() {
         final TopologyEntityDTO.Builder builder =
                 createEntityWithCommodity(EntityType.PHYSICAL_MACHINE, CommodityType.CPU);
-        applySettings(TOPOLOGY_INFO, builder, createSetting(SettingPolicySetting.CpuUtilization, 22f),
-                createSetting(SettingPolicySetting.IgnoreHA, false));
+        applySettings(TOPOLOGY_INFO, builder, createSetting(EntitySettingSpecs.CpuUtilization, 22f),
+                createSetting(EntitySettingSpecs.IgnoreHA, false));
         Assert.assertEquals(22f, builder.getCommoditySoldList(0).getEffectiveCapacityPercentage(),
                 0.0001);
     }
@@ -324,8 +326,8 @@ public class EntitySettingsApplicatorTest {
         builder.getCommoditySoldListBuilder(0).setEffectiveCapacityPercentage(80.0f);
         // Suppose the maximum desired utilization is 75%
         applySettings(CLUSTER_HEADROOM_TOPOLOGY_INFO, builder,
-            createSetting(SettingPolicySetting.TargetBand, 10f),
-            createSetting(SettingPolicySetting.UtilTarget, 70f));
+            createSetting(EntitySettingSpecs.TargetBand, 10f),
+            createSetting(EntitySettingSpecs.UtilTarget, 70f));
         // The effective capacity for headroom should be 80% * 75% = 60%
         Assert.assertEquals(60f, builder.getCommoditySoldList(0).getEffectiveCapacityPercentage(),
                 0.0001);
@@ -339,8 +341,8 @@ public class EntitySettingsApplicatorTest {
         builder.getCommoditySoldListBuilder(0).setEffectiveCapacityPercentage(80.0f);
         // Suppose the maximum desired utilization is 75%
         applySettings(CLUSTER_HEADROOM_TOPOLOGY_INFO, builder,
-                createSetting(SettingPolicySetting.TargetBand, 10f),
-                createSetting(SettingPolicySetting.UtilTarget, 70f));
+                createSetting(EntitySettingSpecs.TargetBand, 10f),
+                createSetting(EntitySettingSpecs.UtilTarget, 70f));
         // The effective capacity for headroom should be 80% * 75% = 60%
         Assert.assertEquals(60f, builder.getCommoditySoldList(0).getEffectiveCapacityPercentage(),
                 0.0001);
@@ -366,7 +368,7 @@ public class EntitySettingsApplicatorTest {
      * @param value value of the setting
      * @return setting object
      */
-    private Setting createSetting(SettingPolicySetting setting, float value) {
+    private Setting createSetting(EntitySettingSpecs setting, float value) {
         return Setting.newBuilder()
                 .setSettingSpecName(setting.getSettingName())
                 .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(value).build())
@@ -380,7 +382,7 @@ public class EntitySettingsApplicatorTest {
      * @param value value of the setting
      * @return setting object
      */
-    private Setting createSetting(SettingPolicySetting setting, boolean value) {
+    private Setting createSetting(EntitySettingSpecs setting, boolean value) {
         return Setting.newBuilder()
                 .setSettingSpecName(setting.getSettingName())
                 .setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(value).build())

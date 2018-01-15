@@ -22,9 +22,10 @@ import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.component.external.api.service.SettingsService;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
+import com.vmturbo.common.protobuf.setting.EntitySettingSpecs;
+import com.vmturbo.common.protobuf.setting.GlobalSettingSpecs;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
-import com.vmturbo.group.api.GlobalSettingSpecs;
-import com.vmturbo.group.api.SettingPolicySetting;
+import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.group.persistent.EnumBasedSettingSpecStore;
 import com.vmturbo.group.persistent.SettingSpecStore;
 import com.vmturbo.group.persistent.SettingStore;
@@ -59,8 +60,9 @@ public class SettingsMapperIntegrationTest {
         final SettingsMapper mapper =
                 new SettingsMapper(channel, settingsManagerMapping, settingSpecStyleMapping);
         final SettingsService settingService =
-                new SettingsService(SettingServiceGrpc.newBlockingStub(channel), mapper,
-                        settingsManagerMapping);
+                new SettingsService(SettingServiceGrpc.newBlockingStub(channel),
+                        StatsHistoryServiceGrpc.newBlockingStub(channel),
+                        mapper, settingsManagerMapping);
 
         final List<SettingsManagerApiDTO> settingSpecs =
                 settingService.getSettingsSpecs(null, null, false);
@@ -69,11 +71,14 @@ public class SettingsMapperIntegrationTest {
                 .flatMap(List::stream)
                 .map(SettingApiDTO::getUuid)
                 .collect(Collectors.toSet());
-        final Set<String> enumSettingsNames = Stream.of(SettingPolicySetting.values())
-                .map(SettingPolicySetting::getSettingName)
+        final Set<String> enumSettingsNames = Stream.of(EntitySettingSpecs.values())
+                .map(EntitySettingSpecs::getSettingName)
                 .collect(Collectors.toSet());
         // RATE of Resize has to be added too due to API constraint
-        enumSettingsNames.add(GlobalSettingSpecs.RateOfResize.getSettingName());
+        enumSettingsNames.addAll(
+            Stream.of(GlobalSettingSpecs.values())
+                .map(GlobalSettingSpecs::getSettingName)
+                .collect(Collectors.toSet()));
         Assert.assertEquals(enumSettingsNames, visibleSettings);
 
         server.shutdownNow();

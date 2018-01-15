@@ -2,16 +2,13 @@ package com.vmturbo.group.persistent;
 
 import java.util.HashSet;
 import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.vmturbo.common.protobuf.setting.EntitySettingSpecs;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
-import com.vmturbo.group.api.GlobalSettingSpecs;
-import com.vmturbo.group.api.SettingPolicySetting;
 
 /**
  * Unit tests for {@link FileBasedSettingsSpecStore} against real (production) list of settings.
@@ -30,28 +27,10 @@ public class SettingSpecsStoreTest {
      */
     @Test
     public void testExistingSettings() {
-        for (SettingPolicySetting setting : SettingPolicySetting.values()) {
+        for (EntitySettingSpecs setting : EntitySettingSpecs.values()) {
             Assert.assertTrue("Could not resolve property by name " + setting,
                     specStore.getSettingSpec(setting.getSettingName()).isPresent());
         }
-    }
-
-    /**
-     * Tests checks, that all the settings, mentioned in {@link SettingPolicySetting} enum are registered
-     * in JSON file and vice versa.
-     */
-    @Test
-    public void testAllSettingsExist() {
-        final Set<String> enumSettingNames = Stream.of(SettingPolicySetting.values())
-                .map(SettingPolicySetting::getSettingName)
-                .collect(Collectors.toSet());
-        // RATE of Resize has to be added too due to API constraint
-        enumSettingNames.add(GlobalSettingSpecs.RateOfResize.getSettingName());
-        final Set<String> jsonSettingNames = specStore.getAllSettingSpecs()
-                .stream()
-                .map(SettingSpec::getName)
-                .collect(Collectors.toSet());
-        Assert.assertEquals(enumSettingNames, jsonSettingNames);
     }
 
     /**

@@ -4,6 +4,7 @@ package stats;
 option java_package = "com.vmturbo.common.protobuf.stats";
 
 import "group/GroupDTO.proto";
+import "setting/Setting.proto";
 
 message EntityStatsRequest {
     // The entities to gather stats for. These could be the IDs of individual entities, a plan,
@@ -163,6 +164,18 @@ message SaveClusterHeadroomRequest {
 message SaveClusterHeadroomResponse {
 }
 
+message GetStatsDataRetentionSettingsRequest {
+}
+
+message SetStatsDataRetentionSettingRequest {
+    optional string retentionSettingName = 1;
+    optional int32 retentionSettingValue = 2;
+}
+
+message SetStatsDataRetentionSettingResponse {
+    optional setting.Setting newSetting = 1;
+}
+
 // the gRPC API entry points for the Stats service
 service StatsHistoryService {
 
@@ -198,4 +211,10 @@ service StatsHistoryService {
 
     // Delete plan stats
     rpc DeletePlanStats(DeletePlanStatsRequest) returns (DeletePlanStatsResponse);
+
+    // Get Data Retention settings
+    rpc GetStatsDataRetentionSettings(GetStatsDataRetentionSettingsRequest) returns (stream setting.Setting);
+
+    // Set Data Retention settings
+    rpc SetStatsDataRetentionSetting(SetStatsDataRetentionSettingRequest) returns (SetStatsDataRetentionSettingResponse);
 }

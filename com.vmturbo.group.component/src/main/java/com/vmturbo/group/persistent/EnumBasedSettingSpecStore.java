@@ -11,12 +11,12 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 
+import com.vmturbo.common.protobuf.setting.EntitySettingSpecs;
+import com.vmturbo.common.protobuf.setting.GlobalSettingSpecs;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
-import com.vmturbo.group.api.GlobalSettingSpecs;
-import com.vmturbo.group.api.SettingPolicySetting;
 
 /**
- * Setting spec store, based on enum ({@link SettingPolicySetting}) and
+ * Setting spec store, based on enum ({@link EntitySettingSpecs}) and
  * ({@link GlobalSettingSpecs}).
  */
 @Immutable
@@ -27,7 +27,7 @@ public class EnumBasedSettingSpecStore implements SettingSpecStore {
     public EnumBasedSettingSpecStore() {
 
         Map<String, SettingSpec> specs = new HashMap<>();
-        for (SettingPolicySetting setting : SettingPolicySetting.values()) {
+        for (EntitySettingSpecs setting : EntitySettingSpecs.values()) {
             specs.put(setting.getSettingName(), setting.createSettingSpec());
         }
         for (GlobalSettingSpecs setting : GlobalSettingSpecs.values()) {

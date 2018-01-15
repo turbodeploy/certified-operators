@@ -9,13 +9,13 @@ import java.util.Map;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.action.ActionDTOREST.ActionMode;
+import com.vmturbo.common.protobuf.setting.EntitySettingSpecs;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.group.api.SettingPolicySetting;
 
 public class EntitySettingsCollectionTest {
 
@@ -23,12 +23,12 @@ public class EntitySettingsCollectionTest {
     private static final long DEFAULT_SETTING_ID = 23346;
 
     private static final Setting MOVE_DISABLED_SETTING = Setting.newBuilder()
-        .setSettingSpecName(SettingPolicySetting.Move.getSettingName())
+        .setSettingSpecName(EntitySettingSpecs.Move.getSettingName())
         .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()))
         .build();
 
     private static final Setting MOVE_AUTOMATIC_SETTING = Setting.newBuilder()
-        .setSettingSpecName(SettingPolicySetting.Move.getSettingName())
+        .setSettingSpecName(EntitySettingSpecs.Move.getSettingName())
         .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.AUTOMATIC.name()))
         .build();
 
@@ -63,11 +63,11 @@ public class EntitySettingsCollectionTest {
         final EntitySettingsCollection settingsCollection =
             new EntitySettingsCollection(Collections.emptyMap(), settingsByEntity);
 
-        final Setting moveSettingA = settingsCollection.getEntitySetting(PARENT_ENTITY, SettingPolicySetting.Move).get();
+        final Setting moveSettingA = settingsCollection.getEntitySetting(PARENT_ENTITY, EntitySettingSpecs.Move).get();
         final Setting moveSettingB = settingsCollection.getEntitySetting(PARENT_ENTITY.getOid(),
-            SettingPolicySetting.Move).get();
+            EntitySettingSpecs.Move).get();
         final Setting moveSettingC = settingsCollection.getEntitySetting(PARENT_ENTITY.getOid(),
-            SettingPolicySetting.Move.getSettingName()).get();
+            EntitySettingSpecs.Move.getSettingName()).get();
 
         assertEquals(MOVE_DISABLED_SETTING, moveSettingA);
         assertEquals(moveSettingA, moveSettingB);
@@ -79,7 +79,7 @@ public class EntitySettingsCollectionTest {
         final EntitySettingsCollection settingsCollection =
             new EntitySettingsCollection(defaultSettingPolicies, noUserSettings);
 
-        final Setting moveSetting = settingsCollection.getEntitySetting(PARENT_ENTITY, SettingPolicySetting.Move).get();
+        final Setting moveSetting = settingsCollection.getEntitySetting(PARENT_ENTITY, EntitySettingSpecs.Move).get();
         assertEquals(MOVE_AUTOMATIC_SETTING, moveSetting);
     }
 
@@ -88,7 +88,7 @@ public class EntitySettingsCollectionTest {
         final EntitySettingsCollection settingsCollection =
             new EntitySettingsCollection(defaultSettingPolicies, settingsByEntity);
 
-        final Setting moveSetting = settingsCollection.getEntitySetting(PARENT_ENTITY, SettingPolicySetting.Move).get();
+        final Setting moveSetting = settingsCollection.getEntitySetting(PARENT_ENTITY, EntitySettingSpecs.Move).get();
         assertEquals(MOVE_DISABLED_SETTING, moveSetting);
     }
 
@@ -97,15 +97,15 @@ public class EntitySettingsCollectionTest {
         final EntitySettingsCollection settingsCollection =
             new EntitySettingsCollection(Collections.emptyMap(), Collections.emptyMap());
 
-        assertFalse(settingsCollection.getEntitySetting(PARENT_ENTITY, SettingPolicySetting.Move).isPresent());
+        assertFalse(settingsCollection.getEntitySetting(PARENT_ENTITY, EntitySettingSpecs.Move).isPresent());
     }
-    
+
     @Test
     public void testGetEntitySettingNoUserOrDefault() {
         final EntitySettingsCollection settingsCollection =
             new EntitySettingsCollection(Collections.emptyMap(), noUserSettings);
 
-        assertFalse(settingsCollection.getEntitySetting(PARENT_ENTITY, SettingPolicySetting.Move).isPresent());
+        assertFalse(settingsCollection.getEntitySetting(PARENT_ENTITY, EntitySettingSpecs.Move).isPresent());
     }
 
     @Test
@@ -113,7 +113,7 @@ public class EntitySettingsCollectionTest {
         final EntitySettingsCollection settingsCollection =
             new EntitySettingsCollection(defaultSettingPolicies, settingsByEntity);
 
-        assertFalse(settingsCollection.getEntitySetting(PARENT_ENTITY, SettingPolicySetting.StorageAmountUtilization)
+        assertFalse(settingsCollection.getEntitySetting(PARENT_ENTITY, EntitySettingSpecs.StorageAmountUtilization)
             .isPresent());
     }
 }

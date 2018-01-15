@@ -1,4 +1,4 @@
-package com.vmturbo.group.api;
+package com.vmturbo.common.protobuf.setting;
 
 import java.util.Collections;
 import java.util.Map;

@@ -6,10 +6,10 @@ import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.setting.EntitySettingSpecs;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
-import com.vmturbo.group.api.SettingPolicySetting;
 
 /**
  * Provides services for looking up a specific setting belonging to a specific entity.
@@ -65,11 +65,11 @@ public class EntitySettingsCollection {
      * Get a setting for an entity.
      *
      * @param oid The object ID of the entity.
-     * @param settingName The {@link SettingPolicySetting} describing the name of the setting to look up.
+     * @param settingName The {@link EntitySettingSpecs} describing the name of the setting to look up.
      * @return The setting with the given name for the entity with the given OID.
      *         Returns {@link Optional#empty()} if no such entity/setting pair exists.
      */
-    public Optional<Setting> getEntitySetting(final long oid, @Nonnull final SettingPolicySetting settingName) {
+    public Optional<Setting> getEntitySetting(final long oid, @Nonnull final EntitySettingSpecs settingName) {
         return getEntitySetting(oid, settingName.getSettingName());
     }
 
@@ -77,12 +77,12 @@ public class EntitySettingsCollection {
      * Get a setting for an entity.
      *
      * @param topologyEntity The {@link TopologyEntity} whose setting should be looked up.
-     * @param settingName The {@link SettingPolicySetting} describing the name of the setting to look up.
+     * @param settingName The {@link EntitySettingSpecs} describing the name of the setting to look up.
      * @return The setting with the given name for the entity with the given OID.
      *         Returns {@link Optional#empty()} if no such entity/setting pair exists.
      */
     public Optional<Setting> getEntitySetting(@Nonnull final TopologyEntity topologyEntity,
-                                              @Nonnull final SettingPolicySetting settingName) {
+                                              @Nonnull final EntitySettingSpecs settingName) {
         return getEntitySetting(topologyEntity.getOid(), settingName);
     }
 
