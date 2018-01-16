@@ -323,6 +323,7 @@ public class AnalysisServer implements AutoCloseable {
             // message with topology id back to notify ops manager
             results = AnalysisResults.newBuilder().setTopologyId(topologyId).setAnalysisFailed(true)
                             .build();
+            return results;
         }
         // Send back the results
         return results;
