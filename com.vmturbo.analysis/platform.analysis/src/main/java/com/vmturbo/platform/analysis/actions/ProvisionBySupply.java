@@ -15,6 +15,7 @@ import org.checkerframework.dataflow.qual.Pure;
 
 import com.google.common.hash.Hashing;
 import com.vmturbo.platform.analysis.economy.Basket;
+import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
@@ -136,30 +137,30 @@ public class ProvisionBySupply extends ActionImpl {
         // Update commodities sold
         for (int i = 0 ; i < getModelSeller().getBasketSold().size() ; ++i) {
             // TODO: also copy overhead
-
+            CommoditySold provCommSold = getProvisionedSeller().getCommoditiesSold().get(i);
+            CommoditySold modelCommSold = getModelSeller().getCommoditiesSold().get(i);
             // Copy commodity sold attributes
-            getProvisionedSeller().getCommoditiesSold().get(i).setCapacity(
-                getModelSeller().getCommoditiesSold().get(i).getCapacity());
-            getProvisionedSeller().getCommoditiesSold().get(i).setQuantity(
-                    getModelSeller().getCommoditiesSold().get(i).getQuantity());
-            getProvisionedSeller().getCommoditiesSold().get(i).setThin(
-                getModelSeller().getCommoditiesSold().get(i).isThin());
+            provCommSold.setCapacity(modelCommSold.getCapacity());
+            provCommSold.setQuantity(modelCommSold.getQuantity());
+            provCommSold.setThin(modelCommSold.isThin());
 
             // Copy commodity sold settings
-            getProvisionedSeller().getCommoditiesSold().get(i).getSettings().setCapacityIncrement(
-                getModelSeller().getCommoditiesSold().get(i).getSettings().getCapacityIncrement());
-            getProvisionedSeller().getCommoditiesSold().get(i).getSettings().setCapacityLowerBound(
-                getModelSeller().getCommoditiesSold().get(i).getSettings().getCapacityLowerBound());
-            getProvisionedSeller().getCommoditiesSold().get(i).getSettings().setCapacityUpperBound(
-                getModelSeller().getCommoditiesSold().get(i).getSettings().getCapacityUpperBound());
-            getProvisionedSeller().getCommoditiesSold().get(i).getSettings().setUtilizationUpperBound(
-                getModelSeller().getCommoditiesSold().get(i).getSettings().getUtilizationUpperBound());
-            getProvisionedSeller().getCommoditiesSold().get(i).getSettings().setOrigUtilizationUpperBound(
-                getModelSeller().getCommoditiesSold().get(i).getSettings().getOrigUtilizationUpperBound());
-            getProvisionedSeller().getCommoditiesSold().get(i).getSettings().setResizable(
-                getModelSeller().getCommoditiesSold().get(i).getSettings().isResizable());
-            getProvisionedSeller().getCommoditiesSold().get(i).getSettings().setPriceFunction(
-                getModelSeller().getCommoditiesSold().get(i).getSettings().getPriceFunction());
+            provCommSold.getSettings().setCapacityIncrement(
+                modelCommSold.getSettings().getCapacityIncrement());
+            provCommSold.getSettings().setCapacityLowerBound(
+                modelCommSold.getSettings().getCapacityLowerBound());
+            provCommSold.getSettings().setCapacityUpperBound(
+                modelCommSold.getSettings().getCapacityUpperBound());
+            provCommSold.getSettings().setUtilizationUpperBound(
+                modelCommSold.getSettings().getUtilizationUpperBound());
+            provCommSold.getSettings().setOrigUtilizationUpperBound(
+                modelCommSold.getSettings().getOrigUtilizationUpperBound());
+            provCommSold.getSettings().setResizable(
+                modelCommSold.getSettings().isResizable());
+            provCommSold.getSettings().setPriceFunction(
+                modelCommSold.getSettings().getPriceFunction());
+            provCommSold.getSettings().setUpdatingFunction(
+               modelCommSold.getSettings().getUpdatingFunction());
         }
 
         Utility.adjustOverhead(getModelSeller(), getProvisionedSeller(), getEconomy());

@@ -270,7 +270,7 @@ public class Move extends MoveBase implements Action { // inheritance for code r
             for (ShoppingList customer : traderToUpdate.getCustomers()) {
                 // TODO: this needs to be changed to something that takes matching but unequal
                 // commodities into account.
-                int specIndex = economy.getMarket(customer).getBasket().indexOf(specificationSold);
+                int specIndex = customer.getBasket().indexOf(specificationSold);
                 if (specIndex >= 0) {
                     double[] tempUpdatedQnty = explicitCombinator.operate(customer, specIndex,
                                     commoditySold, traderToUpdate, economy, take);
