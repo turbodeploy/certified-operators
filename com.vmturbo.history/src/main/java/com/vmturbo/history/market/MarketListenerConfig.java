@@ -15,6 +15,7 @@ import org.springframework.context.annotation.Import;
 
 import com.vmturbo.history.HistoryComponent;
 import com.vmturbo.history.api.HistoryApiConfig;
+import com.vmturbo.history.db.HistoryDbConfig;
 import com.vmturbo.history.stats.PriceIndexWriter;
 import com.vmturbo.history.stats.StatsConfig;
 import com.vmturbo.history.topology.PlanTopologyEntitiesListener;
@@ -33,7 +34,7 @@ import com.vmturbo.market.component.api.impl.MarketClientConfig.Subscription;
 public class MarketListenerConfig {
 
     @Autowired
-    private HistoryComponent historyComponent;
+    private HistoryDbConfig historyDbConfig;
 
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
@@ -111,7 +112,7 @@ public class MarketListenerConfig {
     PriceIndexWriter priceIndexWriter() {
         return new PriceIndexWriter(
                 statsConfig.topologySnapshotRegistry(),
-                historyComponent.historyDbIO(),
+                historyDbConfig.historyDbIO(),
                 writeTopologyChunkSize);
     }
 }

@@ -20,9 +20,11 @@ import org.springframework.web.socket.server.standard.ServerEndpointExporter;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 
+import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.history.api.HistoryApiConfig;
 import com.vmturbo.history.api.ApiSecurityConfig;
+import com.vmturbo.history.db.HistoryDbConfig;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.market.MarketListenerConfig;
 import com.vmturbo.history.stats.StatsConfig;
@@ -33,7 +35,7 @@ import com.vmturbo.components.common.health.sql.SQLDBHealthMonitor;
 @Configuration("theComponent")
 @EnableAutoConfiguration
 @EnableDiscoveryClient
-@Import({TopologyListenerConfig.class, MarketListenerConfig.class,
+@Import({HistoryDbConfig.class, TopologyListenerConfig.class, MarketListenerConfig.class,
         StatsConfig.class, HistoryApiConfig.class, ApiSecurityConfig.class})
 public class HistoryComponent extends BaseVmtComponent {
 
@@ -41,6 +43,9 @@ public class HistoryComponent extends BaseVmtComponent {
 
     @Value("${spring.application.name}")
     private String componentName;
+
+    @Autowired
+    private HistoryDbConfig historyDbConfig;
 
     @Autowired
     private StatsConfig statsConfig;
@@ -52,7 +57,8 @@ public class HistoryComponent extends BaseVmtComponent {
     private void setup() {
         log.info("Adding MariaDB health check to the component health monitor.");
         getHealthMonitor().addHealthCheck("MariaDB",
-                new SQLDBHealthMonitor(mariaHealthCheckIntervalSeconds,historyDbIO()::connection));
+                new SQLDBHealthMonitor(mariaHealthCheckIntervalSeconds,
+                        historyDbConfig.historyDbIO()::connection));
     }
 
     public static void main(String[] args) {
@@ -75,7 +81,7 @@ public class HistoryComponent extends BaseVmtComponent {
     @Override
     public void onStartComponent() {
         try {
-            new HistoryDbMigration(historyDbIO())
+            new HistoryDbMigration(historyDbConfig.historyDbIO())
                     .migrate();
         } catch (VmtDbException e) {
             log.error("DB Initialization error", e);
@@ -83,13 +89,6 @@ public class HistoryComponent extends BaseVmtComponent {
             return;
         }
         super.onStartComponent();
-    }
-
-    @Bean
-    public HistorydbIO historyDbIO() {
-        final HistorydbIO dbIO = new HistorydbIO();
-        HistorydbIO.setSharedInstance(dbIO);
-        return dbIO;
     }
 
     @Override

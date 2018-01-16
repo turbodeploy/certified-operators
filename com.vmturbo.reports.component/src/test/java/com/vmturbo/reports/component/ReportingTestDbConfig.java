@@ -8,7 +8,6 @@ import org.flywaydb.core.Flyway;
 import org.jooq.conf.MappedSchema;
 import org.jooq.impl.DefaultConfiguration;
 import org.mariadb.jdbc.MySQLDataSource;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -41,7 +40,6 @@ public class ReportingTestDbConfig extends TestSQLDatabaseConfig {
     @Bean
     public DataSource reportingDatasource() {
         final MySQLDataSource dataSource = new MySQLDataSource();
-        DBPasswordUtil dbPasswordUtil = new DBPasswordUtil();
 
         dataSource.setUrl(getDbUrl() + '/' + testSchemaName());
         dataSource.setUser("root");

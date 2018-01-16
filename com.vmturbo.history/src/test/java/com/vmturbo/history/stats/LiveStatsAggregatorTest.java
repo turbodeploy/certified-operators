@@ -2,6 +2,7 @@ package com.vmturbo.history.stats;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
+import static org.mockito.Mockito.when;
 
 import org.jooq.InsertSetMoreStep;
 import org.junit.BeforeClass;
@@ -10,6 +11,7 @@ import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableList;
 
+import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.topology.TopologySnapshotRegistry;
@@ -72,7 +74,10 @@ public class LiveStatsAggregatorTest {
      * @return an instance of HistorydbIO
      */
     private static HistorydbIO mockdbIO() {
-        HistorydbIO real = new HistorydbIO();
+        // always return the default DB password for this test
+        DBPasswordUtil dbPasswordUtilMock = Mockito.mock(DBPasswordUtil.class);
+        when(dbPasswordUtilMock.getRootPassword()).thenReturn(DBPasswordUtil.obtainDefaultPW());
+        HistorydbIO real = new HistorydbIO(dbPasswordUtilMock);
         HistorydbIO mock = Mockito.mock(HistorydbIO.class);
         for (int i = 0; i < 100; i++) {
             Mockito.when(mock.getEntityType(i)).thenReturn(real.getEntityType(i));

@@ -127,19 +127,11 @@ public class HistorydbIO extends BasedbIO {
     @Value("${readonlyUserName:vmtreader}")
     private String readonlyUserName;
 
-    private String readonlyPassword;
-
     @Value("${queryTimeoutSeconds:120}")
     private int queryTimeout_sec;
 
     @Value("${migrationTimeoutSeconds:600}")
     private int migrationTimeout_sec;
-
-    @Value("${authHost:auth}")
-    public String authHost;
-
-    @Value("${authPort:8080}")
-    public int authPort;
 
     // Mapping from the retention settings DB column name -> Setting name
     private ImmutableBiMap<String, String> retentionDbColumnNameToSettingName =
@@ -168,11 +160,8 @@ public class HistorydbIO extends BasedbIO {
     /**
      * Constructs the HistorydbIO.
      */
-    public HistorydbIO() {
-        // We only use it once - when we grant the read privileges to vmtdb.* to it.
-        // We do not need to use that further.
-        dbPasswordUtil = new DBPasswordUtil();
-        readonlyPassword = DBPasswordUtil.obtainDefaultPW();
+    public HistorydbIO(DBPasswordUtil dbPasswordUtil) {
+        this.dbPasswordUtil = dbPasswordUtil;
     }
 
     @Override
@@ -200,7 +189,7 @@ public class HistorydbIO extends BasedbIO {
      */
     @Override
     public String getPassword() {
-        return dbPasswordUtil.getRootPassword(authHost, authPort);
+        return dbPasswordUtil.getRootPassword();
     }
 
     @Override
@@ -235,7 +224,7 @@ public class HistorydbIO extends BasedbIO {
 
     @Override
     public String getReadOnlyPassword() {
-        return readonlyPassword;
+        return DBPasswordUtil.obtainDefaultPW();
     }
 
     @Override

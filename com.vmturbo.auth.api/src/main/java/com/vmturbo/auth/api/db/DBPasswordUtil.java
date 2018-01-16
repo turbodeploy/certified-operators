@@ -4,7 +4,6 @@ import java.nio.charset.Charset;
 import java.util.Base64;
 import java.util.Objects;
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -44,11 +43,18 @@ public class DBPasswordUtil {
      * The synchronous client-side HTTP access.
      */
     private final RestTemplate restTemplate;
+    private final String authHost;
+    private final int authPort;
 
     /**
      * Constructs the DBUtil.
+     *
+     * @param authHost The auth component host.
+     * @param authPort The auth component port.
      */
-    public DBPasswordUtil() {
+    public DBPasswordUtil(String authHost, int authPort) {
+        this.authHost = authHost;
+        this.authPort = authPort;
         restTemplate = new RestTemplate();
         final Jaxb2RootElementHttpMessageConverter msgConverter =
                 new Jaxb2RootElementHttpMessageConverter();
@@ -81,12 +87,9 @@ public class DBPasswordUtil {
      * If the auth component is down and the database root password has been changed, there will be
      * no security implications, as the component will not be able to access the database..
      *
-     * @param authHost The auth component host.
-     * @param authPort The auth component port.
      * @return The database root password.
      */
-    public synchronized @Nonnull String getRootPassword(final @Nonnull String authHost,
-                                                        final int authPort) {
+    public synchronized @Nonnull String getRootPassword() {
         if (dbRootPassword == null || Objects.equals(dbRootPassword, obtainDefaultPW())) {
             // Obtains the database root password.
             // Since the password change in the database will require the JDBC pools to be

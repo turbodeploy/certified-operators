@@ -12,7 +12,6 @@ import static org.mockito.Mockito.when;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Properties;
 import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
@@ -29,9 +28,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.context.support.PropertySourcesPlaceholderConfigurer;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
@@ -68,10 +65,10 @@ import com.vmturbo.reports.util.SchemaUtil;
  * Write live stats to real DB table.
  **/
 @RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(classes = LiveStatsDBTest.TestConfig.class)
+@ContextConfiguration(classes = DbTestConfig.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 public class LiveStatsDBTest {
 
-    private static final String TEST_DB_NAME = "vmt_testdb_" + System.currentTimeMillis();
     private static final Logger logger = LogManager.getLogger();
 
     private static final String XL_DB_MIGRATION_PATH = "db/xl-migrations";
@@ -89,25 +86,31 @@ public class LiveStatsDBTest {
     private static final int NUMBER_OF_ENTITIES = 93;
 
     @Autowired
+    private DbTestConfig dbTestConfig;
+
+    private String testDbName;
+
     private HistorydbIO historydbIO;
 
     @Before
     public void before() throws Throwable {
         IDGen.initPrefix(0);
-        HistorydbIO.mappedSchemaForTests = TEST_DB_NAME;
-        System.out.println("Initializing DB - " + TEST_DB_NAME);
+        testDbName = dbTestConfig.testDbName();
+        historydbIO = dbTestConfig.historydbIO();
+        HistorydbIO.mappedSchemaForTests = testDbName;
+        System.out.println("Initializing DB - " + testDbName);
         HistorydbIO.setSharedInstance(historydbIO);
-        historydbIO.init(true, null, TEST_DB_NAME, XL_DB_MIGRATION_PATH);
+        historydbIO.init(true, null, testDbName, XL_DB_MIGRATION_PATH);
     }
 
     @After
     public void after() throws Throwable {
         DBConnectionPool.instance.getInternalPool().close();
         try {
-            SchemaUtil.dropDb(TEST_DB_NAME);
-            System.out.println("Dropped DB - " + TEST_DB_NAME);
+            SchemaUtil.dropDb(testDbName);
+            System.out.println("Dropped DB - " + testDbName);
         } catch (VmtDbException e) {
-            logger.error("Problem dropping db: " + TEST_DB_NAME, e);
+            logger.error("Problem dropping db: " + testDbName, e);
         }
     }
 
@@ -211,37 +214,12 @@ public class LiveStatsDBTest {
         assertThat(count, is(expected));
     }
 
-    private int checkTableCount(Table tableToQuery, int numberOfEntities) throws VmtDbException {
+    private void checkTableCount(Table tableToQuery, int numberOfEntities) throws VmtDbException {
         SelectJoinStep<Record1<Integer>> getRecordCount = HistorydbIO.getJooqBuilder().selectCount()
                 .from(tableToQuery);
         Result<? extends Record> countResult = historydbIO.execute(BasedbIO.Style.IMMEDIATE,
                 getRecordCount);
         Integer count = (Integer)countResult.getValue(0, 0, 0L);
         assertThat(count, is(numberOfEntities));
-        return count;
     }
-
-    @Configuration
-    public static class TestConfig {
-        @Bean
-        public static PropertySourcesPlaceholderConfigurer propertiesResolver() {
-            final PropertySourcesPlaceholderConfigurer propertiesConfigureer
-                    = new PropertySourcesPlaceholderConfigurer();
-
-            Properties properties = new Properties();
-            properties.setProperty("databaseName", TEST_DB_NAME);
-            properties.setProperty("adapter", "mysql");
-            properties.setProperty("hostName", "localhost");
-
-            propertiesConfigureer.setProperties(properties);
-            return propertiesConfigureer;
-        }
-
-        @Bean
-        HistorydbIO historydbIO() {
-            return new HistorydbIO();
-        }
-    }
-
-
 }

@@ -44,11 +44,11 @@ public class ReportingDbConfig extends SQLDatabaseConfig {
     @Bean
     public DataSource reportingDatasource() {
         final MySQLDataSource dataSource = new MySQLDataSource();
-        DBPasswordUtil dbPasswordUtil = new DBPasswordUtil();
+        DBPasswordUtil dbPasswordUtil = new DBPasswordUtil(authHost, authPort);
 
         dataSource.setUrl(getDbUrl() + '/' + vmtDbSchema);
         dataSource.setUser(dbUsername);
-        dataSource.setPassword(dbPasswordUtil.getRootPassword(authHost, authPort));
+        dataSource.setPassword(dbPasswordUtil.getRootPassword());
         return dataSource;
     }
 

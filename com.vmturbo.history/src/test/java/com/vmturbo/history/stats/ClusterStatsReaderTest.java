@@ -1,29 +1,21 @@
 package com.vmturbo.history.stats;
 
-import static com.vmturbo.reports.db.StringConstants.PROPERTY_TYPE;
 import static com.vmturbo.reports.db.abstraction.tables.ClusterStatsByDay.CLUSTER_STATS_BY_DAY;
 import static com.vmturbo.reports.db.abstraction.tables.ClusterStatsByMonth.CLUSTER_STATS_BY_MONTH;
-import static com.vmturbo.reports.db.jooq.JooqUtils.dField;
-import static com.vmturbo.reports.db.jooq.JooqUtils.str;
 import static org.junit.Assert.assertEquals;
 
 import java.math.BigDecimal;
 import java.sql.Date;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Optional;
-import java.util.Properties;
 
-import org.jooq.Condition;
 import org.jooq.InsertSetMoreStep;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.context.support.PropertySourcesPlaceholderConfigurer;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
@@ -40,24 +32,30 @@ import com.vmturbo.reports.util.SchemaUtil;
  * Unit test for {@link ClusterStatsReader}
  */
 @RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(classes = ClusterStatsReaderTest.TestConfig.class)
+@ContextConfiguration(classes = DbTestConfig.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 public class ClusterStatsReaderTest {
+
     @Autowired
+    private DbTestConfig dbTestConfig;
+
+    private String testDbName;
+
     private HistorydbIO historydbIO;
 
     private ClusterStatsReader clusterStatsReader;
-
-    private static final String TEST_DB_NAME = "vmt_testdb_" + System.currentTimeMillis();
 
     private String clusterId1 = "1234567890";
     private String clusterId2 = "3333333333";
 
     @Before
     public void setup() throws Exception {
-        HistorydbIO.mappedSchemaForTests = TEST_DB_NAME;
-        System.out.println("Initializing DB - " + TEST_DB_NAME);
+        testDbName = dbTestConfig.testDbName();
+        historydbIO = dbTestConfig.historydbIO();
+        HistorydbIO.mappedSchemaForTests = testDbName;
+        System.out.println("Initializing DB - " + testDbName);
         HistorydbIO.setSharedInstance(historydbIO);
-        historydbIO.init(true, null, TEST_DB_NAME);
+        historydbIO.init(true, null, testDbName);
         clusterStatsReader = new ClusterStatsReader(historydbIO);
         populateTestData();
     }
@@ -66,10 +64,10 @@ public class ClusterStatsReaderTest {
     public void after() throws Throwable {
         DBConnectionPool.instance.getInternalPool().close();
         try {
-            SchemaUtil.dropDb(TEST_DB_NAME);
-            System.out.println("Dropped DB - " + TEST_DB_NAME);
+            SchemaUtil.dropDb(testDbName);
+            System.out.println("Dropped DB - " + testDbName);
         } catch (VmtDbException e) {
-            System.out.println("Problem dropping db: " + TEST_DB_NAME);
+            System.out.println("Problem dropping db: " + testDbName);
         }
     }
 
@@ -172,27 +170,5 @@ public class ClusterStatsReaderTest {
                         Date.valueOf("2017-12-15").getTime(),
                         commodityNames);
         assertEquals(6, result.size());
-    }
-
-    @Configuration
-    public static class TestConfig {
-        @Bean
-        public static PropertySourcesPlaceholderConfigurer propertiesResolver() {
-            final PropertySourcesPlaceholderConfigurer propertiesConfigureer
-                    = new PropertySourcesPlaceholderConfigurer();
-
-            Properties properties = new Properties();
-            properties.setProperty("databaseName", TEST_DB_NAME);
-            properties.setProperty("adapter", "mysql");
-            properties.setProperty("hostName", "localhost");
-
-            propertiesConfigureer.setProperties(properties);
-            return propertiesConfigureer;
-        }
-
-        @Bean
-        HistorydbIO historydbIO() {
-            return new HistorydbIO();
-        }
     }
 }

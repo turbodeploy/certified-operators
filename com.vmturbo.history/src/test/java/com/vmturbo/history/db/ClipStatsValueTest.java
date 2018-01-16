@@ -2,9 +2,13 @@ package com.vmturbo.history.db;
 
 import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertThat;
+import static org.mockito.Mockito.when;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.mockito.Mockito;
+
+import com.vmturbo.auth.api.db.DBPasswordUtil;
 
 /**
  * Tests for the stats value clipping function. Clipping ensures that the stats value to be
@@ -20,7 +24,10 @@ public class ClipStatsValueTest {
 
     @BeforeClass
     public static void setup() {
-        historydbIO = new HistorydbIO();
+        // always return the default DB password for this test
+        DBPasswordUtil dbPasswordUtilMock = Mockito.mock(DBPasswordUtil.class);
+        when(dbPasswordUtilMock.getRootPassword()).thenReturn(DBPasswordUtil.obtainDefaultPW());
+        historydbIO = new HistorydbIO(dbPasswordUtilMock);
     }
 
     /**

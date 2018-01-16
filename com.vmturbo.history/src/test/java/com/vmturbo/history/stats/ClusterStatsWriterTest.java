@@ -5,7 +5,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import java.math.BigDecimal;
-import java.util.Properties;
 
 import org.jooq.Result;
 import org.jooq.SelectConditionStep;
@@ -14,9 +13,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.context.support.PropertySourcesPlaceholderConfigurer;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
@@ -31,23 +28,29 @@ import com.vmturbo.reports.util.SchemaUtil;
  * Unit test for {@link ClusterStatsWriter}
  */
 @RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(classes = ClusterStatsWriterTest.TestConfig.class)
+@ContextConfiguration(classes = DbTestConfig.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 public class ClusterStatsWriterTest {
+
     @Autowired
+    private DbTestConfig dbTestConfig;
+
     private HistorydbIO historydbIO;
 
-    private ClusterStatsWriter clusterStatsWriter;
+    private String testDbName;
 
-    private static final String TEST_DB_NAME = "vmt_testdb_" + System.currentTimeMillis();
+    private ClusterStatsWriter clusterStatsWriter;
 
     private static final String XL_DB_MIGRATION_PATH = "db/xl-migrations";
 
     @Before
     public void setup() throws Exception {
-        HistorydbIO.mappedSchemaForTests = TEST_DB_NAME;
-        System.out.println("Initializing DB - " + TEST_DB_NAME);
+        testDbName = dbTestConfig.testDbName();
+        historydbIO = dbTestConfig.historydbIO();
+        HistorydbIO.mappedSchemaForTests = testDbName;
+        System.out.println("Initializing DB - " + testDbName);
         HistorydbIO.setSharedInstance(historydbIO);
-        historydbIO.init(true, null, TEST_DB_NAME, XL_DB_MIGRATION_PATH);
+        historydbIO.init(true, null, testDbName, XL_DB_MIGRATION_PATH);
         clusterStatsWriter = new ClusterStatsWriter(historydbIO);
     }
 
@@ -55,10 +58,10 @@ public class ClusterStatsWriterTest {
     public void after() throws Throwable {
         DBConnectionPool.instance.getInternalPool().close();
         try {
-            SchemaUtil.dropDb(TEST_DB_NAME);
-            System.out.println("Dropped DB - " + TEST_DB_NAME);
+            SchemaUtil.dropDb(testDbName);
+            System.out.println("Dropped DB - " + testDbName);
         } catch (VmtDbException e) {
-            System.out.println("Problem dropping db: " + TEST_DB_NAME);
+            System.out.println("Problem dropping db: " + testDbName);
         }
     }
 
@@ -98,27 +101,5 @@ public class ClusterStatsWriterTest {
         // Still one record but it has the new value
         assertEquals(1, statsRecords.size());
         assertEquals(value2, statsRecords.get(0).getValue(CLUSTER_STATS_BY_DAY.VALUE));
-    }
-
-    @Configuration
-    public static class TestConfig {
-        @Bean
-        public static PropertySourcesPlaceholderConfigurer propertiesResolver() {
-            final PropertySourcesPlaceholderConfigurer propertiesConfigureer
-                    = new PropertySourcesPlaceholderConfigurer();
-
-            Properties properties = new Properties();
-            properties.setProperty("databaseName", TEST_DB_NAME);
-            properties.setProperty("adapter", "mysql");
-            properties.setProperty("hostName", "localhost");
-
-            propertiesConfigureer.setProperties(properties);
-            return propertiesConfigureer;
-        }
-
-        @Bean
-        HistorydbIO historydbIO() {
-            return new HistorydbIO();
-        }
     }
 }
