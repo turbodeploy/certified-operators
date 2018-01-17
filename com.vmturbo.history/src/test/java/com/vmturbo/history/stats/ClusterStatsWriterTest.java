@@ -5,6 +5,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import java.math.BigDecimal;
+import java.util.Properties;
 
 import org.jooq.Result;
 import org.jooq.SelectConditionStep;
@@ -14,6 +15,9 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.support.PropertySourcesPlaceholderConfigurer;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
@@ -28,8 +32,8 @@ import com.vmturbo.reports.util.SchemaUtil;
  * Unit test for {@link ClusterStatsWriter}
  */
 @RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(classes = DbTestConfig.class)
-@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
+@ContextConfiguration(classes = {DbTestConfig.class})
+@DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_EACH_TEST_METHOD)
 public class ClusterStatsWriterTest {
 
     @Autowired

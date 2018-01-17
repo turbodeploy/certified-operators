@@ -236,6 +236,7 @@ services:
     image: turbonomic/action-orchestrator
     depends_on:
       - db
+      - auth
       - clustermgr
       - kafka1
     ports:
@@ -264,6 +265,7 @@ services:
       - db
       - clustermgr
       - kafka1
+      - auth
     environment:
       component_type: topology-processor
       instance_id: topology-processor-1
@@ -354,6 +356,7 @@ services:
       - arangodb
       - clustermgr
       - db
+      - auth
     volumes:
       - group:/home/turbonomic/data
     environment:
@@ -378,6 +381,7 @@ services:
       - db
       - clustermgr
       - kafka1
+      - auth
     volumes:
       - history:/home/turbonomic/data
     environment:
@@ -402,6 +406,7 @@ services:
       - db
       - clustermgr
       - kafka1
+      - auth
     volumes:
       - plan-orchestrator:/home/turbonomic/data
     environment:
@@ -424,6 +429,7 @@ services:
     depends_on:
       - db
       - clustermgr
+      - auth
     volumes:
       - reporting:/home/turbonomic/data
     environment:

@@ -1,8 +1,9 @@
 package com.vmturbo.auth.api.db;
 
 import java.nio.charset.Charset;
+import java.time.Duration;
 import java.util.Base64;
-import java.util.Objects;
+
 import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
@@ -45,16 +46,19 @@ public class DBPasswordUtil {
     private final RestTemplate restTemplate;
     private final String authHost;
     private final int authPort;
+    private final int authRetryDelaySecs;
 
     /**
      * Constructs the DBUtil.
      *
      * @param authHost The auth component host.
      * @param authPort The auth component port.
+     * @param authRetryDelaySecs number of seconds to delay between connection retries
      */
-    public DBPasswordUtil(String authHost, int authPort) {
+    public DBPasswordUtil(String authHost, int authPort, int authRetryDelaySecs) {
         this.authHost = authHost;
         this.authPort = authPort;
+        this.authRetryDelaySecs = authRetryDelaySecs;
         restTemplate = new RestTemplate();
         final Jaxb2RootElementHttpMessageConverter msgConverter =
                 new Jaxb2RootElementHttpMessageConverter();
@@ -76,41 +80,45 @@ public class DBPasswordUtil {
     }
 
     /**
-     * Retrieves the database root password.
+     * Retrieves the database root password from the Auth component.
+     *
      * In case we have an error obtaining the database root password from the auth component,
-     * return the default.
-     * This could happen in one of two cases:
-     * <ul>
-     * <li>We are running unit tests</li>
-     * <li>The auth component is down</li>
-     * </ul>
+     * retry continually with a configured delay between each retry.
+     *
      * If the auth component is down and the database root password has been changed, there will be
      * no security implications, as the component will not be able to access the database..
      *
      * @return The database root password.
      */
     public synchronized @Nonnull String getRootPassword() {
-        if (dbRootPassword == null || Objects.equals(dbRootPassword, obtainDefaultPW())) {
+        for (int i = 1; dbRootPassword == null; i++) {
             // Obtains the database root password.
             // Since the password change in the database will require the JDBC pools to be
             // restarted, that implies we need to restart the history component. Which means
             // we can cache the password here.
             final String request = UriComponentsBuilder.newInstance()
-                                                       .scheme("http")
-                                                       .host(authHost)
-                                                       .port(authPort)
-                                                       .path("/securestorage/getDBRootPassword")
-                                                       .build().toUriString();
+                    .scheme("http")
+                    .host(authHost)
+                    .port(authPort)
+                    .path("/securestorage/getDBRootPassword")
+                    .build().toUriString();
             try {
                 ResponseEntity<String> result =
                         restTemplate.getForEntity(request, String.class);
                 dbRootPassword = result.getBody();
+                if (dbRootPassword.isEmpty()) {
+                    throw new IllegalArgumentException("root db password is empty");
+                }
             } catch (ResourceAccessException e) {
-                logger.error("Unable to obtain the database root password. Returning default.");
-                return obtainDefaultPW();
+                logger.warn("...Unable to fetch the database root password; sleep {} secs; try {}",
+                        authRetryDelaySecs, i);
+                try {
+                    Thread.sleep(Duration.ofSeconds(authRetryDelaySecs).toMillis());
+                } catch (InterruptedException e2) {
+                    logger.warn("...Auth connection retry sleep interrupted; still waiting");
+                }
             }
         }
         return dbRootPassword;
     }
-
 }

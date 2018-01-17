@@ -32,7 +32,7 @@ import com.vmturbo.reports.util.SchemaUtil;
  * Unit test for {@link ClusterStatsReader}
  */
 @RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(classes = DbTestConfig.class)
+@ContextConfiguration(classes = {DbTestConfig.class})
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 public class ClusterStatsReaderTest {
 

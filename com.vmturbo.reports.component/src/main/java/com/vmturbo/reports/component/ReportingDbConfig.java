@@ -44,7 +44,8 @@ public class ReportingDbConfig extends SQLDatabaseConfig {
     @Bean
     public DataSource reportingDatasource() {
         final MySQLDataSource dataSource = new MySQLDataSource();
-        DBPasswordUtil dbPasswordUtil = new DBPasswordUtil(authHost, authPort);
+        DBPasswordUtil dbPasswordUtil = new DBPasswordUtil(authHost, authPort,
+                authRetryDelaySecs);
 
         dataSource.setUrl(getDbUrl() + '/' + vmtDbSchema);
         dataSource.setUser(dbUsername);

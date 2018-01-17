@@ -40,7 +40,6 @@ public class ReportingTestDbConfig extends TestSQLDatabaseConfig {
     @Bean
     public DataSource reportingDatasource() {
         final MySQLDataSource dataSource = new MySQLDataSource();
-
         dataSource.setUrl(getDbUrl() + '/' + testSchemaName());
         dataSource.setUser("root");
         dataSource.setPassword("vmturbo");

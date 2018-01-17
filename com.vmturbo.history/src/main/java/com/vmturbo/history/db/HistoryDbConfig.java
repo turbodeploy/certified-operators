@@ -13,11 +13,14 @@ import com.vmturbo.auth.api.db.DBPasswordUtil;
 public class HistoryDbConfig {
 
 
-    @Value("${authHost:auth}")
+    @Value("${authHost}")
     public String authHost;
 
-    @Value("${authPort:8080}")
+    @Value("${authPort}")
     public int authPort;
+
+    @Value("${authRetryDelaySecs}")
+    public int authRetryDelaySecs;
 
     @Bean
     public HistorydbIO historyDbIO() {
@@ -28,7 +31,7 @@ public class HistoryDbConfig {
 
     @Bean
     public DBPasswordUtil dbPasswordUtil() {
-        return new DBPasswordUtil(authHost, authPort);
+        return new DBPasswordUtil(authHost, authPort, authRetryDelaySecs);
     }
 
 

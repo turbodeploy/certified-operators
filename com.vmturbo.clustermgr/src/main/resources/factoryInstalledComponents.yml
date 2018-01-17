@@ -4,14 +4,16 @@ action-orchestrator:
   marketHost: 'market'
   topologyProcessorHost: 'topology-processor'
   groupHost: 'group'
-  dbHost: 'db'
-  dbPort: 3306
-  authHost: 'auth'
-  authPort: 8080
-  # TODO: Remove from source control and instead get these values from the auth component.
-  dbUsername: 'root'
+  <<: &db_conn_info
+    dbHost: 'db'
+    dbPort: 3306
+    dbUsername: 'root'
+    sqlDialect: 'MARIADB'
   dbSchemaName: 'action'
-  sqlDialect: 'MARIADB'
+  <<: &auth_conn_info
+    authHost: 'auth'
+    authPort: 8080
+    authRetryDelaySecs: 30
   grpcPingIntervalSeconds: 300
   websocket.pong.timeout: 30000
   mariadbHealthCheckIntervalSeconds: 60
@@ -28,18 +30,16 @@ market:
   groupHost: 'group'
 
 topology-processor:
-  # START - database-related properties.
-  dbHost: 'db'
-  dbPort: 3306
-  authHost: 'auth'
-  authPort: 8080
-  # TODO: Remove from source control and instead get these values from the auth component.
-  dbUsername: 'root'
+  # database-related properties.
+  <<: *db_conn_info
   # This should be in sync with the schema in the Topology Processor's pom.xml
   dbSchemaName: 'topology_processor'
   sqlDialect: 'MARIADB'
   mariadbHealthCheckIntervalSeconds: 60
   # END - database-related properties
+
+  # authentication-related properties
+  <<: *auth_conn_info
 
   # 30 seconds to match the hardcoded timeout value on the probe side.
   # 4 keep-alive messages are sent by the client during this interval.
@@ -87,25 +87,20 @@ group:
   tempGroupExpirationTimeMins: 10
 
   # START - database-related properties.
-  dbHost: 'db'
-  dbPort: 3306
-  authHost: 'auth'
-  authPort: 8080
-  # TODO: Remove from source control and instead get these values from the auth component.
-  dbUsername: 'root'
+  <<: *db_conn_info
   # This should be in sync with the schema in the component's pom.xml
   # Because 'group' is a keyword in SQL, name the schema 'group_component'
   dbSchemaName: 'group_component'
   sqlDialect: 'MARIADB'
   mariadbHealthCheckIntervalSeconds: 60
   # END - database-related properties
+  <<: *auth_conn_info
 
 api:
   clusterMgrHost: 'clustermgr'
   topologyProcessorHost: 'topology-processor'
   actionOrchestratorHost: 'action-orchestrator'
   repositoryHost: 'repository'
-  authHost: 'auth'
   planOrchestratorHost: 'plan-orchestrator'
   groupHost: 'group'
   historyHost: 'history'
@@ -127,11 +122,11 @@ api:
   initialPlacementTimeoutSeconds: 600
   externalApiSwaggerUri: "/vmturbo/apidoc/**"
   externalApiFileSystemBase: "file:/swagger/"
+  <<: *auth_conn_info
 
 auth:
   kvStoreRetryIntervalMillis: 1000
-  dbHost: 'db'
-  dbPort: 3306
+  <<: *db_conn_info
   dbSchemaName: 'auth'
   sqlDialect: 'MARIADB'
   mariadbHealthCheckIntervalSeconds: 60
@@ -194,17 +189,13 @@ mediation-vmax:
   websocket.pong.timeout: 30000
 
 plan-orchestrator:
-  dbHost: 'db'
-  dbPort: '3306'
-  authHost: 'auth'
-  authPort: 8080
+  <<: *db_conn_info
   historyHost: 'history'
   groupHost: 'group'
   grpcPingIntervalSeconds: 300
   # TODO: Remove from source control and instead get these values from the auth component.
-  dbUsername: 'root'
   dbSchemaName: 'plan'
-  sqlDialect: 'MARIADB'
+  <<: *auth_conn_info
   mariadbHealthCheckIntervalSeconds: 60
   actionOrchestratorHost: 'action-orchestrator'
   topologyProcessorHost: 'topology-processor'
@@ -242,13 +233,10 @@ history:
   topologyProcessorHost: topology-processor
   grpcPingIntervalSeconds: 300
   websocket.pong.timeout: 30000
+  <<: *auth_conn_info
 
 reporting:
-  dbHost: 'db'
-  dbPort: '3306'
-  dbUsername: 'root'
+  <<: *db_conn_info
   dbSchemaName: 'vmtdb'
-  sqlDialect: 'MARIADB'
-  authHost: 'auth'
-  authPort: 8080
+  <<: *auth_conn_info
   identityGeneratorPrefix: 8

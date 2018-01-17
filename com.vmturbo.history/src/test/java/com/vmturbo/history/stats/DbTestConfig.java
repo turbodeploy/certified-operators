@@ -19,7 +19,7 @@ import com.vmturbo.history.db.HistorydbIO;
  * Does not rely on a connection to AUTH component for fetching the root password.
  *
  * In order to generate a new DB name, each test that uses this config must be marked:
- * @DirtiesContext(classMode = ClassMode.AFTER_EACH_TEST_METHOD)
+ * @DirtiesContext(classMode = ClassMode.BEFORE_EACH_TEST_METHOD)
  **/
 @Configuration
 public class DbTestConfig {

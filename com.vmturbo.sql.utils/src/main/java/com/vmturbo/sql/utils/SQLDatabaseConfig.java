@@ -59,13 +59,17 @@ public class SQLDatabaseConfig {
     @Value("${authPort}")
     public int authPort;
 
+    @Value("${authRetryDelaySecs}")
+    public int authRetryDelaySecs;
+
     private static final Logger logger = LogManager.getLogger();
 
     @Bean
     @Primary
     public DataSource dataSource() {
         MySQLDataSource dataSource = new MySQLDataSource();
-        DBPasswordUtil dbPasswordUtil = new DBPasswordUtil(authHost, authPort);
+        DBPasswordUtil dbPasswordUtil = new DBPasswordUtil(authHost, authPort,
+                authRetryDelaySecs);
 
         dataSource.setUrl(getDbUrl());
         dataSource.setUser(dbUsername);

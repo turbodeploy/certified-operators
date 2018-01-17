@@ -128,15 +128,15 @@ public class HistorydbIO extends BasedbIO {
 
     // Mapping from the retention settings DB column name -> Setting name
     private ImmutableBiMap<String, String> retentionDbColumnNameToSettingName =
-        ImmutableBiMap.of(
-           //"retention_latest_hours", , # skipping as there is no equivalent in the UI
-           "retention_hours", GlobalSettingSpecs.StatsRetentionHours.getSettingName(),
-           "retention_days", GlobalSettingSpecs.StatsRetentionDays.getSettingName(),
-           "retention_months", GlobalSettingSpecs.StatsRetentionMonths.getSettingName()
-           );
+            ImmutableBiMap.of(
+                    //"retention_latest_hours", , # skipping as there is no equivalent in the UI
+                    "retention_hours", GlobalSettingSpecs.StatsRetentionHours.getSettingName(),
+                    "retention_days", GlobalSettingSpecs.StatsRetentionDays.getSettingName(),
+                    "retention_months", GlobalSettingSpecs.StatsRetentionMonths.getSettingName()
+            );
 
     private ImmutableBiMap<String, String> retentionSettingNameToDbColumnName =
-        retentionDbColumnNameToSettingName.inverse();
+            retentionDbColumnNameToSettingName.inverse();
 
     /**
      * Maximum number of entities allowed in the getEntities method.
