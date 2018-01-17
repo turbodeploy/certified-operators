@@ -46,7 +46,6 @@ import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.api.utils.DateTimeUtil;
-import com.vmturbo.common.protobuf.setting.SettingDTOUtil;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.stats.Stats;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
@@ -64,6 +63,7 @@ import com.vmturbo.common.protobuf.stats.Stats.SetStatsDataRetentionSettingRespo
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
+import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.stats.projected.ProjectedStatsStore;
 import com.vmturbo.reports.db.VmtDbException;

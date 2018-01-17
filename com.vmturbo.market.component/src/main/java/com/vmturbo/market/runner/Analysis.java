@@ -25,13 +25,13 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
-import com.vmturbo.common.protobuf.setting.GlobalSettingSpecs;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.market.topology.TopologyEntitiesHandler;
 import com.vmturbo.market.topology.conversions.TopologyConverter;
 import com.vmturbo.platform.analysis.economy.Market;

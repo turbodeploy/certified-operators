@@ -34,7 +34,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -42,12 +41,10 @@ import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jooq.BatchBindStep;
 import org.jooq.Condition;
 import org.jooq.Field;
 import org.jooq.InsertSetMoreStep;
 import org.jooq.InsertSetStep;
-import org.jooq.InsertValuesStep6;
 import org.jooq.Record;
 import org.jooq.Record1;
 import org.jooq.Result;
@@ -55,23 +52,19 @@ import org.jooq.Select;
 import org.jooq.SelectConditionStep;
 import org.jooq.Table;
 import org.jooq.exception.DataAccessException;
-import org.jooq.impl.DSL;
 import org.springframework.beans.factory.annotation.Value;
 
 import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 
 import com.vmturbo.api.enums.DayOfWeek;
 import com.vmturbo.api.enums.Period;
 import com.vmturbo.api.enums.ReportOutputFormat;
 import com.vmturbo.api.enums.ReportType;
 import com.vmturbo.auth.api.db.DBPasswordUtil;
-import com.vmturbo.common.protobuf.setting.GlobalSettingSpecs;
-import com.vmturbo.common.protobuf.setting.SettingDTOUtil;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.components.common.setting.GlobalSettingSpecs;
+import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.history.stats.MarketStatsAccumulator;
 import com.vmturbo.history.utils.HistoryStatsUtils;
 import com.vmturbo.history.utils.TopologyOrganizer;

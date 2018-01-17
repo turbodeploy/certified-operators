@@ -1,4 +1,4 @@
-package com.vmturbo.common.protobuf.setting;
+package com.vmturbo.components.common.setting;
 
 import static junit.framework.TestCase.assertFalse;
 import static org.hamcrest.Matchers.greaterThan;

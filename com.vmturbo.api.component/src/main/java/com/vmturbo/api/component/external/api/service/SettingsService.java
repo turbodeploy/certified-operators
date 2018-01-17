@@ -4,6 +4,7 @@ import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -13,22 +14,33 @@ import javax.annotation.Nullable;
 import com.google.common.annotations.VisibleForTesting;
 
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
+import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerInfo;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.setting.SettingApiInputDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
+import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.ISettingsService;
-import com.vmturbo.common.protobuf.setting.GlobalSettingSpecs;
+import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
+import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetMultipleGlobalSettingsRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.SearchSettingSpecsRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
+import com.vmturbo.common.protobuf.setting.SettingProto.SingleSettingSpecRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
+import com.vmturbo.common.protobuf.setting.SettingProto.UpdateGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.Stats.GetStatsDataRetentionSettingsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.SetStatsDataRetentionSettingRequest;
 import com.vmturbo.common.protobuf.stats.Stats.SetStatsDataRetentionSettingResponse;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
+import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 
 /**
  * Service implementation of Settings
@@ -61,6 +73,13 @@ public class SettingsService implements ISettingsService {
         throw ApiUtils.notImplementedInXL();
     }
 
+    /**
+     * Retrieve settings by manager Uuid. A "manager" is a grouping for settings.
+     *
+     * @param uuid the manager uuid
+     * @return a list of settings
+     * @throws Exception
+     */
     @Override
     public List<SettingApiDTO> getSettingsByUuid(String uuid) throws Exception {
         if (uuid.equals(PERSISTENCE_MANAGER)) {
@@ -72,7 +91,16 @@ public class SettingsService implements ISettingsService {
                         });
             return settingApiDtos;
         } else {
-            throw ApiUtils.notImplementedInXL();
+            SettingsManagerInfo managerInfo = settingsManagerMapping.getManagerInfo(uuid)
+                    .orElseThrow(() -> new UnknownObjectException("Setting with Manager Uuid: "
+                            + uuid + " is not found."));
+            Iterable<Setting> settingIt = () -> settingServiceBlockingStub.getMultipleGlobalSettings(
+                    GetMultipleGlobalSettingsRequest.newBuilder()
+                            .addAllSettingSpecName(managerInfo.getSettings())
+                            .build());
+            return StreamSupport.stream(settingIt.spliterator(), false)
+                    .map(SettingsMapper::toSettingApiDto)
+                    .collect(Collectors.toList());
         }
     }
 
@@ -81,6 +109,15 @@ public class SettingsService implements ISettingsService {
         throw ApiUtils.notImplementedInXL();
     }
 
+    /**
+     * Updates the value of a setting.
+     *
+     * @param uuid manager uuid
+     * @param name Setting spec name
+     * @param setting the setting value
+     * @return the setting with the updated value
+     * @throws Exception
+     */
     @Override
     public SettingApiDTO putSettingByUuidAndName(String uuid, String name, SettingApiInputDTO setting) throws Exception {
         if (uuid.equals(PERSISTENCE_MANAGER)) {
@@ -99,7 +136,62 @@ public class SettingsService implements ISettingsService {
                 throw new Exception("Failed to set the new setting value for " + name);
             }
         } else {
-            throw ApiUtils.notImplementedInXL();
+            Objects.requireNonNull(name);
+            Objects.requireNonNull(setting);
+
+            SettingSpec spec = settingServiceBlockingStub.getSettingSpec(
+                    SingleSettingSpecRequest.newBuilder()
+                            .setSettingSpecName(name)
+                            .build());
+            if (spec != null) {
+                UpdateGlobalSettingRequest.Builder updateRequestBuilder = UpdateGlobalSettingRequest.newBuilder()
+                        .setSettingSpecName(name);
+                switch (spec.getSettingValueTypeCase()) {
+                    case BOOLEAN_SETTING_VALUE_TYPE:
+                        if (!setting.getValue().equalsIgnoreCase(Boolean.TRUE.toString()) &&
+                                !setting.getValue().equalsIgnoreCase(Boolean.FALSE.toString())) {
+                            // Throw an exception with a more meaningful message if the boolean value is
+                            // neither "true" nor "false" (case insensitive).
+                            throw new IllegalArgumentException(
+                                    String.format("Setting %s must have a boolean value. The value '%s' is invalid.",
+                                            name, setting.getValue()));
+                        }
+                        updateRequestBuilder.setBooleanSettingValue(BooleanSettingValue.newBuilder()
+                                .setValue(Boolean.valueOf(setting.getValue())));
+                        break;
+                    case NUMERIC_SETTING_VALUE_TYPE:
+                        try {
+                            updateRequestBuilder.setNumericSettingValue(NumericSettingValue.newBuilder()
+                                    .setValue(Float.parseFloat(setting.getValue())));
+                        } catch (NumberFormatException e) {
+                            // Throw an exception with a more meaninful message if value is not a number.
+                            throw new IllegalArgumentException(
+                                    String.format("Setting %s must have a numeric value. The value '%s' is invalid. ",
+                                            name, setting.getValue()));
+                        }
+                        break;
+                    case ENUM_SETTING_VALUE_TYPE:
+                        updateRequestBuilder.setEnumSettingValue(EnumSettingValue.newBuilder()
+                                .setValue(setting.getValue()));
+                        break;
+                    case STRING_SETTING_VALUE_TYPE:
+                        // fall through to next case
+                    case SETTINGVALUETYPE_NOT_SET:
+                        updateRequestBuilder.setStringSettingValue(StringSettingValue.newBuilder()
+                                .setValue(setting.getValue()));
+                        break;
+                }
+
+                settingServiceBlockingStub.updateGlobalSetting(updateRequestBuilder.build());
+            } else {
+                throw new IllegalArgumentException("Setting name is invalid: " + name);
+            }
+
+            Setting updatedSetting = settingServiceBlockingStub.getGlobalSetting(
+                    GetSingleGlobalSettingRequest.newBuilder()
+                            .setSettingSpecName(name)
+                            .build());
+            return SettingsMapper.toSettingApiDto(updatedSetting);
         }
     }
 

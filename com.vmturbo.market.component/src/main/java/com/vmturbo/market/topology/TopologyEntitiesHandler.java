@@ -11,7 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
-import com.vmturbo.common.protobuf.setting.GlobalSettingSpecs;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
@@ -19,6 +18,7 @@ import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.commons.analysis.CommodityResizeDependencyMap;
 import com.vmturbo.commons.analysis.RawMaterialsMap;
 import com.vmturbo.commons.analysis.UpdateFunction;
+import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.economy.CommodityResizeSpecification;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;

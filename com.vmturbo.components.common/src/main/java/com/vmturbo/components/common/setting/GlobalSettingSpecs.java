@@ -1,5 +1,6 @@
-package com.vmturbo.common.protobuf.setting;
+package com.vmturbo.components.common.setting;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -15,6 +16,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.GlobalSettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingCategoryPath;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingCategoryPath.SettingCategoryPathNode;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
+import com.vmturbo.components.common.mail.MailConfiguration.EncryptionType;
 
 /**
  * Enumeration for all the pre-built global settings.
@@ -29,6 +31,42 @@ public enum GlobalSettingSpecs {
             numeric(1.0f/*min*/, 3.0f/*max*/, 2.0f/*default*/),
             //path is needed for the UI to display this setting in a separate category
             Arrays.asList("resizeRecommendationsConstants")),
+
+    SmtpServer("smtpServer", "SMTP Server",
+            new StringSettingDataType("", "*"),
+            new ArrayList<>()),
+
+    SmtpPort("smtpPort", "SMTP Port",
+            numeric(1f/*min*/, 99999f/*max*/, 25f/*default*/),
+            new ArrayList<>()),
+
+    SmtpFromAddress("fromAddress", "'From' Address",
+            new StringSettingDataType("", "*"),
+            new ArrayList<>()),
+
+    SmtpUsername("smtpUsername", "Username",
+            new StringSettingDataType("", "*"),
+            new ArrayList<>()),
+
+    SmtpPassword("smtpPassword", "Password",
+            new StringSettingDataType("", "*"),
+            new ArrayList<>()),
+
+    SmtpEncription("smtpEncryption", "Encryption",
+            new EnumSettingDataType(EncryptionType.NONE),
+            new ArrayList<>()),
+
+    VmContent("VMContent", "Email content format - VM notifications",
+            new StringSettingDataType("{6}: {5} \\nHost: {8}\\nDatastores: {9}\\nTarget: {7}\\nEvent: {0} - {4}\\nCategory: {1}\\nSeverity: {2}\\nState: {3}", "*"),
+            new ArrayList<>()),
+
+    PmContent("PMContent", "Email content format - PM notifications",
+            new StringSettingDataType("{6}: {5} \\nDatastores: {10}\\nTarget: {7}\\nEvent: {0} - {4}\\nCategory: {1}\\nSeverity: {2}\\nState: {3}", "*"),
+            new ArrayList<>()),
+
+    StContent("StContent", "Email content format - Storage notifications",
+            new StringSettingDataType("{6}: {5} \\nTarget: {7}\\nEvent: {0} - {4}\\nCategory: {1}\\nSeverity: {2}\\nState: {3}", "*"),
+            new ArrayList<>()),
 
     StatsRetentionHours("numRetainedHours", "Hourly saved statistics [Hours]",
             numeric(24f/*min*/, 720f/*max*/, 72f/*default*/),

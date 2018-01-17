@@ -90,6 +90,21 @@
       "reportRetentionDays",
       "planRetentionDays"
       ]
+    },
+    "emailmanager": {
+      "displayName": "Email Settings",
+      "defaultCategory": "Email",
+      "settings": [
+        "smtpServer",
+        "smtpPort",
+        "fromAddress",
+        "VMContent",
+        "PMContent",
+        "StContent",
+        "smtpUsername",
+        "smtpPassword",
+        "smtpEncryption"
+      ]
     }
   }
 }

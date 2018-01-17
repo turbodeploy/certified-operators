@@ -1,4 +1,4 @@
-package com.vmturbo.common.protobuf.setting;
+package com.vmturbo.components.common.setting;
 
 import java.util.Collections;
 import java.util.EnumMap;
@@ -12,6 +12,7 @@ import javax.annotation.Nonnull;
 
 import jdk.nashorn.internal.ir.annotations.Immutable;
 
+import com.vmturbo.components.common.setting.SettingDataStructure;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**

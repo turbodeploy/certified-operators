@@ -7,8 +7,8 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.vmturbo.common.protobuf.setting.EntitySettingSpecs;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
 
 /**
  * Unit tests for {@link FileBasedSettingsSpecStore} against real (production) list of settings.

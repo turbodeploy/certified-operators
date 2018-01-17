@@ -11,9 +11,9 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 
-import com.vmturbo.common.protobuf.setting.EntitySettingSpecs;
-import com.vmturbo.common.protobuf.setting.GlobalSettingSpecs;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 
 /**
  * Setting spec store, based on enum ({@link EntitySettingSpecs}) and

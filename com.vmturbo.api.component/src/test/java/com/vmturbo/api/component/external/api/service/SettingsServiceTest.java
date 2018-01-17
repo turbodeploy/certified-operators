@@ -15,6 +15,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -28,24 +29,36 @@ import org.mockito.Captor;
 import org.mockito.MockitoAnnotations;
 
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
+import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerInfo;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
+import com.vmturbo.api.dto.setting.SettingApiInputDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
+import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.AllEntityType;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.EntityTypeSet;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingSpec;
+import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetMultipleGlobalSettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GlobalSettingSpec;
+import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
+import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValueType;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingTiebreaker;
+import com.vmturbo.common.protobuf.setting.SettingProto.SingleSettingSpecRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
+import com.vmturbo.common.protobuf.setting.SettingProto.UpdateGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.mail.MailConfiguration;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class SettingsServiceTest {
@@ -96,6 +109,9 @@ public class SettingsServiceTest {
 
     @Captor
     private ArgumentCaptor<List<SettingSpec>> specCaptor;
+
+    @Captor
+    ArgumentCaptor<Setting> settingArgumentCaptor;
 
     @Test
     public void testGetSpecsEntityTypeApplied() throws Exception {
@@ -201,5 +217,160 @@ public class SettingsServiceTest {
             SettingSpec.newBuilder()
                 .setEntitySettingSpec(EntitySettingSpec.getDefaultInstance())
                 .build(), "VirtualMachine"));
+    }
+
+    /**
+     * Test the invocation of the getSettingsByUuid API.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testGetSettingsByUuid() throws Exception {
+        String managerName = "emailmanager";
+        List<Setting> settings = getSettingsList();
+
+        SettingsManagerInfo managerInfo = mock(SettingsManagerInfo.class);
+
+        when(settingsManagerMapping.getManagerInfo(eq(managerName))).thenReturn(Optional.of(managerInfo));
+
+        when(settingRpcServiceSpy.getMultipleGlobalSettings(GetMultipleGlobalSettingsRequest.getDefaultInstance()))
+                .thenReturn(settings);
+
+        List<SettingApiDTO> settingApiDTOList = settingsService.getSettingsByUuid(managerName);
+        assertEquals(settings.size(), settingApiDTOList.size());
+        verify(settingRpcServiceSpy).getMultipleGlobalSettings(any(GetMultipleGlobalSettingsRequest.class));
+    }
+
+    private List<Setting> getSettingsList() {
+        List<Setting> settingsList = new ArrayList<>();
+
+        settingsList.add(Setting.newBuilder().setSettingSpecName("smtpServer")
+                .setStringSettingValue(StringSettingValue.newBuilder()
+                        .setValue("smtp.gmail.com")
+                        .build())
+                .build());
+
+        settingsList.add(Setting.newBuilder().setSettingSpecName("smtpPort")
+                .setNumericSettingValue(NumericSettingValue.newBuilder()
+                        .setValue(25f)
+                        .build())
+                .build());
+
+        settingsList.add(Setting.newBuilder().setSettingSpecName("SMTP_ENCRYPTION")
+                .setEnumSettingValue(EnumSettingValue.newBuilder()
+                        .setValue(MailConfiguration.EncryptionType.SSL.name())
+                        .build())
+                .build());
+
+        return settingsList;
+    }
+
+    /**
+     * Test the invocation of the putSettingByUuidAndName API.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testPutSettingByUuidAndName() throws Exception {
+        String managerName = "emailmanager";
+        String settingSpecName = "smtpPort";
+        String settingValue = "25";
+
+        SettingApiInputDTO settingInput = new SettingApiInputDTO();
+        settingInput.setValue(settingValue);
+
+        when(settingRpcServiceSpy.getGlobalSetting(any())).thenReturn(Setting.newBuilder()
+                .setSettingSpecName(settingSpecName)
+                .setStringSettingValue(StringSettingValue.newBuilder()
+                        .setValue(settingValue)
+                        .build())
+                .build());
+
+        when (settingRpcServiceSpy.getSettingSpec(SingleSettingSpecRequest.newBuilder()
+                .setSettingSpecName(settingSpecName)
+                .build())).thenReturn(
+                        SettingSpec.newBuilder()
+                                .setNumericSettingValueType(NumericSettingValueType.newBuilder())
+                                .build());
+
+        settingsService.putSettingByUuidAndName(managerName, settingSpecName, settingInput);
+
+        verify(settingRpcServiceSpy).getSettingSpec(SingleSettingSpecRequest.newBuilder()
+                .setSettingSpecName(settingSpecName)
+                .build());
+        verify(settingRpcServiceSpy).updateGlobalSetting(UpdateGlobalSettingRequest.newBuilder()
+                .setSettingSpecName(settingSpecName)
+                .setNumericSettingValue(NumericSettingValue.newBuilder()
+                        .setValue(Float.parseFloat(settingValue)))
+                .build());
+    }
+
+    @Test
+    public void testPutSettingByUuidAndNameWithNumericValueException() throws Exception {
+        String managerName = "emailmanager";
+        String settingSpecName = "smtpPort";
+        String settingValue = "abc";
+        boolean exceptionThrown = false;
+
+        SettingApiInputDTO settingInput = new SettingApiInputDTO();
+        settingInput.setValue(settingValue);
+
+        when(settingRpcServiceSpy.getGlobalSetting(any())).thenReturn(Setting.newBuilder()
+                .setSettingSpecName(settingSpecName)
+                .setStringSettingValue(StringSettingValue.newBuilder()
+                        .setValue(settingValue)
+                        .build())
+                .build());
+
+        when (settingRpcServiceSpy.getSettingSpec(SingleSettingSpecRequest.newBuilder()
+                .setSettingSpecName(settingSpecName)
+                .build())).thenReturn(
+                SettingSpec.newBuilder()
+                        .setNumericSettingValueType(NumericSettingValueType.newBuilder())
+                        .build());
+
+        try {
+            settingsService.putSettingByUuidAndName(managerName, settingSpecName, settingInput);
+        } catch (Exception e) {
+            assertTrue(e instanceof IllegalArgumentException);
+            exceptionThrown = true;
+        }
+
+        assertEquals(true, exceptionThrown);
+    }
+
+    @Test
+    public void testPutSettingByUuidAndNameWithBooleanValueException() throws Exception {
+        String managerName = "emailmanager";
+        String settingSpecName = "booleanSetting";
+        String settingValue = "abc";
+        boolean exceptionThrown = false;
+
+        SettingApiInputDTO settingInput = new SettingApiInputDTO();
+        settingInput.setValue(settingValue);
+
+        when(settingRpcServiceSpy.getGlobalSetting(any())).thenReturn(Setting.newBuilder()
+                .setSettingSpecName(settingSpecName)
+                .setStringSettingValue(StringSettingValue.newBuilder()
+                        .setValue(settingValue)
+                        .build())
+                .build());
+
+        when (settingRpcServiceSpy.getSettingSpec(SingleSettingSpecRequest.newBuilder()
+                .setSettingSpecName(settingSpecName)
+                .build())).thenReturn(
+                        SettingSpec.newBuilder()
+                                .setBooleanSettingValueType(BooleanSettingValueType.newBuilder())
+                                .build());
+
+        try {
+            settingsService.putSettingByUuidAndName(managerName, settingSpecName, settingInput);
+        } catch (Exception e) {
+            assertTrue(e instanceof IllegalArgumentException);
+            e.printStackTrace();
+            exceptionThrown = true;
+        }
+
+        assertEquals(true, exceptionThrown);
     }
 }

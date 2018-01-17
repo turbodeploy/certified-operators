@@ -9,13 +9,13 @@ import java.util.Map;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.action.ActionDTOREST.ActionMode;
-import com.vmturbo.common.protobuf.setting.EntitySettingSpecs;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
 
 public class EntitySettingsCollectionTest {
 

@@ -6,10 +6,10 @@ import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.common.protobuf.setting.EntitySettingSpecs;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
 
 /**
  * Provides services for looking up a specific setting belonging to a specific entity.

@@ -20,8 +20,6 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
-import com.vmturbo.common.protobuf.setting.GlobalSettingSpecs;
-import com.vmturbo.common.protobuf.setting.SettingDTOUtil;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
@@ -35,6 +33,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.setting.GlobalSettingSpecs;
+import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.market.runner.Analysis.AnalysisState;
 
 /**

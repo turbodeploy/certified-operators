@@ -52,9 +52,6 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
-import com.vmturbo.common.protobuf.setting.EntitySettingSpecs;
-import com.vmturbo.common.protobuf.setting.GlobalSettingSpecs;
-import com.vmturbo.common.protobuf.setting.SettingDTOUtil;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
@@ -82,6 +79,9 @@ import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.UpdateGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.components.common.setting.GlobalSettingSpecs;
+import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**

@@ -21,13 +21,13 @@ import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.common.protobuf.action.ActionDTOREST.ActionMode;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
-import com.vmturbo.common.protobuf.setting.EntitySettingSpecs;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProviderOrBuilder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;

@@ -21,8 +21,6 @@ import io.grpc.stub.StreamObserver;
 import tec.units.ri.unit.MetricPrefix;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
-import com.vmturbo.common.protobuf.setting.GlobalSettingSpecs;
-import com.vmturbo.common.protobuf.setting.SettingDTOUtil;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceImplBase;
@@ -32,6 +30,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.client.KafkaMessageConsumer;
+import com.vmturbo.components.common.setting.GlobalSettingSpecs;
+import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.components.test.utilities.ComponentTestRule;
 import com.vmturbo.components.test.utilities.alert.Alert;
 import com.vmturbo.components.test.utilities.communication.ComponentStubHost;

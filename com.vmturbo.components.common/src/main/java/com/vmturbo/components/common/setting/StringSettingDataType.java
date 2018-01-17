@@ -1,4 +1,4 @@
-package com.vmturbo.common.protobuf.setting;
+package com.vmturbo.components.common.setting;
 
 import javax.annotation.Nonnull;
 
@@ -23,7 +23,7 @@ public class StringSettingDataType extends AbstractSettingDataType<String> {
      * @param regexp regular expression for values to match.
      */
     public StringSettingDataType(@Nonnull String defaultValue, @Nonnull String regexp) {
-        super(Validate.notBlank(defaultValue));
+        super(defaultValue);
         this.regexp = Validate.notBlank(regexp);
     }
 
