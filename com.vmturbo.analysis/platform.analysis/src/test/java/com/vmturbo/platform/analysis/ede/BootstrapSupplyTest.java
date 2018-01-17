@@ -500,8 +500,7 @@ public class BootstrapSupplyTest {
      * 2VMs together exceed the CPU capacity of the PM.
      * No provision actions should be produced because the PM is not cloneable.
      */
-    // TODO: turn on test after fixing OM-24541
-    //@Test
+    @Test
     public void test_bootstrapSupplyDecisions_NoProvisionActionsWhenNoCloneableSellers(){
         Economy economy = new Economy();
         Trader pm1 = TestUtils.createPM(economy, Arrays.asList(0l), 100, 100, false);

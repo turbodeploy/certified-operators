@@ -397,9 +397,9 @@ public final class AnalysisToProtobuf {
             // we will use it later to compute the maximum amount that the model buyer could get
             List<Trader> sellers = new ArrayList<>();
             provDemand.getEconomy().getMarket(provDemand.getModelBuyer()).getActiveSellers()
-                .forEach(s -> {if (!s.isClone()) {sellers.add(s);}});
+                .forEach(s -> {if (!s.isClone() && s.getSettings().isCloneable()) {sellers.add(s);}});
             provDemand.getEconomy().getMarket(provDemand.getModelBuyer()).getInactiveSellers()
-                .forEach(s -> {if (!s.isClone()) {sellers.add(s);}});
+                .forEach(s -> {if (!s.isClone() && s.getSettings().isCloneable()) {sellers.add(s);}});
             sellers.remove(provDemand.getProvisionedSeller());
 
             // send the commodity whose requested quantity can not be satisfied, its requested
