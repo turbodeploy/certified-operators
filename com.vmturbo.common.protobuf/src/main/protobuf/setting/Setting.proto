@@ -255,6 +255,11 @@ message SettingPolicy {
         // User policies always override default policies, regardless of conflict resolution
         // strategies.
         USER = 2;
+
+        // Discovered setting policies are discovered by probes and are scoped to groups
+        // also discovered by probes. Discovered setting policies follow a similar conflict
+        // resolution strategy to user setting policies.
+        DISCOVERED = 3;
     }
 
     // The id of the SettingPolicy.
@@ -320,6 +325,10 @@ message SettingPolicyInfo {
     // The scope of a setting policy is the groups of entities the policy applies to.
     // Default setting policies do not have a scope (see detailed comments above).
     optional Scope scope = 7;
+
+    // The ID of the target that discovered this setting policy.
+    // This field is only present or has meaning on DISCOVERED type setting policies.
+    optional int64 target_id = 8;
 }
 
 // The time during which the setting policy may be active.

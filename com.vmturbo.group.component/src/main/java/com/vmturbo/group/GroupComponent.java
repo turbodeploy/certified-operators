@@ -117,7 +117,7 @@ public class GroupComponent extends BaseVmtComponent {
     @Bean
     public DiscoveredGroupsRpcService discoveredCollectionsRpcService() {
         return new DiscoveredGroupsRpcService(arangoDBConfig.groupStore(),
-            arangoDBConfig.policyStore(), getHealthMonitor());
+            arangoDBConfig.policyStore(), settingConfig.settingStore(), getHealthMonitor());
     }
 
     @Bean

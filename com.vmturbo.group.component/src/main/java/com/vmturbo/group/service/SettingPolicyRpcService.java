@@ -77,7 +77,7 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
 
         try {
             final SettingPolicy policy =
-                    settingStore.createSettingPolicy(request.getSettingPolicyInfo());
+                    settingStore.createUserSettingPolicy(request.getSettingPolicyInfo());
             responseObserver.onNext(CreateSettingPolicyResponse.newBuilder()
                     .setSettingPolicy(policy)
                     .build());

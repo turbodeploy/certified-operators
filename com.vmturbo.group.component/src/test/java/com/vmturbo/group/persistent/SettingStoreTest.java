@@ -1,8 +1,10 @@
 package com.vmturbo.group.persistent;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
@@ -11,8 +13,10 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -30,8 +34,10 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.protobuf.ProtocolStringList;
 
+import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredSettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.EntityTypeSet;
@@ -106,20 +112,20 @@ public class SettingStoreTest {
 
     @Test(expected = DuplicateNameException.class)
     public void testCreateDuplicatePolicy() throws Exception {
-        settingStore.createSettingPolicy(info);
-        settingStore.createSettingPolicy(info);
+        settingStore.createUserSettingPolicy(info);
+        settingStore.createUserSettingPolicy(info);
     }
 
     @Test(expected = InvalidSettingPolicyException.class)
     public void testCreateInvalidSetting() throws Exception {
         doThrow(new InvalidSettingPolicyException("ERROR"))
             .when(settingPolicyValidator).validateSettingPolicy(any(), any());
-        settingStore.createSettingPolicy(info);
+        settingStore.createUserSettingPolicy(info);
     }
 
     @Test
-    public void testCreateThenGetById() throws Exception {
-        SettingPolicy policy = settingStore.createSettingPolicy(info);
+    public void testCreateUserThenGetById() throws Exception {
+        SettingPolicy policy = settingStore.createUserSettingPolicy(info);
 
         assertEquals(info, policy.getInfo());
         assertTrue(policy.hasId());
@@ -142,7 +148,7 @@ public class SettingStoreTest {
     @Test
     public void testCreateThenGetByName() throws Exception {
         when(identityProviderSpy.next()).thenReturn(7L);
-        SettingPolicy policy = settingStore.createSettingPolicy(info);
+        SettingPolicy policy = settingStore.createUserSettingPolicy(info);
 
         assertEquals(info, policy.getInfo());
         assertEquals(7L, policy.getId());
@@ -160,7 +166,7 @@ public class SettingStoreTest {
     @Test
     public void testUpdateSettingPolicy() throws Exception {
 
-        final SettingPolicy policy = settingStore.createSettingPolicy(info);
+        final SettingPolicy policy = settingStore.createUserSettingPolicy(info);
 
         final SettingPolicy updatedPolicy =
                 settingStore.updateSettingPolicy(policy.getId(), updatedInfo);
@@ -177,7 +183,7 @@ public class SettingStoreTest {
 
     @Test(expected = InvalidSettingPolicyException.class)
     public void testUpdateSettingPolicyWithInvalidInfo() throws Exception {
-        final SettingPolicy policy = settingStore.createSettingPolicy(info);
+        final SettingPolicy policy = settingStore.createUserSettingPolicy(info);
 
         doThrow(new InvalidSettingPolicyException(""))
             .when(settingPolicyValidator).validateSettingPolicy(eq(updatedInfo), any());
@@ -187,10 +193,10 @@ public class SettingStoreTest {
 
     @Test(expected = DuplicateNameException.class)
     public void testUpdateSettingPolicyToDuplicateName() throws Exception {
-        final SettingPolicy policy = settingStore.createSettingPolicy(info);
+        final SettingPolicy policy = settingStore.createUserSettingPolicy(info);
 
         // Make sure there is another setting policy with the same name as the updated info.
-        settingStore.createSettingPolicy(
+        settingStore.createUserSettingPolicy(
             SettingPolicyInfo.newBuilder()
                 .setName(updatedInfo.getName())
                 .build());
@@ -253,7 +259,7 @@ public class SettingStoreTest {
 
     @Test
     public void testDeleteSettingPolicy() throws Exception {
-        final SettingPolicy policy = settingStore.createSettingPolicy(info);
+        final SettingPolicy policy = settingStore.createUserSettingPolicy(info);
         final SettingPolicy deletedPolicy = settingStore.deleteSettingPolicy(policy.getId());
         assertEquals(policy, deletedPolicy);
         assertFalse(settingStore.getSettingPolicy(policy.getId()).isPresent());
@@ -272,8 +278,8 @@ public class SettingStoreTest {
 
     @Test
     public void testGetAllPolicies() throws Exception {
-        final SettingPolicy policy = settingStore.createSettingPolicy(info);
-        final SettingPolicy policy2 = settingStore.createSettingPolicy(SettingPolicyInfo.newBuilder()
+        final SettingPolicy policy = settingStore.createUserSettingPolicy(info);
+        final SettingPolicy policy2 = settingStore.createUserSettingPolicy(SettingPolicyInfo.newBuilder()
             .setName("bar")
             .build());
 
@@ -374,5 +380,77 @@ public class SettingStoreTest {
 
         Collection<SettingSpec> retrievedSettingSpecs = settingSpecStore.getAllSettingSpecs();
         assertEquals(retrievedSettingSpecs.size(), 4);
+    }
+
+    @Test
+    public void testUpdateTargetSettingPolicies() throws DatabaseException {
+        final long targetId = 12345L;
+        final Setting setting = Setting.newBuilder()
+            .setSettingSpecName("some-spec")
+            .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance())
+            .build();
+
+        final DiscoveredSettingPolicyInfo settingPolicyA = DiscoveredSettingPolicyInfo.newBuilder()
+            .setEntityType(1)
+            .setName("a")
+            .addSettings(setting)
+            .addDiscoveredGroupNames("group-a")
+            .build();
+
+        final DiscoveredSettingPolicyInfo settingPolicyB = DiscoveredSettingPolicyInfo.newBuilder()
+            .setEntityType(2)
+            .setName("b")
+            .addSettings(setting)
+            .addDiscoveredGroupNames("group-b")
+            .build();
+
+        final DiscoveredSettingPolicyInfo settingPolicyC = DiscoveredSettingPolicyInfo.newBuilder()
+            .setEntityType(1)
+            .setName("c")
+            .addSettings(setting)
+            .addDiscoveredGroupNames("group-c")
+            .build();
+
+        final Map<String, Long> groupOids = ImmutableMap.of("group-a", 1L,
+            "group-b", 2L,
+            "group-c", 3L);
+
+        // Create 2 discovered setting policies, a and b.
+        settingStore.updateTargetSettingPolicies(targetId,
+            Arrays.asList(settingPolicyA, settingPolicyB),
+            groupOids);
+
+        // Make sure they are created.
+        final Collection<SettingPolicy> firstCreated = settingStore.getSettingPoliciesDiscoveredByTarget(targetId);
+        assertEquals(targetId, (long)firstCreated.stream()
+            .map(settingPolicy -> settingPolicy.getInfo().getTargetId())
+            .distinct()
+            .findFirst()
+            .get());
+        assertThat(firstCreated.stream()
+            .flatMap(settingPolicy -> settingPolicy.getInfo().getScope().getGroupsList().stream())
+            .collect(Collectors.toList()), containsInAnyOrder(1L, 2L));
+        assertThat(firstCreated.stream()
+            .map(settingPolicy -> settingPolicy.getInfo().getName())
+            .collect(Collectors.toList()), containsInAnyOrder("a", "b"));
+
+        // Have 2 discovered setting policies, b and c.
+        // a should be deleted, b should be retained, c should be created.
+        settingStore.updateTargetSettingPolicies(targetId,
+            Arrays.asList(settingPolicyC, settingPolicyB),
+            groupOids);
+
+        final Collection<SettingPolicy> secondCreated = settingStore.getSettingPoliciesDiscoveredByTarget(targetId);
+        assertEquals(targetId, (long)secondCreated.stream()
+            .map(settingPolicy -> settingPolicy.getInfo().getTargetId())
+            .distinct()
+            .findFirst()
+            .get());
+        assertThat(secondCreated.stream()
+            .flatMap(settingPolicy -> settingPolicy.getInfo().getScope().getGroupsList().stream())
+            .collect(Collectors.toList()), containsInAnyOrder(2L, 3L));
+        assertThat(secondCreated.stream()
+            .map(settingPolicy -> settingPolicy.getInfo().getName())
+            .collect(Collectors.toList()), containsInAnyOrder("b", "c"));
     }
 }

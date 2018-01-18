@@ -25,11 +25,15 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
 import com.vmturbo.common.protobuf.group.PolicyDTO.InputPolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.InputPolicy.BindToGroupPolicy;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.persistent.TargetCollectionUpdate.RemoveInstance;
 import com.vmturbo.group.persistent.TargetCollectionUpdate.StoreInstance;
 import com.vmturbo.group.persistent.TargetCollectionUpdate.TargetGroupUpdate;
 import com.vmturbo.group.persistent.TargetCollectionUpdate.TargetPolicyUpdate;
+import com.vmturbo.group.persistent.TargetCollectionUpdate.TargetSettingPolicyUpdate;
 
 public class TargetCollectionUpdateTest {
 
@@ -56,6 +60,12 @@ public class TargetCollectionUpdateTest {
 
     @Captor
     private ArgumentCaptor<InputPolicy> policyCaptor;
+
+    @Mock
+    private StoreInstance<SettingPolicy> settingPolicyStoreInstance;
+
+    @Captor
+    private ArgumentCaptor<SettingPolicy> settingPolicyCaptor;
 
     @Before
     public void setup() {
@@ -218,5 +228,26 @@ public class TargetCollectionUpdateTest {
         assertEquals("test", inputPolicy.getName());
         assertEquals(2, inputPolicy.getBindToGroup().getConsumerGroup());
         assertEquals(1, inputPolicy.getBindToGroup().getProviderGroup());
+    }
+
+    @Test
+    public void testTargetSettingPolicyUpdate() throws Exception {
+        when(identityProvider.next()).thenReturn(groupId);
+
+        final TargetSettingPolicyUpdate update = new TargetSettingPolicyUpdate(targetId, identityProvider,
+            Collections.singletonList(SettingPolicyInfo.newBuilder()
+                .setTargetId(12345L)
+                .setName("test")
+                .build()),
+            Collections.emptyList());
+        update.apply(settingPolicyStoreInstance, removeInstance);
+        verifyZeroInteractions(removeInstance);
+        verify(settingPolicyStoreInstance).storeInstance(settingPolicyCaptor.capture());
+
+        final SettingPolicy createdSettingPolicy = settingPolicyCaptor.getValue();
+        assertEquals(groupId, createdSettingPolicy.getId());
+        assertEquals(12345L, createdSettingPolicy.getInfo().getTargetId());
+        assertEquals(Type.DISCOVERED, createdSettingPolicy.getSettingPolicyType());
+        assertEquals("test", createdSettingPolicy.getInfo().getName());
     }
 }

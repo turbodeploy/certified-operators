@@ -6,7 +6,7 @@ import static com.vmturbo.group.db.Tables.SETTING_POLICY;
 import java.sql.SQLException;
 import java.sql.SQLTransientException;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -27,8 +27,11 @@ import org.jooq.impl.DSL;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.protobuf.InvalidProtocolBufferException;
 
+import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredSettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
@@ -38,6 +41,8 @@ import com.vmturbo.group.db.enums.SettingPolicyPolicyType;
 import com.vmturbo.group.db.tables.pojos.SettingPolicy;
 import com.vmturbo.group.db.tables.records.SettingPolicyRecord;
 import com.vmturbo.group.identity.IdentityProvider;
+import com.vmturbo.group.persistent.TargetCollectionUpdate.TargetPolicyUpdate;
+import com.vmturbo.group.persistent.TargetCollectionUpdate.TargetSettingPolicyUpdate;
 
 /**
  * The {@link SettingStore} class is used to store settings-related objects, and retrieve them
@@ -74,16 +79,16 @@ public class SettingStore {
     }
 
     /**
-     * This is the internal version of {@link SettingStore#createSettingPolicy(SettingPolicyInfo)}
+     * This is the internal version of {@link SettingStore#createUserSettingPolicy(SettingPolicyInfo)}
      * which allows the specification of the setting policy's type. External classes should NOT
      * use this method.
      *
-     * @param settingPolicyInfo See {@link SettingStore#createSettingPolicy(SettingPolicyInfo)}.
+     * @param settingPolicyInfo See {@link SettingStore#createUserSettingPolicy(SettingPolicyInfo)}.
      * @param type The type of the policy to create.
-     * @return See {@link SettingStore#createSettingPolicy(SettingPolicyInfo)}.
-     * @throws InvalidSettingPolicyException See {@link SettingStore#createSettingPolicy(SettingPolicyInfo)}.
-     * @throws DuplicateNameException See {@link SettingStore#createSettingPolicy(SettingPolicyInfo)}.
-     * @throws DataAccessException See {@link SettingStore#createSettingPolicy(SettingPolicyInfo)}.
+     * @return See {@link SettingStore#createUserSettingPolicy(SettingPolicyInfo)}.
+     * @throws InvalidSettingPolicyException See {@link SettingStore#createUserSettingPolicy(SettingPolicyInfo)}.
+     * @throws DuplicateNameException See {@link SettingStore#createUserSettingPolicy(SettingPolicyInfo)}.
+     * @throws DataAccessException See {@link SettingStore#createUserSettingPolicy(SettingPolicyInfo)}.
      */
     @Nonnull
     private SettingProto.SettingPolicy internalCreateSettingPolicy(
@@ -108,11 +113,13 @@ public class SettingStore {
                             settingPolicyInfo.getName());
                 }
 
-                final SettingPolicy jooqSettingPolicy =
-                        new SettingPolicy(identityProvider.next(), settingPolicyInfo.getName(),
-                                settingPolicyInfo.getEntityType(), settingPolicyInfo,
-                                type == Type.DEFAULT ? SettingPolicyPolicyType.default_ :
-                                        SettingPolicyPolicyType.user);
+                final SettingPolicy jooqSettingPolicy = new SettingPolicy(
+                    identityProvider.next(),
+                    settingPolicyInfo.getName(),
+                    settingPolicyInfo.getEntityType(),
+                    settingPolicyInfo,
+                    SettingPolicyTypeConverter.typeToDb(type),
+                    settingPolicyInfo.getTargetId());
                 context.newRecord(SETTING_POLICY, jooqSettingPolicy).store();
                 return toSettingPolicy(jooqSettingPolicy);
             });
@@ -128,7 +135,7 @@ public class SettingStore {
     }
 
     /**
-     * Persist a new SettingPolicy in the {@link SettingStore} based on the info in the
+     * Persist a new user {@link SettingPolicy} in the {@link SettingStore} based on the info in the
      * {@link SettingPolicyInfo}.
      * Note that setting policies must have unique names.
      *
@@ -141,12 +148,25 @@ public class SettingStore {
      * @throws DataAccessException If there is another problem connecting to the database.
      */
     @Nonnull
-    public SettingProto.SettingPolicy createSettingPolicy(
+    public SettingProto.SettingPolicy createUserSettingPolicy(
             @Nonnull final SettingPolicyInfo settingPolicyInfo)
             throws InvalidSettingPolicyException, DuplicateNameException {
         return internalCreateSettingPolicy(settingPolicyInfo, Type.USER);
     }
 
+    /**
+     * Persist a new default {@link SettingPolicy} in the {@link SettingStore} based on the info in the
+     * {@link SettingPolicyInfo}.
+     * Note that setting policies must have unique names.
+     *
+     * @param settingPolicyInfo The info to be applied to the SettingPolicy.
+     * @return A SettingPolicy whose info matches the input {@link SettingPolicyInfo}.
+     * An ID will be assigned to this policy.
+     * @throws InvalidSettingPolicyException If the input setting policy is not valid.
+     * @throws DuplicateNameException If there is already a setting policy with the same name as
+     * the input setting policy.
+     * @throws DataAccessException If there is another problem connecting to the database.
+     */
     @Nonnull
     public SettingProto.SettingPolicy createDefaultSettingPolicy(
             @Nonnull final SettingPolicyInfo settingPolicyInfo)
@@ -222,6 +242,7 @@ public class SettingStore {
                 record.setEntityType(newInfo.getEntityType());
                 record.setName(newInfo.getName());
                 record.setSettingPolicyData(newInfo);
+                record.setTargetId(newInfo.getTargetId());
                 final int modifiedRecords = record.update();
                 if (modifiedRecords == 0) {
                     // This should never happen, because we overwrote fields in the record,
@@ -322,6 +343,80 @@ public class SettingStore {
     }
 
     /**
+     * Update the set of {@link SettingPolicy}s discovered by a particular target.
+     * The new set of setting policies will completely replace the old, even if the new set is empty.
+     *
+     * <p>See {@link TargetPolicyUpdate} for details on the update behavior.
+     *
+     * @param targetId The ID of the target that discovered the setting policies.
+     * @param settingPolicyInfos The new set of {@link DiscoveredSettingPolicyInfo}s.
+     * @param groupOids a mapping of policy key (name) to policy OID
+     * @throws DatabaseException If there is an error interacting with the database.
+     */
+    public void updateTargetSettingPolicies(long targetId,
+                                            @Nonnull final List<DiscoveredSettingPolicyInfo> settingPolicyInfos,
+                                            @Nonnull final Map<String, Long> groupOids) throws DatabaseException {
+        logger.info("Updating setting policies discovered by {}. Got {} setting policies.",
+            targetId, settingPolicyInfos.size());
+
+        DiscoveredSettingPoliciesMapper mapper = new DiscoveredSettingPoliciesMapper(groupOids);
+        List<SettingPolicyInfo> discoveredSettingPolicies = settingPolicyInfos.stream()
+            .map(info -> mapper.mapToSettingPolicyInfo(info, targetId))
+            .filter(Optional::isPresent)
+            .map(Optional::get)
+            .collect(Collectors.toList());
+        final TargetSettingPolicyUpdate update = new TargetSettingPolicyUpdate(targetId, identityProvider,
+            discoveredSettingPolicies, getSettingPoliciesDiscoveredByTarget(targetId));
+        update.apply(this::storeDiscoveredSettingPolicy, this::deleteSettingPolicyForTargetUpdate);
+        logger.info("Finished updating discovered groups.");
+    }
+
+    @VisibleForTesting
+    @Nonnull
+    Collection<SettingProto.SettingPolicy> getSettingPoliciesDiscoveredByTarget(final long targetId)
+        throws DatabaseException {
+        try {
+            return getSettingPolicies(SettingPolicyFilter.newBuilder().withTargetId(targetId).build())
+                .collect(Collectors.toList());
+        } catch (DataAccessException dae) {
+            throw new DatabaseException(
+                "Unable to retrieve setting policies discovered by target " + targetId, dae);
+        }
+    }
+
+    private void storeDiscoveredSettingPolicy(@Nonnull final SettingProto.SettingPolicy settingPolicy)
+        throws DatabaseException {
+        try {
+            final Type type = settingPolicy.getSettingPolicyType();
+            Preconditions.checkArgument(type == Type.DISCOVERED);
+
+            // Validate before doing anything.
+            final SettingPolicyInfo settingPolicyInfo = settingPolicy.getInfo();
+            settingPolicyValidator.validateSettingPolicy(settingPolicyInfo, type);
+
+            final SettingPolicy jooqSettingPolicy = new SettingPolicy(
+                settingPolicy.getId(),
+                settingPolicyInfo.getName(),
+                settingPolicyInfo.getEntityType(),
+                settingPolicyInfo,
+                SettingPolicyTypeConverter.typeToDb(type),
+                settingPolicyInfo.getTargetId());
+            dslContext.newRecord(SETTING_POLICY, jooqSettingPolicy).store();
+        } catch (InvalidSettingPolicyException | DataAccessException e) {
+            throw new DatabaseException("Unable to store discovered setting policy " + settingPolicy, e);
+        }
+    }
+
+    private void deleteSettingPolicyForTargetUpdate(final long settingPolicyId) throws DatabaseException {
+        try {
+            deleteSettingPolicy(settingPolicyId);
+        } catch (SettingPolicyNotFoundException | InvalidSettingPolicyException e) {
+            throw new DatabaseException(
+                "Unable to delete discovered setting policy with id " + settingPolicyId, e);
+        }
+    }
+
+    /**
      * Insert the settings into the Global Settings table in a single batch.
      * If key already exists, it is skipper. Only new records are persisted in
      * the DB.
@@ -390,12 +485,6 @@ public class SettingStore {
         } catch (SQLTransientException e) {
             throw new DataAccessException("Failed to insert settings into DB", e.getCause());
         }
-    }
-
-    public void insertGlobalSetting(@Nonnull final Setting setting)
-        throws DataAccessException, InvalidProtocolBufferException {
-
-        insertGlobalSettings(Arrays.asList(setting));
     }
 
     @Retryable(value = {SQLTransientException.class},

@@ -96,7 +96,7 @@ public class SettingPolicyRpcServiceTest {
     public void testCreatePolicy() throws Exception {
         final StreamObserver<CreateSettingPolicyResponse> responseObserver =
                 (StreamObserver<CreateSettingPolicyResponse>)mock(StreamObserver.class);
-        when(settingStore.createSettingPolicy(eq(settingPolicyInfo)))
+        when(settingStore.createUserSettingPolicy(eq(settingPolicyInfo)))
                 .thenReturn(settingPolicy);
 
         service.createSettingPolicy(CreateSettingPolicyRequest.newBuilder()
@@ -135,7 +135,7 @@ public class SettingPolicyRpcServiceTest {
         final String errorMsg = "ERR";
         final StreamObserver<CreateSettingPolicyResponse> responseObserver =
                 (StreamObserver<CreateSettingPolicyResponse>)mock(StreamObserver.class);
-        when(settingStore.createSettingPolicy(eq(settingPolicyInfo)))
+        when(settingStore.createUserSettingPolicy(eq(settingPolicyInfo)))
                 .thenThrow(new InvalidSettingPolicyException(errorMsg));
 
         service.createSettingPolicy(CreateSettingPolicyRequest.newBuilder()
@@ -155,7 +155,7 @@ public class SettingPolicyRpcServiceTest {
     public void testCreatePolicyDuplicateName() throws Exception {
         final StreamObserver<CreateSettingPolicyResponse> responseObserver =
                 (StreamObserver<CreateSettingPolicyResponse>)mock(StreamObserver.class);
-        when(settingStore.createSettingPolicy(eq(settingPolicyInfo)))
+        when(settingStore.createUserSettingPolicy(eq(settingPolicyInfo)))
                 .thenThrow(new DuplicateNameException(1, "foo"));
 
         service.createSettingPolicy(CreateSettingPolicyRequest.newBuilder()

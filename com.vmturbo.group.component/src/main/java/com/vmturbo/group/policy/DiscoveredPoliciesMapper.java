@@ -16,7 +16,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintType;
 
 /**
  * Map discovered policies (like DRS rules) to instances of {@link InputPolicy}.
- *
  */
 public class DiscoveredPoliciesMapper {
     private final Logger logger = LogManager.getLogger();

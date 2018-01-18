@@ -26,6 +26,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.InputPolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -187,6 +189,16 @@ abstract class TargetCollectionUpdate<InstanceType, SpecType> {
     }
 
     /**
+     * Indicates whether updating an instances requires deletion of the old version of the instance.
+     * If true, an update action will first issue a delete using the ID.
+     *
+     * @return True if updating an instance requires deletion of the prior version of that instance.
+     */
+    protected boolean updateRequiresDeletion() {
+        return false;
+    }
+
+    /**
      * Apply the update, calling the provided functions to store and delete groups.
      *
      * @param storeFn The function to use to save an instance to the DB
@@ -210,6 +222,11 @@ abstract class TargetCollectionUpdate<InstanceType, SpecType> {
         groupUpdates.forEach((groupId, newGroupInfo) -> {
             try {
                 InstanceType newInstance = createInstance(groupId, newGroupInfo);
+                if (updateRequiresDeletion()) {
+                    // TODO: There should probably be a transaction wrapping this delete. This should be easier
+                    // when we move group and policies to settings so we can have a common way of doing this.
+                    deleteFn.removeInstance(groupId);
+                }
                 storeFn.storeInstance(newInstance);
                 oidMap.forcePut(infoIdGetter().apply(newGroupInfo), idGetter().apply(newInstance));
             } catch (DatabaseException e) {
@@ -410,6 +427,69 @@ abstract class TargetCollectionUpdate<InstanceType, SpecType> {
                     .setEnabled(existingPolicy.getEnabled())
                     .build()
             );
+        }
+    }
+
+    /**
+     * An implementation of {@link TargetCollectionUpdate} to update instances of {@link SettingPolicy}.
+     */
+    static class TargetSettingPolicyUpdate extends TargetCollectionUpdate<SettingPolicy, SettingPolicyInfo> {
+        TargetSettingPolicyUpdate (final long targetId,
+                                   @Nonnull final IdentityProvider identityProvider,
+                                   @Nonnull final List<SettingPolicyInfo> newlyDiscoveredSettingPolicies,
+                                   @Nonnull final Collection<SettingPolicy> existingSettingPolicies) {
+            super(targetId, identityProvider, newlyDiscoveredSettingPolicies, existingSettingPolicies);
+        }
+
+        @Override
+        protected Function<SettingPolicy, Long> idGetter() {
+            return SettingPolicy::getId;
+        }
+
+        @Override
+        protected Function<SettingPolicy, SettingPolicyInfo> infoGetter() {
+            return SettingPolicy::getInfo;
+        }
+
+        @Override
+        protected Function<SettingPolicyInfo, String> infoNameGetter() {
+            return SettingPolicyInfo::getName;
+        }
+
+        @Override
+        protected Function<SettingPolicyInfo, String> infoIdGetter() {
+            return info -> info.getName() + "-" + info.getEntityType();
+        }
+
+        @Override
+        protected Function<SettingPolicyInfo, Integer> memberTypeGetter() {
+            return SettingPolicyInfo::getEntityType;
+        }
+
+        @Override
+        protected SettingPolicy createInstance(final long id, final SettingPolicyInfo settingPolicyInfo) {
+            return SettingPolicy.newBuilder()
+                .setId(id)
+                .setInfo(settingPolicyInfo)
+                .setSettingPolicyType(SettingPolicy.Type.DISCOVERED)
+                .build();
+        }
+
+        @Override
+        protected BiFunction<SettingPolicy, SettingPolicyInfo, SettingPolicyInfo> transitAttribution() {
+            return (existingSettingPolicy, newSettingPolicyInfo) -> newSettingPolicyInfo;
+        }
+
+        /**
+         * Because this update interface doesn't actually support an update function, we need to delete
+         * the prior instance before inserting the new instance. This is not terribly efficient, so if
+         * it becomes a performance issue we can look into actually supporting an update method.
+         *
+         * @return true because update does require deletion.
+         */
+        @Override
+        protected boolean updateRequiresDeletion() {
+            return true;
         }
     }
 

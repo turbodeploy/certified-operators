@@ -1,6 +1,7 @@
 package com.vmturbo.group.service;
 
 import static org.junit.Assert.assertEquals;
+import static org.mockito.Matchers.anyMap;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -27,6 +28,7 @@ import com.vmturbo.components.common.health.HealthStatus;
 import com.vmturbo.components.common.health.HealthStatusProvider;
 import com.vmturbo.group.persistent.GroupStore;
 import com.vmturbo.group.persistent.PolicyStore;
+import com.vmturbo.group.persistent.SettingStore;
 
 public class DiscoveredGroupsRpcServiceTest {
 
@@ -34,10 +36,12 @@ public class DiscoveredGroupsRpcServiceTest {
 
     private PolicyStore policyStore = mock(PolicyStore.class);
 
+    private SettingStore settingStore = mock(SettingStore.class);
+
     private HealthStatusProvider compositeHealthMonitor = mock(HealthStatusProvider.class);
 
     private DiscoveredGroupsRpcService service =
-            new DiscoveredGroupsRpcService(groupStore, policyStore, compositeHealthMonitor);
+            new DiscoveredGroupsRpcService(groupStore, policyStore, settingStore, compositeHealthMonitor);
 
     @Mock
     private StreamObserver<StoreDiscoveredGroupsResponse> responseObserver;
@@ -89,5 +93,8 @@ public class DiscoveredGroupsRpcServiceTest {
         verify(groupStore).updateTargetGroups(eq(10L),
                 eq(Collections.singletonList(GroupInfo.getDefaultInstance())),
                 eq(Collections.singletonList(ClusterInfo.getDefaultInstance())));
+
+        verify(policyStore).updateTargetPolicies(eq(10L), eq(Collections.emptyList()), anyMap());
+        verify(settingStore).updateTargetSettingPolicies(eq(10L), eq(Collections.emptyList()), anyMap());
     }
 }

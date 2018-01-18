@@ -19,6 +19,8 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import org.apache.commons.lang3.StringUtils;
 
+import com.google.common.base.Preconditions;
+
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
@@ -103,9 +105,15 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
             if (settingPolicyInfo.hasSchedule()) {
                 errors.add("Default setting policy should not have a schedule.");
             }
-        } else {
+            if (settingPolicyInfo.hasTargetId()) {
+                errors.add("Default setting policy must not have a targetId.");
+            }
+        } else if (type.equals(Type.USER)) {
             if (settingPolicyInfo.hasSchedule()) {
                 errors.addAll(validateSchedule(settingPolicyInfo.getSchedule()));
+            }
+            if (settingPolicyInfo.hasTargetId()) {
+                errors.add("User setting policy must not have a targetId.");
             }
 
             if (!settingPolicyInfo.hasScope() ||
@@ -134,6 +142,11 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
                     errors.add("Unable to fetch groups for setting policy due to exception: " +
                             e.getMessage());
                 }
+            }
+        } else {
+            if (!settingPolicyInfo.hasTargetId()) {
+                Preconditions.checkArgument(type == Type.DISCOVERED);
+                errors.add("Discovered setting policy must set the target_id field.");
             }
         }
 

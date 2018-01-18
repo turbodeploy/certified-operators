@@ -23,6 +23,8 @@ class SettingPolicyTypeConverter {
                 return SettingPolicyPolicyType.default_;
             case USER:
                 return SettingPolicyPolicyType.user;
+            case DISCOVERED:
+                return SettingPolicyPolicyType.discovered;
             default:
                 throw new IllegalArgumentException("Unexpected type: " + type);
         }
@@ -35,6 +37,8 @@ class SettingPolicyTypeConverter {
                 return Type.USER;
             case default_:
                 return Type.DEFAULT;
+            case discovered:
+                return Type.DISCOVERED;
             default:
                 throw new IllegalArgumentException("Unexpected database type: " + dbType);
         }

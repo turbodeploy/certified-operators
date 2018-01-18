@@ -4,6 +4,7 @@ package group;
 option java_package = "com.vmturbo.common.protobuf.group";
 
 import "search/Search.proto";
+import "setting/Setting.proto";
 
 // A group is a set of entities that can be treated collectively for the
 // purpose of settings, policies, statistics, and other operations.
@@ -132,20 +133,53 @@ message ClusterInfo {
 }
 
 
-// Info for creating policy, which will be uploaded to group component
+// Info for creating discovered policies.
+// These are uploaded to group component together with discovered groups.
 message DiscoveredPolicyInfo {
 
     // Name of constraint which was used for creating of Policy info
-    required string policyName = 1;
+    required string policy_name = 1;
 
-    // Id of sellers group. It will be replaced to OID in group component
-    required string sellersGroupStringId = 2;
+    // Name of the seller's group. It will be replaced to OID in group component.
+    // When creating a discovered policy, a group of the same name must exist in the
+    // StoreDiscoveredGroupsRequest or the discovered policy creation will fail.
+    required string sellers_group_string_id = 2;
 
-    // Id of buyers. It will be replaced to OID in group component
-    required string buyersGroupStringId = 3;
+    // Name of the buyer's group. It will be replaced to OID in group component
+    // When creating a discovered policy, a group of the same name must exist in the
+    // StoreDiscoveredGroupsRequest or the discovered policy creation will fail.
+    required string buyers_group_string_id = 3;
 
     // Constraint type of Policy. This value is obtained from field(which is enum) of ConstraintInfo
-    required int32 constraintType = 4;
+    // See the "ConstraintType" enum in the SDK CommonDTO file for more information.
+    required int32 constraint_type = 4;
+}
+
+// Info for creating discovered setting policies.
+// These are uploaded to group component together with discovered groups.
+message DiscoveredSettingPolicyInfo {
+
+    // Name of the setting policy.
+    // The name should be unique.
+    required string name = 1;
+
+    // The settings that should be applied to the entities in the scope.
+    //
+    // These settings may only be associated with SettingSpecs that are of an EntitySettingSpec type.
+    // It makes no sense to apply a GlobalSettingSpec to a SettingPolicy.
+    //
+    // The entity_type on the SettingSpecs associated with each of these Settings should match
+    // the entity_type on the SettingPolicy.
+    repeated .setting.Setting settings = 2;
+
+    // The type of the entities to which the SettingPolicy applies.
+    optional int32 entity_type = 3;
+
+    // The names of the discovered groups that this setting policy will be applied to.
+    // This will be convereted into a scope for the SettingPolicy to be created.
+    // When creating a discovered setting policy, a group of the same name must exist in the
+    // StoreDiscoveredGroupsRequest or the discovered setting policy creation will fail.
+    repeated string discovered_group_names = 4;
 }
 
 message SearchParametersCollection {
@@ -238,9 +272,17 @@ message StoreDiscoveredGroupsRequest {
     // The most recent clusters discovered by the target.
     repeated ClusterInfo discovered_cluster = 3;
 
-
-    // Infos for Policies creating and uploading to group component
+    // Discovered policies associated with this target.
+    // The new set of policies will completely replace the old, even if the new set is empty.
+    // Groups referenced in these discovered policies must be contained in the discovered_group field
+    // in this message.
     repeated DiscoveredPolicyInfo discovered_policy_infos = 4;
+
+    // Discovered setting policies associated with this target.
+    // The new set of setting policies will completely replace the old, even if the new set is empty.
+    // Groups referenced in these discovered setting policies must be contained in the discovered_group field
+    // in this message.
+    repeated DiscoveredSettingPolicyInfo discovered_setting_policies = 5;
 }
 
 message StoreDiscoveredGroupsResponse {}

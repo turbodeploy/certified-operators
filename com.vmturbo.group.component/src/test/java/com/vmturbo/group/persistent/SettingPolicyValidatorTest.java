@@ -360,6 +360,65 @@ public class SettingPolicyValidatorTest {
                 .build(), Type.USER);
     }
 
+    @Test(expected = InvalidSettingPolicyException.class)
+    public void testDiscoveredMissingTargetId() throws InvalidSettingPolicyException {
+        when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
+            .setEnumSettingValueType(EnumSettingValueType.newBuilder()
+                .addEnumValues("1").addEnumValues("2"))
+            .build()));
+        validator.validateSettingPolicy(newInfo()
+            .addSettings(newSetting()
+                .setEnumSettingValue(EnumSettingValue.newBuilder()
+                    .setValue("2"))
+                .build())
+            .build(), Type.DISCOVERED);
+    }
+
+    @Test(expected = InvalidSettingPolicyException.class)
+    public void testUserWithTargetId() throws InvalidSettingPolicyException {
+        when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
+            .setEnumSettingValueType(EnumSettingValueType.newBuilder()
+                .addEnumValues("1").addEnumValues("2"))
+            .build()));
+        validator.validateSettingPolicy(newInfo()
+            .setTargetId(1234L)
+            .addSettings(newSetting()
+                .setEnumSettingValue(EnumSettingValue.newBuilder()
+                    .setValue("2"))
+                .build())
+            .build(), Type.USER);
+    }
+
+    @Test(expected = InvalidSettingPolicyException.class)
+    public void testDefaultWithTargetId() throws InvalidSettingPolicyException {
+        when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
+            .setEnumSettingValueType(EnumSettingValueType.newBuilder()
+                .addEnumValues("1").addEnumValues("2"))
+            .build()));
+        validator.validateSettingPolicy(newInfo()
+            .setTargetId(1234L)
+            .addSettings(newSetting()
+                .setEnumSettingValue(EnumSettingValue.newBuilder()
+                    .setValue("2"))
+                .build())
+            .build(), Type.DEFAULT);
+    }
+
+    @Test
+    public void testDiscoveredWithTargetId() throws InvalidSettingPolicyException {
+        when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
+            .setEnumSettingValueType(EnumSettingValueType.newBuilder()
+                .addEnumValues("1").addEnumValues("2"))
+            .build()));
+        validator.validateSettingPolicy(newInfo()
+            .setTargetId(1234L)
+            .addSettings(newSetting()
+                .setEnumSettingValue(EnumSettingValue.newBuilder()
+                    .setValue("2"))
+                .build())
+            .build(), Type.DISCOVERED);
+    }
+
     @Test
     public void testDefaultSettingPolicyWithSchedule() {
         try {

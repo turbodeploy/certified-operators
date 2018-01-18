@@ -30,6 +30,7 @@ public class SettingPolicyFilter {
     private final Set<Type> desiredTypes;
     private final Set<String> desiredNames;
     private final Set<Long> desiredIds;
+    private final Set<Long> desiredTargetIds;
 
     /**
      * The pre-computed jOOQ conditions representing the filter.
@@ -38,10 +39,12 @@ public class SettingPolicyFilter {
 
     private SettingPolicyFilter(@Nonnull final Set<Type> type,
                                 @Nonnull final Set<String> name,
-                                @Nonnull final Set<Long> ids) {
-        this.desiredTypes = type;
-        this.desiredNames = name;
-        this.desiredIds = ids;
+                                @Nonnull final Set<Long> ids,
+                                @Nonnull final Set<Long> targetIds) {
+        this.desiredTypes = Objects.requireNonNull(type);
+        this.desiredNames = Objects.requireNonNull(name);
+        this.desiredIds = Objects.requireNonNull(ids);
+        this.desiredTargetIds = Objects.requireNonNull(targetIds);
 
         final ImmutableList.Builder<Condition> condBuilder = ImmutableList.builder();
         if (!type.isEmpty()) {
@@ -56,6 +59,10 @@ public class SettingPolicyFilter {
 
         if (!ids.isEmpty()) {
             condBuilder.add(SETTING_POLICY.ID.in(ids));
+        }
+
+        if (!targetIds.isEmpty()) {
+            condBuilder.add(SETTING_POLICY.TARGET_ID.in(targetIds));
         }
 
         conditions = condBuilder.build();
@@ -83,7 +90,7 @@ public class SettingPolicyFilter {
 
     @Override
     public int hashCode() {
-        return Objects.hash(desiredTypes, desiredNames, desiredIds);
+        return Objects.hash(desiredTypes, desiredNames, desiredIds, desiredTargetIds);
     }
 
     @Override
@@ -92,7 +99,8 @@ public class SettingPolicyFilter {
             final SettingPolicyFilter otherFilter = (SettingPolicyFilter)other;
             return otherFilter.desiredTypes.equals(desiredTypes)
                 && otherFilter.desiredNames.equals(desiredNames)
-                && otherFilter.desiredIds.equals(desiredIds);
+                && otherFilter.desiredIds.equals(desiredIds)
+                && otherFilter.desiredTargetIds.equals(desiredTargetIds);
         } else {
             return false;
         }
@@ -102,6 +110,7 @@ public class SettingPolicyFilter {
         private Set<Type> type = new HashSet<>();
         private Set<Long> ids = new HashSet<>();
         private Set<String> names = new HashSet<>();
+        private Set<Long> targetIds = new HashSet<>();
 
         /**
          * Add a type that the filter will match. This method can be called
@@ -117,7 +126,7 @@ public class SettingPolicyFilter {
 
         /**
          * Add a setting policy name that the filter will match. This method can be called
-         * multiple times with diferent names.
+         * multiple times with different names.
          *
          * @param name The target name.
          * @return The builder, for chaining.
@@ -129,7 +138,7 @@ public class SettingPolicyFilter {
 
         /**
          * Add a setting policy id that the filter will match. This method can be called
-         * multiple times with diferent ids.
+         * multiple times with different ids.
          *
          * @param oid The target id.
          * @return The builder, for chaining.
@@ -139,8 +148,20 @@ public class SettingPolicyFilter {
             return this;
         }
 
+        /**
+         * Add a setting policy target id that the filter will match. This method can be called
+         * multiple times with different ids.
+         *
+         * @param targetId The id of the target whose discovered setting policies should be matched.
+         * @return The builder, for chaining.
+         */
+        public Builder withTargetId(final long targetId) {
+            this.targetIds.add(targetId);
+            return this;
+        }
+
         public SettingPolicyFilter build() {
-            return new SettingPolicyFilter(type, names, ids);
+            return new SettingPolicyFilter(type, names, ids, targetIds);
         }
     }
 }

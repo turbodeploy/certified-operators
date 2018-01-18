@@ -18,6 +18,7 @@ import com.vmturbo.components.common.health.HealthStatusProvider;
 import com.vmturbo.group.persistent.DatabaseException;
 import com.vmturbo.group.persistent.GroupStore;
 import com.vmturbo.group.persistent.PolicyStore;
+import com.vmturbo.group.persistent.SettingStore;
 
 public class DiscoveredGroupsRpcService extends DiscoveredGroupServiceImplBase {
 
@@ -27,13 +28,17 @@ public class DiscoveredGroupsRpcService extends DiscoveredGroupServiceImplBase {
 
     private final PolicyStore policyStore;
 
+    private final SettingStore settingStore;
+
     private final HealthStatusProvider healthMonitor;
 
     public DiscoveredGroupsRpcService(@Nonnull final GroupStore groupStore,
                                       @Nonnull final PolicyStore policyStore,
+                                      @Nonnull final SettingStore settingStore,
                                       @Nonnull final HealthStatusProvider healthMonitor) {
         this.groupStore = Objects.requireNonNull(groupStore);
         this.policyStore = Objects.requireNonNull(policyStore);
+        this.settingStore = Objects.requireNonNull(settingStore);
         this.healthMonitor = healthMonitor;
     }
 
@@ -58,7 +63,10 @@ public class DiscoveredGroupsRpcService extends DiscoveredGroupServiceImplBase {
                     request.getDiscoveredClusterList());
 
             policyStore.updateTargetPolicies(request.getTargetId(),
-                            request.getDiscoveredPolicyInfosList(), groupsMap);
+                request.getDiscoveredPolicyInfosList(), groupsMap);
+            settingStore.updateTargetSettingPolicies(request.getTargetId(),
+                request.getDiscoveredSettingPoliciesList(), groupsMap);
+
             responseObserver.onNext(StoreDiscoveredGroupsResponse.getDefaultInstance());
             responseObserver.onCompleted();
         } catch (DatabaseException e) {
