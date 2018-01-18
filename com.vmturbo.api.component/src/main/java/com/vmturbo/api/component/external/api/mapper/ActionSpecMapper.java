@@ -341,6 +341,8 @@ public class ActionSpecMapper {
                 readableEntityTypeAndName(actionApiDTO.getTarget()),
                 resize.getOldCapacity(),
                 resize.getNewCapacity()));
+        actionApiDTO.setCurrentValue(Float.toString(resize.getOldCapacity()));
+        actionApiDTO.setResizeToValue(Float.toString(resize.getNewCapacity()));
     }
 
     private void addActivateInfo(@Nonnull final ActionApiDTO actionApiDTO,
