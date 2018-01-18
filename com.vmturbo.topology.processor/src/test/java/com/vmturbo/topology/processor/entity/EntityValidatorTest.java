@@ -223,7 +223,7 @@ public class EntityValidatorTest {
 
     private CommodityDTO provisionedCommodity() {
         return CommodityDTO.newBuilder()
-                        .setCommodityType(CommodityType.CPU_PROVISIONED)
+                        .setCommodityType(CommodityType.STORAGE_PROVISIONED)
                         .setCapacity(PROV_CAPACITY)
                         .build();
     }
