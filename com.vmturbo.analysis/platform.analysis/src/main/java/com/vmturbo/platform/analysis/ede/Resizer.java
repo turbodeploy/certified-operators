@@ -140,7 +140,8 @@ public class Resizer {
 
         double maxQuantity = commoditySold.getMaxQuantity();
         double peakQuantity = commoditySold.getPeakQuantity();
-        double capacityIncrement = commoditySold.getSettings().getCapacityIncrement();
+        double capacityIncrement = commoditySold.getSettings().getCapacityIncrement() *
+                                        commoditySold.getSettings().getUtilizationUpperBound();
         double currentCapacity = commoditySold.getEffectiveCapacity();
         double newCapacity = currentCapacity;
         double delta = desiredCapacity - currentCapacity;
@@ -283,7 +284,8 @@ public class Resizer {
         DoubleBinaryOperator errorFunction = (x, y) -> currentQuantity / x - currentQuantity / y;
         // we will change capacity in steps of capacity increment so we can stop when error in
         // capacity is less than half of capacity increment
-        double epsilon = resizeCommodity.getSettings().getCapacityIncrement() / 2;
+        double epsilon = resizeCommodity.getSettings().getCapacityIncrement() *
+                                    resizeCommodity.getSettings().getUtilizationUpperBound() / 2;
         double newNormalizedUtilization = Bisection.solve(epsilon, errorFunction,
                                   MAX_ITERATIONS, revenueFunction, intervalMin, intervalMax);
         double newCapacity = currentQuantity / newNormalizedUtilization;
