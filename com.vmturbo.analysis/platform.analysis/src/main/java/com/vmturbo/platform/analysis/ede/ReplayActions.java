@@ -1,10 +1,12 @@
 package com.vmturbo.platform.analysis.ede;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -29,6 +31,7 @@ import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
+import com.vmturbo.platform.analysis.ledger.Ledger;
 import com.vmturbo.platform.analysis.topology.Topology;
 
 /**
@@ -70,9 +73,14 @@ public class ReplayActions {
      *
      * @param economy The {@link Economy} in which actions are to be replayed
      */
-    public void replayActions(Economy economy) {
+    public void replayActions(Economy economy, Ledger ledger) {
         Topology topology = economy.getTopology();
         LinkedList<Action> actions = new LinkedList<>();
+        List<Action> deactivateActions = actions_.stream()
+                        .filter(action -> action.getType() == ActionType.DEACTIVATE)
+                        .collect(Collectors.toList());
+        actions.addAll(tryReplayDeactivateActions(deactivateActions, economy, ledger));
+        actions_.removeAll(deactivateActions);
         actions_.forEach(a -> {
             try {
                 if (a.getType() == ActionType.MOVE) {
@@ -103,11 +111,11 @@ public class ReplayActions {
                         actions.add(r);
                     }
                 } else if (a.getType() == ActionType.PROVISION_BY_DEMAND) {
-                    ProvisionByDemand oldAction = (ProvisionByDemand) a;
+                    ProvisionByDemand oldAction = (ProvisionByDemand)a;
                     // Model seller of provision by demand action is still cloneable,
                     // then take the action
                     Trader newTrader = translateTrader(oldAction.getModelSeller(), economy, "ProvisionByDemand");
-                    if(newTrader.getSettings().isCloneable()) {
+                    if (newTrader.getSettings().isCloneable()) {
                         ProvisionByDemand pbd = new ProvisionByDemand(economy,
                                         translateShoppingList(oldAction.getModelBuyer(), economy, topology),
                                         newTrader);
@@ -115,28 +123,28 @@ public class ReplayActions {
                         Long oid = oldAction.getOid();
                         topology.addProvisionedTrader(pbd.getProvisionedSeller(), oid);
                         topology.getEconomy().getMarketsAsBuyer(pbd.getProvisionedSeller()).keySet()
-                                 .stream().forEach(topology::addProvisionedShoppingList);
+                                        .stream().forEach(topology::addProvisionedShoppingList);
                         actions.add(pbd);
                     }
                 } else if (a.getType() == ActionType.PROVISION_BY_SUPPLY) {
-                    ProvisionBySupply oldAction = (ProvisionBySupply) a;
+                    ProvisionBySupply oldAction = (ProvisionBySupply)a;
                     // Model seller of provision by supply action is still cloneable,
                     // then take the action
                     Trader newTrader = translateTrader(oldAction.getModelSeller(), economy, "ProvisionBySupply");
-                    if(newTrader.getSettings().isCloneable()) {
+                    if (newTrader.getSettings().isCloneable()) {
                         ProvisionBySupply pbs = new ProvisionBySupply(economy, newTrader);
                         pbs.take();
                         Long oid = oldAction.getOid();
                         topology.addProvisionedTrader(pbs.getProvisionedSeller(), oid);
                         topology.getEconomy().getMarketsAsBuyer(pbs.getProvisionedSeller()).keySet()
-                                .stream().forEach(topology::addProvisionedShoppingList);
+                                        .stream().forEach(topology::addProvisionedShoppingList);
                         actions.add(pbs);
                     }
                 } else if (a.getType() == ActionType.ACTIVATE) {
-                    Activate oldAction = (Activate) a;
+                    Activate oldAction = (Activate)a;
                     // Model seller of activate action should be cloneable
                     Trader newTrader = translateTrader(oldAction.getModelSeller(), economy, "Activate2");
-                    if(newTrader.getSettings().isCloneable()) {
+                    if (newTrader.getSettings().isCloneable()) {
                         Activate act = new Activate(economy,
                                         translateTrader(oldAction.getTarget(), economy, "Activate1"),
                                         oldAction.getSourceMarket(),
@@ -144,17 +152,8 @@ public class ReplayActions {
                         act.take();
                         actions.add(act);
                     }
-                } else if (a.getType() == ActionType.DEACTIVATE) {
-                    Deactivate oldAction = (Deactivate) a;
-                    // Target of deactivate action should be suspendable
-                    Trader newTrader = translateTrader(oldAction.getTarget(), economy, "Deactivate");
-                    if(oldAction.getTarget().getSettings().isSuspendable()) {
-                        Deactivate deact = new Deactivate(economy, newTrader, oldAction.getSourceMarket());
-                        deact.take();
-                        actions.add(deact);
-                    }
                 } else if (a.getType() == ActionType.RECONFIGURE) {
-                    Reconfigure oldAction = (Reconfigure) a;
+                    Reconfigure oldAction = (Reconfigure)a;
                     Reconfigure reconf = new Reconfigure(economy,
                                translateShoppingList(oldAction.getTarget(), economy, topology));
                     // nothing to do
@@ -194,13 +193,45 @@ public class ReplayActions {
                 if (logger.isDebugEnabled()) {
                     logger.debug("replayed " + a.toString());
                 }
-            } catch(Exception e) {
+            } catch (Exception e) {
                 if (logger.isDebugEnabled()) {
                     logger.debug("Could not replay " + a.toString(), e);
                 }
             }
         });
         actions_ = actions;
+    }
+
+    /**
+     * Try deactivate actions and replay only if we are able to move all customers
+     * out of current trader.
+     *
+     * @param deactivateActions List of potential deactivate actions.
+     * @param economy The {@link Economy} in which actions are to be replayed.
+     * @param ledger The {@link Ledger} related to current {@link Economy}.
+     * @return action list related to suspension of trader.
+     */
+    private List<Action> tryReplayDeactivateActions(List<Action> deactivateActions, Economy economy,
+                    Ledger ledger) {
+        List<@NonNull Action> suspendActions = new ArrayList<>();
+        if (deactivateActions.isEmpty()) {
+            return suspendActions;
+        }
+        Suspension suspensionInstance = new Suspension();
+        // adjust utilThreshold of the seller to maxDesiredUtil*utilTh. Thereby preventing moves
+        // that force utilization to exceed maxDesiredUtil*utilTh.
+        suspensionInstance.adjustUtilThreshold(economy, true);
+        for (Action deactivateAction : deactivateActions) {
+            Deactivate oldAction = (Deactivate) deactivateAction;
+            Trader newTrader = translateTrader(oldAction.getTarget(), economy, "Deactivate");
+            if (newTrader != null && oldAction.getTarget().getSettings().isSuspendable()) {
+                suspendActions.addAll(suspensionInstance.deactivateTraderIfPossible(newTrader,
+                                economy, ledger));
+            }
+        }
+        //reset the above set utilThreshold.
+        suspensionInstance.adjustUtilThreshold(economy, false);
+        return suspendActions;
     }
 
     /**
@@ -282,7 +313,7 @@ public class ReplayActions {
      * @return CommoditySold in the new Economy or null if it fails to translate it
      */
     public @Nullable CommoditySold translateCommoditySold(Trader newSellingTrader,
-                                        @Nullable CommoditySpecification oldResizedCommoditySpec,
+                    @Nullable CommoditySpecification oldResizedCommoditySpec,
                                         @Nullable CommoditySold oldResizedCommodity,
                                         Economy newEconomy, Topology newTopology) {
         CommoditySpecification newResizedCommoditySpec = oldResizedCommoditySpec;

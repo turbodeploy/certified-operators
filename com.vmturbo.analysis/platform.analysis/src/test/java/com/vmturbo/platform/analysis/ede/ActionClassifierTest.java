@@ -30,6 +30,7 @@ import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
+import com.vmturbo.platform.analysis.ledger.Ledger;
 import com.vmturbo.platform.analysis.topology.Topology;
 
 public class ActionClassifierTest {
@@ -80,18 +81,27 @@ public class ActionClassifierTest {
         shoppingLists[0].setPeakQuantity(2, 1);
         shoppingLists[0].setQuantity(3, 1);
         shoppingLists[0].setPeakQuantity(3, 1);
+        shoppingLists[0].setMovable(true);
         shoppingLists[1].move(st1);
         shoppingLists[1].setQuantity(0, 1000);
         shoppingLists[1].setPeakQuantity(0, 1000);
         shoppingLists[1].setQuantity(0, 1);
         shoppingLists[1].setPeakQuantity(0, 1);
+        shoppingLists[1].setMovable(true);
         shoppingLists[2].move(st2);
         shoppingLists[2].setQuantity(0, 1000);
         shoppingLists[2].setPeakQuantity(0, 1000);
         shoppingLists[2].setQuantity(0, 1);
         shoppingLists[2].setPeakQuantity(0, 1);
+        shoppingLists[2].setMovable(true);
+        pm1.getCommoditySold(CPU).setCapacity(100);
         pm1.getCommoditySold(CPU).setCapacity(100);
         first.getCommodityBought(shoppingLists[0], CPU).setQuantity(42);
+
+        pm1.getSettings().setCanAcceptNewCustomers(true);
+        pm2.getSettings().setCanAcceptNewCustomers(true);
+        st1.getSettings().setCanAcceptNewCustomers(true);
+        st2.getSettings().setCanAcceptNewCustomers(true);
 
         // Deactivating pm1 for replay suspension test
         // Make sure suspendable is true on it
@@ -129,6 +139,7 @@ public class ActionClassifierTest {
             pmShoppingList = sl;
             break;
         }
+        pmShoppingList.setMovable(true);
         Move move = new Move(first, pmShoppingList, pm2);
         actions.add(move);
         Deactivate deactivate = new Deactivate(first, pm1, buying.get(pmShoppingList));
@@ -136,17 +147,18 @@ public class ActionClassifierTest {
         classifier.classify(actions);
         assertEquals(true, actions.get(0).isExecutable());
         assertEquals(false, actions.get(1).isExecutable());
+        move.take();
         try {
             @NonNull
-            Economy third = cloneEconomy(second);
+            Economy third = cloneEconomy(first);
             List<Action> thirdActions = new LinkedList<>();
             ReplayActions thirdReplayActions = new ReplayActions();
             thirdReplayActions.setTraderOids(traderOids);
             thirdReplayActions.setActions(thirdActions);
-
             Deactivate thirdDeactivate = new Deactivate(first, pm1, buying.get(pmShoppingList));
             thirdActions.add(thirdDeactivate);
-            thirdReplayActions.replayActions(third);
+            third.populateMarketsWithSellers();
+            thirdReplayActions.replayActions(third, new Ledger(third));
             assertEquals(1, thirdReplayActions.getActions().size());
         } catch (ClassNotFoundException | IOException e) {
             assertTrue(false);

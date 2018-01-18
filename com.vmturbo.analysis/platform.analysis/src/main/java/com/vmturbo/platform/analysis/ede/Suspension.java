@@ -63,7 +63,6 @@ public class Suspension {
     public @NonNull List<@NonNull Action> suspensionDecisions(@NonNull Economy economy,
                     @NonNull Ledger ledger, Ede ede) {
         List<@NonNull Action> allActions = new ArrayList<>();
-        List<@NonNull Action> actions = new ArrayList<>();
         int round=0;
         // suspend entities that arent sellers in any market
         for (Trader seller : economy.getTraders()) {
@@ -116,22 +115,7 @@ public class Suspension {
 
             Trader trader;
             while ((trader = suspensionCandidateHeap_.poll()) != null) {
-                actions.clear();
-                Market sampleMarket = economy.getMarketsAsSeller(trader).get(0);
-                List<ShoppingList> customersOfSuspCandidate = new ArrayList<>();
-                customersOfSuspCandidate.addAll(trader.getCustomers());
-                suspendTrader(economy, sampleMarket, trader, actions);
-
-                // perform placement on just the customers on the suspensionCandidate
-                actions.addAll(Placement.runPlacementsTillConverge(economy, customersOfSuspCandidate, ledger,
-                                true, EconomyConstants.SUSPENSION_PHASE));
-
-                // rollback actions if the trader still has customers
-                if (!trader.getCustomers().isEmpty()) {
-                    Lists.reverse(actions).forEach(axn -> axn.rollback());
-                } else {
-                    allActions.addAll(actions);
-                }
+                allActions.addAll(deactivateTraderIfPossible(trader, economy, ledger));
             }
 
             // reset threshold
@@ -143,6 +127,40 @@ public class Suspension {
             round++;
         }
         return allActions;
+    }
+
+    /**
+     * If a trader can be suspended, adds to allActions list .Tries to move all customers
+     * can move out of current trader and if its customer list is empty the trader is suspended.
+     *
+     * @param trader The {@link Trader} we try to suspend.
+     * @param economy the {@link Economy} which is being evaluated for suspension.
+     * @param ledger The {@link Ledger} related to current {@link Economy}
+     * @return action list related to suspension of trader.
+     */
+    public List<Action> deactivateTraderIfPossible(Trader trader, Economy economy, Ledger ledger) {
+        List<Market> markets = economy.getMarketsAsSeller(trader);
+        Market market = (markets == null || markets.isEmpty()) ? null : markets.get(0);
+
+        List<@NonNull Action> suspendActions = new ArrayList<>();
+        List<ShoppingList> customersOfSuspCandidate = new ArrayList<>();
+        customersOfSuspCandidate.addAll(trader.getCustomers());
+
+        suspendTrader(economy, market, trader, suspendActions);
+
+        if (market != null) {
+            // perform placement on just the customers on the suspensionCandidate
+            suspendActions.addAll(
+                            Placement.runPlacementsTillConverge(economy, customersOfSuspCandidate,
+                                            ledger, true, EconomyConstants.SUSPENSION_PHASE));
+        }
+
+        // rollback actions if the trader still has customers
+        if (!trader.getCustomers().isEmpty()) {
+            Lists.reverse(suspendActions).forEach(axn -> axn.rollback());
+            return new ArrayList<>();
+        }
+        return suspendActions;
     }
 
     /**

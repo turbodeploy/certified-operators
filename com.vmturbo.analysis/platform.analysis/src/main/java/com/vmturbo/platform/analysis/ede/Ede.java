@@ -130,11 +130,6 @@ public final class Ede {
                 return actions;
             }
         }
-        if (getReplayActions() != null) {
-            getReplayActions().replayActions(economy);
-            actions.addAll(getReplayActions().getActions());
-            logger.info(actionStats.phaseLogEntry("replaying"));
-        }
         //Parse market stats data coming from Market1, add prepare to write to stats file.
         String data[] = StatsUtils.getTokens(mktData, "|");
         if (data.length <= 1) {
@@ -164,6 +159,15 @@ public final class Ede {
 
         // create a subset list of markets that have atleast one buyer that can move
         economy.composeMarketSubsetForPlacement();
+
+        Ledger ledger = new Ledger(economy);
+
+        if (getReplayActions() != null) {
+            getReplayActions().replayActions(economy, ledger);
+            actions.addAll(getReplayActions().getActions());
+            logger.info(actionStats.phaseLogEntry("replaying"));
+        }
+
         // generate moves for IDLE VMs
         actions.addAll(Placement.prefPlacementDecisions(economy, economy.getInactiveOrIdleTraders()));
         logger.info(actionStats.phaseLogEntry("inactive/idle Trader placement"));
@@ -171,7 +175,6 @@ public final class Ede {
         // Start by provisioning enough traders to satisfy all the demand
         // Save first call to before() to calculate total plan time
         Instant begin = statsUtils.before();
-        Ledger ledger;
         if (isProvision) {
             actions.addAll(BootstrapSupply.bootstrapSupplyDecisions(economy));
             ledger = new Ledger(economy);
@@ -186,8 +189,6 @@ public final class Ede {
             logger.info(actionStats.phaseLogEntry("placement"));
             // time to run initial placement
             statsUtils.after();
-        } else {
-            ledger = new Ledger(economy);
         }
 
         statsUtils.before();
