@@ -637,4 +637,9 @@ public class UsersService implements IUsersService {
         userDto.setUuid(UUID.randomUUID().toString());
         return userDto;
     }
+
+    @Override
+    public UserApiDTO resetAdministratorPassword(final ChangePasswordApiDTO changePasswordApiDTO) throws Exception {
+        throw new UnsupportedOperationException();
+    }
 }
