@@ -24,6 +24,7 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingSt
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScope;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScopeEntry;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
@@ -42,6 +43,7 @@ import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.group.settings.SettingOverrides;
 import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileNotifier;
+import com.vmturbo.topology.processor.reservation.ReservationManager;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
 import com.vmturbo.topology.processor.topology.ConstraintsEditor;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
@@ -178,6 +180,19 @@ public class Stages {
             return true;
         }
 
+    }
+
+    public static class ReservationStage extends PassthroughStage<Map<Long, TopologyEntity.Builder>> {
+        private final ReservationManager reservationManager;
+
+        public ReservationStage(@Nonnull final ReservationManager reservationManager) {
+            this.reservationManager = Objects.requireNonNull(reservationManager);
+        }
+
+        @Override
+        public void passthrough(@Nonnull final Map<Long, TopologyEntity.Builder> input) {
+            reservationManager.applyReservation(input);
+        }
     }
 
     /**

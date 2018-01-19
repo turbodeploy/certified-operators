@@ -14,23 +14,22 @@ import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
-import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.group.filter.TopologyFilterFactory;
-import com.vmturbo.topology.processor.group.policy.InitialPlacementPolicyFactory;
+import com.vmturbo.topology.processor.group.policy.ReservationPolicyFactory;
 import com.vmturbo.topology.processor.group.policy.PolicyFactory;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsApplicator;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
-import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
+import com.vmturbo.topology.processor.plan.PlanConfig;
 
 /**
  * The configuration for dealing with groups.
  */
 @Configuration
-@Import({EntityConfig.class, GroupClientConfig.class})
+@Import({EntityConfig.class, GroupClientConfig.class, PlanConfig.class})
 public class GroupConfig {
 
     @Autowired
@@ -38,6 +37,9 @@ public class GroupConfig {
 
     @Autowired
     private GroupClientConfig groupClientConfig;
+
+    @Autowired
+    private PlanConfig planConfig;
 
     @Value("${discoveredGroupUploadIntervalSeconds}")
     private long discoveredGroupUploadIntervalSeconds;
@@ -70,7 +72,7 @@ public class GroupConfig {
     @Bean
     public PolicyManager policyManager() {
         return new PolicyManager(policyRpcService(), groupServiceClient(), new PolicyFactory(),
-                initialPlacementPolicyFactory());
+                initialPlacementPolicyFactory(), planConfig.reservationServiceBlockingStub());
     }
 
     @Bean
@@ -92,7 +94,7 @@ public class GroupConfig {
     }
 
     @Bean
-    public InitialPlacementPolicyFactory initialPlacementPolicyFactory() {
-        return new InitialPlacementPolicyFactory(groupServiceClient());
+    public ReservationPolicyFactory initialPlacementPolicyFactory() {
+        return new ReservationPolicyFactory(groupServiceClient());
     }
 }

@@ -16,6 +16,7 @@ import com.vmturbo.topology.processor.group.GroupConfig;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
 import com.vmturbo.topology.processor.plan.PlanConfig;
 import com.vmturbo.topology.processor.repository.RepositoryConfig;
+import com.vmturbo.topology.processor.reservation.ReservationConfig;
 import com.vmturbo.topology.processor.stitching.StitchingConfig;
 import com.vmturbo.topology.processor.targets.TargetConfig;
 import com.vmturbo.topology.processor.template.TemplateConfig;
@@ -34,7 +35,8 @@ import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineFactory;
     PlanConfig.class,
     RepositoryConfig.class,
     TemplateConfig.class,
-    ClockConfig.class
+    ClockConfig.class,
+    ReservationConfig.class
 })
 public class TopologyConfig {
 
@@ -64,6 +66,9 @@ public class TopologyConfig {
 
     @Autowired
     private ClockConfig clockConfig;
+
+    @Autowired
+    private ReservationConfig reservationConfig;
 
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
@@ -95,7 +100,8 @@ public class TopologyConfig {
                 topologyEditor(),
                 repositoryConfig.repository(),
                 groupConfig.topologyFilterFactory(),
-                groupConfig.groupServiceClient());
+                groupConfig.groupServiceClient(),
+                reservationConfig.reservationManager());
     }
 
     @Bean

@@ -38,9 +38,38 @@ message RetrieveTopologyResponse {
     repeated topology.TopologyEntityDTO entities = 1;
 }
 
+// Request for retrieving topology entities.
+message RetrieveTopologyEntitiesRequest {
+    // Id of topology.
+    optional int64 topology_id = 1;
+    // Context id of topology.
+    optional int64 topology_context_id = 2;
+    // List of id which need to retrieve.
+    repeated int64 entity_oids = 3;
+    // Type of topology means source topology or projected topology need to retrieve from.
+    optional TopologyType topology_type = 4;
+
+    enum TopologyType {
+        // Means source topology.
+        SOURCE = 1;
+        // Means projected topology.
+        PROJECTED = 2;
+    }
+}
+
+// Response of retrieve topology entities.
+message RetrieveTopologyEntitiesResponse {
+    // Returned topology entity dto which only contains partial fields. Even though it missing all
+    // Market setting fields but we do not need them.
+    repeated topology.TopologyEntityDTO entities = 1;
+}
+
 service RepositoryService {
     rpc DeleteTopology(DeleteTopologyRequest) returns (RepositoryOperationResponse);
     rpc RetrieveTopology(RetrieveTopologyRequest) returns (stream RetrieveTopologyResponse);
+    // Try to get topology entities from Repository, and note that the returned TopologyEntityDTO contains
+    // only partial fields, because some fields not stored at ServiceEntityRepoDTO.
+    rpc RetrieveTopologyEntities(RetrieveTopologyEntitiesRequest) returns (RetrieveTopologyEntitiesResponse);
 }
 
 enum RepositoryOperationResponseCode {

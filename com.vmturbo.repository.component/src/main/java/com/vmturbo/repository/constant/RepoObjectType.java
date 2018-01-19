@@ -1,5 +1,8 @@
 package com.vmturbo.repository.constant;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
 import com.google.common.collect.BiMap;
 import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableMap;
@@ -167,14 +170,34 @@ public class RepoObjectType {
         public String getValue() {
             return value;
         }
+
+        /**
+         * Convert String type to {@link RepoCommodityType). There are some Commodity type, such as
+         * Datacenter, Cluster, are not type of {@link RepoCommodityType}. In this case, it will return
+         * null.
+         *
+         * @param type string type of Commodity.
+         * @return null if can not find relate {@link RepoCommodityType}.
+         */
+        @Nullable
+        public static RepoCommodityType fromString(String type) {
+            if (type != null) {
+                for (RepoCommodityType t : RepoCommodityType.values()) {
+                    if (type.equals(t.value)) {
+                        return t;
+                    }
+                }
+            }
+            return null;
+        }
     }
 
 
     /**
      * Mappings between commodityType enum values in TopologyEntityDTO to strings that the UI understands.
      */
-    private static final ImmutableMap<CommodityType, RepoCommodityType> COMMODITY_TYPE_MAPPINGS =
-                    new ImmutableMap.Builder<CommodityType, RepoCommodityType>()
+    private static final BiMap<CommodityType, RepoCommodityType> COMMODITY_TYPE_MAPPINGS =
+                    new ImmutableBiMap.Builder<CommodityType, RepoCommodityType>()
                     .put(CommodityType.IO_THROUGHPUT,       RepoCommodityType.IO_THROUGHPUT)
                     .put(CommodityType.NET_THROUGHPUT,      RepoCommodityType.NET_THROUGHPUT)
                     .put(CommodityType.VMEM,                RepoCommodityType.VMEM)
@@ -222,5 +245,20 @@ public class RepoObjectType {
         }
 
         return repoCommType.getValue();
+    }
+
+    /**
+     * Convert a UI String commodity type to a {@link CommodityType}. There are some commodity type are
+     * not appeared in Commodity Map, such as DataCenter, Cluster. In this case, it will directly
+     * converted to {@link CommodityType}.
+     *
+     * @param type type of Commodity need to convert.
+     * @return a int value of {@link CommodityType}.
+     */
+    public static int mapCommodityType(@Nonnull final String type) {
+        final CommodityType commodityType = COMMODITY_TYPE_MAPPINGS.inverse()
+                .get(RepoCommodityType.fromString(type));
+        return commodityType != null ? commodityType.getNumber() :
+                CommodityType.valueOf(type).getNumber();
     }
 }

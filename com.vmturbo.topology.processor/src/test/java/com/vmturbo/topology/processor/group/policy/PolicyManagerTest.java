@@ -40,6 +40,9 @@ import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.PolicyChange;
+import com.vmturbo.common.protobuf.plan.ReservationDTOMoles.ReservationServiceMole;
+import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc;
+import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
@@ -55,12 +58,15 @@ public class PolicyManagerTest {
 
     private final GroupServiceMole groupServiceMole = Mockito.spy(new GroupServiceMole());
 
+    private final ReservationServiceMole reservationServiceMole =
+            Mockito.spy(new ReservationServiceMole());
+
     private final GroupResolver groupResolver = Mockito.mock(GroupResolver.class);
 
     private final TopologyGraph topologyGraph = Mockito.mock(TopologyGraph.class);
 
-    private final InitialPlacementPolicyFactory initialPlacementPolicyFactory =
-            Mockito.mock(InitialPlacementPolicyFactory.class);
+    private final ReservationPolicyFactory reservationPolicyFactory =
+            Mockito.mock(ReservationPolicyFactory.class);
 
     private final long id1 = 1L;
     private final long id2 = 2L;
@@ -88,7 +94,8 @@ public class PolicyManagerTest {
     private final Policy planPolicy = bindToGroup(id3, id5, 35L);
 
     @Rule
-    public GrpcTestServer grpcServer = GrpcTestServer.newServer(policyServiceMole, groupServiceMole);
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(policyServiceMole, groupServiceMole,
+            reservationServiceMole);
 
     private com.vmturbo.topology.processor.group.policy.PolicyManager policyManager;
 
@@ -113,9 +120,13 @@ public class PolicyManagerTest {
         final GroupServiceBlockingStub groupServiceStub =
             GroupServiceGrpc.newBlockingStub(grpcServer.getChannel());
 
+        final ReservationServiceBlockingStub reservationServiceStub =
+                ReservationServiceGrpc.newBlockingStub(grpcServer.getChannel());
+
         // set up the GroupService to test
         policyManager = new com.vmturbo.topology.processor.group.policy.PolicyManager(
-            policyRpcService, groupServiceStub, new PolicyFactory(), initialPlacementPolicyFactory);
+            policyRpcService, groupServiceStub, new PolicyFactory(), reservationPolicyFactory,
+                reservationServiceStub);
     }
 
     @Test

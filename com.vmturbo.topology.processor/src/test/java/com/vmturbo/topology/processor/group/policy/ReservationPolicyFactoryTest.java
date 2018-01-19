@@ -21,8 +21,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.InitialPlacementConstraint;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.InitialPlacementConstraint.Type;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ReservationConstraintInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -40,11 +39,11 @@ import com.vmturbo.topology.processor.topology.TopologyGraph;
  *  \          |
  *  DC7        DC8
  */
-public class InitialPlacementPolicyFactoryTest {
+public class ReservationPolicyFactoryTest {
 
     private final GroupServiceMole groupServiceMole = Mockito.spy(new GroupServiceMole());
 
-    private InitialPlacementPolicyFactory initialPlacementPolicyFactory;
+    private ReservationPolicyFactory reservationPolicyFactory;
 
     private TopologyGraph topologyGraph;
 
@@ -68,7 +67,7 @@ public class InitialPlacementPolicyFactoryTest {
         topologyMap.put(10L, topologyEntity(10L, EntityType.VIRTUAL_DATACENTER, 2));
         topologyMap.put(6L, topologyEntity(6L, EntityType.VIRTUAL_MACHINE, 10, 4));
 
-        initialPlacementPolicyFactory = new InitialPlacementPolicyFactory(
+        reservationPolicyFactory = new ReservationPolicyFactory(
                 GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()));
 
         topologyGraph = TopologyGraph.newGraph(topologyMap);
@@ -76,9 +75,9 @@ public class InitialPlacementPolicyFactoryTest {
 
     @Test
     public void testGeneratePolicy() {
-        final InitialPlacementConstraint clusterConstraint = InitialPlacementConstraint.newBuilder()
+        final ReservationConstraintInfo clusterConstraint = ReservationConstraintInfo.newBuilder()
                 .setConstraintId(123L)
-                .setType(Type.CLUSTER)
+                .setType(ReservationConstraintInfo.Type.CLUSTER)
                 .build();
         final GetMembersRequest request = GetMembersRequest.newBuilder()
                 .setId(123L)
@@ -87,7 +86,7 @@ public class InitialPlacementPolicyFactoryTest {
                 .addAllMemberId(Lists.newArrayList(1L, 3L))
                 .build();
         Mockito.when(groupServiceMole.getMembers(request)).thenReturn(response);
-        final PlacementPolicy placementPolicy = initialPlacementPolicyFactory.generatePolicy(topologyGraph,
+        final PlacementPolicy placementPolicy = reservationPolicyFactory.generatePolicyForInitialPlacement(topologyGraph,
                 Lists.newArrayList(clusterConstraint));
         final Policy policy = placementPolicy.getPolicyDefinition();
         Mockito.verify(groupServiceMole, Mockito.times(1))
@@ -98,12 +97,12 @@ public class InitialPlacementPolicyFactoryTest {
 
     @Test
     public void testGenerateProviderMembersDataCenter() {
-        final InitialPlacementConstraint dataCenterConstraint = InitialPlacementConstraint.newBuilder()
+        final ReservationConstraintInfo dataCenterConstraint = ReservationConstraintInfo.newBuilder()
                 .setConstraintId(7L)
-                .setType(Type.DATA_CENTER)
+                .setType(ReservationConstraintInfo.Type.DATA_CENTER)
                 .build();
         final Map<Integer, Set<TopologyEntity>> entityMap =
-                initialPlacementPolicyFactory.getProviderMembersOfConstraint(topologyGraph, dataCenterConstraint);
+                reservationPolicyFactory.getProviderMembersOfConstraint(topologyGraph, dataCenterConstraint);
         Assert.assertEquals(1L, entityMap.size());
         Assert.assertEquals(1L,
                 entityMap.get(EntityType.PHYSICAL_MACHINE_VALUE).size());
@@ -113,12 +112,12 @@ public class InitialPlacementPolicyFactoryTest {
 
     @Test
     public void testGenerateProviderMembersVDC() {
-        final InitialPlacementConstraint vdcConstraint = InitialPlacementConstraint.newBuilder()
+        final ReservationConstraintInfo vdcConstraint = ReservationConstraintInfo.newBuilder()
                 .setConstraintId(9L)
-                .setType(Type.VIRTUAL_DATA_CENTER)
+                .setType(ReservationConstraintInfo.Type.VIRTUAL_DATA_CENTER)
                 .build();
         final Map<Integer, Set<TopologyEntity>> entityMap =
-                initialPlacementPolicyFactory.getProviderMembersOfConstraint(topologyGraph, vdcConstraint);
+                reservationPolicyFactory.getProviderMembersOfConstraint(topologyGraph, vdcConstraint);
         Assert.assertEquals(1L, entityMap.size());
         Assert.assertEquals(1L,
                 entityMap.get(EntityType.PHYSICAL_MACHINE_VALUE).size());
@@ -129,7 +128,7 @@ public class InitialPlacementPolicyFactoryTest {
     @Test
     public void testGenerateConsumerMembers() {
         final Set<Long> consumers =
-                initialPlacementPolicyFactory.getConsumerMembersOfConstraint(topologyGraph);
+                reservationPolicyFactory.getConsumerMembersOfConstraint(topologyGraph);
         Assert.assertEquals(Sets.newHashSet(5L), consumers);
     }
 }

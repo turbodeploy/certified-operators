@@ -307,12 +307,14 @@ public class RepositoryComponent extends BaseVmtComponent {
     }
 
     @Bean
-    public RepositoryRpcService repositoryRpcService() throws GraphDatabaseException {
-        return new RepositoryRpcService(topologyManager(), topologyProtobufsManager());
+    public RepositoryRpcService repositoryRpcService() throws GraphDatabaseException,
+            InterruptedException, URISyntaxException, CommunicationException{
+        return new RepositoryRpcService(topologyManager(), topologyProtobufsManager(), graphDBService());
     }
 
     @Bean
-    public RepositoryServiceController repositoryServiceController() throws GraphDatabaseException {
+    public RepositoryServiceController repositoryServiceController() throws GraphDatabaseException,
+            InterruptedException, URISyntaxException, CommunicationException{
         return new RepositoryServiceController(repositoryRpcService());
     }
 

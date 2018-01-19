@@ -13,6 +13,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.history.component.api.HistoryComponentNotifications.StatsAvailable;
 import com.vmturbo.history.component.api.StatsListener;
+import com.vmturbo.plan.orchestrator.reservation.ReservationPlacementHandler;
 import com.vmturbo.repository.api.RepositoryListener;
 
 /**
@@ -21,13 +22,18 @@ import com.vmturbo.repository.api.RepositoryListener;
 public class PlanProgressListener implements ActionsListener, RepositoryListener, StatsListener {
 
     private final PlanDao planDao;
+
+    private final ReservationPlacementHandler reservationPlacementHandler;
+
     private final long realtimeTopologyContextId;
 
     private final Logger logger = LogManager.getLogger(getClass());
 
     public PlanProgressListener(@Nonnull final PlanDao planDao,
+                                @Nonnull final ReservationPlacementHandler reservationPlacementHandler,
                                 final long realtimeTopologyContextId) {
         this.planDao = Objects.requireNonNull(planDao);
+        this.reservationPlacementHandler = Objects.requireNonNull(reservationPlacementHandler);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
     }
 
@@ -71,7 +77,9 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
                 logger.warn("Could not find plan by topology context id {}", topologyContextId, e);
             }
         } else {
-            logger.debug("Dropping real-time projected topology notification.");
+            logger.debug("Updating reservation based on real-time projected topology notification.");
+            reservationPlacementHandler.updateReservations(topologyContextId, projectedTopologyId);
+            logger.debug("Finished update reservation based on real-time projected topology notification.");
         }
     }
 

@@ -25,6 +25,7 @@ import javaslang.control.Try;
 
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
@@ -33,6 +34,7 @@ import com.vmturbo.repository.graph.executor.GraphDBExecutor;
 import com.vmturbo.repository.graph.parameter.GraphCmd;
 import com.vmturbo.repository.graph.result.ResultsConverter;
 import com.vmturbo.repository.graph.result.SupplyChainSubgraph;
+import com.vmturbo.repository.topology.TopologyConverter;
 import com.vmturbo.repository.topology.TopologyDatabase;
 import com.vmturbo.repository.topology.TopologyID;
 import com.vmturbo.repository.topology.TopologyID.TopologyType;
@@ -209,6 +211,41 @@ public class GraphDBService {
             return Either.right(Collections.emptyList());
         });
     }
+
+    /**
+     * Retrieve TopologyEntityDTO from repository graph. Note that, right now, returned TopologyEntityDTO
+     * only contains partial fields, because {@link ServiceEntityRepoDTO} only keep partial fields,
+     * and TopologyEntityDTO are converted back from stored {@link ServiceEntityRepoDTO}.
+     *
+     * @param contextId context id of topology.
+     * @param topologyId id of topology.
+     * @param entitiesToFind a set of entity ids.
+     * @param topologyType type of topology need to search.
+     * @return Either of String or Collection of {@link TopologyEntityDTO}.
+     */
+    public Either<String, Collection<TopologyEntityDTO>> retrieveTopologyEntities(
+            final long contextId,
+            final long topologyId,
+            @Nonnull final Set<Long> entitiesToFind,
+            @Nonnull TopologyType topologyType) {
+        final TopologyID topologyID = new TopologyID(contextId, topologyId, topologyType);
+        final TopologyDatabase databaseToUse = topologyID.database();
+
+        final GraphCmd.ServiceEntityMultiGet cmd = new GraphCmd.ServiceEntityMultiGet(
+                graphDefinition.getServiceEntityVertex(),
+                entitiesToFind,
+                databaseToUse);
+        final Try<Collection<ServiceEntityRepoDTO>> seResults = executor.executeServiceEntityMultiGetCmd(cmd);
+        logger.debug("Multi-entity search results {}", seResults);
+
+        return Match(seResults).of(
+                Case(Success($()), repoDtos -> timedValue(
+                        () -> Either.right(TopologyConverter.convertToTopologyEntity(repoDtos)),
+                        SEARCH_CONVERSION_DURATION_SUMMARY)),
+                Case(Failure($()), exc -> Either.left(exc.getMessage()))
+        );
+    }
+
 
     private <T> T timedValue(final Supplier<T> supplier, final DataMetricSummary summary) {
         DataMetricTimer timer = summary.startTimer();

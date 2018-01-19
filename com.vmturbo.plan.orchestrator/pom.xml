@@ -149,6 +149,14 @@
                                     <name>com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfileInfo</name>
                                     <converter>com.vmturbo.plan.orchestrator.deployment.profile.DeploymentProfileInfoConverter</converter>
                                 </customType>
+                                <customType>
+                                    <name>com.vmturbo.common.protobuf.plan.ReservationDTO.ConstraintInfoCollection</name>
+                                    <converter>com.vmturbo.plan.orchestrator.reservation.ConstraintInfoCollectionConverter</converter>
+                                </customType>
+                                <customType>
+                                    <name>com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection</name>
+                                    <converter>com.vmturbo.plan.orchestrator.reservation.ReservationTemplateCollectionConverter</converter>
+                                </customType>
                             </customTypes>
 
                             <!-- Then, associate custom types with database columns -->
@@ -180,6 +188,14 @@
                                 <forcedType>
                                     <name>com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfileInfo</name>
                                     <expression>.*\.deployment_profile\.deployment_profile_info</expression>
+                                </forcedType>
+                                <forcedType>
+                                    <name>com.vmturbo.common.protobuf.plan.ReservationDTO.ConstraintInfoCollection</name>
+                                    <expression>.*\.reservation\.constraint_info_collection</expression>
+                                </forcedType>
+                                <forcedType>
+                                    <name>com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection</name>
+                                    <expression>.*\.reservation\.reservation_template_collection</expression>
                                 </forcedType>
                             </forcedTypes>
                         </database>

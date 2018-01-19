@@ -1,15 +1,16 @@
 package com.vmturbo.api.component.external.api.service;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
@@ -17,9 +18,13 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.base.Strings;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Multimap;
+
+import io.grpc.Status.Code;
+import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.api.component.external.api.mapper.ReservationMapper;
 import com.vmturbo.api.component.external.api.mapper.ReservationMapper.PlacementInfo;
@@ -31,6 +36,7 @@ import com.vmturbo.api.enums.ReservationEditAction;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.IReservationsService;
+import com.vmturbo.api.utils.ParamStrings;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
@@ -38,8 +44,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
-import com.vmturbo.common.protobuf.plan.PlanDTO.InitialPlacementRequest;
-import com.vmturbo.common.protobuf.plan.PlanDTO.InitialPlacementResponse;
 import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
@@ -48,6 +52,15 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyAddition;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceFutureStub;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.CreateReservationRequest;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.DeleteReservationByIdRequest;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.GetAllReservationsRequest;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.GetReservationByIdRequest;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.GetReservationByStatusRequest;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.InitialPlacementRequest;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.InitialPlacementResponse;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
 
 /**
@@ -87,12 +100,31 @@ public class ReservationsService implements IReservationsService {
     @Override
     public List<DemandReservationApiDTO> getAllReservations(Map<String, String> queryParams)
                     throws Exception {
-        throw ApiUtils.notImplementedInXL();
+        String reservationStatus = queryParams.get(ParamStrings.STATUS);
+        if (!Strings.isNullOrEmpty(reservationStatus)) {
+            return getReservationsByStatus(reservationStatus.toUpperCase());
+        } else {
+            return getAllReservations();
+        }
     }
 
     @Override
     public DemandReservationApiDTO getReservationByID(String reservationID) throws Exception {
-        throw ApiUtils.notImplementedInXL();
+        try {
+            final GetReservationByIdRequest request = GetReservationByIdRequest.newBuilder()
+                    .setReservationId(Long.valueOf(reservationID))
+                    .build();
+            final Reservation reservation =
+                    reservationService.getReservationById(request);
+            return reservationMapper.convertReservationToApiDTO(reservation);
+        } catch (StatusRuntimeException e) {
+            if (e.getStatus().getCode().equals(Code.NOT_FOUND)) {
+                throw new UnknownObjectException(e.getStatus().getDescription());
+            }
+            else {
+                throw e;
+            }
+        }
     }
 
     @Override
@@ -106,7 +138,12 @@ public class ReservationsService implements IReservationsService {
                         reservationMapper.placementToScenarioChange(demandApiInputDTO.getParameters());
                 return processInitialPlacement(scenarioChange);
             case RESERVATION:
-                throw ApiUtils.notImplementedInXL();
+                final Reservation reservation = reservationMapper.convertToReservation(demandApiInputDTO);
+                final CreateReservationRequest request = CreateReservationRequest.newBuilder()
+                        .setReservation(reservation)
+                        .build();
+                final Reservation createdReservation = reservationService.createReservation(request);
+                return reservationMapper.convertReservationToApiDTO(createdReservation);
             case DEPLOYMENT:
                 throw ApiUtils.notImplementedInXL();
             default:
@@ -122,13 +159,49 @@ public class ReservationsService implements IReservationsService {
 
     @Override
     public Boolean deleteReservationByID(String reservationID) {
-        throw ApiUtils.notImplementedInXL();
+        final DeleteReservationByIdRequest request = DeleteReservationByIdRequest.newBuilder()
+                .setReservationId(Long.valueOf(reservationID))
+                .build();
+        reservationService.deleteReservationById(request);
+        return true;
     }
 
     @Override
     public DemandReservationApiDTO deployReservationByID(Boolean callBlock, String reservationID)
                     throws Exception {
         throw ApiUtils.notImplementedInXL();
+    }
+
+    private List<DemandReservationApiDTO> getReservationsByStatus(String status) throws Exception {
+        try {
+            final ReservationStatus reservationStatus = ReservationStatus.valueOf(status);
+            final GetReservationByStatusRequest request = GetReservationByStatusRequest.newBuilder()
+                    .setStatus(reservationStatus)
+                    .build();
+            Iterable<Reservation> reservationIterable = () -> reservationService.getReservationByStatus(request);
+            final List<DemandReservationApiDTO> result = new ArrayList<>();
+            for (Reservation reservation : reservationIterable) {
+                result.add(reservationMapper.convertReservationToApiDTO(reservation));
+            }
+            return result;
+        } catch (IllegalArgumentException e) {
+            logger.error("Illegal argument: " + e.getMessage());
+            throw e;
+        } catch (StatusRuntimeException e) {
+            logger.error("Failed to retrieve reservations: " + e.getMessage());
+            throw new OperationFailedException("Failed to retrieve reservations");
+        }
+    }
+
+    private List<DemandReservationApiDTO> getAllReservations() throws Exception {
+        GetAllReservationsRequest request = GetAllReservationsRequest.newBuilder()
+                .build();
+        Iterable<Reservation> reservationIterable = () -> reservationService.getAllReservations(request);
+        final List<DemandReservationApiDTO> result = new ArrayList<>();
+        for (Reservation reservation : reservationIterable) {
+            result.add(reservationMapper.convertReservationToApiDTO(reservation));
+        }
+        return result;
     }
 
     /**

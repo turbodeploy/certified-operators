@@ -11,6 +11,8 @@ import org.springframework.context.annotation.Configuration;
 
 import com.vmturbo.common.protobuf.plan.DiscoveredTemplateDeploymentProfileServiceGrpc;
 import com.vmturbo.common.protobuf.plan.DiscoveredTemplateDeploymentProfileServiceGrpc.DiscoveredTemplateDeploymentProfileServiceBlockingStub;
+import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc;
+import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceBlockingStub;
 import com.vmturbo.grpc.extensions.PingingChannelBuilder;
@@ -53,5 +55,10 @@ public class PlanConfig {
     @Bean
     public TemplateServiceBlockingStub templateServiceBlockingStub() {
         return TemplateServiceGrpc.newBlockingStub(planOrchestratorChannel());
+    }
+
+    @Bean
+    public ReservationServiceBlockingStub reservationServiceBlockingStub() {
+        return ReservationServiceGrpc.newBlockingStub(planOrchestratorChannel());
     }
 }

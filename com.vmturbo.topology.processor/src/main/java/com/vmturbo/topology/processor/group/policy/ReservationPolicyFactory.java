@@ -29,7 +29,10 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.InitialPlacementConstraint;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ReservationConstraintInfo;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -37,32 +40,69 @@ import com.vmturbo.topology.processor.topology.TopologyEditorException;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 /**
- * Generate BindToGroup policy for initial placement. For each {@link InitialPlacementConstraint},
- * it represents one type of constraint which could be Cluster, Data center, Virtual data center and
- * it will get target members for each constraint type, and perform intersection between each target
- * members to get provider groups. And also it tries to get all entities created from templates as
- * consumer group. Finally, it creates BindToGroup policy for each provider group and consumer group.
+ * Generate BindToGroup policy for initial placement and Reservation. For each
+ * {@link ReservationConstraintInfo}, it represents one type of constraint which could be Cluster,
+ * Data center, Virtual data center and it will get target members for each constraint type, and
+ * perform intersection between each target members to get provider groups. And also it tries to get
+ * all entities created from templates as consumer group. Finally, it creates BindToGroup policy for
+ * each provider group and consumer group.
  */
-public class InitialPlacementPolicyFactory {
+public class ReservationPolicyFactory {
     private final Logger logger = LogManager.getLogger();
 
     private final GroupServiceBlockingStub groupServiceBlockingStub;
 
-    public InitialPlacementPolicyFactory(@Nonnull final GroupServiceBlockingStub groupServiceBlockingStub) {
+    public ReservationPolicyFactory(@Nonnull final GroupServiceBlockingStub groupServiceBlockingStub) {
         this.groupServiceBlockingStub = Objects.requireNonNull(groupServiceBlockingStub);
     }
 
     /**
      * Generate BindToGroup policy for initial placement. And based on input the list of
-     * {@link InitialPlacementConstraint}, it creates provider group. And also it creates consumer
+     * {@link ReservationConstraintInfo}, it creates provider group. And also it creates consumer
      * group for all entities created from templates.
      *
      * @param graph The topology graph contains all entities and relations between entities.
-     * @param constraints a list of {@link InitialPlacementConstraint}.
+     * @param constraints a list of {@link ReservationConstraintInfo}.
      * @return {@link BindToGroupPolicy}.
      */
-    public PlacementPolicy generatePolicy(@Nonnull final TopologyGraph graph,
-                                          @Nonnull final List<InitialPlacementConstraint> constraints) {
+    public PlacementPolicy generatePolicyForInitialPlacement(
+            @Nonnull final TopologyGraph graph,
+            @Nonnull final List<ReservationConstraintInfo> constraints) {
+
+
+        final Group pmProviderGroup = generateProviderGroup(graph, constraints);
+        final Group consumerGroup = generateConsumerGroup(graph);
+        final Policy bindToGroupPolicyPM = generateBindToGroupPolicy(pmProviderGroup, consumerGroup);
+        return new BindToGroupPolicy(bindToGroupPolicyPM, consumerGroup, pmProviderGroup);
+    }
+
+    public PlacementPolicy generatePolicyForReservation(
+            @Nonnull final TopologyGraph graph,
+            @Nonnull final List<ReservationConstraintInfo> constraints,
+            @Nonnull final Reservation reservation) {
+        final Group pmProviderGroup = generateProviderGroup(graph, constraints);
+        final Group consumerGroup = generateConsumerGroup(reservation);
+        final Policy bindToGroupPolicyPM = generateBindToGroupPolicy(pmProviderGroup, consumerGroup);
+        return new BindToGroupPolicy(bindToGroupPolicyPM, consumerGroup, pmProviderGroup);
+    }
+
+    private Group generateConsumerGroup(@Nonnull final Reservation reservation) {
+        final Set<Long> consumerGroupIds = reservation.getReservationTemplateCollection()
+                .getReservationTemplateList().stream()
+                .map(ReservationTemplate::getReservationInstanceList)
+                .flatMap(List::stream)
+                .map(ReservationInstance::getEntityId)
+                .collect(Collectors.toSet());
+        return generateStaticGroup(consumerGroupIds, EntityType.VIRTUAL_MACHINE_VALUE);
+    }
+
+    private Group generateConsumerGroup(@Nonnull final TopologyGraph graph) {
+        final Set<Long> consumers = getConsumerMembersOfConstraint(graph);
+        return generateStaticGroup(consumers, EntityType.VIRTUAL_MACHINE_VALUE);
+    }
+
+    private Group generateProviderGroup(@Nonnull final TopologyGraph graph,
+                                        @Nonnull final List<ReservationConstraintInfo> constraints) {
         final Map<Integer, Set<TopologyEntity>> providersMap =
                 performIntersectionWithConstraints(graph, constraints);
         // Right now, it only needs PM as providers, since initial placement only allow
@@ -73,27 +113,23 @@ public class InitialPlacementPolicyFactory {
                         .stream()
                         .map(TopologyEntity::getOid)
                         .collect(Collectors.toSet());
-        final Set<Long> consumers = getConsumerMembersOfConstraint(graph);
-        final Group pmProviderGroup = generateStaticGroup(pmEntities, EntityType.PHYSICAL_MACHINE_VALUE);
-        final Group consumerGroup = generateStaticGroup(consumers, EntityType.VIRTUAL_MACHINE_VALUE);
-        final Policy bindToGroupPolicyPM = generateBindToGroupPolicy(pmProviderGroup, consumerGroup);
-        return new BindToGroupPolicy(bindToGroupPolicyPM, consumerGroup, pmProviderGroup);
+        return generateStaticGroup(pmEntities, EntityType.PHYSICAL_MACHINE_VALUE);
     }
 
     /**
-     * For each {@link InitialPlacementConstraint}, it will get one Map which key is entity type and
+     * For each {@link ReservationConstraintInfo}, it will get one Map which key is entity type and
      * value is entity belongs to that constraint and entity type. Then it will perform intersection
      * between each Map to get final provider entities.
      *
      * @param graph The topology graph contains all entities and relations between entities.
-     * @param constraints a list of {@link InitialPlacementConstraint}.
+     * @param constraints a list of {@link ReservationConstraintInfo}.
      * @return a Map which key is entity type and value is a set of entity which match all constraints.
      */
     private Map<Integer, Set<TopologyEntity>> performIntersectionWithConstraints(
             @Nonnull final TopologyGraph graph,
-            @Nonnull final List<InitialPlacementConstraint> constraints) {
+            @Nonnull final List<ReservationConstraintInfo> constraints) {
         final Map<Integer, Set<TopologyEntity>> providersMap = new HashMap<>();
-        for (InitialPlacementConstraint constraint : constraints) {
+        for (ReservationConstraintInfo constraint : constraints) {
             final Map<Integer, Set<TopologyEntity>> providers = getProviderMembersOfConstraint(graph,
                     constraint);
             for (int entityType : providers.keySet()) {
@@ -111,18 +147,18 @@ public class InitialPlacementPolicyFactory {
     }
 
     /**
-     * Try to get target members for input {@link InitialPlacementConstraint}. And the constraint could be
+     * Try to get target members for input {@link ReservationConstraintInfo}. And the constraint could be
      * Cluster, Data center and Virtual data center. Right now, the target entity type only could be
      * Physical machine, because right now initial placement only allow running with Virtual machine templates.
      *
      * @param graph The topology graph contains all entities and relations between entities.
-     * @param constraint {@link InitialPlacementConstraint}
+     * @param constraint {@link ReservationConstraintInfo}
      * @return a Map which key is entity type and value is a set of entity which match input constraints.
      */
     @VisibleForTesting
     Map<Integer, Set<TopologyEntity>> getProviderMembersOfConstraint(
             @Nonnull final TopologyGraph graph,
-            @Nonnull final InitialPlacementConstraint constraint) {
+            @Nonnull final ReservationConstraintInfo constraint) {
         switch (constraint.getType()) {
             case CLUSTER:
                 final GetMembersRequest request = GetMembersRequest.newBuilder()

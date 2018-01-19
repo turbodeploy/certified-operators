@@ -24,7 +24,6 @@ public class RepositoryConfig {
     @Value("${grpcPingIntervalSeconds}")
     private long grpcPingIntervalSeconds;
 
-
     @Bean
     public Channel repositoryChannel() {
         return PingingChannelBuilder.forAddress(repositoryHost, grpcPort)
@@ -32,6 +31,7 @@ public class RepositoryConfig {
                 .usePlaintext(true)
                 .build();
     }
+
     @Bean
     public RepositoryServiceGrpc.RepositoryServiceStub repositoryServiceStub() {
         return RepositoryServiceGrpc.newStub(repositoryChannel());

@@ -1,0 +1,181 @@
+syntax = "proto2";
+package plan;
+
+option java_package = "com.vmturbo.common.protobuf.plan";
+
+import "plan/PlanDTO.proto";
+
+// Reservation describes user-specified reservation information, such as templates, constraints and
+// also contains all reservation instances and placement information which are created by internal
+// application.
+message Reservation {
+    // Id of reservation
+    optional int64 id = 1;
+
+    // Name of reservation
+    optional string name = 2;
+
+    // Start date of reservation.
+    optional Date start_date = 3;
+
+    // End date of reservation. When end date comes, it will automatically try to deploy this
+    // reservation.
+    //TODO: When expirtation date comes, perform deployment.
+    optional Date expiration_date = 4;
+
+    // Status of reservation.
+    optional ReservationStatus status = 5;
+
+    // Contains all reservation instance group by different templates.
+    optional ReservationTemplateCollection reservation_template_collection = 6;
+
+    // Contains all specified constraints when creating the reservation.
+    optional ConstraintInfoCollection constraint_info_collection = 7;
+
+    // Date is observed in local time.
+    message Date {
+        // Year of date.
+        optional int32 year = 1;
+        // Month of date, The range should be 1 - 12.
+        optional int32 month = 2;
+        // Day of date, The range should be 1 - 31.
+        optional int32 day = 3;
+    }
+}
+
+// If current date is before start date, status is FUTURE. If current date is equal or after
+// start date, status is RESERVED.
+//ie: current date     start_date
+//    ----------------|--------------
+//    FUTURE           RESERVED
+enum ReservationStatus {
+    // FUTURE means that reservation's start day is after current date.
+    FUTURE = 1;
+    // RESERVED means that reservation is active now which start day is on or before current date.
+    RESERVED = 2;
+}
+
+message ReservationTemplateCollection {
+    // A list of reservation template which contains reservation instance for each different template.
+    repeated ReservationTemplate reservation_template = 1;
+
+    // ReservationTemplate represents, for one type of template, the count of template and also
+    // all reservation instances belong to this type of template.
+    message ReservationTemplate {
+        // Count of templates.
+        optional int64 count = 1;
+
+        // Id of template.
+        optional int64 template_id = 2;
+
+        // A list of reservation instance which contains placement information.
+        repeated ReservationInstance reservation_instance = 3;
+
+        message ReservationInstance {
+            // Id of reservation instance entity.
+            optional int64 entity_id = 1;
+
+            // A list of placement information of reservation instance.
+            repeated PlacementInfo placement_info = 2;
+
+            // Name of entity
+            optional string name = 3;
+
+            // Contains placement information of reservation instance.
+            message PlacementInfo {
+                // The provider id of this reservation instance.
+                optional int64 provider_id = 1;
+
+                // The entity type of provider.
+                optional int32 provider_type = 2;
+            }
+        }
+    }
+}
+
+message ConstraintInfoCollection {
+    // A list of constraint information which contains details for different type of constraint.
+    repeated ReservationConstraintInfo reservation_constraint_info = 1;
+}
+
+message InitialPlacementRequest {
+    // ScenarioInfo contains list of ScenarioChanges for this initial placement request, later on
+    // if it needs, it also could include plan scope as well.
+    optional ScenarioInfo scenario_info = 1;
+}
+
+message InitialPlacementResponse {
+    // the id of initial placement plan, the caller will use it to check plan status.
+    optional int64 plan_id = 1;
+}
+
+// Request for get all reservations.
+message GetAllReservationsRequest {
+
+}
+
+// Request for get reservation by Id.
+message GetReservationByIdRequest {
+    // Id of the request reservation.
+    optional int64 reservation_id = 1;
+}
+
+// Reqeust for create a new reservation.
+message CreateReservationRequest {
+    // Reservation needs to store.
+    optional Reservation reservation = 1;
+}
+
+// Request for delete a existing reservation.
+message DeleteReservationByIdRequest {
+    // Id of reservation needs to delete.
+    optional int64 reservation_id = 1;
+}
+
+// Request for get reservations by status.
+message GetReservationByStatusRequest {
+    // status need to filter by.
+    optional ReservationStatus status = 1;
+}
+
+// Reqeust for update a reservation.
+message UpdateReservationByIdRequest {
+    // Id of reservation needs to update.
+    optional int64 reservation_id = 1;
+
+    // Reservation needs to store.
+    optional Reservation reservation = 2;
+}
+
+// Request for update a list of reservations.
+message UpdateReservationsRequest {
+    // A list of reservations need to update.
+    repeated Reservation reservation = 1;
+}
+
+// A service responsible for Reservation related request.
+service ReservationService {
+    // Attemp to run a initial placement
+    rpc InitialPlacement(InitialPlacementRequest) returns (InitialPlacementResponse);
+
+    // Get all reservations.
+    rpc GetAllReservations(GetAllReservationsRequest) returns (stream Reservation);
+
+    // Get reservation by reservation Id.
+    rpc GetReservationById(GetReservationByIdRequest) returns (Reservation);
+
+    // Get reservation by reservation status.
+    rpc GetReservationByStatus(GetReservationByStatusRequest) returns (stream Reservation);
+
+    // Create a new reservation.
+    rpc CreateReservation(CreateReservationRequest) returns (Reservation);
+
+    // Delete a existing reservation.
+    rpc DeleteReservationById(DeleteReservationByIdRequest) returns (Reservation);
+
+    // Update a existing resertion with a new reservation.
+    rpc UpdateReservationById(UpdateReservationByIdRequest) returns (Reservation);
+
+    // Update a list of reservations together.
+    rpc UpdateReservations(UpdateReservationsRequest) returns (stream Reservation);
+}

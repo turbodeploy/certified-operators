@@ -9,6 +9,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
@@ -27,10 +29,14 @@ import com.vmturbo.common.protobuf.group.PolicyDTO.Policy.PolicyDetailCase;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyRequest;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ReservationConstraintInfo;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.InitialPlacementConstraint;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.PolicyChange;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.GetAllReservationsRequest;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
+import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
@@ -54,15 +60,17 @@ public class PolicyManager {
 
     final GroupServiceBlockingStub groupServiceBlockingStub;
 
+    final ReservationServiceBlockingStub reservationService;
+
     /**
      * The factory to use to create policies.
      */
     final PolicyFactory policyFactory;
 
     /**
-     * The factory to create policy for initial placement purpose.
+     * The factory to create policy for initial placement and reservation purpose.
      */
-    final InitialPlacementPolicyFactory initialPlacementPolicyFactory;
+    final ReservationPolicyFactory reservationPolicyFactory;
 
     private static final DataMetricSummary POLICY_APPLICATION_SUMMARY = DataMetricSummary.builder()
         .withName("tp_policy_application_duration_seconds")
@@ -80,11 +88,13 @@ public class PolicyManager {
     public PolicyManager(@Nonnull final PolicyServiceBlockingStub policyService,
                          @Nonnull final GroupServiceBlockingStub groupServiceBlockingStub,
                          @Nonnull final PolicyFactory policyFactory,
-                         @Nonnull final InitialPlacementPolicyFactory initialPlacementPolicyFactory) {
+                         @Nonnull final ReservationPolicyFactory reservationPolicyFactory,
+                         @Nonnull final ReservationServiceBlockingStub reservationService) {
         this.policyService = Objects.requireNonNull(policyService);
         this.groupServiceBlockingStub = Objects.requireNonNull(groupServiceBlockingStub);
         this.policyFactory = Objects.requireNonNull(policyFactory);
-        this.initialPlacementPolicyFactory = Objects.requireNonNull(initialPlacementPolicyFactory);
+        this.reservationPolicyFactory = Objects.requireNonNull(reservationPolicyFactory);
+        this.reservationService = Objects.requireNonNull(reservationService);
     }
 
     /**
@@ -129,6 +139,8 @@ public class PolicyManager {
                             groupsById, policyTypeCounts);
 
             applyPolicyForInitialPlacement(graph, groupResolver, changes, policyTypeCounts);
+
+            applyPolicyForReservation(graph, groupResolver, policyTypeCounts);
 
             final long durationMs = System.currentTimeMillis() - startTime;
             logger.info("Completed application of {} policies in {}ms.", policyTypeCounts, durationMs);
@@ -236,8 +248,8 @@ public class PolicyManager {
     }
 
     /**
-     * Create and apply BindToGroup policy for initial placement. If there are InitialPlacementConstraints in
-     * PlanChanges, it will call InitialPlacementPolicyFactory to create BindToGroup policy and apply
+     * Create and apply BindToGroup policy for initial placement. If there are ReservationConstraintInfo in
+     * PlanChanges, it will call ReservationPolicyFactory to create BindToGroup policy and apply
      * this policy.
      *
      * @param graph The topology graph on which to apply the policies.
@@ -249,7 +261,7 @@ public class PolicyManager {
                                                 @Nonnull final GroupResolver groupResolver,
                                                 @Nonnull final List<ScenarioChange> scenarioChanges,
                                                 @Nonnull Map<PolicyDetailCase, Integer> policyTypeCounts) {
-        final List<InitialPlacementConstraint> constraints = scenarioChanges.stream()
+        final List<ReservationConstraintInfo> constraints = scenarioChanges.stream()
                 .filter(ScenarioChange::hasPlanChanges)
                 .map(ScenarioChange::getPlanChanges)
                 .map(PlanChanges::getInitialPlacementConstraintsList)
@@ -257,9 +269,31 @@ public class PolicyManager {
                 .collect(Collectors.toList());
         if (!constraints.isEmpty()) {
             final PlacementPolicy policy =
-                    initialPlacementPolicyFactory.generatePolicy(graph, constraints);
+                    reservationPolicyFactory.generatePolicyForInitialPlacement(graph, constraints);
             applyPolicy(groupResolver, policy, graph, policyTypeCounts);
         }
+    }
+
+    private void applyPolicyForReservation(@Nonnull final TopologyGraph graph,
+                                           @Nonnull final GroupResolver groupResolver,
+                                           @Nonnull Map<PolicyDetailCase, Integer> policyTypeCounts) {
+        GetAllReservationsRequest request = GetAllReservationsRequest.newBuilder().build();
+        final Iterable<Reservation> reservations = () -> reservationService.getAllReservations(request);
+        StreamSupport.stream(reservations.spliterator(), false)
+                // for all current active reservation, their status are RESERVED, and also
+                // for reservations which just started, their status also have been
+                // updated to RESERVED during Reservation stage.
+                .filter(reservation -> reservation.getStatus() == ReservationStatus.RESERVED)
+                .filter(reservation ->  !reservation.getConstraintInfoCollection()
+                        .getReservationConstraintInfoList()
+                        .isEmpty())
+                .forEach(reservation -> {
+                    final PlacementPolicy policy =
+                            reservationPolicyFactory.generatePolicyForReservation(graph,
+                                    reservation.getConstraintInfoCollection()
+                                            .getReservationConstraintInfoList(), reservation);
+                    applyPolicy(groupResolver, policy, graph, policyTypeCounts);
+                });
     }
 
     /**

@@ -31,6 +31,7 @@ import com.vmturbo.components.api.test.IntegrationTestServer;
 import com.vmturbo.history.component.api.HistoryComponentNotifications.StatsAvailable;
 import com.vmturbo.plan.orchestrator.api.PlanListener;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientImpl;
+import com.vmturbo.plan.orchestrator.reservation.ReservationPlacementHandler;
 
 /**
  * Test is aimed to cover plan orchestrator API classes.
@@ -52,6 +53,8 @@ public class PlanNotificationsTest {
 
     private PlanDao planDao;
 
+    private ReservationPlacementHandler reservationPlacementHandler;
+
     private PlanProgressListener actionsListener;
 
     private IMessageReceiver<PlanInstance> messageReceiver;
@@ -64,6 +67,7 @@ public class PlanNotificationsTest {
         client = new PlanOrchestratorClientImpl(messageReceiver, threadPool);
         planDao = server.getBean(PlanDao.class);
         actionsListener = server.getBean(PlanProgressListener.class);
+        reservationPlacementHandler = server.getBean(ReservationPlacementHandler.class);
     }
 
     @After
@@ -271,11 +275,12 @@ public class PlanNotificationsTest {
             .setId(1L)
             .setTopologyContextId(PlanTestConfig.REALTIME_TOPOLOGY_ID)
             .build());
-        Mockito.verify(planDao, Mockito.never()).updatePlanInstance(Mockito.anyLong(), Mockito.any());
 
+        Mockito.verify(planDao, Mockito.never()).updatePlanInstance(Mockito.anyLong(), Mockito.any());
         actionsListener.onProjectedTopologyAvailable(0, PlanTestConfig.REALTIME_TOPOLOGY_ID);
         Mockito.verify(planDao, Mockito.never()).updatePlanInstance(Mockito.anyLong(), Mockito.any());
-
+        Mockito.verify(reservationPlacementHandler, Mockito.times(1))
+                .updateReservations(Mockito.anyLong(), Mockito.anyLong());
         actionsListener.onProjectedTopologyFailure(0, PlanTestConfig.REALTIME_TOPOLOGY_ID, "");
         Mockito.verify(planDao, Mockito.never()).updatePlanInstance(Mockito.anyLong(), Mockito.any());
     }

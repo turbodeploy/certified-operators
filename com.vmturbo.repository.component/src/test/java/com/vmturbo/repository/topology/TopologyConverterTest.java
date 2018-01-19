@@ -8,13 +8,21 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
+import javax.annotation.Nonnull;
+
+import org.assertj.core.util.Lists;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.vmturbo.api.enums.EntityState;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTOREST.CommodityDTO.CommodityType;
+import com.vmturbo.repository.constant.RepoObjectState;
 import com.vmturbo.repository.constant.RepoObjectType;
 import com.vmturbo.repository.dto.CommoditiesBoughtRepoFromProviderDTO;
 import com.vmturbo.repository.dto.CommodityBoughtRepoDTO;
@@ -34,6 +42,7 @@ public class TopologyConverterTest {
     private TopologyEntityDTO dsTopoDTO;
     private TopologyEntityDTO vdcTopoDTO;
     private TopologyEntityDTO networkTopoDTO;
+    private ServiceEntityRepoDTO vmServiceEntity = new ServiceEntityRepoDTO();
 
     @Before
     public void setup() throws IOException {
@@ -42,6 +51,50 @@ public class TopologyConverterTest {
         dsTopoDTO = RepositoryTestUtil.messageFromJsonFile("protobuf/messages/ds-1.dto.json");
         vdcTopoDTO = RepositoryTestUtil.messageFromJsonFile("protobuf/messages/vdc-1.dto.json");
         networkTopoDTO = RepositoryTestUtil.messageFromJsonFile("protobuf/messages/network-1.dto.json");
+        buildVMServiceEntityRepoDTO(vmServiceEntity);
+    }
+
+    private void buildVMServiceEntityRepoDTO(@Nonnull final ServiceEntityRepoDTO vmServiceEntity) {
+        vmServiceEntity.setDisplayName("test-vm");
+        vmServiceEntity.setOid("111");
+        vmServiceEntity.setUuid("111");
+        vmServiceEntity.setEntityType(RepoObjectType.mapEntityType(EntityType.VIRTUAL_MACHINE_VALUE));
+        vmServiceEntity.setState(RepoObjectState.mapEntityType(TopologyDTO.EntityState.POWERED_ON));
+        final CommoditySoldRepoDTO commoditySoldRepoDTO = new CommoditySoldRepoDTO();
+        commoditySoldRepoDTO.setCapacity(123);
+        commoditySoldRepoDTO.setKey("test-sold-key");
+        commoditySoldRepoDTO.setType(RepoObjectType.mapCommodityType(CommodityType.VMEM.getValue()));
+        commoditySoldRepoDTO.setUsed(100);
+        commoditySoldRepoDTO.setProviderOid("111");
+        commoditySoldRepoDTO.setOwnerOid("111");
+        final CommoditySoldRepoDTO commoditySoldRepoDTOTwo = new CommoditySoldRepoDTO();
+        commoditySoldRepoDTOTwo.setCapacity(345);
+        commoditySoldRepoDTOTwo.setKey("test-sold-key-two");
+        commoditySoldRepoDTOTwo.setType(RepoObjectType.mapCommodityType(CommodityType.APPLICATION.getValue()));
+        commoditySoldRepoDTOTwo.setUsed(100);
+        commoditySoldRepoDTOTwo.setProviderOid("111");
+        commoditySoldRepoDTOTwo.setOwnerOid("111");
+        vmServiceEntity.setCommoditySoldList(Lists.newArrayList(commoditySoldRepoDTO, commoditySoldRepoDTOTwo));
+        final CommodityBoughtRepoDTO commodityBoughtRepoDTO = new CommodityBoughtRepoDTO();
+        commodityBoughtRepoDTO.setKey("test-key");
+        commodityBoughtRepoDTO.setType(RepoObjectType.mapCommodityType(CommodityType.MEM.getValue()));
+        commodityBoughtRepoDTO.setUsed(123);
+        commodityBoughtRepoDTO.setProviderOid("222");
+        commodityBoughtRepoDTO.setOwnerOid("111");
+        final CommodityBoughtRepoDTO commodityBoughtRepoDTOTwo = new CommodityBoughtRepoDTO();
+        commodityBoughtRepoDTOTwo.setKey("test-key-two");
+        commodityBoughtRepoDTOTwo.setType(RepoObjectType.mapCommodityType(CommodityType.CLUSTER.getValue()));
+        commodityBoughtRepoDTOTwo.setUsed(123);
+        commodityBoughtRepoDTOTwo.setProviderOid("222");
+        commodityBoughtRepoDTOTwo.setOwnerOid("111");
+        final CommoditiesBoughtRepoFromProviderDTO commoditiesBoughtRepoFromProviderDTO =
+                new CommoditiesBoughtRepoFromProviderDTO();
+        commoditiesBoughtRepoFromProviderDTO.setProviderId(222L);
+        commoditiesBoughtRepoFromProviderDTO.setProviderEntityType(14);
+        commoditiesBoughtRepoFromProviderDTO.setCommodityBoughtRepoDTOs(
+                Lists.newArrayList(commodityBoughtRepoDTO, commodityBoughtRepoDTOTwo));
+        vmServiceEntity.setCommoditiesBoughtRepoFromProviderDTOList(
+                Lists.newArrayList(commoditiesBoughtRepoFromProviderDTO));
     }
 
     @Test
@@ -116,6 +169,16 @@ public class TopologyConverterTest {
         ServiceEntityRepoDTO dsRepoDTO = TopologyConverter.convert(Arrays.asList(dsTopoDTO))
                 .iterator().next();
         verifyCommoditySold(dsTopoDTO, dsRepoDTO);
+    }
+
+    @Test
+    public void testConvertRepoToDTO() {
+        TopologyEntityDTO topologyEntityDTO =
+                TopologyConverter.convertToTopologyEntity(Arrays.asList(vmServiceEntity))
+                        .iterator().next();
+        verifySE(topologyEntityDTO, vmServiceEntity);
+        verifyCommodityBought(topologyEntityDTO, vmServiceEntity);
+        verifyCommoditySold(topologyEntityDTO, vmServiceEntity);
     }
 
     private static void verifySE(

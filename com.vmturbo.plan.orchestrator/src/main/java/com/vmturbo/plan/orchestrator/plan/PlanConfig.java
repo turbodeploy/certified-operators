@@ -19,6 +19,8 @@ import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTOREST.PlanServiceController;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc;
@@ -27,6 +29,9 @@ import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
 import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientImpl;
+import com.vmturbo.plan.orchestrator.reservation.ReservationConfig;
+import com.vmturbo.plan.orchestrator.reservation.ReservationDao;
+import com.vmturbo.plan.orchestrator.reservation.ReservationDaoImpl;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
@@ -38,7 +43,7 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 @Import({SQLDatabaseConfig.class, RepositoryClientConfig.class,
         ActionOrchestratorClientConfig.class, HistoryClientConfig.class,
         RepositoryClientConfig.class, TopologyProcessorClientConfig.class,
-        BaseKafkaProducerConfig.class})
+        BaseKafkaProducerConfig.class, ReservationConfig.class})
 public class PlanConfig {
 
     @Value("${realtimeTopologyContextId}")
@@ -61,6 +66,9 @@ public class PlanConfig {
 
     @Autowired
     private BaseKafkaProducerConfig kafkaProducerConfig;
+
+    @Autowired
+    private ReservationConfig reservationConfig;
 
     @Bean
     public PlanDao planDao() {
@@ -102,9 +110,14 @@ public class PlanConfig {
     }
 
     @Bean
+    public RepositoryServiceBlockingStub repositoryServiceBlockingStub() {
+        return RepositoryServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel());
+    }
+
+    @Bean
     public PlanProgressListener planProgressListener() {
         final PlanProgressListener listener =  new PlanProgressListener(planDao(),
-                realtimeTopologyContextId);
+                reservationConfig.reservationPlacementHandler(), realtimeTopologyContextId);
         repositoryClientConfig.repository().addListener(listener);
         historyClientConfig.historyComponent().addStatsListener(listener);
         return listener;

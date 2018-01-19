@@ -15,10 +15,14 @@ import javax.ws.rs.NotSupportedException;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.joda.time.DateTime;
+import org.joda.time.LocalDate;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+
+import io.grpc.Status.Code;
+import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
@@ -27,19 +31,27 @@ import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.reservation.DemandEntityInfoDTO;
 import com.vmturbo.api.dto.reservation.DemandReservationApiDTO;
+import com.vmturbo.api.dto.reservation.DemandReservationApiInputDTO;
 import com.vmturbo.api.dto.reservation.DemandReservationParametersDTO;
 import com.vmturbo.api.dto.reservation.PlacementInfoDTO;
 import com.vmturbo.api.dto.reservation.PlacementParametersDTO;
 import com.vmturbo.api.dto.template.ResourceApiDTO;
+import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ReservationConstraintInfo;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.InitialPlacementConstraint;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyAddition;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ConstraintInfoCollection;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplateRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceBlockingStub;
@@ -102,58 +114,45 @@ public class ReservationMapper {
     }
 
     /**
-     * Create {@link PlanChanges} object which only contains a list of
-     * {@link InitialPlacementConstraint}. The {@link PlanChanges} will contains all constraints
-     * which user specified when running initial placements.
+     * Convert {@link DemandReservationApiInputDTO} to {@link Reservation}, it will always set status
+     * to FUTURE, during the next broadcast cycle, status will be changed to RESERVED if its start
+     * day comes.
      *
-     * @param constraintIds a set of constraint ids.
-     * @return {@link PlanChanges}
+     * @param demandApiInputDTO {@link DemandReservationApiInputDTO}
+     * @return a {@link Reservation}
+     * @throws InvalidOperationException if input parameter are not correct.
      * @throws UnknownObjectException if there are any unknown objects.
      */
-    private PlanChanges createPlanChanges(@Nonnull final Set<String> constraintIds)
-            throws UnknownObjectException {
-        final PlanChanges.Builder planChanges = PlanChanges.newBuilder();
-        final List<InitialPlacementConstraint> constraints = new ArrayList<>();
-        for (String constraintId : constraintIds) {
-            constraints.add(generateRelateConstraint(Long.valueOf(constraintId)));
+    public Reservation convertToReservation(
+            @Nonnull final DemandReservationApiInputDTO demandApiInputDTO)
+            throws InvalidOperationException, UnknownObjectException {
+        final Reservation.Builder reservationBuilder = Reservation.newBuilder();
+        reservationBuilder.setName(demandApiInputDTO.getDemandName());
+        convertReservationDateStatus(demandApiInputDTO.getReserveDateTime(),
+                demandApiInputDTO.getExpireDateTime(), reservationBuilder);
+        final List<DemandReservationParametersDTO> placementParameters = demandApiInputDTO.getParameters();
+        final List<ReservationTemplate> reservationTemplates = placementParameters.stream()
+                .map(DemandReservationParametersDTO::getPlacementParameters)
+                .map(this::convertToReservationTemplate)
+                .collect(Collectors.toList());
+        reservationBuilder.setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
+                .addAllReservationTemplate(reservationTemplates)
+                .build());
+        final Set<Long> constraintIds = placementParameters.stream()
+                .map(DemandReservationParametersDTO::getPlacementParameters)
+                .map(PlacementParametersDTO::getConstraintIDs)
+                .filter(Objects::nonNull)
+                .flatMap(Set::stream)
+                .map(Long::valueOf)
+                .collect(Collectors.toSet());
+        final List<ReservationConstraintInfo> constraintInfos = new ArrayList<>();
+        for (Long constraintId : constraintIds) {
+            constraintInfos.add(generateRelateConstraint(constraintId));
         }
-        return planChanges
-                .addAllInitialPlacementConstraints(constraints)
-                .build();
-    }
-
-    /**
-     * For input constraint id, try to create {@link InitialPlacementConstraint}. Right now, it only
-     * support Cluster, Data center, Virtual data center constraints.
-     *
-     * @param constraintId id of constraints.
-     * @return {@link InitialPlacementConstraint}
-     * @throws UnknownObjectException if there are any unknown objects.
-     */
-    private InitialPlacementConstraint generateRelateConstraint(final long constraintId)
-            throws UnknownObjectException {
-        final InitialPlacementConstraint.Builder constraint = InitialPlacementConstraint.newBuilder()
-                .setConstraintId(constraintId);
-        final GroupID groupID = GroupID.newBuilder()
-                .setId(constraintId)
-                .build();
-        // try Cluster constraint first, if not, will try data center and virtual data center constraints.
-        // Because UI doesn't tell us what type this id belongs to, we need to try different api
-        // call to find out constraint type.
-        // TODO: After UI changes to send constraint type, we can avoid these api calls.
-        final GetGroupResponse getGroupResponse = groupServiceBlockingStub.getGroup(groupID);
-        if (getGroupResponse.hasGroup() && getGroupResponse.getGroup().getType() == Group.Type.CLUSTER) {
-            return constraint.setType(InitialPlacementConstraint.Type.CLUSTER).build();
-        }
-        final ServiceEntityApiDTO serviceEntityApiDTO = repositoryApi.getServiceEntityForUuid(constraintId);
-        final int entityType = ServiceEntityMapper.fromUIEntityType(serviceEntityApiDTO.getClassName());
-        if (entityType == EntityType.DATACENTER_VALUE) {
-            return constraint.setType(InitialPlacementConstraint.Type.DATA_CENTER).build();
-        } else if (entityType == EntityType.VIRTUAL_DATACENTER_VALUE) {
-            return constraint.setType(InitialPlacementConstraint.Type.VIRTUAL_DATA_CENTER).build();
-        } else {
-            throw new UnknownObjectException("Unknown type for constraint id: " + constraintId);
-        }
+        reservationBuilder.setConstraintInfoCollection(ConstraintInfoCollection.newBuilder()
+                .addAllReservationConstraintInfo(constraintInfos)
+                .build());
+        return reservationBuilder.build();
     }
 
     /**
@@ -163,7 +162,7 @@ public class ReservationMapper {
      * @param topologyAddition contains information about template id and addition count.
      * @param placementInfos contains initial placement results.
      * @return {@link DemandReservationApiDTO}.
-     * @throws UnknownObjectException
+     * @throws UnknownObjectException if there are any unknown objects.
      */
     public DemandReservationApiDTO convertToDemandReservationApiDTO(
             @Nonnull TopologyAddition topologyAddition,
@@ -180,6 +179,187 @@ public class ReservationMapper {
         }
         reservationApiDTO.setDemandEntities(demandEntityInfoDTOS);
         return reservationApiDTO;
+    }
+
+    /**
+     * Convert {@link Reservation} to {@link DemandReservationApiDTO}. Right now, it only pick the
+     * first ReservationTemplate, because currently Reservation only support one type of template.
+     *
+     * @param reservation {@link Reservation}.
+     * @return {@link DemandReservationApiDTO}.
+     * @throws UnknownObjectException if there are any unknown objects.
+     */
+    public DemandReservationApiDTO convertReservationToApiDTO(
+            @Nonnull final Reservation reservation) throws UnknownObjectException {
+        final DemandReservationApiDTO reservationApiDTO = new DemandReservationApiDTO();
+        reservationApiDTO.setUuid(String.valueOf(reservation.getId()));
+        reservationApiDTO.setDisplayName(reservation.getName());
+        reservationApiDTO.setReserveDateTime(convertProtoDateToString(reservation.getStartDate()));
+        reservationApiDTO.setExpireDateTime(convertProtoDateToString(reservation.getExpirationDate()));
+        reservationApiDTO.setStatus(reservation.getStatus().toString());
+        final List<ReservationTemplate> reservationTemplates =
+                reservation.getReservationTemplateCollection().getReservationTemplateList();
+        // Because right now, DemandReservationApiDTO support only one type of template for each
+        // reservation, it is ok to only pick the first one.
+        Optional<ReservationTemplate> reservationTemplate = reservationTemplates.stream().findFirst();
+        if (reservationTemplate.isPresent()) {
+            convertToDemandEntityDTO(reservationTemplate.get(),
+                    reservationApiDTO);
+        }
+        return reservationApiDTO;
+    }
+
+    /**
+     * Convert reservation's placement information to {@link DemandEntityInfoDTO}.
+     *
+     * @param reservationTemplate {@link ReservationTemplate} contains placement information by template.
+     * @param reservationApiDTO {@link DemandReservationApiDTO}
+     * @throws UnknownObjectException if there are any unknown objects.
+     */
+    private void convertToDemandEntityDTO(@Nonnull final ReservationTemplate reservationTemplate,
+                                          @Nonnull final DemandReservationApiDTO reservationApiDTO)
+            throws UnknownObjectException{
+        reservationApiDTO.setCount(Math.toIntExact(reservationTemplate.getCount()));
+        //TODO: need to make sure templates are always available, if templates are deleted, need to
+        // mark Reservation not available or also delete related reservations.
+        try {
+            final Template template = templateService.getTemplate(GetTemplateRequest.newBuilder()
+                    .setTemplateId(reservationTemplate.getTemplateId())
+                    .build());
+            final List<PlacementInfo> placementInfos = reservationTemplate.getReservationInstanceList().stream()
+                    .map(reservationInstance -> {
+                        final List<Long> providerIds = reservationInstance.getPlacementInfoList().stream()
+                                .map(ReservationInstance.PlacementInfo::getProviderId)
+                                .collect(Collectors.toList());
+                        return new PlacementInfo(reservationInstance.getEntityId(),
+                                ImmutableList.copyOf(providerIds));
+                    }).collect(Collectors.toList());
+            final Map<Long, ServiceEntityApiDTO> serviceEntityMap = getServiceEntityMap(placementInfos);
+            final List<DemandEntityInfoDTO> demandEntityInfoDTOS = new ArrayList<>();
+            for (PlacementInfo placementInfo : placementInfos) {
+                demandEntityInfoDTOS.add(
+                        generateDemandEntityInfoDTO(placementInfo, template, serviceEntityMap));
+            }
+            reservationApiDTO.setDemandEntities(demandEntityInfoDTOS);
+        } catch (StatusRuntimeException e) {
+            if (e.getStatus().getCode().equals(Code.NOT_FOUND)) {
+                logger.error("Error: " + e.getMessage());
+                return;
+            }
+            else {
+                throw e;
+            }
+        }
+    }
+
+    /**
+     * Validate the input start day and expire date, if there is any wrong input date, it will throw
+     * InvalidOperationException. And also it always set Reservation status to FUTURE, during next
+     * broadcast time, Topology Processor component will update its status if it is start day comes.
+     *
+     * @param reserveDateStr start date of reservation, and date format is: yyyy-MM-ddT00:00:00Z.
+     * @param expireDateStr expire date of reservation, and date format is: yyyy-MM-ddT00:00:00Z.
+     * @param reservationBuilder builder of Reservation.
+     * @throws InvalidOperationException if input start date and expire date are illegal.
+     */
+    private void convertReservationDateStatus(@Nonnull final String reserveDateStr,
+                                        @Nonnull final String expireDateStr,
+                                        @Nonnull final Reservation.Builder reservationBuilder)
+            throws InvalidOperationException {
+        if (reserveDateStr == null || reserveDateStr == null) {
+            throw new InvalidOperationException("Reservation date is missing.");
+        }
+        // Right now, UI set reservation start date to empty string when start date is current date,
+        // after UI fix this issue, we can remove empty string covert here.
+        final LocalDate reserveDate = reserveDateStr.isEmpty() ? LocalDate.now() :
+                DateTime.parse(reserveDateStr).toLocalDate();
+        final LocalDate expireDate = DateTime.parse(expireDateStr).toLocalDate();
+        if (reserveDate.isAfter(expireDate)) {
+            throw new InvalidOperationException("Reservation expire date should be after start date.");
+        }
+        reservationBuilder.setStartDate(convertDateTimeToProto(reserveDate));
+        reservationBuilder.setExpirationDate(convertDateTimeToProto(expireDate));
+        // Right now, reservation date doesn't have hour information, we need to keep and compare date.
+        final LocalDate today = LocalDate.now();
+        if (today.isAfter(expireDate)) {
+            throw new InvalidOperationException("Reservation expire date should be after current date.");
+        }
+        reservationBuilder.setStatus(ReservationStatus.FUTURE);
+    }
+
+    private Reservation.Date convertDateTimeToProto(@Nonnull LocalDate date) {
+        return Reservation.Date.newBuilder()
+                .setYear(date.getYear())
+                .setMonth(date.getMonthOfYear())
+                .setDay(date.getDayOfMonth())
+                .build();
+    }
+
+    private ReservationTemplate convertToReservationTemplate(
+            @Nonnull final PlacementParametersDTO placementParameter) {
+        return ReservationTemplate.newBuilder()
+                .setCount(placementParameter.getCount())
+                .setTemplateId(Long.valueOf(placementParameter.getTemplateID()))
+                .build();
+    }
+
+    /**
+     * Create {@link PlanChanges} object which only contains a list of
+     * {@link ReservationConstraintInfo}. The {@link PlanChanges} will contains all constraints
+     * which user specified when running initial placements.
+     *
+     * @param constraintIds a set of constraint ids.
+     * @return {@link PlanChanges}
+     * @throws UnknownObjectException if there are any unknown objects.
+     */
+    private PlanChanges createPlanChanges(@Nonnull final Set<String> constraintIds)
+            throws UnknownObjectException {
+        final PlanChanges.Builder planChanges = PlanChanges.newBuilder();
+        final List<ReservationConstraintInfo> constraints = new ArrayList<>();
+        for (String constraintId : constraintIds) {
+            constraints.add(generateRelateConstraint(Long.valueOf(constraintId)));
+        }
+        return planChanges
+                .addAllInitialPlacementConstraints(constraints)
+                .build();
+    }
+
+    /**
+     * For input constraint id, try to create {@link ReservationConstraintInfo}. Right now, it only
+     * support Cluster, Data center, Virtual data center constraints.
+     *
+     * @param constraintId id of constraints.
+     * @return {@link ReservationConstraintInfo}
+     * @throws UnknownObjectException if there are any unknown objects.
+     */
+    private ReservationConstraintInfo generateRelateConstraint(final long constraintId)
+            throws UnknownObjectException {
+        final ReservationConstraintInfo.Builder constraint = ReservationConstraintInfo.newBuilder()
+                .setConstraintId(constraintId);
+        final GroupID groupID = GroupID.newBuilder()
+                .setId(constraintId)
+                .build();
+        // try Cluster constraint first, if not, will try data center and virtual data center constraints.
+        // Because UI doesn't tell us what type this id belongs to, we need to try different api
+        // call to find out constraint type.
+        // TODO: After UI changes to send constraint type, we can avoid these api calls.
+        final GetGroupResponse getGroupResponse = groupServiceBlockingStub.getGroup(groupID);
+        if (getGroupResponse.hasGroup() && getGroupResponse.getGroup().getType() == Group.Type.CLUSTER) {
+            return constraint.setType(ReservationConstraintInfo.Type.CLUSTER).build();
+        }
+        final ServiceEntityApiDTO serviceEntityApiDTO = repositoryApi.getServiceEntityForUuid(constraintId);
+        final int entityType = ServiceEntityMapper.fromUIEntityType(serviceEntityApiDTO.getClassName());
+        if (entityType == EntityType.DATACENTER_VALUE) {
+            return constraint.setType(ReservationConstraintInfo.Type.DATA_CENTER).build();
+        } else if (entityType == EntityType.VIRTUAL_DATACENTER_VALUE) {
+            return constraint.setType(ReservationConstraintInfo.Type.VIRTUAL_DATA_CENTER).build();
+        } else {
+            throw new UnknownObjectException("Unknown type for constraint id: " + constraintId);
+        }
+    }
+
+    private String convertProtoDateToString(@Nonnull final Reservation.Date date) {
+        return new LocalDate(date.getYear(), date.getMonth(), date.getDay()).toDate().toString();
     }
 
     /**

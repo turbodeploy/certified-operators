@@ -20,6 +20,7 @@ import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsApplicator;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
 import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileNotifier;
+import com.vmturbo.topology.processor.reservation.ReservationManager;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyEditor;
@@ -29,6 +30,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.IgnoreConstraints
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PolicyStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ExtractTopologyGraphStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PostStitchingStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.ReservationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ScopeResolutionStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.SettingsApplicationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.SettingsResolutionStage;
@@ -70,17 +72,20 @@ public class TopologyPipelineFactory {
 
     private final GroupServiceBlockingStub groupServiceClient;
 
+    private final ReservationManager reservationManager;
+
     public TopologyPipelineFactory(@Nonnull final TopoBroadcastManager topoBroadcastManager,
-               @Nonnull final PolicyManager policyManager,
-               @Nonnull final StitchingManager stitchingManager,
-               @Nonnull final DiscoveredTemplateDeploymentProfileNotifier discoveredTemplateDeploymentProfileNotifier,
-               @Nonnull final DiscoveredGroupUploader discoveredGroupUploader,
-               @Nonnull final EntitySettingsResolver entitySettingsResolver,
-               @Nonnull final EntitySettingsApplicator settingsApplicator,
-               @Nonnull final TopologyEditor topologyEditor,
-               @Nonnull final RepositoryClient repositoryClient,
-               @Nonnull final TopologyFilterFactory topologyFilterFactory,
-               @Nonnull final GroupServiceBlockingStub groupServiceClient) {
+                                   @Nonnull final PolicyManager policyManager,
+                                   @Nonnull final StitchingManager stitchingManager,
+                                   @Nonnull final DiscoveredTemplateDeploymentProfileNotifier discoveredTemplateDeploymentProfileNotifier,
+                                   @Nonnull final DiscoveredGroupUploader discoveredGroupUploader,
+                                   @Nonnull final EntitySettingsResolver entitySettingsResolver,
+                                   @Nonnull final EntitySettingsApplicator settingsApplicator,
+                                   @Nonnull final TopologyEditor topologyEditor,
+                                   @Nonnull final RepositoryClient repositoryClient,
+                                   @Nonnull final TopologyFilterFactory topologyFilterFactory,
+                                   @Nonnull final GroupServiceBlockingStub groupServiceClient,
+                                   @Nonnull final ReservationManager reservationManager) {
         this.topoBroadcastManager = topoBroadcastManager;
         this.policyManager = policyManager;
         this.stitchingManager = stitchingManager;
@@ -92,6 +97,7 @@ public class TopologyPipelineFactory {
         this.repositoryClient = Objects.requireNonNull(repositoryClient);
         this.topologyFilterFactory = Objects.requireNonNull(topologyFilterFactory);
         this.groupServiceClient = Objects.requireNonNull(groupServiceClient);
+        this.reservationManager = Objects.requireNonNull(reservationManager);
     }
 
     /**
@@ -111,6 +117,7 @@ public class TopologyPipelineFactory {
                 .addStage(new UploadGroupsStage(discoveredGroupUploader))
                 .addStage(new UploadTemplatesStage(discoveredTemplateDeploymentProfileNotifier))
                 .addStage(new StitchingStage(stitchingManager))
+                .addStage(new ReservationStage(reservationManager))
                 .addStage(new GraphCreationStage())
                 .addStage(new PolicyStage(policyManager))
                 .addStage(SettingsResolutionStage.live(entitySettingsResolver))
@@ -142,6 +149,7 @@ public class TopologyPipelineFactory {
                 new TopologyPipelineContext(groupResolver, topologyInfo);
         return TopologyPipeline.<EntityStore, TopologyBroadcastInfo>newBuilder(context)
                 .addStage(new StitchingStage(stitchingManager))
+                .addStage(new ReservationStage(reservationManager))
                 .addStage(new TopologyEditStage(topologyEditor, changes))
                 .addStage(new GraphCreationStage())
                 .addStage(new IgnoreConstraintsStage(context.getGroupResolver(),

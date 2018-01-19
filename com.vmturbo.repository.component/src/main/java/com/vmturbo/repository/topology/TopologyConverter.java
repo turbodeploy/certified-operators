@@ -10,6 +10,7 @@ import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
@@ -21,12 +22,49 @@ import com.vmturbo.repository.dto.CommoditySoldRepoDTO;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
 
 /**
- * Convert topology DTOs to repository DTOs.
+ * Convert topology DTOs to repository DTOs. And also convert repository DTOs to topology DTOs.
  */
 public class TopologyConverter {
 
     public static Set<ServiceEntityRepoDTO> convert(Collection<TopologyEntityDTO> topologyDTOs) {
         return topologyDTOs.stream().map(ServiceEntityMapper::convert).collect(Collectors.toSet());
+    }
+
+    public static Set<TopologyEntityDTO> convertToTopologyEntity(Collection<ServiceEntityRepoDTO> serviceEntities) {
+        return serviceEntities.stream().map(TopologyEntityMapper::convert).collect(Collectors.toSet());
+    }
+
+    /**
+     * A Mapper class to convert {@link ServiceEntityRepoDTO} back to {@link TopologyEntityDTO}.
+     * Because {@link ServiceEntityRepoDTO} only keep part of TopologyEntityDTO fields, returned
+     * {@link TopologyEntityDTO} will also contains partial fields.
+     */
+    static class TopologyEntityMapper {
+        static TopologyEntityDTO convert(ServiceEntityRepoDTO serviceEntityDTO) {
+            TopologyEntityDTO.Builder topologyEntityBuilder = TopologyEntityDTO.newBuilder();
+            topologyEntityBuilder.setOid(Long.valueOf(serviceEntityDTO.getOid()));
+            topologyEntityBuilder.setDisplayName(serviceEntityDTO.getDisplayName());
+            topologyEntityBuilder.setEntityType(mapEntityType(serviceEntityDTO.getEntityType()));
+            topologyEntityBuilder.setEntityState(
+                    EntityState.forNumber(mapEntityState(serviceEntityDTO.getState())));
+            topologyEntityBuilder.addAllCommoditySoldList(
+                    serviceEntityDTO.getCommoditySoldList().stream()
+                            .map(CommodityMapper::convert)
+                            .collect(Collectors.toList()));
+            topologyEntityBuilder.addAllCommoditiesBoughtFromProviders(
+                    serviceEntityDTO.getCommoditiesBoughtRepoFromProviderDTOList().stream()
+                            .map(CommodityMapper::convert)
+                            .collect(Collectors.toList()));
+            return topologyEntityBuilder.build();
+        }
+
+        static int mapEntityType(String type) {
+            return RepoObjectType.toTopologyEntityType(type);
+        }
+
+        static int mapEntityState(String state) {
+            return RepoObjectState.toTopologyEntityState(state);
+        }
     }
 
     static class ServiceEntityMapper {
@@ -46,7 +84,6 @@ public class TopologyConverter {
                 commoditiesBoughtRepoFromProviderDTOList.add(
                     CommodityMapper.convert(commoditiesBoughtFromProvider, seOid));
             });
-
 
             se.setCommoditiesBoughtRepoFromProviderDTOList(commoditiesBoughtRepoFromProviderDTOList);
 
@@ -100,6 +137,21 @@ public class TopologyConverter {
             return commRepo;
         }
 
+        private static CommodityBoughtDTO convert(CommodityBoughtRepoDTO commodityBoughtRepoDTO) {
+            CommodityBoughtDTO.Builder commodityBoughtBuilder = CommodityBoughtDTO.newBuilder();
+            commodityBoughtBuilder.setUsed(commodityBoughtRepoDTO.getUsed());
+            commodityBoughtBuilder.setPeak(commodityBoughtRepoDTO.getPeak());
+            CommodityType.Builder commodityTypeBuilder = CommodityType.newBuilder();
+            if (commodityBoughtRepoDTO.getType() != null) {
+                commodityTypeBuilder.setType(mapCommodityType(commodityBoughtRepoDTO.getType()));
+            }
+            if (commodityBoughtRepoDTO.getKey() != null) {
+                commodityTypeBuilder.setKey(commodityBoughtRepoDTO.getKey());
+            }
+            commodityBoughtBuilder.setCommodityType(commodityTypeBuilder);
+            return commodityBoughtBuilder.build();
+        }
+
         private static CommoditySoldRepoDTO convert(
                 String ownerOid,
                 String providerOid,
@@ -124,7 +176,34 @@ public class TopologyConverter {
             return commRepo;
         }
 
+        private static CommoditySoldDTO convert(CommoditySoldRepoDTO commoditySoldRepoDTO) {
+            CommoditySoldDTO.Builder commoditySoldDTOBuilder = CommoditySoldDTO.newBuilder();
+            commoditySoldDTOBuilder.setUsed(commoditySoldRepoDTO.getUsed());
+            commoditySoldDTOBuilder.setPeak(commoditySoldRepoDTO.getPeak());
+            commoditySoldDTOBuilder.setCapacity(commoditySoldRepoDTO.getCapacity());
+            commoditySoldDTOBuilder.setEffectiveCapacityPercentage(
+                    commoditySoldRepoDTO.getEffectiveCapacityPercentage());
+            commoditySoldDTOBuilder.setReservedCapacity(commoditySoldRepoDTO.getReservedCapacity());
+            commoditySoldDTOBuilder.setIsResizeable(commoditySoldRepoDTO.isResizeable());
+            commoditySoldDTOBuilder.setIsThin(commoditySoldRepoDTO.isThin());
+            CommodityType.Builder commodityTypeBuilder = CommodityType.newBuilder();
+
+            if (commoditySoldRepoDTO.getType() != null) {
+                commodityTypeBuilder.setType(mapCommodityType(commoditySoldRepoDTO.getType()));
+            }
+            if (commoditySoldRepoDTO.getKey() != null) {
+                commodityTypeBuilder.setKey(commoditySoldRepoDTO.getKey());
+            }
+
+            commoditySoldDTOBuilder.setCommodityType(commodityTypeBuilder.build());
+            return commoditySoldDTOBuilder.build();
+        }
+
         private static String mapCommodityType(int type) {
+            return RepoObjectType.mapCommodityType(type);
+        }
+
+        private static int mapCommodityType(String type) {
             return RepoObjectType.mapCommodityType(type);
         }
 
@@ -144,6 +223,25 @@ public class TopologyConverter {
             commoditiesBoughtRepoFromProviderDTO.setProviderEntityType(commoditiesBoughtFromProvider.hasProviderEntityType() ?
                 commoditiesBoughtFromProvider.getProviderEntityType() : null);
             return commoditiesBoughtRepoFromProviderDTO;
+        }
+
+        private static CommoditiesBoughtFromProvider convert(
+                CommoditiesBoughtRepoFromProviderDTO commoditiesBoughtRepoFromProviderDTO) {
+            CommoditiesBoughtFromProvider.Builder commodityBoughtFromProviderBuilder =
+                    CommoditiesBoughtFromProvider.newBuilder();
+            commodityBoughtFromProviderBuilder.addAllCommodityBought(
+                    commoditiesBoughtRepoFromProviderDTO.getCommodityBoughtRepoDTOs().stream()
+                            .map(CommodityMapper::convert)
+                            .collect(Collectors.toList()));
+            if (commoditiesBoughtRepoFromProviderDTO.getProviderId() != null) {
+                commodityBoughtFromProviderBuilder.setProviderId(
+                        commoditiesBoughtRepoFromProviderDTO.getProviderId());
+            }
+            if (commoditiesBoughtRepoFromProviderDTO.getProviderEntityType() != null) {
+                commodityBoughtFromProviderBuilder.setProviderEntityType(
+                        commoditiesBoughtRepoFromProviderDTO.getProviderEntityType());
+            }
+            return commodityBoughtFromProviderBuilder.build();
         }
     }
 }

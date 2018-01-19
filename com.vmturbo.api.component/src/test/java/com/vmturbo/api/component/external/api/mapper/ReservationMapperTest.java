@@ -1,9 +1,13 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import static junit.framework.TestCase.assertTrue;
+import static org.junit.Assert.assertEquals;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import org.joda.time.LocalDate;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -21,19 +25,27 @@ import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.reservation.DemandEntityInfoDTO;
 import com.vmturbo.api.dto.reservation.DemandReservationApiDTO;
+import com.vmturbo.api.dto.reservation.DemandReservationApiInputDTO;
 import com.vmturbo.api.dto.reservation.DemandReservationParametersDTO;
 import com.vmturbo.api.dto.reservation.PlacementInfoDTO;
 import com.vmturbo.api.dto.reservation.PlacementParametersDTO;
+import com.vmturbo.api.dto.template.ResourceApiDTO;
+import com.vmturbo.api.enums.ReservationAction;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ReservationConstraintInfo;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.InitialPlacementConstraint;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyAddition;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation.Date;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplateRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
@@ -62,6 +74,19 @@ public class ReservationMapperTest {
 
     private final long TEMPLATE_ID = 123L;
 
+    private ServiceEntityApiDTO vmServiceEntity = new ServiceEntityApiDTO();
+
+    private  ServiceEntityApiDTO pmServiceEntity = new ServiceEntityApiDTO();
+
+    private ServiceEntityApiDTO stServiceEntity = new ServiceEntityApiDTO();
+
+    final Template template = Template.newBuilder()
+            .setId(TEMPLATE_ID)
+            .setTemplateInfo(TemplateInfo.newBuilder()
+                    .setName("VM-template")
+                    .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE))
+            .build();
+
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(templateServiceMole, groupServiceMole);
 
@@ -72,6 +97,17 @@ public class ReservationMapperTest {
         groupServiceBlockingStub = GroupServiceGrpc.newBlockingStub(grpcServer.getChannel());
         reservationMapper = new ReservationMapper(repositoryApi, templateServiceBlockingStub,
                 groupServiceBlockingStub);
+
+        vmServiceEntity.setClassName("VirtualMachine");
+        vmServiceEntity.setDisplayName("VM-template Clone #1");
+        vmServiceEntity.setUuid("1");
+        pmServiceEntity.setClassName("PhysicalMachine");
+        pmServiceEntity.setDisplayName("PM #1");
+        pmServiceEntity.setUuid("2");
+        stServiceEntity.setClassName("Storage");
+        stServiceEntity.setDisplayName("ST #1");
+        stServiceEntity.setUuid("3");
+
     }
 
     @Test
@@ -83,11 +119,11 @@ public class ReservationMapperTest {
         demandParameters.setPlacementParameters(placementParameter);
         final List<ScenarioChange> scenarioChangeList =
                 reservationMapper.placementToScenarioChange(Lists.newArrayList(demandParameters));
-        Assert.assertEquals(1, scenarioChangeList.size());
+        assertEquals(1, scenarioChangeList.size());
         final ScenarioChange scenarioChange = scenarioChangeList.get(0);
         Assert.assertTrue(scenarioChange.hasTopologyAddition());
-        Assert.assertEquals(2, scenarioChange.getTopologyAddition().getAdditionCount());
-        Assert.assertEquals(123L, scenarioChange.getTopologyAddition().getTemplateId());
+        assertEquals(2, scenarioChange.getTopologyAddition().getAdditionCount());
+        assertEquals(123L, scenarioChange.getTopologyAddition().getTemplateId());
     }
 
     @Test
@@ -107,19 +143,19 @@ public class ReservationMapperTest {
                         .build());
         final List<ScenarioChange> scenarioChangeList =
                 reservationMapper.placementToScenarioChange(Lists.newArrayList(demandParameters));
-        Assert.assertEquals(2, scenarioChangeList.size());
+        assertEquals(2, scenarioChangeList.size());
         Assert.assertTrue(scenarioChangeList.stream()
                 .anyMatch(ScenarioChange::hasPlanChanges));
         final ScenarioChange planChange = scenarioChangeList.stream()
                 .filter(ScenarioChange::hasPlanChanges)
                 .findFirst()
                 .get();
-        final List<InitialPlacementConstraint> constraints = planChange.getPlanChanges()
+        final List<ReservationConstraintInfo> constraints = planChange.getPlanChanges()
                 .getInitialPlacementConstraintsList();
-        Assert.assertEquals(1L, constraints.size());
-        final InitialPlacementConstraint constraint = constraints.get(0);
-        Assert.assertEquals(123L, constraint.getConstraintId());
-        Assert.assertEquals(InitialPlacementConstraint.Type.CLUSTER, constraint.getType());
+        assertEquals(1L, constraints.size());
+        final ReservationConstraintInfo constraint = constraints.get(0);
+        assertEquals(123L, constraint.getConstraintId());
+        assertEquals(ReservationConstraintInfo.Type.CLUSTER, constraint.getType());
     }
 
     @Test
@@ -131,29 +167,11 @@ public class ReservationMapperTest {
                 .build();
 
         final PlacementInfo placementInfo = new PlacementInfo(1L, ImmutableList.of(2L, 3L));
-        final Template template = Template.newBuilder()
-                .setId(TEMPLATE_ID)
-                .setTemplateInfo(TemplateInfo.newBuilder()
-                        .setName("VM-template")
-                        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE))
-                .build();
+
         Mockito.when(templateServiceMole.getTemplate(GetTemplateRequest.newBuilder()
                 .setTemplateId(TEMPLATE_ID)
                 .build()))
                 .thenReturn(template);
-
-        ServiceEntityApiDTO vmServiceEntity = new ServiceEntityApiDTO();
-        vmServiceEntity.setClassName("VirtualMachine");
-        vmServiceEntity.setDisplayName("VM-template Clone #1");
-        vmServiceEntity.setUuid("1");
-        ServiceEntityApiDTO pmServiceEntity = new ServiceEntityApiDTO();
-        pmServiceEntity.setClassName("PhysicalMachine");
-        pmServiceEntity.setDisplayName("PM #1");
-        pmServiceEntity.setUuid("2");
-        ServiceEntityApiDTO stServiceEntity = new ServiceEntityApiDTO();
-        stServiceEntity.setClassName("Storage");
-        stServiceEntity.setDisplayName("ST #1");
-        stServiceEntity.setUuid("3");
 
         final Map<Long, Optional<ServiceEntityApiDTO>> serviceEntityApiDTOMap =
                 ImmutableMap.of(1L, Optional.of(vmServiceEntity), 2L, Optional.of(pmServiceEntity),
@@ -163,20 +181,105 @@ public class ReservationMapperTest {
         final DemandReservationApiDTO demandReservationApiDTO =
                 reservationMapper.convertToDemandReservationApiDTO(scenarioChange.getTopologyAddition(),
                         Lists.newArrayList(placementInfo));
-        Assert.assertEquals(1, (int)demandReservationApiDTO.getCount());
+        assertEquals(1, (int)demandReservationApiDTO.getCount());
         final List<DemandEntityInfoDTO> demandEntities = demandReservationApiDTO.getDemandEntities();
-        Assert.assertEquals(1L, demandEntities.size());
+        assertEquals(1L, demandEntities.size());
         final BaseApiDTO templateResponse = demandEntities.get(0).getTemplate();
-        Assert.assertEquals("VM-template", templateResponse.getDisplayName());
-        Assert.assertEquals("VirtualMachineProfile", templateResponse.getClassName());
-        Assert.assertEquals(String.valueOf(TEMPLATE_ID), templateResponse.getUuid());
+        assertEquals("VM-template", templateResponse.getDisplayName());
+        assertEquals("VirtualMachineProfile", templateResponse.getClassName());
+        assertEquals(String.valueOf(TEMPLATE_ID), templateResponse.getUuid());
         final PlacementInfoDTO placementInfoDTO = demandEntities.get(0).getPlacements();
-        Assert.assertEquals(1L, placementInfoDTO.getComputeResources().size());
-        Assert.assertEquals(1L, placementInfoDTO.getStorageResources().size());
+        assertEquals(1L, placementInfoDTO.getComputeResources().size());
+        assertEquals(1L, placementInfoDTO.getStorageResources().size());
         Assert.assertNull(placementInfoDTO.getNetworkResources());
-        Assert.assertEquals("PM #1",
+        assertEquals("PM #1",
                 placementInfoDTO.getComputeResources().get(0).getProvider().getDisplayName());
-        Assert.assertEquals("ST #1",
+        assertEquals("ST #1",
                 placementInfoDTO.getStorageResources().get(0).getProvider().getDisplayName());
+    }
+
+    @Test
+    public void testConvertToReservation() throws Exception {
+        DemandReservationApiInputDTO demandApiInputDTO = new DemandReservationApiInputDTO();
+        final String tomorrow = LocalDate.now().plusDays(1).toString();
+        final String nextMonth = LocalDate.now().plusMonths(1).toString();
+        demandApiInputDTO.setDemandName("test-reservation");
+        demandApiInputDTO.setReserveDateTime(tomorrow);
+        demandApiInputDTO.setExpireDateTime(nextMonth);
+        demandApiInputDTO.setAction(ReservationAction.RESERVATION);
+        DemandReservationParametersDTO demandReservationParametersDTO =
+                new DemandReservationParametersDTO();
+        PlacementParametersDTO placementParametersDTO = new PlacementParametersDTO();
+        placementParametersDTO.setCount(2);
+        placementParametersDTO.setTemplateID("123");
+        demandReservationParametersDTO.setPlacementParameters(placementParametersDTO);
+        demandApiInputDTO.setParameters(Lists.newArrayList(demandReservationParametersDTO));
+        final Reservation reservation = reservationMapper.convertToReservation(demandApiInputDTO);
+        assertTrue(reservation.getStatus() == ReservationStatus.FUTURE);
+        assertEquals(LocalDate.now().plusDays(1).getYear(), reservation.getStartDate().getYear());
+        assertEquals(LocalDate.now().plusDays(1).getMonthOfYear(), reservation.getStartDate().getMonth());
+        assertEquals(LocalDate.now().plusDays(1).getDayOfMonth(), reservation.getStartDate().getDay());
+        assertEquals(LocalDate.now().plusMonths(1).getYear(), reservation.getExpirationDate().getYear());
+        assertEquals(LocalDate.now().plusMonths(1).getMonthOfYear(), reservation.getExpirationDate().getMonth());
+        assertEquals(LocalDate.now().plusMonths(1).getDayOfMonth(), reservation.getExpirationDate().getDay());
+    }
+
+    @Test
+    public void testConvertReservationToApiDTO() throws Exception {
+        LocalDate today = LocalDate.now();
+        LocalDate nextMonth = LocalDate.now().plusMonths(1);
+        Reservation.Builder reservationBuider = Reservation.newBuilder();
+        reservationBuider.setId(111);
+        reservationBuider.setName("test-reservation");
+        reservationBuider.setStartDate(Date.newBuilder()
+                .setYear(today.getYear())
+                .setMonth(today.getMonthOfYear())
+                .setDay(today.getDayOfMonth())
+                .build());
+        reservationBuider.setExpirationDate(Date.newBuilder()
+                .setYear(nextMonth.getYear())
+                .setMonth(nextMonth.getMonthOfYear())
+                .setDay(nextMonth.getDayOfMonth())
+                .build());
+        reservationBuider.setStatus(ReservationStatus.RESERVED);
+        ReservationTemplate reservationTemplate = ReservationTemplate.newBuilder()
+                .setTemplateId(TEMPLATE_ID)
+                .setCount(1)
+                .addReservationInstance(ReservationInstance.newBuilder()
+                        .setEntityId(1L)
+                        .addPlacementInfo(ReservationInstance.PlacementInfo.newBuilder()
+                                .setProviderId(2L))
+                        .addPlacementInfo(ReservationInstance.PlacementInfo.newBuilder()
+                                .setProviderId(3L)))
+                .build();
+        final Reservation reservation = reservationBuider.setReservationTemplateCollection(
+                ReservationTemplateCollection.newBuilder()
+                        .addReservationTemplate(reservationTemplate))
+                .build();
+        Mockito.when(templateServiceMole.getTemplate(GetTemplateRequest.newBuilder()
+                .setTemplateId(TEMPLATE_ID)
+                .build()))
+                .thenReturn(template);
+
+        final Map<Long, Optional<ServiceEntityApiDTO>> serviceEntityApiDTOMap =
+                ImmutableMap.of(1L, Optional.of(vmServiceEntity), 2L, Optional.of(pmServiceEntity),
+                        3L, Optional.of(stServiceEntity));
+        Mockito.when(repositoryApi.getServiceEntitiesById(Mockito.any()))
+                .thenReturn(serviceEntityApiDTOMap);
+        final DemandReservationApiDTO reservationApiDTO =
+                reservationMapper.convertReservationToApiDTO(reservation);
+        assertEquals("test-reservation", reservationApiDTO.getDisplayName());
+        assertEquals("RESERVED", reservationApiDTO.getStatus());
+        assertEquals(1L, reservationApiDTO.getDemandEntities().size());
+        assertEquals(1L, reservationApiDTO.getDemandEntities().get(0)
+                .getPlacements().getComputeResources().size());
+        assertEquals(1L, reservationApiDTO.getDemandEntities().get(0)
+                .getPlacements().getStorageResources().size());
+        final ResourceApiDTO computeResource = reservationApiDTO.getDemandEntities().get(0)
+                .getPlacements().getComputeResources().get(0);
+        final ResourceApiDTO storageResource = reservationApiDTO.getDemandEntities().get(0)
+                .getPlacements().getStorageResources().get(0);
+        assertEquals(pmServiceEntity.getDisplayName(), computeResource.getProvider().getDisplayName());
+        assertEquals(stServiceEntity.getDisplayName(), storageResource.getProvider().getDisplayName());
     }
 }

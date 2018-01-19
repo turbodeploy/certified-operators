@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 import java.util.Collections;
 import java.util.Optional;
 
+import org.assertj.core.util.Lists;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -22,10 +23,13 @@ import org.mockito.Mockito;
 import io.grpc.Status.Code;
 import io.grpc.StatusException;
 import io.grpc.stub.StreamObserver;
+import javaslang.control.Either;
 
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.DeleteTopologyRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponseCode;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyEntityFilter;
@@ -62,8 +66,10 @@ public class RepositoryRpcServiceTest {
 
     private TopologyLifecycleManager topologyLifecycleManager = mock(TopologyLifecycleManager.class);
 
+    private GraphDBService graphDBService = mock(GraphDBService.class);
+
     private RepositoryRpcService repoRpcService = new RepositoryRpcService(
-            topologyLifecycleManager, topologyProtobufsManager);
+            topologyLifecycleManager, topologyProtobufsManager, graphDBService);
 
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(repoRpcService);
@@ -169,6 +175,24 @@ public class RepositoryRpcServiceTest {
                 .setTopologyId(topologyId)
                 .setEntityFilter(topologyEntityFilter)
                 .build(), responseObserver);
+
+        verify(responseObserver).onCompleted();
+    }
+
+    @Test
+    public void testRetrieveTopologyEntities() {
+        final StreamObserver<RetrieveTopologyEntitiesResponse> responseObserver =
+                (StreamObserver<RetrieveTopologyEntitiesResponse>)mock(StreamObserver.class);
+        when(graphDBService.retrieveTopologyEntities(Mockito.anyLong(), Mockito.anyLong(),
+                Mockito.anySet(), eq(TopologyType.PROJECTED)))
+                .thenReturn(Either.right(Collections.emptyList()));
+        repoRpcService.retrieveTopologyEntities(RetrieveTopologyEntitiesRequest.newBuilder()
+                .setTopologyContextId(topologyContextId)
+                .setTopologyId(topologyId)
+                .addAllEntityOids(Lists.newArrayList(1L))
+                .setTopologyType(RetrieveTopologyEntitiesRequest.TopologyType.PROJECTED)
+                .build(),
+                responseObserver);
 
         verify(responseObserver).onCompleted();
     }

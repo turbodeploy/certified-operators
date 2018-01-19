@@ -28,6 +28,8 @@ import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceImplBase;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponseCode;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.AnalysisDTOMoles.AnalysisServiceMole;
@@ -37,6 +39,9 @@ import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc.AnalysisServiceI
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.SenderReceiverPair;
+import com.vmturbo.plan.orchestrator.reservation.ReservationDao;
+import com.vmturbo.plan.orchestrator.reservation.ReservationDaoImpl;
+import com.vmturbo.plan.orchestrator.reservation.ReservationPlacementHandler;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
@@ -146,8 +151,29 @@ public class PlanTestConfig {
     }
 
     @Bean
+    public RepositoryServiceBlockingStub repositoryServiceBlockingStub() {
+        return RepositoryServiceGrpc.newBlockingStub(Mockito.mock(Channel.class));
+    }
+
+    @Bean
+    public ReservationPlacementHandler reservationPlacementHandler() {
+        ReservationPlacementHandler reservationPlacementHandler =
+                Mockito.spy(new ReservationPlacementHandler(reservationDao(),
+                        repositoryServiceBlockingStub()));
+        Mockito.doNothing().when(reservationPlacementHandler).updateReservations(Mockito.anyLong(),
+                Mockito.anyLong());
+        return reservationPlacementHandler;
+    }
+
+    @Bean
+    public ReservationDao reservationDao() {
+        return Mockito.spy(
+                new ReservationDaoImpl(dbConfig.dsl()));
+    }
+
+    @Bean
     public PlanProgressListener actionsListener() {
-        return new PlanProgressListener(planDao(), REALTIME_TOPOLOGY_ID);
+        return new PlanProgressListener(planDao(), reservationPlacementHandler(), REALTIME_TOPOLOGY_ID);
     }
 
     @PostConstruct
