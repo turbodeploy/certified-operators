@@ -366,9 +366,7 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
      */
     private StatRecord createStatRecordForClusterStatsByDay(ClusterStatsByDayRecord dbRecord) {
         return buildStatRecord(
-                // FIXME the property subtype is substituted into the property_type field intentionally.
-                // We need the subtype value for the UI, but the subtype value is not set in StatRecord.
-                dbRecord.getPropertySubtype(),
+                dbRecord.getPropertyType(),
                 dbRecord.getPropertySubtype(),
                 null,
                 null,
@@ -382,9 +380,7 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
 
     private StatRecord createStatRecordForClusterStatsByMonth(ClusterStatsByMonthRecord dbRecord) {
         return buildStatRecord(
-                // FIXME the property subtype is substituted into the property_type field intentionally.
-                // We need the subtype value for the UI, but the subtype value is not set in StatRecord.
-                dbRecord.getPropertySubtype(),
+                dbRecord.getPropertyType(),
                 dbRecord.getPropertySubtype(),
                 null,
                 null,
