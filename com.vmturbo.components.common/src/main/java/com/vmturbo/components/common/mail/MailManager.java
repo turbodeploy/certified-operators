@@ -108,15 +108,15 @@ public class MailManager {
             email.setFrom(config.getFromAddress());
 
             // If username is available, set authentication credentials.
-            if (config.getUsername() != null && config.getUsername().isEmpty() == false) {
+            if (config.getUsername() != null && !config.getUsername().isEmpty()) {
                 email.setAuthentication(config.getUsername(), config.getPassword());
             }
 
             // If settings indicate encrytion type,
-            if (config.getEncryption().equals(MailConfiguration.EncryptionType.SSL)) {
+            if (config.getEncryption() == MailConfiguration.EncryptionType.SSL) {
                 email.setSSLCheckServerIdentity(true);
                 email.setSSLOnConnect(true);
-            } else if (config.getEncryption().equals(MailConfiguration.EncryptionType.TLS)) {
+            } else if (config.getEncryption() == MailConfiguration.EncryptionType.TLS) {
                 email.setSSLCheckServerIdentity(true);
                 email.setStartTLSEnabled(true);
                 email.setStartTLSRequired(true);

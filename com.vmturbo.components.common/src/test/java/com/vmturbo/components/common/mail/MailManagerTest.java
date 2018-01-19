@@ -4,6 +4,7 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -73,8 +74,11 @@ public class MailManagerTest {
                 .build())))
                 .thenReturn(getSettingListGoogleSSL());
 
-        mailManager.sendMail(Arrays.asList("test@turbonomic.com"), "Test SSL", "Test body",
-                Arrays.asList("/users/hubert/Downloads/file.txt"));
+        mailManager.sendMail(Arrays.asList("testeamil@turbonomic.com"),
+                "Test SSL",
+                "Test body",
+                Arrays.asList(getClass().getClassLoader()
+                        .getResource("emailAttachment.txt").getFile()));
     }
 
     /**
@@ -85,14 +89,16 @@ public class MailManagerTest {
     //@Test
     public void testSendMailTLS() throws Exception {
         MailManager mailManager = new MailManager(settingsServer.getChannel());
-
         when(settingServiceMole.getMultipleGlobalSettings(eq(GetMultipleGlobalSettingsRequest.newBuilder()
                 .addAllSettingSpecName(specNames)
                 .build())))
                 .thenReturn(getSettingListGoogleTLS());
 
-        mailManager.sendMail(Arrays.asList("test@turbonomic.com"), "Test TLS", "Test body",
-                Arrays.asList("/users/hubert/Downloads/file.txt"));
+        mailManager.sendMail(Arrays.asList("testemail@turbonomic.com"),
+                "Test TLS",
+                "Test body",
+                Arrays.asList(getClass().getClassLoader()
+                        .getResource("emailAttachment.txt").getFile()));
     }
 
     /**
