@@ -26,6 +26,7 @@ import com.vmturbo.plan.orchestrator.project.PlanProjectConfig;
 import com.vmturbo.plan.orchestrator.reservation.ReservationConfig;
 import com.vmturbo.plan.orchestrator.scenario.ScenarioConfig;
 import com.vmturbo.plan.orchestrator.scheduled.ClusterRollupSchedulerConfig;
+import com.vmturbo.plan.orchestrator.scheduled.PlanDeletionSchedulerConfig;
 import com.vmturbo.plan.orchestrator.scheduled.PlanProjectSchedulerConfig;
 import com.vmturbo.plan.orchestrator.templates.TemplatesConfig;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
@@ -46,7 +47,8 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
         SQLDatabaseConfig.class,
         PlanProjectSchedulerConfig.class,
         PlanProjectConfig.class,
-        ReservationConfig.class})
+        ReservationConfig.class,
+        PlanDeletionSchedulerConfig.class})
 public class PlanOrchestratorComponent extends BaseVmtComponent {
     private static final Logger LOGGER = LogManager.getLogger();
 
@@ -83,6 +85,9 @@ public class PlanOrchestratorComponent extends BaseVmtComponent {
     @Autowired
     private PlanProjectSchedulerConfig schedulerConfig;
 
+    @Autowired
+    private PlanDeletionSchedulerConfig planDeletionSchedulerConfig;
+
     @PostConstruct
     private void setup() {
         LOGGER.info("Adding MariaDB health check to the component health monitor.");
@@ -109,6 +114,7 @@ public class PlanOrchestratorComponent extends BaseVmtComponent {
     public void onStartComponent() {
         super.onStartComponent();
         clusterRollupSchedulerConfig.clusterRollupTask().initializeSchedule();
+        planDeletionSchedulerConfig.planDeletionTask().start();
     }
 
     @Override

@@ -204,13 +204,20 @@ public class PlanDaoImpl implements PlanDao {
         // Delete projected topology from PlanOrchestrator, ActionOrchestrator,
         // Repository and History/Stats
         PlanDTO.PlanInstance plan = getPlanInstance(id).orElseThrow(() -> noSuchObjectException(id));
+        // First delete all the plan related data in other components. Then
+        // delete the data in plan db. This ordering is to ensure that we don't leave
+        // orphan/dangling plan data in the other components. There can still be
+        // some dangling plan data as we haven't handled all the error cases.
+        // But this atleast minimizes the number of dangling objects.
+        // TODO - karthikt - The deleteRelatedObjects function should be moved
+        // outside this class where the deletePlan is called as DAO classes should
+        // concern itself only with access to the DB.
+        deleteRelatedObjects(plan);
         if (dsl.deleteFrom(PLAN_INSTANCE)
                 .where(PLAN_INSTANCE.ID.eq(id))
                 .execute() != 1) {
             throw noSuchObjectException(id);
         }
-        // Delete related objects, on a best-effort basis, after the plan is deleted.
-        deleteRelatedObjects(plan);
         return plan;
     }
 
@@ -366,6 +373,18 @@ public class PlanDaoImpl implements PlanDao {
         }
 
         return updateResult.newPlan;
+    }
+
+    @Override
+    public List<Long> getOldPlans(LocalDateTime expirationDate, int batchSize)
+        throws DataAccessException {
+
+        return dsl.select()
+            .from(PLAN_INSTANCE)
+            .where(PLAN_INSTANCE.UPDATE_TIME.lt(expirationDate))
+            .orderBy(PLAN_INSTANCE.UPDATE_TIME)
+            .limit(batchSize)
+            .fetch(PLAN_INSTANCE.ID, Long.class);
     }
 
     /**

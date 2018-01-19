@@ -1,5 +1,7 @@
 package com.vmturbo.plan.orchestrator.plan;
 
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -98,4 +100,14 @@ public interface PlanDao {
      * @param listener The {@link PlanStatusListener}.
      */
     void addStatusListener(@Nonnull final PlanStatusListener listener);
+
+    /**
+     *  Return old plan IDs.
+     *
+     *  @param expirationDate Return all the plans which are older than this date.
+     *  @param batchSize Limit the number of returned entries to batchSize.
+     *  @return Return the list of plans IDs.
+     *  @throws DataAccessException Exceptionw while accessing the database.
+     */
+    List<Long> getOldPlans(LocalDateTime expirationDate, int batchSize);
 }

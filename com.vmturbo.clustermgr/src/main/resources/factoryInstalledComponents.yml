@@ -204,6 +204,12 @@ plan-orchestrator:
   # cron spec for running cluster rollup at 1AM daily: second (0-60) ,minute (0-59), hour(0-23),
   #     day of month(1-31), month(1-12), day of week(0-7, 7=sun)
   clusterRollupSchedule: "0 0 1 * * *"
+  # Run plan deletion at 2AM everyday
+  planDeletionSchedule: "0 0 2 * * *"
+  # Config parameter to control the batch size for deleting old plans.
+  planDeletionBatchSize: 500
+  # Delay before the next batch of old plans is deleted.
+  planDeletionDelayBetweenDeletesSeconds: 120
   grpcPingIntervalSeconds: 300
   identityGeneratorPrefix: 3
   websocket.pong.timeout: 30000

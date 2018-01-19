@@ -142,5 +142,4 @@ public class PlanConfig {
         // of topologies is expensive and we already have issues with OOM crashes.
         return Executors.newSingleThreadExecutor(threadFactory);
     }
-
 }
