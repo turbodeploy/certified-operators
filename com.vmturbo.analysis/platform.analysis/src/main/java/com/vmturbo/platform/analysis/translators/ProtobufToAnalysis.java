@@ -143,7 +143,7 @@ public final class ProtobufToAnalysis {
                 return FunctionalOperatorUtil.UPDATE_EXPENSES;
             case UPDATINGFUNCTIONTYPE_NOT_SET:
             default:
-                throw new IllegalArgumentException("input = " + input);
+                return null;
         }
     }
 

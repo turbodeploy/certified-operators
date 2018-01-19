@@ -267,6 +267,9 @@ public class Move extends MoveBase implements Action { // inheritance for code r
             double sellerOrigPeak = commoditySold.getPeakQuantity();
             commoditySold.setQuantity(0).setPeakQuantity(0);
 
+            // TODO: Currently, whenever there is an explicit combinator, we neglect overhead
+            // because of the used recomputation we could have explicitCombinators for which we
+            // dont want to neglect overhead. We need to handle these cases.
             for (ShoppingList customer : traderToUpdate.getCustomers()) {
                 // TODO: this needs to be changed to something that takes matching but unequal
                 // commodities into account.
