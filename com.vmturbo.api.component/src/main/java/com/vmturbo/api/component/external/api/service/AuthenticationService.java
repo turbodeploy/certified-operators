@@ -12,6 +12,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.context.request.RequestAttributes;
 import org.springframework.web.context.request.RequestContextHolder;
@@ -26,6 +27,7 @@ import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.ErrorApiDTO;
 import com.vmturbo.api.dto.user.UserApiDTO;
+import com.vmturbo.api.exceptions.ServiceUnavailableException;
 import com.vmturbo.api.serviceinterfaces.IAuthenticationService;
 import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
@@ -43,7 +45,7 @@ import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
  **/
 
 public class AuthenticationService implements IAuthenticationService {
-    public static final String LOCALHOST = "localhost";
+
     /**
      * The auth service host.
      */
@@ -70,6 +72,12 @@ public class AuthenticationService implements IAuthenticationService {
      */
     @Autowired
     private HttpServletRequest request;
+
+    /**
+     * The error message returned if the Auth component is not running.
+     */
+    private static final String AUTH_SERVICE_NOT_AVAILABLE_MSG =
+            "The Authorization Service is not responding";
 
     /**
      * Constructs the authentication service.
@@ -103,8 +111,12 @@ public class AuthenticationService implements IAuthenticationService {
                                                            .path("/users/checkAdminInit");
         final String request = builder.build().toUriString();
         ResponseEntity<Boolean> result;
-        result = restTemplate_.getForEntity(request, Boolean.class);
-        return result.getBody().booleanValue();
+        try {
+            result = restTemplate_.getForEntity(request, Boolean.class);
+            return result.getBody().booleanValue();
+        } catch (RestClientException e) {
+            throw new ServiceUnavailableException(AUTH_SERVICE_NOT_AVAILABLE_MSG);
+        }
     }
 
     /**
@@ -122,10 +134,14 @@ public class AuthenticationService implements IAuthenticationService {
                                                            .path("/users/initAdmin");
         AuthUserDTO dto = new AuthUserDTO(AuthUserDTO.PROVIDER.LOCAL, username, password, null,
                                           null, ImmutableList.of("ADMINISTRATOR"));
-        restTemplate_.postForObject(builder.build().toUriString(), dto, String.class);
-        UserApiDTO user = new UserApiDTO();
-        user.setUsername(username);
-        return user;
+        try {
+            restTemplate_.postForObject(builder.build().toUriString(), dto, String.class);
+            UserApiDTO user = new UserApiDTO();
+            user.setUsername(username);
+            return user;
+        } catch(RestClientException e) {
+            throw new ServiceUnavailableException(AUTH_SERVICE_NOT_AVAILABLE_MSG);
+        }
     }
 
     @Override
@@ -168,6 +184,8 @@ public class AuthenticationService implements IAuthenticationService {
             ErrorApiDTO error = new ErrorApiDTO();
             error.setMessage("Authentication Failed");
             return error;
+        } catch (RestClientException e) {
+            throw new ServiceUnavailableException(AUTH_SERVICE_NOT_AVAILABLE_MSG);
         }
 
         ErrorApiDTO error = new ErrorApiDTO();

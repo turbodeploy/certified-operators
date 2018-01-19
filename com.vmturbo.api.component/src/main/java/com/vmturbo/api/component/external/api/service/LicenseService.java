@@ -23,6 +23,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 import org.w3c.dom.Document;
@@ -35,6 +36,7 @@ import com.google.common.collect.ImmutableList;
 import com.vmturbo.api.component.communication.RestAuthenticationProvider;
 import com.vmturbo.api.dto.license.LicenseApiDTO;
 import com.vmturbo.api.dto.license.LicenseApiInputDTO;
+import com.vmturbo.api.exceptions.ServiceUnavailableException;
 import com.vmturbo.api.serviceinterfaces.ILicenseService;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 
@@ -60,6 +62,12 @@ public class LicenseService implements ILicenseService {
      * The auth service port.
      */
     private final int authPort_;
+
+    /**
+     * The error message returned if the Auth component is not running.
+     */
+    private static final String AUTH_SERVICE_NOT_AVAILABLE_MSG =
+            "The Authorization Service is not responding";
 
     final LocalDate EXPIRATION_DATE = LocalDate.of(2019, 1, 1);
 
@@ -95,14 +103,18 @@ public class LicenseService implements ILicenseService {
         headers.setAccept(HTTP_ACCEPT);
 
         ResponseEntity<String> result;
-        result = restTemplate_.exchange(request, HttpMethod.GET, new HttpEntity<>(headers),
-                String.class);
-        String rawLicense = result.getBody();
-        if (rawLicense == null || rawLicense.isEmpty()) {
-            // when license component is ready in XL, we should return empty LicenseApiDTO.
-            return getDefaultXlLicense(); // return the default XL license for now
+        try {
+            result = restTemplate_.exchange(request, HttpMethod.GET, new HttpEntity<>(headers),
+                    String.class);
+            String rawLicense = result.getBody();
+            if (rawLicense == null || rawLicense.isEmpty()) {
+                // when license component is ready in XL, we should return empty LicenseApiDTO.
+                return getDefaultXlLicense(); // return the default XL license for now
+            }
+            return convertSocketLicenseToDTO(rawLicense);
+        } catch (RestClientException e) {
+            throw new ServiceUnavailableException(AUTH_SERVICE_NOT_AVAILABLE_MSG);
         }
-        return convertSocketLicenseToDTO(rawLicense);
     }
 
     @Override
