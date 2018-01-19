@@ -19,7 +19,7 @@ public class PollingHealthMonitorTest {
          * @param intervalSecs the polling interval to use, in seconds
          */
         public TestPollingHealthMonitor(final double intervalSecs) {
-            super(intervalSecs);
+            super("TestPollingHealthMonitor",intervalSecs);
         }
 
         // the test health monitor will report a status based on the isHealthy boolean

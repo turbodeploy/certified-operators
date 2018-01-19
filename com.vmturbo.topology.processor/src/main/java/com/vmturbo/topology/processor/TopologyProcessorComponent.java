@@ -20,7 +20,7 @@ import io.grpc.Server;
 import io.grpc.ServerBuilder;
 
 import com.vmturbo.components.common.BaseVmtComponent;
-import com.vmturbo.components.common.health.sql.SQLDBHealthMonitor;
+import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 import com.vmturbo.topology.processor.actions.ActionsConfig;
 import com.vmturbo.topology.processor.analysis.AnalysisConfig;
@@ -121,8 +121,8 @@ public class TopologyProcessorComponent extends BaseVmtComponent {
     @PostConstruct
     private void setup() {
         log.info("Adding MariaDB health check to the component health monitor.");
-        getHealthMonitor().addHealthCheck("MariaDB",
-                new SQLDBHealthMonitor(mariaHealthCheckIntervalSeconds,
+        getHealthMonitor().addHealthCheck(
+                new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,
                         dbConfig.dataSource()::getConnection));
     }
 

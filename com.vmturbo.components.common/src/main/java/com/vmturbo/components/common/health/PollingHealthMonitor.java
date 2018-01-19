@@ -17,7 +17,9 @@ import reactor.core.publisher.FluxSink;
 public abstract class PollingHealthMonitor extends SimpleHealthStatusProvider {
     private Logger log = LogManager.getLogger();
 
-    private final ScheduledExecutorService healthCheckScheduler = Executors.newScheduledThreadPool(1);
+    private static final long INITIAL_CHECK_DELAY_MS = 10;
+
+    protected static final ScheduledExecutorService healthCheckScheduler = Executors.newScheduledThreadPool(1);
 
     /**
      * How often to execute the health check, in seconds. Defaults to a minute.
@@ -25,21 +27,12 @@ public abstract class PollingHealthMonitor extends SimpleHealthStatusProvider {
     private double pollingIntervalSecs = 60;
 
     /**
-     * We will, on request, support a live stream of status updates. The statusFlux can be subscribed
-     * to for recieving these updates.
-     */
-    private Flux<SimpleHealthStatus> statusFlux;
-
-    /**
-     * The statusEmitter is used to push updates to the statusFlux subscribers.
-     */
-    private FluxSink<SimpleHealthStatus> statusEmitter;
-
-    /**
      * Construct the instance with the selected polling interval
+     * @param name the name of the health monitor
      * @param intervalSecs the polling interval to use, in seconds
      */
-    public PollingHealthMonitor(double intervalSecs)  {
+    public PollingHealthMonitor(String name, double intervalSecs)  {
+        super(name);
         if (intervalSecs <= 0) {
             throw new IllegalArgumentException("Polling interval "+ pollingIntervalSecs +" requested, but must be greater than zero.");
         }
@@ -61,39 +54,14 @@ public abstract class PollingHealthMonitor extends SimpleHealthStatusProvider {
      */
     @Override
     protected synchronized void setHealthStatus(final SimpleHealthStatus newStatus) {
-        // no-op if the same
-        if (newStatus.equals(getHealthStatus())) {
-            return;
-        }
-
         super.setHealthStatus(newStatus);
-        // publish to the status emitter, if it exists.
-        if (statusEmitter != null) {
-            // TODO: if no active consumer demand, shut down the emitter and fluxes.
-            statusEmitter.next(newStatus);
-        }
-    }
-
-    /**
-     * Provides access to an asynchronous "hot" stream of status results.
-     * @return a flux that one could subscribe to.
-     */
-    public synchronized Flux<SimpleHealthStatus> getStatusStream() {
-        if (statusFlux == null) {
-            // create a new status flux
-            statusFlux = Flux.create(emitter -> statusEmitter = emitter);
-            // start publishing immediately w/o waiting for a consumer to signal demand.
-            // Future subscribers will pick up on future statuses
-            statusFlux.publish().connect();
-        }
-        return statusFlux;
     }
 
     private void scheduleHealthChecks() {
-        // the first check will be immediate
+        // the first check will be almost immediate
         long pollingIntervalMillis = Math.round(pollingIntervalSecs * 1000); // convert secs to millis
         ScheduledFuture schedule = healthCheckScheduler.scheduleWithFixedDelay(
-                new HealthCheckRunner(), 0, pollingIntervalMillis, TimeUnit.MILLISECONDS);
+                new HealthCheckRunner(), INITIAL_CHECK_DELAY_MS, pollingIntervalMillis, TimeUnit.MILLISECONDS);
     }
 
     /**
@@ -111,26 +79,13 @@ public abstract class PollingHealthMonitor extends SimpleHealthStatusProvider {
          */
         @Override
         public void run() {
-            // remember our last health status so we can log changed results
-            boolean wasHealthyLastTime = getHealthStatus().isHealthy();
-
             try {
                 updateHealthStatus();
             } catch(Throwable t) {
                 // Treat all errors on this check as a sign of unhealthiness -- we'll be checking
                 // again later.
+                log.warn("Exception while checking health", t);
                 reportUnhealthy("Error:"+ t.toString());
-            } finally {
-                // check if the health status has changed -- if so, log a message about it.
-                boolean isHealthyNow = getHealthStatus().isHealthy();
-                if (wasHealthyLastTime != isHealthyNow) {
-                    // log the change in status.
-                    if (isHealthyNow) {
-                        log.info(this.getClass().getSimpleName() +" is now healthy.");
-                    } else {
-                        log.warn(this.getClass().getSimpleName() +" is now unhealthy: "+ getHealthStatus().getDetails());
-                    }
-                }
             }
         }
     }

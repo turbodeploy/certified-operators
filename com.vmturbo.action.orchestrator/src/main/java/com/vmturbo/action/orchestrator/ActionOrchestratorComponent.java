@@ -31,7 +31,7 @@ import com.vmturbo.action.orchestrator.store.ActionStoreConfig;
 import com.vmturbo.auth.api.SpringSecurityConfig;
 import com.vmturbo.auth.api.authorization.jwt.JwtServerInterceptor;
 import com.vmturbo.components.common.BaseVmtComponent;
-import com.vmturbo.components.common.health.sql.SQLDBHealthMonitor;
+import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 /**
@@ -84,8 +84,8 @@ public class ActionOrchestratorComponent extends BaseVmtComponent {
     @PostConstruct
     private void setup() {
         log.info("Adding MariaDB health check to the component health monitor.");
-        getHealthMonitor().addHealthCheck("MariaDB",
-                new SQLDBHealthMonitor(mariaHealthCheckIntervalSeconds,dbConfig.dataSource()::getConnection));
+        getHealthMonitor().addHealthCheck(
+                new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,dbConfig.dataSource()::getConnection));
     }
 
     @Override

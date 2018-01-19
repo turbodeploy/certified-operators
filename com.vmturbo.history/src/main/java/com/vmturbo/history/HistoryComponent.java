@@ -20,17 +20,15 @@ import org.springframework.web.socket.server.standard.ServerEndpointExporter;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 
-import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.components.common.BaseVmtComponent;
-import com.vmturbo.history.api.HistoryApiConfig;
+import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
 import com.vmturbo.history.api.ApiSecurityConfig;
+import com.vmturbo.history.api.HistoryApiConfig;
 import com.vmturbo.history.db.HistoryDbConfig;
-import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.market.MarketListenerConfig;
 import com.vmturbo.history.stats.StatsConfig;
 import com.vmturbo.history.topology.TopologyListenerConfig;
 import com.vmturbo.reports.db.VmtDbException;
-import com.vmturbo.components.common.health.sql.SQLDBHealthMonitor;
 
 @Configuration("theComponent")
 @EnableAutoConfiguration
@@ -56,9 +54,8 @@ public class HistoryComponent extends BaseVmtComponent {
     @PostConstruct
     private void setup() {
         log.info("Adding MariaDB health check to the component health monitor.");
-        getHealthMonitor().addHealthCheck("MariaDB",
-                new SQLDBHealthMonitor(mariaHealthCheckIntervalSeconds,
-                        historyDbConfig.historyDbIO()::connection));
+        getHealthMonitor().addHealthCheck(
+                new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,historyDbConfig.historyDbIO()::connection));
     }
 
     public static void main(String[] args) {

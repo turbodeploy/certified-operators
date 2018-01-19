@@ -9,8 +9,9 @@ COPY entrypoint.sh /
 COPY collect_diags.sh /
 COPY diags.py /
 COPY logrotate.sh /
+COPY dump_histogram.sh /
 RUN chmod 755 /entrypoint.sh && chmod 755 /collect_diags.sh && \
-chmod 755 /diags.py && chmod 755 /logrotate.sh
+chmod 755 /diags.py && chmod 755 /logrotate.sh && chmod 755 /dump_histogram.sh
 
 # add the swagger UI
 COPY swagger /swagger/

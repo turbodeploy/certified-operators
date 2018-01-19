@@ -1,5 +1,6 @@
 package com.vmturbo.components.common;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
@@ -8,12 +9,24 @@ import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistra
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 
+import com.vmturbo.components.common.health.DeadlockHealthMonitor;
+import com.vmturbo.components.common.health.MemoryMonitor;
+import com.vmturbo.components.common.metrics.ComponentLifespanMetrics;
+
 /**
  * Create Spring Beans provided by com.vmturbo.components.common.
  **/
 @Configuration
 @Import({BaseVmtComponentConfig.DebugSwaggerConfig.class})
 public class BaseVmtComponentConfig {
+
+    @Value("${deadlockCheckIntervalSecs:900}")
+    private int deadlockCheckIntervalSecs;
+
+
+    @Value("${maxHealthyUsedMemoryRatio:0.95}")
+    private double maxHealthyUsedMemoryRatio;
+
 
     /**
      * Required to fill @{...} @Value annotations referencing
@@ -59,6 +72,22 @@ public class BaseVmtComponentConfig {
         return new EnvironmentChangeListener();
     }
 
+    @Bean
+    public ComponentLifespanMetrics componentLifespanMetrics() {
+        return ComponentLifespanMetrics.getInstance();
+    }
+
+    @Bean
+    public DeadlockHealthMonitor deadlockHealthMonitor() {
+        return new DeadlockHealthMonitor(deadlockCheckIntervalSecs);
+    }
+
+    @Bean
+    public MemoryMonitor memoryMonitor() {
+        // creates a memory monitor that reports unhealthy when old gen seems to be full
+        return new MemoryMonitor(maxHealthyUsedMemoryRatio);
+    }
+
     /**
      * A logging filter to log HTTP requests.
      * This makes it easier to debug failing calls.
@@ -87,4 +116,5 @@ public class BaseVmtComponentConfig {
                     .addResourceLocations("file:/swagger/");
         }
     }
+
 }

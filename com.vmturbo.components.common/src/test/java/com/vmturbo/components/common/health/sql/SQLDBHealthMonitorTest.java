@@ -25,7 +25,7 @@ public class SQLDBHealthMonitorTest {
         // to count as a "healthy" database connection factory.
         DataSource mockConnectionFactory = Mockito.mock(DataSource.class);
         Mockito.when(mockConnectionFactory.getConnection()).thenReturn(Mockito.mock(Connection.class));
-        SQLDBHealthMonitor testHealthMonitor = new SQLDBHealthMonitor(POLLING_INTERVAL_SECS, mockConnectionFactory::getConnection);
+        SQLDBHealthMonitor testHealthMonitor = new SQLDBHealthMonitor("Test DB Monitor", POLLING_INTERVAL_SECS, mockConnectionFactory::getConnection);
 
         // verify that the next health check reports a healthy connection.
         SimpleHealthStatus healthStatus = testHealthMonitor.getStatusStream().blockFirst(Duration.ofSeconds(1));
@@ -38,7 +38,7 @@ public class SQLDBHealthMonitorTest {
         // "unhealthy" database connection factory.
         DataSource mockConnectionFactory = Mockito.mock(DataSource.class);
         Mockito.when(mockConnectionFactory.getConnection()).thenThrow(new SQLException("Fake Error!"));
-        SQLDBHealthMonitor testHealthMonitor = new SQLDBHealthMonitor(POLLING_INTERVAL_SECS, mockConnectionFactory::getConnection);
+        SQLDBHealthMonitor testHealthMonitor = new SQLDBHealthMonitor("Another test monitor", POLLING_INTERVAL_SECS, mockConnectionFactory::getConnection);
 
         // verify that the next health check returns an unhealthy status.
         SimpleHealthStatus healthStatus = testHealthMonitor.getStatusStream().blockFirst(Duration.ofSeconds(1));

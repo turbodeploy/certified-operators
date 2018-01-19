@@ -19,7 +19,7 @@ import io.grpc.Server;
 import io.grpc.ServerBuilder;
 
 import com.vmturbo.components.common.BaseVmtComponent;
-import com.vmturbo.components.common.health.sql.SQLDBHealthMonitor;
+import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
 import com.vmturbo.plan.orchestrator.deployment.profile.DeploymentProfileConfig;
 import com.vmturbo.plan.orchestrator.plan.PlanConfig;
 import com.vmturbo.plan.orchestrator.project.PlanProjectConfig;
@@ -91,8 +91,7 @@ public class PlanOrchestratorComponent extends BaseVmtComponent {
     @PostConstruct
     private void setup() {
         LOGGER.info("Adding MariaDB health check to the component health monitor.");
-        getHealthMonitor().addHealthCheck("MariaDB",
-                new SQLDBHealthMonitor(mariaHealthCheckIntervalSeconds,
+        getHealthMonitor().addHealthCheck(new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,
                         dbConfig.dataSource()::getConnection));
     }
 

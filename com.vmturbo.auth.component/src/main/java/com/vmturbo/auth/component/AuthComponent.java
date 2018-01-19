@@ -16,7 +16,7 @@ import org.springframework.context.annotation.Import;
 import com.vmturbo.auth.api.SpringSecurityConfig;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.BaseVmtComponentConfig;
-import com.vmturbo.components.common.health.sql.SQLDBHealthMonitor;
+import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
 
 /**
  * The main auth component.
@@ -47,8 +47,8 @@ public class AuthComponent extends BaseVmtComponent {
     @PostConstruct
     private void setup() {
         logger.info("Adding MariaDB health check to the component health monitor.");
-        getHealthMonitor().addHealthCheck("MariaDB",
-                new SQLDBHealthMonitor(mariaHealthCheckIntervalSeconds,authDBConfig.dataSource()::getConnection));
+        getHealthMonitor().addHealthCheck(
+                new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,authDBConfig.dataSource()::getConnection));
     }
 
     /**

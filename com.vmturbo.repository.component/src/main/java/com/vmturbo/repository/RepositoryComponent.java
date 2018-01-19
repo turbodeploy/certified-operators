@@ -135,7 +135,7 @@ public class RepositoryComponent extends BaseVmtComponent {
     private void setup() {
         logger.info("Adding ArangoDB health check to the component health monitor.");
         // add a health monitor for Arango
-        getHealthMonitor().addHealthCheck("ArangoDB",
+        getHealthMonitor().addHealthCheck(
                 new ArangoHealthMonitor(arangoHealthCheckIntervalSeconds, arangoDatabaseFactory()::getArangoDriver));
     }
 

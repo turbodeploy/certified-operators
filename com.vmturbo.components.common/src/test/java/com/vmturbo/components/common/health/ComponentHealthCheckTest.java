@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.util.concurrent.TimeUnit;
 
+import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -42,6 +43,8 @@ public class ComponentHealthCheckTest {
 
     private static final String API_PREFIX="/api/v2";
 
+    private static final int MAX_WAIT_SECS = 20;
+
     protected MockMvc mockMvc;
 
     @Autowired
@@ -77,6 +80,19 @@ public class ComponentHealthCheckTest {
         testController = wac.getBean(ComponentController.class);
     }
 
+    @AfterClass
+    public static void tearDownStatics() {
+        // the static objects hang around after the tests are over -- clear them out when the tests
+        // in this class have run
+        if (testComponent != null) {
+            testComponent.stopComponent();
+            testComponent = null;
+        }
+        if (testController != null) {
+            testController = null;
+        }
+    }
+
     @Test
     public void testSimpleHealthEndpointJson() throws Exception {
         // initially the component will not be ready.
@@ -92,9 +108,9 @@ public class ComponentHealthCheckTest {
         // now wait for the component to finish starting
         while(! testComponent.getHealthMonitor().getHealthStatus().isHealthy()) {
             long elapsedTime = System.nanoTime() - startTime;
-            if ( elapsedTime > TimeUnit.SECONDS.toNanos(5) ) {
-                // if it took longer than 5 seconds to start up, something is wrong!
-                Assert.fail("Test Component still isn't healthy after 5 seconds!");
+            if ( elapsedTime > TimeUnit.SECONDS.toNanos(MAX_WAIT_SECS) ) {
+                // if it took longer than expected to start up, something is wrong!
+                Assert.fail("Test Component still isn't healthy after "+ MAX_WAIT_SECS +" seconds!");
                 break;
             }
             Thread.sleep(100);
@@ -115,9 +131,9 @@ public class ComponentHealthCheckTest {
         // now wait for the component to finish starting
         while(! testComponent.getHealthMonitor().getHealthStatus().isHealthy()) {
             long elapsedTime = System.nanoTime() - startTime;
-            if ( elapsedTime > TimeUnit.SECONDS.toNanos(5) ) {
-                // if it took longer than 5 seconds to start up, something is wrong!
-                Assert.fail("Test Component still isn't healthy after 5 seconds!");
+            if ( elapsedTime > TimeUnit.SECONDS.toNanos(MAX_WAIT_SECS) ) {
+                // if it took longer than expected to start up, something is wrong!
+                Assert.fail("Test Component still isn't healthy after "+ MAX_WAIT_SECS +" seconds!");
                 break;
             }
             Thread.sleep(100);
@@ -134,11 +150,11 @@ public class ComponentHealthCheckTest {
      */
     @Test
     public void testHealthMonitorWithDependencies() {
-        CompositeHealthMonitor monitor = new CompositeHealthMonitor();
-        SimpleHealthStatusProvider subcomponent1 = new SimpleHealthStatusProvider();
-        SimpleHealthStatusProvider subcomponent2 = new SimpleHealthStatusProvider();
-        monitor.addHealthCheck("subcomponent1",subcomponent1);
-        monitor.addHealthCheck("subcomponent2",subcomponent2);
+        CompositeHealthMonitor monitor = new CompositeHealthMonitor("Test");
+        SimpleHealthStatusProvider subcomponent1 = new SimpleHealthStatusProvider("subcomponent1");
+        SimpleHealthStatusProvider subcomponent2 = new SimpleHealthStatusProvider("subcomponent2");
+        monitor.addHealthCheck(subcomponent1);
+        monitor.addHealthCheck(subcomponent2);
         // initial call -- all subcomponents should be unhealthy
         Assert.assertFalse(monitor.getHealthStatus().isHealthy());
 

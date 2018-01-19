@@ -25,6 +25,7 @@ import com.vmturbo.common.protobuf.group.GroupDTOREST.DiscoveredGroupServiceCont
 import com.vmturbo.common.protobuf.group.GroupDTOREST.GroupServiceController;
 import com.vmturbo.common.protobuf.group.PolicyDTOREST.PolicyServiceController;
 import com.vmturbo.components.common.BaseVmtComponent;
+import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
 import com.vmturbo.components.common.health.sql.SQLDBHealthMonitor;
 import com.vmturbo.group.persistent.TemporaryGroupCache;
 import com.vmturbo.group.service.DiscoveredGroupsRpcService;
@@ -75,12 +76,12 @@ public class GroupComponent extends BaseVmtComponent {
     private void setup() {
         logger.info("Adding ArangoDB health check to the component health monitor.");
         // add a health monitor for Arango
-        getHealthMonitor().addHealthCheck("ArangoDB",
+        getHealthMonitor().addHealthCheck(
                 new ArangoHealthMonitor(arangoHealthCheckIntervalSeconds, arangoDBConfig.arangoDriverFactory()::getDriver));
 
         logger.info("Adding MariaDB health check to the component health monitor.");
-        getHealthMonitor().addHealthCheck("MariaDB",
-            new SQLDBHealthMonitor(mariaHealthCheckIntervalSeconds,dbConfig.dataSource()::getConnection));
+        getHealthMonitor().addHealthCheck(
+            new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,dbConfig.dataSource()::getConnection));
     }
 
     @Bean

@@ -51,8 +51,10 @@ public class ComponentControllerTest extends WebMvcConfigurerAdapter {
     public void testHealthEndpoint() throws Exception {
 
         // Arrange
-        CompositeHealthMonitor yesMon = new CompositeHealthMonitor(); // simple composite health monitor that is always healthy
-        yesMon.addHealthCheck("healthyMcHealthFace", new HealthStatusProvider() {
+        CompositeHealthMonitor yesMon = new CompositeHealthMonitor("Test"); // simple composite health monitor that is always healthy
+        yesMon.addHealthCheck(new HealthStatusProvider() {
+            @Override
+            public String getName() { return "HealthyMcHealthFace"; }
             @Override
             public HealthStatus getHealthStatus() {
                 return new SimpleHealthStatus(true,"");

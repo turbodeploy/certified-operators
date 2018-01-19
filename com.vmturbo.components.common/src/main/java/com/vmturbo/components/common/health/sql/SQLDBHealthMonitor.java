@@ -19,12 +19,13 @@ public class SQLDBHealthMonitor extends PollingHealthMonitor {
      * java.sql.DataSource.getConnection() method signature we are using in some places throws an
      * SqlException, and this is a way to work it into a lambda expression.
      *
+     * @param name a name for this health check to use
      * @param pollingIntervalSecs how long to wait in between health checks
      * @param connectionFactory the connection factory method to use to provision connections for
      *                          the health check function.
      */
-    public SQLDBHealthMonitor(double pollingIntervalSecs, SQLDBConnectionFactory connectionFactory) {
-        super(pollingIntervalSecs);
+    public SQLDBHealthMonitor(String name, double pollingIntervalSecs, SQLDBConnectionFactory connectionFactory) {
+        super(name, pollingIntervalSecs);
         this.connectionFactory = connectionFactory;
     }
 

@@ -27,9 +27,12 @@ import io.prometheus.client.exporter.MetricsServlet;
 import io.prometheus.client.hotspot.DefaultExports;
 
 import com.vmturbo.components.common.health.CompositeHealthMonitor;
+import com.vmturbo.components.common.health.DeadlockHealthMonitor;
 import com.vmturbo.components.common.health.HealthStatus;
 import com.vmturbo.components.common.health.HealthStatusProvider;
+import com.vmturbo.components.common.health.MemoryMonitor;
 import com.vmturbo.components.common.health.SimpleHealthStatus;
+import com.vmturbo.components.common.metrics.ScheduledMetrics;
 
 /**
  * Provide common aspects of all VmtComponent types:
@@ -59,6 +62,14 @@ public abstract class BaseVmtComponent implements IVmtComponent {
 
     private ExecutionStatus status = ExecutionStatus.NEW;
 
+    @Value("${component_type:}")
+    private String componentType;
+
+    private static final int SCHEDULED_METRICS_DELAY_MS=60000;
+
+    @Value("${scheduledMetricsIntervalMs:60000}")
+    private int scheduledMetricsIntervalMs;
+
     @Value("${server.grpcPort}")
     private int grpcPort;
 
@@ -67,13 +78,16 @@ public abstract class BaseVmtComponent implements IVmtComponent {
 
     private final Object grpcServerLock = new Object();
 
+    @Autowired
+    BaseVmtComponentConfig baseConfig;
+
     @Autowired(required = false)
     DiagnosticService diagnosticService;
 
     /**
      * Embed a component for monitoring dependency/subcomponent health
      */
-    private CompositeHealthMonitor healthMonitor = new CompositeHealthMonitor();
+    private CompositeHealthMonitor healthMonitor = new CompositeHealthMonitor(componentType +" Component");
 
     /**
      * Constructor for BaseVmtComponent
@@ -82,13 +96,19 @@ public abstract class BaseVmtComponent implements IVmtComponent {
         // install a component ExecutionStatus-based health check into the monitor.
         // This health check will return true if the component is in the RUNNING state and false for
         // all other states.
-        getHealthMonitor().addHealthCheck("ExecutionStatus", new HealthStatusProvider() {
+        getHealthMonitor().addHealthCheck(new HealthStatusProvider() {
+            private HealthStatus lastStatus;
+
+            @Override
+            public String getName() { return "ExecutionStatus"; }
+
             @Override
             public HealthStatus getHealthStatus() {
-                return new SimpleHealthStatus(
+                lastStatus = new SimpleHealthStatus(
                         getComponentStatus().equals(ExecutionStatus.RUNNING),
-                        getComponentStatus().name()
-                        );
+                        getComponentStatus().name(),
+                        lastStatus);
+                return lastStatus;
             }
         });
     }
@@ -149,6 +169,12 @@ public abstract class BaseVmtComponent implements IVmtComponent {
     public final void startComponent() {
         setStatus(ExecutionStatus.STARTING);
         DefaultExports.initialize();
+        // start up the default scheduled metrics too
+        ScheduledMetrics.initializeScheduledMetrics(scheduledMetricsIntervalMs,SCHEDULED_METRICS_DELAY_MS);
+        // add the additional health checks
+        logger.info("Adding memory and deadlock health checks");
+        getHealthMonitor().addHealthCheck(baseConfig.deadlockHealthMonitor());
+        getHealthMonitor().addHealthCheck(baseConfig.memoryMonitor());
         startGrpc();
         onStartComponent();
         setStatus(ExecutionStatus.RUNNING);

@@ -2,11 +2,16 @@ package com.vmturbo.components.common.health;
 
 import java.time.Instant;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * The CompositeHealthMonitor is intended to provide an aggregate health status based on the
@@ -16,22 +21,45 @@ import javax.annotation.concurrent.ThreadSafe;
 @ThreadSafe
 public class CompositeHealthMonitor implements HealthStatusProvider {
 
+    private Logger logger = LogManager.getLogger();
+
+    // default health details when all composite health checks are healthy
+    private static final String ALL_CLEAR_MESSAGE = "All dependencies healthy.";
+    // health details when there are no dependencies
+    private static final String NO_DEPENDENCIES_MESSAGE = "No dependencies.";
+    // header appended to the details when at least one dependency is unhealthy
+    private static final String UNHEALTHY_DEPENDENCIES_HEADER = "The following dependencies are unhealthy:";
+
+    private final String name;
+
     private final Map<String,HealthStatusProvider> dependencies = new ConcurrentHashMap<String,HealthStatusProvider>();
+
+    // remember the last status so we can correctly determine the "since" time.
+    private CompositeHealthStatus lastStatus;
 
     /**
      * Constructs a HealthMonitor
      */
-    public CompositeHealthMonitor() {
+    public CompositeHealthMonitor(String name) {
+        this.name = name;
+    }
+
+    @Override
+    public String getName() {
+        return name;
     }
 
     /**
      * Add (or replace) a subcomponent health status provider to this health monitor.
      *
-     * @param name the name of the subcomponent
      * @param provider the provider of the subcomponent's health status information
      */
-    public void addHealthCheck(String name, HealthStatusProvider provider) {
-        dependencies.put(name,provider);
+    public void addHealthCheck(HealthStatusProvider provider) {
+        if (dependencies.containsKey(provider.getName())) {
+            // log a warning that we are replacing a health check
+            logger.warn("Health checked named {} was already registered and is being replaced.", provider.getName());
+        }
+        dependencies.put(provider.getName(), provider);
     }
 
     /**
@@ -50,14 +78,54 @@ public class CompositeHealthMonitor implements HealthStatusProvider {
      */
     @Nonnull
     public CompositeHealthStatus getHealthStatus() {
-        // create a new map of dependency name -> health status
-        Map<String,HealthStatus> dependencyHealthStatuses
+        // create a new map of dependency name -> health status that are the current results
+        final Map<String,HealthStatus> dependencyHealthStatuses
                 = dependencies.entrySet().stream().collect(Collectors.toMap(
                         e -> e.getKey(),
                         e -> e.getValue().getHealthStatus()
                 ));
         // use the map to create a new composite health status
-        return new CompositeHealthStatus(dependencyHealthStatuses);
+        final boolean isHealthy = deriveCompositeHealth(dependencyHealthStatuses);
+        final String details = deriveCompositeDetails(dependencyHealthStatuses);
+        lastStatus = new CompositeHealthStatus(dependencyHealthStatuses, isHealthy, details, lastStatus);
+        return lastStatus;
+    }
+
+    /**
+     * Give a list of health checks, determine if the composite result is healthy (all checks pass)
+     * or unhealthy (at least one failed)
+     * @param healthStatuses the list of checks to derive the composite status from
+     * @return true if all checks report healthy, false if at least one reports unhealthy
+     */
+    private boolean deriveCompositeHealth(@Nonnull  Map<String,HealthStatus> healthStatuses) {
+        // special case if there are no dependencies
+        if ((null == healthStatuses) || (healthStatuses.isEmpty())) return false;
+
+        for (HealthStatus status : healthStatuses.values()) {
+            if (! status.isHealthy()) return false;
+        }
+        return true;
+    }
+
+    /**
+     * Assemble the composite health details based on the set of constituent health results.
+     * @param healthStatuses the set of health results to use
+     * @return a string containing the summary details of all the constituent checks.
+     */
+    private String deriveCompositeDetails(@Nonnull Map<String,HealthStatus> healthStatuses) {
+        // special case if there are no dependencies
+        if ((null == healthStatuses) || (healthStatuses.isEmpty())) return NO_DEPENDENCIES_MESSAGE;
+
+        boolean isHealthy = deriveCompositeHealth(healthStatuses);
+        if (isHealthy) return ALL_CLEAR_MESSAGE;
+
+        // we are unhealthy and have failing checks -- consolidate the details.
+        StringBuilder detailBuffer = new StringBuilder(UNHEALTHY_DEPENDENCIES_HEADER);
+        for (Entry<String,HealthStatus> healthStatusEntry : healthStatuses.entrySet()) {
+            if (! healthStatusEntry.getValue().isHealthy()) detailBuffer.append(" ").append(healthStatusEntry.getKey());
+        }
+
+        return detailBuffer.toString();
     }
 
     /**
@@ -74,29 +142,12 @@ public class CompositeHealthMonitor implements HealthStatusProvider {
     public static class CompositeHealthStatus extends SimpleHealthStatus {
         public final Map<String,HealthStatus> dependencies;
 
-        public CompositeHealthStatus(Map<String,HealthStatus> healthStatuses) {
-            super(false, "No dependencies.");
+        public CompositeHealthStatus(@Nonnull Map<String,HealthStatus> healthStatuses,
+                                     boolean isHealthy, String details,
+                                     @Nullable CompositeHealthStatus lastStatus) {
+            super(isHealthy, details, lastStatus);
             dependencies = healthStatuses;
-
-            if (!dependencies.isEmpty()) {
-                // if at least one dependency, determine composite health based on the dependencies
-                currentHealthStatus = true;
-                StringBuilder detailBuffer = new StringBuilder("All dependencies healthy.");
-                dependencies.forEach((name,status) -> {
-                    if (!status.isHealthy()) {
-                        // unhealthy dependency -- mark the aggregate as unhealthy and add the
-                        // dependency to the list of unhealthy dependencies.
-                        if (currentHealthStatus) {
-                            // the first unhealthy result adds a prefix explanation for an "unhealthy" message
-                            detailBuffer.replace(0, detailBuffer.length(), "The following dependencies are unhealthy:");
-                        }
-                        currentHealthStatus = false;
-                        detailBuffer.append(" ").append(name);
-                    }
-                });
-                details = detailBuffer.toString();
-            }
-            checkTime = Instant.now();
         }
+
     }
 }

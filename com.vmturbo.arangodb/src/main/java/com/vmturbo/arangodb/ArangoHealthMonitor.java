@@ -30,7 +30,7 @@ public class ArangoHealthMonitor extends PollingHealthMonitor {
      * @param arangoDbSupplier  factory that provides connections to the ArangoDB instance to check.
      */
     public ArangoHealthMonitor(double pollingIntervalSecs, @Nonnull Supplier<ArangoDB> arangoDbSupplier) {
-        super(pollingIntervalSecs);
+        super("ArangoDB",pollingIntervalSecs);
 
         this.arangoDbSupplier = arangoDbSupplier;
     }
