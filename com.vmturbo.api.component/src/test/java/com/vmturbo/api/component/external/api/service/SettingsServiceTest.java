@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.external.api.service;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 import static org.junit.Assert.assertEquals;
@@ -55,10 +56,15 @@ import com.vmturbo.common.protobuf.setting.SettingProto.UpdateGlobalSettingReque
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
+import com.vmturbo.common.protobuf.stats.Stats.GetAuditLogDataRetentionSettingRequest;
+import com.vmturbo.common.protobuf.stats.Stats.GetAuditLogDataRetentionSettingResponse;
+import com.vmturbo.common.protobuf.stats.Stats.GetStatsDataRetentionSettingsRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.mail.MailConfiguration;
+import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class SettingsServiceTest {
@@ -70,6 +76,8 @@ public class SettingsServiceTest {
     private StatsHistoryServiceBlockingStub statsServiceClient;
 
     private SettingsService settingsService;
+
+    private StatsHistoryServiceMole statsRpcSpy = spy(new StatsHistoryServiceMole());
 
     private SettingsMapper settingsMapper = mock(SettingsMapper.class);
 
@@ -91,7 +99,7 @@ public class SettingsServiceTest {
             .build();
 
     @Rule
-    public GrpcTestServer grpcServer = GrpcTestServer.newServer(settingRpcServiceSpy);
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(settingRpcServiceSpy, statsRpcSpy);
 
     @Before
     public void setup() throws IOException {
@@ -372,5 +380,39 @@ public class SettingsServiceTest {
         }
 
         assertEquals(true, exceptionThrown);
+    }
+
+    @Test
+    public void testGetSettingsByUuidPersistenceManager() throws Exception {
+
+        String managerName = SettingsService.PERSISTENCE_MANAGER;
+        Setting statSetting =
+            Setting.newBuilder()
+                .setSettingSpecName(GlobalSettingSpecs.StatsRetentionDays.getSettingName())
+                .setNumericSettingValue(NumericSettingValue.newBuilder()
+                    .setValue(10)
+                    .build())
+                .build();
+        Setting auditSetting =
+            Setting.newBuilder()
+                .setSettingSpecName(GlobalSettingSpecs.AuditLogRetentionDays.getSettingName())
+                .setNumericSettingValue(NumericSettingValue.newBuilder()
+                    .setValue(10)
+                    .build())
+                .build();
+        when (statsRpcSpy.getStatsDataRetentionSettings(
+                GetStatsDataRetentionSettingsRequest.getDefaultInstance()))
+            .thenReturn(Collections.singletonList(statSetting));
+
+        when (statsRpcSpy.getAuditLogDataRetentionSetting(
+                GetAuditLogDataRetentionSettingRequest.getDefaultInstance()))
+            .thenReturn(GetAuditLogDataRetentionSettingResponse.newBuilder()
+                .setAuditLogRetentionSetting(auditSetting).build());
+
+        SettingsManagerInfo managerInfo = mock(SettingsManagerInfo.class);
+        when(settingsManagerMapping.getManagerInfo(eq(managerName))).thenReturn(Optional.of(managerInfo));
+
+        List<SettingApiDTO> settingApiDTOList = settingsService.getSettingsByUuid(managerName);
+        assertThat(settingApiDTOList.size(), equalTo(2));
     }
 }

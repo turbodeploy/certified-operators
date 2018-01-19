@@ -54,9 +54,13 @@ import com.vmturbo.common.protobuf.stats.Stats.DeletePlanStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.DeletePlanStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.GetAuditLogDataRetentionSettingRequest;
+import com.vmturbo.common.protobuf.stats.Stats.GetAuditLogDataRetentionSettingResponse;
 import com.vmturbo.common.protobuf.stats.Stats.GetStatsDataRetentionSettingsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsResponse;
+import com.vmturbo.common.protobuf.stats.Stats.SetAuditLogDataRetentionSettingRequest;
+import com.vmturbo.common.protobuf.stats.Stats.SetAuditLogDataRetentionSettingResponse;
 import com.vmturbo.common.protobuf.stats.Stats.SetStatsDataRetentionSettingRequest;
 import com.vmturbo.common.protobuf.stats.Stats.SetStatsDataRetentionSettingResponse;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
@@ -838,8 +842,10 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
             SetStatsDataRetentionSettingResponse.Builder response =
                     SetStatsDataRetentionSettingResponse.newBuilder();
             if (!request.hasRetentionSettingName() || !request.hasRetentionSettingValue()) {
-                responseObserver.onNext(response.build());
-                responseObserver.onCompleted();
+                responseObserver.onError(Status.INVALID_ARGUMENT
+                    .withDescription("Missing arguments. Expecting both retentionSettingName" +
+                        "and retentionSettingValue")
+                    .asException());
                 return;
             }
 
@@ -856,6 +862,65 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
                 responseObserver.onNext(response.build());
             }
             responseObserver.onCompleted();
+        } catch (VmtDbException e) {
+            responseObserver.onError(
+                Status.INTERNAL.withDescription(e.getMessage()).asException());
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void getAuditLogDataRetentionSetting(
+                    GetAuditLogDataRetentionSettingRequest request,
+                    StreamObserver<GetAuditLogDataRetentionSettingResponse> responseObserver) {
+
+        try {
+            GetAuditLogDataRetentionSettingResponse response =
+                GetAuditLogDataRetentionSettingResponse.newBuilder()
+                    .setAuditLogRetentionSetting(historydbIO.getAuditLogRetentionSetting())
+                    .build();
+            responseObserver.onNext(response);
+            responseObserver.onCompleted();
+        } catch (DataAccessException | VmtDbException e) {
+            responseObserver.onError(
+                Status.INTERNAL.withDescription(e.getMessage()).asException());
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void setAuditLogDataRetentionSetting(
+                    SetAuditLogDataRetentionSettingRequest request,
+                    StreamObserver<SetAuditLogDataRetentionSettingResponse> responseObserver) {
+
+        try {
+            SetAuditLogDataRetentionSettingResponse.Builder response =
+                    SetAuditLogDataRetentionSettingResponse.newBuilder();
+            if (!request.hasRetentionSettingValue()) {
+                responseObserver.onError(Status.INVALID_ARGUMENT
+                    .withDescription("Missing retention value argument")
+                    .asException());
+                return;
+            }
+
+            Optional<Setting> result =
+                historydbIO.setAuditLogRetentionSetting(
+                                request.getRetentionSettingValue());
+
+            if (result.isPresent()) {
+                responseObserver.onNext(
+                    response.setNewSetting(result.get())
+                        .build());
+                responseObserver.onCompleted();
+            } else {
+                responseObserver.onError(Status.INTERNAL
+                    .withDescription("Failed to set the retention value")
+                    .asException());
+            }
         } catch (VmtDbException e) {
             responseObserver.onError(
                 Status.INTERNAL.withDescription(e.getMessage()).asException());

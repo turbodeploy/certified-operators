@@ -36,7 +36,11 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SingleSettingSpecRequest
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.UpdateGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
+import com.vmturbo.common.protobuf.stats.Stats.GetAuditLogDataRetentionSettingRequest;
+import com.vmturbo.common.protobuf.stats.Stats.GetAuditLogDataRetentionSettingResponse;
 import com.vmturbo.common.protobuf.stats.Stats.GetStatsDataRetentionSettingsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.SetAuditLogDataRetentionSettingRequest;
+import com.vmturbo.common.protobuf.stats.Stats.SetAuditLogDataRetentionSettingResponse;
 import com.vmturbo.common.protobuf.stats.Stats.SetStatsDataRetentionSettingRequest;
 import com.vmturbo.common.protobuf.stats.Stats.SetStatsDataRetentionSettingResponse;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
@@ -55,7 +59,7 @@ public class SettingsService implements ISettingsService {
 
     private final StatsHistoryServiceBlockingStub statsServiceClient;
 
-    private final String PERSISTENCE_MANAGER = "persistencemanager";
+    public static final String PERSISTENCE_MANAGER = "persistencemanager";
 
     public SettingsService(@Nonnull final SettingServiceBlockingStub settingServiceBlockingStub,
                     @Nonnull final StatsHistoryServiceBlockingStub statsServiceClient,
@@ -83,12 +87,25 @@ public class SettingsService implements ISettingsService {
     @Override
     public List<SettingApiDTO> getSettingsByUuid(String uuid) throws Exception {
         if (uuid.equals(PERSISTENCE_MANAGER)) {
+            // These data retention settings don't go through the usual settings
+            // service(group) framework as we rely on the sql db scheduled events to
+            // do the purge of the expired data. These settings are stored in
+            // vmtdb whose data ownership is handled by history/stats component.
+            // In this case we are deviating from design "purity" for
+            // efficiency purposes.
             List<SettingApiDTO> settingApiDtos = new LinkedList<>();
             statsServiceClient.getStatsDataRetentionSettings(
                 GetStatsDataRetentionSettingsRequest.newBuilder().build())
                     .forEachRemaining(setting -> {
                         settingApiDtos.add(SettingsMapper.toSettingApiDto(setting));
                         });
+            GetAuditLogDataRetentionSettingResponse response =
+                statsServiceClient.getAuditLogDataRetentionSetting(
+                    GetAuditLogDataRetentionSettingRequest.newBuilder().build());
+            if (response.hasAuditLogRetentionSetting()) {
+                settingApiDtos.add(SettingsMapper.toSettingApiDto(
+                    response.getAuditLogRetentionSetting()));
+            }
             return settingApiDtos;
         } else {
             SettingsManagerInfo managerInfo = settingsManagerMapping.getManagerInfo(uuid)
@@ -120,21 +137,17 @@ public class SettingsService implements ISettingsService {
      */
     @Override
     public SettingApiDTO putSettingByUuidAndName(String uuid, String name, SettingApiInputDTO setting) throws Exception {
-        if (uuid.equals(PERSISTENCE_MANAGER)) {
-            SetStatsDataRetentionSettingResponse response =
-                statsServiceClient.setStatsDataRetentionSetting(
-                    SetStatsDataRetentionSettingRequest.newBuilder()
-                        .setRetentionSettingName(name)
-                        // The SettingSpec uses "float" for the setting numeric value
-                        // type(NumericSettingDataType). So we are rounding to get an int
-                        .setRetentionSettingValue(Math.round(Float.parseFloat(setting.getValue())))
-                        .build());
 
-            if (response.hasNewSetting()) {
-                return SettingsMapper.toSettingApiDto(response.getNewSetting());
+        if (uuid.equals(PERSISTENCE_MANAGER)) {
+            Optional<SettingApiDTO> newSetting;
+            if (name.equals(GlobalSettingSpecs.AuditLogRetentionDays.getSettingName())) {
+                newSetting = setAuditLogSettting(setting);
             } else {
-                throw new Exception("Failed to set the new setting value for " + name);
+                newSetting = setStatsRetentionSetting(name, setting);
             }
+
+            return newSetting.orElseThrow(() -> new Exception("Failed to set the new setting value for " + name));
+
         } else {
             Objects.requireNonNull(name);
             Objects.requireNonNull(setting);
@@ -193,6 +206,34 @@ public class SettingsService implements ISettingsService {
                             .build());
             return SettingsMapper.toSettingApiDto(updatedSetting);
         }
+    }
+
+    private Optional<SettingApiDTO> setStatsRetentionSetting(String name, SettingApiInputDTO setting) {
+        SetStatsDataRetentionSettingResponse response =
+            statsServiceClient.setStatsDataRetentionSetting(
+                SetStatsDataRetentionSettingRequest.newBuilder()
+                    .setRetentionSettingName(name)
+                    // The SettingSpec uses "float" for the setting numeric value
+                    // type(NumericSettingDataType). So we are rounding to get an int
+                    .setRetentionSettingValue(Math.round(Float.parseFloat(setting.getValue())))
+                    .build());
+
+        return (response.hasNewSetting() ?
+                    Optional.of(SettingsMapper.toSettingApiDto(response.getNewSetting()))
+                    : Optional.empty());
+    }
+
+    private Optional<SettingApiDTO> setAuditLogSettting(SettingApiInputDTO setting) {
+
+        SetAuditLogDataRetentionSettingResponse response =
+            statsServiceClient.setAuditLogDataRetentionSetting(
+                SetAuditLogDataRetentionSettingRequest.newBuilder()
+                    .setRetentionSettingValue(Math.round(Float.parseFloat(setting.getValue())))
+                    .build());
+        return (response.hasNewSetting() ?
+                    Optional.of(SettingsMapper.toSettingApiDto(response.getNewSetting()))
+                    : Optional.empty());
+
     }
 
     @Override

@@ -176,6 +176,21 @@ message SetStatsDataRetentionSettingResponse {
     optional setting.Setting newSetting = 1;
 }
 
+message GetAuditLogDataRetentionSettingRequest {
+}
+
+message GetAuditLogDataRetentionSettingResponse {
+    optional setting.Setting auditLogRetentionSetting = 1;
+}
+
+message SetAuditLogDataRetentionSettingRequest {
+    optional int32 retentionSettingValue = 1;
+}
+
+message SetAuditLogDataRetentionSettingResponse {
+    optional setting.Setting newSetting = 1;
+}
+
 // the gRPC API entry points for the Stats service
 service StatsHistoryService {
 
@@ -212,9 +227,15 @@ service StatsHistoryService {
     // Delete plan stats
     rpc DeletePlanStats(DeletePlanStatsRequest) returns (DeletePlanStatsResponse);
 
-    // Get Data Retention settings
+    // Get Stats data Retention settings
     rpc GetStatsDataRetentionSettings(GetStatsDataRetentionSettingsRequest) returns (stream setting.Setting);
 
-    // Set Data Retention settings
+    // Set Stats Data Retention settings
     rpc SetStatsDataRetentionSetting(SetStatsDataRetentionSettingRequest) returns (SetStatsDataRetentionSettingResponse);
+
+    // Get audit log data retention setting
+    rpc GetAuditLogDataRetentionSetting(GetAuditLogDataRetentionSettingRequest) returns (GetAuditLogDataRetentionSettingResponse);
+
+    // Set audit log data retention setting
+    rpc SetAuditLogDataRetentionSetting(SetAuditLogDataRetentionSettingRequest) returns (SetAuditLogDataRetentionSettingResponse);
 }

@@ -53,11 +53,15 @@ import com.vmturbo.common.protobuf.stats.Stats.DeletePlanStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.DeletePlanStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.GetAuditLogDataRetentionSettingRequest;
+import com.vmturbo.common.protobuf.stats.Stats.GetAuditLogDataRetentionSettingResponse;
 import com.vmturbo.common.protobuf.stats.Stats.GetStatsDataRetentionSettingsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.SaveClusterHeadroomRequest;
 import com.vmturbo.common.protobuf.stats.Stats.SaveClusterHeadroomResponse;
+import com.vmturbo.common.protobuf.stats.Stats.SetAuditLogDataRetentionSettingRequest;
+import com.vmturbo.common.protobuf.stats.Stats.SetAuditLogDataRetentionSettingResponse;
 import com.vmturbo.common.protobuf.stats.Stats.SetStatsDataRetentionSettingRequest;
 import com.vmturbo.common.protobuf.stats.Stats.SetStatsDataRetentionSettingResponse;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
@@ -122,6 +126,12 @@ public class StatsHistoryServiceTest {
 
     @Mock
     private StreamObserver<SetStatsDataRetentionSettingResponse> mockSetStatsDataRetentionSettingObserver;
+
+    @Mock
+    private StreamObserver<GetAuditLogDataRetentionSettingResponse> mockGetAuditLogDataRetentionSettingObserver;
+
+    @Mock
+    private StreamObserver<SetAuditLogDataRetentionSettingResponse> mockSetAuditLogDataRetentionSettingObserver;;
 
     @Captor
     ArgumentCaptor<StatSnapshot> captor;
@@ -791,12 +801,8 @@ public class StatsHistoryServiceTest {
                 .build(),
             mockSetStatsDataRetentionSettingObserver);
 
-        ArgumentCaptor<SetStatsDataRetentionSettingResponse> responseCaptor =
-                ArgumentCaptor.forClass(SetStatsDataRetentionSettingResponse.class);
-        verify(mockSetStatsDataRetentionSettingObserver).onNext(responseCaptor.capture());
-        verify(mockSetStatsDataRetentionSettingObserver).onCompleted();
-        final SetStatsDataRetentionSettingResponse response = responseCaptor.getValue();
-        assertFalse(response.hasNewSetting());
+        verify(mockSetStatsDataRetentionSettingObserver).onError(
+            any(StatusRuntimeException.class));
     }
 
     @Test
@@ -817,6 +823,65 @@ public class StatsHistoryServiceTest {
             mockSetStatsDataRetentionSettingObserver);
 
         verify(mockSetStatsDataRetentionSettingObserver).onError(
+            any(VmtDbException.class));
+    }
+
+    @Test
+    public void testGetAuditLogDataRetentionSetting() throws VmtDbException {
+
+        String retentionSettingName = "retained_days";
+        int retentionPeriod = 10;
+        Setting expectedSetting =
+            Setting.newBuilder()
+                .setSettingSpecName(retentionSettingName)
+                .setNumericSettingValue(
+                    SettingDTOUtil.createNumericSettingValue(retentionPeriod))
+                .build();
+        when(historyDbio.getAuditLogRetentionSetting())
+                .thenReturn(expectedSetting);
+        statsHistoryService.getAuditLogDataRetentionSetting(
+            GetAuditLogDataRetentionSettingRequest.newBuilder().build(),
+            mockGetAuditLogDataRetentionSettingObserver);
+
+        // Assert
+        ArgumentCaptor<GetAuditLogDataRetentionSettingResponse> responseCaptor =
+            ArgumentCaptor.forClass(GetAuditLogDataRetentionSettingResponse.class);
+        verify(mockGetAuditLogDataRetentionSettingObserver).onNext(responseCaptor.capture());
+        verify(mockGetAuditLogDataRetentionSettingObserver).onCompleted();
+        final GetAuditLogDataRetentionSettingResponse response = responseCaptor.getValue();
+        assertTrue(response.hasAuditLogRetentionSetting());
+        assertThat(response.getAuditLogRetentionSetting(), equalTo(expectedSetting));
+    }
+
+    @Test
+    public void testSetAuditLogDataRetentionSettingMissingRequestParameters()
+        throws VmtDbException {
+
+        statsHistoryService.setAuditLogDataRetentionSetting(
+            SetAuditLogDataRetentionSettingRequest.newBuilder()
+                .build(),
+            mockSetAuditLogDataRetentionSettingObserver);
+
+        verify(mockSetAuditLogDataRetentionSettingObserver).onError(
+            any(StatusRuntimeException.class));
+    }
+
+    @Test
+    public void testAuditLogDataRetentionSettingFailure() throws Exception {
+        int retentionPeriod = 10;
+        VmtDbException dbException = new VmtDbException(
+            VmtDbException.UPDATE_ERR, "Error updating db");
+
+        doThrow(dbException).when(historyDbio)
+            .setAuditLogRetentionSetting(retentionPeriod);
+
+        statsHistoryService.setAuditLogDataRetentionSetting(
+            SetAuditLogDataRetentionSettingRequest.newBuilder()
+                .setRetentionSettingValue(retentionPeriod)
+                .build(),
+            mockSetAuditLogDataRetentionSettingObserver);
+
+        verify(mockSetAuditLogDataRetentionSettingObserver).onError(
             any(VmtDbException.class));
     }
 }

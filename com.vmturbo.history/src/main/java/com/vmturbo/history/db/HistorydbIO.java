@@ -11,6 +11,7 @@ import static com.vmturbo.reports.db.StringConstants.PROPERTY_TYPE;
 import static com.vmturbo.reports.db.StringConstants.RELATION;
 import static com.vmturbo.reports.db.StringConstants.SNAPSHOT_TIME;
 import static com.vmturbo.reports.db.StringConstants.UUID;
+import static com.vmturbo.reports.db.abstraction.Tables.AUDIT_LOG_RETENTION_POLICIES;
 import static com.vmturbo.reports.db.abstraction.Tables.RETENTION_POLICIES;
 import static com.vmturbo.reports.db.abstraction.tables.MktSnapshots.MKT_SNAPSHOTS;
 import static com.vmturbo.reports.db.abstraction.tables.MktSnapshotsStats.MKT_SNAPSHOTS_STATS;
@@ -137,6 +138,8 @@ public class HistorydbIO extends BasedbIO {
 
     private ImmutableBiMap<String, String> retentionSettingNameToDbColumnName =
             retentionDbColumnNameToSettingName.inverse();
+
+    private static String auditLogRetentionPolicyName = "retention_days";
 
     /**
      * Maximum number of entities allowed in the getEntities method.
@@ -889,5 +892,46 @@ public class HistorydbIO extends BasedbIO {
                     retentionSettingNameToDbColumnName.get(settingName))));
 
         return Optional.of(createSetting(settingName, retentionPeriod));
+    }
+
+    /**
+     * Get the audit log entries data retention settings.
+     *
+     * @return The data retention setting.
+     * @throws VmtDbException if there is a database error.
+     * @throws DataAccessException if there is a database error.
+     *
+     */
+    public Setting getAuditLogRetentionSetting() throws VmtDbException {
+
+        int retentionPeriodDays =
+            using(connection())
+                .selectFrom(AUDIT_LOG_RETENTION_POLICIES)
+                .where(AUDIT_LOG_RETENTION_POLICIES.POLICY_NAME
+                        .eq(auditLogRetentionPolicyName))
+                .fetchOne(AUDIT_LOG_RETENTION_POLICIES.RETENTION_PERIOD);
+
+        return createSetting(GlobalSettingSpecs.AuditLogRetentionDays.getSettingName(),
+                    retentionPeriodDays);
+    }
+
+    /**
+     * Update the value of audit log data retention setting.
+     *
+     * @param retentionPeriod The new retention period.
+     * @return The updated Setting.
+     * @throws VmtDbException if there is a database error.
+     *
+     */
+    public Optional<Setting> setAuditLogRetentionSetting(int retentionPeriod)
+        throws VmtDbException {
+
+        execute(Style.FORCED, getJooqBuilder()
+                .update(AUDIT_LOG_RETENTION_POLICIES)
+                .set(AUDIT_LOG_RETENTION_POLICIES.RETENTION_PERIOD, retentionPeriod)
+                .where(AUDIT_LOG_RETENTION_POLICIES.POLICY_NAME.eq(auditLogRetentionPolicyName)));
+
+        return Optional.of(createSetting(GlobalSettingSpecs.AuditLogRetentionDays.getSettingName(),
+                    retentionPeriod));
     }
 }
