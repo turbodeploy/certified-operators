@@ -90,9 +90,10 @@ public class PlanOrchestratorComponent extends BaseVmtComponent {
 
     @PostConstruct
     private void setup() {
-        LOGGER.info("Adding MariaDB health check to the component health monitor.");
+        LOGGER.info("Adding MariaDB and Kafka producer health checks to the component health monitor.");
         getHealthMonitor().addHealthCheck(new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,
                         dbConfig.dataSource()::getConnection));
+        getHealthMonitor().addHealthCheck(planConfig.kafkaHealthMonitor());
     }
 
     public static void main(String[] args) {

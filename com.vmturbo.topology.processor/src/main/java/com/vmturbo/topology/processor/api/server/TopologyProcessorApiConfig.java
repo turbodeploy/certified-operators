@@ -14,6 +14,7 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
 import com.vmturbo.components.api.server.IMessageSender;
+import com.vmturbo.components.common.health.KafkaProducerHealthMonitor;
 import com.vmturbo.topology.processor.GlobalConfig;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TopologyProcessorNotification;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClient;
@@ -54,5 +55,10 @@ public class TopologyProcessorApiConfig {
         targetConfig.targetStore().addListener(backend);
         probeConfig.probeStore().addListener(backend);
         return backend;
+    }
+
+    @Bean
+    public KafkaProducerHealthMonitor kafkaProducerHealthMonitor() {
+        return new KafkaProducerHealthMonitor(baseKafkaServerConfig.kafkaMessageSender());
     }
 }

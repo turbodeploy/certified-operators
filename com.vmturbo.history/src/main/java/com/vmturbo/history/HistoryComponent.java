@@ -46,6 +46,9 @@ public class HistoryComponent extends BaseVmtComponent {
     private HistoryDbConfig historyDbConfig;
 
     @Autowired
+    private HistoryApiConfig historyApiConfig;
+
+    @Autowired
     private StatsConfig statsConfig;
 
     @Value("${mariadbHealthCheckIntervalSeconds:60}")
@@ -53,9 +56,10 @@ public class HistoryComponent extends BaseVmtComponent {
 
     @PostConstruct
     private void setup() {
-        log.info("Adding MariaDB health check to the component health monitor.");
+        log.info("Adding MariaDB and Kafka producer health checks to the component health monitor.");
         getHealthMonitor().addHealthCheck(
                 new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,historyDbConfig.historyDbIO()::connection));
+        getHealthMonitor().addHealthCheck(historyApiConfig.kafkaProducerHealthMonitor());
     }
 
     public static void main(String[] args) {

@@ -112,7 +112,7 @@ public class SimpleHealthStatusProvider implements HealthStatusProvider {
      */
     protected synchronized void setHealthStatus(SimpleHealthStatus newStatus) {
         // no-op if the same
-        if (newStatus.equals(getHealthStatus())) {
+        if (newStatus.equals(lastHealthStatus)) {
             logger.warn("Status for {} is the same, won't update", this.getName());
             return;
         }

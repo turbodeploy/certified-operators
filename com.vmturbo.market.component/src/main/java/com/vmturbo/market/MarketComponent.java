@@ -1,5 +1,8 @@
 package com.vmturbo.market;
 
+import javax.annotation.PostConstruct;
+
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.builder.SpringApplicationBuilder;
@@ -19,6 +22,15 @@ import com.vmturbo.market.topology.TopologyProcessorConfig;
 @EnableDiscoveryClient
 @Import({MarketGlobalConfig.class, TopologyProcessorConfig.class, MarketApiConfig.class})
 public class MarketComponent extends BaseVmtComponent {
+
+    @Autowired
+    private MarketApiConfig marketApiConfig;
+
+    @PostConstruct
+    private void setup() {
+        // add kafka producer health check
+        getHealthMonitor().addHealthCheck(marketApiConfig.kafkaHealthMonitor());
+    }
 
     public static void main(String[] args) {
         new SpringApplicationBuilder()

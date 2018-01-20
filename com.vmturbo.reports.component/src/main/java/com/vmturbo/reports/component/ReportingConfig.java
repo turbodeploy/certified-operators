@@ -17,6 +17,7 @@ import org.springframework.context.annotation.Import;
 
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
+import com.vmturbo.components.common.health.KafkaProducerHealthMonitor;
 import com.vmturbo.reporting.api.ReportingNotificationReceiver;
 import com.vmturbo.reports.component.communication.ReportNotificationSenderImpl;
 import com.vmturbo.reports.component.communication.ReportingServiceRpc;
@@ -81,4 +82,10 @@ public class ReportingConfig {
     public ReportInstanceDao reportInstanceDao() {
         return new ReportInstanceDaoImpl(dbConfig.dsl());
     }
+
+    @Bean
+    public KafkaProducerHealthMonitor kafkaHealthMonitor() {
+        return new KafkaProducerHealthMonitor(baseKafkaProducerConfig.kafkaMessageSender());
+    }
+
 }

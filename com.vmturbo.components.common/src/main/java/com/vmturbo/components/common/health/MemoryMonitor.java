@@ -2,7 +2,6 @@ package com.vmturbo.components.common.health;
 
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
-import java.lang.management.MemoryMXBean;
 import java.lang.management.MemoryUsage;
 
 import javax.management.Notification;

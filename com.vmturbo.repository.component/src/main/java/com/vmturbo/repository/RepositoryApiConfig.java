@@ -11,8 +11,10 @@ import org.springframework.context.annotation.Import;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
+import com.vmturbo.components.api.client.BaseKafkaConsumerConfig;
 import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
 import com.vmturbo.components.api.server.IMessageSender;
+import com.vmturbo.components.common.health.KafkaProducerHealthMonitor;
 import com.vmturbo.repository.api.RepositoryDTO.RepositoryNotification;
 import com.vmturbo.repository.api.impl.RepositoryNotificationReceiver;
 
@@ -25,6 +27,9 @@ public class RepositoryApiConfig {
 
     @Autowired
     private BaseKafkaProducerConfig kafkaProducerConfig;
+
+    @Autowired
+    private BaseKafkaConsumerConfig kafkaConsumerConfig;
 
     @Bean(destroyMethod = "shutdownNow")
     protected ExecutorService threadPool() {
@@ -43,5 +48,10 @@ public class RepositoryApiConfig {
     public IMessageSender<RepositoryNotification> notificationSender() {
         return kafkaProducerConfig.kafkaMessageSender().messageSender
                 (RepositoryNotificationReceiver.TOPOLOGY_TOPIC);
+    }
+
+    @Bean
+    public KafkaProducerHealthMonitor kafkaHealthMonitor() {
+        return new KafkaProducerHealthMonitor(kafkaProducerConfig.kafkaMessageSender());
     }
 }

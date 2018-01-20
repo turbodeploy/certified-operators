@@ -137,6 +137,7 @@ public class RepositoryComponent extends BaseVmtComponent {
         // add a health monitor for Arango
         getHealthMonitor().addHealthCheck(
                 new ArangoHealthMonitor(arangoHealthCheckIntervalSeconds, arangoDatabaseFactory()::getArangoDriver));
+        getHealthMonitor().addHealthCheck(apiConfig.kafkaHealthMonitor());
     }
 
     /**

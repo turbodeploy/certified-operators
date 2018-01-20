@@ -27,6 +27,7 @@ import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc;
 import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc.AnalysisServiceBlockingStub;
 import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
 import com.vmturbo.components.api.server.IMessageSender;
+import com.vmturbo.components.common.health.KafkaProducerHealthMonitor;
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientImpl;
 import com.vmturbo.plan.orchestrator.reservation.ReservationConfig;
@@ -143,6 +144,11 @@ public class PlanConfig {
         final PlanNotificationSender notificationSender = new PlanNotificationSender(notificationSender());
         planDao().addStatusListener(notificationSender);
         return notificationSender;
+    }
+
+    @Bean
+    public KafkaProducerHealthMonitor kafkaHealthMonitor() {
+        return new KafkaProducerHealthMonitor(kafkaProducerConfig.kafkaMessageSender());
     }
 
     @Bean(destroyMethod = "shutdownNow")

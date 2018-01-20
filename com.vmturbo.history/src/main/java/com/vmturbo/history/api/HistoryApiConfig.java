@@ -13,6 +13,7 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
 import com.vmturbo.components.api.server.IMessageSender;
+import com.vmturbo.components.common.health.KafkaProducerHealthMonitor;
 import com.vmturbo.history.component.api.HistoryComponentNotifications.HistoryComponentNotification;
 import com.vmturbo.history.component.api.impl.HistoryComponentNotificationReceiver;
 
@@ -44,5 +45,10 @@ public class HistoryApiConfig {
     @Bean
     public StatsAvailabilityTracker statsAvailabilityTracker() {
         return new StatsAvailabilityTracker(historyNotificationSender());
+    }
+
+    @Bean
+    public KafkaProducerHealthMonitor kafkaProducerHealthMonitor() {
+        return new KafkaProducerHealthMonitor(kafkaProducerConfig.kafkaMessageSender());
     }
 }

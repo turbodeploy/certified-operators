@@ -112,6 +112,9 @@ public class TopologyProcessorComponent extends BaseVmtComponent {
     @Autowired
     private ProbeConfig probeConfig;
 
+    @Autowired
+    private TopologyProcessorApiConfig topologyProcessorApiConfig;
+
     @Value("${mariadbHealthCheckIntervalSeconds:60}")
     private int mariaHealthCheckIntervalSeconds;
 
@@ -120,10 +123,11 @@ public class TopologyProcessorComponent extends BaseVmtComponent {
 
     @PostConstruct
     private void setup() {
-        log.info("Adding MariaDB health check to the component health monitor.");
+        log.info("Adding MariaDB and Kafka producer health checks to the component health monitor.");
         getHealthMonitor().addHealthCheck(
                 new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,
                         dbConfig.dataSource()::getConnection));
+        getHealthMonitor().addHealthCheck(topologyProcessorApiConfig.kafkaProducerHealthMonitor());
     }
 
     @Override

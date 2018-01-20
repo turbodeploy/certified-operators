@@ -1,9 +1,12 @@
 package com.vmturbo.components.api.server;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.Properties;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import javax.annotation.Nonnull;
@@ -54,10 +57,18 @@ public class KafkaMessageProducer implements AutoCloseable {
             .help("Size (bytes) of largest message sent")
             .labelNames("topic")
             .register();
+    static private Counter MESSAGE_SEND_ERRORS_COUNT = Counter.build()
+            .name("message_send_errors")
+            .help("Number of message sends that resulted in errors (per topic)")
+            .labelNames("topic")
+            .register();
 
     private final KafkaProducer<String, byte[]> producer;
     private final Logger logger = LogManager.getLogger(getClass());
     private final AtomicLong msgCounter = new AtomicLong(0);
+
+    // boolean tracking if the last send was successful or not. Used as a simple health check.
+    private AtomicBoolean lastSendFailed = new AtomicBoolean(false);
 
     public KafkaMessageProducer(@Nonnull String bootstrapServer) {
         // set the default properties
@@ -75,6 +86,14 @@ public class KafkaMessageProducer implements AutoCloseable {
         props.put("value.serializer", ByteArraySerializer.class.getName());
 
         producer = new KafkaProducer<>(props);
+    }
+
+    /**
+     * Did the last send attempt fail?
+     * @return true if the last send attempt resulted in an exception
+     */
+    public boolean lastSendFailed() {
+        return lastSendFailed.get();
     }
 
     private Future<RecordMetadata> sendKafkaMessage(@Nonnull final AbstractMessage serverMsg,
@@ -95,6 +114,13 @@ public class KafkaMessageProducer implements AutoCloseable {
                     long sentTimeMs = System.currentTimeMillis() - startTime;
                     MESSAGES_SENT_MS.labels(topic).inc((double) sentTimeMs);
                     logger.debug("Message send of {} bytes took {} ms", payload.length, sentTimeMs);
+                    // update failure count if there was an exception
+                    if (exception != null) {
+                        lastSendFailed.set(true);
+                        MESSAGE_SEND_ERRORS_COUNT.labels(topic).inc();
+                    } else {
+                        lastSendFailed.set(false);
+                    }
                 });
     }
 

@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
+import com.vmturbo.components.common.health.KafkaProducerHealthMonitor;
 import com.vmturbo.market.MarketNotificationSender;
 
 /**
@@ -22,4 +23,10 @@ public class MarketApiConfig {
     public MarketNotificationSender marketApi() {
         return MarketKafkaSender.createMarketSender(baseKafkaProducerConfig.kafkaMessageSender());
     }
+
+    @Bean
+    public KafkaProducerHealthMonitor kafkaHealthMonitor() {
+        return new KafkaProducerHealthMonitor(baseKafkaProducerConfig.kafkaMessageSender());
+    }
+
 }

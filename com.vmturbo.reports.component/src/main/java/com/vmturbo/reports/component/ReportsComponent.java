@@ -3,6 +3,7 @@ package com.vmturbo.reports.component;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
+import javax.annotation.PostConstruct;
 
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
@@ -39,6 +40,12 @@ public class ReportsComponent extends BaseVmtComponent {
     @Override
     public String getComponentName() {
         return "reports-component";
+    }
+
+    @PostConstruct
+    private void setup() {
+        // add kafka producer health check
+        getHealthMonitor().addHealthCheck(reportingConfig.kafkaHealthMonitor());
     }
 
     public static void main(String[] args) {
