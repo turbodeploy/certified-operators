@@ -146,7 +146,6 @@ services:
     environment:
       component_type: market
       instance_id: market-1
-      instances.market-1.identityGeneratorPrefix: 2
       consul_host: consul
       kafkaServers: kafka1:9092
     volumes:
@@ -176,7 +175,6 @@ services:
     environment:
       component_type: topology-processor
       instance_id: topology-processor-1
-      instances.topology-processor-1.identityGeneratorPrefix: 1
       node_name: default
       consul_host: consul
       realtimeTopologyContextId: 777777

@@ -9,17 +9,6 @@ spring:
         instanceId: ${instance_id}
         healthCheckPath: /api/v2/health
         healthCheckInterval: 30s
-      config:
-        # Configure the Spring-Cloud Configuration for this application.
-        # The key/value "stem" for the configuration consists of the "prefix" (here) plus the "application.name" (above),
-        #     e.g. "vmturbo/components/${component_type}".
-        # All Consul key/value pairs where the key begins with the "stem" are injected into the "environment" for this
-        # application - with the "stem" removed. i.e. "vmturbo/components/${component_type}/foo" = "bar"
-        # would inject the property "foo" with value "bar" into the Spring "environment". "/" in the key path is
-        # transformed to "." in the property name, e.g. "vmturbo/components/${component_type}/foo/baz" = "biz"
-        # would be injected as "foo.baz" -> "biz"
-        prefix: vmturbo/components
-        enabled: true
 server:
   port: 8080
   grpcPort: 0

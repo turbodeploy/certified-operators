@@ -12,7 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
@@ -83,7 +83,7 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig.Subscription;
 
 @Configuration("theComponent")
-@SpringBootApplication
+@EnableAutoConfiguration
 @EnableDiscoveryClient
 @EnableConfigurationProperties(RepositoryProperties.class)
 @Import({RepositoryApiConfig.class, TopologyProcessorClientConfig.class, MarketClientConfig.class})
@@ -447,9 +447,12 @@ public class RepositoryComponent extends BaseVmtComponent {
     }
 
     public static void main(String[] args) {
+        // apply the configuration properties for this component prior to Spring instantiation
+        fetchConfigurationProperties();
+        // instantiate and run this component
         new SpringApplicationBuilder()
-            .sources(RepositoryComponent.class)
-            .run(args);
+                .sources(RepositoryComponent.class)
+                .run(args);
     }
 
     @Override

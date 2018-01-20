@@ -9,13 +9,6 @@ spring:
         instanceId: ${instance_id}
         healthCheckPath: /api/v2/health
         healthCheckInterval: 30s
-      config:
-        enabled: true
-        prefix: vmturbo/components
-        defaultContext: ${spring.application.name}/defaults
-        profileSeparator: /
-  profiles:
-    active: instances/${instance_id}/properties
 server:
   port: 8080
   grpcPort: 9001

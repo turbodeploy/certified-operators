@@ -132,7 +132,7 @@ public class ClusterMgrService {
      */
     public void initializeClusterKVStore() {
         // initialize default instances & defaults values from factoryInstalledComponents
-        log.debug(">>>>> Initializing the Cluster K/V Store");
+        log.info(">>>>> Initializing the Cluster K/V Store");
         for (Map.Entry<String, ComponentProperties> factoryComponentEntry : factoryInstalledComponentsService
                 .getFactoryInstalledComponents()
                 .getComponents()
@@ -778,7 +778,7 @@ public class ClusterMgrService {
             }
         }
     }
-    
+
     /**
      * Send an HTTP GET to a given VMT Component Instance and process the response.
      *

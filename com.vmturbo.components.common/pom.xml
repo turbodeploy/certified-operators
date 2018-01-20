@@ -71,6 +71,10 @@
         </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.clustermgr.api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
             <artifactId>com.vmturbo.commons</artifactId>
             <version>${vmturbo.mt.branch.version}</version>
         </dependency>
@@ -240,7 +244,11 @@
             <groupId>com.vmturbo</groupId>
             <artifactId>components-api</artifactId>
         </dependency>
-
+        <dependency>
+            <groupId>com.github.stefanbirkner</groupId>
+            <artifactId>system-rules</artifactId>
+            <scope>test</scope>
+        </dependency>
 
         <!-- proactive support metrics -->
         <dependency>

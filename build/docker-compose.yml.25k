@@ -89,6 +89,7 @@ services:
       file: prod-services.yml
       service: auth-prod
     depends_on:
+      - clustermgr
       - consul
       - db
 

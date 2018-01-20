@@ -49,7 +49,12 @@ public class ReportsComponent extends BaseVmtComponent {
     }
 
     public static void main(String[] args) {
-        new SpringApplicationBuilder().sources(ReportsComponent.class).run(args);
+        // apply the configuration properties for this component prior to Spring instantiation
+        fetchConfigurationProperties();
+        // instantiate and run this component
+        new SpringApplicationBuilder()
+                .sources(ReportsComponent.class)
+                .run(args);
     }
 
     @Override

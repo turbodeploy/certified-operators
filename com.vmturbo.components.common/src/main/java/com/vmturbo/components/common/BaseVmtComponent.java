@@ -1,12 +1,17 @@
 package com.vmturbo.components.common;
 
 import java.io.IOException;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.PostConstruct;
+import javax.annotation.PreDestroy;
 import javax.annotation.concurrent.GuardedBy;
 
 import org.apache.logging.log4j.LogManager;
@@ -19,6 +24,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.core.env.Environment;
+import org.springframework.web.client.ResourceAccessException;
 
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
@@ -26,13 +32,16 @@ import io.prometheus.client.CollectorRegistry;
 import io.prometheus.client.exporter.MetricsServlet;
 import io.prometheus.client.hotspot.DefaultExports;
 
+import com.vmturbo.api.dto.cluster.ComponentPropertiesDTO;
+import com.vmturbo.clustermgr.api.impl.ClusterMgrClient;
+import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.components.common.health.CompositeHealthMonitor;
-import com.vmturbo.components.common.health.DeadlockHealthMonitor;
 import com.vmturbo.components.common.health.HealthStatus;
 import com.vmturbo.components.common.health.HealthStatusProvider;
-import com.vmturbo.components.common.health.MemoryMonitor;
 import com.vmturbo.components.common.health.SimpleHealthStatus;
 import com.vmturbo.components.common.metrics.ScheduledMetrics;
+import com.vmturbo.components.common.utils.EnvironmentUtils;
+import com.vmturbo.proactivesupport.DataMetricGauge;
 
 /**
  * Provide common aspects of all VmtComponent types:
@@ -58,9 +67,15 @@ public abstract class BaseVmtComponent implements IVmtComponent {
      */
     private static final String METRICS_URL = "/metrics";
 
-    private Logger logger = LogManager.getLogger();
+    private static Logger logger = LogManager.getLogger();
 
     private ExecutionStatus status = ExecutionStatus.NEW;
+
+    private static final DataMetricGauge STARTUP_DURATION_METRIC = DataMetricGauge.builder()
+            .withName("component_startup_duration_ms")
+            .withHelp("Duration in ms from component instantiation to Spring context built.")
+            .build()
+            .register();
 
     @Value("${component_type:}")
     private String componentType;
@@ -78,9 +93,11 @@ public abstract class BaseVmtComponent implements IVmtComponent {
 
     private final Object grpcServerLock = new Object();
 
+    @SuppressWarnings("SpringAutowiredFieldsWarningInspection")
     @Autowired
-    BaseVmtComponentConfig baseConfig;
+    BaseVmtComponentConfig baseVmtComponentConfig;
 
+    @SuppressWarnings("SpringAutowiredFieldsWarningInspection")
     @Autowired(required = false)
     DiagnosticService diagnosticService;
 
@@ -88,6 +105,12 @@ public abstract class BaseVmtComponent implements IVmtComponent {
      * Embed a component for monitoring dependency/subcomponent health
      */
     private CompositeHealthMonitor healthMonitor = new CompositeHealthMonitor(componentType +" Component");
+
+    static {
+        // Capture the beginning of component execution - begins from when the Java static is loaded.
+        startupTime = Instant.now();
+    }
+    private static Instant startupTime;
 
     /**
      * Constructor for BaseVmtComponent
@@ -111,6 +134,20 @@ public abstract class BaseVmtComponent implements IVmtComponent {
                 return lastStatus;
             }
         });
+    }
+
+    @PostConstruct
+    public void componentContextConstructed() {
+        logger.info("------------ spring context constructed ----------");
+        final long msToStartUp = Duration.between(startupTime, Instant.now())
+                .toMillis();
+        logger.info("time to start: {} ms", msToStartUp);
+        STARTUP_DURATION_METRIC.setData((double)msToStartUp);
+    }
+
+    @PreDestroy
+    public void componentContextClosing() {
+        logger.info("------------ spring context closing ----------");
     }
 
     /**
@@ -149,14 +186,6 @@ public abstract class BaseVmtComponent implements IVmtComponent {
     @Override
     public CompositeHealthMonitor getHealthMonitor() { return healthMonitor; }
 
-    /**
-     * Get the component's health information. The component will be considered healthy if all
-     * it's dependents are healthy.
-     *
-     * @return the component's health information
-     */
-    public HealthStatusProvider getComponentHealth() { return healthMonitor; }
-
     @Bean
     public CommandLineRunner startup() {
         return args -> startComponent();
@@ -173,13 +202,12 @@ public abstract class BaseVmtComponent implements IVmtComponent {
         ScheduledMetrics.initializeScheduledMetrics(scheduledMetricsIntervalMs,SCHEDULED_METRICS_DELAY_MS);
         // add the additional health checks
         logger.info("Adding memory and deadlock health checks");
-        getHealthMonitor().addHealthCheck(baseConfig.deadlockHealthMonitor());
-        getHealthMonitor().addHealthCheck(baseConfig.memoryMonitor());
+        getHealthMonitor().addHealthCheck(baseVmtComponentConfig.deadlockHealthMonitor());
+        getHealthMonitor().addHealthCheck(baseVmtComponentConfig.memoryMonitor());
         startGrpc();
         onStartComponent();
         setStatus(ExecutionStatus.RUNNING);
     }
-
 
     /**
      * {@inheritDoc}
@@ -224,6 +252,9 @@ public abstract class BaseVmtComponent implements IVmtComponent {
     @Override
     public final void configurationPropertiesChanged(@Nonnull final Environment environment,
                                                @Nonnull final Set<String> changedPropertyKeys) {
+        logger.info("Configuration Properties changed...");
+        changedPropertyKeys.stream().sorted().forEachOrdered(
+                propKey -> logger.info("  remote property {} = {}", propKey, environment.getProperty(propKey)));
         onConfigurationPropertiesChanged(environment, changedPropertyKeys);
     }
 
@@ -235,10 +266,10 @@ public abstract class BaseVmtComponent implements IVmtComponent {
         onDumpDiags(diagnosticZip);
 
         // diagnosticService must be injected by the particular component. Check that happened correctly.
-        if (diagnosticService == null) {
+        if (baseVmtComponentConfig.diagnosticService() == null) {
             throw new RuntimeException("DiagnosticService missing");
         }
-        diagnosticService.dumpDiags(diagnosticZip);
+        baseVmtComponentConfig.diagnosticService().dumpDiags(diagnosticZip);
     }
 
     // START: Methods to allow component implementations to hook into
@@ -258,7 +289,11 @@ public abstract class BaseVmtComponent implements IVmtComponent {
     protected void onDumpDiags(@Nonnull final ZipOutputStream diagnosticZip) {}
 
     protected void onConfigurationPropertiesChanged(@Nonnull final Environment environment,
-                                                    @Nonnull Set<String> changedPropertyKeys) {}
+                                                    @Nonnull Set<String> changedPropertyKeys) {
+        logger.info(">>>>>>> config props changed <<<<<<<<<");
+            changedPropertyKeys.forEach(propertyKey -> logger.info("  changed property  {} = {}",
+                    propertyKey, environment.getProperty(propertyKey)));
+    }
 
     /**
      * Components must override this method if they want to use gRPC, and use the
@@ -272,7 +307,7 @@ public abstract class BaseVmtComponent implements IVmtComponent {
     protected Optional<Server> buildGrpcServer(@Nonnull final ServerBuilder builder) {
         return Optional.empty();
     }
-    // END: Methods to allow component implementatinos to hook into
+    // END: Methods to allow component implementations to hook into
     // the component lifecycle.
 
     private void startGrpc() {
@@ -315,4 +350,52 @@ public abstract class BaseVmtComponent implements IVmtComponent {
         }
     }
 
+    /**
+     * Fetch the configuration for this component type from ClusterMgr and store them in
+     * the System properties. Retry until you succeed - this is a blocking call.
+     *
+     * This method is intended to be called by each component's main() method before
+     * beginning Spring instantiation.
+     */
+    protected static void fetchConfigurationProperties() {
+        final int clusterMgrPort = EnvironmentUtils.parseIntegerFromEnv("clustermgr_port");
+        final int clusterMgrConnectionRetryDelaySecs =
+                EnvironmentUtils.parseIntegerFromEnv("clustermgr_retry_delay_sec");
+        final long clusterMgrConnectionRetryDelayMs =
+                Duration.ofSeconds(clusterMgrConnectionRetryDelaySecs).toMillis();
+        final String componentType = Objects.requireNonNull(System.getenv("component_type"),
+                "Missing 'component_type' configuration.");
+        final String clusterMgrHost = Objects.requireNonNull(System.getenv("clustermgr_host"),
+                "Missing ClusterMgr host name ('clustermgr_host').");
+
+        logger.info("Fetching configuration from ClusterMgr for '{}' component", componentType);
+        logger.info("clustermgr_host: {}, clustermgr_port: {}", clusterMgrHost, clusterMgrPort);
+
+        // call ClusterMgr to fetch the configuration for this component type
+        ClusterMgrClient clusterMgrClient = ClusterMgrClient.rpcOnly(
+                ComponentApiConnectionConfig.newBuilder()
+                        .setHostAndPort(clusterMgrHost, clusterMgrPort)
+                        .build());
+        do {
+            try {
+                ComponentPropertiesDTO componentProperties =
+                        clusterMgrClient.getDefaultPropertiesForComponentType(componentType);
+                componentProperties.forEach((configKey, configValue) -> {
+                    logger.info("       {} = {}", configKey, configValue);
+                    System.setProperty(configKey, configValue);
+                });
+                break;
+            } catch(ResourceAccessException e) {
+                logger.error("Error fetching configuration from ClusterMgr: {}", e.getMessage());
+                try {
+                    logger.info("...trying again...");
+                    Thread.sleep(clusterMgrConnectionRetryDelayMs);
+                } catch (InterruptedException e2) {
+                    logger.warn("Interrupted while waiting for ClusterMgr; continuing to wait.");
+                    Thread.currentThread().interrupt();
+                }
+            }
+        } while (true);
+        logger.info("configuration initialized");
+    }
 }

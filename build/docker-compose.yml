@@ -147,6 +147,7 @@ services:
       service: dev-component
     image: turbonomic/auth
     depends_on:
+      - clustermgr
       - consul
       - db
     ports:
@@ -222,7 +223,6 @@ services:
     environment:
       component_type: market
       instance_id: market-1
-      consul_host: consul
       kafkaServers: ${KAFKA_SERVERS}
       JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MARKET_XMX_MB}M ${MARKET_SYSTEM_PROPERTIES}"
     volumes:
@@ -285,7 +285,8 @@ services:
     # The image, created by the docker-maven-plugin, has the
     # name turbonomic/<artifactId from pom>
     image: turbonomic/sample
-    depends_on: *clustermgrdep
+    depends_on:
+      - clustermgr
     # These are the ports that get exposed outside the container network.
     # The ports on the left-hand side should be globally unique.
     ports:
@@ -306,6 +307,7 @@ services:
       JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${SAMPLE_XMX_MB}M ${SAMPLE_SYSTEM_PROPERTIES}"
     volumes:
       - sample:/home/turbonomic/data
+
   arangodb:
     extends:
       file: common-services.yml
@@ -320,7 +322,7 @@ services:
       - arangodb:/var/lib/arangodb3
       - arangodb-apps:/var/lib/arangodb3-apps
       - arangodb-dump:/home/arangodb/arangodb-dump
-    mem_limit: ${SAMPLE_MEM_LIMIT_MB}M
+    mem_limit: ${ARANGODB_MEM_LIMIT_MB}M
 
   repository:
     extends:

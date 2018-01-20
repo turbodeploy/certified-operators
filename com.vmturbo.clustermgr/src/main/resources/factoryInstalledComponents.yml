@@ -25,6 +25,10 @@ action-orchestrator:
     deadlockCheckIntervalSecs: 900
     maxHealthyUsedMemoryRatio: 0.95
     scheduledMetricsIntervalMs: 60000
+  #temp fix to resolve conflict between action.orchestrator.api project and
+  #    action.orchestrator.api package in AO
+  actionOrchestratorHost: 'action-orchestrator'
+
 
 market:
   <<: *baseVmtComponentSettings

@@ -40,6 +40,9 @@ public class ApiComponent extends BaseVmtComponent {
     private SwaggerConfig swaggerConfig;
 
     public static void main(String[] args) {
+        // apply the configuration properties for this component prior to Spring instantiation
+        fetchConfigurationProperties();
+        // instantiate and run this component
         new SpringApplicationBuilder()
                 .sources(ApiComponent.class)
                 .run(args);

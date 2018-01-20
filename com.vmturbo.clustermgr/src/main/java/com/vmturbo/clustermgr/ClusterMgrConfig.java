@@ -119,7 +119,10 @@ public class ClusterMgrConfig {
 
     @Bean
     public ClusterMgrService clusterMgrService() {
-        return new ClusterMgrService(consulService(), factoryInstalledComponentsService());
+        final ClusterMgrService clusterMgrService = new ClusterMgrService(consulService(),
+                factoryInstalledComponentsService());
+        clusterMgrService.initializeClusterKVStore();
+        return clusterMgrService;
     }
 
     @Bean

@@ -294,6 +294,8 @@ public abstract class AbstractIntegrationTest {
                     super.customizePropertySources(propertySources);
                 }
             };
+            environment.setProperty(TestMediationCommonConfig.FIELD_TEST_NAME,
+                    testName.getMethodName());
             environment.setProperty("spring.cloud.bus.enabled", "false");
             environment.setProperty("spring.cloud.discovery.enabled", "false");
             environment.setProperty("spring.cloud.consul.enabled", "false");

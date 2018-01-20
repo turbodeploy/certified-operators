@@ -1,19 +1,11 @@
 package com.vmturbo.clustermgr;
 
-import java.util.Collection;
-import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import javax.annotation.PreDestroy;
-import javax.annotation.concurrent.GuardedBy;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -25,8 +17,8 @@ import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import com.vmturbo.clustermgr.kafka.KafkaConfigurationServiceConfig;
 import com.vmturbo.clustermgr.kafka.KafkaConfigurationService;
+import com.vmturbo.clustermgr.kafka.KafkaConfigurationServiceConfig;
 
 /*
  * The ClusterMgrMain is a utility to launch each of the VmtComponent Docker Containers configured to run on the
@@ -72,9 +64,6 @@ public class ClusterMgrMain implements CommandLineRunner {
     public void run(String[] args) {
 
         log.info(">>>>>>>>>  clustermgr beginning for " + nodeName);
-        // initialize the KV Store component
-        clusterMgrConfig.clusterMgrService().initializeClusterKVStore();
-
         // configure kafka
         try {
             kafkaConfigurationService.loadConfiguration(kafkaConfigFile);

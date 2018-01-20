@@ -57,6 +57,9 @@ public class AuthComponent extends BaseVmtComponent {
      * @param args The mandatory arguments.
      */
     public static void main(String[] args) {
+        // apply the configuration properties for this component prior to Spring instantiation
+        fetchConfigurationProperties();
+        // instantiate and run this component
         new SpringApplicationBuilder()
                 .sources(AuthComponent.class)
                 .sources(BaseVmtComponentConfig.class)

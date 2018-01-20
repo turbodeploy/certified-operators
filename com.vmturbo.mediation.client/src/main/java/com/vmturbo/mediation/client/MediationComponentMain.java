@@ -47,7 +47,11 @@ public class MediationComponentMain<A> extends BaseVmtComponent {
     private Logger log = LogManager.getLogger();
 
     public static void main(String[] args) {
-        new SpringApplicationBuilder().sources(MediationComponentMain.class)
+        // apply the configuration properties for this component prior to Spring instantiation
+        fetchConfigurationProperties();
+        // instantiate and run this component
+        new SpringApplicationBuilder()
+                .sources(MediationComponentMain.class)
                 .sources(MediationComponentConfig.class)
                 .run(args);
     }
@@ -123,10 +127,6 @@ public class MediationComponentMain<A> extends BaseVmtComponent {
     public void onFailedComponent() {
         mediationWorker().close();
         super.onStopComponent();
-    }
-
-    public void setComponentStatus(ExecutionStatus executionStatus) {
-        this.setStatus(executionStatus);
     }
 
     @Bean(destroyMethod = "shutdownNow")

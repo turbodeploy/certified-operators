@@ -1613,6 +1613,12 @@
                 <artifactId>kafka_2.11</artifactId>
                 <version>${kafka.version}</version>
             </dependency>
+            <dependency>
+                <groupId>com.github.stefanbirkner</groupId>
+                <artifactId>system-rules</artifactId>
+                <version>1.17.0</version>
+                <scope>test</scope>
+            </dependency>
         </dependencies>
     </dependencyManagement>
     <repositories>

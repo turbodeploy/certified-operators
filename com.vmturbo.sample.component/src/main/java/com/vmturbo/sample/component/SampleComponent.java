@@ -38,11 +38,9 @@ import com.vmturbo.sample.component.notifications.SampleComponentNotificationsCo
 
 // The name "theComponent" is required for autowiring to work properly.
 @Configuration("theComponent")
-// Not sure whether or not we need this right now.
-// TODO (roman, Feb 6 2017): Investigate effects of removing this.
+// Indicate that we want the Spring Boot startup mechanism.
 @EnableAutoConfiguration
-// Not sure whether or not we need this right now.
-// TODO (roman, Feb 6 2017): Investigate effects of removing this.
+// Indicate that the application should register so other components can find it.
 @EnableDiscoveryClient
 // Each sub-package should have its own @Configuration class. This
 // should import ALL of these sub-configurations in order to initialize
@@ -68,6 +66,9 @@ public class SampleComponent extends BaseVmtComponent {
      * @param args Command-line arguments.
      */
     public static void main(String[] args) {
+        // apply the configuration properties for this component prior to Spring instantiation
+        fetchConfigurationProperties();
+        // instantiate and run this component
         new SpringApplicationBuilder()
                 .sources(SampleComponent.class)
                 .run(args);

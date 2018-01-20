@@ -26,20 +26,23 @@ public class MarketComponent extends BaseVmtComponent {
     @Autowired
     private MarketApiConfig marketApiConfig;
 
-    @PostConstruct
-    private void setup() {
-        // add kafka producer health check
-        getHealthMonitor().addHealthCheck(marketApiConfig.kafkaHealthMonitor());
-    }
+    @Value("${spring.application.name}")
+    private String componentName;
 
     public static void main(String[] args) {
+        // apply the configuration properties for this component prior to Spring instantiation
+        fetchConfigurationProperties();
+        // instantiate and run this component
         new SpringApplicationBuilder()
                 .sources(MarketComponent.class)
                 .run(args);
     }
 
-    @Value("${spring.application.name}")
-    private String componentName;
+    @PostConstruct
+    private void setup() {
+        // add kafka producer health check
+        getHealthMonitor().addHealthCheck(marketApiConfig.kafkaHealthMonitor());
+    }
 
     @Override
     public String getComponentName() {

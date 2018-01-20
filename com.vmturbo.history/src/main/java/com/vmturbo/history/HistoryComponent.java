@@ -63,6 +63,9 @@ public class HistoryComponent extends BaseVmtComponent {
     }
 
     public static void main(String[] args) {
+        // apply the configuration properties for this component prior to Spring instantiation
+        fetchConfigurationProperties();
+        // instantiate and run this component
         new SpringApplicationBuilder()
                 .sources(HistoryComponent.class)
                 .run(args);

@@ -10,7 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import org.springframework.context.annotation.Bean;
@@ -26,7 +26,7 @@ import com.vmturbo.common.protobuf.group.GroupDTOREST.GroupServiceController;
 import com.vmturbo.common.protobuf.group.PolicyDTOREST.PolicyServiceController;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
-import com.vmturbo.components.common.health.sql.SQLDBHealthMonitor;
+import com.vmturbo.group.api.server.GroupApiSecurityConfig;
 import com.vmturbo.group.persistent.TemporaryGroupCache;
 import com.vmturbo.group.service.DiscoveredGroupsRpcService;
 import com.vmturbo.group.service.GroupService;
@@ -36,11 +36,12 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
 @Configuration("theComponent")
 @EnableDiscoveryClient
 @Import({ArangoDBConfig.class,
-    IdentityProviderConfig.class,
-    GrpcConfig.class,
-    SettingConfig.class,
-    SQLDatabaseConfig.class})
-@SpringBootApplication
+        IdentityProviderConfig.class,
+        GrpcConfig.class,
+        SettingConfig.class,
+        SQLDatabaseConfig.class,
+        GroupApiSecurityConfig.class})
+@EnableAutoConfiguration
 public class GroupComponent extends BaseVmtComponent {
 
     @Autowired
@@ -139,6 +140,9 @@ public class GroupComponent extends BaseVmtComponent {
     }
 
     public static void main(String[] args) {
+        // apply the configuration properties for this component prior to Spring instantiation
+        fetchConfigurationProperties();
+        // instantiate and run this component
         new SpringApplicationBuilder()
                 .sources(GroupComponent.class)
                 .run(args);

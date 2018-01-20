@@ -97,6 +97,9 @@ public class PlanOrchestratorComponent extends BaseVmtComponent {
     }
 
     public static void main(String[] args) {
+        // apply the configuration properties for this component prior to Spring instantiation
+        fetchConfigurationProperties();
+        // instantiate and run this component
         new SpringApplicationBuilder()
                 .sources(PlanOrchestratorComponent.class)
                 .run(args);

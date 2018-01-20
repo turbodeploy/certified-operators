@@ -106,15 +106,7 @@ public class ComponentHealthCheckTest {
         long startTime = System.nanoTime();
         testComponent.startComponent();
         // now wait for the component to finish starting
-        while(! testComponent.getHealthMonitor().getHealthStatus().isHealthy()) {
-            long elapsedTime = System.nanoTime() - startTime;
-            if ( elapsedTime > TimeUnit.SECONDS.toNanos(MAX_WAIT_SECS) ) {
-                // if it took longer than expected to start up, something is wrong!
-                Assert.fail("Test Component still isn't healthy after "+ MAX_WAIT_SECS +" seconds!");
-                break;
-            }
-            Thread.sleep(100);
-        }
+        waitUntilHealthy();
         // now verify that the component is reported as ready
         MvcResult result = mockMvc.perform(get(API_PREFIX + "/health")
                 .accept(MediaType.APPLICATION_JSON_UTF8_VALUE,MediaType.ALL_VALUE))
@@ -129,15 +121,7 @@ public class ComponentHealthCheckTest {
         long startTime = System.nanoTime();
         testComponent.startComponent();
         // now wait for the component to finish starting
-        while(! testComponent.getHealthMonitor().getHealthStatus().isHealthy()) {
-            long elapsedTime = System.nanoTime() - startTime;
-            if ( elapsedTime > TimeUnit.SECONDS.toNanos(MAX_WAIT_SECS) ) {
-                // if it took longer than expected to start up, something is wrong!
-                Assert.fail("Test Component still isn't healthy after "+ MAX_WAIT_SECS +" seconds!");
-                break;
-            }
-            Thread.sleep(100);
-        }
+        waitUntilHealthy();
         // now verify that the component is reported as ready
         MvcResult result = mockMvc.perform(get(API_PREFIX + "/health")
                 .accept(MediaType.TEXT_PLAIN_VALUE,MediaType.ALL_VALUE))
@@ -160,7 +144,8 @@ public class ComponentHealthCheckTest {
 
         // set one subcomponent to healthy -- the component should still be unhealhty
         subcomponent1.reportHealthy();
-        Assert.assertFalse("One dependency unhealthy --> component should be unhealthy.",monitor.getHealthStatus().isHealthy());
+        Assert.assertFalse("One dependency unhealthy --> component should be unhealthy.",
+                monitor.getHealthStatus().isHealthy());
 
         // now set the other subcomponent to healthy -- the component should now be healthy
         subcomponent2.reportHealthy();
@@ -176,4 +161,24 @@ public class ComponentHealthCheckTest {
         }
     }
 
+    /**
+     * Wait until the component is 'healthy' by calling the healthMonitor and fail after 5 seconds.
+     * There's a Thread.sleep() in the retry / wait loop.
+     *
+     * TODO - figure out how to not depend on timing, or change to Integration Test
+     *
+     * @throws InterruptedException if the Thread.sleep() is interrupted
+     */
+    private void waitUntilHealthy() throws InterruptedException {
+        long startTime = System.nanoTime();
+        while(! testComponent.getHealthMonitor().getHealthStatus().isHealthy()) {
+            long elapsedTime = System.nanoTime() - startTime;
+            if ( elapsedTime > TimeUnit.SECONDS.toNanos(5) ) {
+                // if it took longer than 5 seconds to start up, something is wrong!
+                Assert.fail("Test Component still isn't healthy after 5 seconds!");
+                break;
+            }
+            Thread.sleep(100);
+        }
+    }
 }

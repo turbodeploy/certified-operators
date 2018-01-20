@@ -30,6 +30,7 @@ import com.vmturbo.components.test.utilities.metric.MetricTestUtil;
 @SpringBootTest(webEnvironment= WebEnvironment.RANDOM_PORT,
         properties={"spring.cloud.consul.config.enabled=false","instance_id=test"})
 public class ComponentMetricsScrapeTest {
+
     @SpringBootApplication
     // The default @EnableAutoConfiguration implied by @SpringBootApplication will pick up
     // the spring security JAR in the class-path, and set up authentication for the
