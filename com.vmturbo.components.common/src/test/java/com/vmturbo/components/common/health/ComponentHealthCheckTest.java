@@ -11,6 +11,7 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mockito;
@@ -43,6 +44,7 @@ import com.vmturbo.components.common.ComponentController;
 @DirtiesContext(classMode = ClassMode.BEFORE_EACH_TEST_METHOD)
 @TestPropertySource(properties = {"server.grpcPort=9001"})
 @NotThreadSafe
+@Ignore
 public class ComponentHealthCheckTest {
 
     private static final String API_PREFIX="/api/v2";

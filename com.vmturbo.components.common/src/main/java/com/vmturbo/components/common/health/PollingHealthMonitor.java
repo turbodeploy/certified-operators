@@ -13,6 +13,8 @@ import reactor.core.publisher.FluxSink;
 
 /**
  * Polling Health Monitor implements a scheduled health check.
+ *
+ * Important: Make sure to call stop() if you plan to dispose of the health check.
  */
 public abstract class PollingHealthMonitor extends SimpleHealthStatusProvider {
     private Logger log = LogManager.getLogger();
@@ -25,6 +27,8 @@ public abstract class PollingHealthMonitor extends SimpleHealthStatusProvider {
      * How often to execute the health check, in seconds. Defaults to a minute.
      */
     private double pollingIntervalSecs = 60;
+
+    private ScheduledFuture scheduledFuture;
 
     /**
      * Construct the instance with the selected polling interval
@@ -49,6 +53,18 @@ public abstract class PollingHealthMonitor extends SimpleHealthStatusProvider {
     public double getPollingInterval() { return pollingIntervalSecs; }
 
     /**
+     * Stop this polling health monitor, if it is running. It's important to call this method when
+     * cleaning up, as failure to do so will leave a running reference to this check in the scheduler.
+     */
+    public synchronized void stop() {
+        if (scheduledFuture != null) {
+            log.info("Cancelling polling health monitor {}", getName());
+            scheduledFuture.cancel(true);
+            scheduledFuture = null;
+        }
+    }
+
+    /**
      * Use changes to health status to feed into an optional stream
      * @param newStatus the new status to provide.
      */
@@ -57,10 +73,15 @@ public abstract class PollingHealthMonitor extends SimpleHealthStatusProvider {
         super.setHealthStatus(newStatus);
     }
 
-    private void scheduleHealthChecks() {
+    private synchronized void scheduleHealthChecks() {
+        // if this is already scheduled, do nothing
+        if (scheduledFuture != null) {
+            log.warn("Polling health monitor {} already scheduled -- will not reschedule.", getName());
+            return;
+        }
         // the first check will be almost immediate
         long pollingIntervalMillis = Math.round(pollingIntervalSecs * 1000); // convert secs to millis
-        ScheduledFuture schedule = healthCheckScheduler.scheduleWithFixedDelay(
+        scheduledFuture = healthCheckScheduler.scheduleWithFixedDelay(
                 new HealthCheckRunner(), INITIAL_CHECK_DELAY_MS, pollingIntervalMillis, TimeUnit.MILLISECONDS);
     }
 
