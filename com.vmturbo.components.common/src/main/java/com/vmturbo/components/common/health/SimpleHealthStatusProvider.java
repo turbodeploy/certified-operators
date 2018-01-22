@@ -36,6 +36,7 @@ public class SimpleHealthStatusProvider implements HealthStatusProvider {
 
     public SimpleHealthStatusProvider(String name) {
         this.name = name;
+        logger.trace("Creating health status provider {}", name);
         // the first health status is going to be "initializing."
         reportUnhealthy("Initializing.");
     }

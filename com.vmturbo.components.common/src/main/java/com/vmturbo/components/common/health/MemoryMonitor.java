@@ -57,9 +57,9 @@ public class MemoryMonitor extends SimpleHealthStatusProvider {
     public MemoryMonitor(double memUsedRatioAlertThreshold) {
         super("Memory");
         this.memUsedRatioAlertThreshold = memUsedRatioAlertThreshold;
-        setupMonitor();
         // memory monitor starts off healthy
         reportHealthy("Initializing.");
+        setupMonitor();
     }
 
     /**

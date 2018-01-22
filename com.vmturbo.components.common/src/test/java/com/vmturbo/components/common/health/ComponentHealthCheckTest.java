@@ -5,6 +5,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.util.concurrent.TimeUnit;
 
+import javax.annotation.concurrent.NotThreadSafe;
+
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
@@ -39,6 +42,7 @@ import com.vmturbo.components.common.ComponentController;
 @ContextConfiguration(loader = AnnotationConfigWebContextLoader.class)
 @DirtiesContext(classMode = ClassMode.BEFORE_EACH_TEST_METHOD)
 @TestPropertySource(properties = {"server.grpcPort=9001"})
+@NotThreadSafe
 public class ComponentHealthCheckTest {
 
     private static final String API_PREFIX="/api/v2";
@@ -80,10 +84,9 @@ public class ComponentHealthCheckTest {
         testController = wac.getBean(ComponentController.class);
     }
 
-    @AfterClass
-    public static void tearDownStatics() {
-        // the static objects hang around after the tests are over -- clear them out when the tests
-        // in this class have run
+    @After
+    public void teardown() {
+        // clean up the static class references just in case
         if (testComponent != null) {
             testComponent.stopComponent();
             testComponent = null;
@@ -91,6 +94,7 @@ public class ComponentHealthCheckTest {
         if (testController != null) {
             testController = null;
         }
+
     }
 
     @Test
@@ -129,29 +133,6 @@ public class ComponentHealthCheckTest {
                 .andReturn();
     }
 
-    /**
-     * Test a health monitor with multiple dependencies in it.
-     */
-    @Test
-    public void testHealthMonitorWithDependencies() {
-        CompositeHealthMonitor monitor = new CompositeHealthMonitor("Test");
-        SimpleHealthStatusProvider subcomponent1 = new SimpleHealthStatusProvider("subcomponent1");
-        SimpleHealthStatusProvider subcomponent2 = new SimpleHealthStatusProvider("subcomponent2");
-        monitor.addHealthCheck(subcomponent1);
-        monitor.addHealthCheck(subcomponent2);
-        // initial call -- all subcomponents should be unhealthy
-        Assert.assertFalse(monitor.getHealthStatus().isHealthy());
-
-        // set one subcomponent to healthy -- the component should still be unhealhty
-        subcomponent1.reportHealthy();
-        Assert.assertFalse("One dependency unhealthy --> component should be unhealthy.",
-                monitor.getHealthStatus().isHealthy());
-
-        // now set the other subcomponent to healthy -- the component should now be healthy
-        subcomponent2.reportHealthy();
-        Assert.assertTrue(monitor.getHealthStatus().isHealthy());
-    }
-
     @Configuration("theComponent")
     public static class SimpleTestComponent extends BaseVmtComponent {
 
@@ -178,6 +159,7 @@ public class ComponentHealthCheckTest {
                 Assert.fail("Test Component still isn't healthy after 5 seconds!");
                 break;
             }
+            System.out.println("Test component not healthy yet: "+ testComponent.getHealthMonitor().getHealthStatus().getDetails());
             Thread.sleep(100);
         }
     }

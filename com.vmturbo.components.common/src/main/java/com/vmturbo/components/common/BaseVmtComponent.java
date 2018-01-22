@@ -3,6 +3,7 @@ package com.vmturbo.components.common;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -200,10 +201,18 @@ public abstract class BaseVmtComponent implements IVmtComponent {
         DefaultExports.initialize();
         // start up the default scheduled metrics too
         ScheduledMetrics.initializeScheduledMetrics(scheduledMetricsIntervalMs,SCHEDULED_METRICS_DELAY_MS);
-        // add the additional health checks
-        logger.info("Adding memory and deadlock health checks");
-        getHealthMonitor().addHealthCheck(baseVmtComponentConfig.deadlockHealthMonitor());
-        getHealthMonitor().addHealthCheck(baseVmtComponentConfig.memoryMonitor());
+
+        // add the additional health checks if they aren't already registered
+        Map<String,HealthStatusProvider> healthChecks = getHealthMonitor().getDependencies();
+        if (!healthChecks.containsKey(baseVmtComponentConfig.memoryMonitor().getName())) {
+            logger.info("Adding memory health check.");
+            getHealthMonitor().addHealthCheck(baseVmtComponentConfig.memoryMonitor());
+        }
+        if (!healthChecks.containsKey(baseVmtComponentConfig.deadlockHealthMonitor().getName())) {
+            logger.info("Adding deadlock health check");
+            getHealthMonitor().addHealthCheck(baseVmtComponentConfig.deadlockHealthMonitor());
+        }
+
         startGrpc();
         onStartComponent();
         setStatus(ExecutionStatus.RUNNING);
