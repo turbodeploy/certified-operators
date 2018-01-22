@@ -114,13 +114,13 @@ public class SearchService implements ISearchService {
     }
 
     @Override
-    public Collection<BaseApiDTO> getSearchResults(String query,
+    public List<BaseApiDTO> getSearchResults(String query,
                                                    List<String> types,
                                                    List<String> scopes,
                                                    String state,
                                                    String groupType,
                                                    EnvironmentType environmentType) throws Exception {
-        Collection<BaseApiDTO> result = null;
+        List<BaseApiDTO> result = null;
 
         // Determine which of many (many) types of searches is requested.
         // NB: this method is heavily overloaded.  The REST endpoint to be redefined
@@ -201,7 +201,7 @@ public class SearchService implements ISearchService {
 
     private static ExecutorService executor = Executors.newFixedThreadPool(3);
 
-    private Collection<BaseApiDTO> searchAll() throws Exception {
+    private List<BaseApiDTO> searchAll() throws Exception {
         Future<Collection<ServiceEntityApiDTO>> entities = executor.submit(
                 () -> repositoryApi.getSearchResults(
                         "", SearchMapper.SEARCH_ALL_TYPES, MarketMapper.MARKET, null, null));
