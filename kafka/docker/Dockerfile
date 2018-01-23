@@ -1,4 +1,4 @@
-FROM ubuntu:17.04
+FROM ubuntu:17.10
 MAINTAINER Pavel Baranchikov <pavel.baranchikov@turbonomic.com>
 
 SHELL ["/bin/bash", "-c"]
