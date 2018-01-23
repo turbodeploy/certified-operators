@@ -77,7 +77,8 @@ services:
       - "constraint:node==/node-4/"
     networks:
       default:
-        ipv4_address: 10.10.10.10
+        # choose an address high enough to avoid IPs for other components that docker will assign
+        ipv4_address: 10.10.10.128
     ports:
       - "${CONSUL_PORT}"
     volumes:

@@ -26,7 +26,7 @@ do
         # arangodb:3.0.8 -> arangodb
         # grafana/grafana -> grafana
         # hopsoft/graphite-statsd -> graphite-statsd
-        docker pull ${img} && docker save ${img} | xz -9 > $(echo $img | cut -d':' -f1 | cut -d'/' -f2).tgz
+        docker pull ${img} && docker save ${img} | xz -T0 -9 > $(echo $img | cut -d':' -f1 | cut -d'/' -f2).tgz
     else
         # Our stuff
 		img_res=$(echo $img | cut -d'/' -f2 | awk -F'.component' '{print $1}')
@@ -34,7 +34,7 @@ do
 			img_res=$(echo $img_res | awk -F'com.vmturbo.' '{print $2}')
 		fi
 		img_res=$(echo $img_res | tr '.' '_')
-        docker save ${img}:latest | xz -9 > ${img_res}.tgz
+        docker save ${img}:latest | xz -T0 -9 > ${img_res}.tgz
     fi
 done
 
@@ -85,7 +85,7 @@ do
         img_res=$(echo $img_res | awk -F'com.vmturbo.' '{print $2}')
     fi
     img_res=$(echo $img_res | tr '.' '_')
-    docker save ${img}:latest | xz -9 > ${img_res}.tgz
+    docker save ${img}:latest | xz -T0 -9 > ${img_res}.tgz
 done
 cd ${WORKSPACE}/data
 rm docker_images.iso
