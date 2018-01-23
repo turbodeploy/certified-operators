@@ -61,7 +61,18 @@
                 "scripts/packages.sh",
                 "scripts/vmware.sh",
                 "scripts/docker.sh",
-                "scripts/images.sh",
+                "scripts/images.sh"
+            ]
+        },
+        {
+            "type": "file",
+            "source": "../turboctl.py",
+            "destination": "/etc/docker/turboctl.py"
+        },
+        {
+            "type": "shell",
+            "execute_command": "bash '{{ .Path }}'",
+            "scripts": [
                 "scripts/cleanup.sh"
             ]
         }

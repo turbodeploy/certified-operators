@@ -8,9 +8,16 @@ import subprocess
 import sys
 
 """
-Command Line function for managing a Turbonomic Platform
+Command Line function for managing a Turbonomic Platform.
+
+It is assumed that this file lives in the Turbonomic Install directory which includes
+- docker-compose.yml
+- turbonomic_info.txt
+- turbonomic_sums.txt
 """
 
+DOCKER_COMMAND = "docker"
+DOCKER_COMPOSE_COMMAND = "docker-compose"
 
 def main():
     """
@@ -26,8 +33,8 @@ def version_display(parsed_args=None):
 
     Also include the versions and checksums of each individual component.
     """
-    turbo_info_path = '/etc/docker/turbonomic_info.txt'
-    turbo_sums_path = '/etc/docker/turbonomic_sums.txt'
+    turbo_info_path = cwd + '/turbonomic_info.txt'
+    turbo_sums_path = cwd + '/turbonomic_sums.txt'
     print "\n\nTurbonomic Build Information"
     try:
         with open(turbo_info_path, 'r') as info_file:
@@ -55,8 +62,7 @@ def stats_display(parsed_args):
     Refresh continually until the user types ^C
     """
     component_names = get_selected_component_names(parsed_args.components)
-    print "components to display: %s" % component_names
-    call_shell_cmd(["/usr/local/bin/docker", "stats"] + component_names)
+    call_shell_cmd([DOCKER_COMMAND, "stats"] + component_names)
 
 
 def shell_to_component(parsed_args):
@@ -69,7 +75,7 @@ def shell_to_component(parsed_args):
     command_to_exec = parsed_args.command_to_exec if len(parsed_args.command_to_exec) > 0 else \
         ["bash"]
 
-    call_shell_cmd(["/usr/local/bin/docker-compose", "exec", component] +
+    call_shell_cmd([DOCKER_COMPOSE_COMMAND, "exec", component] +
                    command_to_exec)
 
 
@@ -93,7 +99,7 @@ def logs_display(parsed_args):
         grep_command = ["|", "grep", pattern]
     else:
         grep_command = []
-    full_command = string.join(["/usr/local/bin/docker", "logs"] + follow_arg + tail_arg +
+    full_command = string.join([DOCKER_COMMAND, "logs"] + follow_arg + tail_arg +
                                ["%s_rsyslog_1" % home] + grep_command, ' ')
     call_shell_cmd(full_command, shell=True)
 
@@ -106,7 +112,7 @@ def start_component(parsed_args):
 
     If any component is already running, there will be no effect.
     """
-    call_shell_cmd(["/usr/local/bin/docker-compose", "up", "-d"] + parsed_args.components)
+    call_shell_cmd([DOCKER_COMPOSE_COMMAND, "up", "-d"] + parsed_args.components)
 
 
 def stop_component(parsed_args):
@@ -115,7 +121,7 @@ def stop_component(parsed_args):
 
     If no components are specified, then all components will be stopped.
     """
-    call_shell_cmd(["/usr/local/bin/docker-compose", "stop"] + parsed_args.components)
+    call_shell_cmd([DOCKER_COMPOSE_COMMAND, "stop"] + parsed_args.components)
 
 
 def restart_component(parsed_args):
@@ -134,14 +140,14 @@ def show_processes(parsed_args):
 
     If no components are specified, then all components will be listed.
     """
-    call_shell_cmd(["/usr/local/bin/docker-compose", "ps"] + parsed_args.components)
+    call_shell_cmd([DOCKER_COMPOSE_COMMAND, "ps"] + parsed_args.components)
 
 
 def parse_args(args=sys.argv[1:]):
     """
     Set up the subcommand argument parsing structure, including optional arguments.
     """
-    parser = argparse.ArgumentParser(prog="turbo_ctl.py",
+    parser = argparse.ArgumentParser(prog=os.path.basename(__file__),
                                      description="Turbonomic Platform Control program")
 
     subparsers = parser.add_subparsers(help="Turbonomic control:  "
@@ -227,7 +233,7 @@ def get_all_component_names():
     For example, the image name "docker_api_1" will be returned as "api".
     Returns the names as a list.
     """
-    docker_ps_output = subprocess.check_output(["/usr/local/bin/docker", "ps", "--format",
+    docker_ps_output = subprocess.check_output([DOCKER_COMMAND, "ps", "--format",
                                                 "'{{.Names}}'"])
     component_name_string = string.rstrip(string.replace(docker_ps_output, "'", ""), "\n")
     component_names = string.split(component_name_string, '\n')

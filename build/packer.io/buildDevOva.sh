@@ -15,11 +15,11 @@ DOCKER_ISO=${1}
 # Test if file exists
 if [ -f ~/tmp/$DOCKER_ISO ]; then
   rm -rf turbonomic_xl/ ova/
-  sed -i.bak "s#XL_ISO#${HOME}/tmp/${DOCKER_ISO}#g" centos7_vmw.json
-  packer build centos7_vmw.json
+  sed "s#XL_ISO#${HOME}/tmp/${DOCKER_ISO}#g" centos7_vmw.json > /tmp/centos7_vmw.json.edited
+  time packer build /tmp/centos7_vmw.json.edited
   mkdir ova
   ovftool turbonomic_xl/turbonomic_xl.vmx  ova/turbonomic_xl.ova
-  cp centos7_vmw.json.bak centos7_vmw.json
+  rm /tmp/centos7_vmw.json.edited
 else
   echo "The file '~/tmp/$DOCKER_ISO' in not found."
   echo "Please specify the proper iso."

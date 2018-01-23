@@ -40,6 +40,12 @@ echo 'echo "IP: $(/sbin/ip route get 1 | /bin/head -n 1 | awk '"'"'{print $7}'"'
 chmod +x /etc/rc.local
 chmod +x /etc/rc.d/rc.local
 
+# Set up permissions and a link for
+chmod +x /etc/docker/turboctl.py
+
+# Add a symlink, so that the sudo would see it.
+ln -s /etc/docker/turboctl.py /usr/bin/turboctl
+
 # clean up the disk
 # Compress the image as much as possible
 dd if=/dev/zero of=/mytempfile bs=1024  count=1
@@ -50,4 +56,3 @@ echo "root:$(dd if=/dev/urandom bs=1 count=32 2>/dev/null | base64 | tr '+' '_' 
 usermod -s /bin/false root
 passwd -l root
 echo 'hostname: ' `hostname`
-
