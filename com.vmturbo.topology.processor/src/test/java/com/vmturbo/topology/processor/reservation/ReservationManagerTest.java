@@ -130,7 +130,7 @@ public class ReservationManagerTest {
         final Map<Long, Builder> topology = new HashMap<>();
         reservationManager.applyReservation(topology);
         Mockito.verify(reservationServiceMole, Mockito.times(1))
-                .updateReservations(Mockito.any());
+                .updateReservations(Mockito.any(), Mockito.any());
         assertEquals(1L, topology.size());
         assertTrue(topology.containsKey(345L));
         final TopologyEntityDTO.Builder builder = topology.get(345L).getEntityBuilder();

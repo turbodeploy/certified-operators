@@ -127,7 +127,7 @@ public class ReservationServiceTest {
                 reservationsService.createReservationForDemand(false, RESERVATION,
                         demandApiInputDTO);
         Mockito.verify(reservationServiceMole, Mockito.times(1))
-                .createReservation(Mockito.any());
+                .createReservation(Mockito.any(), Mockito.any());
         Assert.assertEquals(2L, (int)result.getCount());
     }
 }
