@@ -26,6 +26,7 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.joda.time.DateTime;
 import org.junit.Rule;
 import org.junit.Test;
 
@@ -52,6 +53,7 @@ import com.vmturbo.api.enums.RecurrenceType;
 import com.vmturbo.api.enums.SettingScope;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
+import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
@@ -105,9 +107,11 @@ public class SettingsMapperTest {
     private final long endTimestamp = 1564522200425L;
     private final long endDatestamp = 1564506000425L;
 
-    private final String startDateString = "2019-07-30T17:30:00.425";
-    private final String endTimeString = "2019-07-30T21:30:00.425";
-    private final String endDateString = "2019-07-30T17:00:00.425";
+    private final int minutePeriod = 240;
+
+    private final String startDateString = DateTimeUtil.toString(startTimestamp);
+    private final String endTimeString = DateTimeUtil.toString(endTimestamp);
+    private final String endDateString = DateTimeUtil.toString(endDatestamp);
 
     private final SettingSpec settingSpec1 = SettingSpec.newBuilder()
             .setName("move")
@@ -805,7 +809,7 @@ public class SettingsMapperTest {
                 .setInfo(makeStandardSettingPolicyInfoBuilder()
                         .setSchedule(Schedule.newBuilder().setStartTime(startTimestamp)
                                 .setOneTime(OneTime.newBuilder())
-                                .setMinutes(240).build())
+                                .setMinutes(minutePeriod).build())
                         .build())
                 .build();
 
@@ -828,7 +832,7 @@ public class SettingsMapperTest {
                 .setInfo(makeStandardSettingPolicyInfoBuilder()
                         .setSchedule(Schedule.newBuilder().setStartTime(startTimestamp)
                                 .setDaily(Daily.newBuilder().build())
-                                .setMinutes(240)
+                                .setMinutes(minutePeriod)
                                 .setPerpetual(Perpetual.newBuilder().build()).build())
                         .build())
                 .build();
@@ -853,7 +857,7 @@ public class SettingsMapperTest {
                 .setInfo(makeStandardSettingPolicyInfoBuilder()
                         .setSchedule(Schedule.newBuilder().setStartTime(startTimestamp)
                                 .setDaily(Daily.newBuilder())
-                                .setMinutes(240)
+                                .setMinutes(minutePeriod)
                                 .setLastDate(endDatestamp)))
                 .build();
 
@@ -877,7 +881,7 @@ public class SettingsMapperTest {
                 .setInfo(makeStandardSettingPolicyInfoBuilder()
                         .setSchedule(Schedule.newBuilder().setStartTime(startTimestamp)
                                 .setWeekly(Weekly.newBuilder().build())
-                                .setMinutes(240)
+                                .setMinutes(minutePeriod)
                                 .setPerpetual(Perpetual.newBuilder().build()).build())
                         .build())
                 .build();
@@ -905,7 +909,7 @@ public class SettingsMapperTest {
                         .setSchedule(Schedule.newBuilder().setStartTime(startTimestamp)
                                 .setWeekly(Weekly.newBuilder()
                                         .addDaysOfWeek(Schedule.DayOfWeek.FRIDAY))
-                                .setMinutes(240)
+                                .setMinutes(minutePeriod)
                                 .setPerpetual(Perpetual.newBuilder().build()).build())
                         .build())
                 .build();
@@ -932,7 +936,7 @@ public class SettingsMapperTest {
                 .setInfo(makeStandardSettingPolicyInfoBuilder()
                         .setSchedule(Schedule.newBuilder().setStartTime(startTimestamp)
                                 .setMonthly(Monthly.newBuilder().build())
-                                .setMinutes(240)
+                                .setMinutes(minutePeriod)
                                 .setPerpetual(Perpetual.newBuilder().build()).build())
                         .build())
                 .build();
@@ -958,7 +962,7 @@ public class SettingsMapperTest {
                 .setInfo(makeStandardSettingPolicyInfoBuilder()
                         .setSchedule(Schedule.newBuilder().setStartTime(startTimestamp)
                                 .setMonthly(Monthly.newBuilder().addDaysOfMonth(3).build())
-                                .setMinutes(240)
+                                .setMinutes(minutePeriod)
                                 .setPerpetual(Perpetual.newBuilder().build()).build())
                         .build())
                 .build();
