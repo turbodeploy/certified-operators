@@ -73,13 +73,13 @@ public enum EntitySettingSpecs {
     CpuUtilization("cpuUtilization", "CPU Utilization",
             Arrays.asList("utilizationThresholds"), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.PHYSICAL_MACHINE, EntityType.STORAGE_CONTROLLER),
-            numeric(20f, 100f, 100f), false),
+            numeric(20f, 100f, 100f), true),
     /**
-     * Memoty utilization threshold.
+     * Memory utilization threshold.
      */
     MemoryUtilization("memoryUtilization", "Memory Utilization",
             Arrays.asList("utilizationThresholds"), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(1f, 100f, 100f), false),
+            EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(1f, 100f, 100f), true),
     /**
      * IO throughput utilization threshold.
      */
