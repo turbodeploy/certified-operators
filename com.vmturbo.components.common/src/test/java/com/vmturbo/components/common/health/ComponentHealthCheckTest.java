@@ -7,11 +7,8 @@ import java.util.concurrent.TimeUnit;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
-import org.junit.After;
-import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mockito;
@@ -44,7 +41,6 @@ import com.vmturbo.components.common.ComponentController;
 @DirtiesContext(classMode = ClassMode.BEFORE_EACH_TEST_METHOD)
 @TestPropertySource(properties = {"server.grpcPort=9001"})
 @NotThreadSafe
-@Ignore
 public class ComponentHealthCheckTest {
 
     private static final String API_PREFIX="/api/v2";
@@ -70,6 +66,7 @@ public class ComponentHealthCheckTest {
     static class ContextConfiguration extends WebMvcConfigurerAdapter {
         @Bean
         public BaseVmtComponent theComponent() {
+            System.out.println("Creating the simple test component.");
             return new SimpleTestComponent();
         }
 
@@ -84,19 +81,6 @@ public class ComponentHealthCheckTest {
         mockMvc = MockMvcBuilders.webAppContextSetup(wac).build();
         testComponent = wac.getBean(SimpleTestComponent.class);
         testController = wac.getBean(ComponentController.class);
-    }
-
-    @After
-    public void teardown() {
-        // clean up the static class references just in case
-        if (testComponent != null) {
-            testComponent.stopComponent();
-            testComponent = null;
-        }
-        if (testController != null) {
-            testController = null;
-        }
-
     }
 
     @Test
@@ -156,9 +140,9 @@ public class ComponentHealthCheckTest {
         long startTime = System.nanoTime();
         while(! testComponent.getHealthMonitor().getHealthStatus().isHealthy()) {
             long elapsedTime = System.nanoTime() - startTime;
-            if ( elapsedTime > TimeUnit.SECONDS.toNanos(5) ) {
+            if ( elapsedTime > TimeUnit.SECONDS.toNanos(MAX_WAIT_SECS) ) {
                 // if it took longer than 5 seconds to start up, something is wrong!
-                Assert.fail("Test Component still isn't healthy after 5 seconds!");
+                Assert.fail("Test Component still isn't healthy after "+ MAX_WAIT_SECS +" seconds!");
                 break;
             }
             System.out.println("Test component not healthy yet: "+ testComponent.getHealthMonitor().getHealthStatus().getDetails());

@@ -1,11 +1,12 @@
 package com.vmturbo.components.common.health;
 
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -13,6 +14,8 @@ import org.junit.Test;
  *
  */
 public class DeadlockMonitorTest {
+    private static Logger logger = LogManager.getLogger();
+
     private static final double POLLING_INTERVAL_SECS = 0.05;
 
     @Test
@@ -35,6 +38,8 @@ public class DeadlockMonitorTest {
         SimpleHealthStatus healthStatus = deadlockDetector.getStatusStream().blockFirst(Duration.ofSeconds(5));
         Assert.assertFalse(healthStatus.isHealthy());
         deadlockScenario.stop();
+        healthStatus = deadlockDetector.getStatusStream().blockFirst(Duration.ofSeconds(5));
+        Assert.assertTrue(healthStatus.isHealthy());
     }
 
     /**
@@ -60,33 +65,52 @@ public class DeadlockMonitorTest {
         }
 
         public void stop() {
+            logger.info("Stopping deadlock scenario.");
             if ((t1 != null) && t1.isAlive()) {
                 t1.interrupt();
             }
             if ((t2 != null) && t2.isAlive()) {
                 t2.interrupt();
             }
+            try {
+                while (t1.isAlive() || t2.isAlive()) {
+                    Thread.sleep(100);
+                }
+
+            } catch (InterruptedException ie) {
+
+            }
+            logger.info("Deadlock scenario stopped.");
         }
 
         static class Thief {
             String name;
+
+            Lock lock = new ReentrantLock();
             public Thief(String name) { this.name = name; }
 
-            public synchronized void doublecross(CountDownLatch missionEnd, Thief rival) {
+            public void doublecross(CountDownLatch missionEnd, Thief rival) {
+                lock.lock();
                 missionEnd.countDown();
                 try {
                     missionEnd.await();
                     // I have one lock, now take the other one
-                    System.out.println(name +": I have one lock, now I want th'other.");
+                    logger.info(name +": I have one lock, now I want th'other.");
                     rival.pilfer();
                     // successful steal!
                 } catch (InterruptedException ie) {
                     // no op
+                    logger.info(name +" interrupt received.");
                 }
             }
 
-            public synchronized void pilfer() {
-                System.out.println(name +": Arr, Ya got me lock!");
+            public void pilfer() {
+                try {
+                    lock.lockInterruptibly();
+                    logger.info(name + ": Arr, Ya got me lock!");
+                } catch (InterruptedException ie) {
+                    logger.info("Pilfer interrupted.");
+                }
             }
         }
 

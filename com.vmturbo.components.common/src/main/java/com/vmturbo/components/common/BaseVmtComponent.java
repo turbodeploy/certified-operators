@@ -105,7 +105,7 @@ public abstract class BaseVmtComponent implements IVmtComponent {
     /**
      * Embed a component for monitoring dependency/subcomponent health
      */
-    private CompositeHealthMonitor healthMonitor = new CompositeHealthMonitor(componentType +" Component");
+    private final CompositeHealthMonitor healthMonitor = new CompositeHealthMonitor(componentType +" Component");
 
     static {
         // Capture the beginning of component execution - begins from when the Java static is loaded.
