@@ -75,6 +75,11 @@
             "scripts": [
                 "scripts/cleanup.sh"
             ]
+        },
+        {
+            "type": "file",
+            "source": "config/logrotate.d-syslog",
+            "destination": "/etc/logrotate.d/syslog"
         }
     ]
 }
