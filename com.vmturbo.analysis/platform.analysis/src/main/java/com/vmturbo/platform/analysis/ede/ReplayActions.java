@@ -225,6 +225,7 @@ public class ReplayActions {
             Deactivate oldAction = (Deactivate) deactivateAction;
             Trader newTrader = translateTrader(oldAction.getTarget(), economy, "Deactivate");
             if (newTrader != null && oldAction.getTarget().getSettings().isSuspendable()) {
+                Suspension.makeCoSellersNonSuspendable(economy, newTrader);
                 suspendActions.addAll(suspensionInstance.deactivateTraderIfPossible(newTrader,
                                 economy, ledger));
             }
