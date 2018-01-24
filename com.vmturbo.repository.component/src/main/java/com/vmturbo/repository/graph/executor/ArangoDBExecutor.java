@@ -177,10 +177,14 @@ public class ArangoDBExecutor implements GraphDBExecutor {
             final List<SubgraphResult> providerResults = results.get(0).asListRemaining();
             final List<SubgraphResult> consumerResults = results.get(1).asListRemaining();
 
-            return providerResults.size() == 1 && consumerResults.size() == 1
+            return hasOneNonnullResult(providerResults) && hasOneNonnullResult(consumerResults)
                 ? Try.success(new SupplyChainSubgraph(providerResults.get(0), consumerResults.get(0)))
                 : Try.failure(new NoSuchElementException("Entity " + supplyChainCmd.getStartingVertex() + " not found."));
         });
+    }
+
+    private boolean hasOneNonnullResult(@Nonnull final List<SubgraphResult> resultList) {
+        return (resultList.size() == 1) && (resultList.get(0).getOrigin().getId() != null);
     }
 
     @Override

@@ -242,6 +242,7 @@ public class ServiceConfig {
     @Bean
     public SupplyChainsService supplyChainService() {
         return new SupplyChainsService(communicationConfig.supplyChainFetcher(),
+                communicationConfig.planRpcService(),
                 communicationConfig.getRealtimeTopologyContextId(),
                 communicationConfig.groupExpander());
     }

@@ -33,12 +33,16 @@ import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.SupplyChainDetailType;
 import com.vmturbo.api.serviceinterfaces.ISupplyChainsService;
 import com.vmturbo.api.utils.DateTimeUtil;
+import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
+import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
 
 public class SupplyChainsService implements ISupplyChainsService {
 
     private final SupplyChainFetcherFactory supplyChainFetcherFactory;
     private final long liveTopologyContextId;
     private final GroupExpander groupExpander;
+    private final PlanServiceBlockingStub planRpcService;
 
     // criteria in this list require fetching the health summary along with the supplychain
     private static final Collection<EntitiesCountCriteria> SUPPLY_CHAIN_HEALTH_REQUIRED =
@@ -47,10 +51,12 @@ public class SupplyChainsService implements ISupplyChainsService {
             );
 
     SupplyChainsService(@Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
+                        @Nonnull final PlanServiceBlockingStub planRpcService,
                         final long liveTopologyContextId, GroupExpander groupExpander) {
         this.liveTopologyContextId = liveTopologyContextId;
         this.supplyChainFetcherFactory = supplyChainFetcherFactory;
         this.groupExpander = groupExpander;
+        this.planRpcService = planRpcService;
     }
 
     @Override
@@ -65,14 +71,49 @@ public class SupplyChainsService implements ISupplyChainsService {
         }
 
         // request the supply chain for the items, including expanding groups and clusters
-        return supplyChainFetcherFactory.newApiDtoFetcher()
-                .topologyContextId(liveTopologyContextId)
-                .addSeedUuids(uuids)
+        final SupplychainApiDTOFetcherBuilder fetcherBuilder =
+            supplyChainFetcherFactory.newApiDtoFetcher()
                 .entityTypes(entityTypes)
                 .environmentType(environmentType)
                 .supplyChainDetailType(supplyChainDetailType)
-                .includeHealthSummary(includeHealthSummary)
-                .fetch();
+                .includeHealthSummary(includeHealthSummary);
+
+        //if the request is for a plan supply chain, the "seed uuid" should instead be used as the topology context ID.
+        if (requestIsPlanSupplyChain(uuids)) {
+            fetcherBuilder.topologyContextId(Long.valueOf(uuids.iterator().next()));
+        } else {
+            fetcherBuilder.topologyContextId(liveTopologyContextId).addSeedUuids(uuids);
+        }
+
+        return fetcherBuilder.fetch();
+    }
+
+    /**
+     * Determine if a request for a supply chain refers specifically to a plan.
+     *
+     * ASSUMPTIONS: A supply chain request refers to a plan if:
+     *      - the seed UUID list has exactly one element
+     *      - the uuid is a string of numerals
+     *      - there exists a plan with that uuid
+     *
+     * These assumptions may change if the UI/API does.
+     *
+     * @param uuids the supplied seed UUID list
+     * @return true if the single supplied UUID refers to an existing plan, false otherwise
+     */
+    private boolean requestIsPlanSupplyChain(List<String> uuids) {
+        if (uuids.size() != 1) {
+            return false;
+        }
+        final long prospectivePlanId;
+        try {
+            prospectivePlanId = Long.valueOf(uuids.iterator().next());
+        } catch (NumberFormatException e) {
+            return false;
+        }
+        final OptionalPlanInstance possiblePlan =
+            planRpcService.getPlan(PlanId.newBuilder().setPlanId(prospectivePlanId).build());
+        return possiblePlan.hasPlanInstance();
     }
 
     /**

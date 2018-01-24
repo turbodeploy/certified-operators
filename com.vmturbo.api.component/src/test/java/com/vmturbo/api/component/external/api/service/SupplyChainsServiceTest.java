@@ -1,7 +1,6 @@
 package com.vmturbo.api.component.external.api.service;
 
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -12,8 +11,11 @@ import static org.mockito.Matchers.anyListOf;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anySetOf;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -21,9 +23,11 @@ import javax.annotation.Nonnull;
 
 import org.assertj.core.util.Sets;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 import org.mockito.runners.MockitoJUnitRunner;
 
@@ -43,6 +47,14 @@ import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.enums.EntitiesCountCriteria;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.SupplyChainDetailType;
+import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
+import com.vmturbo.common.protobuf.plan.PlanDTOMoles.PlanServiceMole;
+import com.vmturbo.common.protobuf.plan.PlanServiceGrpc;
+import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
+import com.vmturbo.components.api.test.GrpcTestServer;
 
 @RunWith(MockitoJUnitRunner.class)
 public class SupplyChainsServiceTest {
@@ -56,6 +68,11 @@ public class SupplyChainsServiceTest {
 
     @Mock
     private SupplychainApiDTOFetcherBuilder supplyChainFetcherOperationBuilderMock;
+
+    private PlanServiceMole planServiceMole = Mockito.spy(new PlanServiceMole());
+
+    @Rule
+    public GrpcTestServer grpcTestServer = GrpcTestServer.newServer(planServiceMole);
 
     private final SupplyChainTestUtils supplyChainTestUtils = new SupplyChainTestUtils();
 
@@ -79,12 +96,70 @@ public class SupplyChainsServiceTest {
         when(supplyChainFetcherOperationBuilderMock.includeHealthSummary(anyBoolean()))
                 .thenReturn(supplyChainFetcherOperationBuilderMock);
 
-        service = new SupplyChainsService(supplyChainsFetcherMock,
+        final PlanServiceBlockingStub planServiceMock =
+            PlanServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
+
+        service = new SupplyChainsService(supplyChainsFetcherMock, planServiceMock,
                 LIVE_TOPOLOGY_CONTEXT_ID, groupExpanderMock);
 
 
     }
 
+    @Test
+    public void testGetSupplyChainByUuidsOneAlphanumeric() throws Exception {
+
+        final List<String> uuids = Collections.singletonList("Abcdef123");
+
+        service.getSupplyChainByUuids(uuids, null, null, null, null, false);
+
+        verify(supplyChainFetcherOperationBuilderMock).topologyContextId(LIVE_TOPOLOGY_CONTEXT_ID);
+        verify(supplyChainFetcherOperationBuilderMock).addSeedUuids(uuids);
+    }
+
+    @Test
+    public void testGetSupplyChainByUuidsMultiple() throws Exception {
+
+        final List<String> uuids = Arrays.asList("Abcdef123", "123456789");
+
+        service.getSupplyChainByUuids(uuids, null, null, null, null, false);
+
+        verify(supplyChainFetcherOperationBuilderMock).topologyContextId(LIVE_TOPOLOGY_CONTEXT_ID);
+        verify(supplyChainFetcherOperationBuilderMock).addSeedUuids(uuids);
+    }
+
+    @Test
+    public void testGetSupplyChainByUuidsPlanExists() throws Exception {
+
+        final long planId = 123456789;
+        final PlanId planIdObj = PlanId.newBuilder().setPlanId(planId).build();
+        final OptionalPlanInstance planInstance = OptionalPlanInstance.newBuilder()
+            .setPlanInstance(PlanInstance.newBuilder()
+                .setPlanId(planId).setStatus(PlanStatus.READY)).build();
+
+        when(planServiceMole.getPlan(planIdObj)).thenReturn(planInstance);
+
+        service.getSupplyChainByUuids(Collections.singletonList(Long.toString(planId)),
+            null, null, null, null, false);
+
+        verify(supplyChainFetcherOperationBuilderMock).topologyContextId(planId);
+    }
+
+    @Test
+    public void testGetSupplyChainByUuidsPlanDoesntExist() throws Exception {
+
+        final long planId = 123456789;
+        final List<String> uuids = Collections.singletonList(Long.toString(planId));
+
+        final PlanId planIdObj = PlanId.newBuilder().setPlanId(planId).build();
+        final OptionalPlanInstance planInstance = OptionalPlanInstance.getDefaultInstance();
+
+        when(planServiceMole.getPlan(planIdObj)).thenReturn(planInstance);
+
+        service.getSupplyChainByUuids(uuids, null, null, null, null, false);
+
+        verify(supplyChainFetcherOperationBuilderMock).topologyContextId(LIVE_TOPOLOGY_CONTEXT_ID);
+        verify(supplyChainFetcherOperationBuilderMock).addSeedUuids(uuids);
+    }
 
     @Test
     public void testGetSupplyChainStatsGroupByEntityType() throws Exception {
