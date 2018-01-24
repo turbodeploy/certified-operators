@@ -315,7 +315,7 @@ public class SettingsService implements ISettingsService {
      * @return SettingApiDTO
      * @throws Exception
      */
-    SettingApiDTO getSettingByGroupOrEntity(String uuid, String manUuid,
+    public SettingApiDTO getSettingByGroupOrEntity(String uuid, String manUuid,
                                             String settUuid) throws Exception {
         throw ApiUtils.notImplementedInXL();
     }
@@ -329,7 +329,7 @@ public class SettingsService implements ISettingsService {
      * @return list of SettingApiDTO
      * @throws Exception
      */
-    List<SettingApiDTO> getSettingsManagerByGroupOrEntity(String uuid, String manUuid
+    public List<SettingApiDTO> getSettingsManagerByGroupOrEntity(String uuid, String manUuid
     ) throws Exception {
         throw ApiUtils.notImplementedInXL();
     }
