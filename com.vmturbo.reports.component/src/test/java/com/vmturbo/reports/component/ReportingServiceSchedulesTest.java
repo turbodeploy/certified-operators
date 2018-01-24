@@ -60,7 +60,7 @@ public class ReportingServiceSchedulesTest {
         final long id = reportingService.addSchedule(TEST_SCHEDULE_INFO).getId();
         Reporting.ScheduleDTO schedule = reportingService.getSchedule(
                         Reporting.ScheduleId.newBuilder().setId(id).build());
-        Assert.assertEquals(TEST_SCHEDULE_INFO, schedule);
+        Assert.assertEquals(TEST_SCHEDULE_INFO, schedule.getScheduleInfo());
     }
 
     /**
