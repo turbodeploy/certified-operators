@@ -192,18 +192,15 @@ public class ActionExecutionRpcService extends ActionExecutionServiceImplBase {
                         " Destination: " + sourceInfo.getEntityInfo().getEntityType());
             }
 
-            // TODO (roman, May 18 2017): VC expects the action type to be MOVE for PM, and CHANGE
-            // for storage. Not sure if that's an SDK condition, or a VC implementation condition.
+            // The specific case of VM move on a Storage is considered a "CHANGE" action but
+            // all others are considered "MOVE"
             switch (srcEntityType) {
-                case PHYSICAL_MACHINE:
-                    actionBuilder.setActionType(ActionType.MOVE);
-                    break;
                 case STORAGE:
                     actionBuilder.setActionType(ActionType.CHANGE);
                     break;
                 default:
-                    throw new ActionExecutionException("Move to/from entity of type " +
-                            srcEntityType + " not supported!");
+                    actionBuilder.setActionType(ActionType.MOVE);
+                    break;
             }
         }
 

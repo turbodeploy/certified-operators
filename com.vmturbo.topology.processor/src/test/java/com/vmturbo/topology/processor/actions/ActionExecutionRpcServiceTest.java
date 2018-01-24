@@ -8,7 +8,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -244,6 +243,51 @@ public class ActionExecutionRpcServiceTest {
     }
 
     @Test
+    public void testDatastoreMove() throws Exception {
+        final long targetId = targetIdCounter.getAndIncrement();
+
+        final ActionDTO.Move moveSpec = ActionDTO.Move.newBuilder()
+                .setTargetId(1)
+                .setSourceId(2)
+                .setDestinationId(3)
+                .build();
+        final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
+                .setActionId(0)
+                .setTargetId(targetId)
+                .setActionInfo(ActionInfo.newBuilder()
+                        .setMove(moveSpec))
+                .build();
+
+        final Map<Long, Entity> entities = initializeTopology(targetId,
+                NewEntityRequest.storage(moveSpec.getTargetId()),
+                NewEntityRequest.diskArray(moveSpec.getSourceId()),
+                NewEntityRequest.diskArray(moveSpec.getDestinationId()));
+
+        actionExecutionStub.executeAction(request);
+
+        Mockito.verify(operationManager).startAction(Mockito.eq(request.getActionId()),
+                Mockito.eq(targetId), actionItemDTOCaptor.capture());
+
+        final ActionItemDTO dto = actionItemDTOCaptor.getValue();
+
+        ActionItemDTOValidator.validateRequest(dto);
+
+        Assert.assertEquals(
+                entities.get(moveSpec.getTargetId())
+                        .getTargetInfo(targetId).get().getEntityInfo(),
+                dto.getTargetSE());
+        Assert.assertFalse(dto.hasHostedBySE());
+        Assert.assertEquals(
+                entities.get(moveSpec.getSourceId())
+                        .getTargetInfo(targetId).get().getEntityInfo(),
+                dto.getCurrentSE());
+        Assert.assertEquals(
+                entities.get(moveSpec.getDestinationId())
+                        .getTargetInfo(targetId).get().getEntityInfo(),
+                dto.getNewSE());
+    }
+
+    @Test
     public void testMoveIncompatibleSourceAndDestination() throws Exception {
         final long targetId1 = targetIdCounter.getAndIncrement();
 
@@ -372,9 +416,7 @@ public class ActionExecutionRpcServiceTest {
                 .build();
 
         // Include a virtual machine, but no host that matches the host ID.
-        final Map<Long, Entity> entities = initializeTopology(targetId,
-                        NewEntityRequest.virtualMachine(resizeSpec.getTargetId(), 7));
-
+        initializeTopology(targetId, NewEntityRequest.virtualMachine(resizeSpec.getTargetId(), 7));
 
         expectedException.expect(GrpcRuntimeExceptionMatcher
                 .hasCode(Code.INVALID_ARGUMENT)
@@ -678,6 +720,10 @@ public class ActionExecutionRpcServiceTest {
 
         static NewEntityRequest storage(final long entityId) {
             return new NewEntityRequest(entityId, Optional.empty(), EntityType.STORAGE);
+        }
+
+        static NewEntityRequest diskArray(final long entityId) {
+            return new NewEntityRequest(entityId, Optional.empty(), EntityType.DISK_ARRAY);
         }
     }
 }

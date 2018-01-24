@@ -107,13 +107,17 @@ public class ActionItemDTOValidator {
         if (moveItem.getActionType().equals(ActionType.CHANGE)) {
             errors.checkEntitiesType(EntityType.STORAGE, moveItem.getCurrentSE(), moveItem.getNewSE());
         } else if (moveItem.getActionType().equals(ActionType.MOVE)) {
-            errors.checkEntitiesType(EntityType.PHYSICAL_MACHINE,
+            if (moveItem.getTargetSE().getEntityType().equals(EntityType.VIRTUAL_MACHINE)) {
+                errors.checkEntitiesType(EntityType.PHYSICAL_MACHINE,
                     moveItem.getCurrentSE(), moveItem.getNewSE());
+            } else if (moveItem.getTargetSE().getEntityType().equals(EntityType.STORAGE)) {
+                errors.checkEntitiesType(EntityType.DISK_ARRAY,
+                    moveItem.getCurrentSE(), moveItem.getNewSE());
+            } else {
+                errors.addError("Unable to handle MOVE targetSE type: "
+                    + moveItem.getTargetSE().getEntityType());
+            }
         }
-
-        // TODO (roman, July 2016): Should validate that the entities provided
-        // for the move are of the supported types.
-
         errors.throwIfError();
     }
 
@@ -156,6 +160,10 @@ public class ActionItemDTOValidator {
 
             setOptionalFields.removeAll(expected);
             setOptionalFields.forEach(fieldName -> errors.add(fieldName + " set, but not expected."));
+        }
+
+        public void addError(@Nonnull final String errorMessage) {
+            errors.add(errorMessage);
         }
     }
 

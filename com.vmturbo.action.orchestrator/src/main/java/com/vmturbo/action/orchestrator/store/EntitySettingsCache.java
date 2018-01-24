@@ -276,7 +276,8 @@ public class EntitySettingsCache {
                     notFoundEntities.removeAll(foundEntities);
                     logger.warn("Entities {} not found in the repository component", notFoundEntities);
                 }
-                logger.info("Finished retrieving entity types for {} entities.", result.size());
+                logger.info("Finished retrieving {} entity types for {} entities.",
+                    result.size(), entities.size());
             } else {
                 logger.error("Could not retrieve entity types " +
                         "from the repository component at {}.", uri);
