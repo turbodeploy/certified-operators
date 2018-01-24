@@ -1,6 +1,7 @@
 package com.vmturbo.action.orchestrator.rpc;
 
 import static com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier.IP_ADDRESS_CLAIM;
+import static com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier.UUID_CLAIM;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -174,6 +175,7 @@ public class ActionExecutionSecureRpcTest {
         String compact = Jwts.builder()
                 .setSubject(ADMIN)
                 .claim(IAuthorizationVerifier.ROLE_CLAIM, ImmutableList.of(ADMINISTRATOR))
+                .claim(UUID_CLAIM, "1234567890")
                 .claim(IP_ADDRESS_CLAIM, IP_ADDRESS) // add IP address
                 .setExpiration(getTestDate())
                 .signWith(SignatureAlgorithm.ES256, signingKey)

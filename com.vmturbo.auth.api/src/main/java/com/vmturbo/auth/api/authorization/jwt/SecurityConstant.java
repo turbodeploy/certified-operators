@@ -17,9 +17,13 @@ public class SecurityConstant {
     /**
      * key for user's IP address
      */
-
     public static final Context.Key<String> USER_IP_ADDRESS_KEY = Context.key("userIpAddress");
-    ;
+
+    /**
+     * key for user's UUID
+     */
+    public static final Context.Key<String> USER_UUID_KEY = Context.key("userUuid");
+
     /**
      * key for JWT token
      */

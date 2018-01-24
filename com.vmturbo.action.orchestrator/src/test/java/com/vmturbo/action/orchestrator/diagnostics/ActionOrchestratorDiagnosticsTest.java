@@ -96,13 +96,13 @@ public class ActionOrchestratorDiagnosticsTest {
 
     @Test
     public void testQueuedAction() throws Exception {
-        testSingleAction(action -> action.receive(new ManualAcceptanceEvent(0, 1)));
+        testSingleAction(action -> action.receive(new ManualAcceptanceEvent("0", 1)));
     }
 
     @Test
     public void testReadyAction() throws Exception {
         testSingleAction(action -> {
-            action.receive(new ManualAcceptanceEvent(0, 1));
+            action.receive(new ManualAcceptanceEvent("0", 1));
             action.receive(new BeginExecutionEvent());
         });
     }
@@ -120,7 +120,7 @@ public class ActionOrchestratorDiagnosticsTest {
     @Test
     public void testSuccessfulAction() throws Exception {
         testSingleAction(action -> {
-            action.receive(new ManualAcceptanceEvent(0L, 1L));
+            action.receive(new ManualAcceptanceEvent("0", 1L));
             action.receive(new BeginExecutionEvent());
             action.receive(new SuccessEvent());
         });
@@ -129,7 +129,7 @@ public class ActionOrchestratorDiagnosticsTest {
     @Test
     public void testFailedAction() throws Exception {
         testSingleAction(action -> {
-            action.receive(new ManualAcceptanceEvent(0L, 1L));
+            action.receive(new ManualAcceptanceEvent("0", 1L));
             action.receive(new BeginExecutionEvent());
             action.receive(new FailureEvent("It was a trap!"));
         });
@@ -138,7 +138,7 @@ public class ActionOrchestratorDiagnosticsTest {
     @Test
     public void testInProgressAction() throws Exception {
         testSingleAction(action -> {
-            action.receive(new ManualAcceptanceEvent(0L, 1L));
+            action.receive(new ManualAcceptanceEvent("0", 1L));
             action.receive(new BeginExecutionEvent());
             action.receive(new ProgressEvent(10, "Star date 20184..."));
         });

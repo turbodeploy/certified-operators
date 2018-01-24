@@ -33,10 +33,10 @@ public abstract class ActionEvent implements StateMachineEvent {
      * {@link ActionStateMachine} transition that should result from the event.
      */
     public abstract static class AuthorizedActionEvent extends ActionEvent {
-        private final long authorizerId;
+        private final String authorizerUuid;
 
-        protected AuthorizedActionEvent(final long authorizerId) {
-            this.authorizerId = authorizerId;
+        protected AuthorizedActionEvent(final String authorizerUuid) {
+            this.authorizerUuid = authorizerUuid;
         }
 
         /**
@@ -46,8 +46,8 @@ public abstract class ActionEvent implements StateMachineEvent {
          * @return The ID of the element in the system that initiated/authorized the event.
          *         {@link Optional#empty()} if not associated with a specific authorizer.
          */
-        public long getAuthorizerId() {
-            return authorizerId;
+        public String getAuthorizerUuid() {
+            return authorizerUuid;
         }
 
         /**
@@ -55,7 +55,7 @@ public abstract class ActionEvent implements StateMachineEvent {
          */
         @Override
         public String toString() {
-            return getEventName() + " [authorizer: " + authorizerId + "]";
+            return getEventName() + " [authorizer: " + authorizerUuid + "]";
         }
     }
 
@@ -65,7 +65,7 @@ public abstract class ActionEvent implements StateMachineEvent {
     public abstract static class AcceptanceEvent extends AuthorizedActionEvent {
         private final long targetId;
 
-        public AcceptanceEvent(long authorizerId, long targetId) {
+        public AcceptanceEvent(String authorizerId, long targetId) {
             super(authorizerId);
             this.targetId = targetId;
         }
@@ -77,7 +77,7 @@ public abstract class ActionEvent implements StateMachineEvent {
          */
         public ExecutionDecision getDecision() {
             return ExecutionDecision.newBuilder()
-                .setUserId(getAuthorizerId())
+                .setUserUuid(getAuthorizerUuid())
                 .setReason(getReason())
                 .build();
         }
@@ -104,8 +104,8 @@ public abstract class ActionEvent implements StateMachineEvent {
      * For a manually accepted action, the authorizer ID will be the ID of the user who accepted the action.
      */
     public static class ManualAcceptanceEvent extends AcceptanceEvent {
-        public ManualAcceptanceEvent(long acceptingUserId, long targetId) {
-            super(acceptingUserId, targetId);
+        public ManualAcceptanceEvent(String acceptingUserUuid, long targetId) {
+            super(acceptingUserUuid, targetId);
         }
 
         @Override
@@ -118,8 +118,8 @@ public abstract class ActionEvent implements StateMachineEvent {
      * An action generated when a user automatically accepts an action.
      */
     public static class AutomaticAcceptanceEvent extends AcceptanceEvent {
-        public AutomaticAcceptanceEvent(long policyCreatingUserId, long targetId) {
-            super(policyCreatingUserId, targetId);
+        public AutomaticAcceptanceEvent(String policyCreatingUserUuid, long targetId) {
+            super(policyCreatingUserUuid, targetId);
         }
 
         public ExecutionDecision.Reason getReason() {
@@ -210,8 +210,8 @@ public abstract class ActionEvent implements StateMachineEvent {
      * Indicates that an action is no longer recommended.
      */
     public abstract static class ClearingEvent extends AuthorizedActionEvent {
-        public ClearingEvent(long authorizerId) {
-            super(authorizerId);
+        public ClearingEvent(String authorizerUuid) {
+            super(authorizerUuid);
         }
 
         /**
@@ -238,13 +238,13 @@ public abstract class ActionEvent implements StateMachineEvent {
          * @param actionPlanId The ID of the action plan that no longer recommends the action.
          */
         public NotRecommendedEvent(final long actionPlanId) {
-            super(actionPlanId);
+            super(String.valueOf(actionPlanId));
         }
 
         @Override
         public ClearingDecision getDecision() {
             return ClearingDecision.newBuilder()
-                .setActionPlanId(getAuthorizerId())
+                .setActionPlanId(authorizedUuidToId(getAuthorizerUuid()))
                 .setReason(ClearingDecision.Reason.NO_LONGER_RECOMMENDED)
                 .build();
         }
@@ -265,16 +265,34 @@ public abstract class ActionEvent implements StateMachineEvent {
          *                but lacks the capability to do so.
          */
         public CannotExecuteEvent(final long probeId) {
-            super(probeId);
+            super(String.valueOf(probeId));
         }
 
 
         @Override
         public ClearingDecision getDecision() {
             return ClearingDecision.newBuilder()
-                .setProbeId(getAuthorizerId())
+                .setProbeId(authorizedUuidToId(getAuthorizerUuid()))
                 .setReason(ClearingDecision.Reason.PROBE_UNABLE_TO_EXECUTE)
                 .build();
         }
+    }
+
+    /**
+     *  Try to convert uuid to id.
+     *
+     *  actionPlanId: When NO_LONGER_RECOMMENDED, this will be the ID of the first action plan
+     *  after the initial recommendation that did not recommend the action anymore.
+     *  probeId: When PROBE_UNABLE_TO_EXECUTE, this will be the ID of that probe.
+     *
+     *  Consideration:
+     *  1. From the explanations, both probeId or actionPlanId should be an id.
+     *  2. Not sure why both were set with authorizedId. If we want to store who authorized the
+     *  decision, should we better to have an optional field, e.g. authorizedId in ActionDTO.proto?
+     *  3. Currently authorizerUuid is casted from long (see com.vmturbo.auth.component.store.AuthProvider).
+     *  So now it is safe to parse it back to long.
+     */
+    private static long authorizedUuidToId(String uuid) {
+        return Long.parseLong(uuid);
     }
 }

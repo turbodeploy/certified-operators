@@ -373,10 +373,10 @@ message ActionDecision {
         required Reason reason = 1;
 
         // Executed actions may only be attributed to users.
-        // When manually accepted, this will be the ID of the user who manually accepted it.
-        // When automatically accepted, this will be the ID of the user who configured the
+        // When manually accepted, this will be the UUID of the user who manually accepted it.
+        // When automatically accepted, this will be the UUID of the user who configured the
         // setting to automatically accept it.
-        required int64 userId = 2;
+        required string userUuid = 2;
     }
 
     // Explains why an action was not executed and what in the system caused it

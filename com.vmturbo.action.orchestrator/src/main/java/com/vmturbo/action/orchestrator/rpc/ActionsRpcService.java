@@ -100,7 +100,6 @@ public class ActionsRpcService extends ActionsServiceImplBase {
     public void acceptAction(SingleActionRequest request,
                              StreamObserver<AcceptActionResponse> responseObserver) {
         String requestUserName = SecurityConstant.USER_ID_CTX_KEY.get();
-        String reqeustUserIpAddress = SecurityConstant.USER_IP_ADDRESS_KEY.get();
         logger.debug("Getting action request from: " + requestUserName);
         if (!request.hasTopologyContextId()) {
             responseObserver.onNext(acceptanceError("Missing required parameter TopologyContextId"));
@@ -121,11 +120,11 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         }
 
         final ActionStore store = optionalStore.get();
-
+        final Optional<String> userUuidOptional = Optional.ofNullable(SecurityConstant.USER_UUID_KEY.get());
         AcceptActionResponse response = store.getAction(request.getActionId())
             .map(action -> {
-                // TODO (roman, Sep 1, 2016): Set the user ID when we have it.
-                AcceptActionResponse attemptResponse = attemptAcceptAndExecute(action, 0);
+                AcceptActionResponse attemptResponse = attemptAcceptAndExecute(action,
+                        userUuidOptional.orElse("")); //TODO instead of "", return component/system uuid
                 if (!action.isReady()) {
                     store.getEntitySeverityCache()
                         .refresh(action.getRecommendation(), store);
@@ -381,7 +380,7 @@ public class ActionsRpcService extends ActionsServiceImplBase {
      * @return The result of attempting to accept and execute the action.
      */
     private AcceptActionResponse attemptAcceptAndExecute(@Nonnull final Action action,
-                                                         final long userId) {
+                                                         final String userUUid) {
         long actionTargetId = -1;
         Optional<FailureEvent> failure = Optional.empty();
 
@@ -392,7 +391,7 @@ public class ActionsRpcService extends ActionsServiceImplBase {
             failure = Optional.of(new FailureEvent("Failed to resolve target id due to error: " + e.getMessage()));
         }
 
-        if (action.receive(new ActionEvent.ManualAcceptanceEvent(userId, actionTargetId)).transitionNotTaken()) {
+        if (action.receive(new ActionEvent.ManualAcceptanceEvent(userUUid, actionTargetId)).transitionNotTaken()) {
             return acceptanceError("Unauthorized to accept action in mode " + action.getMode());
         }
 

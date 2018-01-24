@@ -501,17 +501,17 @@ public class Action implements ActionView {
      * @return true if the action may be accepted, false if not.
      */
     boolean acceptanceGuard(@Nonnull final AuthorizedActionEvent event) {
-        return modePermitsExecution() && hasPermissionToAccept(event.getAuthorizerId());
+        return modePermitsExecution() && hasPermissionToAccept(event.getAuthorizerUuid());
 
     }
 
     /**
      * Check if a user has permission to accept this action.
      *
-     * @param userId The user who should be checked for permission.
+     * @param userUuid The user who should be checked for permission.
      * @return true if the user has permission, false otherwise.
      */
-    private boolean hasPermissionToAccept(long userId) {
+    private boolean hasPermissionToAccept(String userUuid) {
         // Until we implement users and authorization, always grant permission.
         return true;
     }

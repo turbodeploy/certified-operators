@@ -1,6 +1,7 @@
 package com.vmturbo.auth.api.authorization.jwt;
 
 import static com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier.IP_ADDRESS_CLAIM;
+import static com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier.UUID_CLAIM;
 
 import java.security.PublicKey;
 import java.util.Objects;
@@ -93,6 +94,7 @@ public class JwtServerInterceptor implements ServerInterceptor {
                     .getBody();
             ctx = Context.current()
                     .withValue(SecurityConstant.USER_ID_CTX_KEY, claims.getSubject())
+                    .withValue(SecurityConstant.USER_UUID_KEY, claims.get(UUID_CLAIM, String.class))
                     .withValue(SecurityConstant.USER_IP_ADDRESS_KEY, claims.get(IP_ADDRESS_CLAIM, String.class));
         } catch (RuntimeException e) {
             // TODO it should be sent to audit log.

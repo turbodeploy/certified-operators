@@ -68,7 +68,7 @@ public class ActionStateUpdaterTest {
         when(actionStore.getAction(eq(notFoundId))).thenReturn(Optional.empty());
         when(entitySettingsCache.getSettingsForEntity(eq(3L)))
             .thenReturn(makeActionModeSetting(ActionMode.MANUAL));
-        testAction.receive(new ManualAcceptanceEvent(99, 102));
+        testAction.receive(new ManualAcceptanceEvent("99", 102));
         testAction.receive(new BeginExecutionEvent());
     }
 

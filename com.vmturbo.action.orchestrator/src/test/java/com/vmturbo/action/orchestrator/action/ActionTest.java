@@ -124,7 +124,7 @@ public class ActionTest {
         final long targetId = 7;
         when(entitySettingsCache.getSettingsForEntity(eq(11L)))
             .thenReturn(Collections.singletonList(makeSetting("move", ActionMode.MANUAL)));
-        moveAction.receive(new ManualAcceptanceEvent(0L, targetId));
+        moveAction.receive(new ManualAcceptanceEvent("0", targetId));
         Assert.assertTrue(moveAction.getExecutableStep().isPresent());
         Assert.assertEquals(targetId, moveAction.getExecutableStep().get().getTargetId());
     }
@@ -135,7 +135,7 @@ public class ActionTest {
         when(entitySettingsCache.getSettingsForEntity(eq(11L)))
                 .thenReturn(Collections.singletonList(makeSetting("move", ActionMode.MANUAL)));
 
-        moveAction.receive(new ManualAcceptanceEvent(0L, targetId));
+        moveAction.receive(new ManualAcceptanceEvent("0", targetId));
         moveAction.receive(new BeginExecutionEvent());
     }
 
@@ -149,7 +149,7 @@ public class ActionTest {
         when(entitySettingsCache.getSettingsForEntity(eq(11L)))
                 .thenReturn(Collections.singletonList(makeSetting("move", ActionMode.MANUAL)));
 
-        moveAction.receive(new ManualAcceptanceEvent(0L, 24L));
+        moveAction.receive(new ManualAcceptanceEvent("0", 24L));
 
         assertFalse(moveAction.determineExecutability());
     }

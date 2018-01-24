@@ -230,8 +230,8 @@ public class ActionSpecMapper {
             if (decision.hasExecutionDecision()) {
                 final ActionDecision.ExecutionDecision executionDecision =
                         decision.getExecutionDecision();
-                final long decisionUserId = executionDecision.getUserId();
-                actionApiDTO.setUserName(Long.toString(decisionUserId));
+                final String decisionUserUUid = executionDecision.getUserUuid();
+                actionApiDTO.setUserName(decisionUserUUid);
             }
         }
 

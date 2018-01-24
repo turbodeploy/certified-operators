@@ -53,7 +53,7 @@ public class ActionStateMachineTest {
         .build();
 
     private final long actionPlanId = 4;
-    private final long userId = 5;
+    private final String userUuid = "5";
     private final long clearingPlanId = 6;
     private final long probeId = 7;
     private final long targetId = 8;
@@ -69,7 +69,7 @@ public class ActionStateMachineTest {
             .thenReturn(ActionOrchestratorTestUtils.makeActionModeSetting(ActionMode.MANUAL));
 
         Action action = new Action(move, entitySettingsCache, actionPlanId);
-        assertEquals(ActionState.QUEUED, action.receive(new ManualAcceptanceEvent(userId, targetId)).getAfterState());
+        assertEquals(ActionState.QUEUED, action.receive(new ManualAcceptanceEvent(userUuid, targetId)).getAfterState());
 
         Assert.assertEquals(ActionState.QUEUED, action.getState());
         Assert.assertEquals(
@@ -77,8 +77,8 @@ public class ActionStateMachineTest {
             action.getDecision().get().getExecutionDecision().getReason()
         );
         Assert.assertEquals(
-            userId,
-            action.getDecision().get().getExecutionDecision().getUserId()
+                userUuid,
+            action.getDecision().get().getExecutionDecision().getUserUuid()
         );
         verifyQueuedExecutionStep(action.getExecutableStep().get());
     }
@@ -88,7 +88,7 @@ public class ActionStateMachineTest {
         when(entitySettingsCache.getSettingsForEntity(eq(1L)))
                 .thenReturn(ActionOrchestratorTestUtils.makeActionModeSetting(ActionMode.AUTOMATIC));
         Action action = new Action(move, entitySettingsCache, actionPlanId);
-        assertEquals(ActionState.QUEUED, action.receive(new AutomaticAcceptanceEvent(userId, targetId)).getAfterState());
+        assertEquals(ActionState.QUEUED, action.receive(new AutomaticAcceptanceEvent(userUuid, targetId)).getAfterState());
 
         Assert.assertEquals(ActionState.QUEUED, action.getState());
         Assert.assertEquals(
@@ -96,8 +96,8 @@ public class ActionStateMachineTest {
             action.getDecision().get().getExecutionDecision().getReason()
         );
         Assert.assertEquals(
-            userId,
-            action.getDecision().get().getExecutionDecision().getUserId()
+                userUuid,
+            action.getDecision().get().getExecutionDecision().getUserUuid()
         );
         verifyQueuedExecutionStep(action.getExecutableStep().get());
     }
@@ -107,7 +107,7 @@ public class ActionStateMachineTest {
         when(entitySettingsCache.getSettingsForEntity(eq(1L)))
                 .thenReturn(ActionOrchestratorTestUtils.makeActionModeSetting(ActionMode.AUTOMATIC));
         Action action = new Action(move, entitySettingsCache, actionPlanId);
-        assertEquals(ActionState.QUEUED, action.receive(new AutomaticAcceptanceEvent(userId, targetId)).getAfterState());
+        assertEquals(ActionState.QUEUED, action.receive(new AutomaticAcceptanceEvent(userUuid, targetId)).getAfterState());
         assertEquals(ActionState.IN_PROGRESS, action.receive(new BeginExecutionEvent()).getAfterState());
 
         Assert.assertEquals(ActionState.IN_PROGRESS, action.getState());
@@ -151,7 +151,7 @@ public class ActionStateMachineTest {
                 .thenReturn(ActionOrchestratorTestUtils.makeActionModeSetting(ActionMode.MANUAL));
         Action action = new Action(move, entitySettingsCache, actionPlanId);
 
-        action.receive(new ManualAcceptanceEvent(userId, targetId));
+        action.receive(new ManualAcceptanceEvent(userUuid, targetId));
         Assert.assertEquals(Status.QUEUED, action.getExecutableStep().get().getStatus());
 
         action.receive(new BeginExecutionEvent());
@@ -171,7 +171,7 @@ public class ActionStateMachineTest {
         when(entitySettingsCache.getSettingsForEntity(eq(1L)))
                 .thenReturn(ActionOrchestratorTestUtils.makeActionModeSetting(ActionMode.MANUAL));
         Action action = new Action(move, entitySettingsCache, actionPlanId);
-        action.receive(new ManualAcceptanceEvent(userId, targetId));
+        action.receive(new ManualAcceptanceEvent(userUuid, targetId));
         action.receive(new BeginExecutionEvent());
 
         Assert.assertEquals(ActionState.IN_PROGRESS, action.receive(new ProgressEvent(10, "Setting clip-jawed monodish to 6")).getAfterState());
@@ -194,7 +194,7 @@ public class ActionStateMachineTest {
         when(entitySettingsCache.getSettingsForEntity(eq(1L)))
                 .thenReturn(ActionOrchestratorTestUtils.makeActionModeSetting(ActionMode.MANUAL));
         Action action = new Action(move, entitySettingsCache, actionPlanId);
-        action.receive(new ManualAcceptanceEvent(userId, targetId));
+        action.receive(new ManualAcceptanceEvent(userUuid, targetId));
         action.receive(new BeginExecutionEvent());
 
         ExecutableStep executableStep = action.getExecutableStep().get();
@@ -212,7 +212,7 @@ public class ActionStateMachineTest {
         when(entitySettingsCache.getSettingsForEntity(eq(1L)))
                 .thenReturn(ActionOrchestratorTestUtils.makeActionModeSetting(ActionMode.MANUAL));
         Action action = new Action(move, entitySettingsCache, actionPlanId);
-        action.receive(new ManualAcceptanceEvent(userId, targetId));
+        action.receive(new ManualAcceptanceEvent(userUuid, targetId));
         action.receive(new BeginExecutionEvent());
 
         ExecutableStep executableStep = action.getExecutableStep().get();
