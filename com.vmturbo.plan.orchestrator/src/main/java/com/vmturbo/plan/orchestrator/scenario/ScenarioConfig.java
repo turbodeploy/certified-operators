@@ -19,8 +19,13 @@ public class ScenarioConfig {
     private GlobalConfig globalConfig;
 
     @Bean
+    public ScenarioDao scenarioDao() {
+        return new ScenarioDao(databaseConfig.dsl());
+    }
+
+    @Bean
     public ScenarioRpcService scenarioService() {
-        return new ScenarioRpcService(databaseConfig.dsl(), globalConfig.identityInitializer());
+        return new ScenarioRpcService(scenarioDao(), globalConfig.identityInitializer());
     }
 
     @Bean

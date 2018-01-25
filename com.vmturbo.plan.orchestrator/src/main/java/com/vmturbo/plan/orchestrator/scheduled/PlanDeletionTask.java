@@ -11,12 +11,14 @@ import org.jooq.DSLContext;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.scheduling.support.CronTrigger;
 
+import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
+import com.vmturbo.plan.orchestrator.scenario.ScenarioDao;
 
 /**
  * Task to delete old/expired plans and its associated information.
@@ -36,12 +38,15 @@ public class PlanDeletionTask {
 
     private final PlanDao planDao;
 
+    private final ScenarioDao scenarioDao;
+
     private final int batchSize;
 
     private final int delayBetweenDeletesInSeconds;
 
     PlanDeletionTask(@Nonnull final SettingServiceBlockingStub settingsServiceClient,
                      @Nonnull PlanDao planDao,
+                     @Nonnull ScenarioDao scenarioDao,
                      @Nonnull final DSLContext dsl,
                      @Nonnull final ThreadPoolTaskScheduler threadPoolTaskScheduler,
                      @Nonnull CronTrigger cronTrigger,
@@ -53,6 +58,7 @@ public class PlanDeletionTask {
         this.cronTrigger = cronTrigger;
         this.threadPoolTaskScheduler = threadPoolTaskScheduler;
         this.planDao = planDao;
+        this.scenarioDao = scenarioDao;
         this.batchSize = batchSize;
         this.delayBetweenDeletesInSeconds = delayBetweenDeletesInSeconds;
     }
@@ -94,10 +100,10 @@ public class PlanDeletionTask {
             // Query plan_instance db to get all the planIds older than the
             // retentionDays. Then delete them one by one.
             LocalDateTime expirationDate = LocalDateTime.now().minusDays(retentionDays);
-            List<Long> expiredPlans = planDao.getOldPlans(expirationDate, batchSize);
+            List<PlanDTO.PlanInstance> expiredPlans = planDao.getOldPlans(expirationDate, batchSize);
             logger.info("Deleting all plans older than {}", expirationDate);
             while (!expiredPlans.isEmpty()) {
-                for (Long planId : expiredPlans) {
+                for (PlanDTO.PlanInstance plan : expiredPlans) {
                     try {
                         // TODO: karthikt -  Deleting the plan related data one at a
                         // time is in-efficient as it leads lot of small disk
@@ -105,8 +111,9 @@ public class PlanDeletionTask {
                         // support batch plan deletion. It's complicated by
                         // the fact that the data is distributed amongst
                         // different components.
-                        logger.debug("Deleting plan: {}", planId);
-                        planDao.deletePlan(planId);
+                        logger.debug("Deleting plan: {}", plan.getPlanId());
+                        planDao.deletePlan(plan.getPlanId());
+                        scenarioDao.deleteScenario(plan.getScenario().getId());
                     } catch (NoSuchObjectException ex) {
                         // Ignore this exception as it doesn't matter.
                         // This exception can happen if a plan is explicitly deleted

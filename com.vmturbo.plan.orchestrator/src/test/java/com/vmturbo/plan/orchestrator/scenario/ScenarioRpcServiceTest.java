@@ -26,7 +26,6 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
 import com.google.common.collect.ImmutableList;
-
 import io.grpc.Status.Code;
 
 import com.vmturbo.common.protobuf.plan.PlanDTO.DeleteScenarioResponse;
@@ -88,7 +87,8 @@ public class ScenarioRpcServiceTest {
     }
 
     private void prepareGrpc() throws Exception {
-        scenarioRpcService = new ScenarioRpcService(dbConfig.dsl(), new IdentityInitializer(0));
+        scenarioRpcService = new ScenarioRpcService(
+            new ScenarioDao(dbConfig.dsl()), new IdentityInitializer(0));
         grpcServer = GrpcTestServer.newServer(scenarioRpcService);
         grpcServer.start();
         scenarioServiceClient = ScenarioServiceGrpc.newBlockingStub(grpcServer.getChannel());
@@ -163,18 +163,8 @@ public class ScenarioRpcServiceTest {
             ScenarioId.newBuilder()
                 .setScenarioId(createdScenario.getId())
                 .build());
-        Assert.assertTrue(response.hasScenario());
-        Assert.assertEquals(newInfo, response.getScenario().getScenarioInfo());
-    }
-
-    @Test
-    public void testDeleteNonExistingScenario() throws Exception {
-        expectedException.expect(GrpcRuntimeExceptionMatcher.hasCode(Code.NOT_FOUND)
-                .descriptionContains("1"));
-        scenarioServiceClient.deleteScenario(
-                ScenarioId.newBuilder()
-                        .setScenarioId(1)
-                        .build());
+        // on successful delete, the response object should be valid.
+        Assert.assertNotNull(response);
     }
 
     @Test

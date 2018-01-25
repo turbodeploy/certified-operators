@@ -151,7 +151,6 @@ public class ScenariosServiceTest {
                 .setScenarioId(SCENARIO_RESPONSE.getId())
                 .build()))
             .thenReturn(DeleteScenarioResponse.newBuilder()
-                    .setScenario(SCENARIO_RESPONSE)
                     .build());
 
         Assert.assertTrue(scenariosService.deleteScenario(SCENARIO_RESPONSE.getId()));

@@ -376,15 +376,21 @@ public class PlanDaoImpl implements PlanDao {
     }
 
     @Override
-    public List<Long> getOldPlans(LocalDateTime expirationDate, int batchSize)
+    public List<PlanDTO.PlanInstance> getOldPlans(LocalDateTime expirationDate, int batchSize)
         throws DataAccessException {
 
-        return dsl.select()
-            .from(PLAN_INSTANCE)
-            .where(PLAN_INSTANCE.UPDATE_TIME.lt(expirationDate))
-            .orderBy(PLAN_INSTANCE.UPDATE_TIME)
-            .limit(batchSize)
-            .fetch(PLAN_INSTANCE.ID, Long.class);
+        final List<PlanInstance> records =
+            dsl.select()
+                .from(PLAN_INSTANCE)
+                .where(PLAN_INSTANCE.UPDATE_TIME.lt(expirationDate))
+                .orderBy(PLAN_INSTANCE.UPDATE_TIME)
+                .limit(batchSize)
+                .fetch()
+                .into(PlanInstance.class);
+
+        return records.stream()
+            .map(PlanInstance::getPlanInstance)
+            .collect(Collectors.toList());
     }
 
     /**

@@ -482,10 +482,6 @@ message DeleteScenarioRequest {
 }
 
 message DeleteScenarioResponse {
-    // If set, the deleted scenario.
-    // Will be unset if the scenario_id in
-    // the request referred to a non-existing scenario.
-    optional Scenario scenario = 1;
 }
 
 // A service responsible for CRUD operations for plan scenarios.

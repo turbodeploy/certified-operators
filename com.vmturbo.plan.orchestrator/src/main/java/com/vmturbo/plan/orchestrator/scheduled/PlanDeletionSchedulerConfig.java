@@ -21,6 +21,8 @@ import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBloc
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.plan.orchestrator.plan.PlanConfig;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
+import com.vmturbo.plan.orchestrator.scenario.ScenarioConfig;
+import com.vmturbo.plan.orchestrator.scenario.ScenarioDao;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 /**
@@ -31,6 +33,7 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
 @EnableScheduling
 @Import({GroupClientConfig.class,
          PlanConfig.class,
+         ScenarioConfig.class,
          SQLDatabaseConfig.class})
 public class PlanDeletionSchedulerConfig implements SchedulingConfigurer {
 
@@ -42,6 +45,9 @@ public class PlanDeletionSchedulerConfig implements SchedulingConfigurer {
 
     @Autowired
     private PlanDao planDao;
+
+    @Autowired
+    private ScenarioDao scenarioDao;
 
     /**
      * Plan deletion schedule. It uses the standard cron time format.
@@ -67,7 +73,7 @@ public class PlanDeletionSchedulerConfig implements SchedulingConfigurer {
 
     @Bean
     public PlanDeletionTask planDeletionTask() {
-        return new PlanDeletionTask(settingServiceClient(), planDao,
+        return new PlanDeletionTask(settingServiceClient(), planDao, scenarioDao,
                     dbConfig.dsl(), threadPoolTaskScheduler(), cronTrigger(),
                     batchSize, delayBetweenDeletesInSeconds);
     }

@@ -102,12 +102,12 @@ public interface PlanDao {
     void addStatusListener(@Nonnull final PlanStatusListener listener);
 
     /**
-     *  Return old plan IDs.
+     *  Return old plans.
      *
      *  @param expirationDate Return all the plans which are older than this date.
      *  @param batchSize Limit the number of returned entries to batchSize.
-     *  @return Return the list of plans IDs.
+     *  @return Return the list of expired plans.
      *  @throws DataAccessException Exceptionw while accessing the database.
      */
-    List<Long> getOldPlans(LocalDateTime expirationDate, int batchSize);
+    List<PlanInstance> getOldPlans(LocalDateTime expirationDate, int batchSize);
 }
