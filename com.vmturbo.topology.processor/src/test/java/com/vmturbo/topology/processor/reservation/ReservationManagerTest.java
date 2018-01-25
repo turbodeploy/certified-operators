@@ -1,11 +1,15 @@
 package com.vmturbo.topology.processor.reservation;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
+import org.joda.time.DateTimeZone;
 import org.joda.time.LocalDate;
 import org.junit.Before;
 import org.junit.Rule;
@@ -13,6 +17,7 @@ import org.junit.Test;
 import org.mockito.Mockito;
 
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.plan.ReservationDTO.GetAllReservationsRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
@@ -108,8 +113,8 @@ public class ReservationManagerTest {
 
     @Test
     public void testApplyReservationFuture() {
-        final LocalDate today = LocalDate.now();
-        final LocalDate nextMonth = LocalDate.now().plusMonths(1);
+        final LocalDate today = LocalDate.now(DateTimeZone.UTC);
+        final LocalDate nextMonth = LocalDate.now(DateTimeZone.UTC).plusMonths(1);
         final Reservation futureReservation = Reservation.newBuilder(reservation)
                 .setStatus(ReservationStatus.FUTURE)
                 .setStartDate(Date.newBuilder()
@@ -128,14 +133,25 @@ public class ReservationManagerTest {
                 Mockito.anyMap(), Mockito.any()))
                 .thenReturn(Lists.newArrayList(topologyEntityBuild).stream());
         final Map<Long, Builder> topology = new HashMap<>();
+
+        // test reservation should be active now
+        final boolean isActiveNow = reservationManager.isReservationActiveNow(futureReservation);
+        assertTrue(isActiveNow);
+        final List<Reservation> updateReservations =
+                reservationManager.handlePotentialActiveReservation(Sets.newHashSet(futureReservation),
+                        new ArrayList<>());
+        assertFalse(updateReservations.isEmpty());
+        Mockito.when(templateConverterFactory.generateTopologyEntityFromTemplates(
+                Mockito.anyMap(), Mockito.any()))
+                .thenReturn(Lists.newArrayList(topologyEntityBuild).stream());
         reservationManager.applyReservation(topology);
-        Mockito.verify(reservationServiceMole, Mockito.times(1))
-                .updateReservations(Mockito.any(), Mockito.any());
         assertEquals(1L, topology.size());
         assertTrue(topology.containsKey(345L));
         final TopologyEntityDTO.Builder builder = topology.get(345L).getEntityBuilder();
         assertEquals(2L, builder.getCommoditiesBoughtFromProvidersCount());
         assertTrue(builder.getCommoditiesBoughtFromProvidersBuilderList().stream()
                 .allMatch(commoditiesBought -> !commoditiesBought.hasProviderId()));
+        Mockito.verify(reservationServiceMole, Mockito.times(1))
+                .updateReservations(Mockito.any(), Mockito.any());
     }
 }

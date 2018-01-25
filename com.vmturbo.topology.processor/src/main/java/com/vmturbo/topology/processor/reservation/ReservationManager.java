@@ -14,8 +14,10 @@ import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.joda.time.DateTimeZone;
 import org.joda.time.LocalDate;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ImmutableMap;
 
@@ -76,8 +78,16 @@ public class ReservationManager {
                         .collect(Collectors.toSet());
         final List<TopologyEntity.Builder> reservationTopologyEntities = new ArrayList<>();
 
-        handlePotentialActiveReservation(todayActiveReservations, reservationTopologyEntities);
+        final List<Reservation> updateReservations =
+                handlePotentialActiveReservation(todayActiveReservations, reservationTopologyEntities);
         handleReservedReservation(reservedReservations, reservationTopologyEntities, topology);
+        // Update reservations which have just become active.
+        if (!updateReservations.isEmpty()) {
+            final UpdateReservationsRequest request = UpdateReservationsRequest.newBuilder()
+                .addAllReservation(updateReservations)
+                .build();
+            reservationService.updateReservations(request);
+        }
 
         //TODO: (OM-29676) update existing topologyEntity utilization based on placement information
         // and only buy provision commodities.
@@ -92,8 +102,9 @@ public class ReservationManager {
      * @param reservation {@link Reservation}.
      * @return a Boolean.
      */
-    private boolean isReservationActiveNow(@Nonnull final Reservation reservation) {
-        final LocalDate today = LocalDate.now();
+    @VisibleForTesting
+    boolean isReservationActiveNow(@Nonnull final Reservation reservation) {
+        final LocalDate today = LocalDate.now(DateTimeZone.UTC);
         final Reservation.Date startDate = reservation.getStartDate();
         final LocalDate reservationDate = new LocalDate(startDate.getYear(), startDate.getMonth(),
                 startDate.getDay());
@@ -236,8 +247,10 @@ public class ReservationManager {
      *
      * @param todayActiveReservations a Set of {@link Reservation}.
      * @param reservationTopologyEntities a list of {@link TopologyEntity.Builder}.
+     * @return a list of {@link Reservation} need to update.
      */
-    private void handlePotentialActiveReservation(
+    @VisibleForTesting
+    List<Reservation> handlePotentialActiveReservation(
             @Nonnull final Set<Reservation> todayActiveReservations,
             @Nonnull final List<TopologyEntity.Builder> reservationTopologyEntities) {
         final List<Reservation> updateReservationsWithEntityOid = new ArrayList<>();
@@ -258,13 +271,7 @@ public class ReservationManager {
                     .setStatus(ReservationStatus.RESERVED)
                     .build());
         }
-        // Update reservations which have just become active.
-        if (!updateReservationsWithEntityOid.isEmpty()) {
-            final UpdateReservationsRequest request = UpdateReservationsRequest.newBuilder()
-                .addAllReservation(updateReservationsWithEntityOid)
-                .build();
-            reservationService.updateReservations(request);
-        }
+        return updateReservationsWithEntityOid;
     }
 
     /**

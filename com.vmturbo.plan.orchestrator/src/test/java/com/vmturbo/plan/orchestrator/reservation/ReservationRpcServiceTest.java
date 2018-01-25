@@ -7,6 +7,7 @@ import java.util.Iterator;
 import java.util.Optional;
 import java.util.Set;
 
+import org.joda.time.DateTimeZone;
 import org.joda.time.LocalDate;
 import org.junit.After;
 import org.junit.Before;
@@ -128,7 +129,7 @@ public class ReservationRpcServiceTest {
 
     @Test
     public void testCreateReservation() {
-        final LocalDate today = LocalDate.now();
+        final LocalDate today = LocalDate.now(DateTimeZone.UTC);
         final LocalDate nextMonth = today.plusMonths(1);
         final CreateReservationRequest request = CreateReservationRequest.newBuilder()
                 .setReservation(testReservation)

@@ -16,6 +16,7 @@ import javax.ws.rs.NotSupportedException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 import org.joda.time.LocalDate;
 
 import com.google.common.collect.ImmutableList;
@@ -271,7 +272,7 @@ public class ReservationMapper {
         }
         // Right now, UI set reservation start date to empty string when start date is current date,
         // after UI fix this issue, we can remove empty string covert here.
-        final LocalDate reserveDate = reserveDateStr.isEmpty() ? LocalDate.now() :
+        final LocalDate reserveDate = reserveDateStr.isEmpty() ? LocalDate.now(DateTimeZone.UTC) :
                 DateTime.parse(reserveDateStr).toLocalDate();
         final LocalDate expireDate = DateTime.parse(expireDateStr).toLocalDate();
         if (reserveDate.isAfter(expireDate)) {
@@ -280,7 +281,7 @@ public class ReservationMapper {
         reservationBuilder.setStartDate(convertDateTimeToProto(reserveDate));
         reservationBuilder.setExpirationDate(convertDateTimeToProto(expireDate));
         // Right now, reservation date doesn't have hour information, we need to keep and compare date.
-        final LocalDate today = LocalDate.now();
+        final LocalDate today = LocalDate.now(DateTimeZone.UTC);
         if (today.isAfter(expireDate)) {
             throw new InvalidOperationException("Reservation expire date should be after current date.");
         }
