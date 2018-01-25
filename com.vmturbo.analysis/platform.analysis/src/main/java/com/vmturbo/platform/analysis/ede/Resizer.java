@@ -132,10 +132,8 @@ public class Resizer {
      */
     private static double calculateEffectiveCapacity(double desiredCapacity,
                                                      @NonNull CommoditySold commoditySold,
-                                                     @NonNull CommoditySold rawMaterial,
+                                                     CommoditySold rawMaterial,
                                                      float rateOfRightSize) {
-        checkArgument(rawMaterial != null, "Expected raw material for commodity %s to be non-null",
-                                            commoditySold);
         checkArgument(rateOfRightSize > 0, "Expected rateOfRightSize to be > 0", rateOfRightSize);
 
         double maxQuantity = commoditySold.getMaxQuantity();
@@ -151,7 +149,11 @@ public class Resizer {
             double numIncrements = delta / capacityIncrement / rateOfRightSize;
             int ceilNumIncrements = (int) Math.ceil(numIncrements);
             double proposedIncrement = capacityIncrement * ceilNumIncrements;
-            double remaining = rawMaterial.getEffectiveCapacity() - rawMaterial.getQuantity();
+
+            // if we do not specify a raw material, then we impose no restriction on the value
+            // we resize to (regarding to what the seller can provide)
+            double remaining = rawMaterial == null ? Double.MAX_VALUE :
+                                    rawMaterial.getEffectiveCapacity() - rawMaterial.getQuantity();
             if (remaining > 0) {
                 if (remaining < proposedIncrement) {
                     int floorNumIncrements = (int) Math.floor(remaining / capacityIncrement);
