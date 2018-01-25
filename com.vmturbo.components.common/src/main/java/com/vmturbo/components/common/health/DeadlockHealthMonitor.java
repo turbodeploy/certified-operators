@@ -18,16 +18,13 @@ import org.apache.logging.log4j.Logger;
 public class DeadlockHealthMonitor extends PollingHealthMonitor {
     private Logger log = LogManager.getLogger();
 
-    // use JMX to check for deadlocks
-    private final ThreadMXBean threadMxBean;
-
     public DeadlockHealthMonitor(double pollingIntervalSecs) {
         super("Deadlock Checker", pollingIntervalSecs);
-        threadMxBean = ManagementFactory.getThreadMXBean();
     }
 
     @Override
     public void updateHealthStatus() {
+        ThreadMXBean threadMxBean = ManagementFactory.getThreadMXBean();
         long[] deadlockedThreadIds = threadMxBean.findDeadlockedThreads();
         if (ArrayUtils.isEmpty(deadlockedThreadIds)) {
             reportHealthy();

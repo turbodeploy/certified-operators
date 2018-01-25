@@ -29,17 +29,25 @@ public class DeadlockMonitorTest {
     @Test
     public void testDeadlock() {
         // set up the monitor
-        DeadlockHealthMonitor deadlockDetector = new DeadlockHealthMonitor(POLLING_INTERVAL_SECS);
+        final DeadlockHealthMonitor deadlockDetector = new DeadlockHealthMonitor(POLLING_INTERVAL_SECS);
 
-        // set up a deadlock
-        DeadlockScenario deadlockScenario = new DeadlockScenario();
+        final DeadlockScenario deadlockScenario = new DeadlockScenario();
+        try {
+            // set up a deadlock
+             deadlockScenario.start();
 
-        // verify that the next check is unhealthy
-        SimpleHealthStatus healthStatus = deadlockDetector.getStatusStream().blockFirst(Duration.ofSeconds(5));
-        Assert.assertFalse(healthStatus.isHealthy());
-        deadlockScenario.stop();
-        healthStatus = deadlockDetector.getStatusStream().blockFirst(Duration.ofSeconds(5));
-        Assert.assertTrue(healthStatus.isHealthy());
+            // verify that the last check in the next 100 ms is unhealthy
+            SimpleHealthStatus healthStatus = deadlockDetector.getStatusStream()
+                    .take(Duration.ofMillis(100)).last(deadlockDetector.getHealthStatus()).block();
+            Assert.assertFalse(healthStatus.isHealthy());
+
+        } finally {
+            deadlockScenario.stop();
+        }
+        // we should be back to clean health
+        SimpleHealthStatus cleanHealthStatus = deadlockDetector.getStatusStream()
+                .blockFirst(Duration.ofSeconds(5));
+        Assert.assertTrue(cleanHealthStatus.isHealthy());
     }
 
     /**
@@ -48,28 +56,41 @@ public class DeadlockMonitorTest {
      * mission ends.
      */
     static private class DeadlockScenario {
-        Thread t1,t2;
-        Thief thief1 = new Thief("thief1");
-        Thief thief2 = new Thief("thief2");
+        final CountDownLatch missionEnd = new CountDownLatch(2);
+        final Thief thief1 = new Thief("thief1");
+        final Thief thief2 = new Thief("thief2");
+        final Thread t1 = new Thread(() -> {
+            thief1.doublecross(missionEnd, thief2);
+        });
+        final Thread t2 = new Thread(() -> {
+            thief2.doublecross(missionEnd, thief1);
+        });
 
-        public DeadlockScenario() {
-            CountDownLatch missionEnd = new CountDownLatch(2);
-            t1 = new Thread(() -> {
-                thief1.doublecross(missionEnd, thief2);
-            });
-            t2 = new Thread(() -> {
-                thief2.doublecross(missionEnd, thief1);
-            });
+        public void start() {
             t1.start();
             t2.start();
+            try {
+                // don't leave the method until the deadlock scenario starts
+                missionEnd.await();
+                // at this point we know both thieves are going for the double cross and will
+                // deadlock. But there is a small possibility that the threads haven't officially
+                // deadlocked by the time we return from this method and the next health check runs.
+
+                // If we really want to be thorough, we can wait here until the
+                // ThreadMxBean detects the deadlock, but at that point we aren't really
+                // testing the test subject any more, but rather testing the test code, so let's
+                // see if we can avoid it for now.
+            } catch (InterruptedException ie) {
+
+            }
         }
 
         public void stop() {
             logger.info("Stopping deadlock scenario.");
-            if ((t1 != null) && t1.isAlive()) {
+            if (t1.isAlive()) {
                 t1.interrupt();
             }
-            if ((t2 != null) && t2.isAlive()) {
+            if (t2.isAlive()) {
                 t2.interrupt();
             }
             try {
@@ -78,7 +99,7 @@ public class DeadlockMonitorTest {
                 }
 
             } catch (InterruptedException ie) {
-
+                // no op -- if we are interrupted we are shutting down anyways
             }
             logger.info("Deadlock scenario stopped.");
         }
