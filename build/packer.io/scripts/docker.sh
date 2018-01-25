@@ -137,6 +137,7 @@ function start_xl() {
 	start_and_verify_xl_component action-orchestrator "$JAVA_MSG"
 	start_and_verify_xl_component group "$JAVA_MSG"
 	start_and_verify_xl_component history "$JAVA_MSG"
+	start_and_verify_xl_component reporting "$JAVA_MSG"
 	start_and_verify_xl_component mediation-hyperv "$JAVA_MSG"
 	start_and_verify_xl_component mediation-vcenter "$JAVA_MSG"
 	start_and_verify_xl_component mediation-netapp "$JAVA_MSG"
