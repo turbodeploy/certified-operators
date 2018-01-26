@@ -103,7 +103,7 @@ public class ActionSupportResolver {
 
     private boolean isActionTypesMatchesCapabilityActionType(
             Entry<Action, List<ProbeActionCapability>> entry, ActionCapabilityElement element) {
-        return ActionDTOUtil.getActionInfoActionType(entry.getKey().getRecommendation()
-                .getInfo()) == element.getActionType();
+        return ActionDTOUtil.getActionInfoActionType(entry.getKey().getRecommendation()) ==
+                element.getActionType();
     }
 }

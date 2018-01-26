@@ -2,7 +2,7 @@ package com.vmturbo.api.component.external.api.mapper;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.ImmutableBiMap;
+import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 
@@ -20,9 +20,14 @@ public class ActionTypeMapper {
      * Hurray for indirect dependencies!
      * The UI expexts the legacy action types, so we have to do the conversion
      * here.
+     * <p>
+     * It is not one to one mapping between UI action type with internal action type. ACTIVATE and
+     * START action type will be mapped to string "START".
+     * TODO: After UI change to support Activate type, we should change the maps to support one
+     * to one mapping.
      */
-    private static ImmutableBiMap<ActionType, String> actionTypeMappings =
-        new ImmutableBiMap.Builder<ActionType, String>()
+    private static ImmutableMap<ActionType, String> actionTypeToStrMappings =
+        new ImmutableMap.Builder<ActionType, String>()
             .put(ActionType.NONE, "NONE")
             .put(ActionType.START, "START")
             .put(ActionType.MOVE, "MOVE")
@@ -30,9 +35,8 @@ public class ActionTypeMapper {
             .put(ActionType.PROVISION, "PROVISION")
             .put(ActionType.RECONFIGURE, "RECONFIGURE")
             .put(ActionType.RESIZE, "RESIZE")
-            // TODO (roman, Feb 24 2017): Determine if ACTIVATE and DEACTIVATE should be mapped
-            // to something else.
-            .put(ActionType.ACTIVATE, "ACTIVATE")
+            // UI expect activate to be "START"
+            .put(ActionType.ACTIVATE, "START")
             .put(ActionType.DEACTIVATE, "DEACTIVATE")
             .build();
 
@@ -44,7 +48,7 @@ public class ActionTypeMapper {
      */
     @Nonnull
     public static String toApi(@Nonnull final ActionType actionType) {
-        final String apiStr = actionTypeMappings.get(actionType);
+        final String apiStr = actionTypeToStrMappings.get(actionType);
         if (apiStr == null) {
             throw new IllegalArgumentException("Invalid action type: " + actionType);
         }
@@ -57,10 +61,6 @@ public class ActionTypeMapper {
      */
     @Nonnull
     public static ActionType fromApi(@Nonnull final String actionType) {
-        final ActionType type = actionTypeMappings.inverse().get(actionType);
-        if (type == null) {
-            throw new IllegalArgumentException("Invalid action type: " + actionType);
-        }
-        return type;
+        return ActionType.valueOf(actionType);
     }
 }

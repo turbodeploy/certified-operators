@@ -487,7 +487,6 @@ public class ActionsRpcService extends ActionsServiceImplBase {
     private static Map<ActionType, Long> getActionsByType(@Nonnull final Stream<ActionView> actionViewStream) {
         return actionViewStream
             .map(ActionView::getRecommendation)
-            .map(ActionDTO.Action::getInfo)
             .collect(Collectors.groupingBy(
                 ActionDTOUtil::getActionInfoActionType,
                 Collectors.counting()));

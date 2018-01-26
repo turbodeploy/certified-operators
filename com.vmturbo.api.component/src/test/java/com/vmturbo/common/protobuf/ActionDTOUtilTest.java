@@ -4,6 +4,13 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
+import com.vmturbo.common.protobuf.action.ActionDTO.Action;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation.InitialPlacement;
+import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 
 import static org.junit.Assert.assertEquals;
@@ -43,5 +50,22 @@ public class ActionDTOUtilTest {
     public void testMapIllegalImportance() throws Exception {
         expectedException.expect(IllegalArgumentException.class);
         ActionDTOUtil.mapImportanceToSeverity(Double.NaN);
+    }
+
+    @Test
+    public void testMapMoveToStart() {
+        final Action action = Action.newBuilder()
+                .setId(1L)
+                .setImportance(1.0)
+                .setInfo(ActionInfo.newBuilder()
+                        .setMove(Move.newBuilder()
+                                .setTargetId(1234L)
+                                .setSourceId(0L)
+                                .setDestinationId(111L)))
+                .setExplanation(Explanation.newBuilder()
+                        .setMove(MoveExplanation.newBuilder()
+                                .setInitialPlacement(InitialPlacement.getDefaultInstance())))
+                .build();
+        assertEquals(ActionType.START, ActionDTOUtil.getActionInfoActionType(action));
     }
 }

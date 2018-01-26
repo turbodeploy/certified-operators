@@ -18,7 +18,11 @@ public class ActionTypeMapperTest {
     @Test
     public void testTypeValues() {
         for (ActionType type : ActionType.values()) {
-            Assert.assertEquals(type, ActionTypeMapper.fromApi(ActionTypeMapper.toApi(type)));
+            if (type == ActionType.ACTIVATE) {
+                Assert.assertEquals("START", ActionTypeMapper.toApi(type));
+            } else {
+                Assert.assertEquals(type, ActionTypeMapper.fromApi(ActionTypeMapper.toApi(type)));
+            }
         }
     }
 

@@ -14,6 +14,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 
 /**
@@ -155,13 +156,16 @@ public class ActionDTOUtil {
     }
 
     /**
-     * Return the {@link ActionType} that matches the contents of an {@link ActionInfo}.
+     * Return the {@link Action} that matches the contents of an {@link ActionInfo}.
      */
     @Nonnull
-    public static ActionType getActionInfoActionType(@Nonnull final ActionInfo actionInfo) {
-        switch (actionInfo.getActionTypeCase()) {
+    public static ActionType getActionInfoActionType(@Nonnull final Action action) {
+        switch (action.getInfo().getActionTypeCase()) {
             case MOVE:
-                return ActionType.MOVE;
+                final Explanation explanation = action.getExplanation();
+                // if Move has initial placement explanation, it should be START.
+                return (explanation.hasMove() && explanation.getMove().hasInitialPlacement()) ?
+                        ActionType.START : ActionType.MOVE;
             case RECONFIGURE:
                 return ActionType.RECONFIGURE;
             case PROVISION:
