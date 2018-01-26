@@ -52,6 +52,9 @@ message CostDTO {
         repeated CostPair costMap = 1;
         required int32 licenseBaseType  = 2;
         required double costWithoutLicense = 3;
+        required bool accumulateResources = 4 [default = false];
+        optional int32 comm1Type = 5;
+        optional int32 comm2Type = 6;
     }
 
 }

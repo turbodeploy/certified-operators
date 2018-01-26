@@ -314,7 +314,6 @@ public class CostFunctionFactory {
         int boughtIndex = 0;
         Basket basket = sl.getBasket();
         final double[] quantities = sl.getQuantities();
-        final double[] peakQuantities = sl.getPeakQuantities();
         List<CommoditySold> commsSold = seller.getCommoditiesSold();
         for (int soldIndex = 0; boughtIndex < basket.size();
                         boughtIndex++, soldIndex++) {
@@ -330,6 +329,28 @@ public class CostFunctionFactory {
             }
         }
         return true;
+    }
+
+    /**
+     * Validate if the sum of netTpUsed and ioTpUsed is within the netTpSold capacity
+     *
+     * @param sl the shopping list
+     * @param seller the templateProvider that supplies the resources
+     * @param comm1Type is the type of 1st commodity
+     * @param comm2Type is the type of 2nd commodity
+     * @return true if validation passes, otherwise false
+     */
+    private static boolean validateDependantComputeCommodities(ShoppingList sl,
+                                                         Trader seller,
+                                                         int comm1Type,
+                                                         int comm2Type) {
+        int comm1BoughtIndex = sl.getBasket().indexOf(comm1Type);
+        int comm2BoughtIndex = sl.getBasket().indexOf(comm2Type);
+        int comm2SoldIndex = seller.getBasketSold().indexOf(comm1Type);
+        double boughtSum = sl.getQuantity(comm1BoughtIndex)
+                        + sl.getQuantity(comm2BoughtIndex);
+
+        return (boughtSum <= seller.getCommoditiesSold().get(comm2SoldIndex).getCapacity());
     }
 
     /**
@@ -476,6 +497,12 @@ public class CostFunctionFactory {
                                 return costDTO.getCostWithoutLicense();
                             }
                             if (!validateRequestedAmountWithinSellerCapacity(buyer, seller)) {
+                                return Double.POSITIVE_INFINITY;
+                            }
+                            if (costDTO.getAccumulateResources() &&
+                                        !validateDependantComputeCommodities(buyer, seller,
+                                                                           costDTO.getComm1Type(),
+                                                                           costDTO.getComm2Type())) {
                                 return Double.POSITIVE_INFINITY;
                             }
                             return calculateComputeCost(seller, buyer, costDTO, costMap);
