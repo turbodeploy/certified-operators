@@ -649,7 +649,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
             if (success) {
                 entityStore.entitiesDiscovered(discovery.getProbeId(), targetId,
                         response.getEntityDTOList());
-                discoveredGroupUploader.queueDiscoveredGroups(targetId, response.getDiscoveredGroupList());
+                discoveredGroupUploader.setTargetDiscoveredGroups(targetId, response.getDiscoveredGroupList());
                 discoveredTemplateDeploymentProfileNotifier.setTargetsTemplateDeploymentProfile(targetId,
                     response.getEntityProfileList(), response.getDeploymentProfileList());
                 DISCOVERY_SIZE_SUMMARY.observe((double) response.getEntityDTOList().size());

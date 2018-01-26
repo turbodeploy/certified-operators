@@ -66,7 +66,7 @@ public class StagesTest {
         final DiscoveredGroupUploader uploader = mock(DiscoveredGroupUploader.class);
         final UploadGroupsStage stage = new UploadGroupsStage(uploader);
         stage.passthrough(entityStore);
-        verify(uploader).processQueuedGroups();
+        verify(uploader).uploadDiscoveredGroups();
     }
 
     @Test

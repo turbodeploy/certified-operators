@@ -1,15 +1,16 @@
 package com.vmturbo.topology.processor.group.discovery;
 
+import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
-import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -29,14 +30,19 @@ import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupInterpreter
 
 /**
  * The {@link DiscoveredGroupUploader} is the interface for the discovery operation to upload
- * discovered {@link CommonDTO.GroupDTO}s to the Group component.
+ * discovered {@link CommonDTO.GroupDTO}s, Policies, and Settings to the Group component.
  * <p>
- * The uploader acts as a queue:
- * - When processing discovery results, the processing thread queues up discovered groups via calls
- *   to {@link DiscoveredGroupUploader#queueDiscoveredGroups(long, List)}.
- * - Asynchronously, an internal thread polls the "queue" and uploads any discovered groups since
- *   the last poll to the group component.
+ * The uploader should is thread safe. Discovered groups, policies, and settings may be
+ * set while an upload is in progress. Upload happens during a
+ * {@link com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline} stage in the
+ * broadcast pipeline, while discoveries happen asynchronously with this pipeline.
+ *
+ * Uploading discovered groups does NOT clear the latest discovered groups, policies, and settings
+ * for targets known to the uploader. Thus, if no new groups, policies, or settings are set for
+ * a target since the last time that target's results were uploaded, the previous ones will
+ * be re-uploaded the next time that {@link #uploadDiscoveredGroups()} is called.
  */
+@ThreadSafe
 public class DiscoveredGroupUploader {
 
     private static final Logger logger = LogManager.getLogger();
@@ -60,25 +66,8 @@ public class DiscoveredGroupUploader {
      * This is for debugging purposes only - to support easily viewing the latest discovered
      * groups.
      */
-    @GuardedBy("latestGroupByTargetLock")
-    private final Map<Long, List<InterpretedGroup>> latestGroupByTarget = new HashMap<>();
-
-    @GuardedBy("latestGroupByTargetLock")
-    private final Map<Long, List<DiscoveredPolicyInfo>> latestPoliciesByTarget = new HashMap<>();
-
-    private final Object latestGroupByTargetLock = new Object();
-
-    /**
-     * A map from targetId to the most recent list of {@link CommonDTO.GroupDTO}s discovered
-     * by that target and not yet uploaded to the Group component.
-     * <p>
-     * Once the DTO's are converted and uploaded to the Group component there should be no
-     * entry for that targetId until the next discovery cycle of the target.
-     */
-    @GuardedBy("queueLock")
-    private Map<Long, List<InterpretedGroup>> pendingGroupsByTarget = new HashMap<>();
-
-    private final Object queueLock = new Object();
+    private final Map<Long, List<InterpretedGroup>> latestGroupByTarget = new ConcurrentHashMap<>();
+    private final Map<Long, List<DiscoveredPolicyInfo>> latestPoliciesByTarget = new ConcurrentHashMap<>();
 
     @VisibleForTesting
     DiscoveredGroupUploader(@Nonnull final Channel groupChannel,
@@ -96,22 +85,21 @@ public class DiscoveredGroupUploader {
 
     }
 
-    public void queueDiscoveredGroups(final long targetId,
-                                      @Nonnull final List<CommonDTO.GroupDTO> groups) {
+    /**
+     * Set the discovered groups for a target. This overwrites any existing discovered
+     * group information for the target.
+     *
+     * @param targetId The id of the target whose groups were discovered.
+     * @param groups The discovered groups for the target.
+     */
+    public void setTargetDiscoveredGroups(final long targetId,
+                                          @Nonnull final List<CommonDTO.GroupDTO> groups) {
         final List<InterpretedGroup> interpretedDtos =
                 discoveredGroupInterpreter.interpretSdkGroupList(groups, targetId);
         synchronized (latestGroupByTarget) {
             latestGroupByTarget.put(targetId, interpretedDtos);
             final DiscoveredPolicyInfoParser parser = new DiscoveredPolicyInfoParser(groups);
             latestPoliciesByTarget.put(targetId, parser.parsePoliciesOfGroups());
-        }
-
-        synchronized (queueLock) {
-            // Only queue successfully interpreted DTOs for uploading to the Group component.
-            //
-            // The list of groups for a particular target completely overwrites whatever the
-            // previous list of groups for that target was.
-            pendingGroupsByTarget.put(targetId, interpretedDtos);
         }
     }
 
@@ -122,48 +110,31 @@ public class DiscoveredGroupUploader {
      */
     @Nonnull
     public Map<Long, List<DiscoveredGroupInfo>> getDiscoveredGroupInfoByTarget() {
-        synchronized (latestGroupByTargetLock) {
-            return latestGroupByTarget.entrySet().stream()
-                .collect(Collectors.toMap(Entry::getKey,
-                        entry -> entry.getValue().stream()
-                            .map(InterpretedGroup::createDiscoveredGroupInfo)
-                            .collect(Collectors.toList())));
-        }
-    }
-
-    @Nonnull
-    @VisibleForTesting
-    Map<Long, List<InterpretedGroup>> pollQueuedGroups() {
-        synchronized (queueLock) {
-            final Map<Long, List<InterpretedGroup>> ret = pendingGroupsByTarget;
-            pendingGroupsByTarget = new HashMap<>();
-            return ret;
-        }
+        return latestGroupByTarget.entrySet().stream()
+            .collect(Collectors.toMap(Entry::getKey,
+                entry -> entry.getValue().stream()
+                    .map(InterpretedGroup::createDiscoveredGroupInfo)
+                    .collect(Collectors.toList())));
     }
 
     /**
-     * Re-queue groups returned by a call to {@link this#pollQueuedGroups()} for later processing.
-     * This is done if there was a recoverable attempting to process the groups - e.g. if the group
-     * component is down.
+     * Upload discovered groups, policies, and settings to the component responsible for managing
+     * these items.
      *
-     * @param oldGroups The groups to re-queue.
+     * Uploading discovered groups does NOT clear the latest groups, policies, and settings known
+     * to the group uploader.
      */
-    @VisibleForTesting
-    void requeueGroups(@Nonnull final Map<Long, List<InterpretedGroup>> oldGroups) {
-        synchronized (queueLock) {
-            // If a fresher set of groups was discovered between the call to
-            // pollQueuedGroups and now, we do NOT want to overwrite it!
-            oldGroups.forEach(pendingGroupsByTarget::putIfAbsent);
-        }
-    }
+    public void uploadDiscoveredGroups() {
+        final List<StoreDiscoveredGroupsRequest> requests = new ArrayList<>();
 
-    public void processQueuedGroups() {
-        final Map<Long, List<InterpretedGroup>> groupsByTargetId = pollQueuedGroups();
-        try {
-            groupsByTargetId.forEach((targetId, groups) -> {
+        // Create requests in a synchronized block to guard against changes to discovered groups/settings/policies
+        // while an upload is in progress so that the data structures for each type cannot be made to be
+        // out of synch with each other.
+        synchronized (latestGroupByTarget) {
+            latestGroupByTarget.forEach((targetId, groups) -> {
                 final StoreDiscoveredGroupsRequest.Builder req =
-                        StoreDiscoveredGroupsRequest.newBuilder()
-                            .setTargetId(targetId);
+                    StoreDiscoveredGroupsRequest.newBuilder()
+                        .setTargetId(targetId);
                 groups.forEach(interpretedDto -> {
                     interpretedDto.getDtoAsCluster().ifPresent(req::addDiscoveredCluster);
                     interpretedDto.getDtoAsGroup().ifPresent(req::addDiscoveredGroup);
@@ -172,12 +143,14 @@ public class DiscoveredGroupUploader {
                 if (policiesByTarget != null) {
                     req.addAllDiscoveredPolicyInfos(policiesByTarget);
                 }
-                uploadStub.storeDiscoveredGroups(req.build());
+
+                requests.add(req.build());
             });
-        } catch (RuntimeException e) {
-            requeueGroups(groupsByTargetId);
-            throw e;
         }
+
+        // Upload the groups/policies/settings.
+        // TODO: (DavidBlinn 1/29/18) upload these as a gRPC stream rather than in multiple requests.
+        requests.forEach(uploadStub::storeDiscoveredGroups);
     }
 
     /**
@@ -188,6 +161,6 @@ public class DiscoveredGroupUploader {
      * @param targetId ID of the target that was removed.
      */
     public void targetRemoved(long targetId) {
-        queueDiscoveredGroups(targetId, Collections.emptyList());
+        setTargetDiscoveredGroups(targetId, Collections.emptyList());
     }
 }

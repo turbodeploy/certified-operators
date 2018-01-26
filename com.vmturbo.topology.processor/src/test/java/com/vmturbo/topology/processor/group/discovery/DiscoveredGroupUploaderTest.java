@@ -4,13 +4,9 @@ import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupCons
 import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.PLACEHOLDER_GROUP_INFO;
 import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.PLACEHOLDER_INTERPRETED_CLUSTER;
 import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.PLACEHOLDER_INTERPRETED_GROUP;
-import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.SELECTION_DTO;
 import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.STATIC_MEMBER_DTO;
 import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.TARGET_ID;
-import static org.hamcrest.Matchers.is;
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
@@ -23,6 +19,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+
+import javax.annotation.concurrent.ThreadSafe;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -40,6 +38,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.StoreDiscoveredGroupsResponse;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupInterpreter.InterpretedGroup;
 
+@ThreadSafe
 public class DiscoveredGroupUploaderTest {
 
     private DiscoveredGroupUploader recorderSpy;
@@ -49,9 +48,6 @@ public class DiscoveredGroupUploaderTest {
     private final DiscoveredGroupInterpreter converter = mock(DiscoveredGroupInterpreter.class);
 
     private InterpretedGroup interpretedGroup = mock(InterpretedGroup.class);
-
-    private Map<Long, List<InterpretedGroup>> queuedGroup =
-                ImmutableMap.of(TARGET_ID, Collections.singletonList(interpretedGroup));
 
     @Rule
     public GrpcTestServer server = GrpcTestServer.newServer(uploadServiceSpy);
@@ -64,78 +60,56 @@ public class DiscoveredGroupUploaderTest {
     }
 
     @Test
-    public void testQueueDiscoveredGroups() {
-        assertTrue(recorderSpy.pollQueuedGroups().isEmpty());
+    public void testUploadDiscoveredGroups() {
+        assertTrue(recorderSpy.getDiscoveredGroupInfoByTarget().isEmpty());
         when(converter.interpretSdkGroupList(any(), eq(TARGET_ID)))
                 .thenReturn(Collections.singletonList(PLACEHOLDER_INTERPRETED_GROUP));
 
-        recorderSpy.queueDiscoveredGroups(TARGET_ID, Collections.singletonList(STATIC_MEMBER_DTO));
+        recorderSpy.setTargetDiscoveredGroups(TARGET_ID, Collections.singletonList(STATIC_MEMBER_DTO));
 
-        Map<Long, List<InterpretedGroup>> groups = recorderSpy.pollQueuedGroups();
-        // Any NPE's in this chain of gets means the data structure didn't get filled in properly.
-        assertEquals(PLACEHOLDER_INTERPRETED_GROUP, groups.get(TARGET_ID).get(0));
+        recorderSpy.uploadDiscoveredGroups();
+        verify(uploadServiceSpy).storeDiscoveredGroups(
+                eq(StoreDiscoveredGroupsRequest.newBuilder()
+                    .setTargetId(TARGET_ID)
+                    .addDiscoveredGroup(PLACEHOLDER_GROUP_INFO)
+                    .build()), any());
     }
 
     @Test
-    public void testDiscoveredGroupsQueueGetEmptied() {
-        assertTrue(recorderSpy.pollQueuedGroups().isEmpty());
+    public void testDiscoveredGroupsNotEmptiedByUpload() {
         when(converter.interpretSdkGroupList(any(), eq(TARGET_ID)))
                 .thenReturn(Collections.singletonList(PLACEHOLDER_INTERPRETED_GROUP));
 
-        recorderSpy.queueDiscoveredGroups(TARGET_ID, Collections.singletonList(STATIC_MEMBER_DTO));
-        // The first call to pollQueuedGroups should return the groups we just added.
-        assertFalse(recorderSpy.pollQueuedGroups().isEmpty());
-        // The second call should return nothing.
-        assertTrue(recorderSpy.pollQueuedGroups().isEmpty());
-    }
+        recorderSpy.setTargetDiscoveredGroups(TARGET_ID, Collections.singletonList(STATIC_MEMBER_DTO));
+        assertFalse(recorderSpy.getDiscoveredGroupInfoByTarget().isEmpty());
 
-    @Test
-    public void testDiscoveredGroupRequeue() {
-        when(converter.interpretSdkGroupList(eq(Collections.singletonList(STATIC_MEMBER_DTO)),
-                eq(TARGET_ID))).thenReturn(Collections.singletonList(PLACEHOLDER_INTERPRETED_GROUP));
-        assertTrue(recorderSpy.pollQueuedGroups().isEmpty());
-
-        recorderSpy.queueDiscoveredGroups(TARGET_ID, Collections.singletonList(STATIC_MEMBER_DTO));
-
-        Map<Long, List<InterpretedGroup>> groups = recorderSpy.pollQueuedGroups();
-        assertTrue(recorderSpy.pollQueuedGroups().isEmpty());
-        recorderSpy.requeueGroups(groups);
-        assertEquals(groups, recorderSpy.pollQueuedGroups());
+        // Uploading discovered groups should not empty the discovered groups known by the uploader.
+        recorderSpy.uploadDiscoveredGroups();
+        assertFalse(recorderSpy.getDiscoveredGroupInfoByTarget().isEmpty());
     }
 
     @Test
     public void testTargetRemoved() {
         when(converter.interpretSdkGroupList(eq(Collections.singletonList(STATIC_MEMBER_DTO)),
                 eq(TARGET_ID))).thenReturn(Collections.singletonList(PLACEHOLDER_INTERPRETED_GROUP));
-        assertTrue(recorderSpy.pollQueuedGroups().isEmpty());
+
+        recorderSpy.setTargetDiscoveredGroups(TARGET_ID, Collections.singletonList(STATIC_MEMBER_DTO));
+        assertFalse(recorderSpy.getDiscoveredGroupInfoByTarget().get(TARGET_ID).isEmpty());
 
         recorderSpy.targetRemoved(TARGET_ID);
-
-        Map<Long, List<InterpretedGroup>> groups = recorderSpy.pollQueuedGroups();
-
-        assertTrue(recorderSpy.pollQueuedGroups().isEmpty());
-        assertThat(groups.size(), is(1));
-        assertTrue(groups.containsKey(TARGET_ID));
-        assertThat(groups.get(TARGET_ID).size(), is(0));
+        assertTrue(recorderSpy.getDiscoveredGroupInfoByTarget().get(TARGET_ID).isEmpty());
     }
 
-    @Test
-    public void testProcessGroupsPutback() throws Exception {
-        when(recorderSpy.pollQueuedGroups()).thenReturn(queuedGroup);
-        uploadServiceSpy.enableError();
-
-        try {
-            recorderSpy.processQueuedGroups();
-            Assert.fail("Expected runtime exception.");
-        } catch (RuntimeException e) {
-            verify(recorderSpy).requeueGroups(eq(queuedGroup));
-        }
-    }
-
+    /**
+     * Test that even if no groups/clusters got successfully converted we still
+     * update the group definitions.
+     *
+     * @throws Exception If anything goes wrong.
+     */
     @Test
     public void testProcessUnsuccessfulInterpretation() throws Exception {
-        when(recorderSpy.pollQueuedGroups()).thenReturn(queuedGroup);
-        recorderSpy.processQueuedGroups();
+        recorderSpy.setTargetDiscoveredGroups(TARGET_ID, Collections.singletonList(STATIC_MEMBER_DTO));
+        recorderSpy.uploadDiscoveredGroups();
 
         verify(uploadServiceSpy).storeDiscoveredGroups(
                 eq(StoreDiscoveredGroupsRequest.newBuilder()
@@ -145,9 +119,11 @@ public class DiscoveredGroupUploaderTest {
 
     @Test
     public void testProcessClusterSuccess() throws Exception {
+        when(converter.interpretSdkGroupList(any(), eq(TARGET_ID)))
+            .thenReturn(Collections.singletonList(PLACEHOLDER_INTERPRETED_CLUSTER));
         when(interpretedGroup.getDtoAsCluster()).thenReturn(Optional.of(PLACEHOLDER_CLUSTER_INFO));
-        when(recorderSpy.pollQueuedGroups()).thenReturn(queuedGroup);
-        recorderSpy.processQueuedGroups();
+        recorderSpy.setTargetDiscoveredGroups(TARGET_ID, Collections.singletonList(STATIC_MEMBER_DTO));
+        recorderSpy.uploadDiscoveredGroups();
 
         verify(uploadServiceSpy).storeDiscoveredGroups(
             eq(StoreDiscoveredGroupsRequest.newBuilder()
@@ -158,10 +134,12 @@ public class DiscoveredGroupUploaderTest {
 
     @Test
     public void testProcessGroupSuccess() throws Exception {
+        when(converter.interpretSdkGroupList(any(), eq(TARGET_ID)))
+            .thenReturn(Collections.singletonList(PLACEHOLDER_INTERPRETED_GROUP));
         when(interpretedGroup.getDtoAsGroup()).thenReturn(Optional.of(PLACEHOLDER_GROUP_INFO));
-        when(recorderSpy.pollQueuedGroups()).thenReturn(queuedGroup);
+        recorderSpy.setTargetDiscoveredGroups(TARGET_ID, Collections.singletonList(STATIC_MEMBER_DTO));
 
-        recorderSpy.processQueuedGroups();
+        recorderSpy.uploadDiscoveredGroups();
 
         verify(uploadServiceSpy).storeDiscoveredGroups(
                 eq(StoreDiscoveredGroupsRequest.newBuilder()
@@ -170,55 +148,19 @@ public class DiscoveredGroupUploaderTest {
                         .build()), any());
     }
 
-    /**
-     * Test that even if no groups/clusters got successfully converted we still
-     * update the group definitions.
-     *
-     * @throws Exception If anything goes wrong.
-     */
     @Test
-    public void testProcessEmptySuccess() throws Exception {
-        when(recorderSpy.pollQueuedGroups()).thenReturn(queuedGroup);
-        when(converter.sdkToCluster(eq(STATIC_MEMBER_DTO), eq(TARGET_ID))).thenReturn(Optional.empty());
-        when(converter.sdkToGroup(eq(STATIC_MEMBER_DTO), eq(TARGET_ID))).thenReturn(Optional.empty());
+    public void testProcessGroupsException() throws Exception {
+        recorderSpy.setTargetDiscoveredGroups(TARGET_ID, Collections.singletonList(STATIC_MEMBER_DTO));
+        uploadServiceSpy.enableError();
 
-        recorderSpy.processQueuedGroups();
-
-        verify(uploadServiceSpy).storeDiscoveredGroups(
-                eq(StoreDiscoveredGroupsRequest.newBuilder()
-                        .setTargetId(TARGET_ID)
-                        .build()), any());
+        try {
+            recorderSpy.uploadDiscoveredGroups();
+            Assert.fail("Expected runtime exception.");
+        } catch (RuntimeException e) {
+            // Verify that discovered group info was not cleared by the exception
+            assertFalse(recorderSpy.getDiscoveredGroupInfoByTarget().isEmpty());
+        }
     }
-
-    @Test
-    public void testDiscoveredGroupsPutbackNotOverwrite() {
-        assertTrue(recorderSpy.pollQueuedGroups().isEmpty());
-        when(converter.interpretSdkGroupList(
-                eq(Collections.singletonList(STATIC_MEMBER_DTO)),
-                eq(TARGET_ID)))
-            .thenReturn(Collections.singletonList(PLACEHOLDER_INTERPRETED_GROUP));
-        when(converter.interpretSdkGroupList(
-                eq(Collections.singletonList(SELECTION_DTO)),
-                eq(TARGET_ID)))
-                .thenReturn(Collections.singletonList(PLACEHOLDER_INTERPRETED_CLUSTER));
-
-        recorderSpy.queueDiscoveredGroups(TARGET_ID, Collections.singletonList(STATIC_MEMBER_DTO));
-
-        Map<Long, List<InterpretedGroup>> groups = recorderSpy.pollQueuedGroups();
-        assertTrue(recorderSpy.pollQueuedGroups().isEmpty());
-
-        recorderSpy.queueDiscoveredGroups(TARGET_ID, Collections.singletonList(SELECTION_DTO));
-
-        recorderSpy.requeueGroups(groups);
-
-        // Verify that the conversion associated with SELECTION_DTO gets returned from the next
-        // poll, not the conversion associated with STATIC_MEMBER_DTO.
-        //
-        // Any NPE's in this chain of gets means the data structure didn't get filled in properly.
-        assertEquals(PLACEHOLDER_INTERPRETED_CLUSTER,
-                recorderSpy.pollQueuedGroups().get(TARGET_ID).get(0));
-    }
-
 
     public static class TestDiscoveredService extends DiscoveredGroupServiceImplBase {
 
