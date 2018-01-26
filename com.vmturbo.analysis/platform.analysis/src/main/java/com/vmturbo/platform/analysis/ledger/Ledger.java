@@ -418,12 +418,8 @@ public class Ledger {
                     for (Integer typeOfCommBought : typeOfCommsBought) {
                         int boughtIndex = basketBought.indexOfBaseType(typeOfCommBought.intValue());
 
-                        // if the required commodity is not in the shoppingList, set small constant
-                        // expenses and skip the list
+                        // if the required commodity is not in the shoppingList, skip the list
                         if (boughtIndex == -1) {
-                            commSoldIS.setExpenses(1.0);
-                            commSoldIS.setMaxDesiredExpenses(1.0);
-                            commSoldIS.setMinDesiredExpenses(1.0);
                             continue;
                         }
 

@@ -347,12 +347,9 @@ public class CostFunctionFactory {
                                               Map<Integer, Double> costMap) {
         int licenseCommBoughtIndex = sl.getBasket().indexOfBaseType(costDTO.getLicenseBaseType());
         if (licenseCommBoughtIndex == -1) {
-            // buyer doesnt shop for license
             return costDTO.getCostWithoutLicense();
         } else {
-            // if the commodity exists in the basketBought, get the type of that commodity and
-            // and lookup the costMap for that license type
-            return costMap.get(sl.getBasket().get(licenseCommBoughtIndex).getType());
+            return costMap.get(licenseCommBoughtIndex);
         }
     }
 
