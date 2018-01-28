@@ -5,6 +5,7 @@ import java.io.Serializable;
 import org.checkerframework.dataflow.qual.Pure;
 
 import com.vmturbo.platform.analysis.economy.CommoditySold;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 
@@ -24,7 +25,7 @@ public interface PriceFunction extends Serializable {
      *          sold by a seller
      */
     @Pure
-    public double unitPrice(double normalizedUtilization, Trader seller, CommoditySold cs
+    public double unitPrice(double normalizedUtilization, ShoppingList shoppingList, Trader seller, CommoditySold cs
                             , UnmodifiableEconomy e);
 
     // Inner classes

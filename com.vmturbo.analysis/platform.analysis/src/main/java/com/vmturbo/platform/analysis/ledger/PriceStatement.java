@@ -105,7 +105,7 @@ public class PriceStatement {
             for (CommoditySold commSold : trader.getCommoditiesSold()) {
                 double commSoldUtil = commSold.getQuantity()/commSold.getEffectiveCapacity();
                 PriceFunction pf = commSold.getSettings().getPriceFunction();
-                Double commPrice = pf.unitPrice(commSoldUtil, trader, commSold, economy);
+                Double commPrice = pf.unitPrice(commSoldUtil, null, trader, commSold, economy);
                 if (commPrice > traderPriceStmt.getPriceIndex()) {
                     traderPriceStmt.setPriceIndex(commPrice);
                 }

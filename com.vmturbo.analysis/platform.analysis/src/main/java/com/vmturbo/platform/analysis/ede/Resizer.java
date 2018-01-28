@@ -280,7 +280,7 @@ public class Resizer {
         double intervalMax = Math.nextAfter(1.0, 0.0);
 
         // solve revenueFunction(u) = newRevenue for u in (intervalMin,intervalMax)
-        DoubleUnaryOperator revenueFunction = (u) -> u * priceFunction.unitPrice(u,
+        DoubleUnaryOperator revenueFunction = (u) -> u * priceFunction.unitPrice(u, null,
                                                          seller, resizeCommodity, economy) - newRevenue;
         // pass in a function to calculate error in capacity for utilization interval (x,y)
         DoubleBinaryOperator errorFunction = (x, y) -> currentQuantity / x - currentQuantity / y;

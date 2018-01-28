@@ -371,17 +371,17 @@ public class LedgerTest {
         PriceFunction pf0 = seller.getCommoditiesSold().get(0).getSettings().getPriceFunction();
         CommoditySold commSold0 = seller.getCommoditiesSold().get(0);
         double commSoldUtil_0 = commSold0.getQuantity()/commSold0.getEffectiveCapacity();
-        revFromComm.add(pf0.unitPrice(commSoldUtil_0, seller, commSold0, economy) * commSoldUtil_0);
+        revFromComm.add(pf0.unitPrice(commSoldUtil_0, null, seller, commSold0, economy) * commSoldUtil_0);
 
         PriceFunction pf1 = seller.getCommoditiesSold().get(1).getSettings().getPriceFunction();
         CommoditySold commSold1 = seller.getCommoditiesSold().get(1);
         double commSoldUtil_1 = seller.getCommoditiesSold().get(1).getQuantity()/seller.getCommoditiesSold().get(1).getEffectiveCapacity();
-        revFromComm.add(pf1.unitPrice(commSoldUtil_1, seller, commSold1, economy) * commSoldUtil_1);
+        revFromComm.add(pf1.unitPrice(commSoldUtil_1, null, seller, commSold1, economy) * commSoldUtil_1);
 
         PriceFunction pf2 = seller.getCommoditiesSold().get(2).getSettings().getPriceFunction();
         CommoditySold commSold2 = seller.getCommoditiesSold().get(2);
         double commSoldUtil_2 = seller.getCommoditiesSold().get(2).getQuantity()/seller.getCommoditiesSold().get(2).getEffectiveCapacity();
-        revFromComm.add(pf2.unitPrice(commSoldUtil_2, seller, commSold2, economy) * commSoldUtil_2);
+        revFromComm.add(pf2.unitPrice(commSoldUtil_2, null, seller, commSold2, economy) * commSoldUtil_2);
         Collections.sort(revFromComm, Collections.reverseOrder());
 
         IncomeStatement sellerIncomeStmt = ledger.getTraderIncomeStatements().get(seller.getEconomyIndex());
@@ -401,11 +401,11 @@ public class LedgerTest {
         commSold1.getSettings().setUtilizationUpperBound(0.6);
         commSold2.getSettings().setUtilizationUpperBound(0.5);
         commSoldUtil_0 = seller.getCommoditiesSold().get(0).getQuantity()/seller.getCommoditiesSold().get(0).getEffectiveCapacity();
-        revFromComm.add(pf0.unitPrice(commSoldUtil_0, seller, commSold0, economy) * commSoldUtil_0);
+        revFromComm.add(pf0.unitPrice(commSoldUtil_0, null, seller, commSold0, economy) * commSoldUtil_0);
         commSoldUtil_1 = seller.getCommoditiesSold().get(1).getQuantity()/seller.getCommoditiesSold().get(1).getEffectiveCapacity();
-        revFromComm.add(pf1.unitPrice(commSoldUtil_1, seller, commSold1, economy) * commSoldUtil_1);
+        revFromComm.add(pf1.unitPrice(commSoldUtil_1, null, seller, commSold1, economy) * commSoldUtil_1);
         commSoldUtil_2 = seller.getCommoditiesSold().get(2).getQuantity()/seller.getCommoditiesSold().get(2).getEffectiveCapacity();
-        revFromComm.add(pf2.unitPrice(commSoldUtil_2, seller, commSold2, economy) * commSoldUtil_2);
+        revFromComm.add(pf2.unitPrice(commSoldUtil_2, null, seller, commSold2, economy) * commSoldUtil_2);
         Collections.sort(revFromComm, Collections.reverseOrder());
 
         // get seller's revenue again
@@ -425,17 +425,17 @@ public class LedgerTest {
         commSold0.getSettings().setPriceFunction(PriceFunction.Cache.createStepPriceFunction(0.3, 50.0, 20000.0));
         pf0 = commSold0.getSettings().getPriceFunction();
         commSoldUtil_0 = seller.getCommoditiesSold().get(0).getQuantity()/seller.getCommoditiesSold().get(0).getEffectiveCapacity();
-        revFromComm.add(pf0.unitPrice(commSoldUtil_0, seller, commSold0, economy) * commSoldUtil_0);
+        revFromComm.add(pf0.unitPrice(commSoldUtil_0, null, seller, commSold0, economy) * commSoldUtil_0);
 
         commSold1.getSettings().setPriceFunction(PriceFunction.Cache.createStepPriceFunction(3.0, 50.0, 20000.0));
         pf1 = commSold1.getSettings().getPriceFunction();
         commSoldUtil_1 = seller.getCommoditiesSold().get(1).getQuantity()/seller.getCommoditiesSold().get(1).getEffectiveCapacity();
-        revFromComm.add(pf1.unitPrice(commSoldUtil_1, seller, commSold1, economy) * commSoldUtil_1);
+        revFromComm.add(pf1.unitPrice(commSoldUtil_1, null, seller, commSold1, economy) * commSoldUtil_1);
 
         commSold2.getSettings().setPriceFunction(PriceFunction.Cache.createStepPriceFunction(2.0, 50.0, 20000.0));
         pf2 = commSold2.getSettings().getPriceFunction();
         commSoldUtil_2 = commSold2.getQuantity()/seller.getCommoditiesSold().get(2).getEffectiveCapacity();
-        revFromComm.add(pf2.unitPrice(commSoldUtil_2, seller, commSold2, economy) * commSoldUtil_2);
+        revFromComm.add(pf2.unitPrice(commSoldUtil_2, null, seller, commSold2, economy) * commSoldUtil_2);
         Collections.sort(revFromComm, Collections.reverseOrder());
 
         // get seller's revenue again
@@ -484,15 +484,15 @@ public class LedgerTest {
         // get revenues from individual commodities
         PriceFunction pf0 = commSold0.getSettings().getPriceFunction();
         double commSoldUtil_0 = commSold0.getQuantity()/seller.getCommoditiesSold().get(0).getEffectiveCapacity();
-        revFromComm.add(pf0.unitPrice(commSoldUtil_0, seller, commSold0, economy) * commSoldUtil_0);
+        revFromComm.add(pf0.unitPrice(commSoldUtil_0, null, seller, commSold0, economy) * commSoldUtil_0);
 
         PriceFunction pf1 = commSold1.getSettings().getPriceFunction();
         double commSoldUtil_1 = commSold1.getQuantity()/seller.getCommoditiesSold().get(1).getEffectiveCapacity();
-        revFromComm.add(pf1.unitPrice(commSoldUtil_1, seller, commSold1, economy) * commSoldUtil_1);
+        revFromComm.add(pf1.unitPrice(commSoldUtil_1, null, seller, commSold1, economy) * commSoldUtil_1);
 
         PriceFunction pf2 = commSold2.getSettings().getPriceFunction();
         double commSoldUtil_2 = commSold2.getQuantity()/seller.getCommoditiesSold().get(2).getEffectiveCapacity();
-        revFromComm.add(pf2.unitPrice(commSoldUtil_2, seller, commSold2, economy) * commSoldUtil_2);
+        revFromComm.add(pf2.unitPrice(commSoldUtil_2, null, seller, commSold2, economy) * commSoldUtil_2);
         Collections.sort(revFromComm, Collections.reverseOrder());
 
         IncomeStatement sellerIncomeStmt = ledger.getTraderIncomeStatements().get(seller.getEconomyIndex());
@@ -538,13 +538,13 @@ public class LedgerTest {
         revFromComm.clear();
         // get revenues from individual commodities
         commSoldUtil_0 = seller1.getCommoditiesSold().get(0).getQuantity()/seller1.getCommoditiesSold().get(0).getEffectiveCapacity();
-        revFromComm.add(pf0.unitPrice(commSoldUtil_0, seller, commSold0, economy) * commSoldUtil_0);
+        revFromComm.add(pf0.unitPrice(commSoldUtil_0, null, seller, commSold0, economy) * commSoldUtil_0);
 
         commSoldUtil_1 = seller1.getCommoditiesSold().get(1).getQuantity()/seller1.getCommoditiesSold().get(1).getEffectiveCapacity();
-        revFromComm.add(pf1.unitPrice(commSoldUtil_1, seller, commSold1, economy) * commSoldUtil_1);
+        revFromComm.add(pf1.unitPrice(commSoldUtil_1, null, seller, commSold1, economy) * commSoldUtil_1);
 
         commSoldUtil_2 = seller1.getCommoditiesSold().get(2).getQuantity()/seller1.getCommoditiesSold().get(2).getEffectiveCapacity();
-        revFromComm.add(pf2.unitPrice(commSoldUtil_2, seller, commSold2, economy) * commSoldUtil_2);
+        revFromComm.add(pf2.unitPrice(commSoldUtil_2, null, seller, commSold2, economy) * commSoldUtil_2);
         Collections.sort(revFromComm, Collections.reverseOrder());
 
         IncomeStatement seller1IncomeStmt = ledger1.getTraderIncomeStatements().get(seller1.getEconomyIndex());

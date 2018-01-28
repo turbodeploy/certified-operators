@@ -177,10 +177,10 @@ public class Suspension {
                 for (CommoditySold cs : seller.getCommoditiesSold()) {
                     double utilThreshold = cs.getSettings().getUtilizationUpperBound();
                     PriceFunction pf = cs.getSettings().getPriceFunction();
-                    double priceAtMaxUtil = pf.unitPrice(util * utilThreshold, seller, cs, economy);
+                    double priceAtMaxUtil = pf.unitPrice(util * utilThreshold, null, seller, cs, economy);
                     // skip if step and constant priceFns
-                    if (!((priceAtMaxUtil == pf.unitPrice(0.0, seller, cs, economy)) ||
-                                    (priceAtMaxUtil == pf.unitPrice(1.0, seller, cs, economy)))) {
+                    if (!((priceAtMaxUtil == pf.unitPrice(0.0, null, seller, cs, economy)) ||
+                                    (priceAtMaxUtil == pf.unitPrice(1.0, null, seller, cs, economy)))) {
                         cs.getSettings().setUtilizationUpperBound(util * utilThreshold);
                     }
                 }

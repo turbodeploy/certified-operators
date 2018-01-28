@@ -397,7 +397,7 @@ class SuperSeller {
         }
 
         // TODO: handle what is being passed for priceComputation in the case of complex pf's
-        double rev = util * commResource.getPriceFunction().unitPrice(util, null, null, null);
+        double rev = util * commResource.getPriceFunction().unitPrice(util, null, null, null, null);
         return rev;
     }
 

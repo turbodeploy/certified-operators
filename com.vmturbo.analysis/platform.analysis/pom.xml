@@ -94,6 +94,11 @@
             <artifactId>com.vmturbo.communication</artifactId>
             <version>${vmturbo.mt.branch.version}</version>
         </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.communication.matrix</artifactId>
+            <version>${vmturbo.mt.branch.version}</version>
+        </dependency>
     </dependencies>
     <distributionManagement>
         <repository>

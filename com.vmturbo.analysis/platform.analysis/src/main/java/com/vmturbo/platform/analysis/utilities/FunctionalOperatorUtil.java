@@ -1,8 +1,13 @@
 package com.vmturbo.platform.analysis.utilities;
 
+import java.util.Optional;
+
+import com.vmturbo.matrix.component.TheMatrix;
+import com.vmturbo.matrix.component.external.MatrixInterface;
 import com.vmturbo.platform.analysis.economy.BalanceAccount;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
+import com.vmturbo.platform.analysis.topology.Topology;
 
 public class FunctionalOperatorUtil {
 
@@ -75,4 +80,26 @@ public class FunctionalOperatorUtil {
     public static FunctionalOperator RETURN_BOUGHT_COMM = (buyer, boughtIndex, commSold, seller, economy, take)
                     -> new double[]{buyer.getQuantities()[boughtIndex],
                                     buyer.getPeakQuantities()[boughtIndex]};
+
+    public static FunctionalOperator EXTERNAL_UPDATING_FUNCTION =
+                    (buyer, boughtIndex, commSold, seller, economy, take) -> {
+                        // If we are moving, external function needs to call place on matrix
+                        // interface, else do nothing
+                        if (take) {
+                            Topology topology = economy.getTopology();
+                            String topoId = String.valueOf(topology.getTopologyId());
+                            Optional<MatrixInterface> interfaceOptional =
+                                            TheMatrix.instance(topoId);
+                            // If the seller on which buyer is being placed a clone,
+                            // avoid calling place on matrix interface for now as it
+                            // will not have knowledge of new trader created in market
+                            if (interfaceOptional.isPresent() && seller.getCloneOf() == -1) {
+                                long buyerOid = topology.getTraderOids().get(buyer.getBuyer());
+                                long sellerOid = topology.getTraderOids().get(seller);
+                                // Call Place method on interface to update matrix after placement
+                                interfaceOptional.get().place(buyerOid, sellerOid);
+                            }
+                        }
+                        return new double[] {0, 0};
+                    };
 }

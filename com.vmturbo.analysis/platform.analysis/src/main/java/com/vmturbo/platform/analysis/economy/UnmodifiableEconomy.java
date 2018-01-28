@@ -4,12 +4,14 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
+import javax.annotation.Nullable;
+
 import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
 import org.checkerframework.dataflow.qual.SideEffectFree;
-
+import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 
 /**
@@ -222,5 +224,18 @@ public interface UnmodifiableEconomy {
      * @return balance account map associates with the {@link Economy}
      */
     Map<Integer, BalanceAccount> getBalanceAccountMap();
+
+    /**
+     * save the {@link Topology} associated with this {@link Economy}
+     * @param topology
+     */
+    public void setTopology(Topology topology);
+
+    /**
+     * @return return the {@link Topology} associated with this {@link Economy}
+     */
+    @Nullable
+    @ReadOnly
+    public Topology getTopology();
 
 } // end UnmodifiableEconomy interface

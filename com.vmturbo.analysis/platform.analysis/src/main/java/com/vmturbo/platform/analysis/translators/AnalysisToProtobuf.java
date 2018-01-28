@@ -587,13 +587,14 @@ public final class AnalysisToProtobuf {
         double mostExpensivePrice = 0;
         CommoditySpecification mostExpensiveComm = null;
         // we find the most expensive commodity at the start state to explain the provisionBySupply
+        // Since we are calculating price for commodity sold, shopping list is passed as null
         for (CommoditySold c : modelSeller.getCommoditiesSold()) {
             double usedPrice = c.getSettings().getPriceFunction().unitPrice(c.getStartQuantity() /
-                            c.getEffectiveCapacity(), modelSeller, c, economy);
+                            c.getEffectiveCapacity(), null, modelSeller, c, economy);
             double peakPrice = c.getSettings().getPriceFunction().unitPrice(Math.max(0,
                             c.getStartPeakQuantity() - c.getStartQuantity())
                                / (c.getEffectiveCapacity() - c.getSettings().getUtilizationUpperBound()
-                                               * c.getStartQuantity()), modelSeller, c, economy);
+                                               * c.getStartQuantity()), null, modelSeller, c, economy);
             double greaterPrice = usedPrice > peakPrice ? usedPrice : peakPrice;
             if (mostExpensivePrice < greaterPrice) {
                 mostExpensivePrice = greaterPrice;
@@ -761,11 +762,11 @@ public final class AnalysisToProtobuf {
         double effectiveCapacity = commSold.getEffectiveCapacity();
         double excessQuantity = peakQuantityBought - quantityBought;
 
-        double usedPrice = pf.unitPrice(startQuantity / effectiveCapacity, seller, commSold, economy);
+        double usedPrice = pf.unitPrice(startQuantity / effectiveCapacity, null, seller, commSold, economy);
         double peakPrice = pf.unitPrice(Math.max(0, startPeakQuantity - startQuantity)/
                                         (effectiveCapacity - commSold.getSettings()
                                                         .getUtilizationUpperBound()*startQuantity)
-                                                        , seller, commSold, economy);
+                                                        , null, seller, commSold, economy);
 
         return ((quantityBought == 0 ? 0 : quantityBought * usedPrice) +
                         (excessQuantity > 0 ? excessQuantity * peakPrice : 0)) / effectiveCapacity;

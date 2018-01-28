@@ -207,13 +207,13 @@ public class Ledger {
             double commSoldUtil = commSold.getQuantity()/commSold.getEffectiveCapacity();
             if (commSoldUtil != 0) {
                 PriceFunction pf = commSold.getSettings().getPriceFunction();
-                double revFromComm = pf.unitPrice(commSoldUtil, seller, commSold, economy) * commSoldUtil;
+                double revFromComm = pf.unitPrice(commSoldUtil, null, seller, commSold, economy) * commSoldUtil;
                 if (seller.isDebugEnabled()) {
                     int index = seller.getCommoditiesSold().indexOf(commSold);
                     logger.debug(seller.getBasketSold().get(index).getDebugInfoNeverUseInCode() + " - util:" +
                                 commSoldUtil + ", price:" + revFromComm + ", MinDP:" +
-                                pf.unitPrice(sellerMinDesUtil, seller, commSold, economy) + ", MaxDP:" +
-                                pf.unitPrice(sellerMaxDesUtil, seller, commSold, economy));
+                                pf.unitPrice(sellerMinDesUtil, null, seller, commSold, economy) + ", MaxDP:" +
+                                pf.unitPrice(sellerMaxDesUtil, null, seller, commSold, economy));
                 }
                 if (topRev[0] < revFromComm) {
                     topRev[1] = topRev[0];
@@ -235,9 +235,9 @@ public class Ledger {
                     PriceFunction pf = cs.getSettings().getPriceFunction();
                     tempCurrMinMaxRev[0] = tempCurrMinMaxRev[0] + topRev[i];
                     tempCurrMinMaxRev[1] = tempCurrMinMaxRev[1] + pf.unitPrice(sellerMinDesUtil
-                                                                           , seller, cs, economy);
+                                                                         , null , seller, cs, economy);
                     tempCurrMinMaxRev[2] = tempCurrMinMaxRev[2] + pf.unitPrice(sellerMaxDesUtil
-                                                                           , seller, cs, economy);
+                                                                          , null , seller, cs, economy);
                 }
             }
         });
@@ -394,9 +394,9 @@ public class Ledger {
                     continue;
                 }
 
-                commSoldIS.setRevenues(pf.unitPrice(commSoldUtil, buyer, cs, economy)*commSoldUtil);
-                commSoldIS.setMaxDesiredRevenues(pf.unitPrice(maxDesUtil, buyer, cs, economy)*maxDesUtil);
-                commSoldIS.setMinDesiredRevenues(pf.unitPrice(minDesUtil, buyer, cs, economy)*minDesUtil);
+                commSoldIS.setRevenues(pf.unitPrice(commSoldUtil, null, buyer, cs, economy)*commSoldUtil);
+                commSoldIS.setMaxDesiredRevenues(pf.unitPrice(maxDesUtil, null, buyer, cs, economy)*maxDesUtil);
+                commSoldIS.setMinDesiredRevenues(pf.unitPrice(minDesUtil, null, buyer, cs, economy)*minDesUtil);
 
                 List<Integer> typeOfCommsBought = economy.getRawMaterials(buyer.getBasketSold()
                                                              .get(commSoldIndex).getBaseType());
@@ -439,13 +439,13 @@ public class Ledger {
 
                             commSoldIS.setExpenses(commSoldIS.getExpenses()
                                           + priceFunction.unitPrice(commSoldBySeller.getQuantity()
-                                                 /commSoldBySeller.getEffectiveCapacity(), supplier
+                                                 /commSoldBySeller.getEffectiveCapacity(), shoppingList, supplier
                                                  , commSoldBySeller, economy) *commBoughtUtil);
                             commSoldIS.setMaxDesiredExpenses(commSoldIS.getMaxDesiredExpenses()
-                                          + priceFunction.unitPrice(maxDesUtil, supplier
+                                          + priceFunction.unitPrice(maxDesUtil, shoppingList, supplier
                                                  , commSoldBySeller, economy) * commBoughtUtil);
                             commSoldIS.setMinDesiredExpenses(commSoldIS.getMinDesiredExpenses()
-                                          + priceFunction.unitPrice(minDesUtil, supplier
+                                          + priceFunction.unitPrice(minDesUtil, shoppingList, supplier
                                                  , commSoldBySeller, economy) * commBoughtUtil);
                         }
                     }

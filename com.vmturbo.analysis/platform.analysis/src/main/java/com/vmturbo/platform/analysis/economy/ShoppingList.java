@@ -25,6 +25,10 @@ import org.checkerframework.dataflow.qual.Pure;
  * </p>
  */
 public final class ShoppingList implements Serializable {
+    /**
+     *
+     */
+    private static final long serialVersionUID = -3998819999266896549L;
     // Fields
     private final @NonNull Trader buyer_; // @see #getBuyer().
     private @Nullable Trader supplier_; // @see #setSupplier(Trader).

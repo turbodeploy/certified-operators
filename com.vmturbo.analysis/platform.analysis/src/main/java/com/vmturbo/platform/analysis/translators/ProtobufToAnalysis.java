@@ -85,6 +85,8 @@ public final class ProtobufToAnalysis {
             case FINITE_STANDARD_WEIGHTED:
                 return PriceFunction.Cache.createFiniteStandardWeightedPriceFunction(
                                 input.getStandardWeighted().getWeight());
+            case EXTERNAL_PRICE_FUNCTION:
+                return PriceFunction.Cache.createExternalPriceFunction();
             case PRICEFUNCTIONTYPE_NOT_SET:
             default:
                 throw new IllegalArgumentException("input = " + input);
@@ -141,6 +143,8 @@ public final class ProtobufToAnalysis {
                 return FunctionalOperatorUtil.IGNORE_CONSUMPTION;
             case UPDATE_EXPENSES:
                 return FunctionalOperatorUtil.UPDATE_EXPENSES;
+            case EXTERNAL_UPDATE:
+                return FunctionalOperatorUtil.EXTERNAL_UPDATING_FUNCTION;
             case UPDATINGFUNCTIONTYPE_NOT_SET:
             default:
                 return null;

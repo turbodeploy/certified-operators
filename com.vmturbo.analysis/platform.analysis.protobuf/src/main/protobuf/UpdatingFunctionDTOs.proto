@@ -33,6 +33,9 @@ message UpdatingFunctionTO {
     message IgnoreConsumption {
     }
 
+    message ExternalUpdateFunction {
+    }
+
     // Which one of the available functions this message contains.
     oneof updating_function_type {
         Max max = 1;
@@ -42,5 +45,6 @@ message UpdatingFunctionTO {
         Average avg_add = 5;
         UpdateExpenses update_expenses = 6;
         IgnoreConsumption ignore_consumption = 7;
+        ExternalUpdateFunction external_update = 8;
     }
 }

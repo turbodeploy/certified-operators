@@ -1,9 +1,13 @@
 package com.vmturbo.platform.analysis.pricefunction;
 
+import java.util.Optional;
 import java.util.concurrent.ConcurrentMap;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.google.common.collect.MapMaker;
+import com.vmturbo.matrix.component.TheMatrix;
+import com.vmturbo.matrix.component.external.MatrixInterface;
+import com.vmturbo.platform.analysis.topology.Topology;
 
 /**
  * A factory for price functions
@@ -39,7 +43,7 @@ class Cache {
         String key = "SWPF-" + weight;
         PriceFunction pf = pfMap.get(key);
         if (pf == null) {
-            pf = (u, seller, commSold, e) ->
+            pf = (u, sl, seller, commSold, e) ->
                 u > 1 ? Double.POSITIVE_INFINITY : Math.min(weight / ((1.0f - u) * (1.0f - u)), MAX_UNIT_PRICE);
             pfMap.put(key, pf);
         }
@@ -53,7 +57,7 @@ class Cache {
        String key = "FSWPF-" + weight;
        PriceFunction pf = pfMap.get(key);
        if (pf == null) {
-           pf = (u, seller, commSold, e) ->
+           pf = (u, sl, seller, commSold, e) ->
                u > 1 ? MAX_UNIT_PRICE : Math.min(weight / ((1.0f - u) * (1.0f - u)), MAX_UNIT_PRICE);
            pfMap.put(key, pf);
        }
@@ -68,7 +72,7 @@ class Cache {
         String key = "CPF-" + constant;
         PriceFunction pf = pfMap.get(key);
         if (pf == null) {
-            pf = (u, seller, commSold, e) ->  u > 1 ? Double.POSITIVE_INFINITY : constant;
+            pf = (u, sl, seller, commSold, e) ->  u > 1 ? Double.POSITIVE_INFINITY : constant;
             pfMap.put(key, pf);
         }
         return pf;
@@ -83,7 +87,7 @@ class Cache {
         String key = String.format("SPF-%.10f,%.10f,%.10f", stepAt, priceBelow, priceAbove);
         PriceFunction pf = pfMap.get(key);
         if (pf == null) {
-            pf = (u, seller, commSold, e) ->
+            pf = (u, sl, seller, commSold, e) ->
                 u > 1 ? Double.POSITIVE_INFINITY : u < stepAt ? priceBelow : priceAbove;
             pfMap.put(key, pf);
         }
@@ -98,7 +102,7 @@ class Cache {
         String key = "SPFC-" + weight;
         PriceFunction pf = pfMap.get(key);
         if (pf == null) {
-            pf = (u, seller, commSold, e) ->  u == 0 ? 0 : u > 1 ? Double.POSITIVE_INFINITY : weight;
+            pf = (u, sl, seller, commSold, e) ->  u == 0 ? 0 : u > 1 ? Double.POSITIVE_INFINITY : weight;
             pfMap.put(key, pf);
         }
         return pf;
@@ -109,6 +113,50 @@ class Cache {
         if (pf == null) {
             pf = function;
             customPfMap.put(function, pf);
+        }
+        return pf;
+    }
+
+    /**
+     * Create an external price function to get price from network interface
+     * This function has implementation to call network interface only.
+     *
+     * @return Return the price function
+     */
+    public static PriceFunction createExternalPriceFunction() {
+        // TODO: should use a type to create price function of relevance here
+        // Create a key for external price function using count
+        // This will ensure we can have multiple external functions
+        String key = "NCMExternalPf";
+        PriceFunction pf = pfMap.get(key);
+        if (pf == null) {
+            pf = (normalizedUtilization, shoppingList, seller, cs, e) -> {
+                double price = 0d;
+                // Get the topology id from economy
+                Topology topo = e.getTopology();
+                // Price calculation happens from places which don't require
+                // this information so skip calling external pf.
+                // FIXME: Clone creation is not notified to matrix interface today
+                if (topo == null || shoppingList == null || seller.getCloneOf() != -1) {
+                    return price;
+                }
+                String topoId = String.valueOf(topo.getTopologyId());
+                // Use topology id to get matrix interface
+                Optional<MatrixInterface> interfaceOptional = TheMatrix.instance(topoId);
+                // If consumer passed to price function is null, just return 0 price, as flow
+                // price only makes sense in the context of a specific consumer
+                if (interfaceOptional.isPresent()) {
+                    // Find OIds of traders and send them to calculate price
+                    Long buyerOid = topo.getTraderOids().get(shoppingList.getBuyer());
+                    Long sellerOid = topo.getTraderOids().get(seller);
+                    price = interfaceOptional.get().calculatePrice(buyerOid, sellerOid);
+                    // This multiplication done to negate the effect of dividing price by
+                    // effective capacity during quote computation. EdeCommon.computeCommodityCost() on M2 side
+                    price = price * cs.getEffectiveCapacity();
+                }
+                return price;
+            };
+            pfMap.put(key, pf);
         }
         return pf;
     }

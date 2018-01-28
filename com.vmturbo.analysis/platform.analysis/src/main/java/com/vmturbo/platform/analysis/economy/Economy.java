@@ -15,6 +15,8 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nullable;
+
 import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -756,6 +758,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     /**
      * save the {@link Topology} associated with this {@link Economy}
      */
+    @Override
     public void setTopology(Topology topology) {
         topology_ = topology;
     }
@@ -763,6 +766,8 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     /**
      * @return return the {@link Topology} associated with this {@link Economy}
      */
+    @Override
+    @Nullable
     public Topology getTopology() {
         return topology_;
     }
