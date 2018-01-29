@@ -314,14 +314,14 @@ public class Placement {
                                 .getBestTotalQuote()));
                     } else {
                         StringBuilder errorMsg = new StringBuilder("A compound move with no " +
-                                "constituent actions was generated\n");
-                        errorMsg.append("Current Suppliers:\n");
+                                "constituent actions was generated. ");
+                        errorMsg.append("Current Suppliers: ");
                         for (Trader supplier : currentSuppliers) {
-                            errorMsg.append(supplier.getDebugInfoNeverUseInCode()).append("\n");
+                            errorMsg.append(supplier.getDebugInfoNeverUseInCode()).append(" ");
                         }
-                        errorMsg.append("Best Suppliers:\n");
+                        errorMsg.append("Best Suppliers: ");
                         for (Trader supplier : bestSellers) {
-                            errorMsg.append(supplier.getDebugInfoNeverUseInCode()).append("\n");
+                            errorMsg.append(supplier.getDebugInfoNeverUseInCode()).append(" ");
                         }
                         logger.error(errorMsg.toString());
                     }
