@@ -8,7 +8,14 @@ import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.stitching.poststitching.CpuAllocationPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.CpuProvisionedPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.StorageLatencyPostStitchingOperation.DiskArrayLatencyPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.StorageProvisionedPostStitchingOperation.DiskArrayStorageProvisionedPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.StorageLatencyPostStitchingOperation.LogicalPoolLatencyPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.StorageProvisionedPostStitchingOperation.LogicalPoolStorageProvisionedPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.MemoryProvisionedPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.StorageLatencyPostStitchingOperation.StorageControllerLatencyPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.StorageLatencyPostStitchingOperation.StorageEntityLatencyPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.StorageProvisionedPostStitchingOperation.StorageEntityStorageProvisionedPostStitchingOperation;
 
 /**
  * A library of {@link PostStitchingOperation}s. Maintains the known topology preStitching operations
@@ -24,8 +31,18 @@ public class PostStitchingOperationLibrary {
      * Create a new calculation library.
      */
     public PostStitchingOperationLibrary() {
-        postStitchingOperations = ImmutableList.of(new MemoryProvisionedPostStitchingOperation(),
-            new CpuProvisionedPostStitchingOperation(), new CpuAllocationPostStitchingOperation());
+        postStitchingOperations = ImmutableList.of(
+            new MemoryProvisionedPostStitchingOperation(),
+            new CpuProvisionedPostStitchingOperation(),
+            new CpuAllocationPostStitchingOperation(),
+            new StorageControllerLatencyPostStitchingOperation(),
+            new StorageEntityLatencyPostStitchingOperation(),
+            new LogicalPoolLatencyPostStitchingOperation(),
+            new DiskArrayLatencyPostStitchingOperation(),
+            new DiskArrayStorageProvisionedPostStitchingOperation(),
+            new StorageEntityStorageProvisionedPostStitchingOperation(),
+            new LogicalPoolStorageProvisionedPostStitchingOperation()
+        );
     }
 
     /**

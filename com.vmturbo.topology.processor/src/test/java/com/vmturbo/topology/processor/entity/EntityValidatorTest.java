@@ -163,7 +163,7 @@ public class EntityValidatorTest {
     public void testProvisionCommodityErrors() {
         final EntityDTO ownerEntity = seller(provisionedCommodity());
         Optional<EntityValidationFailure> errors = entityValidator.validateEntityDTO(1L, ownerEntity, false);
-        Assert.assertTrue(errors.isPresent());
+        Assert.assertFalse(errors.isPresent());
         errors = entityValidator.validateEntityDTO(1L, ownerEntity, true);
         Assert.assertFalse(errors.isPresent());
     }

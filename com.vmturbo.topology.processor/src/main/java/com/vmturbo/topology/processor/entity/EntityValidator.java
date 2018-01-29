@@ -79,9 +79,6 @@ public class EntityValidator {
                 // right now, just set a reasonable default based on the
                 // commodity type.
                 switch (original.getCommodityType()) {
-                    case STORAGE_LATENCY:
-                        hackedCapacity = 100;
-                        break;
                     case STORAGE_ACCESS:
                         hackedCapacity = 5000;
                         break;
@@ -99,11 +96,6 @@ public class EntityValidator {
                 // deal with them unless we want to fail the discovery.
                 logReplacementError(ownerEntity, original, sold, "capacity", original.getCapacity());
                 modifiedBuilder.setCapacity(HACKED_INFINITE_CAPACITY);
-            } else if (original.getCommodityType().equals(CommodityDTO.CommodityType.STORAGE_PROVISIONED)) {
-                double hackedCapacitry = 10 * original.getCapacity();
-                logger.warn("{} : Multiplied original capacity of {} by 10. New capacity is {}",
-                    ownerEntity.getDisplayName(), original.getCommodityType(), hackedCapacitry);
-                modifiedBuilder.setCapacity(hackedCapacitry );
             }
 
             if (original.getLimit() < 0.0) {
@@ -213,9 +205,6 @@ public class EntityValidator {
             }
             if (commodityDTO.hasLimit() && commodityDTO.getLimit() < 0) {
                 errors.add("Limit " + commodityDTO.getCommodityType() + " has a negative value: " + commodityDTO.getLimit());
-            }
-            if (!last && commodityDTO.getCommodityType().equals(CommodityDTO.CommodityType.STORAGE_PROVISIONED)) {
-                errors.add("Capacity " + commodityDTO.getCommodityType() + " needs to be multiplied by 10");
             }
         }
         return errors;
