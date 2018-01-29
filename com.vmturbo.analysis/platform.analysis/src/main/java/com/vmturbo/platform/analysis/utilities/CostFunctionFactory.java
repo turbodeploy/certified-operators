@@ -347,8 +347,8 @@ public class CostFunctionFactory {
         int comm1BoughtIndex = sl.getBasket().indexOf(comm1Type);
         int comm2BoughtIndex = sl.getBasket().indexOf(comm2Type);
         int comm2SoldIndex = seller.getBasketSold().indexOf(comm1Type);
-        double boughtSum = sl.getQuantity(comm1BoughtIndex)
-                        + sl.getQuantity(comm2BoughtIndex);
+        double boughtSum = ((comm1BoughtIndex != -1) ? sl.getQuantity(comm1BoughtIndex) : 0)
+                        + ((comm2BoughtIndex != -1) ? sl.getQuantity(comm2BoughtIndex) : 0);
 
         return (boughtSum <= seller.getCommoditiesSold().get(comm2SoldIndex).getCapacity());
     }
