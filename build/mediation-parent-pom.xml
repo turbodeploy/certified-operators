@@ -91,14 +91,13 @@
                     <configuration>
                         <resources>
                             <resource>
-                                <targetPath>/probe-jars</targetPath>
-                                <directory>${project.build.directory}/probe-jars</directory>
-                                <include>*</include>
-                            </resource>
-                            <resource>
                                 <targetPath>/</targetPath>
                                 <directory>${project.build.directory}</directory>
                                 <include>${project.build.finalName}.jar</include>
+                            </resource>
+                            <resource>
+                                <targetPath>/probe-jars</targetPath>
+                                <directory>${project.build.directory}/probe-jars</directory>
                             </resource>
                             <resource>
                                 <targetPath>/swagger</targetPath>
