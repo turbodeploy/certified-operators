@@ -27,6 +27,7 @@ import com.vmturbo.api.dto.template.CpuModelApiDTO;
 import com.vmturbo.api.dto.template.ResourceApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiInputDTO;
+import com.vmturbo.api.dto.deploymentprofile.DeploymentProfileApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.ITemplatesService;
@@ -248,6 +249,11 @@ public class TemplatesService implements ITemplatesService {
     public List<CpuModelApiDTO> getCpuList() throws Exception {
         throw ApiUtils.notImplementedInXL();
     }
+
+    @Override
+    public List<DeploymentProfileApiDTO> getDeploymentProfiles(String uuid) throws Exception {
+	    throw ApiUtils.notImplementedInXL();
+	}
 
     private String validateStatNames(ResourceApiDTO resource, Set<String> allowedStats,
                                      String resourceName) {
