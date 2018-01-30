@@ -11,6 +11,7 @@ import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
+import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 import com.vmturbo.platform.analysis.ede.EdeCommon;
 import com.vmturbo.platform.analysis.utilities.CostFunction;
 
@@ -91,7 +92,7 @@ public class QuoteFunctionFactory {
      * @param seller the trader which charges the buyer
      * @return the cost
      */
-    public static double computeCost(ShoppingList shoppingList, Trader seller, boolean validate, Economy economy) {
+    public static double computeCost(ShoppingList shoppingList, Trader seller, boolean validate, UnmodifiableEconomy economy) {
         return (seller == null || seller.getSettings().getCostFunction() == null) ? 0
                         : seller.getSettings().getCostFunction().calculateCost(shoppingList, seller, validate, economy);
     }

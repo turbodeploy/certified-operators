@@ -38,6 +38,7 @@ import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTop
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTopology.CommodityRawMaterialEntry;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTopology.CommodityResizeDependency;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTopology.CommodityResizeDependencyEntry;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
@@ -52,7 +53,6 @@ import com.vmturbo.platform.analysis.protobuf.QuoteFunctionDTOs.QuoteFunctionDTO
 import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.utilities.CostFunctionFactory;
 import com.vmturbo.platform.analysis.utilities.DoubleTernaryOperator;
-import com.vmturbo.platform.analysis.utilities.FunctionalOperator;
 import com.vmturbo.platform.analysis.utilities.FunctionalOperatorUtil;
 
 /**
@@ -117,39 +117,6 @@ public final class ProtobufToAnalysis {
             case UPDATINGFUNCTIONTYPE_NOT_SET:
             default:
                 throw new IllegalArgumentException("input = " + input);
-        }
-    }
-
-    /**
-     * Converts a {@link UpdatingFunctionTO} to a {@link FunctionalOperator quantity
-     * updating function}.
-     *
-     * @param input The {@link UpdatingFunctionTO} to convert.
-     * @return The resulting {@link FunctionalOperator quantity updating function}.
-     */
-    public static @NonNull FunctionalOperator updatingFunctionalOperator(@NonNull UpdatingFunctionTO input) {
-        switch (input.getUpdatingFunctionTypeCase()) {
-            case MAX:
-                return FunctionalOperatorUtil.MAX_COMM;
-            case MIN:
-                return FunctionalOperatorUtil.MIN_COMM;
-            case PROJECT_SECOND:
-                return FunctionalOperatorUtil.RETURN_BOUGHT_COMM;
-            case DELTA:
-                return FunctionalOperatorUtil.ADD_COMM;
-            case AVG_ADD:
-                return FunctionalOperatorUtil.AVG_COMMS;
-            case IGNORE_CONSUMPTION:
-                return FunctionalOperatorUtil.IGNORE_CONSUMPTION;
-            case UPDATE_EXPENSES:
-                return FunctionalOperatorUtil.UPDATE_EXPENSES;
-            case EXTERNAL_UPDATE:
-                return FunctionalOperatorUtil.EXTERNAL_UPDATING_FUNCTION;
-            case UPDATE_COUPON:
-                return FunctionalOperatorUtil.UPDATE_COUPON_COMM;
-            case UPDATINGFUNCTIONTYPE_NOT_SET:
-            default:
-                return null;
         }
     }
 
@@ -244,14 +211,18 @@ public final class ProtobufToAnalysis {
      * @param destination The {@link CommoditySoldSettings} instance to put the settings to.
      */
     public static void populateCommoditySoldSettings(@NonNull CommoditySoldSettingsTO source,
-                                                     @NonNull CommoditySoldSettings destination) {
+                                                     @NonNull CommoditySoldSettings destination,
+                                                     @NonNull TraderSettingsTO entitySett) {
         destination.setResizable(source.getResizable());
         destination.setCapacityLowerBound(source.getCapacityLowerBound());
         destination.setCapacityUpperBound(source.getCapacityUpperBound());
         destination.setCapacityIncrement(source.getCapacityIncrement());
         destination.setUtilizationUpperBound(source.getUtilizationUpperBound()).setOrigUtilizationUpperBound(source.getUtilizationUpperBound());
         destination.setPriceFunction(priceFunction(source.getPriceFunction()));
-        destination.setUpdatingFunction(updatingFunctionalOperator(source.getUpdateFunction()));
+        CostDTO costDTO = (entitySett.getQuoteFunction().hasRiskBased() == true) ?
+                        entitySett.getQuoteFunction().getRiskBased().getCloudCost() : null;
+        destination.setUpdatingFunction(FunctionalOperatorUtil.createUpdatingFunction(
+                                                  costDTO, source.getUpdateFunction()));
     }
 
     /**
@@ -261,7 +232,8 @@ public final class ProtobufToAnalysis {
      * @param destination The {@link CommoditySold} to put the data to.
      */
     public static void populateCommoditySold(@NonNull CommoditySoldTO source,
-                                             @NonNull CommoditySold destination) {
+                                             @NonNull CommoditySold destination,
+                                             @NonNull TraderTO entity) {
         destination.setQuantity(source.getQuantity());
         destination.setPeakQuantity(source.getPeakQuantity());
         destination.setMaxQuantity(source.getMaxQuantity());
@@ -271,7 +243,8 @@ public final class ProtobufToAnalysis {
             source.getPeakQuantity() ? source.getQuantity() :
                 source.getPeakQuantity());
         destination.setThin(source.getThin());
-        populateCommoditySoldSettings(source.getSettings(), destination.getSettings());
+        populateCommoditySoldSettings(source.getSettings(), destination.getSettings(),
+                                      entity.getSettings());
     }
 
     /**
@@ -352,7 +325,10 @@ public final class ProtobufToAnalysis {
         populateTraderSettings(topology, input.getSettings(), output.getSettings());
         output.setDebugEnabled(input.getDebugEnabled());
         for (CommoditySoldTO commoditySold : input.getCommoditiesSoldList()) {
-            populateCommoditySold(commoditySold, output.getCommoditySold(commoditySpecification(commoditySold.getSpecification())));
+            populateCommoditySold(commoditySold, 
+                                  output.getCommoditySold(
+                                                 commoditySpecification(commoditySold.getSpecification())),
+                                  input);
         }
 
         if (input.getState() == TraderStateTO.IDLE) {

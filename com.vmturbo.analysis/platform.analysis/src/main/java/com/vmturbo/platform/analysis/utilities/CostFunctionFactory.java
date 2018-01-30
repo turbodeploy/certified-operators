@@ -1,8 +1,6 @@
 package com.vmturbo.platform.analysis.utilities;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -21,6 +19,7 @@ import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
+import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 import com.vmturbo.platform.analysis.ede.QuoteMinimizer;
 import com.vmturbo.platform.analysis.pricefunction.QuoteFunctionFactory;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs;
@@ -452,7 +451,7 @@ public class CostFunctionFactory {
      * @return the cost given by {@link CostFunction}
      */
     public static double calculateDiscountedComputeCost(ShoppingList buyer, Trader seller,
-                    CbtpCostDTO cbtpResourceBundle, Economy economy) {
+                    CbtpCostDTO cbtpResourceBundle, UnmodifiableEconomy economy) {
 
         // Match the vm with a template in order to:
         // 1) Estimate the number of coupons requested by the vm

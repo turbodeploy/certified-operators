@@ -2,11 +2,16 @@ package com.vmturbo.platform.analysis.utilities;
 
 import java.util.Optional;
 
+import org.checkerframework.checker.nullness.qual.NonNull;
+
 import com.vmturbo.matrix.component.TheMatrix;
 import com.vmturbo.matrix.component.external.MatrixInterface;
 import com.vmturbo.platform.analysis.economy.BalanceAccount;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CbtpCostDTO;
+import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO;
 import com.vmturbo.platform.analysis.topology.Topology;
 import java.util.ArrayList;
 import java.util.List;
@@ -17,8 +22,131 @@ import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ede.QuoteMinimizer;
+import com.vmturbo.platform.analysis.pricefunction.QuoteFunctionFactory;
 
 public class FunctionalOperatorUtil {
+
+    /**
+     * Creates {@link CostFunction} for a given seller.
+     *
+     * @param costDTO the DTO carries the cost information
+     * @param updateFunctionDTO contains the updateFunctionType
+     * @return CostFunction
+     */
+    public static @NonNull FunctionalOperator createUpdatingFunction(CostDTO costDTO,
+                                                                     UpdatingFunctionTO updateFunctionTO) {
+        switch (updateFunctionTO.getUpdatingFunctionTypeCase()) {
+            case MAX:
+                return createMaxCommUpdatingFunction(costDTO, updateFunctionTO);
+            case MIN:
+                return createMinCommUpdatingFunction(costDTO, updateFunctionTO);
+            case PROJECT_SECOND:
+                return createReturnCommBoughtUpdatingFunction(costDTO, updateFunctionTO);
+            case DELTA:
+                return createAddCommUpdatingFunction(costDTO, updateFunctionTO);
+            case AVG_ADD:
+                return createAverageCommUpdatingFunction(costDTO, updateFunctionTO);
+            case IGNORE_CONSUMPTION:
+                return createIgnoreConsumptionUpdatingFunction(costDTO, updateFunctionTO);
+            case UPDATE_EXPENSES:
+                return createExpenseUpdatingFunction(costDTO, updateFunctionTO);
+            case EXTERNAL_UPDATE:
+                return createExternalUpdatingFunction(costDTO, updateFunctionTO);
+            case UPDATE_COUPON:
+                return createCouponUpdatingFunction(costDTO, updateFunctionTO);
+            case UPDATINGFUNCTIONTYPE_NOT_SET:
+            default:
+                return null;
+        }
+    }
+
+    public static FunctionalOperator createMaxCommUpdatingFunction(CostDTO costDTO,
+                                                                   UpdatingFunctionTO updateFunctionTO) {
+        return MAX_COMM;
+    }
+
+    public static FunctionalOperator createMinCommUpdatingFunction(CostDTO costDTO,
+                                                                   UpdatingFunctionTO updateFunctionTO) {
+        return MIN_COMM;
+    }
+
+    public static FunctionalOperator createReturnCommBoughtUpdatingFunction(CostDTO costDTO,
+                                                                            UpdatingFunctionTO updateFunctionTO) {
+        return RETURN_BOUGHT_COMM;
+    }
+
+    public static FunctionalOperator createAddCommUpdatingFunction(CostDTO costDTO,
+                                                                   UpdatingFunctionTO updateFunctionTO) {
+        return ADD_COMM;
+    }
+
+    public static FunctionalOperator createAverageCommUpdatingFunction(CostDTO costDTO,
+                                                                       UpdatingFunctionTO updateFunctionTO) {
+        return AVG_COMMS;
+    }
+
+    public static FunctionalOperator createSubtractCommUpdatingFunction(CostDTO costDTO,
+                                                                        UpdatingFunctionTO updateFunctionTO) {
+        return SUB_COMM;
+    }
+
+    public static FunctionalOperator createExpenseUpdatingFunction(CostDTO costDTO,
+                                                                   UpdatingFunctionTO updateFunctionTO) {
+        return UPDATE_EXPENSES;
+    }
+
+    public static FunctionalOperator createIgnoreConsumptionUpdatingFunction(CostDTO costDTO,
+                                                                             UpdatingFunctionTO updateFunctionTO) {
+        return IGNORE_CONSUMPTION;
+    }
+
+    public static FunctionalOperator createExternalUpdatingFunction(CostDTO costDTO,
+                                                                    UpdatingFunctionTO updateFunctionTO) {
+        return EXTERNAL_UPDATING_FUNCTION;
+    }
+
+    public static FunctionalOperator createCouponUpdatingFunction(CostDTO costDTO,
+                                                                    UpdatingFunctionTO updateFunctionTO) {
+        FunctionalOperator UPDATE_COUPON_COMM = (buyer, boughtIndex, commSold, seller, economy, take)
+                        -> {
+                            CbtpCostDTO cbtpResourceBundle = costDTO.getCbtpResourceBundle();
+                            // Find the template matched with the buyer
+                            final Set<Entry<ShoppingList, Market>>
+                            shoppingListsInMarket = economy.getMarketsAsBuyer(seller).entrySet();
+                            Market market = shoppingListsInMarket.iterator().next().getValue();
+                            List<Trader> sellers = market.getActiveSellers();
+                            List<Trader> mutableSellers = new ArrayList<Trader>();
+                            mutableSellers.addAll(sellers);
+                            mutableSellers.retainAll(economy.getMarket(buyer).getActiveSellers());
+                            // Get cheapest quote, that will be provided by the matching template
+                            final QuoteMinimizer minimizer = mutableSellers.stream().collect(
+                                            () -> new QuoteMinimizer(economy, buyer), QuoteMinimizer::accept,
+                                            QuoteMinimizer::combine);
+                            Trader matchingTP = minimizer.getBestSeller();
+
+                            // The capacity of coupon commodity sold by the matching tp holds the
+                            // number of coupons associated with the template. This is the number of
+                            // coupons consumed by a vm that got placed on a cbtp.
+                            int couponCommBaseType = buyer.getBasket().get(boughtIndex).getBaseType();
+                            int indexOfCouponCommByTp = matchingTP.getBasketSold()
+                                            .indexOfBaseType(couponCommBaseType);
+                            CommoditySold couponCommSoldByTp =
+                                            matchingTP.getCommoditiesSold().get(indexOfCouponCommByTp);
+                            double requestedCoupons = couponCommSoldByTp.getCapacity();
+                            double templateCost = QuoteFunctionFactory.computeCost(buyer, matchingTP, false, economy);
+                            double availableCoupons = commSold.getCapacity() - commSold.getQuantity();
+
+                            double discountedCost = 0;
+                            if (availableCoupons > 0) {
+                                double discountCoefficient = Math.min(requestedCoupons, availableCoupons) / requestedCoupons;
+                                discountedCost = ((1 - discountCoefficient) * templateCost) + (discountCoefficient
+                                                * ((1 - cbtpResourceBundle.getDiscountPercentage()) * templateCost));
+                            }
+                            // Increase the used value of coupon commodity sold by cbtp accordingly
+                            return new double[]{(commSold.getQuantity() + requestedCoupons), 0};
+                        };
+                        return UPDATE_COUPON_COMM;
+    }
 
     public static FunctionalOperator ADD_COMM = (buyer, boughtIndex, commSold, seller, economy, take)
                     -> new double[]{buyer.getQuantities()[boughtIndex] + commSold.getQuantity(),
@@ -112,33 +240,4 @@ public class FunctionalOperatorUtil {
                         return new double[] {0, 0};
                     };
 
-   public static FunctionalOperator UPDATE_COUPON_COMM = (buyer, boughtIndex, commSold, seller, economy, take)
-                    -> {
-                        // Find the template matched with the buyer
-                        final Set<Entry<ShoppingList, Market>>
-                        shoppingListsInMarket = economy.getMarketsAsBuyer(seller).entrySet();
-                        Market market = shoppingListsInMarket.iterator().next().getValue();
-                        List<Trader> sellers = market.getActiveSellers();
-                        List<Trader> mutableSellers = new ArrayList<Trader>();
-                        mutableSellers.addAll(sellers);
-                        mutableSellers.retainAll(economy.getMarket(buyer).getActiveSellers());
-                        // Get cheapest quote, that will be provided by the matching template
-                        final QuoteMinimizer minimizer = mutableSellers.stream().collect(
-                                        () -> new QuoteMinimizer(economy, buyer), QuoteMinimizer::accept,
-                                        QuoteMinimizer::combine);
-                        Trader matchingTP = minimizer.getBestSeller();
-
-                        // The capacity of coupon commodity sold by the matching tp holds the
-                        // number of coupons associated with the template. This is the number of
-                        // coupons consumed by a vm that got placed on a cbtp.
-                        int couponCommBaseType = buyer.getBasket().get(boughtIndex).getBaseType();
-                        int indexOfCouponCommByTp = matchingTP.getBasketSold()
-                                        .indexOfBaseType(couponCommBaseType);
-                        CommoditySold couponCommSoldByTp =
-                                        matchingTP.getCommoditiesSold().get(indexOfCouponCommByTp);
-                        double requestedCoupons = couponCommSoldByTp.getCapacity();
-
-                        // Increase the used value of coupon commodity sold by cbtp accordingly
-                        return new double[]{(commSold.getQuantity() + requestedCoupons), 0};
-                    };
 }
