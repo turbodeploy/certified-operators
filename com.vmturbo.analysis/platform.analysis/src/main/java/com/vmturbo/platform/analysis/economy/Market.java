@@ -346,7 +346,7 @@ public final class Market implements Serializable {
                 // As seller
                 for (@NonNull @PolyRead Market market : trader.getMarketsAsSeller()) {
                     checkArgument(market.activeSellers_.remove(trader), "trader = " + trader);
-                    checkArgument(market.activeSellersAvailableForPlacement_.remove(trader), "trader = " + trader);
+                    market.activeSellersAvailableForPlacement_.remove(trader);
                     market.inactiveSellers_.add(trader);
                     for (@NonNull Long cliqueNumber : trader.getCliques()) {
                         checkArgument(market.cliques_.get(cliqueNumber).remove(trader),"trader = " + trader);
