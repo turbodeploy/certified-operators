@@ -83,8 +83,15 @@ public class ReportsService implements IReportsService {
     }
 
     @Override
-    public ReportScheduleApiDTO getReportScheduleByID(final String s) throws Exception {
-        return getReportTemplateScheduleList(s).iterator().next();
+    public ReportScheduleApiDTO getReportScheduleByID(final String scheduleId) {
+        if (!StringUtils.isNumeric(scheduleId)) {
+            throw new IllegalArgumentException("For report schedule provided not numeric id: " + scheduleId);
+        }
+        final Reporting.ScheduleDTO scheduleDto = reportingService.getSchedule(
+                        Reporting.ScheduleId.newBuilder()
+                                        .setId(Long.parseLong(scheduleId))
+                                        .build());
+        return toReportScheduleApiDTO(scheduleDto);
     }
 
     @Override
@@ -201,14 +208,14 @@ public class ReportsService implements IReportsService {
     }
 
     @Override
-    public ReportScheduleApiDTO getReportTemplateSchedule(final String s, final int i) {
+    public ReportScheduleApiDTO getReportTemplateSchedule(final String s, final long i) {
         final Reporting.ScheduleDTO scheduleDto = reportingService.getSchedule(
                         Reporting.ScheduleId.newBuilder().setId(i).build());
         return toReportScheduleApiDTO(scheduleDto);
     }
 
     @Override
-    public ReportScheduleApiDTO editReportTemplateSchedule(final String s, final int i, final ReportScheduleApiInputDTO reportScheduleApiInputDTO) {
+    public ReportScheduleApiDTO editReportTemplateSchedule(final String s, final long i, final ReportScheduleApiInputDTO reportScheduleApiInputDTO) {
         final Reporting.ScheduleInfo info = toScheduleInfo(s, reportScheduleApiInputDTO);
         final Reporting.ScheduleDTO scheduleDTO = Reporting.ScheduleDTO.newBuilder()
                 .setId(i).setScheduleInfo(info).build();
@@ -217,7 +224,7 @@ public class ReportsService implements IReportsService {
     }
 
     @Override
-    public void deleteReportTemplateSchedule(final String s, final int i) {
+    public void deleteReportTemplateSchedule(final String s, final long i) {
         reportingService.deleteSchedule(Reporting.ScheduleId.newBuilder().setId(i).build());
     }
 
@@ -243,12 +250,15 @@ public class ReportsService implements IReportsService {
     }
 
     private String getScopeDisplayName(@Nonnull String uuid) {
+        if (StringUtils.isBlank(uuid)) {
+            return "";
+        }
         try {
             return groupsService.getGroupByUuid(uuid, true).getDisplayName();
         } catch (UnknownObjectException e) {
             logger.warn("Cannot resolve group with oid: {}", uuid);
+            return "";
         }
-        return "";
     }
 
     /**

@@ -131,7 +131,9 @@ public class ScheduleDAOimpl implements ScheduleDAO {
                             .set(SCHEDULE.DAY_OF_WEEK, scheduleInfo.getDayOfWeek())
                             .set(SCHEDULE.FORMAT, scheduleInfo.getFormat())
                             .set(SCHEDULE.SHOW_CHARTS, (byte)(scheduleInfo.getShowCharts() ? 1 : 0))
-                            .set(SCHEDULE.SCOPE_OID, scheduleInfo.getScopeOid()).execute();
+                            .set(SCHEDULE.SCOPE_OID, scheduleInfo.getScopeOid())
+                        .where(SCHEDULE.ID.eq(scheduleDTO.getId()))
+                        .execute();
             /* As subscribers may be changed different ways we need to rewrite
              subcribers for edited schedule. */
             context.deleteFrom(SCHEDULE_SUBSCRIBERS).where(SCHEDULE_SUBSCRIBERS.SCHEDULE_ID
