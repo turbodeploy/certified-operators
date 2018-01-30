@@ -145,6 +145,8 @@ public final class ProtobufToAnalysis {
                 return FunctionalOperatorUtil.UPDATE_EXPENSES;
             case EXTERNAL_UPDATE:
                 return FunctionalOperatorUtil.EXTERNAL_UPDATING_FUNCTION;
+            case UPDATE_COUPON:
+                return FunctionalOperatorUtil.UPDATE_COUPON_COMM;
             case UPDATINGFUNCTIONTYPE_NOT_SET:
             default:
                 return null;

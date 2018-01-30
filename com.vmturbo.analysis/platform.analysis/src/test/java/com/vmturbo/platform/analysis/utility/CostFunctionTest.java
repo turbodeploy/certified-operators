@@ -33,14 +33,14 @@ public class CostFunctionTest {
         ShoppingList sl1 = TestUtils.createAndPlaceShoppingList(economy,
                         Arrays.asList(TestUtils.ST_AMT, TestUtils.IOPS), vm1, new double[] {3, 90},
                         null);
-        assertTrue(Double.isInfinite(io1Function.calculateCost(sl1, io1, true)));
+        assertTrue(Double.isInfinite(io1Function.calculateCost(sl1, io1, true, economy)));
 
         // create VM2 and get its cost from io1
         Trader vm2 = TestUtils.createVM(economy);
         ShoppingList sl2 = TestUtils.createAndPlaceShoppingList(economy,
                         Arrays.asList(TestUtils.ST_AMT, TestUtils.IOPS), vm2, new double[] {5, 500},
                         null);
-        assertTrue(Double.isInfinite(io1Function.calculateCost(sl2, io1, true)));
+        assertTrue(Double.isInfinite(io1Function.calculateCost(sl2, io1, true, economy)));
 
         // create VM3 and get its cost from io1
         Trader vm3 = TestUtils.createVM(economy);
@@ -48,7 +48,7 @@ public class CostFunctionTest {
                         Arrays.asList(TestUtils.ST_AMT, TestUtils.IOPS), vm3,
                         new double[] {10, 200}, null);
         assertEquals((10 * 0.125 + 200 * 0.065),
-                        io1Function.calculateCost(sl3, io1, true), 0.0);
+                        io1Function.calculateCost(sl3, io1, true, economy), 0.0);
     }
 
     /**
@@ -69,13 +69,13 @@ public class CostFunctionTest {
         Trader vm1 = TestUtils.createVM(economy);
         ShoppingList sl1 = TestUtils.createAndPlaceShoppingList(economy,
                         Arrays.asList(TestUtils.ST_AMT), vm1, new double[] {0.5}, null);
-        assertTrue(Double.isInfinite(premiumManagedFunction.calculateCost(sl1, premiumManaged, true)));
+        assertTrue(Double.isInfinite(premiumManagedFunction.calculateCost(sl1, premiumManaged, true, economy)));
 
         // create VM2 and get its cost from io1
         Trader vm2 = TestUtils.createVM(economy);
         ShoppingList sl2 = TestUtils.createAndPlaceShoppingList(economy,
                         Arrays.asList(TestUtils.ST_AMT), vm2, new double[] {64}, null);
-        assertEquals(10.21, premiumManagedFunction.calculateCost(sl2, premiumManaged, true),
+        assertEquals(10.21, premiumManagedFunction.calculateCost(sl2, premiumManaged, true, economy),
                         0.0);
     }
 
@@ -97,7 +97,7 @@ public class CostFunctionTest {
                         Arrays.asList(TestUtils.ST_AMT), vm1, new double[] {2000}, null);
         assertEquals(0.05 * 1024 + 0.10 * (2000 - 1024),
                         standardUnManagedFunction.calculateCost(sl1,
-                        standardUnManaged, true), 0);
+                        standardUnManaged, true, economy), 0);
 
     }
 }

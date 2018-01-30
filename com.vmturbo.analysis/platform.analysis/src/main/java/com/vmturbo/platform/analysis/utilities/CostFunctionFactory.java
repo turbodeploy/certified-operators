@@ -1,21 +1,31 @@
 package com.vmturbo.platform.analysis.utilities;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
+
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
+import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
+import com.vmturbo.platform.analysis.ede.QuoteMinimizer;
+import com.vmturbo.platform.analysis.pricefunction.QuoteFunctionFactory;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CbtpCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeResourceBundleCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeResourceBundleCostDTO.CostPair;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageResourceBundleCostDTO;
@@ -430,6 +440,70 @@ public class CostFunctionFactory {
         return cost;
     }
 
+
+    /**
+     * Calculate the discounted compute cost, based on available RIs discount on a cbtp.
+     *
+     * @param buyer {@link ShoppingList} associated with the vm that is requesting price
+     * @param seller {@link Trader} the cbtp that the buyer asks a price from
+     * @param cbtpResourceBundle {@link CbtpCostDTO} associated with the selling cbtp
+     * @param economy {@link Economy}
+     *
+     * @return the cost given by {@link CostFunction}
+     */
+    public static double calculateDiscountedComputeCost(ShoppingList buyer, Trader seller,
+                    CbtpCostDTO cbtpResourceBundle, Economy economy) {
+
+        // Match the vm with a template in order to:
+        // 1) Estimate the number of coupons requested by the vm
+        // 2) Determine the template cost the discount should apply to
+        // Get the market for the cbtp. sellers in this market are Template Providers
+        final @NonNull @ReadOnly Set<Entry<@NonNull ShoppingList, @NonNull Market>>
+        shoppingListsInMarket = economy.getMarketsAsBuyer(seller).entrySet();
+        Market market = shoppingListsInMarket.iterator().next().getValue();
+        List<Trader> sellers = market.getActiveSellers();
+        List<Trader> mutableSellers = new ArrayList<Trader>();
+        mutableSellers.addAll(sellers);
+        mutableSellers.retainAll(economy.getMarket(buyer).getActiveSellers());
+
+        // Get cheapest quote, that will be provided by the matching template
+        final QuoteMinimizer minimizer = mutableSellers.stream().collect(
+                        () -> new QuoteMinimizer(economy, buyer), QuoteMinimizer::accept,
+                        QuoteMinimizer::combine);
+        Trader matchingTP = minimizer.getBestSeller();
+
+        // The capacity of a coupon commodity sold by a template provider reflects the number of
+        // coupons associated with the template it represents. This number is the requested amount
+        // of coupons by a matching vm.
+        int indexOfCouponCommByTp = matchingTP.getBasketSold()
+                        .indexOfBaseType(cbtpResourceBundle.getCouponBaseType());
+        CommoditySold couponCommSoldByTp =
+                        matchingTP.getCommoditiesSold().get(indexOfCouponCommByTp);
+        double requestedCoupons = couponCommSoldByTp.getCapacity();
+
+        // Calculate the number of available coupons from cbtp
+        int indexOfCouponCommByCbtp = seller.getBasketSold()
+                        .indexOfBaseType(cbtpResourceBundle.getCouponBaseType());
+        CommoditySold couponCommSoldByCbtp =
+                        seller.getCommoditiesSold().get(indexOfCouponCommByCbtp);
+        double availableCoupons =
+                        couponCommSoldByCbtp.getCapacity() - couponCommSoldByCbtp.getQuantity();
+
+        // Get the cost of the template matched with the vm
+        double templateCost = QuoteFunctionFactory.computeCost(buyer, matchingTP, false, economy);
+        double discountedCost = 0;
+        if (availableCoupons > 0) {
+            double discountCoefficient = Math.min(requestedCoupons, availableCoupons) / requestedCoupons;
+            discountedCost = ((1 - discountCoefficient) * templateCost) + (discountCoefficient
+                            * ((1 - cbtpResourceBundle.getDiscountPercentage()) * templateCost));
+        } else {
+            // In case that there isn't discount available, avoid preferring a cbtp that provides
+            // no discount on tp of the matching template.
+            discountedCost = Double.POSITIVE_INFINITY;
+        }
+        return discountedCost;
+    }
+
     /**
      * Creates {@link CostFunction} for a given seller.
      *
@@ -442,10 +516,13 @@ public class CostFunctionFactory {
                 return createResourceBundleCostFunctionForStorage(costDTO.getDsResourceBundleCost());
             case PM_RESOURCE_BUNDLE_COST:
                 return createResourceBundleCostFunctionForCompute(costDTO.getPmResourceBundleCost());
+            case CBTP_RESOURCE_BUNDLE:
+                return createResourceBundleCostFunctionForCbtp(costDTO.getCbtpResourceBundle());
             default:
                 throw new IllegalArgumentException("input = " + costDTO);
         }
     }
+
 
     /**
      * Create {@link CostFunction} by extracting data from {@link StorageResourceBundleCostDTO}
@@ -464,7 +541,7 @@ public class CostFunctionFactory {
         // the capacity constraint between commodities
         List<DependentResourcePair> dependencyList =
                         translateResourceDependency(costDTO.getResourceDependencyList());
-        CostFunction costFunction = (buyer, seller, validate)
+        CostFunction costFunction = (buyer, seller, validate, economy)
                         -> {
                             if (seller == null) {
                                 return 0;
@@ -489,7 +566,7 @@ public class CostFunctionFactory {
     public static @NonNull CostFunction createResourceBundleCostFunctionForCompute(ComputeResourceBundleCostDTO costDTO) {
         Map<Integer, Double> costMap = costDTO.getCostMapList().stream().collect(Collectors.toMap(CostPair::getLicenseType,
                                                                                                CostPair::getLicenseCost));
-        CostFunction costFunction = (buyer, seller, validate)
+        CostFunction costFunction = (buyer, seller, validate, economy)
                         -> {
                             if (!validate) {
                                 // seller is the currentSupplier. Just return cost
@@ -509,5 +586,37 @@ public class CostFunctionFactory {
                         };
         return costFunction;
     }
+
+    /**
+     * Create {@link CostFunction} by extracting data from {@link CbtpCostDTO}
+     *
+     * @param costDTO the DTO carries the data used to construct cost function for cbtp
+     * @return CostFunction
+     */
+    public static @NonNull CostFunction
+                    createResourceBundleCostFunctionForCbtp(CbtpCostDTO cbtpResourceBundle) {
+
+        CostFunction costFunction = (buyer, seller, validate, economy)
+                        -> {
+                            if (!validate) {
+                                // In case that a vm is already placed on a cbtp, we need to avoid
+                                // calculating it's discounted cost in order to prevent a recursive
+                                // call to calculateDiscountedComputeCost. The recursive call will
+                                // be triggered because of the fact the cbtp is also a seller in a
+                                // market associated with the vm, and the quote minimizer will try
+                                // to calculate it's cost, that is a discounted cost.
+                                // By returning 0 we make sure that once a vm got placed on a cbtp
+                                // it will not move to another location. This assuming that the
+                                // cbtp provides the cheapest cost.
+                                return 0;
+                            }
+                            if (!validateRequestedAmountWithinSellerCapacity(buyer, seller)) {
+                                return Double.POSITIVE_INFINITY;
+                            }
+                            return calculateDiscountedComputeCost(buyer, seller, cbtpResourceBundle, economy);
+                        };
+        return costFunction;
+    }
+
 
 }

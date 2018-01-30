@@ -8,6 +8,15 @@ import com.vmturbo.platform.analysis.economy.BalanceAccount;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.topology.Topology;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+import java.util.Map.Entry;
+
+import com.vmturbo.platform.analysis.economy.Market;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
+import com.vmturbo.platform.analysis.economy.Trader;
+import com.vmturbo.platform.analysis.ede.QuoteMinimizer;
 
 public class FunctionalOperatorUtil {
 
@@ -101,5 +110,35 @@ public class FunctionalOperatorUtil {
                             }
                         }
                         return new double[] {0, 0};
+                    };
+
+   public static FunctionalOperator UPDATE_COUPON_COMM = (buyer, boughtIndex, commSold, seller, economy, take)
+                    -> {
+                        // Find the template matched with the buyer
+                        final Set<Entry<ShoppingList, Market>>
+                        shoppingListsInMarket = economy.getMarketsAsBuyer(seller).entrySet();
+                        Market market = shoppingListsInMarket.iterator().next().getValue();
+                        List<Trader> sellers = market.getActiveSellers();
+                        List<Trader> mutableSellers = new ArrayList<Trader>();
+                        mutableSellers.addAll(sellers);
+                        mutableSellers.retainAll(economy.getMarket(buyer).getActiveSellers());
+                        // Get cheapest quote, that will be provided by the matching template
+                        final QuoteMinimizer minimizer = mutableSellers.stream().collect(
+                                        () -> new QuoteMinimizer(economy, buyer), QuoteMinimizer::accept,
+                                        QuoteMinimizer::combine);
+                        Trader matchingTP = minimizer.getBestSeller();
+
+                        // The capacity of coupon commodity sold by the matching tp holds the
+                        // number of coupons associated with the template. This is the number of
+                        // coupons consumed by a vm that got placed on a cbtp.
+                        int couponCommBaseType = buyer.getBasket().get(boughtIndex).getBaseType();
+                        int indexOfCouponCommByTp = matchingTP.getBasketSold()
+                                        .indexOfBaseType(couponCommBaseType);
+                        CommoditySold couponCommSoldByTp =
+                                        matchingTP.getCommoditiesSold().get(indexOfCouponCommByTp);
+                        double requestedCoupons = couponCommSoldByTp.getCapacity();
+
+                        // Increase the used value of coupon commodity sold by cbtp accordingly
+                        return new double[]{(commSold.getQuantity() + requestedCoupons), 0};
                     };
 }

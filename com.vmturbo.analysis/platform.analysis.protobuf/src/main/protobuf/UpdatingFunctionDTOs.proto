@@ -32,6 +32,9 @@ message UpdatingFunctionTO {
 
     message IgnoreConsumption {
     }
+    
+    message UpdateCoupon {
+    }
 
     message ExternalUpdateFunction {
     }
@@ -46,5 +49,6 @@ message UpdatingFunctionTO {
         UpdateExpenses update_expenses = 6;
         IgnoreConsumption ignore_consumption = 7;
         ExternalUpdateFunction external_update = 8;
+        UpdateCoupon update_coupon = 9;
     }
 }

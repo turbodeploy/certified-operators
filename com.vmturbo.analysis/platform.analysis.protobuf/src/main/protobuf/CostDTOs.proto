@@ -9,6 +9,7 @@ message CostDTO {
     oneof cost_type {
        StorageResourceBundleCostDTO ds_resource_bundle_cost = 1;
        ComputeResourceBundleCostDTO pm_resource_bundle_cost = 2;
+        CbtpCostDTO cbtp_resource_bundle = 3;
     }
     // the DTOs specifically define cost for cloud storages
     message StorageResourceBundleCostDTO {
@@ -55,6 +56,12 @@ message CostDTO {
         required bool accumulateResources = 4 [default = false];
         optional int32 comm1Type = 5;
         optional int32 comm2Type = 6;
+    }
+    
+    // The DTOs specifically define discounted cost by AWS reserved instances
+    message CbtpCostDTO {
+        required int32 couponBaseType = 1;
+        required double discountPercentage = 2;
     }
 
 }

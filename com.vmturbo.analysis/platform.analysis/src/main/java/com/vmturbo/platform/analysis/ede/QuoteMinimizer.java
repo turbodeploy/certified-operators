@@ -19,7 +19,7 @@ import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
  *  This is intended to be used with {@link Stream#collect(Supplier, BiConsumer, BiConsumer)}.
  * </p>
  */
-final class QuoteMinimizer {
+public final class QuoteMinimizer {
     // Auxiliary Fields
     private final @NonNull UnmodifiableEconomy economy_; // should contain all the seller arguments to #accept.
     private final @NonNull ShoppingList shoppingList_; // the shopping list for which to get a quote.
