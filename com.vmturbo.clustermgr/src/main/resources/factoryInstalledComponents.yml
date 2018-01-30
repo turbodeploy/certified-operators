@@ -149,63 +149,36 @@ auth:
 
 mediation-vcenter:
   <<: *baseVmtComponentSettings
-  serverAddress: 'ws://topology-processor:8080/remoteMediation'
-  silentRetryTime: 0
-  connRetryIntervalSeconds: 10
-  sslKeystorePassword: ' '
-  sslKeystorePath: ' '
-  userName: vmtRemoteMediation
-  userPassword: vmtRemoteMediation
-  grpcPingIntervalSeconds: 300
-  websocket.pong.timeout: 30000
+  <<: &commonMediationComponentSettings
+    serverAddress: 'ws://topology-processor:8080/remoteMediation'
+    silentRetryTime: 0
+    connRetryIntervalSeconds: 10
+    sslKeystorePassword: ' '
+    sslKeystorePath: ' '
+    userName: vmtRemoteMediation
+    userPassword: vmtRemoteMediation
+    grpcPingIntervalSeconds: 300
+    websocket.pong.timeout: 30000
 
 mediation-hyperv:
   <<: *baseVmtComponentSettings
-  serverAddress: 'ws://topology-processor:8080/remoteMediation'
-  silentRetryTime: 0
-  connRetryIntervalSeconds: 10
-  sslKeystorePassword: ' '
-  sslKeystorePath: ' '
-  userName: vmtRemoteMediation
-  userPassword: vmtRemoteMediation
-  grpcPingIntervalSeconds: 300
-  websocket.pong.timeout: 30000
+  <<: *commonMediationComponentSettings
 
 mediation-netapp:
   <<: *baseVmtComponentSettings
-  serverAddress: 'ws://topology-processor:8080/remoteMediation'
-  silentRetryTime: 0
-  connRetryIntervalSeconds: 10
-  sslKeystorePassword: ' '
-  sslKeystorePath: ' '
-  userName: vmtRemoteMediation
-  userPassword: vmtRemoteMediation
-  grpcPingIntervalSeconds: 300
-  websocket.pong.timeout: 30000
+  <<: *commonMediationComponentSettings
 
 mediation-ucs:
   <<: *baseVmtComponentSettings
-  serverAddress: 'ws://topology-processor:8080/remoteMediation'
-  silentRetryTime: 0
-  connRetryIntervalSeconds: 10
-  sslKeystorePassword: ' '
-  sslKeystorePath: ' '
-  userName: vmtRemoteMediation
-  userPassword: vmtRemoteMediation
-  grpcPingIntervalSeconds: 300
-  websocket.pong.timeout: 30000
+  <<: *commonMediationComponentSettings
 
 mediation-vmax:
   <<: *baseVmtComponentSettings
-  serverAddress: 'ws://topology-processor:8080/remoteMediation'
-  silentRetryTime: 0
-  connRetryIntervalSeconds: 10
-  sslKeystorePassword: ' '
-  sslKeystorePath: ' '
-  userName: vmtRemoteMediation
-  userPassword: vmtRemoteMediation
-  grpcPingIntervalSeconds: 300
-  websocket.pong.timeout: 30000
+  <<: *commonMediationComponentSettings
+
+mediation-vmm:
+  <<: *baseVmtComponentSettings
+  <<: *commonMediationComponentSettings
 
 plan-orchestrator:
   <<: *baseVmtComponentSettings
