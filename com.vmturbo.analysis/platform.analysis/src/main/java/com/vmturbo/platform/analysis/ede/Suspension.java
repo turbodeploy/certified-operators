@@ -143,6 +143,9 @@ public class Suspension {
         Market market = (markets == null || markets.isEmpty()) ? null : markets.get(0);
 
         List<@NonNull Action> suspendActions = new ArrayList<>();
+        if (!trader.getSettings().isSuspendable()) {
+            return suspendActions;
+        }
         List<ShoppingList> customersOfSuspCandidate = new ArrayList<>();
         customersOfSuspCandidate.addAll(trader.getCustomers());
 
@@ -159,6 +162,12 @@ public class Suspension {
         if (!trader.getCustomers().isEmpty()) {
             Lists.reverse(suspendActions).forEach(axn -> axn.rollback());
             return new ArrayList<>();
+        } else {
+            // get Markets susp candidate sells in, although INACTIVE
+            // disable suspension of all other traders in markets where deactivated trader
+            // is a seller including inactive sellers as they may have been picked in the
+            // previous round
+            makeCoSellersNonSuspendable(economy, trader);
         }
         return suspendActions;
     }
@@ -239,6 +248,16 @@ public class Suspension {
     @VisibleForTesting
     public Set<Trader> getSoleProviders() {
         return soleProviders;
+    }
+
+    protected static void makeCoSellersNonSuspendable(Economy economy, Trader trader) {
+        final Trader picked = trader;
+        for (Market mktAsSeller : economy.getMarketsAsSeller(trader)) {
+            mktAsSeller.getActiveSellers().stream().filter(seller -> seller != picked)
+                            .forEach(t -> t.getSettings().setSuspendable(false));
+            mktAsSeller.getInactiveSellers().stream().filter(seller -> seller != picked)
+                            .forEach(t -> t.getSettings().setSuspendable(false));
+        }
     }
 
 }
