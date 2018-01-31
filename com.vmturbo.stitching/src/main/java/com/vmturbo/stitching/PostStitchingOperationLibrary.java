@@ -7,6 +7,7 @@ import javax.annotation.concurrent.Immutable;
 import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.stitching.poststitching.CpuAllocationPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.CpuCapacityPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.CpuProvisionedPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.StorageLatencyPostStitchingOperation.DiskArrayLatencyPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.StorageProvisionedPostStitchingOperation.DiskArrayStorageProvisionedPostStitchingOperation;
@@ -29,10 +30,14 @@ public class PostStitchingOperationLibrary {
 
     /**
      * Create a new calculation library.
+     * Note: these operations are executed in order. For now the only reason it matters is because
+     * CpuCapacityPostStitchingOperation must be executed before CpuProvisionedPostStitchingOperation
+     * and CpuAllocationPostStitchingOperation.
      */
     public PostStitchingOperationLibrary() {
         postStitchingOperations = ImmutableList.of(
             new MemoryProvisionedPostStitchingOperation(),
+            new CpuCapacityPostStitchingOperation(),
             new CpuProvisionedPostStitchingOperation(),
             new CpuAllocationPostStitchingOperation(),
             new StorageControllerLatencyPostStitchingOperation(),

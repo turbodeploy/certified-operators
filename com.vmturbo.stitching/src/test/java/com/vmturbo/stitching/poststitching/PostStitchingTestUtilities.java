@@ -1,6 +1,7 @@
 package com.vmturbo.stitching.poststitching;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
 import javax.annotation.Nonnull;
@@ -60,6 +61,14 @@ class PostStitchingTestUtilities {
         return TopologyEntity.newBuilder(
             TopologyEntityDTO.newBuilder()
                 .addAllCommoditySoldList(commoditiesSold))
+            .build();
+    }
+
+    static TopologyEntity makeTopologyEntity(@Nonnull final List<CommoditySoldDTO> commoditiesSold,
+                                             @Nonnull final Map<String, String> propertyMap) {
+        return TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
+                .addAllCommoditySoldList(commoditiesSold)
+                .putAllEntityPropertyMap(propertyMap))
             .build();
     }
 
