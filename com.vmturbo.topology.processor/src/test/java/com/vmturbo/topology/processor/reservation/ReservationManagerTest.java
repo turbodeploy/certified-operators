@@ -11,6 +11,7 @@ import java.util.Map;
 import org.joda.time.DateTimeZone;
 import org.joda.time.LocalDate;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -136,6 +137,7 @@ public class ReservationManagerTest {
                 templateConverterFactory);
     }
 
+    @Ignore
     @Test
     public void testApplyReservationReservedAndFuture() {
         Mockito.when(templateConverterFactory.generateTopologyEntityFromTemplates(
