@@ -13,6 +13,8 @@ import java.util.Map.Entry;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.stream.Collectors;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -28,6 +30,9 @@ import com.vmturbo.platform.analysis.economy.Trader;
  * of the same {@link Trader}.
  */
 public class CompoundMove extends ActionImpl {
+
+    static final Logger logger = LogManager.getLogger(CompoundMove.class);
+
     // Fields
     private final @NonNull List<@NonNull Move> moves_;
 
@@ -35,14 +40,16 @@ public class CompoundMove extends ActionImpl {
 
     /**
      * Constructs a new compound move action with the specified shopping lists, economy and
-     * destinations.
+     * destinations. The constructor is private, because it can create a compound move with
+     * empty constituent moves, thus it is used in createAndCheckCompoundMoveWithExplicitSources()
+     * which returns null and prints a diagnostic message in logs in such a case.
      *
      * @param economy The economy containing <b>shoppingLists</b> and <b>destinations</b>.
      * @param shoppingLists The shopping lists that should move atomically.
      * @param destinations The new suppliers for the shopping lists in the same order as the
      *                     shopping lists appear in the respective collection.
      */
-    public CompoundMove(@NonNull Economy economy, @NonNull Collection<@Nullable ShoppingList> shoppingLists,
+    private CompoundMove(@NonNull Economy economy, @NonNull Collection<@Nullable ShoppingList> shoppingLists,
                         @NonNull Collection<@Nullable Trader> destinations) {
         this(economy,shoppingLists,shoppingLists.stream().map(ShoppingList::getSupplier)
              .collect(Collectors.toList()),destinations);
@@ -50,7 +57,9 @@ public class CompoundMove extends ActionImpl {
 
     /**
      * Constructs a new compound move action with the specified shopping lists, economy, sources and
-     * destinations.
+     * destinations.  The constructor is private, because it can create a compound move with
+     * empty constituent moves, thus it is used in createAndCheckCompoundMoveWithImplicitSources()
+     * which returns null and prints a diagnostic message in logs in such a case.
      *
      * <p>
      *  Same as {@link #CompoundMove(Economy, Collection, Collection)}, but let's you explicitly
@@ -65,7 +74,7 @@ public class CompoundMove extends ActionImpl {
      *                Must be the same size as <b>destinations</b> and not empty.
      * @param destinations Same as for {@link #CompoundMove(Economy, Collection, Collection)}.
      */
-    public CompoundMove(@NonNull Economy economy, @NonNull Collection<@Nullable ShoppingList> shoppingLists,
+    private CompoundMove(@NonNull Economy economy, @NonNull Collection<@Nullable ShoppingList> shoppingLists,
             @NonNull Collection<@Nullable Trader> sources, @NonNull Collection<@Nullable Trader> destinations) {
         checkArgument(shoppingLists.size() == destinations.size(), "shoppingLists.size() = "
                     + shoppingLists.size() + ", destinations.size() = " + destinations.size());
@@ -201,13 +210,14 @@ public class CompoundMove extends ActionImpl {
             // NOTE: we should pass all four params instead of three in to compoundMove
             // constructor, because the move is taken, so the source of the move is not
             // the supplier of shopping list any more
-            return new CompoundMove(combinedMoveResult.get(0).getEconomy(),
-                            combinedMoveResult.stream().map(Move::getTarget)
-                                            .collect(Collectors.toList()),
-                            combinedMoveResult.stream().map(Move::getSource)
-                                            .collect(Collectors.toList()),
-                            combinedMoveResult.stream().map(Move::getDestination)
-                                            .collect(Collectors.toList()));
+            return CompoundMove.createAndCheckCompoundMoveWithExplicitSources(
+                    combinedMoveResult.get(0).getEconomy(),
+                    combinedMoveResult.stream().map(Move::getTarget)
+                            .collect(Collectors.toList()),
+                    combinedMoveResult.stream().map(Move::getSource)
+                            .collect(Collectors.toList()),
+                    combinedMoveResult.stream().map(Move::getDestination)
+                            .collect(Collectors.toList()));
         }
     }
 
@@ -262,4 +272,55 @@ public class CompoundMove extends ActionImpl {
     public ActionType getType() {
         return ActionType.COMPOUND_MOVE;
     }
+
+    public static @Nullable CompoundMove createAndCheckCompoundMoveWithExplicitSources(
+                            @NonNull Economy economy,
+                            @NonNull Collection<@Nullable ShoppingList> shoppingLists,
+                            @NonNull Collection<@Nullable Trader> sources,
+                            @NonNull Collection<@Nullable Trader> destinations) {
+
+        CompoundMove compoundMove = new CompoundMove(economy, shoppingLists, sources, destinations);
+        if (!compoundMove.getConstituentMoves().isEmpty()) {
+            return compoundMove;
+        } else {
+            StringBuilder errorMsg = new StringBuilder("A compound move with no " +
+                    "constituent actions was generated. ");
+            errorMsg.append("Current Suppliers: ");
+            for (Trader supplier : sources) {
+                errorMsg.append(supplier.getDebugInfoNeverUseInCode()).append(" ");
+            }
+            errorMsg.append("Best Suppliers: ");
+            for (Trader supplier : destinations) {
+                errorMsg.append(supplier.getDebugInfoNeverUseInCode()).append(" ");
+            }
+            logger.error(errorMsg.toString());
+            return null;
+        }
+    }
+
+    public static @Nullable CompoundMove createAndCheckCompoundMoveWithImplicitSources(
+            @NonNull Economy economy,
+            @NonNull Collection<@Nullable ShoppingList> shoppingLists,
+            @NonNull Collection<@Nullable Trader> destinations) {
+
+        CompoundMove compoundMove = new CompoundMove(economy, shoppingLists, destinations);
+        if (!compoundMove.getConstituentMoves().isEmpty()) {
+            return compoundMove;
+        } else {
+            StringBuilder errorMsg = new StringBuilder("A compound move with no " +
+                    "constituent actions was generated. ");
+            errorMsg.append("Current Suppliers: ");
+            for (ShoppingList shoppingList : shoppingLists) {
+                errorMsg.append(shoppingList.getSupplier().getDebugInfoNeverUseInCode()).
+                        append(" ");
+            }
+            errorMsg.append("Best Suppliers: ");
+            for (Trader supplier : destinations) {
+                errorMsg.append(supplier.getDebugInfoNeverUseInCode()).append(" ");
+            }
+            logger.error(errorMsg.toString());
+            return null;
+        }
+    }
+
 } // end CompoundMove class

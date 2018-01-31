@@ -307,23 +307,12 @@ public class Placement {
                 if (minimizer.getBestTotalQuote() < currentTotalQuote
                                 * economy.getSettings().getQuoteFactor()) {
                     List<Trader> bestSellers = minimizer.getBestSellers();
-                    CompoundMove compoundMove = new CompoundMove(economy, shoppingLists,
-                            currentSuppliers, bestSellers);
-                    if (!compoundMove.getConstituentMoves().isEmpty()) {
+                    CompoundMove compoundMove =
+                                        CompoundMove.createAndCheckCompoundMoveWithExplicitSources(
+                                            economy, shoppingLists, currentSuppliers, bestSellers);
+                    if (compoundMove != null) {
                         output.add(compoundMove.take().setImportance(currentTotalQuote - minimizer
                                 .getBestTotalQuote()));
-                    } else {
-                        StringBuilder errorMsg = new StringBuilder("A compound move with no " +
-                                "constituent actions was generated. ");
-                        errorMsg.append("Current Suppliers: ");
-                        for (Trader supplier : currentSuppliers) {
-                            errorMsg.append(supplier.getDebugInfoNeverUseInCode()).append(" ");
-                        }
-                        errorMsg.append("Best Suppliers: ");
-                        for (Trader supplier : bestSellers) {
-                            errorMsg.append(supplier.getDebugInfoNeverUseInCode()).append(" ");
-                        }
-                        logger.error(errorMsg.toString());
                     }
                 }
             }

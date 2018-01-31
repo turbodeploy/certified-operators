@@ -15,6 +15,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionImpl;
@@ -125,7 +126,11 @@ public class BootstrapSupply {
                         final @NonNull @ReadOnly List<Entry<@NonNull ShoppingList, @NonNull Market>>
                                 movableSlByMarket = slByMarket.stream().filter(entry1 ->
                                 entry1.getKey().isMovable()).collect(Collectors.toList());
-                        allActions.add(createCompoundMove(newSuppliers, movableSlByMarket, economy));
+                        CompoundMove compoundMove = createCompoundMove(newSuppliers,
+                                                                        movableSlByMarket, economy);
+                        if (compoundMove != null) {
+                            allActions.add(compoundMove);
+                        }
                     } else {
                         @NonNull Trader buyer = entry.getKey().getBuyer();
                         if (buyer.isDebugEnabled()) {
@@ -196,8 +201,12 @@ public class BootstrapSupply {
             if (!areAllBestSellerSameAsSupplier) {
                 // if the best quote is finite and at least one shopping list has a best seller
                 // that is not its current supplier, trigger a shop together move
-                allActions.add(new CompoundMove(economy, shoppingLists,
-                                minimizer.getBestSellers()).take());
+                CompoundMove compoundMove =
+                                        CompoundMove.createAndCheckCompoundMoveWithImplicitSources(
+                                                economy, shoppingLists, minimizer.getBestSellers());
+                if (compoundMove != null) {
+                    allActions.add(compoundMove.take());
+                }
             }
         }
         return allActions;
@@ -268,8 +277,11 @@ public class BootstrapSupply {
         }
         if (!newSuppliers.isEmpty()) {
             // do a compoundMove
-            provisionedRelatedActions
-                            .add(createCompoundMove(newSuppliers, movableSlByMarket, economy));
+            CompoundMove compoundMove = createCompoundMove(newSuppliers, movableSlByMarket,
+                                                                                        economy);
+            if (compoundMove != null) {
+                provisionedRelatedActions.add(compoundMove);
+            }
         }
         return provisionedRelatedActions;
     }
@@ -282,9 +294,10 @@ public class BootstrapSupply {
      * @param economy the {@Link Economy} for which we want to guarantee enough supply.
      * @return a {@link CompoundMove} action
      */
-    private static CompoundMove createCompoundMove (Map<@NonNull ShoppingList, @NonNull Trader> newSuppliers,
-                    @NonNull @ReadOnly List<Entry<@NonNull ShoppingList, @NonNull Market>> movableSlByMarket,
-                    Economy economy) {
+    private static @Nullable CompoundMove createCompoundMove(
+                                        Map<@NonNull ShoppingList, @NonNull Trader> newSuppliers,
+                                        @NonNull @ReadOnly List<Entry<@NonNull ShoppingList,
+                                        @NonNull Market>> movableSlByMarket, Economy economy) {
         List<@NonNull Trader> destinations = new ArrayList<>();
         List<@NonNull ShoppingList> movableSlList = new ArrayList<>();
         for(Entry<@NonNull ShoppingList, @NonNull Market> slPerMkt : movableSlByMarket) {
@@ -296,7 +309,14 @@ public class BootstrapSupply {
             }
             movableSlList.add(sl);
         }
-        return new CompoundMove(economy, movableSlList, destinations).take();
+
+        CompoundMove compoundMove = CompoundMove.createAndCheckCompoundMoveWithImplicitSources(
+                                                            economy, movableSlList, destinations);
+        if (compoundMove != null) {
+            return compoundMove.take();
+        } else {
+            return null;
+        }
     }
 
     /**

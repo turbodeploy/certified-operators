@@ -181,10 +181,13 @@ public class ReplayActions {
                         }
                         // Movable false on any shopping list, means no compound move
                         if (movable) {
-                            CompoundMove compound = new CompoundMove(economy, shoppingLists,
-                                            destinationTraders);
-                            compound.take();
-                            actions.add(compound);
+                            CompoundMove compound =
+                                        CompoundMove.createAndCheckCompoundMoveWithImplicitSources(
+                                                        economy, shoppingLists, destinationTraders);
+                            if (compound != null) {
+                                compound.take();
+                                actions.add(compound);
+                            }
                         }
                     }
                 } else {

@@ -302,7 +302,8 @@ public class AnalysisToProtobufTest {
         twoShoppingLists[0].move(pm1);
         twoShoppingLists[1].move(st1);
 
-        Action compoundMove = new CompoundMove(e, Arrays.asList(twoShoppingLists), Arrays.asList(pm2, st2));
+        Action compoundMove = CompoundMove.createAndCheckCompoundMoveWithImplicitSources(
+                                    e, Arrays.asList(twoShoppingLists), Arrays.asList(pm2, st2));
         CompoundMoveTO.Builder compoundMoveTO = CompoundMoveTO.newBuilder();
 
         ActionTO compoundMoveActionTO = ActionTO.newBuilder()

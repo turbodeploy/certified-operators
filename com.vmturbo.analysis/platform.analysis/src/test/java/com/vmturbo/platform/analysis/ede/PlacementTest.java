@@ -477,8 +477,9 @@ public class PlacementTest {
                     shoppingListsToMove.add(shoppingLists[(int)moves[i][0][0]][(int)moves[i][0][j]]);
                 }
 
-                results[i] = new CompoundMove(e, shoppingListsToMove, Stream.of(moves[i][1])
-                    .map(index -> e.getTraders().get((int)index)).collect(Collectors.toList()));
+                results[i] = CompoundMove.createAndCheckCompoundMoveWithImplicitSources(
+                        e, shoppingListsToMove, Stream.of(moves[i][1]).map(index ->
+                                e.getTraders().get((int)index)).collect(Collectors.toList()));
             }
 
             return new Object[]{e,results};
