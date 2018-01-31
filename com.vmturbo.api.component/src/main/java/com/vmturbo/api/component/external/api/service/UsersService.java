@@ -554,7 +554,6 @@ public class UsersService implements IUsersService {
 
     @Override
     public void validateInput(final Object o, final Errors errors) {
-        throw ApiUtils.notImplementedInXL();
     }
 
     /**
