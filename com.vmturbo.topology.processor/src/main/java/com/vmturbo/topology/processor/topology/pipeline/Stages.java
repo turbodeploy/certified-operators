@@ -36,6 +36,7 @@ import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
+import com.vmturbo.topology.processor.group.discovery.DiscoveredSettingPolicyScanner;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsApplicator;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
@@ -43,6 +44,7 @@ import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.group.settings.SettingOverrides;
 import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileNotifier;
 import com.vmturbo.topology.processor.reservation.ReservationManager;
+import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
 import com.vmturbo.topology.processor.topology.ConstraintsEditor;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
@@ -63,7 +65,7 @@ public class Stages {
      * This stage uploads discovered groups (and clusters) to the group component.
      * We only do this for the live topology.
      */
-    public static class UploadGroupsStage extends PassthroughStage<EntityStore> {
+    public static class UploadGroupsStage extends PassthroughStage<Map<Long, TopologyEntity.Builder>> {
 
         private final DiscoveredGroupUploader discoveredGroupUploader;
 
@@ -73,7 +75,7 @@ public class Stages {
 
         @Nonnull
         @Override
-        public void passthrough(final EntityStore input) {
+        public void passthrough(final Map<Long, TopologyEntity.Builder> input) {
             discoveredGroupUploader.uploadDiscoveredGroups();
         }
     }
@@ -82,7 +84,7 @@ public class Stages {
      * This stage uploads discovered templates and deployment profiles to the plan orchestrator.
      * We only do this for the live topology.
      */
-    public static class UploadTemplatesStage extends PassthroughStage<EntityStore> {
+    public static class UploadTemplatesStage extends PassthroughStage<Map<Long, TopologyEntity.Builder>> {
 
         private final DiscoveredTemplateDeploymentProfileNotifier notifier;
 
@@ -90,9 +92,8 @@ public class Stages {
             this.notifier = notifier;
         }
 
-        @Nonnull
         @Override
-        public void passthrough(final EntityStore input) throws PipelineStageException {
+        public void passthrough(final Map<Long, TopologyEntity.Builder> input) throws PipelineStageException {
             try {
                 notifier.sendTemplateDeploymentProfileData();
             } catch (CommunicationException e) {
@@ -108,7 +109,7 @@ public class Stages {
      * Stitching can happen in both the live topology broadcast and the plan topology broadcast if
      * the plan is on top of the "live" topology.
      */
-    public static class StitchingStage extends Stage<EntityStore, Map<Long, TopologyEntity.Builder>> {
+    public static class StitchingStage extends Stage<EntityStore, StitchingContext> {
 
         private final StitchingManager stitchingManager;
 
@@ -118,8 +119,62 @@ public class Stages {
 
         @Nonnull
         @Override
-        public Map<Long, TopologyEntity.Builder> execute(@Nonnull final EntityStore entityStore) {
-            return stitchingManager.stitch(entityStore).constructTopology();
+        public StitchingContext execute(@Nonnull final EntityStore entityStore) {
+            return stitchingManager.stitch(entityStore);
+        }
+    }
+
+    /**
+     * This stage scans service entities for discovered setting policies to be uploaded.
+     * See {@link com.vmturbo.topology.processor.topology.pipeline.Stages.UploadGroupsStage}.
+     *
+     * This stage only happens in the live topology broadcast.
+     */
+    public static class ScanDiscoveredSettingPoliciesStage
+        extends Stage<StitchingContext, Map<Long, TopologyEntity.Builder>> {
+
+        private static final Logger logger = LogManager.getLogger();
+
+        private final DiscoveredGroupUploader discoveredGroupUploader;
+        private final DiscoveredSettingPolicyScanner settingPolicyScanner;
+
+        public ScanDiscoveredSettingPoliciesStage(@Nonnull final DiscoveredSettingPolicyScanner scanner,
+                                                  @Nonnull final DiscoveredGroupUploader discoveredGroupUploader) {
+            this.settingPolicyScanner = Objects.requireNonNull(scanner);
+            this.discoveredGroupUploader = Objects.requireNonNull(discoveredGroupUploader);
+        }
+
+        @Nonnull
+        @Override
+        public Map<Long, TopologyEntity.Builder> execute(@Nonnull final StitchingContext stitchingContext) {
+            try {
+                settingPolicyScanner.scanForDiscoveredSettingPolicies(stitchingContext,
+                    discoveredGroupUploader);
+            } catch (RuntimeException e) {
+                // This stage is not required, but it's not quite a passthrough either. If an
+                // exception occurs, log a warning and continue.
+                logger.warn("Non-required pipeline stage {} failed with error: {}",
+                    getClass().getSimpleName(), e.getMessage());
+            }
+
+            return stitchingContext.constructTopology();
+        }
+    }
+
+    /**
+     * This stage construct a topology map (ie OID -> TopologyEntity.Builder) from a {@Link StitchingContext}.
+     */
+    public static class ConstructTopologyFromStitchingContextStage
+        extends Stage<StitchingContext, Map<Long, TopologyEntity.Builder>> {
+
+        public ConstructTopologyFromStitchingContextStage() {
+
+        }
+
+        @Nonnull
+        @Override
+        public Map<Long, TopologyEntity.Builder> execute(@Nonnull final StitchingContext stitchingContext) {
+            return stitchingContext.constructTopology();
         }
     }
 
@@ -149,7 +204,7 @@ public class Stages {
                     .map(TopologyEntityDTO::toBuilder)
                     .collect(Collectors.toMap(TopologyEntityDTOOrBuilder::getOid,
                         // TODO: Persist and pass through discovery information for this entity.
-                        dtoBuilder -> TopologyEntity.newBuilder(dtoBuilder)));
+                        TopologyEntity::newBuilder));
         }
     }
 

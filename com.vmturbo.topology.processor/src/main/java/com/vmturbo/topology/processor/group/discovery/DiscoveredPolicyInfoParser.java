@@ -16,6 +16,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredPolicyInfo;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintType;
@@ -243,13 +244,9 @@ public class DiscoveredPolicyInfoParser {
         final CommonDTO.GroupDTO.ConstraintInfo constraintInfo = buyers.getConstraintInfo();
         return DiscoveredPolicyInfo.newBuilder()
                 .setPolicyName(constraintInfo.getConstraintName())
-                .setBuyersGroupStringId(createStringId(buyers))
-                .setSellersGroupStringId(createStringId(sellers))
+                .setBuyersGroupStringId(GroupProtoUtil.discoveredIdFromName(buyers))
+                .setSellersGroupStringId(GroupProtoUtil.discoveredIdFromName(sellers))
                 .setConstraintType(buyers.getConstraintInfo().getConstraintType().getNumber())
                 .build();
-    }
-
-    public static String createStringId(CommonDTO.GroupDTO group) {
-        return group.getDisplayName() + "-" + group.getEntityType().toString();
     }
 }

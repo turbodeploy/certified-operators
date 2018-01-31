@@ -38,6 +38,16 @@ import com.vmturbo.topology.processor.entity.EntityStore;
  * Object is used to send newly available templates and deployment profile data to be stored in plan orchestrator.
  * Templates and DeploymentProfiles are related in a many-to-many fashion. They must be updated together
  * in order to keep both sides of the relationship in sync.
+ *
+ * TODO: (DavidBlinn 1/31/2018) There is a problem with how we presently handle
+ * TODO: discovered groups/policies/settings/templates/deployment profiles etc.
+ * TODO: These data are tied with a specific discovery and topology but because they are stored
+ * TODO: independently from each other, a discovery that completes in the middle of broadcast may
+ * TODO: result in publishing these data from a different discovery than some other part of the
+ * TODO: topology (ie the entities in the broadcast for a target may be from discovery A but the
+ * TODO: discovered groups in the same broadcast may be from discovery B). These data should all be
+ * TODO: stored together and copied together at the the first stage in the broadcast pipeline so
+ * TODO: that we can guarantee the topology we publish is internally consistent.
  */
 @ThreadSafe
 public class DiscoveredTemplateDeploymentProfileUploader implements DiscoveredTemplateDeploymentProfileNotifier {

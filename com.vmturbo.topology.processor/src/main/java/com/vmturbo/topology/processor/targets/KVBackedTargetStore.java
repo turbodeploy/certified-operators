@@ -21,6 +21,7 @@ import org.apache.logging.log4j.Logger;
 import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.kvstore.KeyValueStore;
+import com.vmturbo.platform.sdk.common.PredefinedAccountDefinition;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.AccountValue;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
@@ -91,6 +92,20 @@ public class KVBackedTargetStore implements TargetStore {
     @Override
     public Optional<Target> getTarget(final long targetId) {
         return Optional.ofNullable(targetsById.get(targetId));
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Nonnull
+    @Override
+    public Optional<String> getTargetAddress(final long targetId) {
+        return getTarget(targetId)
+            .flatMap(target -> target.getNoSecretDto().getSpec().getAccountValueList().stream()
+                .filter(accountValue -> accountValue.getKey().equalsIgnoreCase(
+                    PredefinedAccountDefinition.Address.name()))
+                .map(AccountValue::getStringValue)
+                .findFirst());
     }
 
     /**

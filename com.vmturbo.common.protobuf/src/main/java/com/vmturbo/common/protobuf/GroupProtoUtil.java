@@ -9,11 +9,15 @@ import javax.annotation.Nonnull;
 import com.google.common.base.Preconditions;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.NameFilter;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
-import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Miscellaneous utilities for messages defined in group/GroupDTO.proto.
@@ -58,9 +62,9 @@ public class GroupProtoUtil {
             case CLUSTER:
                 switch (group.getCluster().getClusterType()) {
                     case COMPUTE:
-                        return EntityType.PHYSICAL_MACHINE.getValue();
+                        return EntityType.PHYSICAL_MACHINE_VALUE;
                     case STORAGE:
-                        return EntityType.STORAGE.getValue();
+                        return EntityType.STORAGE_VALUE;
                     default:
                         throw new IllegalArgumentException("Unknown cluster type: " + group.getType());
                 }
@@ -99,6 +103,59 @@ public class GroupProtoUtil {
                 throw new IllegalArgumentException("Unknown group type: " + group.getType());
         }
         return name;
+    }
+
+    /**
+     * For groups, the identifiers used by the group component are built from the name and entity
+     * type of groups. This is done to distinguish groups of the same name but different entity types
+     * (ie we may discover two groups named "foo" one for storage, one for hosts), and they need
+     * to be distinguished from each other.
+     *
+     * This method operates on the SDK groups (ie as discovered by probes)
+     *
+     * @param group The group whose id should be constructed from its name.
+     * @return The id of the discovered group as used by the group component.
+     */
+    @Nonnull
+    public static String discoveredIdFromName(@Nonnull final CommonDTO.GroupDTO group) {
+        return composeId(group.getDisplayName(), group.getEntityType());
+    }
+
+    /**
+     * For groups, the identifiers used by the group component are built from the name and entity
+     * type of groups. This is done to distinguish groups of the same name but different entity types
+     * (ie we may discover two groups named "foo" one for storage, one for hosts), and they need
+     * to be distinguished from each other.
+     *
+     * This method operates on XL-internal groups.
+     *
+     * @param group The group whose id should be constructed from its name.
+     * @return The id of the discovered group as used by the group component.
+     */
+    @Nonnull
+    public static String discoveredIdFromName(@Nonnull final GroupInfo group) {
+        return composeId(group.getName(), EntityType.forNumber(group.getEntityType()));
+    }
+
+    /**
+     * For clusters, the identifiers used by the group component are built from the name and entity
+     * type of groups. This is done to distinguish clusters of the same name but different entity types
+     * (ie we may discover two clusters named "foo" one for storage, one for hosts), and they need
+     * to be distinguished from each other.
+     *
+     * @param clusterInfo The cluster whose id should be constructed from its name.
+     * @return The id of the discovered cluster as used by the group component.
+     */
+    @Nonnull
+    public static String discoveredIdFromName(@Nonnull final ClusterInfo clusterInfo) {
+        return composeId(clusterInfo.getName(),
+            clusterInfo.getClusterType() == ClusterInfo.Type.COMPUTE ?
+                EntityDTO.EntityType.PHYSICAL_MACHINE : EntityDTO.EntityType.STORAGE);
+    }
+
+    private static String composeId(@Nonnull final String originalName,
+                                    @Nonnull final EntityType entityType) {
+        return originalName + "-" + entityType;
     }
 
     /**

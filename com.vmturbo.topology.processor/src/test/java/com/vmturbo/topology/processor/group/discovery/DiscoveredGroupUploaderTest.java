@@ -6,6 +6,7 @@ import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupCons
 import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.PLACEHOLDER_INTERPRETED_GROUP;
 import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.STATIC_MEMBER_DTO;
 import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.TARGET_ID;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
@@ -15,9 +16,9 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 import javax.annotation.concurrent.ThreadSafe;
@@ -26,8 +27,6 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-
-import com.google.common.collect.ImmutableMap;
 
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
@@ -160,6 +159,40 @@ public class DiscoveredGroupUploaderTest {
             // Verify that discovered group info was not cleared by the exception
             assertFalse(recorderSpy.getDiscoveredGroupInfoByTarget().isEmpty());
         }
+    }
+
+    @Test
+    public void testAppendDiscoveredGroupsAndSettings() {
+        final List<InterpretedGroup> groups = new ArrayList<>(); // Create a mutable list so it can be added to.
+        groups.add(PLACEHOLDER_INTERPRETED_GROUP);
+        when(converter.interpretSdkGroupList(any(), eq(TARGET_ID)))
+            .thenReturn(groups);
+        recorderSpy.setTargetDiscoveredGroups(TARGET_ID, Collections.singletonList(STATIC_MEMBER_DTO));
+        assertEquals(0, recorderSpy.getDiscoveredSettingPolicyInfoForTarget(TARGET_ID).get().size());
+        assertEquals(1, recorderSpy.getDiscoveredGroupInfoByTarget().get(TARGET_ID).size());
+
+        recorderSpy.addDiscoveredGroupsAndPolicies(TARGET_ID, Collections.singletonList(PLACEHOLDER_INTERPRETED_GROUP),
+            Collections.singletonList(DiscoveredGroupConstants.DISCOVERED_SETTING_POLICY_INFO));
+        assertEquals(1, recorderSpy.getDiscoveredSettingPolicyInfoForTarget(TARGET_ID).get().size());
+        assertEquals(2, recorderSpy.getDiscoveredGroupInfoByTarget().get(TARGET_ID).size());
+    }
+
+    @Test
+    public void testAddDiscoveredGroupsAndSettingsWhenEmpty() {
+        recorderSpy.addDiscoveredGroupsAndPolicies(TARGET_ID, Collections.singletonList(PLACEHOLDER_INTERPRETED_GROUP),
+            Collections.singletonList(DiscoveredGroupConstants.DISCOVERED_SETTING_POLICY_INFO));
+        assertEquals(1, recorderSpy.getDiscoveredSettingPolicyInfoForTarget(TARGET_ID).get().size());
+        assertEquals(1, recorderSpy.getDiscoveredGroupInfoByTarget().get(TARGET_ID).size());
+    }
+
+    @Test
+    public void testSettingPoliciesClearedBySet() {
+        recorderSpy.addDiscoveredGroupsAndPolicies(TARGET_ID, Collections.emptyList(),
+            Collections.singletonList(DiscoveredGroupConstants.DISCOVERED_SETTING_POLICY_INFO));
+        assertFalse(recorderSpy.getDiscoveredSettingPolicyInfoForTarget(TARGET_ID).get().isEmpty());
+
+        recorderSpy.setTargetDiscoveredGroups(TARGET_ID, Collections.singletonList(STATIC_MEMBER_DTO));
+        assertTrue(recorderSpy.getDiscoveredSettingPolicyInfoForTarget(TARGET_ID).get().isEmpty());
     }
 
     public static class TestDiscoveredService extends DiscoveredGroupServiceImplBase {

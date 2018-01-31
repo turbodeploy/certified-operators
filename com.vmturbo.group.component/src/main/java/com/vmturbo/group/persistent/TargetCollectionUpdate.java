@@ -19,6 +19,7 @@ import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 import com.google.common.collect.Sets;
 
+import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Origin;
@@ -29,7 +30,6 @@ import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.group.identity.IdentityProvider;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * The {@link TargetCollectionUpdate} represents the specification for an update
@@ -279,10 +279,7 @@ abstract class TargetCollectionUpdate<InstanceType, SpecType> {
 
         @Override
         protected Function<GroupInfo, String> infoIdGetter() {
-            return groupInfo ->
-                groupInfo.getName()
-                + "-"
-                + EntityType.forNumber(groupInfo.getEntityType());
+            return GroupProtoUtil::discoveredIdFromName;
         }
 
         @Override
@@ -336,11 +333,7 @@ abstract class TargetCollectionUpdate<InstanceType, SpecType> {
 
         @Override
         protected Function<ClusterInfo, String> infoIdGetter() {
-            return clusterInfo ->
-            clusterInfo.getName()
-                + "-"
-                + (clusterInfo.getClusterType() == ClusterInfo.Type.COMPUTE
-                    ? EntityType.PHYSICAL_MACHINE : EntityType.STORAGE);
+            return GroupProtoUtil::discoveredIdFromName;
         }
 
         @Override

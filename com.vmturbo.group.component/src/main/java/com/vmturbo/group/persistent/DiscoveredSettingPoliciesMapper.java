@@ -54,7 +54,7 @@ public class DiscoveredSettingPoliciesMapper {
             final Long oid = groupNamesToOids.get(groupName);
             if (oid == null) {
                 logger.warn("Invalid setting policy {}. Invalid groupName {}. Valid group names are: {}", info,
-                    groupName, groupNamesToOids.values());
+                    groupName, groupNamesToOids.keySet());
                 return Optional.empty();
             }
             groupOids.add(oid);

@@ -12,11 +12,16 @@ import org.junit.Test;
 
 import junit.framework.TestCase;
 
+import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo.Type;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.NameFilter;
 import com.vmturbo.common.protobuf.group.PolicyDTO.MergeType;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy.AtMostNPolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy.MergePolicy;
+import com.vmturbo.platform.common.dto.CommonDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class GroupProtoUtilTest {
 
@@ -96,6 +101,35 @@ public class GroupProtoUtilTest {
 
         Assert.assertTrue(result.containsAll(expected));
         Assert.assertTrue(expected.containsAll(result));
+    }
 
+    @Test
+    public void testGroupDTODiscoveredId() {
+        final CommonDTO.GroupDTO group = CommonDTO.GroupDTO.newBuilder()
+            .setDisplayName("foo")
+            .setEntityType(EntityType.PHYSICAL_MACHINE)
+            .build();
+
+        Assert.assertEquals("foo-PHYSICAL_MACHINE", GroupProtoUtil.discoveredIdFromName(group));
+    }
+
+    @Test
+    public void testGroupInfoDiscoveredId() {
+        final GroupInfo group = GroupInfo.newBuilder()
+            .setName("foo")
+            .setEntityType(EntityType.STORAGE_VALUE)
+            .build();
+
+        Assert.assertEquals("foo-STORAGE", GroupProtoUtil.discoveredIdFromName(group));
+    }
+
+    @Test
+    public void testClusterInfoDiscoveredId() {
+        final ClusterInfo group = ClusterInfo.newBuilder()
+            .setName("foo")
+            .setClusterType(Type.COMPUTE)
+            .build();
+
+        Assert.assertEquals("foo-PHYSICAL_MACHINE", GroupProtoUtil.discoveredIdFromName(group));
     }
 }

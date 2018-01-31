@@ -4,10 +4,14 @@ import java.util.Optional;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo.Type;
+import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredSettingPolicyInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
+import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintInfo;
@@ -55,6 +59,15 @@ class DiscoveredGroupConstants {
             .setClusterType(Type.COMPUTE)
             .setName("cluster")
             .build();
+
+    static final DiscoveredSettingPolicyInfo DISCOVERED_SETTING_POLICY_INFO = DiscoveredSettingPolicyInfo.newBuilder()
+        .addDiscoveredGroupNames(CLUSTER_DTO.getGroupName())
+        .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+        .setName("discovered-setting-policy")
+        .addSettings(Setting.newBuilder()
+                .setSettingSpecName(EntitySettingSpecs.CpuUtilization.getSettingName())
+                .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(55.0f))
+        ).build();
 
     static final CommonDTO.GroupDTO SELECTION_DTO = CommonDTO.GroupDTO.newBuilder()
             .setEntityType(EntityType.VIRTUAL_MACHINE)

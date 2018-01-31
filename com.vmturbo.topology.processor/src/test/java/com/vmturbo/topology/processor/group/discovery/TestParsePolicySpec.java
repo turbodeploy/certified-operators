@@ -9,6 +9,7 @@ import java.util.stream.Collectors;
 import org.junit.Assert;
 import org.junit.Test;
 
+import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredPolicyInfo;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintInfo;
@@ -69,8 +70,7 @@ public class TestParsePolicySpec {
         Assert.assertEquals(2, policies.size());
 
         Map<String, CommonDTO.GroupDTO> stringIdToGroup = groups.stream()
-            .collect(Collectors.toMap(
-                DiscoveredPolicyInfoParser::createStringId, Function.identity()));
+            .collect(Collectors.toMap(GroupProtoUtil::discoveredIdFromName, Function.identity()));
 
         for (DiscoveredPolicyInfo policyInfo : policies) {
             CommonDTO.GroupDTO buyers = stringIdToGroup.get(policyInfo.getBuyersGroupStringId());
@@ -117,8 +117,7 @@ public class TestParsePolicySpec {
         Assert.assertEquals(2, policies.size());
 
         Map<String, CommonDTO.GroupDTO> stringIdToGroup = groups.stream()
-                        .collect(Collectors.toMap(
-                            DiscoveredPolicyInfoParser::createStringId, Function.identity()));
+            .collect(Collectors.toMap(GroupProtoUtil::discoveredIdFromName, Function.identity()));
         for (DiscoveredPolicyInfo policyInfo : policies) {
             CommonDTO.GroupDTO buyers = stringIdToGroup.get(policyInfo.getBuyersGroupStringId());
             Assert.assertEquals(policyInfo.getPolicyName(),

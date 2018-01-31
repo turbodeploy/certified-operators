@@ -32,6 +32,7 @@ import com.vmturbo.topology.processor.api.server.TopologyBroadcast;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
+import com.vmturbo.topology.processor.group.discovery.DiscoveredSettingPolicyScanner;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
@@ -46,6 +47,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.BroadcastStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.GraphCreationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PolicyStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PostStitchingStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.ScanDiscoveredSettingPoliciesStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.SettingsResolutionStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.StitchingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.TopologyAcquisitionStage;
@@ -62,31 +64,31 @@ public class StagesTest {
 
     @Test
     public void testUploadGroupsStage() {
-        final EntityStore entityStore = mock(EntityStore.class);
+        final Map<Long, TopologyEntity.Builder> topology = ImmutableMap.of(7L, topologyEntityBuilder(entity));
         final DiscoveredGroupUploader uploader = mock(DiscoveredGroupUploader.class);
         final UploadGroupsStage stage = new UploadGroupsStage(uploader);
-        stage.passthrough(entityStore);
+        stage.passthrough(topology);
         verify(uploader).uploadDiscoveredGroups();
     }
 
     @Test
     public void testUploadTemplatesStage() throws Exception {
-        final EntityStore entityStore = mock(EntityStore.class);
+        final Map<Long, TopologyEntity.Builder> topology = ImmutableMap.of(7L, topologyEntityBuilder(entity));
         final DiscoveredTemplateDeploymentProfileNotifier uploader =
                 mock(DiscoveredTemplateDeploymentProfileNotifier.class);
         final UploadTemplatesStage stage = new UploadTemplatesStage(uploader);
-        stage.passthrough(entityStore);
+        stage.passthrough(topology);
         verify(uploader).sendTemplateDeploymentProfileData();
     }
 
     @Test(expected = PipelineStageException.class)
     public void testUploadTemplatesStageException() throws Exception {
-        final EntityStore entityStore = mock(EntityStore.class);
+        final Map<Long, TopologyEntity.Builder> topology = ImmutableMap.of(7L, topologyEntityBuilder(entity));
         final DiscoveredTemplateDeploymentProfileNotifier uploader =
                 mock(DiscoveredTemplateDeploymentProfileNotifier.class);
         doThrow(CommunicationException.class).when(uploader).sendTemplateDeploymentProfileData();
         final UploadTemplatesStage stage = new UploadTemplatesStage(uploader);
-        stage.passthrough(entityStore);
+        stage.passthrough(topology);
     }
 
     @Test
@@ -99,7 +101,21 @@ public class StagesTest {
         when(stitchingContext.constructTopology()).thenReturn(Collections.emptyMap());
 
         final StitchingStage stitchingStage = new StitchingStage(stitchingManager);
-        assertThat(stitchingStage.execute(entityStore), is(Collections.emptyMap()));
+        assertThat(stitchingStage.execute(entityStore).constructTopology(), is(Collections.emptyMap()));
+    }
+
+    @Test
+    public void testScanDiscoveredSettingPoliciesStage() {
+        final DiscoveredGroupUploader uploader = mock(DiscoveredGroupUploader.class);
+        final DiscoveredSettingPolicyScanner scanner = mock(DiscoveredSettingPolicyScanner.class);
+        final StitchingContext stitchingContext = mock(StitchingContext.class);
+
+        when(stitchingContext.constructTopology()).thenReturn(Collections.emptyMap());
+
+        final ScanDiscoveredSettingPoliciesStage scannerStage =
+            new ScanDiscoveredSettingPoliciesStage(scanner, uploader);
+        assertThat(scannerStage.execute(stitchingContext), is(Collections.emptyMap()));
+        verify(scanner).scanForDiscoveredSettingPolicies(eq(stitchingContext), eq(uploader));
     }
 
     @Test

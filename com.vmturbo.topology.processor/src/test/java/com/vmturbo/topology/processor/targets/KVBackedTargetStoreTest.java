@@ -36,6 +36,7 @@ import com.vmturbo.platform.common.dto.Discovery.AccountDefEntry;
 import com.vmturbo.platform.common.dto.Discovery.AccountValue;
 import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
+import com.vmturbo.platform.sdk.common.PredefinedAccountDefinition;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
 import com.vmturbo.topology.processor.api.dto.InputField;
@@ -116,6 +117,35 @@ public class KVBackedTargetStoreTest {
     }
 
     @Test
+    public void testGetProbeName() throws Exception {
+        AccountDefEntry plain = AccountDefEntry.newBuilder()
+            .setCustomDefinition(
+                CustomAccountDefEntry.newBuilder()
+                    .setName(PredefinedAccountDefinition.Address.name().toLowerCase())
+                    .setDisplayName("this is my address")
+                    .setDescription("The address")
+                    .setIsSecret(false))
+            .setMandatory(true)
+            .build();
+
+        ProbeInfo pi = ProbeInfo.newBuilder()
+            .setProbeCategory("test")
+            .setProbeType("vc")
+            .addTargetIdentifierField(PredefinedAccountDefinition.Address.name().toLowerCase())
+            .addAccountDefinition(plain)
+            .build();
+
+        Mockito.when(identityProvider.getTargetId(any())).thenReturn(0L);
+        Mockito.when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(pi));
+
+        final TargetRESTApi.TargetSpec spec = new TargetRESTApi.TargetSpec(0L, Collections.singletonList(
+            new InputField(PredefinedAccountDefinition.Address.name().toLowerCase(), "foo", Optional.empty())));
+        targetStore.createTarget(spec.toDto());
+
+        Assert.assertEquals("foo", targetStore.getTargetAddress(0L).get());
+    }
+
+    @Test
     public void testCreateTargetNotifiesListeners() throws Exception {
         Mockito.when(identityProvider.getTargetId(any())).thenReturn(0L);
         Mockito.when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(probeInfo));
@@ -165,7 +195,7 @@ public class KVBackedTargetStoreTest {
                                                         CustomAccountDefEntry.newBuilder()
                                                                              .setName("password")
                                                                              .setDisplayName(
-                                                                                     "Password")
+                                                                                 "Password")
                                                                              .setDescription("The user password")
                                                                              .setIsSecret(true))
                                                 .setMandatory(true)
@@ -175,7 +205,7 @@ public class KVBackedTargetStoreTest {
                                                        CustomAccountDefEntry.newBuilder()
                                                                             .setName("user")
                                                                             .setDisplayName(
-                                                                                    "userName")
+                                                                                "userName")
                                                                             .setDescription("The user name")
                                                                             .setIsSecret(false))
                                                .setMandatory(true)

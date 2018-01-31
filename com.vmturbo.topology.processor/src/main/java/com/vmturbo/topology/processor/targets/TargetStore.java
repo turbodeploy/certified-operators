@@ -25,6 +25,14 @@ public interface TargetStore {
     @Nonnull Optional<Target> getTarget(final long targetId);
 
     /**
+     * Get the name of a target if it exists.
+     *
+     * @param targetId OID of the target to look for.
+     * @return The name of the target, or an empty optional if the target is not found or has no name.
+     */
+    @Nonnull Optional<String> getTargetAddress(final long targetId);
+
+    /**
      * Retrieve all stored targets.
      *
      * @return A list of all targets registered in the store.

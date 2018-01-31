@@ -9,6 +9,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -334,6 +335,23 @@ class DiscoveredGroupInterpreter {
             dtoAsGroup.ifPresent(builder::setInterpretedGroup);
             dtoAsCluster.ifPresent(builder::setInterpretedCluster);
             return builder.build();
+        }
+
+        @Override
+        public int hashCode() {
+            return com.google.common.base.Objects.hashCode(dto, dtoAsCluster, dtoAsGroup);
+        }
+
+        @Override
+        public boolean equals(@Nullable Object other) {
+            if (!(other instanceof InterpretedGroup)) {
+                return false;
+            }
+
+            final InterpretedGroup ig = (InterpretedGroup)other;
+            return com.google.common.base.Objects.equal(dto, ig.dto) &&
+                com.google.common.base.Objects.equal(dtoAsCluster, ig.dtoAsCluster) &&
+                com.google.common.base.Objects.equal(dtoAsGroup, ig.dtoAsGroup);
         }
     }
 

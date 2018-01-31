@@ -13,8 +13,10 @@ import com.vmturbo.topology.processor.ClockConfig;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorApiConfig;
 import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.group.GroupConfig;
+import com.vmturbo.topology.processor.group.discovery.DiscoveredSettingPolicyScanner;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
 import com.vmturbo.topology.processor.plan.PlanConfig;
+import com.vmturbo.topology.processor.probes.ProbeConfig;
 import com.vmturbo.topology.processor.repository.RepositoryConfig;
 import com.vmturbo.topology.processor.reservation.ReservationConfig;
 import com.vmturbo.topology.processor.stitching.StitchingConfig;
@@ -36,7 +38,9 @@ import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineFactory;
     RepositoryConfig.class,
     TemplateConfig.class,
     ClockConfig.class,
-    ReservationConfig.class
+    ReservationConfig.class,
+    ProbeConfig.class,
+    TargetConfig.class
 })
 public class TopologyConfig {
 
@@ -70,6 +74,12 @@ public class TopologyConfig {
     @Autowired
     private ReservationConfig reservationConfig;
 
+    @Autowired
+    private ProbeConfig probeConfig;
+
+    @Autowired
+    private TargetConfig targetConfig;
+
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
 
@@ -89,6 +99,11 @@ public class TopologyConfig {
     }
 
     @Bean
+    public DiscoveredSettingPolicyScanner discoveredSettingPolicyScanner() {
+        return new DiscoveredSettingPolicyScanner(probeConfig.probeStore(), targetConfig.targetStore());
+    }
+
+    @Bean
     public TopologyPipelineFactory topologyPipelineFactory() {
         return new TopologyPipelineFactory(apiConfig.topologyProcessorNotificationSender(),
                 groupConfig.policyManager(),
@@ -101,7 +116,8 @@ public class TopologyConfig {
                 repositoryConfig.repository(),
                 groupConfig.topologyFilterFactory(),
                 groupConfig.groupServiceClient(),
-                reservationConfig.reservationManager());
+                reservationConfig.reservationManager(),
+                discoveredSettingPolicyScanner());
     }
 
     @Bean
